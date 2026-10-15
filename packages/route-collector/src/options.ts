@@ -230,11 +230,12 @@ export interface RouteCollectorOptions {
    *
    * A server-rendered route is on screen before React owns it, and the
    * component behind a node can only be read once React has committed the
-   * root it belongs to. A route that has not committed by then is still
-   * collected, with a `hydration-unfinished` diagnostic saying its components
-   * were not read. A route with no React root says `react-root-absent`. Paid
-   * only while a root is still hydrating, or by a route with no root at all;
-   * `wiring: false` skips the wait.
+   * root it belongs to, and an effect that runs after hydration can paint a
+   * different image. A route that has not committed by then is refused, with
+   * the roots still hydrating counted. A route with no React root is collected
+   * with a `react-root-absent` diagnostic. Paid only while a root is still
+   * hydrating, or by a route with no root at all; `wiring: false` skips the
+   * wait.
    */
   readonly hydrationTimeoutMs?: number;
 

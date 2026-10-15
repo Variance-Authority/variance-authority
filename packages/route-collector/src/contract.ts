@@ -119,10 +119,9 @@ export type Collected =
        *
        * Not about the picture, which the document and the snapshot carry, but
        * about the reading: a route whose components could not be read because
-       * React had not finished hydrating it, or because no React root reached
-       * it at all. Each leaves a real image to compare and changes what a region
-       * with no component means, so a run carries them into the subject's
-       * record.
+       * no React root was found for it at all. It leaves a real image to
+       * compare and changes what a region with no component means, so a run
+       * carries it into the subject's record.
        */
       readonly diagnostics?: readonly Diagnostic[];
     }

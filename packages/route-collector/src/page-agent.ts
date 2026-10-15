@@ -153,11 +153,10 @@ export interface Acquired {
    * Whether React had committed into the document by the time it was read.
    *
    * Absent when the run turned `wiring` off, which is the run saying it never
-   * expected a fiber. `hydrating` is a page React had not committed within the
-   * budget, so a node with no component on it is unobserved; `unrooted` is a
-   * page no React root was found on. The driver turns either into a diagnostic,
-   * so the reader of a report with no `file:line` on it can tell which it has,
-   * instead of inferring a production build.
+   * expected a fiber. Reported rather than acted on here, like `suspense`: the
+   * driver refuses a page still `hydrating`, and turns `unrooted` — a page no
+   * React root was found on — into a diagnostic, so the reader of a report with
+   * no `file:line` on it can tell why instead of inferring a production build.
    */
   readonly hydration?: HydrationSettlement;
 }

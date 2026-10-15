@@ -329,7 +329,7 @@ loudest first: `a11y`, `geometry`, `token`, `content`, `texture`.
 | `readyTimeoutMs` | A declared readiness marker legitimately needs longer. | `10000`. A timeout is reported, never replaced by a fallback capture. |
 | `loading` | A route's *fallback* is the state you intend to review. | Omitted. Id globs, matched against the subject id. |
 | `suspenseTimeoutMs` | A route legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
-| `hydrationTimeoutMs` | A server-rendered route takes React longer than two seconds to hydrate. | `2000`. `0` reads once. A route still hydrating is collected with a `hydration-unfinished` warning; one with no React root, with `react-root-absent`. Not read while `wiring` is off. |
+| `hydrationTimeoutMs` | A server-rendered route takes React longer than two seconds to hydrate. | `2000`. `0` reads once. A route still hydrating is refused; one with no React root is collected with a `react-root-absent` warning. Not read while `wiring` is off. |
 | `headless` | You need to watch collection while debugging. | `true`. |
 | `network` | Asset bytes at stable URLs must affect render identity. | `true`. |
 | `portable` | The pixels will be made on a machine with no route to your asset origin. | `false`. Requires `network`; a resource that cannot be closed fails its route and names itself. |
@@ -347,11 +347,12 @@ server-rendered route is on screen before React has committed it, and the
 component behind a node can only be read after that commit. So the collector
 reads React's own record of each root on, above or under the selected roots,
 the `Document` included, and waits until every one has committed. A route
-React had not finished hydrating when `hydrationTimeoutMs` runs out is still
-collected, with a `hydration-unfinished` warning: its image and document are
-read, its components are not, and a changed region on it names no component
-for that reason. A route where no React root is found says `react-root-absent`
-instead. With `wiring: false` the collector reads no components, waits for
+React had not finished hydrating when `hydrationTimeoutMs` runs out is refused,
+as a route still showing a Suspense fallback is: an effect that runs after
+hydration can paint a different image, so the same route would record one image
+on a slow run and another on a fast one. A route where no React root is found
+is collected with a `react-root-absent` warning, and a changed region on it
+names no component for that reason. With `wiring: false` the collector reads no components, waits for
 nothing, and says nothing.
 
 Then it waits for every React Suspense boundary

@@ -21,11 +21,14 @@ import { routeCollector, type Collected, type Collector, type Plan, type RouteCo
  * nodes carry a fiber and the count holds still. Only React's own record of the
  * root says the commit has not happened.
  *
- * Two answers are asserted, because a region with no component means different
- * things depending on why. A route React had not finished hydrating within the
- * budget is unobserved, and says so in a diagnostic. A route no React root
- * reached says that instead. A run that declared it reads no React
- * (`wiring: false`) says nothing, because it expected nothing.
+ * A route React had not finished hydrating within the budget is refused, as a
+ * route still showing a Suspense fallback is: an effect that runs after
+ * hydration — a mounted flag, a theme read from storage, a layout measured on
+ * the client — paints a different image, so what was read is not yet the page.
+ * A route no React root was found for is collected, and says so in a
+ * diagnostic, because a region with no component there means something
+ * different. A run that declared it reads no React (`wiring: false`) says
+ * nothing, because it expected nothing.
  */
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -175,10 +178,7 @@ afterAll(async () => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-async function read(
-  address: string,
-  options: RouteCollectorOptions = {},
-): Promise<Extract<Collected, { ok: true }>> {
+async function collect(address: string, options: RouteCollectorOptions = {}): Promise<Collected> {
   const collector = await routeCollector({
     routes: { 'page/app': address },
     roots: ['#app'],
@@ -194,7 +194,14 @@ async function read(
   });
   collectors.push(collector);
 
-  const collected = await collector.collect(PLAN.subjects[0]!);
+  return collector.collect(PLAN.subjects[0]!);
+}
+
+async function read(
+  address: string,
+  options: RouteCollectorOptions = {},
+): Promise<Extract<Collected, { ok: true }>> {
+  const collected = await collect(address, options);
   if (!collected.ok) throw new Error(collected.because);
   return collected;
 }
@@ -236,11 +243,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('reading components off a route that hydrate
     expect(codes(collected)).toEqual([]);
   }, 120_000);
 
-  it('says hydration was unfinished when the budget runs out', async () => {
-    const collected = await read(`${base}?hold=60000`, { hydrationTimeoutMs: 500 });
+  it('refuses a route React had not finished hydrating when the budget ran out', async () => {
+    const collected = await collect(`${base}?hold=60000`, { hydrationTimeoutMs: 500 });
 
-    expect(authorOfLate(collected)).toBeUndefined();
-    expect(codes(collected)).toEqual(['hydration-unfinished']);
+    expect(collected.ok).toBe(false);
+    if (collected.ok) return;
+    expect(collected.because).toMatch(/^`page\/app` was still hydrating when it was read: 1 of 1 React root/);
+    expect(collected.because).toMatch(/hydrationTimeoutMs/);
   }, 120_000);
 
   it('says no React root reached a route that has none', async () => {

@@ -225,6 +225,15 @@ export async function readRoute(
     };
   }
 
+  // Ahead of the Suspense ruling, because it is the cause of that one: a root
+  // that has not committed holds no boundary React has finished reading, and a
+  // loading declaration would be refused for a tree it could not see.
+  const hydrating = acquired.hydration === undefined ? undefined : hydrationRefusal(acquired.hydration, id);
+  if (hydrating !== undefined) {
+    await noted(false);
+    return { ok: false, because: hydrating };
+  }
+
   // The forced decision. A route still showing a fallback is refused with the
   // boundary named, unless somebody declared that this is the subject.
   const unsettled = suspenseRefusal(acquired.suspense, {
@@ -257,7 +266,7 @@ export async function readRoute(
 
   await noted(true);
 
-  const hydration = acquired.hydration === undefined ? undefined : unhydrated(acquired.hydration, planned.subject.id);
+  const hydration = acquired.hydration === undefined ? undefined : rootless(acquired.hydration, id);
 
   return {
     ok: true,
@@ -294,44 +303,47 @@ export async function readRoute(
 }
 
 /**
- * What a route read without its components says about why, or `undefined`
- * when React had hydrated it and every component read is an observation.
+ * Why a route React had not finished hydrating must not be recorded, or
+ * `undefined` when it had.
  *
- * Collected rather than refused. The image and the document are right either
- * way, and a route that keeps its comparison and loses its component names is
- * better than a route with no comparison. What must not happen is the loss
- * passing unsaid: a region with no component on a route React had not
- * finished hydrating is unobserved, and without this line it reads the same as
- * a node no component wrote.
+ * Refused, not collected, for the reason ADR-0037 refuses a Suspense fallback.
+ * The server's markup is not the page a visitor ends on: an effect that runs
+ * after hydration — a mounted flag, a theme read from storage, a layout
+ * measured on the client — paints a different image, and a baseline taken
+ * before it flips with the speed of the machine. The components are missing
+ * too, since nothing is read off a render React has not committed.
  */
-function unhydrated(settlement: HydrationSettlement, subjectId: string): Diagnostic | undefined {
-  const after = `${Math.round(settlement.waitedMs)}ms`;
+function hydrationRefusal(settlement: HydrationSettlement, subjectId: string): string | undefined {
+  if (settlement.state !== 'hydrating') return undefined;
+  return (
+    `\`${subjectId}\` was still hydrating when it was read: ${settlement.pending} of ` +
+    `${settlement.roots} React root(s) had not committed after ${Math.round(settlement.waitedMs)}ms. ` +
+    'An effect that runs after hydration can paint a different image, so the same route ' +
+    'records one image on a slow run and another on a fast one. Raise `hydrationTimeoutMs`, ' +
+    'or find what holds the shell: a promise read outside any <Suspense> holds hydration ' +
+    'until it settles.'
+  );
+}
 
-  if (settlement.state === 'hydrating') {
-    return {
-      severity: 'warn',
-      code: 'hydration-unfinished',
-      message:
-        `React had not finished hydrating ${subjectId} after ${after}: ` +
-        `${settlement.pending} of ${settlement.roots} React root(s) had not committed. ` +
-        'Its components were not read, so a changed region here names no component. ' +
-        'Raise `hydrationTimeoutMs`, or find what holds the shell: a promise read ' +
-        'outside any <Suspense> holds hydration until it settles.',
-    };
-  }
-
-  if (settlement.state === 'unrooted') {
-    return {
-      severity: 'warn',
-      code: 'react-root-absent',
-      message:
-        `No React root was found on, above or under ${subjectId} after ${after}, ` +
-        'so its components were not read. Either React does not render this route, ' +
-        'or its client had not created a root yet. Set `wiring: false` when React ' +
-        'does not render these routes, or raise `hydrationTimeoutMs` when the ' +
-        'client starts late.',
-    };
-  }
-
-  return undefined;
+/**
+ * What a route no React root was found for says about why it names no
+ * component, or `undefined` when a root was found.
+ *
+ * Collected rather than refused: no React is a page this run can compare, and
+ * a static page or a client that never started is a page somebody may mean to
+ * test. What must not happen is the absence passing unsaid, because without
+ * this line a route with no React reads the same as a node no component wrote.
+ */
+function rootless(settlement: HydrationSettlement, subjectId: string): Diagnostic | undefined {
+  if (settlement.state !== 'unrooted') return undefined;
+  return {
+    severity: 'warn',
+    code: 'react-root-absent',
+    message:
+      `No React root was found on, above or under ${subjectId} after ` +
+      `${Math.round(settlement.waitedMs)}ms, so its components were not read. Either React ` +
+      'does not render this route, or its client had not created a root yet. Set ' +
+      '`wiring: false` when React does not render these routes, or raise ' +
+      '`hydrationTimeoutMs` when the client starts late.',
+  };
 }
