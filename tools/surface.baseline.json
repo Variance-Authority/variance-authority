@@ -2064,6 +2064,7 @@
         "FiberWalkOptions": "interface",
         "FiberWalkResult": "interface",
         "HydrationSettlement": "interface",
+        "HydrationState": "type",
         "HydrationWaitOptions": "interface",
         "LoadingDeclaration": "interface",
         "MemoizedUpdatersResult": "interface",
