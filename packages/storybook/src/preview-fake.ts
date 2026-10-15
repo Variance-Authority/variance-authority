@@ -42,6 +42,7 @@ export type Behaviour =
   | 'renders'
   | 'declares'
   | 'silent'
+  | 'still-rendering'
   | 'empty'
   | 'never-settles'
   | 'never-finishes'
@@ -89,6 +90,11 @@ export function fakePreview(
   const handlers = new Map<string, Set<(payload: unknown) => void>>();
   const emitted: { event: string; payload: unknown }[] = [];
   const selection: { storyId?: string } = {};
+  /**
+   * Storybook's `currentRender`: the story it holds and how far that render has
+   * got. The phases are Storybook's own `StoryRender.phase` values.
+   */
+  const render: { id?: string; phase?: string } = {};
   const pending: ReturnType<typeof setTimeout>[] = [];
   const repeating: ReturnType<typeof setInterval>[] = [];
 
@@ -100,6 +106,8 @@ export function fakePreview(
 
   const fire = (event: string, payload: unknown): void => {
     fired.add(event);
+    if (event === 'storyRendered') render.phase = 'completed';
+    if (event === 'storyFinished') render.phase = 'finished';
     for (const handler of handlers.get(event) ?? []) handler(payload);
   };
 
@@ -115,6 +123,8 @@ export function fakePreview(
 
   const select = (storyId: string): void => {
     selection.storyId = storyId;
+    render.id = storyId;
+    render.phase = 'rendering';
     document.body.classList.remove('sb-show-errordisplay');
 
     switch (script[storyId] ?? 'renders') {
@@ -143,11 +153,20 @@ export function fakePreview(
         break;
       case 'silent':
         // Rendered, but says nothing: the shape of the first story of a session,
-        // whose `storyRendered` fired before anything was listening.
+        // whose `storyRendered` fired before anything was listening. Its render
+        // is over, and `currentRender` says so.
+        root.replaceChildren(paragraph(storyId));
+        render.phase = 'finished';
+        break;
+      case 'still-rendering':
+        // Markup on screen and not changing, while Storybook is still in the
+        // middle of the render: a loader, a `play` or a decorator not done yet.
         root.replaceChildren(paragraph(storyId));
         break;
       case 'empty':
+        // A render that finished and mounted nothing.
         root.replaceChildren();
+        render.phase = 'finished';
         break;
       case 'finishes-badly':
         // Rendered, finished, and failed: a `play` that threw after the last
@@ -187,6 +206,7 @@ export function fakePreview(
         message.textContent = `${storyId} could not be rendered`;
         document.body.appendChild(message);
         document.body.classList.add('sb-show-errordisplay');
+        render.phase = 'errored';
         break;
       }
     }
@@ -220,7 +240,13 @@ export function fakePreview(
       // switch to.
       Reflect.set(window, '__STORYBOOK_ADDONS_CHANNEL__', channel);
     } else {
-      Reflect.set(window, '__STORYBOOK_PREVIEW__', { channel, currentSelection: selection });
+      Reflect.set(window, '__STORYBOOK_PREVIEW__', {
+        channel,
+        currentSelection: selection,
+        get currentRender() {
+          return render.id === undefined ? undefined : { ...render };
+        },
+      });
     }
   }
 

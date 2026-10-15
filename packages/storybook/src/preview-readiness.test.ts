@@ -57,8 +57,8 @@ describe('a subject that declares its own readiness', () => {
 
   it('times out rather than falling back when a configured marker never appears', async () => {
     // The property this whole feature stands on. Both weaker paths are covered:
-    // `a--one` is the story the URL already selected, whose markup goes quiet
-    // immediately, and `a--two` is switched over the channel and does emit
+    // `a--one` is the story the URL already selected, whose render is already
+    // over, and `a--two` is switched over the channel and does emit
     // `storyRendered`. Either one answered with `rendered` would mean a project
     // that asked to be asked was quietly answered with a guess — and it would
     // believe it held the strong signal while holding the weak one.
@@ -74,7 +74,6 @@ describe('a subject that declares its own readiness', () => {
     expect(outcomes.map((outcome) => outcome.status)).toEqual(['timeout', 'timeout']);
     expect(outcomes.map((outcome) => outcome.readiness)).toEqual(['none', 'none']);
     for (const outcome of outcomes) {
-      expect(outcome.readiness).not.toBe('markup-quiescent');
       expect(outcome.readiness).not.toBe('storyRendered');
       expect(outcome.readiness).not.toBe('already-rendered');
     }
@@ -117,9 +116,8 @@ describe('a subject that declares its own readiness', () => {
   });
 
   it('accepts the marker alone when there is no channel to hear Storybook on', async () => {
-    // Without a channel there is no framework signal to wait for, and the
-    // fallback would otherwise be markup quiescence — which is exactly what the
-    // marker exists to replace.
+    // Without a channel there is no framework signal to wait for, so the marker
+    // is the only thing that can say the story is ready.
     preview = fakePreview({ 'a--one': 'declares' }, false);
     const page = fakePage(preview);
 

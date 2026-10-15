@@ -153,8 +153,7 @@ export interface CollectOptions {
    * Selector for a readiness marker the subject attaches when it has settled —
    * `[data-testid="story-ready"]`, or whatever the project already uses.
    *
-   * Omitted, nothing changes: readiness is decided by Storybook's signal and the
-   * quiescence fallback, exactly as before. Supplied, it becomes the only thing
+   * Omitted, readiness is decided by Storybook's own signal. Supplied, it becomes the only thing
    * that can produce a `rendered` outcome, and a story that never attaches it
    * times out rather than being captured on weaker evidence.
    *
