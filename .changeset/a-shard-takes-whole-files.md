@@ -47,13 +47,14 @@ its `cost` and `load` are always present, one per group when placed by count.
 by the same rule, and a subject another shard owns reads
 `assigned to shard k/n by count, …`.
 
-A Jest configuration wrapped by `withTestSelection` and evaluated under
-`--shard` gets `passWithNoTests: true` unless it sets `passWithNoTests` itself,
-so a shard left no file, because there are fewer files than shards, passes as it
-does under Vitest and Playwright. An unsharded run that finds no file still
-fails.
+A Jest or Vitest configuration wrapped by `withTestSelection` and evaluated
+under `--shard` gets `passWithNoTests: true` unless it sets `passWithNoTests`
+itself, so a shard left no file, because there are fewer files than shards,
+passes as it does under Playwright. Vitest 4 refused such a run before any file
+was placed. An unsharded run that finds no file still fails.
 
-`shardOf(files, shard, times)` and `landingTimes(record, options)` are exported
+`shardOf(files, shard, times)`, `landingTimes(record, options)` and
+`shardArgument(argv)`, which reads the `--shard k/n` a command line asks for, are exported
 from `@variance-authority/sense/test-selection`, for a seam that places a shard
 by the same rule.
 
