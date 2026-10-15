@@ -48,14 +48,14 @@ import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   ownership,
-  readImportTargets,
-  readOfferings,
+  readWorkspaceManifests,
   type Help,
   type HelpOptions,
   type ImportTargets,
   type Offering,
   type Usage,
   type Use,
+  type WorkspaceManifests,
 } from '@variance-authority/package/help';
 import { collectingUsage } from './collect-usage.js';
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
@@ -271,6 +271,12 @@ export async function readWorkspace(root: string, options: ReadingOptions = {}):
   return documentWorkspace(read, options);
 }
 
+/** `readWorkspace` over the manifests a caller read from `root` a moment before. */
+export async function readWorkspaceOver(root: string, manifests: WorkspaceManifests, options: ReadingOptions = {}): Promise<Help> {
+  const read = await scanWorkspace(root, options, manifests);
+  return documentWorkspace(read, options);
+}
+
 /**
  * Refresh volatile source facts while retaining a previously documented surface.
  *
@@ -305,12 +311,10 @@ interface WorkspaceScan {
   readonly changed?: readonly string[];
 }
 
-async function scanWorkspace(root: string, options: ReadingOptions): Promise<WorkspaceScan> {
+async function scanWorkspace(root: string, options: ReadingOptions, read?: WorkspaceManifests): Promise<WorkspaceScan> {
   const where = resolve(root);
-  const { offerings, targets } = await stepped(options.progress, `reading the package manifests of ${where}`, () => ({
-    offerings: readOfferings(where, { ...options, tolerant: options.tolerant ?? true }),
-    targets: readImportTargets(where),
-  }));
+  const { offerings, targets } = read ?? await stepped(options.progress, `reading the package manifests of ${where}`, () =>
+    readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
   const scope = scanScope(where, offerings);
   const opened = new Set(
     offerings.flatMap((offering) =>

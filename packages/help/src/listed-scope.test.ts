@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readOfferings, type Help } from '@variance-authority/package/help';
 import { readWorkspace, readWorkspaceSnapshot } from './read.js';
-import { refreshWorkspaceFromIndex } from './refresh-native.js';
+import { publishWorkspaceFromIndex } from './refresh-native.js';
 import { scanScope } from './scan-scope.js';
 
 /**
@@ -77,9 +77,8 @@ describe('a workspace whose members sit beside its root', () => {
 
   it('is refreshed from the index `variance index` keeps for it, with no scan', async () => {
     await readWorkspace(product, { index });
-    const documented = await readWorkspaceSnapshot(product, { index });
 
-    const generation = await refreshWorkspaceFromIndex(product, documented, { index });
+    const generation = await publishWorkspaceFromIndex(product, { index });
 
     expect(generation).toEqual(expect.any(String));
     expect(users(await readWorkspaceSnapshot(product, { index }))).toEqual(['c see <- product/packages/a/src/index.ts']);

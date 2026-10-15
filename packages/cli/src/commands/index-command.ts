@@ -161,17 +161,16 @@ async function followUps(request: IndexRequest, update: SourceUpdate, readied?: 
  */
 async function answerable(root: string, index: string, noGit: boolean, progress: Progress | undefined): Promise<string> {
   // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
-  const { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } =
-    await import('@variance-authority/help');
+  const { publishedGeneration, publishWorkspaceFromIndex, workspaceSnapshotPath } = await import('@variance-authority/help');
   const at = workspaceSnapshotPath(index);
   try {
     // The index was written a moment ago, so the previous value is refreshed from it without
     // reading the chain into records; a changed surface reads the way a first publish does.
-    const told = progress === undefined ? {} : { progress };
-    const previous = await stepped(progress, 'reading the questions published last', () =>
-      readWorkspaceSnapshot(root, { index }).catch(() => undefined));
-    const refreshed = previous === undefined ? undefined : await refreshWorkspaceFromIndex(root, previous, { index, ...(noGit ? { packs: false } : {}), ...told });
-    const generation = refreshed ?? workspaceGeneration(await readWorkspace(root, { index, saveIndex: false, ...(noGit ? { packs: false } : {}), ...told }));
+    const generation = await publishWorkspaceFromIndex(root, {
+      index,
+      ...(noGit ? { packs: false } : {}),
+      ...(progress === undefined ? {} : { progress }),
+    });
     const published = await publishedGeneration(root, index);
     if (generation === undefined || published !== generation) {
       return `questions: not published: the value read back from ${at} is not the one this run wrote`;

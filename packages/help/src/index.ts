@@ -38,7 +38,7 @@ export {
   workspaceSnapshotPath,
 } from './read.js';
 export type { AnsweringOptions, ReadingOptions, SnapshotOptions } from './read.js';
-export { refreshWorkspaceFromIndex } from './refresh-native.js';
+export { publishWorkspaceFromIndex, type FromIndexOptions } from './refresh-native.js';
 export { readNamedTree, type NamedTree } from './names-read.js';
 export { readSearchForAnswer } from './search-read.js';
 export type { SearchIndex } from './search-index.js';

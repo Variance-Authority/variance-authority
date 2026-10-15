@@ -10,16 +10,16 @@ import {
 } from '@variance-authority/sense';
 
 import {
-  readImportTargets,
-  readOfferings,
+  readWorkspaceManifests,
   type Deep,
   type Help,
   type HelpOptions,
   type Taken,
   type Usage,
   type Use,
+  type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { joinUsage, samePackages } from './read.js';
+import { joinUsage, readWorkspaceOver, readWorkspaceSnapshot, samePackages } from './read.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import { publishedRows } from './search-index.js';
 import {
@@ -36,6 +36,39 @@ import {
 
 // compass: variance-authority.report.agent-surface
 
+
+/** How a value is published from an index `variance index` wrote a moment before. */
+export type FromIndexOptions = HelpOptions & {
+  readonly index?: string;
+  /** `false` reads the workspace's own index from the working tree, as `variance index --no-git` does. */
+  readonly packs?: boolean;
+  readonly progress?: Progress;
+};
+
+/**
+ * Publish the questions about the workspace at `root` from an index that was
+ * just written: the value published last refreshed from it, or the workspace
+ * read when that value is missing or cannot be refreshed. The generation
+ * published, `undefined` when nothing was.
+ *
+ * Both halves start from the manifests, which on a workspace that lists
+ * thousands of members are the costliest read before the index, so they are
+ * read once here and handed to whichever half runs.
+ */
+export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions = {}): Promise<string | undefined> {
+  const where = resolve(root);
+  const previous = await stepped(options.progress, 'reading the questions published last', () =>
+    readWorkspaceSnapshot(where, options.index === undefined ? {} : { index: options.index }).catch(() => undefined));
+  const manifests = await manifestsOf(where, options);
+  const refreshed = previous === undefined ? undefined : await refreshOver(where, previous, manifests, options);
+  // The index is the caller's, written a moment ago and saved by it.
+  return refreshed ?? workspaceGeneration(await readWorkspaceOver(where, manifests, { ...options, saveIndex: false }));
+}
+
+function manifestsOf(where: string, options: FromIndexOptions): Promise<WorkspaceManifests> {
+  return stepped(options.progress, `reading the package manifests of ${where}`, () =>
+    readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
+}
 
 /**
  * Refresh a published value from an index that was just written, with the
@@ -58,19 +91,12 @@ import {
  * value this refresh would write, so it is kept and its generation answered:
  * an index that did not move costs its value nothing.
  */
-export async function refreshWorkspaceFromIndex(
-  root: string,
+async function refreshOver(
+  where: string,
   documented: Help,
-  options: HelpOptions & {
-    readonly index?: string;
-    /** `false` reads the workspace's own index from the working tree, as `variance index --no-git` does. */
-    readonly packs?: boolean;
-    readonly progress?: Progress;
-  } = {},
+  { offerings, targets }: WorkspaceManifests,
+  options: FromIndexOptions,
 ): Promise<string | undefined> {
-  const where = resolve(root);
-  const offerings = await stepped(options.progress, `reading the package manifests of ${where}`, () =>
-    readOfferings(where, { ...options, tolerant: options.tolerant ?? true }));
   const scope = scanScope(where, offerings);
   if (!samePackages({ root: scope.root, offerings }, documented)) return undefined;
   const opened = offerings.flatMap((offering) => offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`));
@@ -94,7 +120,7 @@ export async function refreshWorkspaceFromIndex(
   let reading: Awaited<ReturnType<typeof readHelp>>;
   try {
     reading = await stepped(options.progress, 'reading what each file imports and exports, from the index', () =>
-      readHelp(scope.root, opened, readImportTargets(where), index));
+      readHelp(scope.root, opened, targets, index));
   } catch {
     return undefined;
   }

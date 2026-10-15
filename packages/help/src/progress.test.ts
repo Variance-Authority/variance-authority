@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readWorkspace, readWorkspaceSnapshot } from './read.js';
-import { refreshWorkspaceFromIndex } from './refresh-native.js';
+import { readWorkspace } from './read.js';
+import { publishWorkspaceFromIndex } from './refresh-native.js';
 
 /**
  * What reading a workspace says while it reads.
@@ -49,11 +49,10 @@ describe('a workspace read with progress', () => {
     expect(told).toEqual(steps.flatMap((step) => [`start ${step}`, `end ${step}`]));
   });
 
-  it('names the steps of a refresh from the index, ending with the publish', async () => {
+  it('names the steps of a publish from the index, the manifests once', async () => {
     await readWorkspace(WORKSPACE, { index: at });
-    const documented = await readWorkspaceSnapshot(WORKSPACE, { index: at });
     const told: string[] = [];
-    await refreshWorkspaceFromIndex(WORKSPACE, documented, {
+    await publishWorkspaceFromIndex(WORKSPACE, {
       index: at,
       progress: (step) => {
         told.push(`start ${step}`);
@@ -61,7 +60,12 @@ describe('a workspace read with progress', () => {
       },
     });
 
-    expect(told[0]).toMatch(/^start reading the package manifests of /);
+    expect(told.slice(0, 3)).toEqual([
+      'start reading the questions published last',
+      'end reading the questions published last',
+      expect.stringMatching(/^start reading the package manifests of /),
+    ]);
+    expect(told.filter((line) => line.startsWith('start reading the package manifests of '))).toHaveLength(1);
     expect(told.every((line, at) => line.startsWith(at % 2 === 0 ? 'start ' : 'end '))).toBe(true);
   });
 });
