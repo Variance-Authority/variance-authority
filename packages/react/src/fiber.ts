@@ -401,3 +401,31 @@ export function findReactContainers(scope: ParentNode): Element[] {
   }
   return found;
 }
+
+/**
+ * The HostRoot fiber React cached on a container, resolved to current.
+ *
+ * A container is usually an element, and is the `Document` itself for an
+ * application that hydrates the whole page (`hydrateRoot(document, …)`), which
+ * is why this takes any object rather than an `Element`.
+ *
+ * `markContainerAsRoot` writes the fiber once, at mount, and never re-points it
+ * — the same double-buffering hazard `currentFiber` documents for host nodes. An
+ * unresolved read here would walk the *stale* tree, where a boundary's
+ * `memoizedState` is one commit behind, and report a spinner that has already
+ * gone away.
+ */
+export function containerFiber(node: object): Fiber | null {
+  const record = node as unknown as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!key.startsWith(CONTAINER_KEY_PREFIX)) continue;
+    const fiber = record[key] as Fiber | null | undefined;
+    if (!fiber) return null;
+    try {
+      return currentFiber(fiber);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}

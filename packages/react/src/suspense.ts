@@ -1,6 +1,6 @@
 import {
   FiberTag,
-  currentFiber,
+  containerFiber,
   findFiber,
   findReactContainers,
   hasFiber,
@@ -117,9 +117,6 @@ const MAX_WALK_DEPTH = 10_000;
  */
 const MAX_FIBERS = 500_000;
 
-/** Written onto the element passed to `createRoot`/`render`. */
-const CONTAINER_KEY_PREFIX = '__reactContainer$';
-
 /**
  * Every Suspense boundary in the subtree a DOM node roots.
  *
@@ -233,30 +230,6 @@ export function suspenseBoundaries(scope: ParentNode): readonly SuspenseBoundary
  */
 export function pendingSuspense(node: Node): readonly SuspenseBoundary[] {
   return suspenseBoundariesIn(node).filter((boundary) => boundary.state !== 'resolved');
-}
-
-/**
- * The HostRoot fiber React cached on a container element, resolved to current.
- *
- * `markContainerAsRoot` writes the fiber once, at mount, and never re-points it
- * — the same double-buffering hazard `currentFiber` documents for host nodes. An
- * unresolved read here would walk the *stale* tree, where a boundary's
- * `memoizedState` is one commit behind, and report a spinner that has already
- * gone away.
- */
-function containerFiber(element: Element): Fiber | null {
-  const record = element as unknown as Record<string, unknown>;
-  for (const key of Object.keys(record)) {
-    if (!key.startsWith(CONTAINER_KEY_PREFIX)) continue;
-    const fiber = record[key] as Fiber | null | undefined;
-    if (!fiber) return null;
-    try {
-      return currentFiber(fiber);
-    } catch {
-      return null;
-    }
-  }
-  return null;
 }
 
 /**
