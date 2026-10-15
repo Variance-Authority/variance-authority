@@ -1461,7 +1461,7 @@ remain separate files.
 accounting.
 
 When the page will be opened somewhere its images are not, add
-`--embed-images` and it carries the pictures of every subject it shows:
+`--embed-images` and it carries the pictures its cards show:
 
 ```bash
 variance report --format html --embed-images > variance-report.html
@@ -1471,17 +1471,23 @@ One file then opens anywhere. On GitHub Actions, upload it
 with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
 opens the page in the browser instead of downloading a zip.
 
-The file is about four thirds the size of those pictures: a subject with a
-baseline and a change carries three, and an unchanged subject carries none,
-because the page shows no card for it. Every subject's card comes first in the
-file and the pictures follow in the order the page shows them, so you can
-filter, read regions and copy commands while the pictures are still loading.
-Each picture keeps its place at its own size before it arrives, and is loaded
-lazily, so the browser is asked to decode only the ones near the screen. The
+The file grows with what changed, not with the size of your pages. An
+unchanged subject carries no picture, because the page shows no card for it.
+A subject whose run cut a change picture carries that picture, and carries a
+full page only when the page holds no more pixels than the change picture: a
+tall page with a few changed lines is carried as its crop, and its card names
+each full page it leaves out, with its size. Those pages stay beside
+`report.json`, so the run's artifact still holds them.
+
+Every subject's card comes first in the file, then the picture each card opens
+on, then the pictures behind its other views. You can filter, read regions and
+copy commands while the pictures are still arriving, and every card's change is
+on screen before any card's other views have loaded. Each picture keeps its
+place at its own size before it arrives, and stays text until a view near the
+screen shows it, so opening the page decodes only what you are looking at. The
 page's script turns each carried picture into an image, so a viewer that runs
 no script shows the cards without their pictures. The command writes the page
-as it goes, one picture at a time, so its memory does not grow with the run;
-the browser's holds every picture once, at about its size on disk.
+as it goes, one picture at a time, so its memory does not grow with the run.
 
 ### Detect instability with `run --flakes`
 

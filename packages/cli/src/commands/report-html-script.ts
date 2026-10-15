@@ -11,9 +11,16 @@ export const SCRIPT = `
 var $=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
 
 /* A carried picture: base64 in an element nothing runs, turned into a blob: URL
-   for every image that names it, and the text dropped so it is held once. */
-window.variancePicture=function(n){
-  var el=document.getElementById('picture-'+n); if(!el) return;
+   for every image that names it, and the text dropped so it is held once.
+   Turned when an image naming it comes near the screen, not when it arrives:
+   decoding every picture at load is the cost the page exists to avoid. An
+   image hidden by its view does not intersect, so a view's pictures are
+   turned when the reviewer opens it. */
+var wanted={}, turned={};
+var turn=function(n){
+  if(turned[n]) return;
+  var el=document.getElementById('picture-'+n); if(!el){wanted[n]=true; return}
+  turned[n]=true;
   var b64=el.textContent, bytes;
   if(Uint8Array.fromBase64) bytes=Uint8Array.fromBase64(b64);
   else{var raw=atob(b64); bytes=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i)}
@@ -21,6 +28,15 @@ window.variancePicture=function(n){
   el.remove();
   $('img[data-picture="'+n+'"]').forEach(function(img){img.src=url});
 };
+var near=typeof IntersectionObserver==='function'?new IntersectionObserver(function(seen){
+  seen.forEach(function(e){
+    if(!e.isIntersecting) return;
+    near.unobserve(e.target); turn(e.target.getAttribute('data-picture'));
+  });
+},{rootMargin:'100% 0px'}):null;
+$('img[data-picture]').forEach(function(img){if(near) near.observe(img)});
+/* Called as each picture arrives; without an observer every picture is turned. */
+window.variancePicture=function(n){if(!near||wanted[n]) turn(String(n))};
 
 /* Region overlay. The natural size is the raster's size, so boxes scale with the
    rendered image and never need a width the report does not carry. */

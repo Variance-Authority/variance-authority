@@ -217,6 +217,97 @@ describe('report --format html --embed-images', () => {
     expect(new Set(shown).size).toBe(5);
   });
 
+  /**
+   * A subject with a change picture, its full pages `pageHeight` rows tall and
+   * the change `changeHeight`, each picture written as `<name>.<side>.png`.
+   */
+  async function cropped(name: string, pageHeight: number, changeHeight: number): Promise<Map<string, Buffer>> {
+    const pictures = new Map<string, Buffer>();
+    const images: Record<string, string> = {};
+    for (const side of ['before', 'diff', 'after', 'change'] as const) {
+      const path = `images/${name}.${side}.png`;
+      const picture = png(1280, side === 'change' ? changeHeight : pageHeight, 4096);
+      pictures.set(side, picture);
+      await writeFile(join(root, path), picture);
+      images[side] = path;
+    }
+    return new Map([
+      ...pictures,
+      [
+        'entry',
+        Buffer.from(
+          JSON.stringify({
+            subject: `route:/${name}`,
+            verdict: 'changed',
+            because: '86 pixel(s) differ across 1 region(s)',
+            changedPixels: 86,
+            regions: [{ x: 0, y: 40, width: 200, height: 20, pixels: 86, cause: true }],
+            images,
+          }),
+        ),
+      ],
+    ]);
+  }
+
+  it('carries a long page as its change picture, and names the full pages it leaves out', async () => {
+    // A reference page captured whole is 57,691 rows: three of them were 42 MB
+    // of a page whose change was a few lines, and the card opens on the crop.
+    const long = await cropped('long', 57691, 1397);
+    await run(0, 4096, [JSON.parse(long.get('entry')!.toString())]);
+    const html = (await page()).join('');
+
+    expect(html).toContain(long.get('change')!.toString('base64'));
+    for (const side of ['before', 'diff', 'after']) {
+      expect(html).not.toContain(long.get(side)!.toString('base64'));
+      expect(html).not.toMatch(new RegExp(`<img class="${side}"`));
+    }
+    expect(html.match(/type="application\/octet-stream"/g)).toHaveLength(1);
+    expect(html).toMatch(/<p class="left"[^>]*>[^<]*before 1280×57691/);
+  });
+
+  it('carries every full page no larger than the change picture, so the other views stay', async () => {
+    const short = await cropped('short', 800, 1397);
+    await run(0, 4096, [JSON.parse(short.get('entry')!.toString())]);
+    const html = (await page()).join('');
+
+    for (const side of ['before', 'diff', 'after', 'change']) {
+      expect(html).toContain(short.get(side)!.toString('base64'));
+    }
+    expect(html).not.toContain('<p class="left"');
+  });
+
+  it('carries the picture every card opens on before any other picture', async () => {
+    // The first subject opens on its pages, the second on its change. The
+    // second's change is on screen as soon as the first's pages are, rather
+    // than after every picture the first subject's other views need.
+    const pictures = await run(1, 4096);
+    const short = await cropped('short', 800, 1397);
+    await writeFile(
+      join(root, 'report.json'),
+      JSON.stringify({
+        ...JSON.parse((await import('node:fs')).readFileSync(join(root, 'report.json'), 'utf8')),
+        observations: [
+          {
+            subject: 'route:/page-0',
+            verdict: 'changed',
+            because: '86 pixel(s) differ across 1 region(s)',
+            changedPixels: 86,
+            regions: [],
+            images: { before: 'images/page-0.before.png', diff: 'images/page-0.diff.png', after: 'images/page-0.after.png' },
+          },
+          JSON.parse(short.get('entry')!.toString()),
+        ],
+      }),
+    );
+    const html = (await page()).join('');
+
+    const at = (picture: Buffer): number => html.indexOf(picture.toString('base64'));
+    const opening = [pictures.get('images/page-0.before.png')!, pictures.get('images/page-0.after.png')!, short.get('change')!];
+    const rest = [pictures.get('images/page-0.diff.png')!, short.get('before')!, short.get('diff')!, short.get('after')!];
+    expect(Math.max(...opening.map(at))).toBeLessThan(Math.min(...rest.map(at)));
+    expect(Math.min(...opening.map(at))).toBeGreaterThan(-1);
+  });
+
   it('names pictures by their path without --embed-images, carries none, and loads them near the screen', async () => {
     await run(1, 4096);
     const html = (await page({ embed: false })).join('');

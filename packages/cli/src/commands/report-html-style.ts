@@ -310,6 +310,7 @@ font-variant-numeric:tabular-nums;margin-left:auto}
   background:#ffffff08;white-space:nowrap;cursor:default}
 .age.new{color:var(--orange);background:#ff4a191f}
 .truncated{display:flex;gap:.5rem;align-items:center;margin:.35rem 0 0;font-size:11px}
+.left{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.35rem 0 0;font-size:11px;color:var(--warm)}
 .hidden{display:none!important}
 `;
 
