@@ -28,6 +28,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { digestString } from '../digest.js';
+import { NODE_MODULES } from './instrumented-modules.js';
 import { decode, type Segment } from './map-segments.js';
 
 /** The fields of a bundler's map this reads. */
@@ -221,7 +222,11 @@ function readable(original: (path: string) => string, path: string): string | un
  * lines. The frame is still cut from the text handed over, as before, and says
  * so with {@link RawFrame.changed}: what a caller does about it is the caller's.
  *
- * `undefined` when neither name is accepted.
+ * A module no file holds — a builder's virtual entry, such as Storybook's
+ * `storybook-stories.js` handed over at the project root — is no file a diff is
+ * written against, whatever name it is handed under, and has no frame.
+ *
+ * `undefined` when neither name is accepted, or the module has no file.
  */
 export function rawFrame(
   code: string,
@@ -238,9 +243,12 @@ export function rawFrame(
     if (frame.file === source) return frame;
   }
   if (!include(file)) return undefined;
+  // `onDisk` reads no file under `node_modules`: that one is read here only to see it is there.
+  if (read === undefined && (!NODE_MODULES.test(file) || readable(original, file) === undefined)) return undefined;
   const frame = recordedFrame(code, undefined, file, original);
   if (disk === undefined) return read === undefined ? frame : { ...frame, changed: true };
-  return frame.text !== code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
+  // Handed the file as it is, the frame already holds its digest: the text is digested once.
+  return frame.text !== code || disk === code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
 }
 
 /** A {@link RecordedFrame} as {@link rawFrame} cuts it. */
@@ -251,7 +259,6 @@ export interface RawFrame extends RecordedFrame {
 
 /** A sibling's name only: a `data:` map or a path elsewhere has a `/` in it. */
 const SOURCE_MAPPING_URL = /\/\/[#@] sourceMappingURL=([^\s'"/\\]+)(?=\s*$)/;
-const NODE_MODULES = /[/\\]node_modules[/\\]/;
 
 /**
  * The file on disk, outside `node_modules`. {@link rawFrame} takes it as the
@@ -260,16 +267,11 @@ const NODE_MODULES = /[/\\]node_modules[/\\]/;
  * read the map itself.
  */
 function onDisk(file: string, original: (path: string) => string): string | undefined {
-  if (NODE_MODULES.test(file)) return undefined;
-  try {
-    return original(file);
-  } catch {
-    return undefined;
-  }
+  return NODE_MODULES.test(file) ? undefined : readable(original, file);
 }
 
 /** The map the file on disk points at. */
-function builtMap(disk: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
+export function builtMap(disk: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
   try {
     const pointer = SOURCE_MAPPING_URL.exec(disk);
     if (pointer === null) return undefined;
@@ -290,6 +292,15 @@ function builtMap(disk: string, file: string, original: (path: string) => string
 export function handedTexts(disk: string): readonly string[] {
   const blanked = disk.replace(MAP_COMMENTS, (comment) => ' '.repeat(comment.length));
   return blanked === disk ? [disk] : [disk, blanked];
+}
+
+/**
+ * Whether the file whose contents are `disk` names its own map: a build's
+ * output. A host that reads that map composes every map after it onto it, so
+ * the map at the end names the files the build was made from, never this one.
+ */
+export function namesItsMap(disk: string): boolean {
+  return handedTexts(disk).length > 1;
 }
 
 /** The comments Vite blanks: `convert-source-map`'s `mapFileCommentRegex`, as Vite's load applies it. */

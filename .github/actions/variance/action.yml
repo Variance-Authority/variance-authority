@@ -209,6 +209,16 @@ inputs:
     required: false
     default: ''
 
+  exit-zero-on-changes:
+    description: >-
+      `true` for a check that reports rather than blocks: changes that need
+      review are named as a warning and the check passes, with the comment and
+      the report as they would be otherwise. It still fails when the run did
+      not happen, when a subject could not be observed or its observation
+      errored, and when an accept the comparison after it did not hold.
+    required: false
+    default: 'false'
+
 outputs:
   exit-code:
     description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
@@ -632,6 +642,8 @@ runs:
       env:
         CODE: ${{ steps.run.outputs.exit-code }}
         KEPT: ${{ steps.saved.outcome == 'success' }}
+        EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes }}
+        REPORT: ${{ steps.carry.outputs.report }}
         # Where the reader goes next. A push has no pull request, so pointing at
         # a comment there sends them looking for something that was never written.
         WHERE: >-
@@ -648,6 +660,26 @@ runs:
               # The run accepted, and kept it: what failed, failed against
               # this commit's own accept.
               echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE."
+            elif [ "$EXIT_ZERO_ON_CHANGES" = true ]; then
+              # A change is the reviewer's to look at whenever they get to it;
+              # a subject the run could not observe is a hole in what it says,
+              # often a server that died mid-run, and stays red. Of the
+              # conditions `exitFor` turns into 1, the holes are a `failed`
+              # subject, an `error` diagnostic and a report that does not say
+              # what it observed or skipped; an unreadable one is a hole too.
+              # An unabsorbed instability is left a change on purpose: on an
+              # ordinary run that subject is already `changed`.
+              if node -e '
+                const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+                const hole = report.observations === undefined || report.notObserved === undefined ||
+                  report.notObserved.some((entry) => entry.kind === "failed") ||
+                  report.observations.some(({ diagnostics }) => (diagnostics ?? []).some((d) => d.severity === "error"));
+                process.exit(hole ? 1 : 0);
+              ' "${REPORT:-}" 2>/dev/null; then
+                echo "::warning::variance found changes that need review; $WHERE."
+                exit 0
+              fi
+              echo "::error::variance could not observe every subject: a subject failed, an observation errored, or the report does not say what it skipped; $WHERE."
             else
               echo "::error::variance found changes that need review; $WHERE."
             fi

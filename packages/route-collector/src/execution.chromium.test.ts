@@ -91,7 +91,7 @@ chromium_('a page run whose server reports what each page ran', () => {
     const module = resolve(root, 'currency.js');
     await writeFile(module, SOURCE, 'utf8');
     await writeFile(resolve(root, 'euros.md'), '# Euros\n', 'utf8');
-    const transformed = testSelectionProbes({ root, label: 'build' }).transform(SOURCE, module)!;
+    const transformed = testSelectionProbes({ root, label: 'build' }).transform.handler(SOURCE, module)!;
     const head = collectJourneys({ head: 'site', enabled: true });
     new Function(transformed.code.replace(/\n;import "[^"]+";$/, ''))();
     const currency = (globalThis as unknown as Record<string, (locale: string) => Promise<string>>)[

@@ -1,6 +1,6 @@
 import { PNG } from 'pngjs';
 import type { ChangeMask } from '@variance-authority/core/attribute';
-import { picture, type Raster } from '@variance-authority/core/format';
+import { picture, timeOn, type Raster, type StepClock } from '@variance-authority/core/format';
 import {
   DEFAULT_POLICY,
   STRICT_POLICY,
@@ -80,7 +80,11 @@ export const pngjsDecoder: PngDecoder = {
 export async function compareRasters(
   before: Raster,
   after: Raster,
-  options: CompareOptions & { readonly decoder?: PngDecoder } = {},
+  options: CompareOptions & {
+    readonly decoder?: PngDecoder;
+    /** Takes `decode`, both images at once, and `compare`, the pixels. */
+    readonly steps?: StepClock;
+  } = {},
 ): Promise<RasterComparison> {
   const decoder = options.decoder ?? pngjsDecoder;
   // A pixel comparison of a subject with no pixels is a caller mistake, not a
@@ -88,12 +92,11 @@ export async function compareRasters(
   // and could see that one carries no image.
   const left0 = picture(before, 'before');
   const right0 = picture(after, 'after');
-  const [left, right] = await Promise.all([
-    decoder.decode(decode(left0.bytes)),
-    decoder.decode(decode(right0.bytes)),
-  ]);
+  const [left, right] = await timeOn(options.steps, 'decode', async () =>
+    Promise.all([decoder.decode(decode(left0.bytes)), decoder.decode(decode(right0.bytes))]),
+  );
 
-  return comparePixels(left, right, options);
+  return timeOn(options.steps, 'compare', () => comparePixels(left, right, options));
 }
 
 export function comparePngs(

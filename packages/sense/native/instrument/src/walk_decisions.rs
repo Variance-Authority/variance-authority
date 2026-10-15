@@ -21,7 +21,8 @@ impl Walker {
                 let end = it.consequent.span().end;
                 let owner = self.owner;
                 let ordinal = self.open(Kind::Branch, &format!("{label}/else"), end, end, Some(owner));
-                self.push(end, format_args!(" else{{__va({ordinal});}}"));
+                let probe = self.probe(ordinal);
+                self.push(end, format_args!(" else{{{probe};}}"));
             }
             Some(alternate) => self.region(alternate, Kind::Branch, &format!("{label}/else")),
         }
@@ -63,7 +64,8 @@ impl Walker {
             // a program. With no case there is no statement to end, and a bare
             // `;` is not a clause.
             let separator = if it.cases.is_empty() { "" } else { ";" };
-            self.push(at, format_args!("{separator}default:__va({ordinal});"));
+            let probe = self.probe(ordinal);
+            self.push(at, format_args!("{separator}default:{probe};"));
         }
         label
     }

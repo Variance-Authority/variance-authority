@@ -187,6 +187,8 @@
       "src/test-selection/jest.ts",
       "src/test-selection/journal.ts",
       "src/test-selection/journey.ts",
+      "src/test-selection/probes-loader.ts",
+      "src/test-selection/rstest-after-loader.ts",
       "src/test-selection/rstest-loader.ts",
       "src/test-selection/rstest.ts",
       "src/test-selection/runner.ts",
@@ -211,7 +213,8 @@
       "src/read.ts"
     ],
     "packages/storybook-collector": [
-      "src/index.ts"
+      "src/index.ts",
+      "src/preset.ts"
     ],
     "packages/tribunal": [
       "src/history.ts",

@@ -2,6 +2,7 @@ import { digestValue, type Digest } from './hash.js';
 import { tierReaches, type Tier } from './tier.js';
 import { clockById, freezeClock, freezeClockAt, noFocus, noHover, reducedMotion, UNTOUCHED } from './drive.js';
 import type { Intervention, ScreenshotOptions, SettleTarget } from './intervention.js';
+import type { StepClock } from './steps.js';
 import { waitForFonts, waitForImages } from './waits.js';
 
 /**
@@ -364,9 +365,16 @@ export function recipeScreenshot(recipe: Recipe): ScreenshotOptions {
   );
 }
 
-export async function settleRecipe(recipe: Recipe, target: SettleTarget): Promise<void> {
+/**
+ * Every wait the recipe holds, in order. Each is one step on `steps`, named by
+ * the intervention's id, so a run can say which wait a slow subject spent its
+ * time in.
+ */
+export async function settleRecipe(recipe: Recipe, target: SettleTarget, steps?: StepClock): Promise<void> {
   for (const intervention of recipe) {
-    if (intervention.settle !== undefined) await intervention.settle(target);
+    const settle = intervention.settle;
+    if (settle === undefined) continue;
+    await (steps === undefined ? settle(target) : steps.time(intervention.id, async () => settle(target)));
   }
 }
 

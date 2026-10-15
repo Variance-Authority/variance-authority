@@ -118,13 +118,12 @@
       "type": "integer",
       "minimum": 1,
       "default": 1,
-      "description": "How many subjects may be in the raster tier at once. Collection stays strictly serial however high this is set. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
+      "description": "How many subjects may be in the raster tier at once, split evenly across the worlds and rounded up, so at least one per world. It widens rendering, decoding and comparing; how many worlds collect is `workers`. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
     },
     "workers": {
       "type": "integer",
       "minimum": 1,
-      "default": 1,
-      "description": "How many standing worlds collect at once, each from the collector's `openWorker` with its own serial lane. Files go to workers whole, longest recorded first, and a worker that finishes takes the next. A collector with no `openWorker` runs one, and the report says so."
+      "description": "How many standing worlds collect at once, each from the collector's `openWorker` with its own serial lane. Absent, half the machine's logical cores, at least one, never more than a declared `concurrency` and never more than there are files. Files go to workers whole, longest recorded first, and a worker that finishes takes the next. A collector with no `openWorker` collects in one; it warns when `workers` was declared. Set 1 for a server under test that cannot take concurrent pages. The report names the worlds it used, and no verdict depends on the count."
     },
     "cacheRoot": {
       "type": "string",
@@ -242,7 +241,7 @@
           "type": "integer",
           "minimum": 0,
           "default": 20,
-          "description": "Subjects to re-collect, at most. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
+          "description": "Subjects to re-collect, at most: the first to change in the order the run takes its subjects, so the same ones at any `workers`. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
         }
       }
     },

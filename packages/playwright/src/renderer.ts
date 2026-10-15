@@ -9,11 +9,13 @@ import {
   recipeDigest,
   recipeScreenshot,
   settleRecipe,
+  stepClock,
   type PageRegion,
   type Raster,
   type Recipe,
   type RenderDocument,
   type RenderIdentity,
+  type StepClock,
   type Viewport,
 } from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
@@ -248,51 +250,48 @@ export async function createPlaywrightRenderer(
       identity,
       identityFor,
 
-      async render(document: RenderDocument): Promise<Raster> {
+      async render(document: RenderDocument, steps?: StepClock): Promise<Raster> {
         assertClosedResources(document);
         const closed = document.resources !== undefined;
-        const lease = await pool.acquire(document.viewport, closed);
+        // Untimed is a list nobody reads, so every step below is written once.
+        const clock = steps ?? stepClock(() => 0);
+        const lease = await clock.time('lease', async () => pool.acquire(document.viewport, closed));
         const page = lease.page;
         const context = page.context();
 
         try {
           const missingResources = new Set<string>();
-          await context.unrouteAll({ behavior: 'wait' });
-          if (closed) {
-            activeResources.set(context, missingResources);
-            await serveClosedResources(context, document, missingResources);
-          } else {
-            await serveOpenFaces(context, document);
-          }
-
-          await page.setContent(assemble(document, options.assemble ?? {}), {
-            waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
+          await clock.time('load', async () => {
+            await context.unrouteAll({ behavior: 'wait' });
+            if (closed) activeResources.set(context, missingResources);
+            await (closed ? serveClosedResources(context, document, missingResources) : serveOpenFaces(context, document));
+            await page.setContent(assemble(document, options.assemble ?? {}), {
+              waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
+            });
           });
 
           refuseMissingResources(document, missingResources);
 
           // After `setContent`, because `setContent` replaces the document and
           // would discard a sheet added before it.
-          if (holdStill !== '') await page.addStyleTag({ content: holdStill });
+          if (holdStill !== '') await clock.time('hold', async () => page.addStyleTag({ content: holdStill }));
 
           // Every settle the recipe asks for, and nothing else. A recipe with no
           // waits — the structure-and-style rung — pays for none of this, and
           // `waitForFonts: false` turns off the waits alone: `no-focus` still runs.
-          await settleRecipe(options.waitForFonts === false ? settledWithoutWaits : recipe, page);
+          await settleRecipe(options.waitForFonts === false ? settledWithoutWaits : recipe, page, clock);
 
-          const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
+          const missingFonts = await clock.time('fonts', async () => page.evaluate(probeFonts, familiesOf(document.fonts)));
 
           // Takes the element path or a page clip over the same rectangle,
           // whichever is cheaper and identical; `capture.ts` owns that decision
           // and the animation options both paths are given.
-          const { bytes, box } = await captureSubject(page, document.viewport, screenshot);
+          const { bytes, box } = await clock.time('screenshot', async () => captureSubject(page, document.viewport, screenshot));
 
           // Catch work queued by load/font completion or the screenshot itself.
           // Every network channel remains blocked for the whole lease; this turn
           // gives queued callbacks one browser frame in which to declare a miss.
-          await page.evaluate(
-            () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
-          );
+          await clock.time('frame', async () => page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r()))));
           refuseMissingResources(document, missingResources);
 
           // A subject with no box — or a box with a zero side — is recorded

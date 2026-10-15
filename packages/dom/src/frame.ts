@@ -40,11 +40,20 @@ function usedWidth(element: Element): number {
   return Number.isFinite(width) && width > 0 ? width : 0;
 }
 
-/** `element`'s attributes, by qualified name, with each object URL in them carried. */
+/**
+ * `element`'s attributes, object URLs carried and classes in code-unit order: a
+ * class selector reads them as a set, and their order is the page's history.
+ * Storybook swaps its layout class on a page it reuses, so each neighbour gave
+ * a story a different document. Only `[class^=…]` tells the orders apart.
+ */
 function framed(element: Element, urls: ObjectUrls): Record<string, string> {
   const attributes = attributesOf(element);
   for (const edit of urls.editsOf(element)) {
     attributes[element.getAttributeNodeNS(edit.namespace, edit.name)?.name ?? edit.name] = edit.value;
+  }
+  const classes = attributes['class'];
+  if (classes !== undefined) {
+    attributes['class'] = [...new Set(classes.split(/\s+/).filter((name) => name !== ''))].sort().join(' ');
   }
   return attributes;
 }

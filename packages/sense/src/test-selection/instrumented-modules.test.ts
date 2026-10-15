@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   crossingsOf,
   defaultInclude,
+  fileOrNone,
   loadedOf,
   type ReadJournal,
 } from './instrumented-modules.js';
@@ -60,5 +61,19 @@ describe('the fold of a run\'s journals', () => {
       [0, ['test/alpha.case.ts', 'test/beta.case.ts']],
       [1, ['test/alpha.case.ts', 'test/beta.case.ts']],
     ]);
+  });
+});
+
+describe('the file a module is read from', () => {
+  it('is none, and nothing is read, for a virtual module named by no absolute path or by one holding `\\0`', () => {
+    const asked: string[] = [];
+    const read = (path: string) => {
+      asked.push(path);
+      return 'export {};\n';
+    };
+
+    expect(fileOrNone('virtual:stories', read)).toBeUndefined();
+    expect(fileOrNone(`${resolve('/repo')}/\0virtual`, read)).toBeUndefined();
+    expect(asked).toEqual([]);
   });
 });

@@ -31,7 +31,7 @@ describe('a browser run that cannot be joined records nothing', () => {
       await writeFile(module, SOURCE, 'utf8');
 
       const plugin = testSelectionProbes({ root, mode: 'entries' });
-      const transformed = plugin.transform(SOURCE, module)!;
+      const transformed = plugin.transform.handler(SOURCE, module)!;
       // The collector the plugin's own `load` answers with, as a page would
       // have it: the recipe is stamped on what the page reports, not only on
       // what the store holds.
@@ -95,7 +95,7 @@ describe('a browser run that cannot be joined records nothing', () => {
       const elsewhere = resolve(root, 'elsewhere');
       await mkdir(elsewhere);
 
-      const transformed = testSelectionProbes({ root }).transform(SOURCE, module)!;
+      const transformed = testSelectionProbes({ root }).transform.handler(SOURCE, module)!;
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -116,7 +116,7 @@ describe('a browser run that cannot be joined records nothing', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
       const plugin = testSelectionProbes({ root });
-      plugin.transform(SOURCE, module);
+      plugin.transform.handler(SOURCE, module);
 
       const recorded = await recordExecution({
         root,
@@ -132,6 +132,18 @@ describe('a browser run that cannot be joined records nothing', () => {
 
       expect(recorded.recorded).toBe(false);
       expect(recorded.because).toContain('different versions');
+    });
+  });
+});
+
+describe('a module the page imports that no file holds', () => {
+  it('carries no probe, as a builder hands over its virtual entry under the root', async () => {
+    // Storybook hands its builder `storybook-config-entry.js` at the project
+    // root: `include` accepts the name, and no diff is ever written against it.
+    await inRoot(async (root) => {
+      const transformed = testSelectionProbes({ root }).transform.handler(SOURCE, resolve(root, 'storybook-config-entry.js'));
+
+      expect(transformed).toBeNull();
     });
   });
 });
