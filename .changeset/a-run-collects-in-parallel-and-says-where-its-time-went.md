@@ -56,3 +56,8 @@ reaches the same subjects.
 
 `concurrency` is split evenly across the worlds and rounded up, at least one
 per world, so by default the raster tier is as wide as the number of worlds.
+
+The frame above a subject carries its classes in code-unit order. Storybook
+swaps its layout class on a page it reuses, so their order said which story the
+page showed before, and a run in parallel lanes gave the same story a different
+document, and a render-cache miss, with the same pixels.
