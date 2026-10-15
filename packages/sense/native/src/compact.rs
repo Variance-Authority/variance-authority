@@ -109,8 +109,9 @@ fn folded(base: &[Layer], layers_bytes: &[&[u8]], over: bool) -> Result<Vec<u8>,
         .collect();
     directories.sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
 
-    // One layer that drops no row is already the generation this would encode.
-    if let [one] = layers_bytes {
+    // One layer over a base that drops no row is already the generation this
+    // would encode; a compaction drops the deletes it carries, so it encodes.
+    if let ([one], true) = (layers_bytes, over) {
         if (parses.len(), records.len(), directories.len()) == (put_parses, put_records, put_directories) {
             return Ok(one.to_vec());
         }
