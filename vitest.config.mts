@@ -89,6 +89,13 @@ const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
 const unprobed = (file: string) => source(file) && marked(ROOT, file);
 
 /**
+ * What a site test mocks and the root does not install: the site has its own
+ * install, which no slice here runs, so a site module importing one of these
+ * resolves only to the mock its test declares.
+ */
+const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw', 'remark-gfm'];
+
+/**
  * What every slice runs under.
  *
  * The site is outside the workspaces and keeps its own install, but its tests
@@ -103,7 +110,7 @@ const shared = defineConfig({
   plugins: [{
     name: 'site-framework-test-interfaces',
     resolveId(id, importer) {
-      if (importer && SITE.test(importer) && ['next/link', 'next/navigation'].includes(id)) return id;
+      if (importer && SITE.test(importer) && SITE_ONLY.includes(id)) return id;
     },
   }],
   test: {

@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { siteHref, splitTarget } from "../content/markdown-links";
 import { headingId, withoutDocumentTitle } from "../content/markdown-text";
 import { GITHUB } from "../links";
+import { reads } from "../content/reads";
 import MermaidDiagram from "./MermaidDiagram";
 
 function textOf(value: ReactNode): string {
@@ -88,7 +89,7 @@ export default function MarkdownDocument({
   const body = blocks.join("\n\n");
 
   return (
-    <div className="doc-copy">
+    <div className="doc-copy" {...reads(sourcePath)}>
       <Markdown
         rehypePlugins={[rehypeRaw]}
         remarkPlugins={[remarkGfm]}

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
@@ -59,7 +59,7 @@ async function recorded(at: string, files: readonly string[]): Promise<void> {
   });
   const block = { kind: 'function', name: 'main', path: 'main', startLine: 2, endLine: 2, source: true };
   writeFileSync(at, withCaseSections(readFileSync(at), {
-    index: encodeExecutionIndex({
+    index: encodeAsSetExecutionIndex({
       tests: files.map((file) => ({ id: `${file} > one`, file, name: 'one', stopped: false })),
       modules: [
         { file: 'src/cart.ts', blocks: [{ ...block, crossings: files.map((_, test) => ({ test, distance: 0 })) }] },

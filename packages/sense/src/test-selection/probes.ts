@@ -151,11 +151,13 @@ export function testSelectionProbes(
       const captured = captureModule(root, source, code, include, options.mode);
       if (captured === undefined) return null;
 
-      // Hoisted in front of everything the module imports, and on the first line,
-      // so line numbers survive the way every other insertion in this package
-      // preserves them. An instrumented module whose collector arrived late would
-      // throw at its own module probe.
-      return { code: `import ${JSON.stringify(VIRTUAL_COLLECTOR)};${captured.code}`, map: null };
+      // After the last line, so no position in the module moves and its
+      // directive prologue stays first: `"use client"` is a directive only
+      // there. An import is hoisted from wherever it is written, so the
+      // collector still evaluates before this module's body, which is where its
+      // first probe is. The module's other imports evaluate first, and every
+      // one of them that carries a probe imports the collector itself.
+      return { code: `${captured.code}\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`, map: null };
     },
   };
 }

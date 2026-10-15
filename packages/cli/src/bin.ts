@@ -5,11 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
-import type { Detach } from './commands/index-follow-ups.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
+import { readerOf } from './reader.js';
 import { skillLine } from './skill.js';
+import type { Streams } from './commands/configless.js';
 
 /**
  * The program: one command in, one exit code out.
@@ -36,7 +37,7 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
  */
 export async function main(
   argv: readonly string[],
-  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
+  streams: Streams,
 ): Promise<ExitCode> {
   let parsed: Parsed;
   try {
@@ -121,7 +122,7 @@ function isProgram(entry: string): boolean {
 const entry = process.argv[1];
 if (entry !== undefined && isProgram(entry)) {
   process.exitCode = await main(process.argv.slice(2), {
-    out: (text) => process.stdout.write(text),
+    ...readerOf(process.stdout),
     err: (text) => process.stderr.write(text),
     // A CI job ends with its last step and saves its cache after it, so there
     // nothing is left running: the step is the log, and the log is whole.

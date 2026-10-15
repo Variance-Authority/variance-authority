@@ -119,6 +119,24 @@ export {
   type StagedExecution,
 } from './stage.js';
 export { drainExecution, type EvaluatingPage } from './drain.js';
+// The driver's half of a journey. It opens a socket, so it is here, beside the
+// recorders, and not on the bundle-safe `journey` entry a Worker imports.
+export {
+  SETTLING_MS,
+  driveJourneys,
+  type JourneyCookie,
+  type JourneyDriver,
+  type MintedJourney,
+} from './journey-driver.js';
+// One row per subject a visual run drove, page and heads joined: the recorder
+// a story run and a page run share.
+export {
+  createSubjectRecorder,
+  type SubjectNote,
+  type SubjectRecorder,
+  type SubjectRecording,
+  type SubjectSurface,
+} from './subject-recorder.js';
 
 
 export interface RecordExecutionOptions {
