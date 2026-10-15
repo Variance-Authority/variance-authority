@@ -2733,6 +2733,7 @@
         "describedWordsNative": "function",
         "encodeSearch": "function",
         "enrichSources": "function",
+        "existedAt": "function",
         "exportedDigest": "function",
         "fileCases": "function",
         "fileSizes": "function",
