@@ -27,6 +27,16 @@ window.variancePicture=function(n){
 $('.subject').forEach(function(card){
   var stage=card.querySelector('.stage'); if(!stage) return;
   var boxes=stage.querySelector('.boxes'), rows=$('tr[data-region]',card);
+  /* The row asked for before its box was drawn. A subject that opens on the
+     change has never loaded the full page, so the box is shown when the image
+     it is drawn on arrives. */
+  var asked=null, marked=null;
+  var show=function(i){
+    var b=boxes&&boxes.querySelector('b[data-for="'+i+'"]'); if(!b){asked=i; return}
+    asked=null; marked=i;
+    b.scrollIntoView({block:'center',inline:'nearest'});
+    $('b.asked',boxes).forEach(function(o){o.classList.remove('asked')}); b.classList.add('asked');
+  };
   var img=stage.querySelector('.after')||stage.querySelector('.before');
   if(boxes&&img&&rows.length){
     var paint=function(){
@@ -36,15 +46,18 @@ $('.subject').forEach(function(card){
       rows.forEach(function(row,i){
         var d=row.getAttribute('data-box'); if(!d) return;
         var p=d.split(',').map(Number), b=document.createElement('b');
+        b.setAttribute('data-for',i);
         b.style.left=(p[0]/img.naturalWidth*100)+'%'; b.style.top=(p[1]/img.naturalHeight*100)+'%';
         b.style.width=(p[2]/img.naturalWidth*100)+'%'; b.style.height=(p[3]/img.naturalHeight*100)+'%';
         if(!row.classList.contains('cause')) b.className='collateral';
+        if(i===marked) b.classList.add('asked');
         b.addEventListener('mouseenter',function(){b.classList.add('on');row.classList.add('on')});
         b.addEventListener('mouseleave',function(){b.classList.remove('on');row.classList.remove('on')});
         row.addEventListener('mouseenter',function(){b.classList.add('on')});
         row.addEventListener('mouseleave',function(){b.classList.remove('on')});
         boxes.appendChild(b);
       });
+      if(asked!==null) show(asked);
     };
     /* Listened for even when complete: a carried picture has no source until
        its payload arrives, and an image with no source reports complete. */
@@ -54,6 +67,9 @@ $('.subject').forEach(function(card){
 
   var setMode=function(mode){
     stage.setAttribute('data-mode',mode);
+    /* A lazy image hidden when the page loaded is not looked at again when it
+       is shown, so a view the reviewer chose loads its pictures now. */
+    if(mode!=='change') $('img[loading=lazy]',stage).forEach(function(i){i.loading='eager'});
     $('.modes button',card).forEach(function(b){
       b.classList.toggle('on',b.getAttribute('data-mode')===mode)});
     var blend=card.querySelector('.blend');
@@ -66,6 +82,25 @@ $('.subject').forEach(function(card){
   if(blend){blend.addEventListener('input',function(){
     stage.style.setProperty('--blend',blend.value/100)})}
   card.setMode=setMode;
+
+  /* A row names a box the reviewer may not be looking at: on a tall page it is
+     below the fold of the stage. Clicking the row shows it there. */
+  rows.forEach(function(row,i){
+    if(!boxes||!row.getAttribute('data-box')) return;
+    var open=function(){
+      if(stage.getAttribute('data-mode')!=='regions'&&card.querySelector('.modes button[data-mode=regions]')) setMode('regions');
+      show(i);
+    };
+    row.tabIndex=0;
+    row.addEventListener('click',function(e){
+      if(e.target.closest&&e.target.closest('[data-copy]')) return;
+      open();
+    });
+    row.addEventListener('keydown',function(e){
+      if(e.target!==row||(e.key!=='Enter'&&e.key!==' ')) return;
+      e.preventDefault(); open();
+    });
+  });
   var initial=card.querySelector('.modes button');
   if(initial) setMode(initial.getAttribute('data-mode'));
 
@@ -83,7 +118,7 @@ $('.subject').forEach(function(card){
 });
 
 /* One filter over the rail and the pane. A cause is a filter, not a link. */
-var input=document.getElementById('filter'), causes=$('.cause'), keys=$('.key');
+var input=document.getElementById('filter'), causes=$('button.cause'), keys=$('.key');
 var pinned=null, verdict=null;
 /* Rail rows, subject cards and ledger entries are one population: everything that
    names a subject. Two loops over two selectors is how the census bar came to have
@@ -164,7 +199,7 @@ addEventListener('keydown',function(e){
   if(e.key==='j'){e.preventDefault();go(1)}
   else if(e.key==='k'){e.preventDefault();go(-1)}
   else if(e.key==='/'){e.preventDefault();if(input)input.focus()}
-  else if(e.key>='1'&&e.key<='5'){
+  else if(e.key>='1'&&e.key<='9'){
     var list=cards(), card=list[at]||list[0]; if(!card) return;
     var button=$('.modes button',card)[Number(e.key)-1];
     if(button&&card.setMode){e.preventDefault();card.setMode(button.getAttribute('data-mode'))}

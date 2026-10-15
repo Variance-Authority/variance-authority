@@ -99,11 +99,16 @@ function evidenceHtml(side: string, evidence: PresentationEffectEvidence): strin
 /**
  * One subject: the comparison, what moved in it, and what to type next.
  *
- * The viewer's default is `regions` for the reason `tribunal`'s is — a reviewer
- * arriving at a subject should first be told *which boxes moved and who owns
- * them*, because that is the question a screenshot cannot answer and the one that
- * decides whether the change is the one somebody meant to make. The other modes
- * are the category's and are genuinely useful once you already know that.
+ * The viewer opens on `change` when the run cut one: the largest regions
+ * cropped with the rows around them, before, after and the difference, at one
+ * image pixel per screen pixel. A full-page capture fitted to the column is a
+ * few pixels per sentence, so the crop is the only picture of a tall page a
+ * reviewer can read without leaving it. Without a crop it opens on `regions`
+ * for the reason `tribunal` does — a reviewer arriving at a subject should first
+ * be told *which boxes moved and who owns them*, because that is the question a
+ * screenshot cannot answer and the one that decides whether the change is the
+ * one somebody meant to make. The other modes are the category's and are
+ * genuinely useful once you already know that.
  *
  * When three images exist the arrangement is **before · diff · after**: the diff
  * is the reason the page is open, and putting it third makes the reader's eye
@@ -115,6 +120,7 @@ function subject(entry: CliObservationRecord, placement: Placement): string {
     before: images.before !== undefined,
     after: images.after !== undefined,
     diff: images.diff !== undefined,
+    change: images.change !== undefined,
   };
   const modes = modesFor(has, entry.regions.length);
 
@@ -127,6 +133,7 @@ function subject(entry: CliObservationRecord, placement: Placement): string {
         picture('before', images.before, placement) +
         picture('diff', images.diff, placement) +
         picture('after', images.after, placement) +
+        picture('change', images.change, placement) +
         '<div class="boxes"></div><div class="handle"></div>' +
         '</div>';
 
@@ -170,16 +177,17 @@ function subject(entry: CliObservationRecord, placement: Placement): string {
  * One side of the comparison. Lazy, because a run's pictures decoded at once
  * are gigabytes of bitmap and a reviewer looks at a few of them at a time.
  */
-function picture(side: 'before' | 'diff' | 'after', path: string | undefined, placement: Placement): string {
+function picture(side: 'before' | 'diff' | 'after' | 'change', path: string | undefined, placement: Placement): string {
   if (path === undefined) return '';
-  return `<img class="${side}" ${placement.attributes(path)} alt="${side}" loading="lazy" decoding="async">`;
+  return `<img class="${side}" ${placement.attributes(path)} alt="${side === 'change' ? 'before, after and the difference, where they changed' : side}" loading="lazy" decoding="async">`;
 }
 
 function modesFor(
-  has: { before: boolean; after: boolean; diff: boolean },
+  has: { before: boolean; after: boolean; diff: boolean; change: boolean },
   regionCount: number,
 ): readonly string[] {
   const modes: string[] = [];
+  if (has.change) modes.push('change');
   if (has.after && regionCount > 0) modes.push('regions');
   if (has.before && has.after) modes.push('wipe', 'blend', 'blink');
   if (has.before && has.diff && has.after) modes.push('trio');

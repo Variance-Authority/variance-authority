@@ -119,8 +119,8 @@ const MEDIA: Readonly<Record<string, string>> = {
  * Applied per shard, before the merge, because an image path is relative to
  * the report that named it and the merged report has no directory. A located
  * path is rewritten to the absolute file and is the key the page names it by.
- * Only `before`, `diff` and `after` are pictures; `record` is a sidecar and
- * stays a path. A picture that cannot be opened keeps its path.
+ * Only `before`, `diff`, `after` and `change` are pictures; `record` is a
+ * sidecar and stays a path. A picture that cannot be opened keeps its path.
  *
  * Read one file at a time and only as far as a PNG's header, so locating a
  * run costs its count of pictures, not their bytes.
@@ -137,7 +137,7 @@ export async function locatePictures(
       continue;
     }
     const images = { ...entry.images };
-    for (const side of ['before', 'diff', 'after'] as const) {
+    for (const side of ['before', 'diff', 'after', 'change'] as const) {
       const path = images[side];
       const media = path === undefined ? undefined : MEDIA[extname(path).toLowerCase()];
       if (path === undefined || media === undefined) continue;
