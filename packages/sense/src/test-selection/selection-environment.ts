@@ -24,6 +24,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { recordedTimes } from '../recorded-durations.js';
 import { distanceRange } from './at-distance.js';
+import { notingRead } from './record-base.js';
 import type { SuiteSelection, SuiteTimes } from './suite-selection.js';
 
 /** Where the selection is read: the checkout, whose record, and where the cli is installed. */
@@ -142,4 +143,18 @@ async function selector(from: string): Promise<Selector> {
     );
   }
   return cli;
+}
+
+/**
+ * The times a run landing in `landing` places its shard by, noted against that
+ * record as its selection is, so the shard's record names the record it read.
+ * A record the caller named by file is the one the run lands in, so its times
+ * are read there; a suite's are read where `variance select` reads its record.
+ */
+export function landingTimes(
+  landing: string,
+  request: SelectionRequest & { readonly byFile: boolean },
+): () => Promise<SuiteTimes> {
+  const { byFile, ...asked } = request;
+  return notingRead(landing, timesFrom({ ...asked, ...(byFile ? { recording: landing } : {}) }));
 }

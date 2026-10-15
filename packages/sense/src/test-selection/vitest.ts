@@ -18,7 +18,7 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { notingRead } from './record-base.js';
-import { selectionFrom, timesFrom } from './selection-environment.js';
+import { landingTimes, selectionFrom } from './selection-environment.js';
 import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 
 export interface TestSelectionOptions {
@@ -257,9 +257,7 @@ function selecting(
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
-  // A record named by file is the one this run lands in, so its times are read
-  // there; a suite's are read where `variance select` reads its record.
-  const times = notingRead(coverageFile, timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) }));
+  const times = landingTimes(coverageFile, { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
