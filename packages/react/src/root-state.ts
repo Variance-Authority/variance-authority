@@ -16,7 +16,7 @@
  * A root whose committed element renders nothing — `root.render(null)` or
  * `render(false)`, or a root unmounted while something still holds it — has no
  * `child` either, and the same state as one never rendered. Two more fields
- * tell them apart: a root that has rendered at least once has a
+ * tell them apart: a root that has started a render has a
  * `current.alternate`, and one with no work left has `pendingLanes === 0`
  * (React marks a lane finished at its commit, and keeps a suspended or
  * in-progress one pending). A root created and never asked to render reads as
