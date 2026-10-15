@@ -15,22 +15,43 @@ export type Edit = readonly ['=', number, number] | readonly ['-', number] | rea
  * occur once. A stretch with no such run and no shortest edit within `limit` is
  * one band, every run of it removed and added, which `pairing` compares by
  * position within the band and `explainsMore` weighs against position.
+ *
+ * The split spends at most what the failed search could have: `limit` steps
+ * for each run of the two columns, counting a diagonal Myers visits, a run it
+ * compares, and a run the split counts. A stretch reached once that is spent is
+ * one band, so no input costs more than twice the search alone, however deep
+ * the stretches nest.
  */
 export function edits(left: Float64Array, right: Float64Array, limit: number): Edit[] {
   const script: Edit[] = [];
-  editsBetween(left, 0, left.length, right, 0, right.length, limit, script);
+  const budget = { left: limit * (left.length + right.length) };
+  // Taken from the end: a stretch puts back what follows it before what it holds.
+  const pending: Pending[] = [{ from: 0, to: left.length, at: 0, until: right.length }];
+  for (let first = true; pending.length > 0; first = false) {
+    const next = pending.pop()!;
+    if ('edit' in next) script.push(next.edit);
+    else stretch(left, right, next, limit, first ? { left: Infinity } : budget, script, pending);
+  }
   return script;
 }
 
-function editsBetween(
+type Pending = { readonly edit: Edit } | Stretch;
+
+interface Stretch {
+  readonly from: number;
+  readonly to: number;
+  readonly at: number;
+  readonly until: number;
+}
+
+function stretch(
   left: Float64Array,
-  leftFrom: number,
-  leftTo: number,
   right: Float64Array,
-  rightFrom: number,
-  rightTo: number,
+  { from: leftFrom, to: leftTo, at: rightFrom, until: rightTo }: Stretch,
   limit: number,
+  budget: { left: number },
   script: Edit[],
+  pending: Pending[],
 ): void {
   let head = 0;
   while (leftFrom + head < leftTo && rightFrom + head < rightTo && left[leftFrom + head] === right[rightFrom + head]) {
@@ -45,26 +66,27 @@ function editsBetween(
   ) {
     tail += 1;
   }
+  for (let index = 1; index <= tail; index += 1) pending.push({ edit: ['=', leftTo - index, rightTo - index] });
   const [from, to, at, until] = [leftFrom + head, leftTo - tail, rightFrom + head, rightTo - tail];
 
-  const shortest = myers(left, from, to, right, at, until, limit);
-  if (shortest !== undefined) for (const edit of shortest) script.push(edit);
-  else {
-    const chain = anchors(left, from, to, right, at, until);
-    if (chain.length === 0) {
-      for (let index = from; index < to; index += 1) script.push(['-', index]);
-      for (let index = at; index < until; index += 1) script.push(['+', index]);
-    }
-    let [x, y] = [from, at];
-    for (const [i, j] of chain) {
-      editsBetween(left, x, i, right, y, j, limit, script);
-      script.push(['=', i, j]);
-      [x, y] = [i + 1, j + 1];
-    }
-    if (chain.length > 0) editsBetween(left, x, to, right, y, until, limit, script);
+  const shortest = myers(left, from, to, right, at, until, limit, budget);
+  if (shortest !== undefined) {
+    for (const edit of shortest) script.push(edit);
+    return;
   }
-
-  for (let index = tail; index > 0; index -= 1) script.push(['=', leftTo - index, rightTo - index]);
+  const chain = budget.left > 0 ? anchors(left, from, to, right, at, until, budget) : [];
+  if (chain.length === 0) {
+    for (let index = from; index < to; index += 1) script.push(['-', index]);
+    for (let index = at; index < until; index += 1) script.push(['+', index]);
+    return;
+  }
+  pending.push({ from: chain.at(-1)![0] + 1, to, at: chain.at(-1)![1] + 1, until });
+  for (let index = chain.length - 1; index >= 0; index -= 1) {
+    const [i, j] = chain[index]!;
+    pending.push({ edit: ['=', i, j] });
+    const [x, y] = index === 0 ? [from, at] : [chain[index - 1]![0] + 1, chain[index - 1]![1] + 1];
+    pending.push({ from: x, to: i, at: y, until: j });
+  }
 }
 
 /**
@@ -78,7 +100,9 @@ function anchors(
   right: Float64Array,
   rightFrom: number,
   rightTo: number,
+  budget: { left: number },
 ): [number, number][] {
+  budget.left -= leftTo - leftFrom + rightTo - rightFrom;
   const seen = new Map<number, { left: number; right: number; at: number; to: number }>();
   for (let i = leftFrom; i < leftTo; i += 1) {
     const entry = seen.get(left[i]!);
@@ -91,8 +115,8 @@ function anchors(
     entry.right += 1;
     entry.to = j;
   }
+  // In order of `at` already: a map keeps the order its keys were first set in.
   const once = [...seen.values()].filter((entry) => entry.left === 1 && entry.right === 1);
-  once.sort((a, b) => a.at - b.at);
 
   // `ends[k]` is the index in `once` of the smallest right end of a chain k + 1 long.
   const ends: number[] = [];
@@ -115,9 +139,9 @@ function anchors(
 
 /**
  * Myers' shortest edit script between `left[from, to)` and `right[at, until)`,
- * or `undefined` past `limit` rounds. The trace keeps, for each `d`, only the
- * diagonals `-d..d` that round reached, which is what makes D² memory rather
- * than D·(N+M).
+ * or `undefined` past `limit` rounds or once `budget` is spent. The trace
+ * keeps, for each `d`, only the diagonals `-d..d` that round reached, which is
+ * what makes D² memory rather than D·(N+M).
  */
 function myers(
   left: Float64Array,
@@ -127,6 +151,7 @@ function myers(
   at: number,
   until: number,
   limit: number,
+  budget: { left: number },
 ): Edit[] | undefined {
   const a = left.subarray(from, to);
   const b = right.subarray(at, until);
@@ -143,10 +168,13 @@ function myers(
     for (let k = -d; k <= d; k += 2) {
       let x = k === -d || (k !== d && v[offset + k - 1]! < v[offset + k + 1]!) ? v[offset + k + 1]! : v[offset + k - 1]! + 1;
       let y = x - k;
+      const start = x;
       while (x < n && y < m && a[x] === b[y]) {
         x += 1;
         y += 1;
       }
+      budget.left -= 1 + x - start;
+      if (budget.left < 0) return undefined;
       v[offset + k] = x;
       if (x >= n && y >= m) {
         found = d;

@@ -179,6 +179,21 @@ describe('content that moved down the page', () => {
     expect(comparison.changed.strict).toBe((1150 + 1) * WIDTH);
   });
 
+  it('compares a page whose stretches nest as deep as it is long', () => {
+    // Each pass finds one row that occurs once on each side, and the stretch
+    // after it still holds an edit past one search, until 12,000 passes in:
+    // 2,1,3,2,4,3,… against 1,2,3,…, over 3,000 rows that differ throughout.
+    // Followed pass by pass, this outgrew the call stack.
+    const depth = 12_000;
+    const before = distinct([...range(1, depth + 1).flatMap((k) => [k + 1, k]), ...range(0, 3000).map((i) => 30_000 + (i % 2))]);
+    const after = distinct([...range(1, depth + 1), ...range(0, 3000).map((i) => 40_000 + (i % 2))]);
+
+    const comparison = comparePixels(before, after);
+
+    expect(comparison.alignment).toBeDefined();
+    expect([comparison.width, comparison.height]).toEqual([WIDTH, depth + 3000]);
+  });
+
   it('compares position by position when the widths differ', () => {
     const narrow = column([1, 2, 3]);
     const wide = { width: WIDTH + 1, height: 3, data: new Uint8Array((WIDTH + 1) * 3 * 4).fill(255) };
