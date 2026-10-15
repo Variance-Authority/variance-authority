@@ -300,8 +300,8 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     last = now();
     const hydration = fiberRoot !== undefined && committedHydration(fiberRoot);
     if (hydration) {
-      const markup = inertCopy((fiberRoot as { readonly containerInfo?: unknown }).containerInfo);
-      if (markup !== undefined) hydrated.set(fiberRoot, { markup, since: [] });
+      const container = (fiberRoot as { readonly containerInfo: Element | Document }).containerInfo;
+      hydrated.set(fiberRoot, { markup: inertCopy(container), since: [] });
     }
     if (fiberRoot?.current !== undefined) {
       const mask = injectedVersion(hook)?.startsWith('18.') === true ? PASSIVE_MASK_18 : PASSIVE_MASK;
@@ -432,16 +432,12 @@ function componentsThatRendered(
 /**
  * A copy of a root's container in a document of its own, which has no window:
  * an image in it does not load and a script does not run. A `Document` container
- * is copied from its root element, which is what its markup is read from.
+ * is copied from its root element, which is what its markup is read from. Only
+ * `hydrateRoot` hydrates, and it takes an element or a document.
  */
-function inertCopy(container: unknown): Node | undefined {
-  const source = ((container as Partial<Document> | null | undefined)?.documentElement ?? container) as
-    | Partial<Node>
-    | null
-    | undefined;
-  const owner = source?.ownerDocument;
-  if (owner === null || owner === undefined) return undefined;
-  return owner.implementation.createHTMLDocument('').importNode(source as Node, true);
+function inertCopy(container: Element | Document): Node {
+  const source = (container as Partial<Document>).documentElement ?? (container as Element);
+  return source.ownerDocument.implementation.createHTMLDocument('').importNode(source, true);
 }
 
 /**

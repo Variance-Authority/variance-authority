@@ -129,6 +129,12 @@ describe('reading whether React has work on a root', () => {
     expect(rootHasWork(fiberRoot)).toBe(false);
   });
 
+  it('counts a lane React can render, and a suspended one a settled promise pinged', () => {
+    expect(rootHasWork({ pendingLanes: 0b10, suspendedLanes: 0, pingedLanes: 0 })).toBe(true);
+    expect(rootHasWork({ pendingLanes: 0b10, suspendedLanes: 0b10, pingedLanes: 0b10 })).toBe(true);
+    expect(rootHasWork({ pendingLanes: 0, suspendedLanes: 0, pingedLanes: 0 })).toBe(false);
+  });
+
   /** A commit waiting on a stylesheet or an image holds a way to cancel it. */
   it('counts a commit waiting on its resources as work', () => {
     const lanes = { pendingLanes: 0b100, suspendedLanes: 0b100, pingedLanes: 0, timeoutHandle: -1 };

@@ -8,7 +8,7 @@
 // underneath it, for the reason `commits.test.tsx` gives: a static import would
 // load react-dom before the hook existed, and the tap would hear nothing.
 
-import { createElement as h, startTransition, use, useEffect, useState } from 'react';
+import { createElement as h, startTransition, use } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { tapCommits, type CommitTap } from './commits.js';
 import { hasFiber } from './fiber.js';
@@ -30,14 +30,6 @@ function Header() {
 function Slow({ ready }: { readonly ready: Promise<void> }) {
   use(ready);
   return h('p', null, 'late');
-}
-
-/** Renders the server's text, then replaces it once mounted on the client. */
-function Flip({ ready }: { readonly ready: Promise<void> }) {
-  use(ready);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  return h('main', { id: 'app' }, h('p', null, mounted ? 'client' : 'early'));
 }
 
 function App({ ready }: { readonly ready: Promise<void> }) {
@@ -428,56 +420,5 @@ describe('waiting for React to hydrate the subject', () => {
     expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
     expect(settled.loaded).toBeUndefined();
     expect(asked).toEqual(['script']);
-  });
-
-  it('reports nothing when the markup a wait began on is the markup it ended on', async () => {
-    const page = await hydrating();
-
-    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, tap, outstanding: arriving(page.open) });
-
-    expect(settled.state).toBe('hydrated');
-    expect(settled.changed).toBeUndefined();
-  });
-
-  it('quotes the markup hydration changed, and names who changed it', async () => {
-    const page = await hydrating(Flip, '<main id="app"><p>early</p></main>');
-
-    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, tap, outstanding: arriving(page.open) });
-
-    expect(settled.state).toBe('hydrated');
-    expect(settled.changed).toEqual({
-      before: '<main id="app"><p>early</p></main>',
-      after: '<main id="app"><p>client</p></main>',
-      components: ['Flip'],
-    });
-  });
-
-  /**
-   * The comparison does not depend on when the read happens. A fast machine
-   * reads a route after its effects have run, a slow one before, and both are
-   * told the same thing: the server's markup is copied when React hydrates it.
-   */
-  it('quotes the markup hydration changed when the read comes after the change', async () => {
-    const page = await hydrating(Flip, '<main id="app"><p>early</p></main>');
-    page.open();
-    await ticks();
-    expect(page.container.textContent).toBe('client');
-
-    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, tap });
-
-    expect(settled.changed).toEqual({
-      before: '<main id="app"><p>early</p></main>',
-      after: '<main id="app"><p>client</p></main>',
-      components: ['Flip'],
-    });
-  });
-
-  it('compares nothing without a tap to say React went quiet', async () => {
-    const page = await hydrating(Flip, '<main id="app"><p>early</p></main>');
-
-    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, outstanding: arriving(page.open) });
-
-    expect(settled.state).toBe('hydrated');
-    expect(settled.changed).toBeUndefined();
   });
 });

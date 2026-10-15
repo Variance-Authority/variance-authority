@@ -78,9 +78,7 @@ export function reactHasMounted(scope: Record<string, unknown>): boolean {
 
   const all = doc.querySelectorAll('*');
   for (let index = 0; index < all.length; index += 1) {
-    const element = all[index] as unknown as Record<string, unknown> | undefined;
-    if (!element) continue;
-    for (const key of Object.keys(element)) {
+    for (const key of Object.keys(all[index] as Element)) {
       if (key.startsWith(CONTAINER_KEY_PREFIX)) return true;
     }
   }

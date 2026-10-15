@@ -351,6 +351,35 @@ describe('a root that hydrates', () => {
       }
     });
   });
+
+  it('keeps as many commits since the hydration as the tap keeps, the latest', async () => {
+    function Counting() {
+      const [count, setCount] = useState(0);
+      useEffect(() => {
+        if (count < 3) setCount(count + 1);
+      }, [count]);
+      return h('p', null, String(count));
+    }
+    const served = document.createElement('div');
+    served.innerHTML = '<p>0</p>';
+    document.body.appendChild(served);
+    const tap = tapCommits({ keep: 2 });
+    await unacted(async () => {
+      try {
+        const hydrated = hydrateRoot(served, h(Counting, null));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(served.textContent).toBe('3');
+
+        const since = tap.hydration(fiberRootOn(served))?.commits() ?? [];
+        expect(since.map((commit) => commit.components)).toEqual([['Counting'], ['Counting']]);
+        expect(since.map((commit) => commit.at)).toEqual(tap.commits().map((commit) => commit.at));
+        hydrated.unmount();
+      } finally {
+        tap.stop();
+        served.remove();
+      }
+    });
+  });
 });
 
 describe('waiting for quiet', () => {
