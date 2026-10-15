@@ -12,8 +12,8 @@ import { urlOfPath } from './url-of-path.js';
  *
  * The change rather than the pages. A full-page capture shown whole is scaled to
  * the comment's column and its text cannot be read, so the picture is the run's
- * crop of it: each of the largest regions with the rows around it, as before,
- * after and the difference, at its own size. It is one `<img>` where the pages
+ * crop of it: each of the largest regions with the rows around it, before
+ * beside after with the change outlined on both, at its own size. It is one `<img>` where the pages
  * were two, so it costs the comment less text, not more. A subject the run cut
  * no crop for, because no region was isolated, shows its before and after.
  */
@@ -28,7 +28,7 @@ export function picturesOf(report: CliRunReport, imageRoot: string | undefined):
   return (subject) => {
     const images = bySubject.get(subject);
     if (images?.change !== undefined) {
-      return image(root, images.change, `${subject}: before, after and the difference`);
+      return image(root, images.change, `${subject}: before beside after, the change outlined`);
     }
     if (images?.before === undefined || images.after === undefined) return undefined;
     // Two side by side, sized so they still fit a phone's column.

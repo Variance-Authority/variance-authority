@@ -270,10 +270,18 @@ its own size, for a page too tall to read whole once it is scaled to a column.
 Pass it the regions the comparison isolated (`isolateRegions` from
 `@variance-authority/core/attribute`). Each of the three heaviest, merged where
 they meet, is cut with 32 rows above and below and at least 320 pixels wide, and
-shown as its before, its after and its difference, top to bottom. A panel stops
-at 400 rows. The before panel is read through the row alignment, so beside an
-insertion it shows the before rows either side of the new content, and at a
-removal it shows the rows that went. With no regions, `change` is absent.
+shown as its before beside its after. A window stops at 400 rows. The before
+panel is read through the row alignment, so each row sits level with the row it
+became: opposite an insertion the before panel shows striped filler, and at a
+removal the after panel does. What changed is outlined on both panels, red on
+the before and green on the after. Rows that only moved are not outlined; a
+blue bar in the gutter between the panels runs beside them, with chevrons
+pointing the way they went. A blank gap that grew or shrank by more than a row
+is spacing that changed: it gets a window while the changes leave one free,
+and a blue line across the gutter rather than an outline, at both edges of a
+gap that grew and at the one place a gap that shrank closed. A gap one row
+taller or shorter is rounding from content that moved, and gets neither. With
+no regions, `change` is absent.
 
 `pngSize` reads the width and height out of the IHDR without decoding, and
 returns `null` for bytes that are not a PNG or are too short for a header.

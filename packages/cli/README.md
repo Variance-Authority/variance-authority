@@ -2776,8 +2776,11 @@ variance comment --body-file body.md \
 `--image-root` puts pictures in the comment: the leading cause's change on the
 first screen, and each further cause's in the fold. The change is the
 `change.png` a run writes beside a subject's diff: each of the largest changed
-regions with the rows around it, as before, after and the difference, top to
-bottom, at one image pixel per pixel. A subject with no region to crop shows
+regions with the rows around it, before beside after, at one image pixel per
+pixel. Each row sits level with the row it became, with striped filler opposite
+rows only one side has. What changed is outlined on both sides, and a blue bar
+between them runs beside rows that only moved; a blank gap whose height changed
+is marked there too, with a line across it. A subject with no region to crop shows
 its whole before and after instead. Give it
 the address you published the report's directory under. The comment joins each
 image path the report records to it, with every segment percent-encoded, so the
