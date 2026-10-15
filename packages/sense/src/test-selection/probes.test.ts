@@ -8,7 +8,7 @@
  * that was to be recorded.
  */
 import { resolve } from 'node:path';
-import { chmod, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { parseSync } from 'oxc-parser';
 import { describe, expect, it } from 'vitest';
 import { testSelectionProbes } from './probes.js';
@@ -45,12 +45,10 @@ describe('a module the dev server loads, whose file is there and cannot be read'
       await writeFile(module, CLIENT, 'utf8');
       const plugin = testSelectionProbes({ root });
       plugin.configResolved({ command: 'serve', plugins: [] } as never);
-      await chmod(module, 0o000);
-      try {
-        expect(() => plugin.load(module)).toThrow(/Since\.js.*EACCES/s);
-      } finally {
-        await chmod(module, 0o644);
-      }
+      // A directory where the file was: unreadable to every user, root included.
+      await rm(module);
+      await mkdir(module);
+      expect(() => plugin.load(module)).toThrow(/Since\.js.*EISDIR/s);
     });
   });
 });

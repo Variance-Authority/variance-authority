@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import MagicString from 'magic-string';
@@ -55,13 +55,11 @@ function loaded(
 describe('an Rstest module the probes cannot be placed in', () => {
   it('fails loudly, naming the file and why, where the file is on disk and cannot be read', async () => {
     const { coverageFile, source } = await seam();
-    await chmod(source, 0o000);
-    try {
-      const { error } = loaded(probeAfter, source, coverageFile, PRICE);
-      expect(error?.message).toMatch(/src\/price\.js.*EACCES/s);
-    } finally {
-      await chmod(source, 0o644);
-    }
+    // A directory where the file was: unreadable to every user, root included.
+    await rm(source);
+    await mkdir(source);
+    const { error } = loaded(probeAfter, source, coverageFile, PRICE);
+    expect(error?.message).toMatch(/src\/price\.js.*EISDIR/s);
   });
 
   it('refuses a module SWC rewrote with no map, naming the file and the `devtool` that writes the map', async () => {
