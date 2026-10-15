@@ -63,6 +63,21 @@ describe('a chain whose later layer puts every key again', () => {
     expect([...decoded.records.keys()]).toEqual(['src/0.ts', 'src/2.ts']);
   });
 
+  it('refuses a layer that puts and deletes one key, though a later layer decided it', () => {
+    const key = `git:${'0'.repeat(40)}` as Digest;
+    const none = { parses: new Map(), directories: new Map(), records: new Map() };
+    const decided = { parses: new Set([key]), records: new Set(['src/0.ts']), directories: new Set(['src']) };
+    // The encoder writes no record deletes, so a record cannot be both here.
+    const layers = [
+      { ...none, parses: new Map([[key, { requests: [] }]]), deletedParses: new Set([key]) },
+      { ...none, directories: new Map([['src', key]]), deletedDirectories: new Set(['src']) },
+    ];
+
+    for (const layer of layers) {
+      expect(() => decodeSourceIndex(encodeSourceIndex(layer), decided)).toThrow('not a variance-authority source index');
+    }
+  });
+
   it('reads up to a damaged segment as though no layer above it decided anything', async () => {
     // Whole bytes the log reads, under their own digest, that are no source index.
     const file = await chain([[generation('old', 2), new TextEncoder().encode('not a source index')], [generation('new', 2)]]);

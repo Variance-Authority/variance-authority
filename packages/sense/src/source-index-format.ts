@@ -119,12 +119,13 @@ export interface DecidedKeys {
 }
 
 /**
- * Decode a complete generation. Any malformed reference rejects the whole file.
+ * Decode a complete generation. A malformed reference in any row it decodes,
+ * or a key two rows share, rejects the whole file.
  *
  * A row whose key `decided` names is not decoded: a later layer answers for it,
  * so its values would only hold the heap, and a chain whose later layer puts
  * every key again would hold the whole graph twice. Its references are not
- * checked either, since nothing reads them.
+ * checked either, since nothing reads them; its key still is.
  */
 export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): StoredSourceIndex {
   const opened = openSegment(FORMAT, VERSION, input, WHAT);
@@ -177,9 +178,10 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags]);
 
   const parses = new Map<ParseKey, Parsed>();
+  const skippedParses = new Set<ParseKey>();
   for (let row = 0; row < parseKey.length; row += 1) {
     const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
-    if (decided?.parses.has(key)) continue;
+    if (skips(decided?.parses, skippedParses, key)) continue;
     const requests = range(parseRequests, row).map((request) => ({
       value: text(requestValue[request]!),
       kind: text(requestKind[request]!) as Parsed['requests'][number]['kind'],
@@ -231,7 +233,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const deletedParses = new Set<ParseKey>();
   for (const [at, value] of deletedParseIds.entries()) {
     const key = joinedKey(text(value), text(deletedParseWays[at]!));
-    if (parses.has(key) || deletedParses.has(key)) throw invalid();
+    if (parses.has(key) || skippedParses.has(key) || deletedParses.has(key)) throw invalid();
     deletedParses.add(key);
   }
 
@@ -270,9 +272,10 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   sameLength(packageTo.length, [packageKind]);
 
   const records = new Map<string, IndexedRecord>();
+  const skippedRecords = new Set<string>();
   for (let row = 0; row < recordFile.length; row += 1) {
     const file = text(recordFile[row]!);
-    if (decided?.records.has(file)) continue;
+    if (skips(decided?.records, skippedRecords, file)) continue;
     const digest = optional(recordDigest[row]!) as Digest | undefined;
     const edges = range(recordEdges, row).map((edge) => ({
       to: text(edgeTo[edge]!),
@@ -305,23 +308,24 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const deletedRecords = new Set<string>();
   for (const value of deletedRecordIds) {
     const file = text(value);
-    if (records.has(file) || deletedRecords.has(file)) throw invalid();
+    if (records.has(file) || skippedRecords.has(file) || deletedRecords.has(file)) throw invalid();
     deletedRecords.add(file);
   }
   const directoryPath = opened.u32('directories.path');
   const directoryDigest = opened.u32('directories.digest');
   sameLength(directoryPath.length, [directoryDigest]);
   const directories = new Map<string, Digest>();
+  const skippedDirectories = new Set<string>();
   for (let row = 0; row < directoryPath.length; row += 1) {
     const path = text(directoryPath[row]!);
-    if (decided?.directories.has(path)) continue;
+    if (skips(decided?.directories, skippedDirectories, path)) continue;
     if (directories.has(path)) throw invalid();
     directories.set(path, text(directoryDigest[row]!) as Digest);
   }
   const deletedDirectories = new Set<string>();
   for (const value of opened.maybeU32('directories.deleted')) {
     const path = text(value);
-    if (directories.has(path) || deletedDirectories.has(path)) throw invalid();
+    if (directories.has(path) || skippedDirectories.has(path) || deletedDirectories.has(path)) throw invalid();
     deletedDirectories.add(path);
   }
 
@@ -335,6 +339,14 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
     records,
     ...(deletedRecords.size === 0 ? {} : { deletedRecords }),
   };
+}
+
+/** Whether a later layer decided `key`, so its row is not decoded; a key two rows share is refused all the same. */
+function skips<K>(decided: ReadonlySet<K> | undefined, skipped: Set<K>, key: K): boolean {
+  if (decided?.has(key) !== true) return false;
+  if (skipped.has(key)) throw invalid();
+  skipped.add(key);
+  return true;
 }
 
 function validateOffset(column: Uint32Array, end: number, rows = column.length - 1): void {
