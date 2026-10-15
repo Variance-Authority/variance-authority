@@ -160,6 +160,41 @@ describe('content that moved down the page', () => {
     expect(comparison.changed.default).toBe(WIDTH);
   });
 
+  it('pairs the rows under an edit longer than one search allows', () => {
+    // A section of 1,100 distinct rows rewritten as 1,150, then 200 rows that
+    // only moved down, then a line that changed in place, so the rows that moved
+    // are not the shared tail. The shortest edit is 2,252 runs, past one Myers
+    // search; the rows that occur once on each side still pair the 200 with
+    // their shifted partners, and the rewritten section alone is the change.
+    const before = distinct([...range(0, 3), ...range(10, 1110), ...range(5000, 5200), 7000, ...range(9000, 9003)]);
+    const after = distinct([...range(0, 3), ...range(2000, 3150), ...range(5000, 5200), 7001, ...range(9000, 9003)]);
+
+    const comparison = comparePixels(before, after);
+
+    expect(comparison.alignment).toEqual({
+      inserted: [{ from: 3 + 1100, to: 3 + 1150 }],
+      removed: [],
+      shifted: [{ from: 3 + 1150, to: 3 + 1150 + 200 + 1 + 3, by: 50 }],
+    });
+    expect(comparison.changed.strict).toBe((1150 + 1) * WIDTH);
+  });
+
+  it('compares a page whose stretches nest as deep as it is long', () => {
+    // Each pass finds one run that occurs once on each side, and the stretch
+    // after it still holds an edit past one search, for 12,000 passes:
+    // 2,1,3,2,4,3,… against 1,2,3,…, over 3,000 rows that differ throughout.
+    // Followed to the bottom, this outgrew the call stack; the work bound stops
+    // the split a few dozen passes in and compares the rest by position.
+    const depth = 12_000;
+    const before = distinct([...range(1, depth + 1).flatMap((k) => [k + 1, k]), ...range(0, 3000).map((i) => 30_000 + (i % 2))]);
+    const after = distinct([...range(1, depth + 1), ...range(0, 3000).map((i) => 40_000 + (i % 2))]);
+
+    const comparison = comparePixels(before, after);
+
+    expect(comparison.alignment).toBeDefined();
+    expect([comparison.width, comparison.height]).toEqual([WIDTH, depth + 3000]);
+  });
+
   it('compares position by position when the widths differ', () => {
     const narrow = column([1, 2, 3]);
     const wide = { width: WIDTH + 1, height: 3, data: new Uint8Array((WIDTH + 1) * 3 * 4).fill(255) };
@@ -178,6 +213,19 @@ function column(rows: readonly number[]): { width: number; height: number; data:
     for (let x = 0; x < WIDTH; x += 1) data.set([value * 20, value * 20, value * 20, 255], (y * WIDTH + x) * 4);
   }
   return { width: WIDTH, height: rows.length, data };
+}
+
+/** One image whose rows each have a colour of their own: equal values are equal rows, up to 65,536 of them. */
+function distinct(rows: readonly number[]): { width: number; height: number; data: Uint8Array } {
+  const data = new Uint8Array(WIDTH * rows.length * 4);
+  for (const [y, value] of rows.entries()) {
+    for (let x = 0; x < WIDTH; x += 1) data.set([value & 0xff, value >>> 8, 0x80, 255], (y * WIDTH + x) * 4);
+  }
+  return { width: WIDTH, height: rows.length, data };
+}
+
+function range(from: number, to: number): number[] {
+  return Array.from({ length: to - from }, (_, index) => from + index);
 }
 
 const LINE = 8;
