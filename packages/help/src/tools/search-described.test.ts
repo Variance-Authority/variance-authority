@@ -86,4 +86,19 @@ describe('which names the described section holds, and in what order', () => {
     expect(said.indexOf('managedStateFor')).toBeGreaterThan(-1);
     expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('stateOf'));
   });
+
+  it('reads the words in a published doc too, after a name that holds them itself', async () => {
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'], dependencies: { react: '1.0.0' } }),
+      'packages/kit/package.json': JSON.stringify({ name: 'kit', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } }),
+      'packages/kit/tsconfig.json': JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } }),
+      'packages/kit/src/index.ts': '/** Management of each session and its state. */\nexport function journalOf(key: string): string {\n  return key;\n}\n',
+      'src/store.ts': 'export function managedStateFor(key: string): string {\n  return key;\n}\n',
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
+    // `journalOf` holds neither word in its name; its published doc holds both.
+    expect(said).toMatch(/journalOf .*\[holds: management, state\]/);
+    expect(said.indexOf('managedStateFor')).toBeGreaterThan(-1);
+    expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('journalOf'));
+  });
 });
