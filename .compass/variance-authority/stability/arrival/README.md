@@ -54,11 +54,12 @@ directions: a subject declared to capture a loading state, that then settles,
 is refused too, because a declaration nobody deleted is a subject whose
 baseline flips between a skeleton and a component depending on the weather.
 
-Hydration is the one wait that ends in a warning rather than a refusal, and the
-difference is the image. A server-rendered subject React has not committed paints
-the same pixels it will paint once committed; what it lacks is the components
-behind them. So it is collected, and carries `hydration-unfinished` (or
-`react-root-absent` when no root was found), so that a region with no component
+Hydration is refused on the same terms. A server-rendered subject React has not
+committed is not the image it settles on: an effect that runs after hydration —
+a mounted flag, a theme read from storage, a layout measured on the client —
+paints differently, and nothing is read off a render that has not committed, so
+its components are missing too. A subject no React root was found for is
+collected, and carries `react-root-absent`, so that a region with no component
 on it reads as unobserved and never as unattributed.
 
 It does not decide *why* a page never finished, and it does not fix it. It

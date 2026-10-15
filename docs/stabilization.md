@@ -852,12 +852,12 @@ machine hydrates later, so the same route can name its components on one run
 and name none on the next.
 
 The collector waits for that commit, for up to two seconds by default. A route
-that is still not hydrated after that carries a `hydration-unfinished` warning,
-and that warning is how you tell this case apart from a node no component
-rendered. Then you do one of two things. Raise `hydrationTimeoutMs` on
-`routeCollector({ … })` when your route hydrates slowly. Or find what holds
-hydration up: most often it is a promise read outside any `<Suspense>`, which
-holds the whole first render until the promise settles.
+that is still not hydrated after that is refused, and the refusal counts the
+roots that had not committed. Then you do one of two things. Raise
+`hydrationTimeoutMs` on `routeCollector({ … })` when your route hydrates
+slowly. Or find what holds hydration up: most often it is a promise read
+outside any `<Suspense>`, which holds the whole first render until the promise
+settles.
 
 A count of the nodes that carry a fiber does not say whether that commit
 happened. React attaches a fiber to a node when it renders the node, before it
@@ -866,27 +866,31 @@ before the suspension carrying fibers while the root is still uncommitted, and
 the count holds still for as long as the suspension does. So the route
 collector reads the commit state React keeps on each root. It finds every root
 on the subject, above it up to the `Document`, under it, and the root of a
-subject rendered through a portal, and waits until each has committed.
+subject rendered through a portal, and waits until each has committed. No
+component is read off a node whose root has not committed, because that render
+may never reach the screen.
 
-A route still uncommitted when the wait runs out is collected, not refused. A
-Suspense boundary still open is refused, as the next section explains, and the
-difference is the image. An open boundary paints a fallback in place of the
-content, so a slow machine and a fast one record different pixels. A route React
-has not hydrated still paints the markup the server sent, and what it certainly
-lacks is its components. So the run keeps the comparison and prints a `warn`
-diagnostic on that subject, which the report carries:
+A route still uncommitted when the wait runs out is refused for the same reason
+an open Suspense boundary is, as the next section explains: the image is not
+the one the route settles on. The markup the server sent is on screen, but an
+effect that runs after hydration — a mounted flag, a theme read from storage,
+a layout measured on the client — paints something else, so a slow machine and
+a fast one record different pixels:
 
 ```
-React had not finished hydrating page/app after 2004ms: 1 of 1 React root(s)
-had not committed. Its components were not read, so a changed region here
-names no component. Raise `hydrationTimeoutMs`, or find what holds the shell:
-a promise read outside any <Suspense> holds hydration until it settles.
+`page/app` was still hydrating when it was read: 1 of 1 React root(s) had not
+committed after 2004ms. An effect that runs after hydration can paint a
+different image, so the same route records one image on a slow run and another
+on a fast one. Raise `hydrationTimeoutMs`, or find what holds the shell: a
+promise read outside any <Suspense> holds hydration until it settles.
 ```
 
-A route where no root is found says `react-root-absent` instead, because no
-component could have been read there: either React does not render it, or its
-client had not created a root yet. A run with `wiring: false`, the option that
-turns the component reading off, waits for nothing and says nothing.
+A route where no root is found is collected, with a `react-root-absent` `warn`
+diagnostic on that subject, which the report carries. No component could have
+been read there: either React does not render it, or its client had not created
+a root yet, and the warning is how you tell that apart from a node no component
+rendered. A run with `wiring: false`, the option that turns the component
+reading off, waits for nothing and says nothing.
 
 ### The wait, and the decision it forces
 
