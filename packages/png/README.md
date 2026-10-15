@@ -203,8 +203,16 @@ where it sits.
 
 When the widths differ there is no row of one image in the other. Both are then
 copied onto the union box, top-left aligned, and compared position by position,
-and `alignment` is absent. The same happens when the two differ in more than
-2,000 runs of rows, where aligning costs more than it can save.
+and `alignment` is absent.
+
+The shortest edit is searched for up to 2,000 runs of rows, and it counts every
+change on the page, so a rewritten section and a few lines reflowed under it can
+pass that on a long page. Past it the rows are split where both images hold a
+row exactly once, as patience diff does, and each stretch between two such rows
+is aligned on its own: the rows an edit only moved still pair with the rows they
+moved from. A stretch the two images share no such row in is paired by position
+within it, and the pairing is still kept only when it leaves fewer pixels
+differing than position does.
 
 That padding is opaque **white**, and that is a position rather than a derived
 value: white is taken as the page's assumed canvas. Transparent padding would
