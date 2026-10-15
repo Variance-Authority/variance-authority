@@ -30,6 +30,19 @@ export function unloadedFile(file: string, from: string, count: number): Operato
 }
 
 /**
+ * Refuse `file`, which the record at `from` does not hold because the commit
+ * it was made at, `commit`, did not hold the file. That is a record older than
+ * the file, not a run that never loaded it, so it carries no `unloaded` kind:
+ * the next run of the suite is what answers it.
+ */
+export function addedSince(file: string, from: string, commit: string): OperatorError {
+  return new OperatorError(
+    `\`${file}\` did not exist at ${commit.slice(0, 12)}, the commit the record at \`${from}\` was made at, ` +
+      'so that record has no answer for it: run the suite and ask again.',
+  );
+}
+
+/**
  * Refuse `file`, which the index at `from` does not hold, when `from` is a
  * coverage record whose coverage cannot be read: it kept cases and no coverage,
  * or its coverage does not decode. Its preconditions are where a module the

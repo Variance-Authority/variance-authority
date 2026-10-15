@@ -54,11 +54,12 @@ import {
   type RangeState,
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
+import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import { unloadedFile, unreadPreconditions } from './covering-unloaded.js';
+import { addedSince, unloadedFile, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
@@ -255,6 +256,10 @@ async function ask(
     if (loaded !== undefined) return { file, preconditionOf: asked === undefined ? loaded : loaded.filter((test) => asked.has(test)), from };
     // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
+    // Git says whether the commit the record was made at held the file: a
+    // record older than the file is not a run that never loaded it.
+    const at = record !== undefined && from.startsWith(record) ? await recordedCommit(record) : undefined;
+    if (at !== undefined && existedAt(request.root, at, file) === false) throw addedSince(file, from, at);
     throw unloadedFile(file, from, files.length);
   }
 

@@ -425,8 +425,11 @@ checkout (e2e): nothing is recorded in /repo: no run left a per-case index at â€
 Not loaded by stories (visual): a run that never loaded the file has no answer about it, which is not the same as no test covering it.
 ```
 
-Once any suite answers, the answers come first, then any suite that has never
-run. A suite that never loaded the file costs one line at the end. When no suite
+Suites are asked nearest kind first: unit, integration, e2e, visual. Once any
+suite answers, the answers come first, then any suite that has never run. A
+suite that never loaded the file costs one line at the end. A suite whose record
+was made before the file existed says so, with the commit it recorded at, since
+only its next run can answer. When no suite
 answers, each says why in full, with the record it read, since a wrong path is
 then the likely cause. The record names files from the repository root, so give
 `--file` that way, or as an absolute path; one outside the root is refused. A

@@ -18,6 +18,7 @@
 
 import {
   declaredSuites,
+  SUITE_KINDS,
   testCoverageFile,
   type DeclaredSuite,
   type SuiteKind,
@@ -39,7 +40,7 @@ export type SuiteAnswer =
       readonly reason: string;
     };
 
-/** The question asked of every declared suite, in declaration order. */
+/** The question asked of every declared suite, the nearest kind first (`nearestFirst`). */
 export interface CoveringSuites {
   readonly file?: string;
   readonly since?: string;
@@ -69,7 +70,7 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
     ? { ...request, held: (await heldText(request)) ?? '' }
     : request;
   const suites: SuiteAnswer[] = [];
-  for (const one of declared) suites.push(await askSuite(asked, one));
+  for (const one of nearestFirst(declared)) suites.push(await askSuite(asked, one));
   if (suites.every((answer) => 'refused' in answer && answer.refused === 'unrecorded')) {
     throw nothingRecorded(request.root, declared.map((one) => one.name));
   }
@@ -79,6 +80,16 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
     ...(request.since === undefined ? {} : { since: request.since }),
     suites,
   };
+}
+
+/**
+ * The declared suites in the order the kinds are listed, unit first, and by
+ * name within a kind. The reader asks which tests judge a change, and the
+ * nearest judge is the one run first; a suite named `chromium` sorting ahead
+ * of `unit` would bury the unit tests under every end-to-end journey.
+ */
+function nearestFirst(declared: readonly DeclaredSuite[]): readonly DeclaredSuite[] {
+  return [...declared].sort((a, b) => SUITE_KINDS.indexOf(a.kind) - SUITE_KINDS.indexOf(b.kind));
 }
 
 async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<SuiteAnswer> {
