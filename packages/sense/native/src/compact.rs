@@ -43,15 +43,13 @@ pub(crate) fn compacted(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
 /// puts every row again, and a working layer that kept them held the base twice
 /// over, for every reader, until the index was next readied.
 pub(crate) fn merged(base: &[&[u8]], layers: &[&[u8]]) -> Result<Vec<u8>, String> {
-    let base = opened(base, "base segment")?;
-    match layers {
-        [one] if base.is_empty() => Ok(one.to_vec()),
-        _ => folded(&base, layers, true),
-    }
+    folded(&opened(base, "base segment")?, layers, true)
 }
 
-/// Each segment opened in place. What reaches this side is a chain JavaScript
-/// already accepted (`stored.rs`), so a segment that does not open is refused.
+/// Each segment opened in place. A chain reaches this side only after its
+/// reader cut it at the first segment it refused — `load` in
+/// `source-index-file.ts`, or the opening in `source_update.rs` — so a segment
+/// that does not open here is refused with its place.
 fn opened<'a>(segments: &[&'a [u8]], what: &str) -> Result<Vec<Layer<'a>>, String> {
     segments
         .par_iter()
