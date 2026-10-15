@@ -6,6 +6,7 @@ import type {
   Diagnostic,
   RenderDocument,
   SemanticSnapshot,
+  Step,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
@@ -159,6 +160,12 @@ export type Collected =
       readonly source?: SourceIndex;
       /** Product-owned presentation consequence, already compared by the collector. */
       readonly presentation?: PresentationSignalRecord;
+      /**
+       * How long each step of this reading took, in the order they ran, on the
+       * collector's own clock. The run records them as `collect.<step>` beside
+       * its own; absent records none.
+       */
+      readonly steps?: readonly Step[];
     }
   | { readonly ok: false; readonly because: string };
 

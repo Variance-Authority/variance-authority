@@ -80,6 +80,25 @@ describe('acquiring a render document', () => {
     expect(acquired.diagnostics.map((d) => d.code)).not.toContain('frame-incomplete');
   });
 
+  // Storybook swaps its layout class on a page it reuses, so the order of the
+  // body's classes says which story the page showed before this one. A run in
+  // parallel lanes changes that neighbour, and the same story addressed a
+  // different document with the same pixels.
+  it('addresses the same frame whichever order its classes were added in', () => {
+    const subject = mount('<div id="subject">x</div>');
+    const acquire = (classes: string) => {
+      document.body.setAttribute('class', classes);
+      return acquireDocument(subject, { subject: { id: 's', kind: 'fixture' }, viewport: VIEWPORT });
+    };
+
+    const first = acquire('sb-show-main sb-main-centered');
+    const second = acquire(' sb-main-centered  sb-show-main ');
+
+    expect(second.frame.body['class']).toBe('sb-main-centered sb-show-main');
+    expect(documentDigest(second)).toBe(documentDigest(first));
+    document.body.removeAttribute('class');
+  });
+
   it('reports a rule that stops matching once the frame is rebuilt', () => {
     // The defect this phase can produce silently. A rule kept because an
     // ancestor matched, rendered without that ancestor, is styling that vanishes

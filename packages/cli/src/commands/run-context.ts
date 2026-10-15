@@ -1,10 +1,12 @@
 import type { HistoryStore } from '@variance-authority/history';
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import type { StepClock } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
+import type { SubjectBudget } from './budget.js';
 import type { Collector } from './collector.js';
 import type { RunIdentity } from './history.js';
 import type { JourneyReading } from './journeys.js';
@@ -261,18 +263,24 @@ export interface ObserveContext {
   readonly deps: RunDeps;
   readonly renderer: Renderer;
   /**
-   * How many more subjects may be re-collected alone.
+   * Whether this subject, once it changed, is one the run re-collects.
    *
-   * Mutable and shared across the loop, because the budget is a property of the
-   * *run* rather than of a subject: twenty changed subjects should spend twenty,
-   * not twenty each. Passed rather than closed over so `observeOne` stays
-   * callable from a test with a budget of its own.
+   * A share of one budget for the whole *run* rather than one per subject:
+   * twenty changed subjects should spend twenty, not twenty each, and which
+   * twenty is decided by queue order, not by which world finished first (see
+   * `budgetOf`). Passed rather than closed over so `observeOne` stays callable
+   * from a test with a budget of its own.
    */
-  readonly budget: { remaining: number };
+  readonly budget: SubjectBudget;
   /** `--flakes`: read every subject twice, outside the budget. See `RunOptions`. */
   readonly sweep?: boolean;
   /** Absent means `pngjs`. See `decoderFor`. */
   readonly decoder?: PngDecoder;
+  /**
+   * This subject's steps, on the run's injected clock. Absent when the run has
+   * no clock, and then nothing is timed: the same rule as `costMs`.
+   */
+  readonly steps?: StepClock;
 }
 
 export type Outcome =
