@@ -238,7 +238,10 @@ const overlay = (subject: SubjectView, focus: number | null = null): Story => ({
 });
 
 export const OverlayCauseAndCollateral = overlay(composed);
-export const OverlayCollateralLit = overlay(composed, 2);
+export const OverlayCollateralLit = overlay(
+  composed,
+  composed.regions.findIndex((region) => !region.cause),
+);
 export const OverlayOneCause = overlay(secondary);
 
 const unfiled = ({ file: _file, ...rest }: RegionRecord): RegionRecord => rest;
