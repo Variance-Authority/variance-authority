@@ -275,12 +275,15 @@ reaches past the component that rendered the node.
   `'unmounted'` for a node whose tree was torn down. An empty chain would be a
   claim — "owned by nobody" — and indistinguishable from a node rendered
   directly by a root.
-- **Nothing is read off a render React has not committed.** While a root is
+- **Nothing is read under a root React has not committed.** While a root is
   still hydrating, or on its first render, the nodes React has reached carry a
   fiber, and the render they belong to may be thrown away. Such a node reports
-  `{ status: 'no-fiber', reason: 'uncommitted' }`, and `wiringOf` and
-  `holdingOf` return nothing for it; the same node resolves once the root
-  commits. `awaitHydration` waits for that commit.
+  `{ status: 'no-fiber', reason: 'uncommitted' }`, and `wiringOf`,
+  `holdingOf` and `componentFiberOf` return nothing for it; the same node
+  resolves once the root commits. `awaitHydration` waits for that commit. The
+  check is per root: a Suspense boundary still hydrating under a committed root
+  is `awaitSuspense`'s to report, and a subject read while one is open is a
+  subject still arriving.
 - **`createdBy` is development-only.** React populates `_debugOwner` from
   `element._owner`, which production builds leave empty; the field is then
   omitted and attribution degrades to the enclosing component.

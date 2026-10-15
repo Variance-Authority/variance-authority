@@ -1,6 +1,7 @@
 ---
 '@variance-authority/react': minor
 '@variance-authority/route-collector': minor
+'@variance-authority/eyes': patch
 ---
 
 A route's components are read after React has hydrated it, and a route read before says so
@@ -26,8 +27,9 @@ no React root is collected with a `react-root-absent` warning, so a region with
 no component says why. A run with `wiring: false` waits for nothing and says
 nothing. The new `hydrationTimeoutMs` option sets the wait, `2000` by default.
 
-`resolveProvenance`, `wiringOf` and `holdingOf` read nothing off a node whose
-root has not committed. `resolveProvenance` returns the new `UNCOMMITTED`
-sentinel, reason `'uncommitted'`, for it, where it used to resolve the
-component of a render React had not committed. A root that committed `null`
-now reads as committed.
+`resolveProvenance`, `wiringOf`, `holdingOf` and `componentFiberOf` read
+nothing off a node whose root has not committed. `resolveProvenance` returns
+the new `UNCOMMITTED` sentinel, reason `'uncommitted'`, for it, where it used to
+resolve the component of a render React had not committed. A root that
+committed `null` now reads as committed. An Eyes archive accepts a target
+recorded with that reason.
