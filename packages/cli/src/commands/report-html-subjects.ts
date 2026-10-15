@@ -179,7 +179,7 @@ function subject(entry: CliObservationRecord, placement: Placement): string {
  */
 function picture(side: 'before' | 'diff' | 'after' | 'change', path: string | undefined, placement: Placement): string {
   if (path === undefined) return '';
-  return `<img class="${side}" ${placement.attributes(path)} alt="${side}" loading="lazy" decoding="async">`;
+  return `<img class="${side}" ${placement.attributes(path)} alt="${side === 'change' ? 'before, after and the difference, where they changed' : side}" loading="lazy" decoding="async">`;
 }
 
 function modesFor(

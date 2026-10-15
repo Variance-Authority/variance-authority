@@ -11,5 +11,7 @@ crops the run cut around its largest regions — before, after and the
 difference, one image pixel per screen pixel — under a new first mode,
 `change`, and falls back to `regions` when the run cut none. The other modes
 show the pages at full width in a frame that scrolls, the wipe handle runs the
-page's full height, clicking a region's row in the table scrolls to its box and
-marks it, and the number keys reach every mode.
+page's full height, clicking a region's row in the table — or pressing Enter on
+it — scrolls to its box and marks it, and the number keys reach every mode.
+Clicking a region's row no longer hides every subject: the cause filter
+listens to its own buttons only.

@@ -248,7 +248,7 @@ pointer-events:none}
 .stage[data-mode=regions] .boxes b{position:absolute;border:1px solid var(--orange);
 background:#ff4a1914;pointer-events:auto;cursor:pointer}
 .stage[data-mode=regions] .boxes b.collateral{border-color:var(--warm);background:#756d6714}
-.stage[data-mode=regions] .boxes b.on{background:#ff4a1940;box-shadow:0 0 0 1px var(--orange)}
+.stage[data-mode=regions] .boxes b.on,.stage[data-mode=regions] .boxes b.asked{background:#ff4a1940;box-shadow:0 0 0 1px var(--orange)}
 .none{color:var(--warm);font-size:12px;margin:.25rem 0}
 
 /* tables */
