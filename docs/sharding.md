@@ -47,10 +47,13 @@ place by time, your mainline has to publish one:
 1. On a push to your mainline, keep each shard's record as an artifact. A
    wrapped configuration writes it under
    `node_modules/.cache/variance-authority/test-selection/`, at
-   `<repository>/suites/<name>/coverage.bin` for a declared suite, or
-   `<repository>/coverage.bin` when you declare none; `<repository>` is a
-   digest of the checkout's path. Upload the `test-selection` directory whole,
-   as [a suite with no run report](sharing.md#a-suite-with-no-run-report) does.
+   `<repository>/suites/<name>/coverage.bin` for a
+   [declared suite](execution-record.md#one-record-for-each-suite), or
+   `<repository>/coverage.bin` when you declare none. `<repository>` is a
+   digest of the checkout's absolute path, which is the same on every runner of
+   one workflow; a job that checks out to another path looks under another
+   name and finds nothing. Upload the `test-selection` directory whole, as
+   [a suite with no run report](sharing.md#a-suite-with-no-run-report) does.
 2. Fold them into one with
    [`variance journeys <shard>...`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too):
    the record one unsharded run would have written.
@@ -59,7 +62,12 @@ place by time, your mainline has to publish one:
    [A suite with no run report](sharing.md#a-suite-with-no-run-report) is that
    job, step by step.
 
-Every later build that branches from that commit reads it.
+Every later build that branches from that commit reads it, and its shard jobs
+download nothing for it. A shard with no record of its own asks the share for
+the mainline's record when it starts and keeps it under
+`node_modules/.cache/variance-authority/share/read/<suite>/`. The asking is
+done by `@variance-authority/cli`, so the project installs it, and the suite
+needs `"carry": "share"` beside a `share` section in `variance.config.json`.
 [A suite your checkout has not recorded](sharing.md#a-suite-your-checkout-has-not-recorded)
 covers which record is read when. Until a record is published, the shards are
 placed as [when nothing is recorded](#when-nothing-is-recorded) shows.
@@ -80,9 +88,18 @@ times. A missing record never fails a build:
 - **A shard with no file passes.** With fewer files than shards, some shard
   takes none, and it passes under every runner. For Jest, `withTestSelection`
   sets `passWithNoTests` unless your configuration sets it.
-- **Shards that read different records split differently.** If one shard of a
-  build placed by file count and the others by time, a file can run in two
-  shards or in none. The line in each shard's log shows which one did.
+- **Shards that read different records split differently**, so a file can run
+  in two shards or in none. Each shard asks the share when it starts, so a
+  publish that lands between two shards' starts gives them two records, and a
+  shard that cannot reach the share places by file count beside shards placed
+  by time. The line in each shard's log names what it read. On the push to
+  your mainline, step 2's fold fails the build as unstable sharding and names
+  both records; on a pull request nothing folds, so the lines are the only
+  sign. To prevent it, fetch the record once: in the job that plans the
+  shards, `variance share --suite <name>` keeps it under
+  `node_modules/.cache/variance-authority/share/`. Pass that directory to each
+  shard as an artifact, and a shard at the same commit reads it without asking
+  the share again.
 - **`variance shards` answers one shard.** [Choose how many shards](#choose-how-many-shards)
   counts by the times, so with none it answers one and says so. Pass
   `--unrecorded <n>` to start `n` shards until there are times.
