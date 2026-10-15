@@ -80,7 +80,8 @@ describe('a chain whose later layer puts every key again', () => {
 
   it('reads up to a damaged segment as though no layer above it decided anything', async () => {
     // Whole bytes the log reads, under their own digest, that are no source index.
-    const file = await chain([[generation('old', 2), new TextEncoder().encode('not a source index')], [generation('new', 2)]]);
+    // One save onto nothing writes them as they are; a save onto them would refuse its base.
+    const file = await chain([[generation('old', 2), new TextEncoder().encode('not a source index'), generation('new', 2)]]);
     expect((await openImmutableLog(file)).segments).toHaveLength(3);
 
     const read = await readPublishedSources(file);
