@@ -5,6 +5,7 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms } from './loose.js';
+import { describedNames, describedOrder } from './described.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 
 /**
@@ -14,8 +15,9 @@ import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexic
  * so the two cannot disagree about a count or a row: both read the same value.
  * What was not determined is absent, never empty. A start point that did not
  * resolve carries `refused` and no sections, because nothing was searched; the
- * loose section is absent when the substring answered, because it was not run,
- * and present with a total of zero when it ran and found nothing.
+ * loose and described sections are absent when an earlier section answered,
+ * because they were not run, and present with a total of zero when they ran and
+ * found nothing.
  *
  * Every `total` counts the whole match and every `shown` holds the first few.
  * Only the shown rows are decoded, so a two-letter query that matches a
@@ -30,6 +32,9 @@ export const ELSEWHERE_CAP = 25;
 
 /** Loose matches shown. Lowest: these are the ones the caller did not ask for. */
 export const LOOSE_CAP = 15;
+
+/** Described matches shown: as many as the loose pass, the same kind of guess. */
+export const DESCRIBED_CAP = LOOSE_CAP;
 
 /** How wrong a word may be and still be looked up: one character, capped in `loose.ts`. */
 const FUZZY = 0.2;
@@ -92,6 +97,12 @@ export interface ExportedMatch {
   readonly files: number;
 }
 
+/** A name of this repository a description reached, and which of its words it holds. */
+export type DescribedMatch = (PublishedMatch | ExportedMatch) & {
+  /** The question's words the name or its documentation holds, as the question wrote them. */
+  readonly words: readonly string[];
+};
+
 export interface Matches<T> {
   readonly total: number;
   readonly shown: readonly T[];
@@ -112,7 +123,8 @@ export interface SearchArea {
  * One `search` answer, as the text and `--format json` both read it.
  *
  * Sections are present when they ran. `loose` runs only when the exact local
- * and third-party sections are empty; no section runs when `refused` is set.
+ * sections are empty and no installed name holds the query, and `described`
+ * runs beside it. No section runs when `refused` is set.
  */
 export interface SearchAnswer {
   /** The query as it was matched: lowercase. */
@@ -125,6 +137,12 @@ export interface SearchAnswer {
   readonly exported?: Matches<ExportedMatch>;
   /** Present only when the exact sections are empty, which is when it runs. */
   readonly loose?: Matches<PublishedMatch | ExportedMatch>;
+  /**
+   * This repository's names holding at least half of the question's words,
+   * past those `loose` holds. Present when `loose` ran, which is when it runs;
+   * absent too when the question has no word to describe it by.
+   */
+  readonly described?: Matches<DescribedMatch>;
   /** Installed third-party names available to this workspace or area. */
   readonly thirdParty?: LexiconMatches;
 }
@@ -368,7 +386,11 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
-  if (hits.length > 0 || rest.total > 0 || (thirdParty?.total ?? 0) > 0 || (thirdParty?.described?.length ?? 0) > 0) return { answer, area };
+  // The installed packages that describe the words are a different answer from
+  // this repository's names, and never stand in for them: only an installed
+  // name holding the query as written — which the caller asked for by name —
+  // ends the search for names of this repository's own.
+  if (hits.length > 0 || rest.total > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
@@ -380,7 +402,19 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const alsoFound = published(index, alsoHits, LOOSE_CAP);
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within);
   const shown = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
-  return { answer: { ...answer, loose: { total: alsoFound.total + alsoRest.total, shown } }, area };
+  const loosely: SearchAnswer = { ...answer, loose: { total: alsoFound.total + alsoRest.total, shown } };
+
+  // The same empty answer read as a description: names holding half of its
+  // words, stemmed by the rule packages are. A name the loose pass holds is
+  // its, so no name is offered twice.
+  const described = describedNames(index, query, within, new Set([...named, ...answered, ...loose]));
+  if (described === undefined) return { answer: loosely, area };
+  const told = first(described, DESCRIBED_CAP, describedOrder).flatMap(({ name, words }): DescribedMatch[] => {
+    const row = published(index, surface(index, index.publishedOf(name), area, within), 1).shown[0] ??
+      exported(index, [name], new Set(), within).head(1)[0];
+    return row === undefined ? [] : [{ ...row, words }];
+  });
+  return { answer: { ...loosely, described: { total: described.length, shown: told } }, area };
 }
 
 /**
@@ -417,7 +451,7 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * The same answer `variance ask search` prints, before it is written as text:
  * published names first, then the names the source exports without
  * publishing, then — only when both are empty — the names a looser reading
- * finds.
+ * finds and the names that hold half of the words.
  */
 export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): SearchAnswer {
   return searched(index, question, tree, root).answer;

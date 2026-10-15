@@ -92,8 +92,12 @@ it. `--to` keeps the names in that code.
 
 It answers in two sections: the names a manifest publishes, ranked by how
 many packages import them, then the names the source exports without
-publishing. A third follows only when your words match a name that does not
-contain them, labelled as the looser reading it is.
+publishing. When neither holds your words as written, two more follow, each
+labelled as the reading it is and both before any installed package: the names
+holding at least half of your words, matched by stem and ranked by how many of
+them the name itself holds, then the names your words reach written apart or
+one character off. So `tsconfig custom conditions` answers
+`customConditionsFor` before the bundlers that also say those words.
 
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
@@ -110,7 +114,8 @@ Each section has a `total`, which counts every match, and `shown`, which holds
 the rows the text would print. A published row carries `specifier`, `at`, the
 first paragraph of its documentation as `summary`, and `inArea` when you gave a
 start point. An exported row carries `at` and `line`. A section that was not run
-is missing: `loose` is present only when the other two are empty, and a refused
+is missing: `described` and `loose` are present only when the other two are
+empty, a `described` row carries the `words` of yours it holds, and a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
 These questions read the checkout the same way `packages` does. `--from` and

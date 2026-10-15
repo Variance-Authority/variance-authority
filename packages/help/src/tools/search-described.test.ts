@@ -43,3 +43,15 @@ it('reaches react from "state management", answers an undescribed job empty with
   await refreshDependencyLexicon(root);
   expect(said('resize images')).toContain('1 package describes `resize images`');
 });
+
+it('answers a description with the repository\'s own names first, and the packages that describe it after', async () => {
+  const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    'src/store.ts': 'export function managedStateFor(key: string): string {\n  return key;\n}\n',
+  });
+  const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
+
+  // Neither the phrase nor every word is in the name, so only the words held answer it.
+  expect(said).toContain('managedStateFor');
+  expect(said).toContain('[holds: management, state]');
+  expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('react @1.0.0'));
+});

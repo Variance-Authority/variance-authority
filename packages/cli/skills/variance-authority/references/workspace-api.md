@@ -234,9 +234,11 @@ matches installed third-party declarations from the same lexicon. The full
 signatures and JSDoc are in `dependency-lexicon.json` beside the source index.
 
 Nothing back means nothing matched, not that a ranking left it out. In a
-checkout that publishes nothing, that is the final answer. The loosely matching
-section is a suggestion: it never changes the sections above it, and it does not
-find a word the repository never writes. For that, expand the query as
+checkout that publishes nothing, that is the final answer. The two sections that
+follow an empty answer — names holding at least half of your words by stem, then
+names your words reach loosely — are suggestions, printed before the installed
+packages: they never change the sections above them, and they do not find a word
+the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.
 
 **A start point removes names; it does not rank them down.** A path the
