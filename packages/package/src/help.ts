@@ -310,9 +310,9 @@ export type {
   Use,
   UseKind,
 } from './use.js';
-export { ownership, readImportTargets, readOfferings, requested } from './manifest.js';
+export { ownership, readImportTargets, readOfferings, readWorkspaceManifests, requested } from './manifest.js';
 export { landing, type ImportTargets } from './entry.js';
-export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
+export type { Entrypoint, Offering, OfferingOptions, WorkspaceManifests } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';
 export type { Declaration, DeclarationKind } from './declare.js';

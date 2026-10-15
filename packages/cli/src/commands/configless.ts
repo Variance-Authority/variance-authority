@@ -228,11 +228,20 @@ export async function answerConfigless(
     // same reason: it publishes what they read, and a pipeline that runs them
     // may have configured this tool for nothing else.
     case 'index': {
-      const { followUpsOutput, indexOutput } = await import('./index-command.js');
-      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
+      const [{ followUpsOutput, indexOutput }, { stepTicker }] = await Promise.all([
+        import('./index-command.js'),
+        import('./step-progress.js'),
+      ]);
+      // On stderr, beside the waiting lines: stdout is the answer a pipeline reads.
+      const ticker = stepTicker((text) => streams.err(text), process.stderr.isTTY === true);
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress };
       const waiting = (text: string): void => streams.err(text);
-      if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
-      else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      try {
+        if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
+        else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      } finally {
+        ticker.done();
+      }
       return EXIT_CLEAN;
     }
 

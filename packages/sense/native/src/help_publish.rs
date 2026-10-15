@@ -1,7 +1,7 @@
 //! The Help value `variance index` publishes, refreshed from the chain it just
 //! wrote without its export list ever reaching JavaScript.
 //!
-//! `refreshWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
+//! `publishWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
 //! it. A reading holds what the chain says — the uses JavaScript joins against
 //! the documented surface, and the export list and path graph it has nothing to
 //! add to — and publishing writes the three files beside the index that

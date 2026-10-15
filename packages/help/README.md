@@ -433,7 +433,7 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the answers are computed from, for a program that
 runs more than one of them or runs them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Eight options, all optional: `index`, the path of the source
+and who imports it. Nine options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `packs`, whether the scan
 reads file bytes from Git's object store, on unless you say otherwise; `save`,
@@ -446,7 +446,15 @@ addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
 graph the scan drew on the way, for a caller that needs the arrows between files
 as well as the names, so it does not scan the checkout a second time to get them;
-and `tree`, a function handed that graph as the path-query surface directly.
+`tree`, a function handed that graph as the path-query surface directly;
+and `progress`, a function told each step's name as it starts, which returns
+the function to call when that step ends, for a caller that shows a slow
+reading as it happens.
+A workspace whose `workspaces` list names members outside its own directory is
+read over its directory and each listed member, named from the top of the Git
+checkout, and keeps that scope's records in a second index next to `index`. That
+one is always saved, whatever `saveIndex` says, because no other caller
+publishes it.
 Taints change which files a path question reaches and never manufacture symbol
 bindings or usage counts. A subtractive taint is refused: a mock is relative to
 one file's run and cannot be flattened into a workspace-wide source tree.

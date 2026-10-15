@@ -46,16 +46,14 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     let (listing, status) = std::thread::scope(|scope| {
         let listing = scope.spawn(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None));
         // `core.fsmonitor` and `core.untrackedCache` are left to the repository,
-        // for the reason `tree.ts` gives: they are what make this call cheap, and
-        // overriding either way spends a user's configuration on their behalf.
-        // At the top of the checkout the question is also asked in the one shape
-        // git's untracked cache answers, for the reason `tree.ts` gives.
+        // for the reason `working-tree-changes.ts` gives: they are what make this
+        // call cheap, and overriding either way spends a user's configuration on
+        // their behalf. The shape of the question is `untracked_question`'s.
         let status = scope.spawn(|| {
-            if prefix.is_empty() {
-                git(root, &["status", "--porcelain=v1", "-z", "--untracked-files=normal"], None)
-            } else {
-                git(root, &["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], None)
-            }
+            let settings = untracked_settings(root);
+            let mut args = vec!["status", "--porcelain=v1", "-z"];
+            args.extend(untracked_question(prefix, settings));
+            git(root, &args, None)
         });
         (listing.join().ok().flatten(), status.join().ok().flatten())
     });
@@ -140,6 +138,66 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     Some(Snapshot { paths, oids, regular, unhashed })
 }
 
+/// What the repository configures about its untracked files: whether git keeps
+/// an untracked cache, and `status.showUntrackedFiles`, the one mode it keeps it
+/// for. `untrackedSettings` in `working-tree-changes.ts`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct UntrackedSettings {
+    pub cached: bool,
+    pub mode: &'static str,
+}
+
+/// The three settings, read in one call; none set is git's default, and so is
+/// a git that cannot answer.
+fn untracked_settings(root: &str) -> UntrackedSettings {
+    let pattern = r"^(core\.untrackedcache|feature\.manyfiles|status\.showuntrackedfiles)$";
+    settings_of(&git(root, &["config", "-z", "--get-regexp", pattern], None).unwrap_or_default())
+}
+
+/// `git config -z --get-regexp` output as the settings it names, read in
+/// order so a later file wins, as git reads it. `settingsOf` in
+/// `working-tree-changes.ts`.
+pub(crate) fn settings_of(listed: &[u8]) -> UntrackedSettings {
+    let truthy = |value: &[u8]| matches!(value, b"true" | b"yes" | b"on" | b"1");
+    let falsy = |value: &[u8]| matches!(value, b"false" | b"no" | b"off" | b"0" | b"");
+    let (mut cache, mut many_files, mut mode) = (None, false, "normal");
+    for entry in listed.split(|byte| *byte == 0).filter(|entry| !entry.is_empty()) {
+        // The key alone is a setting written with no value, which git reads as true.
+        let (key, value) = match entry.iter().position(|byte| *byte == b'\n') {
+            Some(newline) => (&entry[..newline], entry[newline + 1..].to_ascii_lowercase()),
+            None => (entry, b"true".to_vec()),
+        };
+        match key {
+            b"core.untrackedcache" => cache = Some(truthy(&value)),
+            b"feature.manyfiles" => many_files = truthy(&value),
+            b"status.showuntrackedfiles" => {
+                mode = if value == b"all" { "all" } else if falsy(&value) { "no" } else { "normal" };
+            }
+            _ => {}
+        }
+    }
+    UntrackedSettings { cached: cache.unwrap_or(many_files), mode }
+}
+
+/// How `status` is asked for the untracked files below `prefix`.
+///
+/// Git answers from its untracked cache only in the mode the repository
+/// configures, and only with no pathspec, for the measurements
+/// `untrackedQuestion` in `working-tree-changes.ts` gives. Where git keeps the
+/// cache, the whole checkout is asked in its configured mode and the overlay
+/// drops what lies beside the root; where it does not, the pathspec is what
+/// keeps the walk to the root.
+pub(crate) fn untracked_question(prefix: &[u8], settings: UntrackedSettings) -> Vec<&'static str> {
+    if settings.cached && settings.mode != "no" {
+        return vec![if settings.mode == "all" { "--untracked-files=all" } else { "--untracked-files=normal" }];
+    }
+    if prefix.is_empty() {
+        vec!["--untracked-files=normal"]
+    } else {
+        vec!["--untracked-files=all", "--", "."]
+    }
+}
+
 /// Whether `HEAD` names a branch nobody has committed to yet.
 ///
 /// Asked only after `ls-tree` has failed, so a checkout with history never pays
@@ -160,10 +218,9 @@ type Moved = HashMap<Vec<u8>, Option<Oid>>;
 ///
 /// Porcelain status spells every path from the top of the checkout, wherever it
 /// runs, and ignores `status.relativePaths`. So each path loses `prefix` here,
-/// the scan root's place in the checkout, to match the listing's names. Below
-/// the top, status is asked with `-- .`, so every path it names is under the
-/// root: a rename across the root is a deletion or an addition on the root's
-/// side.
+/// the scan root's place in the checkout, to match the listing's names, and a
+/// path beside the root is dropped: a rename across the root is a deletion or
+/// an addition on the root's side.
 ///
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all
@@ -192,6 +249,12 @@ fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>) -> Option<(Moved,
                 moved.insert(from.to_vec(), None);
             }
             at += 1;
+        }
+        // Collapsed by `normal`, the root itself, or a directory above it, is
+        // one untracked line, and every file under the root is untracked.
+        if codes == b"??" && entry.ends_with(b"/") && prefix.starts_with(&entry[3..]) {
+            collapsed.push(b".");
+            continue;
         }
         let Some(path) = entry[3..].strip_prefix(prefix) else {
             continue;

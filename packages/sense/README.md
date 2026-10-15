@@ -1501,6 +1501,12 @@ const records = sourcesWithin(published.records, process.cwd(), ['src'], []);
 again only the files whose blob changed. Its result names the state it found
 (`was`), the files it holds, and how many it read again (`reread`). Pass
 `packs: false` to read bytes from the working tree, as `scanRelations` does.
+Pass `dirs` for an index that covers some directories of the checkout and what
+they import, rather than all of it, and `primary` to name the index a missing
+one starts from. Without `index`, a worktree's index starts from the primary
+checkout's. `progress` is told each step's name as it starts, the git listing
+and then the read of what changed, and returns the function to call when that
+step ends.
 
 `readPublishedSources(path)` opens a published index and reads nothing from Git
 or the disk beyond it. `publishedSources(root, options)` is the reader with a
