@@ -116,7 +116,8 @@ fn a_row_the_base_deleted_after_holding_it_is_written_again() {
 }
 
 #[test]
-fn a_base_holds_nothing_from_its_first_segment_that_does_not_open() {
+fn a_base_segment_that_is_not_a_generation_is_refused_with_its_place() {
     let layer = encoded(FULL);
-    assert_eq!(merged(&[b"not a segment", &layer], &[&layer, &layer]).unwrap(), layer);
+    let error = merged(&[&layer, b"not a segment"], &[&layer]).unwrap_err();
+    assert!(error.starts_with("base segment 1:"), "{error}");
 }
