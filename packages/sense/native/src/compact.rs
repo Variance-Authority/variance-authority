@@ -34,16 +34,24 @@ use crate::segment::NONE;
 use crate::stored::{same_length, Stored, U32s};
 
 pub(crate) fn compacted(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
-    folded(layers, false)
+    folded(&Beneath::default(), layers, false)
 }
 
-/// The layers over a base as one layer that still stands over it: a key one of
-/// them deleted and none put again stays deleted.
-pub(crate) fn merged(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
-    folded(layers, true)
+/// The layers over `base` as one layer that still stands over it: a key one of
+/// them deleted and none put again stays deleted, and a row the base already
+/// holds as they put it is not written. An update that read every file again
+/// puts every row again, and a working layer that kept them held the base twice
+/// over, for every reader, until the index was next readied.
+pub(crate) fn merged(base: &[&[u8]], layers: &[&[u8]]) -> Result<Vec<u8>, String> {
+    // A reader stops at the first segment it cannot read, so that is where what the base holds ends.
+    let base: Vec<Layer> = base.iter().map_while(|bytes| Layer::open(bytes).ok()).collect();
+    match layers {
+        [one] if base.is_empty() => Ok(one.to_vec()),
+        _ => folded(&Beneath { layers: &base }, layers, true),
+    }
 }
 
-fn folded(layers: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
+fn folded(base: &Beneath, layers: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
     let layers = layers
         .par_iter()
         .enumerate()
@@ -88,10 +96,12 @@ fn folded(layers: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
         }
     }
     let config = layers.last().and_then(|layer| layer.config);
+    let held = base.held(&parses, &records, &directories);
 
     let mut parses: Vec<(String, ParseView)> = parses
-        .into_iter()
+        .into_par_iter()
         .map(|(key, (at, row))| (key, ParseView { stored: &layers[at].stored, columns: &layers[at].parses, row }))
+        .filter(|(key, view)| !held.parse(key, view))
         .collect();
     parses.par_sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
     let parses: Vec<(&str, &ParseView)> = parses.iter().map(|(key, view)| (key.as_str(), view)).collect();
@@ -99,12 +109,16 @@ fn folded(layers: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
     let mut records: Vec<(&str, Indexed)> = records
         .into_par_iter()
         .map(|(file, (at, row))| (file, layers[at].records.indexed(&layers[at].stored, row)))
+        .filter(|(file, indexed)| !held.record(file, indexed))
         .collect();
     records.par_sort_unstable_by(|left, right| code_unit(left.0, right.0));
     let records: Vec<(&str, &Indexed)> = records.iter().map(|(file, held)| (*file, held)).collect();
 
-    let mut directories: Vec<(String, String)> =
-        directories.into_iter().map(|(path, digest)| (path.to_owned(), digest.to_owned())).collect();
+    let mut directories: Vec<(String, String)> = directories
+        .into_iter()
+        .filter(|(path, digest)| held.directories.get(path) != Some(digest))
+        .map(|(path, digest)| (path.to_owned(), digest.to_owned()))
+        .collect();
     directories.sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
 
     let sorted = |gone: Vec<String>| {
@@ -122,6 +136,74 @@ fn folded(layers: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
         records: &records,
         deleted: Deleted { parses: &gone_parses, records: &gone_records, directories: &gone_directories },
     }))
+}
+
+/// The base a fold stands over: the layers beneath it, oldest first.
+#[derive(Default)]
+struct Beneath<'b> {
+    layers: &'b [Layer<'b>],
+}
+
+/// The rows the base holds under the keys a fold puts, as a reader folds the
+/// base: oldest layer first, each layer's deletes and then its puts.
+struct Held<'b> {
+    layers: &'b [Layer<'b>],
+    parses: HashMap<String, (usize, usize)>,
+    records: HashMap<&'b str, (usize, usize)>,
+    directories: HashMap<&'b str, &'b str>,
+}
+
+impl<'b> Beneath<'b> {
+    fn held<P, R, D>(&self, parses: &HashMap<String, P>, records: &HashMap<&str, R>, directories: &HashMap<&str, D>) -> Held<'b> {
+        let mut held = Held { layers: self.layers, parses: HashMap::new(), records: HashMap::new(), directories: HashMap::new() };
+        for (at, layer) in self.layers.iter().enumerate() {
+            let (stored, columns) = (&layer.stored, &layer.parses);
+            for row in 0..columns.deleted.len() {
+                held.parses.remove(&joined(stored.text(columns.deleted.at(row)), stored.text(columns.deleted_way.at(row))));
+            }
+            for row in 0..columns.key.len() {
+                let key = joined(stored.text(columns.key.at(row)), stored.text(columns.way.at(row)));
+                if parses.contains_key(&key) { held.parses.insert(key, (at, row)); }
+            }
+            for row in 0..layer.records.deleted.len() {
+                held.records.remove(stored.text(layer.records.deleted.at(row)));
+            }
+            for row in 0..layer.records.file.len() {
+                let file = stored.text(layer.records.file.at(row));
+                if records.contains_key(file) { held.records.insert(file, (at, row)); }
+            }
+            for row in 0..layer.directories.deleted.len() {
+                held.directories.remove(stored.text(layer.directories.deleted.at(row)));
+            }
+            for row in 0..layer.directories.path.len() {
+                let path = stored.text(layer.directories.path.at(row));
+                if directories.contains_key(path) { held.directories.insert(path, stored.text(layer.directories.digest.at(row))); }
+            }
+        }
+        held
+    }
+}
+
+impl Held<'_> {
+    /// Whether the base holds `view` under `key`. Two rows are the same when
+    /// they encode the same, so a column added to the format is compared
+    /// without anything here learning of it.
+    fn parse(&self, key: &str, view: &ParseView) -> bool {
+        self.parses.get(key).is_some_and(|&(at, row)| {
+            let under = ParseView { stored: &self.layers[at].stored, columns: &self.layers[at].parses, row };
+            alone(&under) == alone(view)
+        })
+    }
+
+    fn record(&self, file: &str, indexed: &Indexed) -> bool {
+        self.records.get(file).is_some_and(|&(at, row)| self.layers[at].records.indexed(&self.layers[at].stored, row) == *indexed)
+    }
+}
+
+/// One parse row as a generation of its own.
+fn alone(view: &ParseView) -> Vec<u8> {
+    let parses = [("", view)];
+    encode_generation(&Generation { config: None, directories: &[], parses: &parses, records: &[], deleted: Deleted::default() })
 }
 
 /// `joinedKey` in `source-index-format.ts`: the default way adds nothing.

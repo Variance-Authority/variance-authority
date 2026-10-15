@@ -2,12 +2,11 @@
 //! the generation the fold's result would have been encoded as. That the
 //! encoder's bytes mean what JavaScript meant is `source-index.test.ts`'s.
 
-use super::compacted;
+use super::{compacted, merged};
 use crate::generation::Delta;
-use crate::graph_index::merged;
 
 fn encoded(document: &str) -> Vec<u8> {
-    merged(&[], &Delta::of(vec![document.to_owned()]).unwrap())
+    crate::graph_index::merged(&[], &Delta::of(vec![document.to_owned()]).unwrap())
 }
 
 /// Every column a row can fill, and each list both present-and-empty and absent.
@@ -77,4 +76,33 @@ fn a_layer_that_is_not_a_generation_is_refused_with_its_place() {
     let good = encoded(FULL);
     let error = compacted(&[&good, b"not a segment"]).unwrap_err();
     assert!(error.starts_with("layer 1:"), "{error}");
+}
+
+#[test]
+fn a_working_layer_writes_no_row_the_base_already_holds() {
+    let base = encoded(FULL);
+    // Everything again, as an update that read every file writes it: one record
+    // changed, and one parse that keeps its key but not its contents.
+    let mut again: serde_json::Value = serde_json::from_str(FULL).unwrap();
+    again["records"][1][1] = serde_json::json!({"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]});
+    again["parses"][2][1] = serde_json::json!({"requests": [{"value": "./d", "kind": "imports", "line": 1, "bindings": []}]});
+    let expected = encoded(r#"{
+      "config": "v1:c",
+      "records": [["src/b.ts", {"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]}]],
+      "parses": [["git:c", {"requests": [{"value": "./d", "kind": "imports", "line": 1, "bindings": []}]}]]
+    }"#);
+    assert_eq!(merged(&[&base], &[&encoded(&again.to_string())]).unwrap(), expected);
+}
+
+#[test]
+fn a_row_put_back_as_the_base_holds_it_leaves_neither_the_row_nor_its_delete() {
+    let base = encoded(FULL);
+    let under = encoded(r#"{"config": "v1:c", "deletedRecords": ["src/a.ts"], "deletedDirectories": ["lib"]}"#);
+    assert_eq!(merged(&[&base], &[&under, &encoded(FULL)]).unwrap(), encoded(r#"{"config": "v1:c"}"#));
+}
+
+#[test]
+fn a_base_holds_nothing_from_its_first_segment_that_does_not_open() {
+    let layer = encoded(FULL);
+    assert_eq!(merged(&[b"not a segment", &layer], &[&layer, &layer]).unwrap(), layer);
 }
