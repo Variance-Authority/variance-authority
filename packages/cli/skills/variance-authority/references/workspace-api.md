@@ -255,6 +255,9 @@ specifier before it is the import line you will write, and it goes to
 `symbol --name Viewport`, not `symbol --name @variance-authority/core/format`. An
 unpublished line has a `path:line` instead of a specifier: open the file, or
 pass its name to `symbol` and `uses`, which answer it from the source index.
+A line under *declared … without being exported* is a name only its own file
+can use: `symbol` gives its signature, and `uses` says no other file can import
+it.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a

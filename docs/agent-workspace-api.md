@@ -284,6 +284,13 @@ passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. A read through an `export * as` namespace and a call through a
 qualified path are not counted.
 
+A name a file declares at its top level and does not export, such as a helper
+only its own file calls, is answered from the source index. `docs_symbol` gives
+its kind, the file and line that declare it, its signature and what is written
+above it; `docs_uses` says that nothing outside that file can import it;
+`docs_search` lists it after the exported names, under a heading that says it is
+not exported.
+
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever

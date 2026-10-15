@@ -95,6 +95,18 @@ describe('variance ask about a name declared and not exported', () => {
     expect(out).toContain('packages/kit/src/money/restart.ts — 1: line 4 · 2: the file');
   });
 
+  it('answers `uses` with where it is declared and that nothing outside that file can import it', async () => {
+    checkout(RELAUNCH);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'relaunch']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain(
+      '`relaunch` is declared, not exported, at packages/kit/src/money/restart.ts:4, so nothing outside that file can import it.',
+    );
+  });
+
   it('writes out five declarations of one name and counts the rest', async () => {
     const files = Object.fromEntries(
       ['a', 'b', 'c', 'd', 'e', 'f'].map((part) => [
