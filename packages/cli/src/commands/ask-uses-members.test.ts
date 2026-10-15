@@ -1,0 +1,99 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EXIT_CLEAN } from '../exit.js';
+import { checkout, run } from './ask-packages-fixture.js';
+
+/**
+ * `variance ask uses` over a member of an interface, a type literal or a
+ * class, and `variance ask grep --to`, which it routes to. A member is never
+ * imported, so `uses` names its declarations, parsed, and the text search
+ * over the files that import a declaring file, which finds its callers. An
+ * object literal's key declares nothing, and a file that does not import the
+ * declaration is not searched.
+ */
+
+const cwd = process.cwd();
+
+beforeEach(() => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-members-cache-'));
+});
+
+afterEach(() => {
+  process.chdir(cwd);
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+});
+
+const SCANNER = {
+  'packages/lib/src/native.ts':
+    'export interface Scanner {\n  resolveThings?(root: string): string[];\n}\n\nexport function scanner(): Scanner {\n  return {};\n}\n',
+  'packages/lib/src/effects.ts':
+    "import { scanner } from './native.js';\nconst held = scanner();\nexport const things = held.resolveThings!('.');\nexport const has = typeof held.resolveThings === 'function';\n",
+  'packages/lib/src/references.ts':
+    "import { things } from './effects.js';\nimport { scanner } from './native.js';\nconst { resolveThings } = scanner();\nexport const all = [things, resolveThings];\n",
+  'packages/lib/src/references.test.ts':
+    "import { scanner } from './native.js';\nexport const probe = scanner()['resolveThings'];\n",
+  'packages/lib/src/accessor.ts':
+    "import type { Scanner } from './native.js';\nconst entry = <K extends keyof Scanner>(key: K) => key;\nexport const resolve = entry('resolveThings');\n",
+  'packages/kit/src/elsewhere.ts': 'export const other = { resolveThings: () => [] };\nexport const read = other.resolveThings();\n',
+};
+
+const ROUTE = 'docs_grep with `query` `\\bresolveThings\\b` and `to` `packages/lib/src/native.ts`.';
+
+describe('variance ask uses over a member', () => {
+  it('names the declaration of an interface member and the search that finds its callers', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`resolveThings` is no exported name; it is a member, declared in 1 place:');
+    expect(out).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
+    expect(out).toContain(ROUTE);
+    expect(out).not.toContain('elsewhere.ts');
+  });
+
+  it('finds the callers of a member in the files that import its declaration', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'grep', '--query', '\\bresolveThings\\b', '--to', 'packages/lib/src/native.ts']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts:3:/m);
+    expect(out).toMatch(/^packages\/lib\/src\/references\.ts:3:/m);
+    expect(out).toMatch(/^packages\/lib\/src\/references\.test\.ts:2:/m);
+    expect(out).toMatch(/^packages\/lib\/src\/accessor\.ts:3:/m);
+    expect(out).not.toContain('elsewhere.ts');
+  });
+
+  it('says the members were not read when ripgrep is not on PATH', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const path = process.env['PATH'];
+    process.env['PATH'] = '';
+    try {
+      const { out, err } = await run(['ask', 'uses', '--name', 'resolveThings']);
+      expect(`${out}${err}`).toContain('Members by this name were not read: `rg` is not on PATH');
+    } finally {
+      process.env['PATH'] = path;
+    }
+  });
+
+  it('answers a name that is also exported by its imports alone, reading no members', async () => {
+    checkout({
+      ...SCANNER,
+      'packages/lib/src/wrap.ts': 'export function resolveThings(): string[] {\n  return [];\n}\n',
+      'packages/lib/src/wrapped.ts': "import { resolveThings } from './wrap.js';\nexport const wrapped = resolveThings();\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/lib\/src\/wrapped\.ts:1 — @acme\/lib$/m);
+    expect(out).not.toContain('member');
+    expect(out).not.toContain('packages/lib/src/native.ts');
+    expect(out).not.toContain(ROUTE);
+  });
+});

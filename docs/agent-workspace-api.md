@@ -68,9 +68,12 @@ are on [their own page](tech-stack.md).
 This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It can answer what a file
-rests on, what rests on that file, and where an exported name is imported. It
-does not record that one function called another at runtime; open the named file
-or use a language server for that question.
+rests on, what rests on that file, and where an exported name is imported. A
+member of an interface, a type literal or a class is never imported: for a
+name no export has, `uses` names where it is declared, and `grep --to` the
+declaring file finds its callers as text in the files that import it. The graph
+does not record that one function called another at runtime; open the named
+file or use a language server for that question.
 
 No graph database service sits on the answer path. The producer publishes a
 compact graph beside the names and materializes both directions, so walking

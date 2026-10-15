@@ -79,11 +79,23 @@ export interface HelpReading {
   publish(options: HelpPublish): Promise<{ readonly graphDigest: string }>;
 }
 
+/** One declaration of a member, `on` the interface, type alias or class that holds it. */
+export interface MemberSite {
+  readonly at: string;
+  readonly line: number;
+  /** The package of the file, or empty when no package holds it. */
+  readonly by: string;
+  readonly kind: 'source' | 'story' | 'test';
+  /** The container's name, or `a type literal` or `a class` when it has none. */
+  readonly on: string;
+}
+
 export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
+  memberDeclarationsOf?(root: string, files: string[], name: string): MemberSite[];
 }
 
 function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
@@ -139,4 +151,15 @@ export function importersOf(
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
   return entry('importersOf')(root, index, [...files], name) ?? undefined;
+}
+
+/**
+ * Every declaration of a member named `name` in `files`: a property or method
+ * signature, a class method, property or accessor, or a constructor parameter
+ * property, each on its interface, type alias or class. The files are
+ * repo-relative and read from the working tree at `root`; one that does not
+ * read or parse declares nothing. Ordered by file in code units, then by line.
+ */
+export function memberDeclarationsOf(root: string, files: readonly string[], name: string): readonly MemberSite[] {
+  return entry('memberDeclarationsOf')(root, [...files], name);
 }

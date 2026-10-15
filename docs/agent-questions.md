@@ -37,7 +37,10 @@ For [source orientation](orientation.md), ask three questions in this order:
 2. `symbol`.
 3. `uses`.
 
-Those relations are resolved module imports, not runtime function calls.
+Those relations are resolved module imports, not runtime function calls. A
+member of an interface, a type literal or a class is never imported: for a
+name no export has, `uses` names where it is declared, and `grep --to` the
+declaring file finds its callers.
 
 `variance ask` with no question lists every report, watcher and source question
 and its arguments. The source questions read the checkout under the working
