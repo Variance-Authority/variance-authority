@@ -96,6 +96,21 @@ describe('the reporter that places a Playwright shard by whole files', () => {
     expect(said[1]).toMatch(/^variance-authority: shard 2\/2 by file count: 2 of 4 files; /);
   });
 
+  it('counts the copies `repeatEach` makes of a file as that one file, and keeps them on one shard', async () => {
+    // Playwright hands a repeated file in as one file suite per repeat, each at the same path.
+    const projects = [{ name: 'chromium', files: [...files, ...files] }];
+
+    const first = await shard(projects, 1);
+    const second = await shard(projects, 2);
+
+    expect(first.kept).toHaveLength(4);
+    expect(second.kept).toHaveLength(4);
+    for (const part of [first.kept, second.kept]) {
+      for (const file of new Set(part)) expect(part.filter((one) => one === file)).toHaveLength(2);
+    }
+    expect(said[0]).toMatch(/^variance-authority: shard 1\/2 by file count: 2 of 4 files; /);
+  });
+
   it('never excludes from a setup project, and does not place its files', async () => {
     const projects = [
       { name: 'setup', files: ['tests/auth.setup.ts'] },
