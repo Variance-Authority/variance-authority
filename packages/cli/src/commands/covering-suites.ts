@@ -35,7 +35,7 @@ export type SuiteAnswer =
   | {
       readonly suite: string;
       readonly kind: SuiteKind;
-      /** Present when a program can act on the refusal: `unrecorded`, or `unloaded` for a file the suite never loaded. */
+      /** Present when a program can act on the refusal: `unrecorded`, `unloaded` for a file the suite never loaded, or `older` for one its record predates. */
       readonly refused?: RefusalKind;
       readonly reason: string;
     };

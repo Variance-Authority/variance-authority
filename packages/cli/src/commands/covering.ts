@@ -59,7 +59,7 @@ import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import { addedSince, unloadedFile, unreadPreconditions } from './covering-unloaded.js';
+import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
@@ -259,7 +259,11 @@ async function ask(
     // Git says whether the commit the record was made at held the file: a
     // record older than the file is not a run that never loaded it.
     const at = record !== undefined && from.startsWith(record) ? await recordedCommit(record) : undefined;
-    if (at !== undefined && existedAt(request.root, at, file) === false) throw addedSince(file, from, at);
+    if (at !== undefined) {
+      const then = existedAt(request.root, at, file);
+      if (then === false) throw addedSince(file, from, at);
+      if (then !== true) throw unreadCommit(file, from, at, then.unread);
+    }
     throw unloadedFile(file, from, files.length);
   }
 

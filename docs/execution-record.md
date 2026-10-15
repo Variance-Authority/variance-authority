@@ -96,8 +96,9 @@ they stop and list the suites.
 reads every declared suite's record and answers under each suite's name and
 kind, unit suites first. Suites that never loaded the file are named together
 after the answers, a suite with no recording yet says so, and a suite whose
-record is older than the file says that, with the commit it recorded at. A suite that loaded the file without
-instrumenting it names the test files that loaded it, which are the ones a
+record is older than the file says that, with the commit it recorded at. A
+suite that loaded the file without instrumenting it names the test files that
+loaded it, which are the ones a
 change to it selects, and no line. A payment module your unit suite
 walked and your visual suite never loaded reads as exactly that. `--suite
 <name>` asks one record alone.

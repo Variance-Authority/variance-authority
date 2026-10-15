@@ -46,8 +46,10 @@ record, and the answer is one block per suite, headed `<suite> (<kind>):`,
 nearest kind first: unit, integration, e2e, visual. Once any suite answers, the
 answers come first, then any suite with no recording yet. A suite whose record
 was made at a commit that did not hold the file says so in full, with that
-commit: the record is older than the file, and the next run of the suite
-answers it. Suites that never loaded the file are named together on the last line,
+commit, refused as `older` under `--format json`: the record is older than the
+file, and the next run of the suite answers it. When git cannot read that commit
+— a shallow clone — the suite says so instead of claiming either. Suites that
+never loaded the file are named together on the last line,
 `Not loaded by <suite> (<kind>): …`: no answer from them, which is not *no test
 covers it*. When no suite answers, each block says why in full, with the record
 it read, since a wrong path is then the likely cause. The record names files

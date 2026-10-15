@@ -429,8 +429,8 @@ Suites are asked nearest kind first: unit, integration, e2e, visual. Once any
 suite answers, the answers come first, then any suite that has never run. A
 suite that never loaded the file costs one line at the end. A suite whose record
 was made before the file existed says so, with the commit it recorded at, since
-only its next run can answer. When no suite
-answers, each says why in full, with the record it read, since a wrong path is
+only its next run can answer. When no suite answers, each says why in full,
+with the record it read, since a wrong path is
 then the likely cause. The record names files from the repository root, so give
 `--file` that way, or as an absolute path; one outside the root is refused. A
 refusal names the path you asked and no other: `apps/shop/src/checkout/total.ts`

@@ -261,9 +261,11 @@ describe('several suites that never loaded the file', () => {
   });
 });
 
+const UNFETCHED = 'f'.repeat(40);
+
 describe('a file added after the commit a suite recorded at', () => {
   // The unit suite last ran before src/refund.ts existed; the visual suite ran
-  // after, and loaded it.
+  // after, and loaded it. The e2e suite names a commit this clone never fetched.
   let at: string;
   let then: string;
   beforeAll(async () => {
@@ -281,6 +283,7 @@ describe('a file added after the commit a suite recorded at', () => {
     git('add', '.');
     git('commit', '--quiet', '-m', 'refund');
     await recordIn(at, 'unit', indexOf('src/pay.ts', { id: 'u', file: 'src/pay.test.ts', name: 'charges once' }), then);
+    await recordIn(at, 'checkout', indexOf('src/pay.ts', { id: 'c', file: 'e2e/pay.spec.ts', name: 'pays' }), UNFETCHED);
     await recordIn(at, 'stories', indexOf('src/refund.ts', { id: 's', file: 'src/Refund.stories.tsx', name: 'Refunded' }), git('rev-parse', 'HEAD'));
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
@@ -296,11 +299,19 @@ describe('a file added after the commit a suite recorded at', () => {
     expect(answer.out).not.toContain('Not loaded by');
   });
 
-  it('carries no `unloaded` refusal for a program, since the run never had the file to load', async () => {
+  it('is refused as `older` for a program, not `unloaded`, since the run never had the file to load', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at, '--format', 'json']);
 
     const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
-    expect(said.suites.find((one) => one['suite'] === 'unit')?.['refused']).toBeUndefined();
+    expect(said.suites.find((one) => one['suite'] === 'unit')?.['refused']).toBe('older');
+  });
+
+  it('says the commit could not be read, not that no test loaded the file, when git cannot list it', async () => {
+    const answer = await ask(['covering', '--file', 'src/refund.ts', '--suite', 'checkout', '--root', at]);
+
+    expect(answer.code).toBe(2);
+    expect(answer.err).toContain(`git could not read ${UNFETCHED.slice(0, 12)}, the commit that record was made at`);
+    expect(answer.err).not.toContain('is not in the index');
   });
 
   it('is said the same way when the suite is named', async () => {
