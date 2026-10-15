@@ -85,11 +85,31 @@ async function runBlock(step: string): Promise<string> {
   return body.map((line) => line.slice(inner)).join('\n');
 }
 
-/** What the verdict step exits with, and the annotation it prints, for a run's exit code. */
-async function verdict(code: string, exitZeroOnChanges: string): Promise<{ readonly status: number; readonly out: string }> {
+/** A report in which every subject was observed, and one changed. */
+const CHANGED = { observations: [{ verdict: 'changed' }], notObserved: [] };
+
+/**
+ * What the verdict step exits with, and the annotation it prints, for a run's
+ * exit code and report; `null` writes none, and `path` names another.
+ */
+async function verdict(
+  code: string,
+  exitZeroOnChanges: string,
+  { kept = 'false', report = CHANGED as unknown, path }: { readonly kept?: string; readonly report?: unknown; readonly path?: string } = {},
+): Promise<{ readonly status: number; readonly out: string }> {
+  const at = await mkdtemp(join(tmpdir(), 'variance-action-verdict-'));
   try {
+    const written = join(at, 'report.json');
+    if (report !== null) await writeFile(written, JSON.stringify(report));
     const out = execFileSync('/bin/bash', ['-c', await runBlock('verdict')], {
-      env: { ...process.env, CODE: code, KEPT: 'false', WHERE: 'the docket is in the pull request comment', EXIT_ZERO_ON_CHANGES: exitZeroOnChanges },
+      env: {
+        ...process.env,
+        CODE: code,
+        KEPT: kept,
+        REPORT: path ?? written,
+        WHERE: 'the docket is in the pull request comment',
+        EXIT_ZERO_ON_CHANGES: exitZeroOnChanges,
+      },
       encoding: 'utf8',
       stdio: 'pipe',
     });
@@ -97,6 +117,8 @@ async function verdict(code: string, exitZeroOnChanges: string): Promise<{ reado
   } catch (error) {
     const failed = error as { status: number; stdout: string };
     return { status: failed.status, out: failed.stdout };
+  } finally {
+    await rm(at, { recursive: true, force: true });
   }
 }
 
@@ -113,6 +135,37 @@ describe('the verdict', () => {
 
     expect(status).toBe(0);
     expect(out).toContain('::warning::variance found changes that need review');
+  });
+
+  it('still fails an accept the comparison after it did not hold when the job reports rather than blocks', async () => {
+    const { status, out } = await verdict('1', 'true', { kept: 'true' });
+
+    expect(status).toBe(1);
+    expect(out).toContain('::error::variance kept what this run accepted');
+  });
+
+  it('still fails a run that could not observe every subject when the job reports rather than blocks', async () => {
+    const holes = [
+      { observations: [{ verdict: 'unchanged' }], notObserved: [{ kind: 'failed' }] },
+      { observations: [{ verdict: 'unchanged', diagnostics: [{ severity: 'error' }] }], notObserved: [] },
+      { observations: [{ verdict: 'changed' }] },
+      { notObserved: [] },
+      null,
+    ];
+
+    for (const report of holes) {
+      const { status, out } = await verdict('1', 'true', { report });
+
+      expect(status).toBe(1);
+      expect(out).toContain('::error::variance could not observe every subject');
+    }
+  });
+
+  it('still fails when the run named no report, when the job reports rather than blocks', async () => {
+    const { status, out } = await verdict('1', 'true', { report: CHANGED, path: '' });
+
+    expect(status).toBe(1);
+    expect(out).toContain('::error::variance could not observe every subject');
   });
 
   it('still fails a run that did not happen when the job reports rather than blocks', async () => {

@@ -53,7 +53,9 @@ the site is built from or photographed with, which `tools/site-reach.mjs`
 reads out of the checkout; otherwise it ends green and its summary says why.
 It reports rather than blocks: a change it finds is a warning on a green check,
 with its docket and report as on the other two, and `variance: accept site`
-still accepts it. Only a run that did not happen turns it red. The action's
+still accepts it. It turns red when the run did not happen, when a subject
+could not be observed, an observation errored or the report cannot be read, and
+when an accept the comparison after it did not hold. The action's
 `exit-zero-on-changes` input does that for any job.
 
 `check.yml` runs one job per harness — the repository's rules, the timed

@@ -443,11 +443,13 @@ jobs:
   #
   # And `site` reports rather than blocks: a change it finds is a warning on a
   # green check, with the docket and the report as on any other. A docs page
-  # that moved is the change the pull request was opened for far more often
-  # than a defect, and its run takes the longest, so a red `site` held every
-  # such pull request until somebody pressed its label. A run that did not
-  # happen still fails it. The label still accepts, so the next run compares
-  # against what was pressed.
+  # that renders differently is the change the pull request was opened for far
+  # more often than a defect, and its run takes the longest, so a red `site`
+  # held every such pull request until somebody pressed its label. A run that
+  # did not happen still fails it, and so does a subject it could not observe,
+  # which is how a site server that died mid-run shows, and an accept the
+  # comparison after it did not hold. The label still accepts, so the next run
+  # compares against what was pressed.
   plan:
     if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
