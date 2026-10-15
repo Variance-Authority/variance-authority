@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepsCases } from './case-record.js';
 import { decodeTestCoverage } from './format.js';
 import instrumentModule, { type SelectionLoaderContext } from './rstest-loader.js';
+import probeAfter from './rstest-after-loader.js';
 import { withTestSelection, type RstestFileResult } from './rstest.js';
 
 type Hook = (...args: unknown[]) => void;
@@ -44,15 +45,19 @@ function api(browser: { enabled?: boolean } | undefined): unknown {
   };
 }
 
-/** What the loader makes of one module, as Rspack would call it. */
+/** What the two loaders make of one module, as Rspack would call them. */
 function instrumented(file: string, code: string, coverageFile: string): string {
   let out = code;
   const context: SelectionLoaderContext = {
     resourcePath: file,
     getOptions: () => ({ coverageFile }),
-    callback: (_error, next) => (out = next),
+    callback: (error, next) => {
+      if (error) throw error;
+      out = next;
+    },
   };
   instrumentModule.call(context, code);
+  probeAfter.call(context, out);
   return out;
 }
 
@@ -103,7 +108,7 @@ describe('an Rstest file that runs in a page', () => {
     plugin.setup(api({ enabled: true }));
     await mkdir(resolve(root, 'src'));
     const source = resolve(root, 'src/price.js');
-    await writeFile(source, `${PRICE}\n`);
+    await writeFile(source, PRICE);
     const module = instrumented(source, PRICE, coverageFile);
     const shim = await readFile(setup, 'utf8');
 

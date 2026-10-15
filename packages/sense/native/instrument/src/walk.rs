@@ -147,6 +147,9 @@ pub struct Walker {
     declared: Option<hoisted::Declared>,
     /// The slot a `switch` hands the case it walks next: every case is its block.
     cased: Option<hoisted::Slot>,
+    /// The authored regions each region of this text fires, when the text is a
+    /// project's transform of the file the regions were cut from: `place.rs`.
+    pub fires: Option<Vec<Vec<u32>>>,
 }
 
 impl Walker {
@@ -163,6 +166,7 @@ impl Walker {
             hint: None,
             declared: None,
             cased: None,
+            fires: None,
         }
     }
 
@@ -184,7 +188,8 @@ impl Walker {
     }
 
     fn hit(&mut self, at: u32, ordinal: u32) {
-        self.push(at, format_args!("__va({ordinal});"));
+        let probe = self.probe(ordinal);
+        self.push(at, format_args!("{probe};"));
     }
 
     /// Run `f` standing at `path` under `owner`, and put both back after.
@@ -254,7 +259,8 @@ impl Walker {
             self.hit(span.0 + 1, ordinal);
             return (ordinal, None);
         }
-        self.push(span.0, format_args!("{{__va({ordinal});"));
+        let probe = self.probe(ordinal);
+        self.push(span.0, format_args!("{{{probe};"));
         (ordinal, Some(span.1))
     }
 
@@ -313,7 +319,7 @@ impl Walker {
         };
 
         let entry = self.at("", owner, |w| w.open(Kind::Function, "entry", params.span.start, end, Some(owner)));
-        let plan = params::plan(params, entry, arrow);
+        let plan = params::plan(params, &self.probe(entry), arrow);
         self.at("", entry, |w| {
             for (at, text) in plan.iter().flat_map(|plan| &plan.before) {
                 w.push(*at, format_args!("{text}"));
@@ -335,7 +341,8 @@ impl Walker {
                 Body::Expression(expression) => {
                     // `(n) => n * 2` becomes `(n) => (probe, n * 2)`.
                     let span = expression.span();
-                    w.push(span.start, format_args!("(__va({entry}),"));
+                    let probe = w.probe(entry);
+                    w.push(span.start, format_args!("({probe},"));
                     w.visit_expression(expression);
                     w.push(span.end, format_args!(")"));
                 }
@@ -369,9 +376,10 @@ impl<'a> Visit<'a> for Walker {
         let label = self.step("await");
         let owner = self.owner;
         let ordinal = self.open(Kind::Resume, &label, it.span.start, it.span.end, Some(owner));
-        self.push(it.span.start, format_args!("__vaR("));
+        let (open, close) = self.resume(ordinal);
+        self.push(it.span.start, format_args!("{open}"));
         walk::walk_await_expression(self, it);
-        self.push(it.span.end, format_args!(",{ordinal})"));
+        self.push(it.span.end, format_args!("{close}"));
     }
 
     fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {

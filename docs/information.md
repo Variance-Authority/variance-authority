@@ -536,10 +536,13 @@ for every composed subject whether or not anything was attributed to it, so
 
 Finally, one input gates two sections. The `journeys` section and the
 lexicon's `regions` field are both filled from the same execution journal, so a
-build with no probes in it loses both at once. Getting that journal needs the
-application under test built with `testSelectionProbes()` from
-`@variance-authority/sense/journal` and the collector asked to record — `tests:
-true` on the Storybook or Playwright integration. Without a collector in the
+build with no probes in it loses both at once. Getting that journal needs probes in
+the build under test and the collector asked to record, `tests: true` on the
+Storybook or Playwright integration. A Storybook gets its probes from
+`@variance-authority/storybook-collector` in its `addons`, under
+`storybook build --test` or a dev server; an application gets them from
+`testSelectionProbes()` or `testSelectionRule()` in
+`@variance-authority/sense/journal`. Without a collector in the
 page the run prints that on stderr and records nothing. See the
 [Storybook](../packages/storybook-collector) and
 [Playwright](../packages/playwright-test) collector references.

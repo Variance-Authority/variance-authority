@@ -3,9 +3,10 @@
  * Vitest seam, arranged for a runner that bundles the suite before it runs it.
  *
  * Rstest builds with Rspack, so the two halves are an
- * [`enforce: 'pre'` loader](./rstest-loader.ts) and a reporter. Both live in
- * the process Rstest was started in — the loader runs in the main process, not
- * in a worker — so they are joined the way the Vitest seam joins its plugin to
+ * [`enforce: 'pre'` loader](./rstest-loader.ts) for the test files it cuts, an
+ * [`enforce: 'post'` loader](./rstest-after-loader.ts) for every other module,
+ * and a reporter. All live in the process Rstest was started in — the loaders
+ * run in the main process, not in a worker — so they are joined the way the Vitest seam joins its plugin to
  * its reporter, through the run registry in
  * [`selection-run.ts`](./selection-run.ts). A loader cannot be handed the run
  * object, only options the bundler may carry as data, so it is given the one
@@ -22,9 +23,9 @@
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
-import { defaultInclude } from './instrumented-modules.js';
+import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
+import { AFTER_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
 import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
@@ -75,6 +76,14 @@ export interface RstestTestSelectionOptions {
    * ran before the file's first test.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go. `after-transforms`, the default, places them after
+   * the project's loaders, through the map Rspack hands on, so a compiler
+   * that reads syntax reads none. `before-transforms` places them in the file
+   * as read, ahead of every loader, one parse and no map: for a suite whose
+   * loaders only strip types or JSX.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
@@ -165,8 +174,16 @@ function projectKey(name: string): string {
   return `project:${name}`;
 }
 
-/** The loader an Rstest configuration names, by absolute path. */
-export const SELECTION_LOADER = fileURLToPath(new URL('./rstest-loader.js', import.meta.url));
+/**
+ * The refusal of a run whose first loader passed modules on that the probes
+ * loader never reached: {@link unprobedFiles}.
+ */
+function unprobedAtEnd(run: SelectionRun): Promise<never> | undefined {
+  if (run.awaiting.size === 0) return undefined;
+  const error = unprobedFiles(run.root, run.awaiting);
+  run.awaiting.clear();
+  return Promise.reject(error);
+}
 
 /**
  * Rstest's API, which is an injected object rather than a resolvable module.
@@ -208,6 +225,7 @@ export function withTestSelection(
   run.include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
   const marked = options.unprobed;
   run.unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
+  run.placement = options.placement ?? 'after-transforms';
   run.cadence = options.cadence === false
     ? undefined
     : testFilesAt(configRoot, undefined, config['include'] as readonly string[] | undefined);
@@ -237,7 +255,7 @@ export function withTestSelection(
   const reporter = {
     // A watching Rstest starts every cycle here, after the last cycle's end.
     onTestRunStart: () => reopenRun(run),
-    onTestRunEnd: (payload: RstestRunEnd) => settle(
+    onTestRunEnd: (payload: RstestRunEnd) => unprobedAtEnd(run) ?? settle(
       cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
@@ -296,24 +314,36 @@ export function withTestSelection(
     reporters: [...reporters, reporter],
     tools: {
       ...config.tools,
-      // Appended to whatever the project configured rather than replacing it:
-      // Rsbuild folds an array of these in order, and the rule only has to be
-      // present, not first.
+      // After whatever the project configured, as a function, so the rules
+      // are placed among every rule Rsbuild and the project wrote. Loaders of
+      // one phase run right to left: the pre rule goes last, ahead of every
+      // other pre loader, and the post rule first, after every other post
+      // loader.
       rspack: [
         ...array(config.tools?.rspack),
-        {
-          module: {
+        (rspack: { module?: { rules?: unknown[] } }) => {
+          const rules = rspack.module?.rules ?? [];
+          rspack.module = {
+            ...rspack.module,
             rules: [
               {
                 test: /\.[cm]?[jt]sx?$/,
-                // Before SWC and the project's own loaders, so the probes land
-                // on the file as it is on disk, and every loader after carries
-                // them along with the code they sit in.
+                // After SWC and the project's own loaders, so a compiler that
+                // reads syntax never reads a probe, and the probes go where
+                // their map says the file went.
+                enforce: 'post',
+                use: [{ loader: AFTER_LOADER, options: { coverageFile } }],
+              },
+              ...rules,
+              {
+                test: /\.[cm]?[jt]sx?$/,
+                // Before them, so a test file's cut lands on the file as it is
+                // on disk, and a file that names its own map is probed on it.
                 enforce: 'pre',
                 use: [{ loader: SELECTION_LOADER, options: { coverageFile } }],
               },
             ],
-          },
+          };
         },
       ],
     },
@@ -358,3 +388,4 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
   return value === undefined ? [] : Array.isArray(value) ? [...value] : [value as T];
 }
 
+export { SELECTION_LOADER } from './rstest-loaders.js';

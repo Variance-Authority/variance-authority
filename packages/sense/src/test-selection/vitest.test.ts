@@ -213,11 +213,14 @@ describe('what the seam refuses to instrument', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile });
-      const plugin = (configured.plugins as unknown as Array<{
+      const plugins = configured.plugins as unknown as Array<{
         transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
+      }>;
 
-      expect(plugin.transform.handler('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+      // Neither the cut nor the probes.
+      for (const plugin of plugins) {
+        expect(plugin.transform.handler('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -231,12 +234,8 @@ describe('a module named unprobed', () => {
     try {
       const page = resolve(root, 'page.ts');
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, unprobed: (file) => file === page });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>).at(-1)!;
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(page, 'export function f(x) { if (x) { return 1; } return 2; }');
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', page);
       await reporter.onFinished([]);
@@ -257,13 +256,8 @@ describe('coverage generations', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): unknown };
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>).at(-1)!;
-
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'broken.ts'), 'const =');
       // It still runs marked as loaded, so a test that loaded it still says so.
       expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toEqual({
         code: expect.stringMatching(/^const =\n;[^]*__vaE\(\);$/),
@@ -334,12 +328,8 @@ describe('coverage generations', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, mode: 'entries' });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>).at(-1)!;
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'f.ts'), 'export function f(x) { if (x) { return 1; } return 2; }');
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
       await reporter.onFinished([]);
@@ -437,6 +427,16 @@ describe('coverage generations', () => {
     expect(blocks.find((block) => block.path === 'module')?.testFiles).toEqual(['case.test.ts']);
   });
 });
+
+/** The probes plugin and the recording reporter of a configuration the seam wrapped. */
+function seamOf(configured: ReturnType<typeof withTestSelection>) {
+  const plugins = configured.plugins as unknown as Array<{
+    name: string;
+    transform: { handler(code: string, id: string): { code: string } | null };
+  }>;
+  const reporters = configured.test!.reporters as unknown as Array<{ onFinished(files: readonly []): Promise<void> }>;
+  return { plugin: plugins.find(({ name }) => name === 'variance-authority:test-selection-probes')!, reporter: reporters.at(-1)! };
+}
 
 function coverage(
   complete: boolean,

@@ -69,6 +69,8 @@ an adopter did not ask for into their dependency tree.
 - `packages/storybook/src/preview.ts`, `show-story.ts`, `preview-url.ts`,
   `preview-protocol.ts` — driving a preview over its own channel
 - `packages/storybook-collector/src/index.ts` — the collector, `execution.ts`, `page-agent.ts`
+- `packages/storybook-collector/src/preset.ts` — the addon preset that adds the
+  probes to the preview's build under Vite, Rspack or webpack
 - `packages/route-collector/src/index.ts` — the collector, `options.ts`, `page-agent.ts`
 - `packages/{storybook-collector,route-collector}/src/source.ts` — the component-to-`file:line` scan
 - `packages/playwright/src/harness.ts` — the standing page the adapters are handed

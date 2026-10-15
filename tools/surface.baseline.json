@@ -2530,6 +2530,14 @@
           "types": "./dist/test-selection/rstest.d.ts",
           "default": "./dist/test-selection/rstest.js"
         },
+        "./probes-loader": {
+          "types": "./dist/test-selection/probes-loader.d.ts",
+          "default": "./dist/test-selection/probes-loader.js"
+        },
+        "./rstest-after-loader": {
+          "types": "./dist/test-selection/rstest-after-loader.d.ts",
+          "default": "./dist/test-selection/rstest-after-loader.js"
+        },
         "./rstest-loader": {
           "types": "./dist/test-selection/rstest-loader.d.ts",
           "default": "./dist/test-selection/rstest-loader.js"
@@ -3164,6 +3172,8 @@
         "ObservedSubject": "interface",
         "PreconditionListener": "interface",
         "PreconditionStanding": "type",
+        "ProbePlacement": "type",
+        "ProbesLoaderOptions": "interface",
         "RecordExecutionOptions": "interface",
         "SETTLING_MS": "const",
         "STAGE_VARIABLE": "const",
@@ -3173,6 +3183,8 @@
         "SubjectRecording": "interface",
         "SubjectSurface": "interface",
         "TestSelectionProbeOptions": "interface",
+        "TestSelectionRule": "interface",
+        "TestSelectionRuleOptions": "interface",
         "closeStage": "function",
         "createSubjectRecorder": "function",
         "drainExecution": "function",
@@ -3191,7 +3203,8 @@
         "recordExecution": "function",
         "stageExecution": "function",
         "stagingDirectory": "function",
-        "testSelectionProbes": "function"
+        "testSelectionProbes": "function",
+        "testSelectionRule": "function"
       },
       "./journey": {
         "JOURNEY_COOKIE": "const",
@@ -3258,6 +3271,14 @@
         "RstestTestSelectionOptions": "interface",
         "SELECTION_LOADER": "const",
         "withTestSelection": "function"
+      },
+      "./probes-loader": {
+        "ProbesLoaderContext": "interface",
+        "default": "function"
+      },
+      "./rstest-after-loader": {
+        "AfterLoaderContext": "interface",
+        "default": "function"
       },
       "./rstest-loader": {
         "SelectionLoaderContext": "interface",
@@ -3573,6 +3594,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./preset": {
+          "types": "./dist/preset.d.ts",
+          "default": "./dist/preset.js"
         }
       },
       "files": [
@@ -3599,6 +3624,12 @@
         "StoryExecutionOptions": "type",
         "StorybookCollectorOptions": "interface",
         "storybookCollector": "function"
+      },
+      "./preset": {
+        "PresetOptions": "interface",
+        "rsbuildFinal": "function",
+        "viteFinal": "function",
+        "webpackFinal": "function"
       }
     }
   },
