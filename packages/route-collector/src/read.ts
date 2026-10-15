@@ -351,7 +351,7 @@ function hydrationRefusal(settlement: HydrationSettlement, subjectId: string): s
 
 /**
  * What hydration says about a route that was read: why it names no component,
- * and whether React changed what the server sent.
+ * and whether React changed the markup after the hydration commit.
  *
  * Collected rather than refused: no React is a page this run can compare, and
  * a static page or a client that never started is a page somebody may mean to
@@ -387,8 +387,8 @@ function hydrationNotes(settlement: HydrationSettlement, subjectId: string): Dia
       severity: 'warn',
       code: 'hydration-changed-markup',
       message:
-        `Hydration changed the markup of ${subjectId}: the server sent \`${changed.before}\` and the ` +
-        `client left \`${changed.after}\`.${by} The reading is of the page after hydration; a ` +
+        `Hydration changed the markup of ${subjectId}: the hydration commit left \`${changed.before}\` and the ` +
+        `client then left \`${changed.after}\`.${by} The reading is of the page after hydration; a ` +
         'visitor sees the server\'s page first. Render the same markup on the server, or move ' +
         'the difference into a client-only component.',
     });

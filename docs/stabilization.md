@@ -931,11 +931,11 @@ The copy is taken at the commit rather than when the collector looked, so a
 fast machine and a slow one compare the same two pages. When the two differ,
 the route is collected as it ended, the page a visitor is left with, and
 carries a `hydration-changed-markup` `warn` diagnostic that quotes both and
-names the components of that root that committed after hydrating:
+names the components that committed after hydrating, in every root that reaches the subject:
 
 ```
-Hydration changed the markup of page/app: the server sent `<main id="app"><p>early</p></main>`
-and the client left `<main id="app"><p>client</p></main>`. Flip committed after
+Hydration changed the markup of page/app: the hydration commit left `<main id="app"><p>early</p></main>`
+and the client then left `<main id="app"><p>client</p></main>`. Flip committed after
 hydrating. The reading is of the page after hydration; a visitor sees the
 server's page first. Render the same markup on the server, or move the
 difference into a client-only component.

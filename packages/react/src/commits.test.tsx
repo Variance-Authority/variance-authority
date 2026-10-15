@@ -319,11 +319,11 @@ describe('effects a commit left', () => {
 
 describe('a root that hydrates', () => {
   /**
-   * What the server sent survives only until the commit that hydrates it: an
-   * effect that runs after can rewrite it, and nothing in the document then
+   * What the hydration commit leaves survives only until what runs after it: an
+   * effect can rewrite it, and nothing in the document then
    * says what it was. The tap keeps it, and the root's own commits after it.
    */
-  it('keeps the markup the server sent and the commits that changed it', async () => {
+  it('keeps the markup at the hydration commit and the commits that changed it', async () => {
     function Mounted() {
       const [mounted, setMounted] = useState(false);
       useEffect(() => setMounted(true), []);

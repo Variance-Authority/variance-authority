@@ -27,7 +27,8 @@ React's hydration commit, inert, and it is compared with the markup once React
 has nothing left to do, so a fast machine and a slow one give the same answer.
 A difference is reported as a `hydration-changed-markup` warning that quotes
 the markup at the hydration commit and the client's around the change, and
-names the components of that root that committed after hydrating. The route is
+names the components that committed after hydrating in the roots that reach
+the subject. The route is
 still read as it ended.
 
 `awaitHydration` takes `tap`, a `tapCommits` tap, and `outstanding(of)`, a

@@ -55,9 +55,9 @@ import { rootCommitted, rootHasWork } from './root-state.js';
  * it in full.
  *
  * **Hydration is compared**, given the tap. It copies a root's container at the
- * commit that hydrates it, which is the server's markup, and the settlement
+ * commit that hydrates it, once that commit has written the DOM, and the settlement
  * compares the subject with that copy once React has nothing left to do. A
- * client that rewrites what the server sent — a mounted flag, a theme read from
+ * client that rewrites what it hydrated — a mounted flag, a theme read from
  * storage — renders the same markup on both sides of hydration, so React
  * reports no mismatch; the visitor still sees one page and then another. The
  * settlement carries both sides of the first difference, and the components
@@ -148,16 +148,16 @@ export interface HydrationSettlement {
    */
   readonly loaded?: false;
   /**
-   * How the client changed the subject's markup after the server sent it, when
+   * How the client changed the subject's markup after the hydration commit, when
    * an attached tap saw the root hydrate and it did: the first difference, as
-   * the server sent it and as the client left it.
+   * that commit left it and as the client left it.
    */
   readonly changed?: MarkupChange;
 }
 
 /** The first place two readings of a subject's markup differ, with some context either side. */
 export interface MarkupChange {
-  /** The markup around the difference as the server sent it. */
+  /** The markup around the difference as the hydration commit left it. */
   readonly before: string;
   /** The same place once React had finished the work hydration left. */
   readonly after: string;
@@ -227,15 +227,15 @@ export async function awaitHydration(
 }
 
 /**
- * The subject as the server sent it, compared with the subject now, or
+ * The subject at the hydration commit, compared with the subject now, or
  * `undefined` when they agree or no root reaching it was seen to hydrate.
  *
- * "As the server sent it" is the subject with each root's container put back as
+ * "At the hydration commit" is the subject with each root's container put back as
  * the tap copied it at the hydration commit. A subject inside a container is
  * found in the copy by its position; when the client has moved what precedes
  * it, the position no longer says, and the container is compared instead. A
- * subject portalled out of its root's container was never in what the server
- * sent there, and compares as nothing.
+ * subject portalled out of its root's container was never in what the tap
+ * copied there, and compares as nothing.
  */
 function changeOf(node: Node, roots: ReadonlySet<object>, tap: CommitTap): MarkupChange | undefined {
   const subject = elementOf(node);
@@ -263,9 +263,9 @@ function changeOf(node: Node, roots: ReadonlySet<object>, tap: CommitTap): Marku
     before = at(inside.copy, pathTo(inside.container, subject));
     if (before === undefined) [before, after] = [inside.copy, inside.container];
   } else if (under.length > 0) {
-    // A copy of the subject, never the tap's own: that is the server's markup
-    // for whoever asks next. A root on the subject itself was copied whole,
-    // roots inside it included, as the server sent them.
+    // A copy of the subject, never the tap's own: that is the hydration commit's
+    // markup for whoever asks next. A root on the subject itself was copied
+    // whole, roots inside it included, as the hydration commit left them.
     const inert = subject.ownerDocument.implementation.createHTMLDocument('');
     const own = under.find(({ container }) => container === subject);
     before = inert.importNode(own?.copy ?? subject, true);

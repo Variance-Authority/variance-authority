@@ -95,7 +95,7 @@ const MAIN = [
   "hydrateRoot(document.getElementById('root'), <App ready={ready} />);",
 ].join('\n');
 
-/** The markup `App` renders, as the server sent it. */
+/** The markup `App` renders, as the hydration commit leaves it. */
 const INDEX_HTML =
   '<!doctype html><html><body>' +
   '<div id="root"><main id="app"><span>early</span><p>late</p></main></div>' +
@@ -383,7 +383,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('reading components off a route that hydrate
     expect(hydrationMs(collected)).toBeLessThan(1_000);
   }, 120_000);
 
-  it('says when hydration changed the markup the server sent', async () => {
+  it('says when the client changed the markup after the hydration commit', async () => {
     const collected = await read(`${base}flip.html?hold=600`, { ready: { 'page/app': '#app p' } });
 
     expect(codes(collected)).toEqual(['hydration-changed-markup']);

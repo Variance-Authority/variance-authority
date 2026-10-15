@@ -124,9 +124,9 @@ export interface Commit {
 /** What a tap saw of one root's hydration. */
 export interface RootHydration {
   /**
-   * The root's container as the server sent it, copied at the commit that
-   * hydrated it: the last moment the server's markup is in the document and the
-   * first at which a root is known to own it, so what is compared with it does
+   * The root's container as the commit that hydrated it left it, copied once
+   * that commit has written the DOM and before any later commit or effect runs:
+   * the first moment a root is known to own it, so what is compared with it does
    * not depend on when anyone asked. The copy belongs to a document of its own,
    * where nothing it holds loads or runs.
    */
