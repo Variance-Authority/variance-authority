@@ -25,7 +25,8 @@
  * costs a file write it would have spent on the merge anyway.
  *
  * Under `--shard k/n` it also places the shard, by whole files
- * (`whole-file-shard.ts`), and turns Playwright's own split off.
+ * (`whole-file-shard.ts`), and turns Playwright's own split off; below
+ * Playwright 1.62, which cannot, it refuses the run.
  */
 
 import type { FullConfig, Reporter } from '@playwright/test/reporter';
@@ -44,7 +45,13 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { placeWholeFiles, unplacedLine, type Preprocess } from './whole-file-shard.js';
+import {
+  installedPlaywright,
+  placeWholeFiles,
+  shardArgument,
+  shardRefusal,
+  type Preprocess,
+} from './whole-file-shard.js';
 
 /**
  * Where the folded record goes. The same values the fixtures were given.
@@ -104,6 +111,10 @@ export default class implements Reporter {
   #placed = false;
 
   constructor(options: ExecutionReporterOptions = {}) {
+    // Before anything starts: a Playwright with no `preprocess` would split the shard test by test.
+    const asked = shardArgument(process.argv);
+    const refused = asked === undefined ? undefined : shardRefusal(installedPlaywright(), asked);
+    if (refused !== undefined) throw new Error(refused);
     this.#options = options;
     const start = resolve(options.root ?? process.cwd());
     this.#start = start;
@@ -132,8 +143,9 @@ export default class implements Reporter {
   }
 
   onBegin(config: FullConfig): void {
-    const unplaced = this.#placed ? undefined : unplacedLine(config);
-    if (unplaced !== undefined) process.stderr.write(`${unplaced}\n`);
+    // A `shard` the configuration set, which no command line showed the constructor.
+    const refused = this.#placed ? undefined : shardRefusal(config.version, config.shard);
+    if (refused !== undefined) throw new Error(refused);
     // Before the first worker is forked, because a worker inherits the
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this

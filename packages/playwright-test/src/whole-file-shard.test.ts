@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import type { FullConfig, Suite, TestRun } from '@playwright/test/reporter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ExecutionReporter from './reporter.js';
+import { shardArgument } from './whole-file-shard.js';
 
 let root: string;
 let said: string[];
@@ -91,8 +92,8 @@ describe('the reporter that places a Playwright shard by whole files', () => {
     for (const part of [first.kept, second.kept]) {
       for (const file of fileOf(part)) expect(part).toEqual(expect.arrayContaining([`chromium:${file}`, `firefox:${file}`]));
     }
-    expect(said[0]).toMatch(/^variance-authority: shard 1\/2 by checksum: \d of 4 files; no times at .*\n$/);
-    expect(said[1]).toMatch(/^variance-authority: shard 2\/2 by checksum: \d of 4 files; /);
+    expect(said[0]).toMatch(/^variance-authority: shard 1\/2 by file count: 2 of 4 files; no times at .*\n$/);
+    expect(said[1]).toMatch(/^variance-authority: shard 2\/2 by file count: 2 of 4 files; /);
   });
 
   it('never excludes from a setup project, and does not place its files', async () => {
@@ -118,14 +119,26 @@ describe('the reporter that places a Playwright shard by whole files', () => {
     expect([...without.excluded].some((target) => (target as Suite).type === 'project')).toBe(true);
   });
 
-  it('says out loud that Playwright split a shard by test when it has no preprocess to place it', () => {
+  it('refuses a shard a Playwright with no preprocess would split test by test, naming its version and the one needed', () => {
     const reporter = new ExecutionReporter({ root, coverageFile: resolve(root, 'coverage.bin') });
 
-    reporter.onBegin({ shard: { current: 1, total: 2 }, version: '1.55.0' } as unknown as FullConfig);
+    expect(() => reporter.onBegin({ shard: { current: 1, total: 2 }, version: '1.55.0' } as unknown as FullConfig)).toThrow(
+      'variance-authority: refusing shard 1/2: Playwright 1.55.0 would split it test by test, so a file could run in two shards; ' +
+        'placing whole files needs Playwright 1.62 or newer',
+    );
+    expect(said).toEqual([]);
+  });
 
-    expect(said).toEqual([
-      'variance-authority: shard 1/2 was split by Playwright 1.55.0, test by test, so a file can run in two shards; ' +
-        'placing whole files needs Playwright 1.62 or newer\n',
-    ]);
+  it('runs an older Playwright that asked for no shard as before', () => {
+    const reporter = new ExecutionReporter({ root, coverageFile: resolve(root, 'coverage.bin') });
+
+    expect(() => reporter.onBegin({ shard: null, version: '1.55.0' } as unknown as FullConfig)).not.toThrow();
+    expect(said).toEqual([]);
+  });
+
+  it('reads the shard a command line asks for, in either spelling Playwright takes', () => {
+    expect(shardArgument(['node', 'cli.js', 'test', '--shard', '2/3'])).toEqual({ current: 2, total: 3 });
+    expect(shardArgument(['node', 'cli.js', 'test', '--shard=1/2'])).toEqual({ current: 1, total: 2 });
+    expect(shardArgument(['node', 'cli.js', 'test', '--grep', 'shard'])).toBeUndefined();
   });
 });

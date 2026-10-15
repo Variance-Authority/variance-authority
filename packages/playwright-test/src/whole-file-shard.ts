@@ -9,7 +9,11 @@
  * Playwright's split off and exclude what is not its own. So the placement is
  * the one every runner's shard takes (`shardOf` in
  * `@variance-authority/sense/test-selection`): by the times the record holds, or
- * by checksum when it holds none, every file whole, and stderr says which part.
+ * by file count when it holds none, every file whole, and stderr says which part.
+ *
+ * Below 1.62 Playwright would split the shard by test, and a run that asks for
+ * one is refused: before anything starts when `--shard` is on the command line,
+ * and at `onBegin`, failing the run, when the configuration sets `shard`.
  *
  * A file several projects run, or `repeatEach` repeats, is one file: all its
  * copies go to one shard. A setup or teardown project is Playwright's to run in
@@ -20,6 +24,7 @@
 
 // compass: variance-authority.reach
 
+import { createRequire } from 'node:module';
 import type { FullConfig, Suite, TestRun } from '@playwright/test/reporter';
 import { shardOf, type SuiteTimes } from '@variance-authority/sense/test-selection';
 import { fileOwner } from './test-coordinate.js';
@@ -62,11 +67,42 @@ export async function placeWholeFiles(
   return true;
 }
 
-/** The line a shard Playwright split by itself prints, because no `preprocess` ran to place it. */
-export function unplacedLine(config: FullConfig): string | undefined {
-  if (config.shard === null || config.shard === undefined) return undefined;
+/** A shard as Playwright numbers it, `current` from 1. */
+export interface PlaywrightShard {
+  readonly current: number;
+  readonly total: number;
+}
+
+/**
+ * Why a run asking for `shard` is refused under Playwright `version`, which
+ * has no `preprocess` and would split the shard test by test; `undefined` when
+ * the run asked for no shard or Playwright can place it.
+ */
+export function shardRefusal(version: string, shard: PlaywrightShard | null | undefined): string | undefined {
+  if (shard === null || shard === undefined) return undefined;
+  const [major = 0, minor = 0] = version.split('.').map((part) => Number.parseInt(part, 10));
+  if (major > 1 || (major === 1 && minor >= 62)) return undefined;
   return (
-    `variance-authority: shard ${config.shard.current}/${config.shard.total} was split by Playwright ${config.version}, ` +
-    'test by test, so a file can run in two shards; placing whole files needs Playwright 1.62 or newer'
+    `variance-authority: refusing shard ${shard.current}/${shard.total}: Playwright ${version} would split it test by test, ` +
+    'so a file could run in two shards; placing whole files needs Playwright 1.62 or newer'
   );
+}
+
+/** The version of the Playwright this package was installed beside, its peer. */
+export function installedPlaywright(): string {
+  return (createRequire(import.meta.url)('@playwright/test/package.json') as { version: string }).version;
+}
+
+/**
+ * The `--shard k/n` a command line asks for, in either spelling Playwright's
+ * parser takes, so a run is refused before anything starts. A shard set in the
+ * configuration is read from it at `onBegin` instead.
+ */
+export function shardArgument(argv: readonly string[]): PlaywrightShard | undefined {
+  for (const [at, argument] of argv.entries()) {
+    const value = argument === '--shard' ? argv[at + 1] : argument.startsWith('--shard=') ? argument.slice('--shard='.length) : undefined;
+    const parsed = value === undefined ? null : /^(\d+)\/(\d+)$/u.exec(value);
+    if (parsed !== null) return { current: Number(parsed[1]), total: Number(parsed[2]) };
+  }
+  return undefined;
 }

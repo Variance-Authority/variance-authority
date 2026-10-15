@@ -11,9 +11,9 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 // Three spec files of three tests each under `fullyParallel`, recorded through
 // `withTestSelection` into a directory of its own for each run. Nothing is
-// recorded before the run, so the checksum places the files: `one` and `three`
-// on shard 2 and `two` on shard 1. Playwright's own split, by test, would give
-// shard 1 five tests and so cut `three` in two.
+// recorded before the run, so every file is priced the same and placed in
+// code-unit order: `one` and `two` on shard 1, `three` on shard 2. Playwright's
+// own split, by test, would give shard 1 five tests and so cut a file in two.
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../..');
 const fixture = resolve(here, '../test/fixtures/sharded-files');
@@ -59,11 +59,11 @@ describe.runIf(BROWSER_AVAILABLE)('a fullyParallel suite run as two shards', () 
     const [whole, first, second] = await Promise.all([run([]), run(['--shard', '1/2']), run(['--shard', '2/2'])]);
 
     expect(fileSet(whole.files)).toHaveLength(3);
-    expect(fileSet(first.files)).toHaveLength(1);
+    expect(fileSet(first.files)).toHaveLength(2);
     expect(fileSet(first.files).filter((file) => fileSet(second.files).includes(file))).toEqual([]);
     expect(fileSet([...first.files, ...second.files])).toEqual(fileSet(whole.files));
     expect([...first.files, ...second.files].sort()).toEqual(whole.files);
-    expect(first.stderr).toMatch(/variance-authority: shard 1\/2 by checksum: \d of 3 files; /);
-    expect(second.stderr).toMatch(/variance-authority: shard 2\/2 by checksum: \d of 3 files; /);
+    expect(first.stderr).toMatch(/variance-authority: shard 1\/2 by file count: 2 of 3 files; /);
+    expect(second.stderr).toMatch(/variance-authority: shard 2\/2 by file count: 1 of 3 files; /);
   }, 180_000);
 });
