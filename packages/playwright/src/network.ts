@@ -450,10 +450,7 @@ export async function observeNetwork(
     idle = undefined;
     if (outstanding.length === 0) return undefined;
 
-    const requests =
-      outstanding.length === 1
-        ? '1 image, font or media request'
-        : `${outstanding.length} image, font or media requests`;
+    const requests = `${outstanding.length} image, font or media request${outstanding.length === 1 ? '' : 's'}`;
     return (
       `${requests} had no answer after ${timeoutMs}ms, so the subject was not read: ` +
       `${outstanding.slice(0, 5).join(', ')}` +
