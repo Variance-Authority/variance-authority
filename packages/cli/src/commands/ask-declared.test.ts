@@ -81,4 +81,34 @@ describe('variance ask about a name declared and not exported', () => {
     const far = await run(['ask', 'search', '--query', 'launch', '--from', 'apps/app/src/hello.ts']);
     expect(far.out).not.toContain('relaunch');
   });
+
+  it('gives `symbol`\'s files to `intersection` at the line that declares the name', async () => {
+    checkout(RELAUNCH);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run([
+      'ask', 'intersection', 'symbol --name relaunch', 'discover --from packages/kit/src/money/restart.ts',
+    ]);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('1 file in all of them.');
+    expect(out).toContain('packages/kit/src/money/restart.ts — 1: line 4 · 2: the file');
+  });
+
+  it('writes out five declarations of one name and counts the rest', async () => {
+    const files = Object.fromEntries(
+      ['a', 'b', 'c', 'd', 'e', 'f'].map((part) => [
+        `packages/kit/src/money/${part}.ts`,
+        `export const ${part} = (): number => tally();\n\nfunction tally(): number {\n  return 0;\n}\n`,
+      ]),
+    );
+    checkout(files);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'symbol', '--name', 'tally']);
+    expect(out.match(/^tally \[function\]$/gm)).toHaveLength(5);
+    expect(out).toContain('declared, not exported, at packages/kit/src/money/a.ts:3 by @acme/kit');
+    expect(out).not.toContain('packages/kit/src/money/f.ts');
+    expect(out).toContain('1 more declaration of `tally` not shown.');
+  });
 });
