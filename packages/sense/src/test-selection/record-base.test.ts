@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { caseSectionsAt, sharedRecord } from './case-record.js';
 import { landRun } from './commit-runs.js';
-import { notingRead } from './record-base.js';
+import { notingRead, recordDigestAt } from './record-base.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { writeTestCoverage, type TestCoverage } from './index.js';
@@ -98,6 +98,39 @@ describe('the record a run started from', () => {
     await notingRead(own, async () => ({ read: digestOf(own) }))();
     await landRun(own, run('head', ['a.test.ts']), root);
     expect(baseAt(own)).toBe(restored);
+  });
+
+  it('fails when one start reads two records for its selection and its times, naming both', async () => {
+    const mainline = join(root, 'mainline.bin');
+    await writeTestCoverage(mainline, run('mainline', ['b.test.ts']));
+    await writeTestCoverage(record, run('cached', ['a.test.ts']));
+    const selected = digestOf(mainline);
+    const timed = digestOf(record);
+
+    await notingRead(record, async () => ({ read: selected }))();
+    const times = notingRead(record, async () => ({ read: timed }));
+
+    await expect(times()).rejects.toThrow(selected);
+    await expect(times()).rejects.toThrow(timed);
+  });
+
+  it('lets a watched rerun read the record the run before it landed', async () => {
+    await writeTestCoverage(record, run('cached', ['a.test.ts']));
+    const restored = digestOf(record);
+
+    await notingRead(record, async () => ({ read: restored }))();
+    await landRun(record, run('head', ['a.test.ts']), root);
+    await notingRead(record, async () => ({ read: digestOf(record) }))();
+    await landRun(record, run('head', ['b.test.ts']), root);
+
+    expect(baseAt(record)).toBe(restored);
+  });
+
+  it('names a record longer than it reads at once by all of its bytes', async () => {
+    const long = join(root, 'long.bin');
+    await writeFile(long, Buffer.alloc(3 * (1 << 20) + 7, 1));
+
+    expect(recordDigestAt(long)).toBe(digestOf(long));
   });
 
   it('names no read for a run whose selection read no record', async () => {

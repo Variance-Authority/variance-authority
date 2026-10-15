@@ -55,7 +55,7 @@ import type { TestCoverage } from './index.js';
 import { installAfter, installKey, keepRecordedInstall, keptInstallOf, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, landedTree } from './kept-texts.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
-import { readFor, recordBase } from './record-base.js';
+import { recordBase, takeReadFor } from './record-base.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /**
@@ -188,7 +188,7 @@ export async function landRun(
   // The rows of a module this run did not record may have been re-cut to the
   // text on disk; the cases held for it are laid onto the same cut.
   const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts, editsBetween(root, cacheRoot, [before?.commit, current.commit]));
-  const bytes = withCaseSections(coverage, { ...followed, base: recordBase(over, current.commit, before?.commit, readFor(coverageFile)) });
+  const bytes = withCaseSections(coverage, { ...followed, base: recordBase(over, current.commit, before?.commit, takeReadFor(coverageFile)) });
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a
@@ -234,7 +234,7 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
   const over = await recordBytes(coverageFile);
   const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run, cases.eyes, undefined, stands);
   const held = coveredRecord(coverageFile, over);
-  const based = { ...laid, base: recordBase(over, cases.run.commit, stands, readFor(coverageFile)) };
+  const based = { ...laid, base: recordBase(over, cases.run.commit, stands, takeReadFor(coverageFile)) };
   if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, based));
   return writeCoverageBytes(coverageFile, recordOfCases(based));
 }

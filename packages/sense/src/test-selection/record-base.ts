@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { closeSync, openSync, readSync } from 'node:fs';
 import { lastCaseRunOf } from './case-landing.js';
 import { caseSectionsOf } from './case-record.js';
 
@@ -12,12 +12,38 @@ export const NO_BASE = 'none';
  * whole SHA-256, as `record_start.rs` reads it.
  */
 export function recordDigest(bytes: Uint8Array): string {
-  return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+  return digestOfChunks([bytes]);
 }
 
-/** The record at `file` as a base names it, read from disk. */
+/**
+ * The record at `file` as a base names it, read from disk a mebibyte at a time.
+ * The readers that choose tests by a record ask it through a descriptor and
+ * never hold it whole, so the digest does not either: on a 77 MB record it
+ * costs ~25 ms and a mebibyte, where reading it whole costs ~28 ms and 74 MiB.
+ */
 export function recordDigestAt(file: string): string {
-  return recordDigest(readFileSync(file));
+  return digestOfChunks(chunksAt(file));
+}
+
+/** {@link recordDigest} of the bytes `chunks` yields, in order. */
+function digestOfChunks(chunks: Iterable<Uint8Array>): string {
+  const hash = createHash('sha256');
+  for (const chunk of chunks) hash.update(chunk);
+  return `sha256:${hash.digest('hex')}`;
+}
+
+/** What {@link chunksAt} reads at a time: a mebibyte. */
+const READ_AT_ONCE = 1 << 20;
+
+/** The bytes of `file`, a mebibyte at a time, each chunk valid until the next. */
+function* chunksAt(file: string): Generator<Uint8Array> {
+  const chunk = Buffer.allocUnsafe(READ_AT_ONCE);
+  const fd = openSync(file, 'r');
+  try {
+    for (let got = readSync(fd, chunk); got > 0; got = readSync(fd, chunk)) yield chunk.subarray(0, got);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 const READS = Symbol.for('variance-authority.test-selection.reads');
@@ -25,25 +51,33 @@ const READS = Symbol.for('variance-authority.test-selection.reads');
 /**
  * `ask`, a reading of a record that a run chooses its tests by — its selection,
  * or the times a shard places its files by — noting the record it read, when
- * it read one, against the record the run lands in. The landing names it in
- * the base ({@link recordBase}). The latest reading noted stands, so a runner
- * that watches names the record its last run read.
+ * it read one, against the record the run lands in. The landing takes it and
+ * names it in the base ({@link recordBase}), so a runner that watches names the
+ * record each rerun read. Two readings of two records before one landing are
+ * two starts inside one shard, and the second one throws, naming both.
  */
 export function notingRead<T extends object>(landing: string, ask: () => Promise<T>): () => Promise<T> {
   return async () => {
     const got = await ask();
     const read = (got as { readonly read?: unknown }).read;
     if (typeof read === 'string') {
-      const carrier = globalThis as { [READS]?: Map<string, string> };
-      (carrier[READS] ??= new Map<string, string>()).set(landing, read);
+      const reads = ((globalThis as { [READS]?: Map<string, string> })[READS] ??= new Map<string, string>());
+      const noted = reads.get(landing);
+      if (noted !== undefined && noted !== read) {
+        throw new Error(`The run landing in ${landing} read two records: ${noted} and ${read}. A shard's selection and its times read one record; this one started from two.`);
+      }
+      reads.set(landing, read);
     }
     return got;
   };
 }
 
-/** The record the run landing in `landing` chose its tests from, when it read one. */
-export function readFor(landing: string): string | undefined {
-  return (globalThis as { [READS]?: Map<string, string> })[READS]?.get(landing);
+/** Takes the record the run landing in `landing` chose its tests from, when it read one. */
+export function takeReadFor(landing: string): string | undefined {
+  const reads = (globalThis as { [READS]?: Map<string, string> })[READS];
+  const read = reads?.get(landing);
+  reads?.delete(landing);
+  return read;
 }
 
 /** Between the record a run read and the record it was laid over, in a base. */

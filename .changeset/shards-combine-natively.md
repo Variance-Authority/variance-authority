@@ -88,6 +88,8 @@ durations). What changes is the record a run writes, below.
   layers (the case index each shard's run started from), one that began
   over no case index beside one that did, and one file on two texts before
   them.
+- A run whose selection and times read two records fails before it runs,
+  naming both: one shard started from two records.
 - A shard written by 0.15.0 names no base, and combining it with shards of
   this version or alone fails, naming which shards each version wrote and saying to
   run every shard on one version, the one that combines them.
