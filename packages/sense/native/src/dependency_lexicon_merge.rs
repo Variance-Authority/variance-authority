@@ -15,7 +15,7 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::fs;
 
@@ -207,26 +207,6 @@ fn reread(layers: &[Layer], base: usize, also: &[String], internal: &HashSet<&st
 
 pub(super) fn is_source(path: &str) -> bool {
     [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"].iter().any(|suffix| path.ends_with(suffix))
-}
-
-/// The workspace that owns each file, asked once per directory.
-pub(super) struct Owning<'a> {
-    owners: &'a [Owner],
-    known: HashMap<String, Option<usize>>,
-}
-
-impl<'a> Owning<'a> {
-    pub(super) fn new(owners: &'a [Owner]) -> Self { Self { owners, known: HashMap::new() } }
-
-    pub(super) fn of(&mut self, path: &str) -> Option<&'a Owner> {
-        let directory = crate::package_owners::parent(path);
-        let owners = self.owners;
-        let found = *self.known.entry(directory.to_owned()).or_insert_with(|| {
-            owners.iter().enumerate().filter(|(_, owner)| owner.directory.is_empty() || directory == owner.directory || directory.starts_with(&format!("{}/", owner.directory)))
-                .max_by_key(|(_, owner)| owner.directory.len()).map(|(at, _)| at)
-        });
-        found.map(|at| &owners[at])
-    }
 }
 
 /// Whether a changed `node_modules` directory is one an owner resolves through.

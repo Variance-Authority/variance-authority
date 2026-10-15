@@ -154,7 +154,7 @@ pub(crate) fn is_package(path: &str) -> bool {
 }
 
 /// A directory's package: its own manifest's, or its parent's answer.
-fn directory_owner<'a>(directory: &'a str, named: &HashMap<&str, u32>, known: &mut HashMap<&'a str, u32>) -> u32 {
+pub(crate) fn directory_owner<'a>(directory: &'a str, named: &HashMap<&str, u32>, known: &mut HashMap<&'a str, u32>) -> u32 {
     if let Some(&owner) = known.get(directory) {
         return owner;
     }
