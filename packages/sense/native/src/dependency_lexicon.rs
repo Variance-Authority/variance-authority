@@ -128,6 +128,8 @@ pub struct LexiconRefresh {
     pub unresolved: Option<u32>,
     /// True when the chain and the installed files were where the last refresh left them, and nothing was read.
     pub unchanged: bool,
+    /// True when the last refresh's record was carried, and of the source only what the index wrote since was read.
+    pub merged: bool,
 }
 
 fn relative(root: &Path, path: &Path) -> String {
@@ -210,15 +212,16 @@ fn refresh(root: String, index: String, path: String, refreshed_at: String, tsco
     let root_path = Path::new(&root);
     let lexicon_path = Path::new(&path);
     // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
-    let chain = crate::index_chain::manifest_digests(&index);
+    let (chain, working) = crate::index_chain::manifest_digests(&index).map_or((None, 0), |(chain, working)| (Some(chain), working));
     let held = built::read(lexicon_path, VERSION);
     if let (Some(held), Some(chain)) = (held.as_ref(), chain.as_ref()) {
         if built::holds(root_path, held, chain) {
-            return Ok(LexiconRefresh { path, packages: held.packages, entrypoints: held.entrypoints, reused: held.reusable, unavailable: held.unavailable, unresolved: None, unchanged: true });
+            return Ok(LexiconRefresh { path, packages: held.packages, entrypoints: held.entrypoints, reused: held.reusable, unavailable: held.unavailable, unresolved: None, unchanged: true, merged: false });
         }
     }
     let has_index = Path::new(&index).exists();
     let planned = held.as_ref().zip(chain.as_ref()).and_then(|(held, chain)| merge::plan(&root, &index, lexicon_path, chain, held));
+    let merged = planned.is_some();
     let (owners, sites, internal_names, changed, listed_manifests) = match planned {
         Some(plan) => (plan.owners, plan.files, plan.internal, Some(plan.changed), plan.manifests),
         None => {
@@ -327,9 +330,9 @@ fn refresh(root: String, index: String, path: String, refreshed_at: String, tsco
         let record = built::record(root_path, path_ref, chain.clone(), VERSION, &corpus.entries, &owners, &listed_manifests, held.as_ref().filter(|_| carried.is_some()), wanted.len() as u32, unavailable);
         let bytes = serde_json::to_vec(&record).map_err(|error| napi::Error::from_reason(error.to_string()))?;
         if has_index {
-            merge::write(path_ref, &chain, listed_manifests, &owners, internal_names, sites).map_err(|error| napi::Error::from_reason(error.to_string()))?;
+            merge::write(path_ref, &index, &chain, working, listed_manifests, &owners, internal_names, sites).map_err(|error| napi::Error::from_reason(error.to_string()))?;
         }
         fs::write(built::file(path_ref), bytes).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     }
-    Ok(LexiconRefresh { path, packages: wanted.len() as u32, entrypoints: corpus.entries.len() as u32, reused, unavailable, unresolved: Some(corpus.entries.iter().filter(|entry| entry.api.entrypoint.is_none()).count() as u32), unchanged: false })
+    Ok(LexiconRefresh { path, packages: wanted.len() as u32, entrypoints: corpus.entries.len() as u32, reused, unavailable, unresolved: Some(corpus.entries.iter().filter(|entry| entry.api.entrypoint.is_none()).count() as u32), unchanged: false, merged })
 }

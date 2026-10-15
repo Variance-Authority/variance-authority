@@ -355,6 +355,8 @@ export interface NativeDependencyLexicon {
   refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string, tsconfig?: string | false): Promise<{
     readonly path: string; readonly packages: number; readonly entrypoints: number;
     readonly reused: number; readonly unavailable: number; readonly unresolved?: number; readonly unchanged: boolean;
+    /** The last refresh's record carried, and of the source only what the index wrote since read. */
+    readonly merged: boolean;
   }>;
   queryDependencyLexicon(path: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
