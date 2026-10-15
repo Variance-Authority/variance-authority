@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { native, nativeRefusal } from '../native.js';
 import type { NativeCombinedRecord } from '../native-record.js';
 import { cutRecord } from './format-layer.js';
+import { repositoryRoot } from './repository-root.js';
 
 export type { NativeCombinedRecord as CombinedRecord, NativeCombinedShard as CombinedShard } from '../native-record.js';
 
@@ -24,7 +25,7 @@ export type { NativeCombinedRecord as CombinedRecord, NativeCombinedShard as Com
  *
  * A module the shards describe two ways over one text is one a shard cut and
  * another carried from a record an older writer cut. Those alone are read from
- * the checkout at `root` and cut again, and the fold carries every shard's
+ * the checkout `root` sits in and cut again, and the fold carries every shard's
  * crossings onto that cut by address; a test whose crossings have no place in
  * it is owed a run. A module the checkout holds at another text, or not at
  * all, is refused.
@@ -37,9 +38,10 @@ export function combineRecords(shards: readonly string[], output: string, root: 
   const paths = shards.map((shard) => resolve(shard));
   const folded = combine(paths, resolve(output));
   if (folded.disputed == null) return folded;
+  const checkout = repositoryRoot(root);
   const onDisk = new Map<string, string>();
   for (const file of folded.disputed.files) {
-    const text = checkoutText(resolve(root, file));
+    const text = checkoutText(resolve(checkout, file));
     if (text !== undefined) onDisk.set(file, text);
   }
   return combine(paths, resolve(output), cutRecord(folded.disputed.instrumentation, onDisk));
