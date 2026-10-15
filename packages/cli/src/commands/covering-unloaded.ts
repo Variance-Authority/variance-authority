@@ -52,8 +52,7 @@ export function addedSince(file: string, from: string, commit: string): Operator
 export function unreadCommit(file: string, from: string, commit: string, said: string): OperatorError {
   return new OperatorError(
     `\`${file}\` is not in the record at \`${from}\`, and git could not read ${commit.slice(0, 12)}, the commit that ` +
-      `record was made at (${said}), so whether the file existed when the suite ran is not known: fetch that commit ` +
-      'and ask again.',
+      `record was made at (${said}), so whether the file existed when the suite ran is not known.`,
   );
 }
 

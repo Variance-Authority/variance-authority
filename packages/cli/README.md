@@ -438,8 +438,9 @@ is a different file from `src/checkout/total.ts`, and so is any other recorded
 path of the same name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
-with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. A file the suite loaded without
+with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`,
+to `unloaded` for a file the suite never loaded, or to `older` for a file its
+record predates. A file the suite loaded without
 instrumenting it is answered with `preconditionOf`, the test files that loaded
 it. `--suite <name>` reads one record alone, answers in the shape a repository with one record does, and so
 gives a suite's refusal in full.
