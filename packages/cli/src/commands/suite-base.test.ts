@@ -23,6 +23,7 @@ import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
+import { suiteTimes } from './suite-times.js';
 
 /**
  * The record a checkout measures from, in a real repository whose `origin` is
@@ -228,6 +229,25 @@ describe('the primary checkout\'s record is the offline fallback, and says why',
       file: testCoverageFile(worktree, { suite: 'unit' }),
       missed: { miss: { kind: 'absent' } },
     });
+  });
+});
+
+describe('the times a sharded run places its files by, from a suite given to the share', () => {
+  // Every shard reads the times on its own machine, so a read that failed on
+  // one may have answered on another, and the two would place different files.
+  it('stop the run when the remote cannot be reached, though the primary checkout holds a record', async () => {
+    const { origin, first } = await mainline();
+    const { worktree } = await laptop(origin, first);
+    await git(worktree, 'remote', 'set-url', 'origin', join(home, 'nowhere.git'));
+
+    await expect(suiteTimes({ root: worktree })).rejects.toThrow(/^record of "unit": the mainline's was not read; mainline main: /u);
+  });
+
+  it('are read from the primary checkout when the share holds no record, which every shard sees alike', async () => {
+    const { origin, first } = await mainline({ publish: false });
+    const { primary, worktree } = await laptop(origin, first);
+
+    expect(await suiteTimes({ root: worktree })).toMatchObject({ recording: testCoverageFile(primary, { suite: 'unit' }) });
   });
 });
 

@@ -425,9 +425,12 @@ checkout (e2e): nothing is recorded in /repo: no run left a per-case index at â€
 Not loaded by stories (visual): a run that never loaded the file has no answer about it, which is not the same as no test covering it.
 ```
 
-Once any suite answers, the answers come first, then any suite that has never
-run. A suite that never loaded the file costs one line at the end. When no suite
-answers, each says why in full, with the record it read, since a wrong path is
+Suites are asked nearest kind first: unit, integration, e2e, visual. Once any
+suite answers, the answers come first, then any suite that has never run. A
+suite that never loaded the file costs one line at the end. A suite whose record
+was made before the file existed says so, with the commit it recorded at, since
+only its next run can answer. When no suite answers, each says why in full,
+with the record it read, since a wrong path is
 then the likely cause. The record names files from the repository root, so give
 `--file` that way, or as an absolute path; one outside the root is refused. A
 refusal names the path you asked and no other: `apps/shop/src/checkout/total.ts`
@@ -435,8 +438,9 @@ is a different file from `src/checkout/total.ts`, and so is any other recorded
 path of the same name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
-with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. A file the suite loaded without
+with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`,
+to `unloaded` for a file the suite never loaded, or to `older` for a file its
+record predates. A file the suite loaded without
 instrumenting it is answered with `preconditionOf`, the test files that loaded
 it. `--suite <name>` reads one record alone, answers in the shape a repository with one record does, and so
 gives a suite's refusal in full.
@@ -2146,9 +2150,10 @@ follows three rules:
   the longest files first, each on the shard with the least work so far. A
   subject with no recorded cost is priced at the median of the ones that have
   one.
-- **A checksum decides when nothing was recorded.** Each file goes to the shard
-  with the highest `sha256` of the file and the shard number, so adding a file
-  moves no other one.
+- **File count decides when nothing was recorded.** Every file weighs the same
+  and is placed by the same rule, ties broken by path and then by the lowest
+  shard, so the shards differ by at most one file. Adding a file can move
+  others: the placement is a function of the whole plan.
 
 The shard that finishes last is the file `variance ask costs` lists first: it
 prints the slowest files with their summed time, then the slowest subjects, from
@@ -2172,7 +2177,7 @@ its own index and needs no merge.
 
 The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A
-checkout with no share, or a line that holds no costs, places by checksum.
+checkout with no share, or a line that holds no costs, places by file count.
 
 `--subjects <glob>` is the other way to split, when you want to choose the
 slices yourself.
@@ -2358,7 +2363,7 @@ owns its own collector, renderer, storage, or review surface:
 - `run` takes `shard` as `{ index, total }`, the library form of `--shard k/n`,
   and `costs` as `{ commit, costs }`, the subject costs that place files on
   shards and order each worker's queue longest first. The executable reads
-  `costs` from the share; without them a checksum places each file.
+  `costs` from the share; without them each file is placed by count.
 - `formatReport` takes a `format` of `text`, `json`, or `html`. `subject` narrows
   text or JSON to one id and is refused for HTML because a narrowed page would
   hide coverage. Use the CLI's `report` command when the report must be loaded

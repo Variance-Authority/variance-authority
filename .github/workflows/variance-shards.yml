@@ -12,7 +12,7 @@ name: variance shards
 # shard, because they load the same module graph and splitting them pays for it
 # twice. Files are placed by the time each subject took on the newest mainline
 # commit this checkout descends from — longest first, onto the least loaded
-# shard — and by a checksum of the file when no such record exists. Both are
+# shard — and by file count, every file weighing the same, when no such record exists. Both are
 # functions of the plan and the shard count, so every shard computes the same
 # placement without talking to the others.
 #

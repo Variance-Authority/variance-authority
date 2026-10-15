@@ -147,8 +147,8 @@ export interface RunOptions {
   readonly shard?: Shard;
   /**
    * What each subject cost the newest mainline run this checkout descends from.
-   * Places groups on shards and orders the queue longest first; absent, a
-   * checksum places them and the queue keeps plan order.
+   * Places groups on shards and orders the queue longest first; absent, they
+   * are placed by count and the queue keeps plan order.
    */
   readonly costs?: { readonly commit: string; readonly costs: Costs };
 

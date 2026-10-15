@@ -27,7 +27,8 @@ afterEach(async () => {
 describe('the Jest sequencer under --shard', () => {
   it('places files by the times recorded, and says what the shard takes', async () => {
     const lines: string[] = [];
-    expect(placingSequencer({}, { root, rootDir, times, say: (line) => lines.push(line) })).toEqual({ testSequencer: PLACING_SEQUENCER });
+    expect(placingSequencer({}, { root, rootDir, times, say: (line) => lines.push(line), argv: ['jest', '--shard=1/2'] }))
+      .toEqual({ testSequencer: PLACING_SEQUENCER, passWithNoTests: true });
 
     const first = await sequencer().shard(files.map(test), { shardIndex: 1, shardCount: 2 });
     const second = await sequencer().shard(files.map(test), { shardIndex: 2, shardCount: 2 });
@@ -37,15 +38,30 @@ describe('the Jest sequencer under --shard', () => {
     expect(lines).toEqual(['variance-authority: shard 1/2 by the times recorded at eeeeeeeeeeee: 1 of 4 files, 9.0 s (shards 9.0 s to 9.0 s)']);
   });
 
-  it('hands the shard to Jest\'s own split when nothing is timed, and says so', async () => {
+  it('places whole files by count when nothing is timed, and says why', async () => {
     const lines: string[] = [];
     placingSequencer({}, { root, rootDir, times: async () => ({ unread: 'nothing is recorded there' }), say: (line) => lines.push(line) });
 
     const first = await sequencer().shard(files.map(test), { shardIndex: 1, shardCount: 2 });
     const second = await sequencer().shard(files.map(test), { shardIndex: 2, shardCount: 2 });
 
-    expect([...paths(first), ...paths(second)].sort()).toEqual(files);
-    expect(lines[0]).toBe('variance-authority: shard 1/2 split by the runner, by count: no times at the record: nothing is recorded there');
+    expect(paths(first)).toEqual(['a.test.ts', 'c.test.ts']);
+    expect(paths(second)).toEqual(['b.test.ts', 'd.test.ts']);
+    expect(lines[0]).toBe('variance-authority: shard 1/2 by file count: 2 of 4 files; no times at the record: nothing is recorded there');
+  });
+
+  it('keeps the project\'s own passWithNoTests', () => {
+    expect(placingSequencer({ passWithNoTests: false }, { root, rootDir, times, say: () => {}, argv: ['jest', '--shard', '1/2'] }))
+      .toEqual({ testSequencer: PLACING_SEQUENCER });
+  });
+
+  it('lets a shard left no file pass, in either spelling of --shard, and an unsharded run that finds none fail', () => {
+    const asked = (argv: string[]) => placingSequencer({}, { root, rootDir, times, say: () => {}, argv }).passWithNoTests;
+
+    expect(asked(['jest', '--shard', '2/3'])).toBe(true);
+    expect(asked(['jest', '--shard=2/3'])).toBe(true);
+    expect(asked(['jest'])).toBeUndefined();
+    expect(asked(['jest', '--', 'shard.test.ts'])).toBeUndefined();
   });
 
   it('chains the project\'s own sequencer for everything but the shard', async () => {
