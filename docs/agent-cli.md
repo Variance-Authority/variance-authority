@@ -115,7 +115,8 @@ the rows the text would print. A published row carries `specifier`, `at`, the
 first paragraph of its documentation as `summary`, and `inArea` when you gave a
 start point. An exported row carries `at` and `line`. A section that was not run
 is missing: `described` and `loose` are present only when the other two are
-empty, a `described` row carries the `words` of yours it holds, and a refused
+empty, a `described` row carries the `words` of yours it holds and is never
+repeated in `loose`, and a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
 These questions read the checkout the same way `packages` does. `--from` and

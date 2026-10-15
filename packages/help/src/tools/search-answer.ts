@@ -138,8 +138,8 @@ export interface SearchAnswer {
   /** Present only when the exact sections are empty, which is when it runs. */
   readonly loose?: Matches<PublishedMatch | ExportedMatch>;
   /**
-   * This repository's names holding at least half of the question's words,
-   * past those `loose` holds. Present when `loose` ran, which is when it runs;
+   * This repository's names holding at least half of the question's words.
+   * `loose` holds none of them. Present when `loose` ran, which is when it runs;
    * absent too when the question has no word to describe it by.
    */
   readonly described?: Matches<DescribedMatch>;
@@ -392,28 +392,30 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // ends the search for names of this repository's own.
   if (hits.length > 0 || rest.total > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
 
+  // The empty answer read as a description: names holding half of its words,
+  // stemmed by the rule packages are. It prints first, so it claims its names
+  // first, and the loose pass offers none of them a second time.
+  const described = describedNames(index, query, within, new Set([...named, ...answered]));
+  const told = described === undefined ? undefined : first(described, DESCRIBED_CAP, describedOrder)
+    .flatMap(({ name, words }): DescribedMatch[] => {
+      const row = published(index, surface(index, index.publishedOf(name), area, within), 1).shown[0] ??
+        exported(index, [name], new Set(), within).head(1)[0];
+      return row === undefined ? [] : [{ ...row, words }];
+    });
+
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
   // substring answered are kept out: a name the caller can already see must
   // not be offered back to them as something else. Whether a name is in the
   // answer is the dictionary's to say; where it sits is not.
-  const loose = looseNames(index, query, FUZZY, within, new Set([...named, ...answered]));
+  const claimed = new Set([...named, ...answered, ...(described ?? []).map(({ name }) => name)]);
+  const loose = looseNames(index, query, FUZZY, within, claimed);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
   const alsoFound = published(index, alsoHits, LOOSE_CAP);
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within);
   const shown = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
   const loosely: SearchAnswer = { ...answer, loose: { total: alsoFound.total + alsoRest.total, shown } };
-
-  // The same empty answer read as a description: names holding half of its
-  // words, stemmed by the rule packages are. A name the loose pass holds is
-  // its, so no name is offered twice.
-  const described = describedNames(index, query, within, new Set([...named, ...answered, ...loose]));
-  if (described === undefined) return { answer: loosely, area };
-  const told = first(described, DESCRIBED_CAP, describedOrder).flatMap(({ name, words }): DescribedMatch[] => {
-    const row = published(index, surface(index, index.publishedOf(name), area, within), 1).shown[0] ??
-      exported(index, [name], new Set(), within).head(1)[0];
-    return row === undefined ? [] : [{ ...row, words }];
-  });
+  if (described === undefined || told === undefined) return { answer: loosely, area };
   return { answer: { ...loosely, described: { total: described.length, shown: told } }, area };
 }
 

@@ -64,6 +64,7 @@ import { searched, searchedFiles } from './search-answer.js';
  * so the repository's own names answer before any package that says the same
  * words. Its order is counts, written next to each row as the words it holds:
  * a caller can check `[holds: file, tests]`, and could not check a score.
+ * It prints first, so a name it holds is not offered again by the loose pass.
  *
  * ## Where the substring stops being enough
  *
