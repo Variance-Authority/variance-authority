@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
+import { directCallLine } from './direct-call.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
@@ -128,6 +129,8 @@ if (entry !== undefined && isProgram(entry)) {
     // nothing is left running: the step is the log, and the log is whole.
     ...(isCI ? {} : { detach: relaunch }),
   });
+  // After the answer and on stderr, so neither the answer nor the exit code changes.
+  process.stderr.write(directCallLine(process.argv.slice(2), process.env, process.cwd(), fileURLToPath(import.meta.url)));
 }
 
 /**
