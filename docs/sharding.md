@@ -2,13 +2,10 @@
 
 Shard a Vitest, Jest or Playwright suite with `--shard k/n`, and each shard
 takes whole test files by how long they took on the last recorded run, not by
-how many there are. The shards finish close together, and no file runs in two
-shards. Every shard computes the same split from the same
-record, without talking to the others. `variance shards` says how many shards to
-start: it charges each shard the time it spends before its first test, so it
-stops adding shards when one more saves less than it costs, or when one slow
-file decides how long every shard takes, and it answers 0 when the runner's
-list of test files shows the change runs none.
+how many there are. Each file goes in turn, longest first, to the shard with
+the least time so far. The shards finish close together, and no file runs in
+two shards. Every shard computes the same split from the same record, without
+talking to the others.
 
 Here is this repository's unit suite, 782 test files and 3,259 s of test time,
 on four shards:
@@ -47,7 +44,13 @@ The times come from the record every run of the suite writes. On your machine
 that is your checkout's own. A fresh CI checkout has none, so for its shards to
 place by time, your mainline has to publish one:
 
-1. On a push to your mainline, keep each shard's record as an artifact.
+1. On a push to your mainline, keep each shard's record as an artifact. A
+   wrapped configuration writes it under
+   `node_modules/.cache/variance-authority/test-selection/`, at
+   `<repository>/suites/<name>/coverage.bin` for a declared suite, or
+   `<repository>/coverage.bin` when you declare none; `<repository>` is a
+   digest of the checkout's path. Upload the `test-selection` directory whole,
+   as [a suite with no run report](sharing.md#a-suite-with-no-run-report) does.
 2. Fold them into one with
    [`variance journeys <shard>...`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too):
    the record one unsharded run would have written.
@@ -58,29 +61,42 @@ place by time, your mainline has to publish one:
 
 Every later build that branches from that commit reads it.
 [A suite your checkout has not recorded](sharing.md#a-suite-your-checkout-has-not-recorded)
-covers which record is read when.
+covers which record is read when. Until a record is published, the shards are
+placed as [when nothing is recorded](#when-nothing-is-recorded) shows.
 
-When no record can be read, or it has a time for none of the files, the shard
-prints why on that line and prices every file the same, so the shards are
-balanced by file count and a missing record never fails a build:
+## When nothing is recorded
 
-```text
-variance-authority: shard 1/2 by file count: 2 of 3 files; no times at node_modules/.cache/variance-authority/test-selection/…/coverage.bin: nothing is recorded there
-```
+The first build of a suite, or any shard that cannot read the record, has no
+times. A missing record never fails a build:
 
-No shard is left empty while there are as many files as shards. A shard left
-no file, because there are fewer files than shards, passes under every runner:
-the seam sets Jest's `passWithNoTests` unless your configuration sets it.
+- **The shard places by file count.** It prices every file the same, places
+  them by the same rule, and prints why on its line:
 
-A test file the record has not seen yet, such as one added on your branch, is
-priced at the median of the files it has, so new files do not all land on one
-shard. Under `VARIANCE_AUTHORITY_SINCE`, only the files the change selects are
-placed.
+  ```text
+  variance-authority: shard 1/2 by file count: 2 of 3 files; no times at node_modules/.cache/variance-authority/test-selection/…/coverage.bin: nothing is recorded there
+  ```
+
+  No shard is left empty while there are as many files as shards.
+- **A shard with no file passes.** With fewer files than shards, some shard
+  takes none, and it passes under every runner. For Jest, `withTestSelection`
+  sets `passWithNoTests` unless your configuration sets it.
+- **Shards that read different records split differently.** If one shard of a
+  build placed by file count and the others by time, a file can run in two
+  shards or in none. The line in each shard's log shows which one did.
+- **`variance shards` answers one shard.** [Choose how many shards](#choose-how-many-shards)
+  counts by the times, so with none it answers one and says so. Pass
+  `--unrecorded <n>` to start `n` shards until there are times.
+
+A test file the record has not seen yet, such as one added on your branch,
+does not make the shard place by count. It is priced at the median of the files
+the record has, so new files do not all land on one shard.
 
 ## Choose how many shards
 
 `variance shards` reads the same record and answers how many shards to start.
-`--setup` is what one shard spends before its first test: checkout, install and
+It charges each shard the time it spends before its first test, so it stops
+adding shards when one more saves less than it costs, or when one slow file
+decides how long every shard takes. `--setup` is what one shard spends before its first test: checkout, install and
 build, from your own CI's timings. Without it the count weighs no setup, so it
 adds shards until the slowest file or `--max` stops it, and the answer says so.
 `variance shards` exits 0 on every input it can read and refuses only a
@@ -124,20 +140,32 @@ soonest, and it names that file.
 
 ### Start only what the change needs
 
-On a pull request, `--since <ref>` leaves out of the count the files the change
-lets the run skip, as the shards themselves leave them out. Pass
-`--collected <file>` with it, the runner's own list of the suite's test files,
-because the record holds only the files it has seen: a test file the change adds
-is counted from the list, priced at the median, as the shards price it. Without
-the list, only recorded files are counted, the answer says so, and a change that
-skips every one of them still gets one shard, for whatever it adds. List the
-suite alone: with several Vitest projects, pass `--project <name>` to
-`vitest list`, or every other suite's files are counted too. A change that reaches no
-test answers `0 shards` when the list is passed, and the build starts none. Keep `--since` off the
-push to your mainline: that build runs the whole suite, so its shards' records
-fold into the one the next build is placed by. A selected shard's record does
-not fold with another's, so a pull request's shards record for themselves, not
-for the share.
+On a pull request, a wrapped configuration can skip the test files the change
+cannot affect: set `VARIANCE_AUTHORITY_SINCE` to the ref the change is measured
+from, such as `origin/main`, and the run removes the files
+[`variance select`](../packages/sense/README.md#let-the-runner-skip-them)
+leaves out before any starts. Set at all, even empty, it selects. Each shard
+then places only the files the change selects.
+
+`variance shards` counts the same way with two flags:
+
+- **`--since <ref>`** leaves out of the count the files the change lets the run
+  skip, as the shards themselves leave them out.
+- **`--collected <file>`** is the runner's own list of the suite's test files.
+  The record holds only the files it has seen, so a test file the change adds
+  is counted from the list, priced at the median, as the shards price it. List
+  the suite alone: with several Vitest projects, pass `--project <name>` to
+  `vitest list`, or every other suite's files are counted too.
+
+With the list, a change that affects no test answers `0 shards`, and the build
+starts none. Without it, only recorded files are counted, the answer says so,
+and a change that skips every one of them still gets one shard, for whatever it
+adds.
+
+Keep both off the push to your mainline: that build runs the whole suite, so
+its shards' records fold into the one the next build is placed by. A selected
+shard's record does not fold with another's, so a pull request's shards record
+for themselves, not for the share.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for
@@ -181,13 +209,9 @@ jobs:
           npx vitest run --shard ${{ matrix.shard }}
 ```
 
-`VARIANCE_AUTHORITY_SINCE` is set only on a pull request: set at all, even
-empty, it selects.
-
-With nothing recorded, `variance shards` answers one shard and says so: the
-first build of a suite has no times to count by. `--unrecorded <n>` names the
-count to start until there are, and starts one when it names none. Without `--since`, the count reads only the files the
-record holds. [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
+`VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
+all selects.
+[`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
 
 ## Every shard computes the same split
@@ -209,10 +233,9 @@ three inputs and keeps its own part:
 The same inputs give the same split on every machine. Each file goes in turn,
 longest first, to the shard with the least time so far; ties are broken by the
 file's path, so nothing depends on the order a shard read its files in. With no
-times, every file is priced the same, so the same rule balances the shards by
-file count, and no shard is left empty while there are as many files as shards.
-The runner's own split never decides: it divides by
-count, and Playwright under `fullyParallel` divides by test, so one file's tests
+times, every file is priced the same, as
+[when nothing is recorded](#when-nothing-is-recorded) shows. The runner's own
+split never decides: it divides by count, and Playwright under `fullyParallel` divides by test, so one file's tests
 would run in two shards.
 
 Computing the whole split costs each shard less than a millisecond: 0.34 ms for
@@ -228,9 +251,8 @@ shard takes work from another. A shard finishes last for one of four reasons:
 - **The times are old.** A file that got slower since the record was published
   is still priced at what it took then. The shard's line names the commit the
   times belong to; a mainline that publishes on every push keeps them close.
-- **The shard read no times.** Its line says `by file count`, and why. If one
-  shard of a build placed by file count and the others by time, they disagree
-  on the split; the line in each shard's log shows which one did.
+- **The shard read no times.** Its line says `by file count`, and why;
+  [when nothing is recorded](#when-nothing-is-recorded) covers that split.
 - **The machine was slower or started later.** A runner that starts a minute
   late finishes a minute late. The split cannot know that.
 
