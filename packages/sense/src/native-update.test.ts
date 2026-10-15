@@ -147,7 +147,8 @@ describe('the native warm update', () => {
     expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
     const working = decodeSourceIndex((await openImmutableLog(start)).segments.at(-1)!);
     expect([...working.records.keys()]).toEqual([]);
-    // Its parse stays: the addon's read carries no harvest, so it is not the row the base holds.
+    // Its parse too: the base holds that content's parse, harvested, which the addon's read is not.
+    expect([...working.parses.keys()]).toEqual([]);
   });
 
   it('writes nothing when nothing changed', async () => {

@@ -82,16 +82,23 @@ fn a_layer_that_is_not_a_generation_is_refused_with_its_place() {
 fn a_working_layer_writes_no_row_the_base_already_holds() {
     let base = encoded(FULL);
     // Everything again, as an update that read every file writes it: one record
-    // changed, and one parse that keeps its key but not its contents.
+    // changed, and one parse read again without its harvest. A parse is keyed by
+    // the bytes it was read from, so the base's row under its key is that parse.
     let mut again: serde_json::Value = serde_json::from_str(FULL).unwrap();
     again["records"][1][1] = serde_json::json!({"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]});
-    again["parses"][2][1] = serde_json::json!({"requests": [{"value": "./d", "kind": "imports", "line": 1, "bindings": []}]});
+    again["parses"][0][1] = serde_json::json!({"requests": []});
     let expected = encoded(r#"{
       "config": "v1:c",
-      "records": [["src/b.ts", {"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]}]],
-      "parses": [["git:c", {"requests": [{"value": "./d", "kind": "imports", "line": 1, "bindings": []}]}]]
+      "records": [["src/b.ts", {"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]}]]
     }"#);
     assert_eq!(merged(&[&base], &[&encoded(&again.to_string())]).unwrap(), expected);
+}
+
+#[test]
+fn a_harvested_parse_is_written_over_the_one_the_base_holds_without_it() {
+    let base = encoded(r#"{"parses": [["git:a", {"requests": []}]]}"#);
+    let harvested = encoded(r#"{"parses": [["git:a", {"requests": [], "harvested": true, "declares": ["A"]}]]}"#);
+    assert_eq!(merged(&[&base], &[&harvested]).unwrap(), harvested);
 }
 
 #[test]

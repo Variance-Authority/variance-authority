@@ -11,7 +11,11 @@ import { openImmutableLog } from './immutable-log.js';
 import { readPublishedSources } from './published.js';
 import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
 
-/** One generation of `count` files, each parsed and resolved, every string in it its own to `layer`. */
+/**
+ * One generation of `count` files, each parsed and resolved, every string in it its own to `layer`.
+ * A parse is keyed by the content it was read from, so a later layer puts one again only as a
+ * harvested read of what the earlier read without; the `new` layer's parses are harvested.
+ */
 function generation(layer: string, count: number): Uint8Array {
   const parses = new Map<Digest, Parsed>();
   const records = new Map<string, { record: { file: string; digest: Digest; edges: { to: string; kind: 'imports' }[] }; witnesses: string[] }>();
@@ -25,6 +29,7 @@ function generation(layer: string, count: number): Uint8Array {
         line: request + 1,
         bindings: [{ imported: `${layer}${at}`, local: `${layer}${at}`, type: false, line: request + 1 }],
       })),
+      ...(layer === 'new' && { harvested: true as const }),
     });
     records.set(file, {
       record: { file, digest, edges: [{ to: `src/${layer}-${at}.ts`, kind: 'imports' }] },

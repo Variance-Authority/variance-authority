@@ -28,7 +28,7 @@ use rayon::prelude::*;
 
 use crate::generation::{encode_generation, key_parts, Deleted, Generation};
 use crate::order::code_unit;
-use crate::parse_columns::Span;
+use crate::parse_columns::{ParseRow, Span};
 use crate::record::Indexed;
 use crate::segment::NONE;
 use crate::stored::{same_length, Stored, U32s};
@@ -58,23 +58,31 @@ fn opened<'a>(segments: &[&'a [u8]], what: &str) -> Result<Vec<Layer<'a>>, Strin
         .collect()
 }
 
-fn folded(base: &[Layer], layers: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
-    let layers = opened(layers, "layer")?;
+fn folded(base: &[Layer], layers_bytes: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
+    let layers = opened(layers_bytes, "layer")?;
     let top = fold(&layers, over, None);
     let under = if base.is_empty() { Fold::default() } else { fold(base, false, Some(&top)) };
     let config = layers.last().and_then(|layer| layer.config);
 
-    // Two parse rows are the same when they encode the same, so a column added
-    // to the format is compared without anything here learning of it.
+    // A parse is keyed by the bytes it was read from and how they were read, so
+    // the base's row under its key is the same parse (`cache.ts`), unless only
+    // the new one carries the harvest.
     let held_parse = |key: &str, view: &ParseView| {
         under.parses.get(key).is_some_and(|&(at, row)| {
-            alone(&ParseView { stored: &base[at].stored, columns: &base[at].parses, row }) == alone(view)
+            !view.harvested() || ParseView { stored: &base[at].stored, columns: &base[at].parses, row }.harvested()
         })
     };
+    // A record is answered from more than its file, so it is compared whole,
+    // and only when its digest says the file is the one the base read.
     let held_record = |file: &str, indexed: &Indexed| {
-        under.records.get(file).is_some_and(|&(at, row)| base[at].records.indexed(&base[at].stored, row) == *indexed)
+        under.records.get(file).is_some_and(|&(at, row)| {
+            let records = &base[at].records;
+            base[at].stored.optional(records.digest.at(row)) == indexed.record.digest.as_deref()
+                && records.indexed(&base[at].stored, row) == *indexed
+        })
     };
 
+    let (put_parses, put_records, put_directories) = (top.parses.len(), top.records.len(), top.directories.len());
     let mut parses: Vec<(String, ParseView)> = top
         .parses
         .into_par_iter()
@@ -100,6 +108,13 @@ fn folded(base: &[Layer], layers: &[&[u8]], over: bool) -> Result<Vec<u8>, Strin
         .map(|(path, digest)| (path.to_owned(), digest.to_owned()))
         .collect();
     directories.sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
+
+    // One layer that drops no row is already the generation this would encode.
+    if let [one] = layers_bytes {
+        if (parses.len(), records.len(), directories.len()) == (put_parses, put_records, put_directories) {
+            return Ok(one.to_vec());
+        }
+    }
 
     let sorted = |gone: Vec<String>| {
         let mut gone = gone;
@@ -179,12 +194,6 @@ fn fold<'b>(layers: &'b [Layer<'b>], over: bool, only: Option<&Fold>) -> Fold<'b
         }
     }
     fold
-}
-
-/// One parse row as a generation of its own.
-fn alone(view: &ParseView) -> Vec<u8> {
-    let parses = [("", view)];
-    encode_generation(&Generation { config: None, directories: &[], parses: &parses, records: &[], deleted: Deleted::default() })
 }
 
 /// `joinedKey` in `source-index-format.ts`: the default way adds nothing.
