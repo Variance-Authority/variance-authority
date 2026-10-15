@@ -30,12 +30,40 @@ describe('the files one shard of a run takes', () => {
     );
   });
 
-  it('hands the split back to the runner when the record holds no time for any file, and says why', () => {
-    expect(shardOf(['a.test.ts'], { index: 1, count: 2 }, { unread: 'nothing is recorded there', recording: '/r/coverage.va' })).toEqual({
-      line: 'variance-authority: shard 1/2 split by the runner, by count: no times at /r/coverage.va: nothing is recorded there',
+  it('places by checksum when there are no times to read, and says why', () => {
+    const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'];
+    const unread = { unread: 'nothing is recorded there', recording: '/r/coverage.va' };
+
+    const first = shardOf(files, { index: 1, count: 2 }, unread);
+    const second = shardOf(files, { index: 2, count: 2 }, unread);
+
+    expect(first).toEqual({
+      take: [1, 2],
+      line: 'variance-authority: shard 1/2 by checksum: 2 of 4 files; no times at /r/coverage.va: nothing is recorded there',
     });
-    expect(shardOf(['a.test.ts'], { index: 1, count: 2 }, timed({ 'other.test.ts': 5 })).line).toBe(
-      'variance-authority: shard 1/2 split by the runner, by count: /r/coverage.va holds no time for any of its 1 file',
-    );
+    expect(second.take).toEqual([0, 3]);
+  });
+
+  it('places by checksum when the record times none of the files, and says so', () => {
+    const files = ['d.test.ts', 'c.test.ts', 'b.test.ts', 'a.test.ts'];
+
+    expect(shardOf(files, { index: 2, count: 2 }, timed({ 'other.test.ts': 5 }))).toEqual({
+      take: [3, 0],
+      line: 'variance-authority: shard 2/2 by checksum: 2 of 4 files; /r/coverage.va holds no time for any of them',
+    });
+  });
+
+  it('places a file handed more than once, as two projects run it, whole on one shard', () => {
+    const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'a.test.ts'];
+
+    const byTime = shardOf(files, { index: 1, count: 2 }, timed({ 'a.test.ts': 1000, 'b.test.ts': 1000, 'c.test.ts': 1000 }));
+    const byChecksum = [1, 2].map((index) => shardOf(files, { index, count: 2 }, { unread: 'nothing is recorded there' }).take);
+
+    expect(byTime).toEqual({
+      take: [0, 3],
+      line: 'variance-authority: shard 1/2 by the times recorded at abcdef012345: 1 of 3 files, 2.0 s (shards 2.0 s to 2.0 s)',
+    });
+    expect(byChecksum.flat().sort()).toEqual([0, 1, 2, 3]);
+    expect(byChecksum.find((take) => take?.includes(0))).toContain(3);
   });
 });

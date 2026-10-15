@@ -1,8 +1,9 @@
 # Split a test suite across CI jobs
 
-Shard a Vitest or Jest suite with `--shard k/n`, and each shard takes test files
-by how long they took on the last recorded run, not by how many there are. The
-shards finish close together. Every shard computes the same split from the same
+Shard a Vitest, Jest or Playwright suite with `--shard k/n`, and each shard
+takes whole test files by how long they took on the last recorded run, not by
+how many there are. The shards finish close together, and no file runs in two
+shards. Every shard computes the same split from the same
 record, without talking to the others. `variance shards` says how many shards to
 start: it charges each shard the time it spends before its first test, so it
 stops adding shards when one more saves less than it costs, or when one slow
@@ -22,12 +23,14 @@ one. The times are from the [execution record](execution-record.md) at commit
 `789bdbddee97`, on one Apple M4 Pro, darwin/arm64. New here? Start with
 [your first run](start.md).
 
-## Turn it on in a Vitest or Jest config
+## Turn it on in a Vitest, Jest or Playwright config
 
 A config wrapped by `withTestSelection` already places `--shard`; there is
 nothing else to set. [Cut a Vitest run down to a diff](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff)
 and [Cut a Jest run down to a diff](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff)
-show the wrap. Run the shards as you do now:
+show the wrap. In Playwright, it is the same `withTestSelection`, from
+[`@variance-authority/playwright-test`](../packages/playwright-test/README.md#place-a-shard-by-whole-files).
+Run the shards as you do now:
 
 ```bash
 npx vitest run --shard 3/4
@@ -57,12 +60,20 @@ Every later build that branches from that commit reads it.
 [A suite your checkout has not recorded](sharing.md#a-suite-your-checkout-has-not-recorded)
 covers which record is read when.
 
-When no record can be read, the shard says why on that line and the runner's
-own split by count runs, so a missing record never fails a build:
+When no record can be read, or it has a time for none of the files, the shard
+prints why on that line and places the files by a checksum of each path, so a
+missing record never fails a build:
 
 ```text
-variance-authority: shard 3/4 split by the runner, by count: no times at node_modules/.cache/variance-authority/test-selection/…/coverage.bin: nothing is recorded there
+variance-authority: shard 1/2 by checksum: 1 of 3 files; no times at node_modules/.cache/variance-authority/test-selection/…/coverage.bin: nothing is recorded there
 ```
+
+A file's checksum shard depends on its path and the number of shards only, so
+adding or removing a file does not change where any other file goes. The
+shards are not balanced by time: on a small suite one shard can take most of
+the files, or none. A shard left no file passes under Vitest and Playwright.
+Under Jest it fails with *No tests found*; set `passWithNoTests` in your Jest
+configuration for the first sharded build of a suite.
 
 A test file the record has not seen yet, such as one added on your branch, is
 priced at the median of the files it has, so new files do not all land on one
@@ -201,8 +212,10 @@ three inputs and keeps its own part:
 The same inputs give the same split on every machine. Each file goes in turn,
 longest first, to the shard with the least time so far; ties are broken by the
 file's path, so nothing depends on the order a shard read its files in. With no
-record, every shard falls back to the runner's own split, which is the same in
-every shard too.
+times, every shard places each file by the checksum of its path, which is the
+same in every shard too. The runner's own split never decides: it divides by
+count, and Playwright under `fullyParallel` divides by test, so one file's tests
+would run in two shards.
 
 Computing the whole split costs each shard less than a millisecond: 0.34 ms for
 this repository's 782 files.
@@ -217,9 +230,9 @@ shard takes work from another. A shard finishes last for one of four reasons:
 - **The times are old.** A file that got slower since the record was published
   is still priced at what it took then. The shard's line names the commit the
   times belong to; a mainline that publishes on every push keeps them close.
-- **The shard read no times.** Its line says `split by the runner, by count`,
-  and why. If one shard of a build placed by count and the others by time, they
-  disagree on the split; the line in each shard's log shows which one did.
+- **The shard read no times.** Its line says `by checksum`, and why. If one
+  shard of a build placed by checksum and the others by time, they disagree on
+  the split; the line in each shard's log shows which one did.
 - **The machine was slower or started later.** A runner that starts a minute
   late finishes a minute late. The split cannot know that.
 

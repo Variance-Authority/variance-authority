@@ -37,15 +37,16 @@ describe('the Jest sequencer under --shard', () => {
     expect(lines).toEqual(['variance-authority: shard 1/2 by the times recorded at eeeeeeeeeeee: 1 of 4 files, 9.0 s (shards 9.0 s to 9.0 s)']);
   });
 
-  it('hands the shard to Jest\'s own split when nothing is timed, and says so', async () => {
+  it('places whole files by checksum when nothing is timed, and says why', async () => {
     const lines: string[] = [];
     placingSequencer({}, { root, rootDir, times: async () => ({ unread: 'nothing is recorded there' }), say: (line) => lines.push(line) });
 
     const first = await sequencer().shard(files.map(test), { shardIndex: 1, shardCount: 2 });
     const second = await sequencer().shard(files.map(test), { shardIndex: 2, shardCount: 2 });
 
-    expect([...paths(first), ...paths(second)].sort()).toEqual(files);
-    expect(lines[0]).toBe('variance-authority: shard 1/2 split by the runner, by count: no times at the record: nothing is recorded there');
+    expect(paths(first)).toEqual(['b.test.ts', 'c.test.ts']);
+    expect(paths(second)).toEqual(['a.test.ts', 'd.test.ts']);
+    expect(lines[0]).toBe('variance-authority: shard 1/2 by checksum: 2 of 4 files; no times at the record: nothing is recorded there');
   });
 
   it('chains the project\'s own sequencer for everything but the shard', async () => {

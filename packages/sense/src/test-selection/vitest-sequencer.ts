@@ -26,11 +26,12 @@
  * was dropped, an empty run is the runner's, and the project's option stands.
  * The line before the run says `selected none of M`.
  *
- * Under `--shard k/n` the files left are placed by the time the suite's record
- * holds for each, rather than cut by count: every shard places every file and
- * keeps its own part (`shard-placement.ts`), and stderr says which part and
- * what it is expected to take. With no time recorded for any of them the
- * project's sequencer cuts the shard, and the line says that instead.
+ * Under `--shard k/n` the files left are placed whole by the time the suite's
+ * record holds for each, or by checksum when it holds none, rather than cut by
+ * count: every shard places every file and keeps its own part
+ * (`shard-placement.ts`), and stderr says which part, by what, and what it is
+ * expected to take. The project's sequencer never cuts the shard. A shard the
+ * placement leaves empty passes, as one the selection leaves empty does.
  */
 
 // compass: variance-authority.reach
@@ -185,12 +186,12 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
     async shard<T extends Spec>(files: T[]): Promise<T[]> {
       const kept = await this.#kept(files);
       const shard = shardAsked(this.#ctx.config.shard);
-      if (shard === undefined || options.times === undefined) return (await this.#sequencer()).shard(kept);
-      timed ??= options.times();
+      if (shard === undefined) return (await this.#sequencer()).shard(kept);
+      timed ??= options.times?.() ?? Promise.resolve({ unread: 'no record was named to read them from' });
       const part = shardOf(kept.map((file) => projectPath(options.root, moduleOf(file))), shard, await timed);
       if (!placed) say(part.line);
       placed = true;
-      if (part.take === undefined) return (await this.#sequencer()).shard(kept);
+      if (part.take.length === 0 && kept.length > 0) this.#dropped = true;
       return part.take.map((at) => kept[at]!);
     }
 

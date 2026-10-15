@@ -1,5 +1,5 @@
 /**
- * Where a Jest run places a `--shard` by recorded time: its `testSequencer`.
+ * Where a Jest run places a `--shard`: its `testSequencer`.
  *
  * Jest hands a sequencer's `shard` every test file of every project once, after
  * the filter has dropped what a selection skips, and only when `--shard` was
@@ -8,8 +8,9 @@
  * sequencer and the placement on `globalThis`, as the filter is left.
  *
  * `testSequencer` is a global setting, so the project's own is chained rather
- * than replaced: it sorts, caches and answers everything else, and cuts the
- * shard itself when the record times none of the files.
+ * than replaced: it sorts, caches and answers everything else. The shard is
+ * never its: placed by the times recorded, or by checksum when none are, as
+ * `shard-placement.ts` places every runner's.
  */
 
 // compass: variance-authority.reach
@@ -32,11 +33,7 @@ interface Shard {
   readonly shardCount: number;
 }
 
-interface Inner {
-  shard?(tests: unknown[], options: Shard): unknown;
-}
-
-type SequencerClass = new (options: unknown) => Inner;
+type SequencerClass = new (options: unknown) => object;
 
 /** Jest's own sequencer, and the packages it is a dependency of, from the outside in. */
 const JEST_SEQUENCER = '@jest/test-sequencer';
@@ -77,7 +74,7 @@ export interface PlacingOptions {
   readonly say?: (line: string) => void;
 }
 
-/** The `testSequencer` a configuration takes to place a `--shard` by recorded time. */
+/** The `testSequencer` a configuration takes to place a `--shard` by the rule every runner's is placed by. */
 export function placingSequencer(
   config: { readonly [key: string]: unknown },
   options: PlacingOptions,
@@ -98,16 +95,14 @@ export function placingSequencer(
       const module = from(at) as SequencerClass | { default: SequencerClass };
       return (own ??= typeof module === 'function' ? module : module.default);
     },
-    shard: async (tests: { path: string }[], shard: Shard, inner: Inner): Promise<unknown[]> => {
+    shard: async (tests: { path: string }[], shard: Shard): Promise<unknown[]> => {
       const asked = { index: shard.shardIndex, count: shard.shardCount };
       const part = shardOf(tests.map((test) => projectPath(options.root, test.path)), asked, await (read ??= options.times()));
       if (!told) say(part.line);
       told = true;
-      if (part.take !== undefined) return part.take.map((at) => tests[at]!);
-      if (inner.shard === undefined) {
-        throw new TypeError(`Shard ${shard.shardIndex}/${shard.shardCount} requested, but the test sequencer ${path ?? JEST_SEQUENCER} has no shard method.`);
-      }
-      return (await inner.shard(tests, shard)) as unknown[];
+      // FIXME: a shard the checksum leaves empty, as a suite of fewer files than shards leaves one, fails under
+      // Jest with "No tests found": its globalConfig is frozen, so passWithNoTests cannot be set from here.
+      return part.take.map((at) => tests[at]!);
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;

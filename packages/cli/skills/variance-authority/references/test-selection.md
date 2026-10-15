@@ -69,6 +69,14 @@ one answers.
 
 ## Combine CI shard records
 
+A runner wrapped by `withTestSelection` places `--shard k/n` by whole test
+files — Vitest, Jest, and Playwright 1.62 or newer — so no file runs in two
+shards. Each shard prints one stderr line before its first test:
+`shard k/n by the times recorded at <commit>` when the record has times, and
+`shard k/n by checksum` with the reason when it has none. Playwright older than
+1.62 splits by test and prints `was split by Playwright`; a `--reporter` flag
+drops the reporter that places the shard, and with it the line.
+
 To combine records written by `withTestSelection` into the one record an
 unsharded run would have written, name every shard and an output file:
 

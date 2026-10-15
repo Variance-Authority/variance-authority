@@ -578,6 +578,41 @@ Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
 
+### Place a shard by whole files
+
+Under `--shard k/n`, the reporter places the shard by whole spec files, and
+Playwright's own split does not run. Playwright splits by test group, and under
+`fullyParallel` a group is one test, so one file's tests would run in two
+shards and each shard would record part of the file. Each file goes to one
+shard, by the time it took on the last recorded run, or by a checksum of its
+path when the record has no times. Every shard computes the same placement from
+the same record, as [sharding](../../docs/sharding.md) shows for Vitest and Jest,
+and prints one line on stderr before the first test:
+
+```text
+variance-authority: shard 1/2 by checksum: 1 of 3 files; no times at …/coverage.bin: nothing is recorded there
+```
+
+The placement runs on the collected suite, after `--project`, `--grep` and
+`.only`. A file that several projects run, or that `repeatEach` repeats, goes
+with all its copies to one shard. A setup or teardown project is not placed:
+Playwright runs it in every shard that keeps a test that depends on it. A project
+none of whose files are in this shard is left out whole, so its setup does not
+run for nothing. A shard left no file passes.
+
+Three things decide whether the placement runs:
+
+- **Playwright 1.62 or newer.** Older versions give the reporter no way to see
+  the suite before Playwright splits it. There, Playwright's own split runs and
+  the reporter prints `shard k/n was split by Playwright <version>, test by
+  test, so a file can run in two shards` on stderr.
+- **The reporter is in the run.** `--reporter` on the command line replaces
+  every reporter your configuration names, this one included, so the shard is
+  split by Playwright, test by test, with no line. Name extra
+  reporters in the configuration instead.
+- **`--shard` is on the command line or `shard` in the configuration.** Without
+  either, the reporter places nothing.
+
 ### Record which spec line reached each region
 
 A case's crossings name the regions its test reached, not the statement that
@@ -1014,8 +1049,9 @@ the time it is read throws as well.
 
 ## Boundaries
 
-This package does not merge Playwright shards into one report. Playwright's
-`--shard` can still run the tests, but each shard owns its own result set.
+This package does not merge Playwright shards into one report: each shard
+writes its own result set. Combine the shards' records with
+`variance journeys combine`, from `@variance-authority/cli`.
 
 Use a different package when a Playwright test isn't the right place to start:
 for a Storybook inventory use `@variance-authority/storybook-collector`; for a
