@@ -99,3 +99,33 @@ fn a_shard_that_observed_nothing_started_from_a_record_too() {
     let message = combined(&[&shard("a.test.ts", Some(ONE)), &fixture::write(&empty)]).err().unwrap();
     assert!(message.starts_with("the build failed because the sharding was unstable"), "{message}");
 }
+
+fn result(records: &[&[u8]]) -> crate::record_combine::CombinedRecord {
+    let named: Vec<(String, Vec<u8>)> = records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect();
+    combine_bytes(&named).unwrap().result
+}
+
+#[test]
+fn reports_the_record_every_shard_read_so_the_landing_writes_it() {
+    let base = leak(format!("{ONE} over none"));
+    assert_eq!(result(&[&shard("a.test.ts", Some(base)), &shard("b.test.ts", Some(base))]).read.as_deref(), Some(ONE));
+    assert_eq!(result(&[&shard("a.test.ts", Some("none"))]).read.as_deref(), Some("none"));
+}
+
+#[test]
+fn checks_no_read_of_a_shard_that_names_it_unknown_and_says_which() {
+    let (unknown, read) = (shard("a.test.ts", Some("unknown over none")), shard("b.test.ts", Some(leak(format!("{ONE} over none")))));
+    let folded = result(&[&unknown, &read]);
+    assert_eq!(folded.unchecked, ["shard-0.bin"]);
+    assert_eq!(folded.read.as_deref(), Some("unknown"), "a combine that checked no read of one shard claims none for all");
+    let named: Vec<(String, Vec<u8>)> = vec![("shard-0.bin".into(), unknown.clone()), ("shard-1.bin".into(), read.clone())];
+    let bytes = combine_bytes(&named).unwrap().bytes;
+    assert_eq!(record_coverage::read(&bytes).unwrap().parts.base.as_deref(), Some(&b"unknown over none"[..]));
+    assert!(result(&[&read]).unchecked.is_empty());
+    // The record a shard was laid over is still checked.
+    let message = combined(&[&shard("a.test.ts", Some(leak(format!("unknown over {ONE}")))), &shard("b.test.ts", Some("unknown over none"))]).err().unwrap();
+    assert!(message.starts_with("the build failed because the sharding was unstable: shard-0.bin started from the record sha256:0123456789ab"), "{message}");
+    // A run always knows the record it was laid over.
+    let message = combined(&[&shard("a.test.ts", Some("none over unknown"))]).err().unwrap();
+    assert!(message.starts_with("shard-0.bin names the record it started from as `none over unknown`"), "{message}");
+}

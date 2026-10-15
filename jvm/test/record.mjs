@@ -103,13 +103,17 @@ assert.deepEqual(shout.entered, [test('words', 'ShoutTest')]);
 assert.deepEqual(shout.whole, [test('words', 'ShoutTest')]);
 console.log('fresh: checkout-relative names, the checkout\'s classes only, every fork once');
 
-// Each module's snapshot names the record its run started from: none, since the
-// JVM chooses no tests from a record and lays its run over none. So the two
-// combine as two shards of one build would.
+// FIXME: no workflow runs this script, and it has not run since the agent wrote
+// `unknown`: the machine that changed it has no JDK.
+// Each module's snapshot names the record its run started from: it read
+// `unknown`, since the agent never sees the selection it runs under, and was laid
+// over none. The two combine, and the combine names both as unchecked.
 const snapshots = ['calc', 'words'].map((module) => join(modules, module, 'target', 'va', 'coverage.va'));
-for (const snapshot of snapshots) assert.equal(Buffer.from(caseSectionsOf(readFileSync(snapshot)).base).toString(), 'none', snapshot);
-assert.equal(combineRecords(snapshots, join(work, 'combined.va')).shards.length, 2);
-console.log('shards: each snapshot names none, and two combine');
+for (const snapshot of snapshots) assert.equal(Buffer.from(caseSectionsOf(readFileSync(snapshot)).base).toString(), 'unknown over none', snapshot);
+const combined = combineRecords(snapshots, join(work, 'combined.va'));
+assert.equal(combined.shards.length, 2);
+assert.deepEqual(combined.unchecked, [...snapshots].sort());
+console.log('shards: each snapshot reads unknown, and two combine unchecked');
 
 mvn();
 assert.deepEqual(owners('calc'), calcClasses);

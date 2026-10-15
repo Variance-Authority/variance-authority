@@ -25,6 +25,10 @@ export interface NativeCombinedRecord {
   readonly commit?: string | null;
   /** Files two shards' case indexes cut into different regions. */
   readonly renumbered: readonly string[];
+  /** The record every shard's selection read: `none`, a `sha256:` digest, or `unknown` when a shard named none. */
+  readonly read?: string | null;
+  /** Shards whose record names its read `unknown`, so no read of theirs was checked against the others'. */
+  readonly unchecked: readonly string[];
 }
 
 /** What the addon answers about records: combining shards, laying one over another, and joining one file's regions. */

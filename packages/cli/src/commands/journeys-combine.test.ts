@@ -114,6 +114,24 @@ describe('`journeys combine`', () => {
     await expect(readFile(into)).rejects.toThrow();
   });
 
+  it('combines a shard that cannot name the record its selection read, and says its read was not checked', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'va-combine-unknown-')));
+    temporary.push(root);
+    const read = `sha256:${'0123456789ab'.repeat(5)}0123`;
+    const shards = [join(root, 'jvm.bin'), join(root, 'node.bin')];
+    for (const [at, file, base] of [[shards[0]!, 'A.java', 'unknown over none'], [shards[1]!, 'b.test.ts', `${read} over none`]] as const) {
+      await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', commit: 'c0ffee', tests: [{ file, complete: true, preconditions: [] }], modules: [] }, { base: Buffer.from(base) });
+    }
+    const into = join(root, 'combined.bin');
+    let out = '';
+    const code = await main(['journeys', 'combine', ...shards, '--into', into], { out: (text) => { out += text; }, err: () => {} });
+    expect(code).toBe(0);
+    expect(out).toContain(
+      `journeys: the read of ${shards[0]} was not checked: its record names the record its selection read \`unknown\`, ` +
+        'so nothing says it chose its tests from the record the other shards read\n',
+    );
+  });
+
   async function refused(named: string[], into: string) {
     const before = await readFile(into);
     let err = '';

@@ -120,6 +120,8 @@ export interface LandedJourneys {
    * busy index: that refuses the landing, and nothing is written to report on.
    */
   readonly cases?: CaseLanding;
+  /** Shards whose record names the record its selection read `unknown`, so no read of theirs was checked. */
+  readonly unchecked?: readonly string[];
 }
 
 export interface JourneysInput extends JourneyReading {
@@ -322,7 +324,23 @@ export function formatLanding(landed: LandedJourneys): string {
     `  ${many(landed.observations, 'observation')} over ${many(landed.modules, 'module')}` +
       (landed.commit === undefined ? '' : `, recorded at ${landed.commit.slice(0, 12)}`),
     ...(landed.cases === undefined ? [] : [casesLine(landed.cases)]),
+    ...(landed.unchecked === undefined || landed.unchecked.length === 0 ? [] : [`  ${uncheckedReads(landed.unchecked)}`]),
   ].join('\n');
+}
+
+/**
+ * The shards a combine checked no read of: each record names the record its
+ * selection read `unknown`, as a run that never sees its selection does (the
+ * JVM agent). The combine passes them, and this says so.
+ */
+export function uncheckedReads(shards: readonly string[]): string {
+  const one = shards.length === 1;
+  const named = one ? shards[0] : `${shards.slice(0, -1).join(', ')} and ${shards.at(-1)}`;
+  return one
+    ? `the read of ${named} was not checked: its record names the record its selection read \`unknown\`, ` +
+        'so nothing says it chose its tests from the record the other shards read'
+    : `the reads of ${named} were not checked: their records name the record their selection read \`unknown\`, ` +
+        'so nothing says they chose their tests from the record the other shards read';
 }
 
 function casesLine(cases: CaseLanding): string {

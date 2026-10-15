@@ -20,6 +20,11 @@
 //!
 //! Elsewhere the system allocator is used unchanged.
 
+// FIXME: this is a stopgap. Replacing the allocator is what mimalloc and
+// jemalloc were rejected for, and this does it by hand: it bounds the peak only
+// because each shard is decoded whole and freed whole. Folding a shard as a
+// stream of its columns holds one column at a time, and needs no allocator of
+// its own.
 use std::alloc::{GlobalAlloc, Layout, System};
 
 /// The size from which a block bypasses the system allocator: far above any

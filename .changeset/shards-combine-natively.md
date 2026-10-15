@@ -11,9 +11,11 @@ Compared with 0.15.0, the last release.
 record an unsharded run of the shards would have written: coverage, case
 index, last-run layer and Eyes, folded in the Sense native addon from the
 shards alone. It reads no checkout and waits on no source index, and the
-record is the same bytes whatever order you name the shards in. It prints one
-line, `journeys: combined <n> records into <record> (<tests> tests, <modules>
-modules, <crossings> crossings, <cases> cases, recorded at <commit>)`.
+record is the same bytes whatever order you name the shards in. It prints a
+summary line, `journeys: combined <n> records into <record> (<tests> tests,
+<modules> modules, <crossings> crossings, <cases> cases, recorded at
+<commit>)`, then the shards whose read it did not check, and the files two
+shards cut into different regions.
 
 `variance journeys <shard.bin>... --into <record>` combines the same way, then
 lands the combined record as the one run it was, reading its columns rather
@@ -32,12 +34,16 @@ is that record.
 
 `combineRecords(paths, output)` in `@variance-authority/sense/test-selection`
 writes the record and returns `CombinedRecord`: the counts, the commit, the
-files two shards' indexes cut differently, and one `CombinedShard` per shard
+files two shards' indexes cut differently, the record every shard's selection
+read (`read`) and the shards whose read it did not check (`unchecked`), and
+one `CombinedShard` per shard
 named, with its path, commit, files, and whether it measured coverage and
 kept cases. A shard that observed nothing, as a shard job that ran no test
 writes, adds nothing, and must still have read the record the others did. `openTestCoverage` and `TestCoverageView`, `recordedRun`, `RecordedRun`,
 `landedCoverage`, and `followRowsIn` are exported for a
-landing that reads a combined record's columns instead of decoding it.
+landing that reads a combined record's columns instead of decoding it, and
+`recordBase(previous, commit, covered, read?)` and `recordDigestAt(file)` for
+one that names where it started.
 
 Every writer lays a run over a record through the addon: the runner's
 teardown, the milestone repin (which rebuilds a checkout's record on a newer
@@ -74,11 +80,13 @@ durations). What changes is the record a run writes, below.
   and placed its tests by, and, where the run was laid over another,
   `<read> over <laid>`. A side that is no record is `none`, and a run that
   read none and was laid over none writes `none`. A later run at the same
-  commit carries the base the first one wrote. The JVM agent writes `none`:
-  Surefire or Gradle hands it the classes a separate `variance select`
-  chose, and it builds its snapshot from its own rows. 0.15.0 reads such a
-  record's coverage and refuses its case index with an unknown section,
-  `run.base`.
+  commit carries the base the first one wrote. The shard landing,
+  `variance journeys <shard.bin>... --into <record>`, names the record every
+  shard read. The JVM agent writes `unknown over none`: Surefire or Gradle
+  hands it the classes a separate `variance select` chose, so it never sees
+  which record that read, and it builds its snapshot from its own rows.
+  Combining checks no read of such a shard, and names it. 0.15.0 knows no
+  `run.base` section.
 - Shards that started apart fail the build. Two that chose their tests from
   two records are named with the record each read, and the message says to
   run the whole build again so every shard reads the same record: this

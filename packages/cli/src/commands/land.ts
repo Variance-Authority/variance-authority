@@ -202,8 +202,9 @@ async function landCombined(
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
     const kept = bytes !== undefined || Object.values(sections).some((part) => part !== undefined);
-    // The record names the one the landing was laid over, as a run's does.
-    const based = { ...sections, base: selection.recordBase(over, combined.commit ?? undefined, before?.commit) };
+    // The record names the one every shard read, and the one the landing was
+    // laid over, as a run's does.
+    const based = { ...sections, base: selection.recordBase(over, combined.commit ?? undefined, before?.commit, combined.read ?? undefined) };
     try {
       if (bytes !== undefined) await selection.writeCoverageBytes(staged, selection.withCaseSections(bytes, based));
       else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(based));
@@ -243,6 +244,7 @@ async function landCombined(
     observations: landed?.tests ?? 0,
     modules: landed?.modules ?? 0,
     cases,
+    ...(combined.unchecked.length === 0 ? {} : { unchecked: combined.unchecked }),
   };
 }
 

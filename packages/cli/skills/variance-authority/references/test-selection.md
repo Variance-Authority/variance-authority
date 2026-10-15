@@ -81,8 +81,10 @@ The combine reads the shards and nothing else: no configuration, no checkout, no
 source index. Paths resolve from the working directory. `--into` names a new
 file; a path that is already there, a shard among them, is refused. The output
 is the same bytes whatever order the shards are named in. It keeps the case
-sections for `distill`, keeps each test file's longest measured duration, and
-treats a shard with no test files as absent. It refuses, by shard, overlapping
+sections for `distill`, keeps each test file's duration as its one shard
+measured it, and treats a shard with no test files as absent. A shard whose
+record names the record its selection read `unknown`, as a JVM shard's does, is
+combined without checking that read, and the output names it. It refuses, by shard, overlapping
 test files or case files, different commits, different probe recipes, a shard
 that kept cases beside one that kept none, before layers that started from
 different records, different Eyes journals for one case attempt or a journal of a case the index does not

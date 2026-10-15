@@ -57,6 +57,11 @@ fn split_apart(first: &str, read_first: &str, second: &str, read_second: &str) -
 /// What a record's run started from, either side: `none`, or a `sha256:` digest.
 const NO_BASE: &str = "none";
 
+/// The read side of a run that cannot name the record its selection read: the
+/// JVM agent never sees the selection it runs under. Combining checks no read
+/// of such a shard, and says so.
+const UNKNOWN: &str = "unknown";
+
 /// Between the record a run read and the record it was laid over, in a spelled base.
 const OVER: &str = " over ";
 
@@ -96,8 +101,8 @@ pub(crate) fn versions_apart(shards: &[(&str, bool)]) -> Option<String> {
 
 /// What a record's `base` part says its run started from: one side, `none` or
 /// a `sha256:` digest, when the record it read is the one it was laid over;
-/// otherwise `<read> over <laid>`. A record that holds no part was written
-/// before the part, and is refused.
+/// otherwise `<read> over <laid>`, where the read may be `unknown`. A record
+/// that holds no part was written before the part, and is refused.
 fn base(shard: &str, part: Option<&[u8]>) -> Result<Start, String> {
     let Some(part) = part else {
         return Err(versions_apart(&[(shard, true)]).unwrap_or_default());
@@ -107,13 +112,14 @@ fn base(shard: &str, part: Option<&[u8]>) -> Result<Start, String> {
         let digest = side.strip_prefix("sha256:").is_some_and(|hex| hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()));
         (side == NO_BASE || digest).then(|| side.to_owned())
     };
+    let read = |read: &str| if read == UNKNOWN { Some(UNKNOWN.to_owned()) } else { side(read) };
     let start = match text.split_once(OVER) {
-        Some((read, laid)) => side(read).zip(side(laid)).map(|(read, laid)| Start { read, laid }),
+        Some((chose, laid)) => read(chose).zip(side(laid)).map(|(read, laid)| Start { read, laid }),
         None => side(text).map(|one| Start { read: one.clone(), laid: one }),
     };
     start.ok_or_else(|| {
         format!(
-            "{shard} names the record it started from as `{}`, which is neither `none`, a sha256 digest, nor two of them joined by `over`. Record it again with this build.",
+            "{shard} names the record it started from as `{}`, which is neither `none`, a sha256 digest, nor two of them joined by `over`, the first of which may be `unknown`. Record it again with this build.",
             String::from_utf8_lossy(part)
         )
     })
@@ -127,17 +133,21 @@ fn named_base(base: &str) -> String {
     format!("the record {}", &base[..base.len().min("sha256:".len() + 12)])
 }
 
-/// What the shards of one combine say of their start: the record each was laid
-/// over, the commit of the coverage each measured, and the commit each ran at.
+/// What the shards of one combine say of their start: the record each read and
+/// the record each was laid over, the first shard to name each; the shards
+/// whose read is `unknown`; the commit of the coverage each measured, and the
+/// commit each ran at.
 pub(crate) struct Starts {
-    base: Option<(String, Start)>,
+    read: Option<(String, String)>,
+    laid: Option<(String, String)>,
+    unchecked: Vec<String>,
     measured: Agreed,
     commit: Agreed,
 }
 
 impl Starts {
     pub fn new() -> Self {
-        Starts { base: None, measured: Agreed::start("commit"), commit: Agreed::start("commit") }
+        Starts { read: None, laid: None, unchecked: Vec::new(), measured: Agreed::start("commit"), commit: Agreed::start("commit") }
     }
 
     /// `shard`'s start: the `base` part it holds; `covered`, the commit of its
@@ -152,12 +162,15 @@ impl Starts {
     /// that instrumented nothing was laid over it.
     pub fn hear(&mut self, shard: &str, part: Option<&[u8]>, covered: Option<Option<&str>>, last: Option<&str>, empty: bool) -> Result<(), String> {
         let base = base(shard, part)?;
-        match &self.base {
-            None => self.base = Some((shard.to_owned(), base)),
-            Some((first, held)) if held.read != base.read => {
-                return Err(split_apart(first, &named_base(&held.read), shard, &named_base(&base.read)));
-            }
-            Some((first, held)) if held.laid != base.laid => return Err(unstable(first, &named_base(&held.laid), shard, &named_base(&base.laid))),
+        match &self.read {
+            _ if base.read == UNKNOWN => self.unchecked.push(shard.to_owned()),
+            None => self.read = Some((shard.to_owned(), base.read)),
+            Some((first, held)) if *held != base.read => return Err(split_apart(first, &named_base(held), shard, &named_base(&base.read))),
+            Some(_) => {}
+        }
+        match &self.laid {
+            None => self.laid = Some((shard.to_owned(), base.laid)),
+            Some((first, held)) if *held != base.laid => return Err(unstable(first, &named_base(held), shard, &named_base(&base.laid))),
             Some(_) => {}
         }
         if empty {
@@ -174,7 +187,23 @@ impl Starts {
 
     /// The record every shard started from, spelled as a record names it.
     pub fn base(&self) -> Option<String> {
-        self.base.as_ref().map(|(_, base)| base.spelled())
+        let (_, laid) = self.laid.as_ref()?;
+        Some(Start { read: self.read().unwrap_or(UNKNOWN).to_owned(), laid: laid.clone() }.spelled())
+    }
+
+    /// The record every shard read; `unknown` when any shard could not name
+    /// it, since nothing checked that one read what the others did.
+    pub fn read(&self) -> Option<&str> {
+        self.laid.as_ref()?;
+        match &self.read {
+            Some((_, read)) if self.unchecked.is_empty() => Some(read),
+            _ => Some(UNKNOWN),
+        }
+    }
+
+    /// The shards whose read was not checked, in the order heard.
+    pub fn unchecked(&self) -> &[String] {
+        &self.unchecked
     }
 
     /// The commit of the coverage every measured shard holds.

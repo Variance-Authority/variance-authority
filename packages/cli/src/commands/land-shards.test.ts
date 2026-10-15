@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readTestCoverage, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsAt, readTestCoverage, recordDigestAt, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { landJourneys } from './land.js';
 
@@ -114,6 +114,30 @@ describe('landJourneys — N shard records into the one this repository reads', 
     expect(landed).toMatchObject({ commit: 'c0ffee', observations: 3 });
     const record = await readTestCoverage(into);
     expect(record.tests.map((test) => test.file)).toEqual(['story:a', 'story:b', 'story:local']);
+  });
+
+  it('names the record every shard read, and the one it was laid over, as a run does', async () => {
+    const read = `sha256:${'0123456789ab'.repeat(5)}0123`;
+    const shards = [join(home, 'shard-1.bin'), join(home, 'shard-2.bin')];
+    await writeTestCoverage(shards[0]!, shardOf('story:a'), { base: Buffer.from(`${read} over none`) });
+    await writeTestCoverage(shards[1]!, shardOf('story:b'), { base: Buffer.from(`${read} over none`) });
+    await writeTestCoverage(into, shardOf('story:local', 'l0ca1'));
+    const laid = recordDigestAt(into);
+
+    await landJourneys(home, shards, into);
+
+    expect(Buffer.from(caseSectionsAt(into).base ?? []).toString()).toBe(`${read} over ${laid}`);
+  });
+
+  it('lands a shard that cannot name the record its selection read, and says its read was not checked', async () => {
+    const shards = [join(home, 'shard-1.bin'), join(home, 'shard-2.bin')];
+    await writeTestCoverage(shards[0]!, shardOf('story:a'), { base: Buffer.from('unknown over none') });
+    await writeTestCoverage(shards[1]!, shardOf('story:b'), { base: Buffer.from('none') });
+
+    const landed = await landJourneys(home, shards, into);
+
+    expect(landed.unchecked).toEqual([shards[0]]);
+    expect(Buffer.from(caseSectionsAt(into).base ?? []).toString()).toBe('unknown over none');
   });
 
   it('refuses a shard that is not there, by name, and writes nothing', async () => {

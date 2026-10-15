@@ -974,7 +974,7 @@ out.
 
 **Fold shards.** `combineRecords` unions the records of a sharded run, coverage
 and case parts, in the native addon: O(sum of shard bytes), reading nothing but
-the shards. The shards are taken in the order of their contents' digests, so the
+the shards. The shards are taken in code-unit order of their paths, so the
 record is the same bytes whatever order they are named in. It refuses shards
 with differing instrumentation or commit, a test in two shards, and a module with
 two source digests. Where shards disagree about whether a module could be

@@ -235,6 +235,14 @@ describe('formatLanding', () => {
     );
   });
 
+  it('names the shards whose read was not checked', () => {
+    const fold = { at: '/tmp/coverage.bin', shards: 3, observations: 2, modules: 1 };
+    expect(formatLanding({ ...fold, unchecked: ['/ci/jvm-1.bin', '/ci/jvm-2.bin'] }).split('\n').slice(2)).toEqual([
+      '  the reads of /ci/jvm-1.bin and /ci/jvm-2.bin were not checked: their records name the record their selection read `unknown`, ' +
+        'so nothing says they chose their tests from the record the other shards read',
+    ]);
+  });
+
   it('says what the landing did to the cases of the record it wrote', () => {
     const fold = { at: '/tmp/coverage.bin', shards: 2, observations: 2, modules: 1 };
     const lines = (cases: LandedJourneys['cases']) => formatLanding({ ...fold, cases }).split('\n').slice(2);

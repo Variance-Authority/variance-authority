@@ -53,6 +53,12 @@ pub struct CombinedRecord {
     pub commit: Option<String>,
     /// Files two shards' case indexes numbered differently.
     pub renumbered: Vec<String>,
+    /// The record every shard's selection read, as a base side spells it:
+    /// `none`, a `sha256:` digest, or `unknown` when a shard named none.
+    pub read: Option<String>,
+    /// Shards whose record names its read `unknown`, so no read of theirs was
+    /// checked against the others'.
+    pub unchecked: Vec<String>,
 }
 
 pub(crate) struct Combined {
@@ -255,6 +261,8 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
         cases,
         commit: starts.commit().map(str::to_owned),
         renumbered,
+        read: starts.read().map(str::to_owned),
+        unchecked: starts.unchecked().to_vec(),
     };
     let mut shards: Vec<(usize, CombinedShard)> = held
         .into_iter()

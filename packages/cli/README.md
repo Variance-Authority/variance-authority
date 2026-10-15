@@ -1610,10 +1610,9 @@ working directory. Landing the combined record, in this checkout or another,
 is `journeys`'s; the rules below apply to both commands, because `journeys`
 combines its shards the same way and lands the result as one.
 
-Each test file keeps the duration its shard measured. Where two shards both
-timed one file, the combined record keeps the longer, the bound a scheduler
-plans against. A shard that recorded no test files changes nothing, whatever
-commit or recipe it names.
+Each test file keeps the duration its shard measured: a test file runs in one
+shard, and a file two shards recorded is refused below. A shard that recorded no
+test files changes nothing, whatever commit or recipe it names.
 
 The fold refuses shards that were not one run, naming both files: recorded under
 different probe recipes, or at different commits — and a shard recorded outside
@@ -1622,6 +1621,9 @@ file two shards both recorded means the split overlapped, which only the
 operator can resolve. A module one shard could not instrument is answered by the
 shards that did: that row records that one build could not read the module, and
 is no evidence about the tests another build watched run it.
+Shards whose selection read two records fail the build, naming both. A shard
+whose record names that read `unknown`, as a JVM shard's does, is combined
+without that check, and the output names it.
 
 The cases are refused by the shard that holds them, with what to do. A test
 file whose cases two shards both ran names both shards: two runs of one file's

@@ -9,6 +9,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
+import { uncheckedReads } from './journeys.js';
 import { messageOf } from './resources.js';
 
 type JourneyArtifactCommand = Extract<
@@ -50,6 +51,7 @@ export async function runJourneyArtifactCommand(
       rmSync(staged, { force: true });
     }
     streams.out(`${combinedLine(result, parsed.into)}\n`);
+    if (result.unchecked.length > 0) streams.out(`journeys: ${uncheckedReads(result.unchecked)}\n`);
     streams.out(renumbered(result));
     return EXIT_CLEAN;
   }
