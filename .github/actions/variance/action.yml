@@ -209,6 +209,15 @@ inputs:
     required: false
     default: ''
 
+  exit-zero-on-changes:
+    description: >-
+      `true` for a check that reports rather than blocks: changes that need
+      review are named as a warning and the check passes, with the comment and
+      the report as they would be otherwise. A run that did not happen still
+      fails it, as `--exit-zero-on-changes` does on the CLI.
+    required: false
+    default: 'false'
+
 outputs:
   exit-code:
     description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
@@ -631,6 +640,7 @@ runs:
       env:
         CODE: ${{ steps.run.outputs.exit-code }}
         KEPT: ${{ steps.saved.outcome == 'success' }}
+        EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes }}
         # Where the reader goes next. A push has no pull request, so pointing at
         # a comment there sends them looking for something that was never written.
         WHERE: >-
@@ -647,6 +657,9 @@ runs:
               # The run accepted, and kept it: what failed, failed against
               # this commit's own accept.
               echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE."
+            elif [ "$EXIT_ZERO_ON_CHANGES" = true ]; then
+              echo "::warning::variance found changes that need review; $WHERE."
+              exit 0
             else
               echo "::error::variance found changes that need review; $WHERE."
             fi

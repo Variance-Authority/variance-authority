@@ -4,6 +4,14 @@ Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
 parties answer: CI, CodeRabbit, the person who asked. A PR is handed over only
 when every check is green and every finding is classified.
 
+**`site` reports; it is not waited for.** It photographs variance-authority.dev,
+takes the longest of any check, and a change it finds is a warning on a green
+check rather than a red one: a docs page that moved is far more often what the
+PR was for than a defect. Neither a watch nor a handover waits for it. A red
+`site` is a run that did not happen, and that is yours like any other red check.
+Its docket, when it arrives, is read like the others, and accepting what it
+found stays the person's label, `variance: accept site`.
+
 ## Labels
 
 A PR's label says whether an agent is working on it. A cycle starts when you
@@ -32,10 +40,12 @@ Nothing tells you when the last check turns green. A failure, a comment or a
 conflict reaches you; a PR that simply finishes passing does not, and one left
 labelled `agent:debugging` then says somebody is working on a PR that is ready.
 So every cycle that is not stopping blocked, including one woken by a comment
-with nothing to fix, ends by watching the checks until each has finished:
+with nothing to fix, ends by watching the checks until each but `site` has
+finished, then reading them:
 
 ```bash
-gh pr checks <n> --watch
+until gh pr checks <n> --json name,bucket --jq 'all(.[]; .name == "site" or .bucket != "pending")' | grep -qx true; do sleep 30; done
+gh pr checks <n>
 ```
 
 CodeRabbit is one of those checks, so the watch ends only after its review is
@@ -48,11 +58,7 @@ label off and says why, and the next cycle watches them.
 
 ### Look around
 
-**Every check, until each has finished.**
-
-```bash
-gh pr checks <n> --watch
-```
+**Every check but `site`, until each has finished**, with the watch above.
 
 **CodeRabbit.** It reviews pull requests here and reports as the `CodeRabbit` check, which
 reads `Review completed` when it is done. The inline comments are where the
@@ -117,8 +123,9 @@ it.
 
 Swap `agent:debugging` for `agent:done` when you hand over, and not before.
 
-Never report a PR as done, ready or passing while any check is red or still
-running. Say which check, what it said, and what you did about it.
+Never report a PR as done, ready or passing while any check is red or, but
+`site`, still running. Say which check, what it said, and what you did about it.
+A `site` still running is named as running.
 
 The report starts from the task as it was set in [refine](refine.md): which
 parts are done, where they live, and what is not done. Then the CodeRabbit

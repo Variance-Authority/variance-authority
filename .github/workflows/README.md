@@ -51,6 +51,10 @@ this project's own surfaces, the review surface's Storybook and the site. The
 site's check photographs on a pull request only when the change reaches what
 the site is built from or photographed with, which `tools/site-reach.mjs`
 reads out of the checkout; otherwise it ends green and its summary says why.
+It reports rather than blocks: a change it finds is a warning on a green check,
+with its docket and report as on the other two, and `variance: accept site`
+still accepts it. Only a run that did not happen turns it red. The action's
+`exit-zero-on-changes` input does that for any job.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
 measurements, and the vitest suite — and a `check` job that turns their results
