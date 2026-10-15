@@ -177,7 +177,7 @@ function press(label: string): void {
  * jsdom implements none, which is the branch that draws outright — real, and the
  * one a static render takes. The stub is what proves the other branch exists.
  */
-function observed(): { readonly reach: () => void } {
+function observed(): { readonly reach: () => void; readonly pass: () => void } {
   const callbacks: ((entries: readonly { isIntersecting: boolean }[]) => void)[] = [];
 
   class Stub {
@@ -190,12 +190,12 @@ function observed(): { readonly reach: () => void } {
 
   (globalThis as unknown as Record<string, unknown>)['IntersectionObserver'] = Stub;
 
-  return {
-    reach: () =>
-      act(() => {
-        for (const callback of callbacks) callback([{ isIntersecting: true }]);
-      }),
-  };
+  const answer = (isIntersecting: boolean): void =>
+    act(() => {
+      for (const callback of callbacks) callback([{ isIntersecting }]);
+    });
+
+  return { reach: () => answer(true), pass: () => answer(false) };
 }
 
 afterEach(() => {
@@ -378,5 +378,67 @@ describe('the raster is deferred by the window, not by a button', () => {
     expect([...host.querySelectorAll('img')].map((each) => each.getAttribute('loading'))).toEqual([
       null,
     ]);
+  });
+});
+
+describe('a crop says it is still arriving, so a reading can wait for it', () => {
+  // A capture of the strip is a reading of whatever the crop holds at that
+  // instant. The mask is made in the page, out of two fetches, a decode and an
+  // encode, and drawn from an object URL: nothing on the wire and no image node
+  // says it is coming. `aria-busy` is the crop saying so itself.
+  const busy = (): (string | null)[] =>
+    [...host.querySelectorAll('.va-crop')].map((each) => each.getAttribute('aria-busy'));
+  const computed = subject({ has: { before: true, after: true, diff: false } });
+  const never: ReviewClient = { ...CLIENT, imageBlob: () => new Promise<Blob>(() => {}) };
+
+  it('is busy until the observer has said whether its window is near', () => {
+    // Between the first frame and the observer's first answer nothing has been
+    // asked for yet, so a wait that counts requests reads the strip as settled.
+    observed();
+    show([appearance({ subject: computed })], never);
+
+    expect(busy()).toEqual(['true']);
+  });
+
+  it('stays busy while the mask it opened on is being made', () => {
+    const seen = observed();
+    show([appearance({ subject: computed })], never);
+
+    seen.reach();
+
+    expect(host.querySelectorAll('img')).toHaveLength(0);
+    expect(busy()).toEqual(['true']);
+  });
+
+  it('is settled once its window is out of reach, because nothing is coming', () => {
+    const seen = observed();
+    show([appearance({ subject: computed })], never);
+
+    seen.pass();
+
+    expect(busy()).toEqual([null]);
+  });
+
+  it('is settled once the mask could not be made, because nothing more is coming', async () => {
+    const seen = observed();
+    const refusing: ReviewClient = { ...CLIENT, imageBlob: async () => Promise.reject(new Error('gone')) };
+    show([appearance({ subject: computed })], refusing);
+
+    seen.reach();
+    await act(async () => {
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+
+    expect(busy()).toEqual([null]);
+  });
+
+  it('is settled once the mask it shows is a URL', () => {
+    const seen = observed();
+    show([appearance()]);
+
+    seen.reach();
+
+    expect(host.querySelectorAll('img')).toHaveLength(1);
+    expect(busy()).toEqual([null]);
   });
 });

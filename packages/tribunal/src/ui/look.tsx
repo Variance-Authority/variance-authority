@@ -333,20 +333,27 @@ function Sighted({
 }
 
 /**
- * Whether this crop's window has come near the viewport.
+ * Whether this crop's window has come near the viewport: `undefined` until the
+ * observer has answered once, then whether it has ever been near.
  *
  * A renderer without the observer is told yes at once. A deferral nothing can
  * lift is a permanently empty frame, which is the exact failure `loading="lazy"`
  * had here — and a static render has no scroll to wait for.
  */
-function useSeen(): readonly [(node: HTMLSpanElement | null) => (() => void) | undefined, boolean] {
-  const [seen, setSeen] = useState(() => typeof IntersectionObserver === 'undefined');
+function useSeen(): readonly [
+  (node: HTMLSpanElement | null) => (() => void) | undefined,
+  boolean | undefined,
+] {
+  const [seen, setSeen] = useState(() =>
+    typeof IntersectionObserver === 'undefined' ? true : undefined,
+  );
 
   const watch = useCallback((node: HTMLSpanElement | null) => {
     if (node === null || typeof IntersectionObserver === 'undefined') return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+        const near = entries.some((entry) => entry.isIntersecting);
+        setSeen((was) => was === true || near);
       },
       // A screen ahead of the scroll, so the crop is decoded by the time it is
       // reached rather than arriving after it.
@@ -388,7 +395,12 @@ function Crop({
   // Only once the crop is mounting the mask and its window is near: the strip
   // opens on `diff`, and a crop nobody has scrolled to decodes nothing. See
   // [`difference.ts`](./difference.js).
-  const difference = useDifference(client, build, subject, seen && mounted.has('diff'));
+  const difference = useDifference(client, build, subject, seen === true && mounted.has('diff'));
+  // Said while what the crop will hold is undecided: before the observer's
+  // first answer, and while a mask is made from two fetches into an object URL.
+  // Neither is on the wire or in `document.images`, so only this tells a
+  // reading — a screen reader or a capture — that the crop is not done.
+  const busy = seen === undefined || difference?.state === 'loading';
   const box = union(subject.size, subject.baseline);
 
   /** What this render can show at all, and where its bytes come from. */
@@ -437,9 +449,14 @@ function Crop({
   };
 
   return (
-    <span className="va-crop" style={boxOf(WINDOW)} ref={watch}>
+    <span
+      className="va-crop"
+      style={boxOf(WINDOW)}
+      ref={watch}
+      aria-busy={busy ? true : undefined}
+    >
       <span className="va-crop-plate" style={plate}>
-        {seen
+        {seen === true
           ? LAYERS.filter(
               (layer) => mounted.has(layer) && shown(layer) && srcOf(layer) !== undefined,
             ).map((layer) => (

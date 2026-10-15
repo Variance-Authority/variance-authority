@@ -53,10 +53,17 @@ export function forgetMisses(): void {
  * Wait for the replay to go quiet, then fail if the story asked for anything
  * that was not recorded.
  *
- * Quiet is no request in flight across three frames in a row, which is long
- * enough for an answer to be committed and for the request it causes to be
- * made. A story that is still asking after five seconds fails too: a page that
- * never stops fetching has no state to photograph.
+ * Quiet is no request in flight and nothing on the page saying `aria-busy`
+ * across three frames in a row, which is long enough for an answer to be
+ * committed and for the request it causes to be made. A story that is still
+ * asking or still busy after five seconds fails too: a page that never settles
+ * has no state to photograph.
+ *
+ * The requests alone are not the page's work. A difference mask is made from
+ * two answers after both have arrived — a decode, a comparison and an encode —
+ * and drawn from an object URL, so the count reads zero for the whole of it and
+ * no image node exists for the collector's own wait to find. The crop and the
+ * viewer say `aria-busy` while that runs, and this waits for them.
  *
  * Three frames are a bound, not a proof: a request a component makes only after
  * a timer, or after this returns, is not counted, and its miss is photographed
@@ -66,8 +73,13 @@ export async function replayed(): Promise<void> {
   const deadline = Date.now() + 5_000;
   for (let still = 0; still < 3; ) {
     await new Promise((done) => requestAnimationFrame(done));
-    still = answering === 0 ? still + 1 : 0;
-    if (Date.now() > deadline) throw new Error(`the replay was still answering ${answering} requests after five seconds`);
+    const busy = document.querySelectorAll('[aria-busy="true"]').length;
+    still = answering === 0 && busy === 0 ? still + 1 : 0;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `the replay was still answering ${answering} requests, with ${busy} element(s) busy, after five seconds`,
+      );
+    }
   }
   if (missed.length > 0) {
     throw new Error(`the recording holds no answer for ${missed.join(', ')}; run stories/record.mjs or ask for what it holds`);

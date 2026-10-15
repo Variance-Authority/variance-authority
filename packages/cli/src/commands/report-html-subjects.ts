@@ -17,7 +17,7 @@ import type {
 } from '@variance-authority/report';
 import type { CliObservationRecord } from './run-report.js';
 import { cmd, copy, markers, opening, px, section, slug, text } from './report-html-elements.js';
-import type { Placement } from './report-html-pictures.js';
+import type { Picture, Placement } from './report-html-pictures.js';
 
 /**
  * A subject: the comparison, what moved in it, and what to type next.
@@ -115,7 +115,13 @@ function evidenceHtml(side: string, evidence: PresentationEffectEvidence): strin
  * travel past the two things they are trying to compare in order to reach it.
  */
 function subject(entry: CliObservationRecord, placement: Placement): string {
-  const images = entry.images ?? {};
+  const named = entry.images ?? {};
+  const left = SIDES.flatMap((side) => {
+    const page = named[side] === undefined ? undefined : placement.omitted(named[side]);
+    return page === undefined ? [] : [[side, page] as const];
+  });
+  const images: Partial<Record<Side, string>> = { ...named };
+  for (const [side] of left) delete images[side];
   const has = {
     before: images.before !== undefined,
     after: images.after !== undefined,
@@ -123,6 +129,7 @@ function subject(entry: CliObservationRecord, placement: Placement): string {
     change: images.change !== undefined,
   };
   const modes = modesFor(has, entry.regions.length);
+  const opens = new Set(OPENS[modes[0] ?? 'trio']);
 
   const stage =
     modes.length === 0
@@ -130,12 +137,10 @@ function subject(entry: CliObservationRecord, placement: Placement): string {
       : '<div class="stage" data-mode="' +
         text(modes[0] ?? 'trio') +
         '">' +
-        picture('before', images.before, placement) +
-        picture('diff', images.diff, placement) +
-        picture('after', images.after, placement) +
-        picture('change', images.change, placement) +
+        SIDES.map((side) => picture(side, images[side], placement, opens.has(side))).join('') +
         '<div class="boxes"></div><div class="handle"></div>' +
-        '</div>';
+        '</div>' +
+        leftOut(left);
 
   const toolbar =
     modes.length < 2
@@ -173,13 +178,46 @@ function subject(entry: CliObservationRecord, placement: Placement): string {
   );
 }
 
+type Side = 'before' | 'diff' | 'after' | 'change';
+
+/** In the order the stage lays them out. */
+const SIDES: readonly Side[] = ['before', 'diff', 'after', 'change'];
+
+/** The pictures each mode shows, so the ones a card opens on are carried first. */
+const OPENS: Readonly<Record<string, readonly Side[]>> = {
+  change: ['change'],
+  regions: ['after'],
+  wipe: ['before', 'after'],
+  blend: ['before', 'after'],
+  blink: ['before', 'after'],
+  trio: ['before', 'diff', 'after'],
+  diff: ['diff'],
+};
+
+/**
+ * The full pages the page does not carry, by name and size, for the reason
+ * `report-html-pictures` gives. Each is still a file beside `report.json`.
+ */
+function leftOut(pages: readonly (readonly [Side, Picture])[]): string {
+  if (pages.length === 0) return '';
+  const sizes = pages.map(([side, page]) => `${side} ${dimensions(page)}`).join(' · ');
+  return (
+    `<p class="left" title="Longer than 16,384 pixels, so this file does not carry it; the change picture shows what moved in it. Each is a file beside report.json.">` +
+    `${text(sizes)}<span class="mark quiet">full page not carried</span></p>`
+  );
+}
+
+function dimensions({ width, height }: Picture): string {
+  return `${width ?? '?'}×${height ?? '?'}`;
+}
+
 /**
  * One side of the comparison. Lazy, because a run's pictures decoded at once
  * are gigabytes of bitmap and a reviewer looks at a few of them at a time.
  */
-function picture(side: 'before' | 'diff' | 'after' | 'change', path: string | undefined, placement: Placement): string {
+function picture(side: Side, path: string | undefined, placement: Placement, opens: boolean): string {
   if (path === undefined) return '';
-  return `<img class="${side}" ${placement.attributes(path)} alt="${side === 'change' ? 'before beside after, the change outlined' : side}" loading="lazy" decoding="async">`;
+  return `<img class="${side}" ${placement.attributes(path, opens)} alt="${side === 'change' ? 'before beside after, the change outlined' : side}" loading="lazy" decoding="async">`;
 }
 
 function modesFor(
