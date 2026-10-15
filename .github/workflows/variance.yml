@@ -567,12 +567,13 @@ jobs:
 
       # The site is its own install, outside the workspaces, and its build reads
       # `docs/` and the packages' READMEs from this checkout. It is observed as
-      # built, served by the same worker it deploys as, so a page that differs
-      # between the build and production is not this check's to find. It is
-      # built with `--mode development`, React's development build and nothing
-      # minified, so a change names the component that wrote it rather than
-      # `wo`, and paints what the production build paints. The server stays up for
-      # the rest of the job; the gate reads its sitemap.
+      # built, served by the same worker setup it deploys with, so a page that
+      # differs between the build and production is not this check's to find.
+      # It is built with `--mode development`, React's development build and
+      # nothing minified, so a change names the component that wrote it rather
+      # than `wo`; the pages measured paint byte-for-byte what the production
+      # build paints, and the carried baselines hold it to that. The server
+      # stays up for the rest of the job; the gate reads its sitemap.
       - name: build what this project observes
         if: matrix.project == 'site' && steps.reach.outputs.observe != 'false'
         shell: bash

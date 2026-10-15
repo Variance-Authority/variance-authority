@@ -36,7 +36,9 @@ async function probes(): Promise<Plugin[]> {
  *
  * vinext sets `NODE_ENV` to `production` on every build, and the Cloudflare
  * plugin then defines it for the worker from that, so it is defined last, per
- * environment, rather than set in the shell.
+ * environment, rather than set in the shell. Only `NODE_ENV` moves: Vite's
+ * `import.meta.env.DEV` and `PROD` still read production, and
+ * nothing the site paints branches on them.
  */
 function development(mode: string): Plugin[] {
   if (mode !== "development") return [];

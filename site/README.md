@@ -46,7 +46,9 @@ added to `NAVIGATION` is watched without an edit there. The check builds with
 `yarn build --mode development`: React's development build, nothing minified,
 so a change names the component that wrote it, `DocsPage` at its line, and not
 a minified `wo`. To run it against your own build, build it that way, start the
-server and, from the repository root:
+server and, from the repository root, run the line below. `yarn deploy`
+uploads whatever `dist/` holds, so build again without `--mode development`
+before you deploy.
 
 ```bash
 node packages/cli/dist/bin.js run --config site/variance.config.json
