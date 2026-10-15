@@ -64,12 +64,7 @@ pub(crate) struct Record {
 pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
     let (version, mut decoded) = journey_columns::decode_any(bytes)?;
     let layout = &LAYOUT.coverage;
-    if !layout.readable(version) {
-        return Err(format!(
-            "unsupported record version: {version}; this build reads versions {}, {} and {}",
-            layout.untimed, layout.uncased, layout.format
-        ));
-    }
+    readable(version)?;
     let names = decoded.names();
     if let Some(unknown) = names.iter().find(|name| !layout.sections.contains(name) && !layout.parts.iter().any(|(_, part)| part == **name)) {
         return Err(format!("the record holds a section this build does not know: {unknown}"));
@@ -86,12 +81,32 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
     Ok(Record { coverage, parts })
 }
 
+/// Refuses a record version this build does not read.
+fn readable(version: u8) -> Result<(), String> {
+    let layout = &LAYOUT.coverage;
+    if layout.readable(version) {
+        return Ok(());
+    }
+    Err(format!("unsupported record version: {version}; this build reads versions {}, {} and {}", layout.untimed, layout.uncased, layout.format))
+}
+
 /// The test files a record's coverage holds, read off its header alone: the
 /// first `bytes` of a record `length` bytes long. A fold sizes its sets by it
 /// before it decodes a record.
-pub(crate) fn tests_in(bytes: &[u8], length: usize) -> Result<usize, String> {
-    let (_, placed) = journey_columns::framed_within(bytes, length)?;
-    Ok(placed.iter().find(|column| column.name == "tests.path").map_or(0, |column| column.rows.unwrap_or(column.stored.len() / 4)))
+pub(crate) fn tests_in(bytes: &[u8], length: usize) -> Result<Head, String> {
+    let (version, placed) = journey_columns::framed_within(bytes, length)?;
+    readable(version)?;
+    let tests = placed.iter().find(|column| column.name == "tests.path").map_or(0, |column| column.rows.unwrap_or(column.stored.len() / 4));
+    let based = placed.iter().any(|column| column.name == LAYOUT.coverage.part("base"));
+    Ok(Head { tests, based })
+}
+
+/// What a record's header says before its sections are read.
+pub(crate) struct Head {
+    /// How many test files it holds.
+    pub tests: usize,
+    /// Whether it names the record its run started from, as every run after 0.15.0 does.
+    pub based: bool,
 }
 
 fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {

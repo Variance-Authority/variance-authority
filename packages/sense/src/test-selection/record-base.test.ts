@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { caseSectionsAt, sharedRecord } from './case-record.js';
 import { landRun } from './commit-runs.js';
+import { notingRead } from './record-base.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { writeTestCoverage, type TestCoverage } from './index.js';
@@ -64,13 +65,49 @@ describe('the record a run started from', () => {
     const restored = digestOf(record);
 
     await landRun(record, run('head', ['a.test.ts']), root);
-    expect(baseAt(record)).toBe(restored);
+    expect(baseAt(record)).toBe(`none over ${restored}`);
     await landRun(record, run('head', ['b.test.ts']), root);
-    expect(baseAt(record)).toBe(restored);
+    expect(baseAt(record)).toBe(`none over ${restored}`);
 
     const landed = digestOf(record);
     await landRun(record, run('next', ['a.test.ts']), root);
-    expect(baseAt(record)).toBe(landed);
+    expect(baseAt(record)).toBe(`none over ${landed}`);
+  });
+
+  it('names the record the selection read over the one the run was laid over, and one record when they are one', async () => {
+    await writeTestCoverage(record, run('cached', ['a.test.ts']));
+    const restored = digestOf(record);
+    const mainline = join(root, 'mainline.bin');
+    await writeTestCoverage(mainline, run('mainline', ['b.test.ts']));
+
+    await notingRead(record, async () => ({ read: digestOf(mainline) }))();
+    await landRun(record, run('head', ['a.test.ts']), root);
+    expect(baseAt(record)).toBe(`${digestOf(mainline)} over ${restored}`);
+    // A later run at that commit reads what the shard itself wrote, and carries the base.
+    await notingRead(record, async () => ({ read: digestOf(record) }))();
+    await landRun(record, run('head', ['b.test.ts']), root);
+    expect(baseAt(record)).toBe(`${digestOf(mainline)} over ${restored}`);
+
+    const fresh = join(root, 'fresh.bin');
+    await notingRead(fresh, async () => ({ read: digestOf(mainline) }))();
+    await landRun(fresh, run('head', ['a.test.ts']), root);
+    expect(baseAt(fresh)).toBe(`${digestOf(mainline)} over none`);
+
+    const own = join(root, 'own.bin');
+    await writeTestCoverage(own, run('cached', ['a.test.ts']));
+    await notingRead(own, async () => ({ read: digestOf(own) }))();
+    await landRun(own, run('head', ['a.test.ts']), root);
+    expect(baseAt(own)).toBe(restored);
+  });
+
+  it('names no read for a run whose selection read no record', async () => {
+    await writeTestCoverage(record, run('cached', ['a.test.ts']));
+    const restored = digestOf(record);
+    await notingRead(record, async () => ({ unread: 'nothing is recorded there' }))();
+
+    await landRun(record, run('head', ['a.test.ts']), root);
+
+    expect(baseAt(record)).toBe(`none over ${restored}`);
   });
 
   it('is named by a run that instrumented nothing and kept its cases', async () => {
@@ -83,7 +120,7 @@ describe('the record a run started from', () => {
 
     await landRun(record, uninstrumented, root, undefined, { fresh, run: { tests: [{ file: 'a.test.ts', complete: true }], commit: 'head' } });
 
-    expect(baseAt(record)).toBe(restored);
+    expect(baseAt(record)).toBe(`none over ${restored}`);
   });
 
   it('does not cross to another checkout, whose runs start from the record it took', async () => {

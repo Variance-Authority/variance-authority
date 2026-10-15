@@ -190,6 +190,9 @@ three inputs and keeps its own part:
 - **The files**: what the runner collected, after the change's selection. Shards
   that check out the same commit collect the same files.
 - **The times**: the record they read. Shards of one build read the same one.
+  Each shard's record names the record it read, and combining the shards'
+  records fails the build when two of them name different ones, since a file
+  may then have run in no shard.
 - **The number of shards**, from `--shard k/n`.
 
 The same inputs give the same split on every machine. Each file goes in turn,

@@ -1,10 +1,11 @@
 //! Where each shard of one build started, and the one rule over it: shards
 //! that started apart fail the build, naming each shard and its start.
 //!
-//! A CI build combines the shards of one build, and every shard of it restores
-//! one cached record before it runs. Five things say where a shard started,
-//! and every one of them is heard here: the record its run was laid over (the
-//! `base` part), the commit it ran at, the commit of the before layer its cases
+//! A CI build combines the shards of one build, and every shard of it reads one
+//! record before it runs. Six things say where a shard started, and every one
+//! of them is heard here: the record its selection and its placement by time
+//! read, and the record its run was laid over (the two sides of the `base`
+//! part), the commit it ran at, the commit of the before layer its cases
 //! were laid over, whether it began over no case index at all, and the text of
 //! each module its cases stood on before it. Two shards that say two of any
 //! started from two records, so each split the suite against another plan.
@@ -39,25 +40,83 @@ pub(crate) fn unstable(first: &str, from_first: &str, second: &str, from_second:
     )
 }
 
-/// The base a record names when its run was laid over no record.
+/// The failure of a run whose shards chose their tests from different
+/// records: the selection, or the times a shard is placed by, read another
+/// record in each, so each shard cut the suite against another plan. Names
+/// both shards and the record each read.
+fn split_apart(first: &str, read_first: &str, second: &str, read_second: &str) -> String {
+    format!(
+        "the build failed because the sharding was unstable: {first} chose its tests from {read_first}, and {second} from {read_second}. \
+         Each shard chose its tests, and placed them by time, from the record it read, so the split may have left tests that ran in no shard. \
+         Run the whole build again, so that every shard reads the same record: \
+         a shard reads this checkout's record, which the `actions/cache` step keyed `variance-${{{{ runner.os }}}}-${{{{ runner.arch }}}}-${{{{ github.sha }}}}` restores, \
+         or else the mainline's from the share, and a shard that restored another, or none, or read a mainline record published while the others started, reads apart again."
+    )
+}
+
+/// What a record's run started from, either side: `none`, or a `sha256:` digest.
 const NO_BASE: &str = "none";
 
-/// What a record's `base` part says its run started from: `none`, or the
-/// `sha256:` digest of the record it was laid over. A record that holds none
-/// was written by a build before the part, or by a writer that is not a run,
-/// and is refused: nothing says where it started.
-fn base(shard: &str, part: Option<&[u8]>) -> Result<String, String> {
+/// Between the record a run read and the record it was laid over, in a spelled base.
+const OVER: &str = " over ";
+
+/// Where a run started: the record its selection and placement read, and the
+/// record it was laid over, each `none` or a `sha256:` digest.
+#[derive(Clone, PartialEq, Eq)]
+struct Start {
+    read: String,
+    laid: String,
+}
+
+impl Start {
+    /// As the record spells it: one record when the two are one, `none` above all.
+    fn spelled(&self) -> String {
+        if self.read == self.laid { self.read.clone() } else { format!("{}{OVER}{}", self.read, self.laid) }
+    }
+}
+
+/// The message for shards written before records named their start, or `None`
+/// when every shard names one. `unnamed` holds, for each shard in the order
+/// combined, whether its record holds no `base` part. Shards of 0.15.0 and
+/// earlier name none; a run of a later version always names one.
+pub(crate) fn versions_apart(shards: &[(&str, bool)]) -> Option<String> {
+    let (old, new): (Vec<_>, Vec<_>) = shards.iter().partition(|(_, unnamed)| *unnamed);
+    let (old, new): (Vec<&str>, Vec<&str>) = (old.iter().map(|(shard, _)| *shard).collect(), new.iter().map(|(shard, _)| *shard).collect());
+    if old.is_empty() {
+        return None;
+    }
+    let later = if new.is_empty() { String::new() } else { format!(", and {} by a later version", new.join(", ")) };
+    Some(format!(
+        "{} {} written by variance-authority 0.15.0 or earlier{later}: such a record names no record its run started from, so nothing says the shards split one plan. \
+         Run every shard on one version, the one that combines them, and combine again.",
+        old.join(", "),
+        if old.len() == 1 { "was" } else { "were" }
+    ))
+}
+
+/// What a record's `base` part says its run started from: one side, `none` or
+/// a `sha256:` digest, when the record it read is the one it was laid over;
+/// otherwise `<read> over <laid>`. A record that holds no part was written
+/// before the part, and is refused.
+fn base(shard: &str, part: Option<&[u8]>) -> Result<Start, String> {
     let Some(part) = part else {
-        return Err(format!(
-            "{shard} names no record its run started from: it was written before records named one (0.15.0 or earlier), or not by a run. Record it again with this build."
-        ));
+        return Err(versions_apart(&[(shard, true)]).unwrap_or_default());
     };
     let text = std::str::from_utf8(part).unwrap_or_default();
-    let digest = text.strip_prefix("sha256:").is_some_and(|hex| hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()));
-    if text == NO_BASE || digest {
-        return Ok(text.to_owned());
-    }
-    Err(format!("{shard} names the record it started from as `{}`, which is neither `none` nor a sha256 digest. Record it again with this build.", String::from_utf8_lossy(part)))
+    let side = |side: &str| {
+        let digest = side.strip_prefix("sha256:").is_some_and(|hex| hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        (side == NO_BASE || digest).then(|| side.to_owned())
+    };
+    let start = match text.split_once(OVER) {
+        Some((read, laid)) => side(read).zip(side(laid)).map(|(read, laid)| Start { read, laid }),
+        None => side(text).map(|one| Start { read: one.clone(), laid: one }),
+    };
+    start.ok_or_else(|| {
+        format!(
+            "{shard} names the record it started from as `{}`, which is neither `none`, a sha256 digest, nor two of them joined by `over`. Record it again with this build.",
+            String::from_utf8_lossy(part)
+        )
+    })
 }
 
 /// A base as a failure names it: its digest's first twelve digits are enough to tell two apart.
@@ -71,7 +130,7 @@ fn named_base(base: &str) -> String {
 /// What the shards of one combine say of their start: the record each was laid
 /// over, the commit of the coverage each measured, and the commit each ran at.
 pub(crate) struct Starts {
-    base: Option<(String, String)>,
+    base: Option<(String, Start)>,
     measured: Agreed,
     commit: Agreed,
 }
@@ -95,7 +154,10 @@ impl Starts {
         let base = base(shard, part)?;
         match &self.base {
             None => self.base = Some((shard.to_owned(), base)),
-            Some((first, held)) if *held != base => return Err(unstable(first, &named_base(held), shard, &named_base(&base))),
+            Some((first, held)) if held.read != base.read => {
+                return Err(split_apart(first, &named_base(&held.read), shard, &named_base(&base.read)));
+            }
+            Some((first, held)) if held.laid != base.laid => return Err(unstable(first, &named_base(&held.laid), shard, &named_base(&base.laid))),
             Some(_) => {}
         }
         if empty {
@@ -110,9 +172,9 @@ impl Starts {
         }
     }
 
-    /// The record every shard started from.
-    pub fn base(&self) -> Option<&str> {
-        self.base.as_ref().map(|(_, base)| base.as_str())
+    /// The record every shard started from, spelled as a record names it.
+    pub fn base(&self) -> Option<String> {
+        self.base.as_ref().map(|(_, base)| base.spelled())
     }
 
     /// The commit of the coverage every measured shard holds.

@@ -10,6 +10,8 @@ import { encodeRecordedEyes } from './eyes-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { landRun } from './commit-runs.js';
 import { combineRecords, writeTestCoverage } from './index.js';
+import { notingRead } from './record-base.js';
+import { timesFrom } from './selection-environment.js';
 
 const source = 'export function greet() { return "hello"; }\n';
 const durations: Readonly<Record<string, number>> = { 'a.test.ts': 120, 'b.test.ts': 340 };
@@ -129,5 +131,32 @@ describe('combineRecords against the TypeScript writers', () => {
       );
     }
     expect(combineRecords(await shardsOver([two, two]), join(root, 'combined.bin')).shards).toHaveLength(2);
+  });
+
+  // The documented recipe: shards of a run that selects nothing record into
+  // fresh artifacts, each placing its files by the times of the record it read.
+  it('fails the build when two shards chose their tests from two records, and passes two that read one', async () => {
+    const cached = async (name: string, duration: number) => {
+      const path = join(root, name);
+      await writeTestCoverage(path, { version: 3, instrumentation: 'fixture', commit: 'cached', tests: [{ file: 'a.test.ts', complete: true, preconditions: [], duration }], modules: [] });
+      return path;
+    };
+    const [one, two] = [await cached('one.bin', 120), await cached('two.bin', 340)];
+    const shardsReading = async (read: readonly string[], fresh: string) =>
+      Promise.all(['a.test.ts', 'b.test.ts'].map(async (file, at) => {
+        const shard = join(root, `${fresh}-${at}.bin`);
+        await notingRead(shard, timesFrom({ root, recording: read[at]! }))();
+        await landRun(shard, { version: 3, instrumentation: 'fixture', commit: 'c0ffee', tests: [{ file, complete: true, preconditions: [] }], modules: [moduleOf(file)] }, root);
+        return shard;
+      }));
+    const named = async (path: string) => `the record sha256:${createHash('sha256').update(await readFile(path)).digest('hex').slice(0, 12)}`;
+
+    const apart = await shardsReading([one, two], 'apart');
+    const failed = (() => { try { combineRecords(apart, join(root, 'apart.bin')); } catch (error) { return (error as Error).message; } })();
+    expect(failed).toContain(`the build failed because the sharding was unstable: ${apart[0]} chose its tests from ${await named(one)}, and ${apart[1]} from ${await named(two)}.`);
+    expect(failed).toContain('Run the whole build again, so that every shard reads the same record');
+
+    const together = await shardsReading([one, one], 'together');
+    expect(combineRecords(together, join(root, 'together.bin')).shards).toHaveLength(2);
   });
 });

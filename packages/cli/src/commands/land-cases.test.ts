@@ -239,9 +239,9 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     const record = testCoverageFile(dir, { suite: 'unit' });
     await ranWhole(record, first);
     const before = await readFile(record);
-    // An index no version of this build spells, and nothing else: no coverage, no last run.
+    // An index no version of this build spells, and nothing else but the base: no coverage, no last run.
     const shard = join(home, 'shard-unreadable.bin');
-    await writeFile(shard, recordOfCases({ index: Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]) }));
+    await writeFile(shard, recordOfCases({ index: Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]), base: Buffer.from('none') }));
     expect(withoutCoverage(shard)).toBe(true);
 
     await expect(landJourneys(dir, [shard], record)).rejects.toThrow(`cannot read the case index of ${shard}`);

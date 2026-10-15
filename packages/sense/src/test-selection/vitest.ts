@@ -18,6 +18,7 @@ import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
+import { notingRead } from './record-base.js';
 import { selectionFrom, timesFrom } from './selection-environment.js';
 import { readCommandLine, seedInBanner, selectingSequencer, type BannerContext, type SequencerClass } from './vitest-sequencer.js';
 
@@ -168,7 +169,9 @@ export function withTestSelection(
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
+  // Each reading notes the record it read against the record this run lands in, which names it.
+  const asked = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
+  const selection = asked && notingRead(coverageFile, asked);
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   const reporter = selectionReporter(run, settle);
   // Ahead of the project's reporters, so the banner the first of them prints
@@ -262,7 +265,7 @@ function selecting(
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
   // A record named by file is the one this run lands in, so its times are read
   // there; a suite's are read where `variance select` reads its record.
-  const times = timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
+  const times = notingRead(coverageFile, timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) }));
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },

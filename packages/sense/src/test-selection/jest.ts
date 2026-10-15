@@ -34,6 +34,7 @@ import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
+import { notingRead } from './record-base.js';
 import { selectionFrom, timesFrom } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
 
@@ -330,9 +331,11 @@ export function withTestSelection(
     ...(options.continuations === true ? { continuations: true } : {}),
   };
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
+  // Each reading notes the record it read against the record this run lands in, which names it.
+  const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
+  const selection = asked && notingRead(coverageFile, asked);
   // A record named by file is the one this run lands in, so a shard's times are read there.
-  const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
+  const times = notingRead(coverageFile, timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) }));
 
   return {
     ...(projects === undefined ? instrumented(config, root, rootDir, placing, declared, cadence) : config),

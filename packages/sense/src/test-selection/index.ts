@@ -13,12 +13,7 @@ import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import { NO_BASE } from './record-base.js';
-import type {
-  SourceAudience,
-  SourceAudienceTest,
-  SourcePoint,
-  SourceRegion,
-} from './at-source.js';
+import type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion } from './at-source.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import {
   narrowByExecutionFromView,
@@ -170,7 +165,7 @@ export {
 // A run laid over the record at a path: the columns of the file it is about to
 // write over, carried, with this run's rows on top.
 export { layeredCoverage } from './format-layer.js';
-export { recordBase } from './record-base.js';
+export { recordBase, recordDigestAt } from './record-base.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.

@@ -138,7 +138,12 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   oneRecord(request.suite, request.execution, '--execution');
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
-  const said = (input: SelectInput) => suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+  // The record the selection reads, which a shard's record names; a skip list alone does not say which.
+  const read = found.held ? selection.recordDigestAt(at) : undefined;
+  const said = (input: SelectInput) => {
+    const reading = suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+    return read === undefined ? reading : { ...reading, read };
+  };
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to

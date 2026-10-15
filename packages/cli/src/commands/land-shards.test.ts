@@ -138,8 +138,9 @@ describe('landJourneys — N shard records into the one this repository reads', 
     const [one, two] = ['0123456789ab'.repeat(5) + '0123', 'fedcba987654'.repeat(5) + 'fedc'].map((hex) => `sha256:${hex}`);
     const shards = [join(home, 'shard-1.bin'), join(home, 'shard-2.bin')];
     for (const [first, second] of [[one!, two!], [two!, one!]] as const) {
-      await writeTestCoverage(shards[0]!, shardOf('story:a'), { base: Buffer.from(first) });
-      await writeTestCoverage(shards[1]!, shardOf('story:b'), { base: Buffer.from(second) });
+      // Both chose their tests from no record, and were laid over two.
+      await writeTestCoverage(shards[0]!, shardOf('story:a'), { base: Buffer.from(`none over ${first}`) });
+      await writeTestCoverage(shards[1]!, shardOf('story:b'), { base: Buffer.from(`none over ${second}`) });
 
       await expect(landJourneys(home, [...shards].reverse(), into)).rejects.toThrow(
         `the build failed because the sharding was unstable: ${shards[0]} started from the record ${first.slice(0, 19)}, ` +

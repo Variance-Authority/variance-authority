@@ -19,9 +19,8 @@ modules, <crossings> crossings, <cases> cases, recorded at <commit>)`.
 lands the combined record as the one run it was, reading its columns rather
 than decoding it, and lays it over the record a previous run left in one pass.
 Sixteen shards of a 200,000-module suite, where 0.15.0 ran out of heap after
-22–25 s at 4.6–4.7 GiB, now combine in 3.8–4.2 s and land in 4.0–5.3 s, all
-under the 600 MiB peak the scale gates fail above, on an Apple M4 Max. On
-Linux arm64 the landing over a record takes 4.9–7.0 s under the same peak.
+22–26 s at 4.6–4.8 GiB, now combine in 3.8–4.2 s and land in 4.0–5.3 s, all
+under the 600 MiB peak the scale gates fail above, on an Apple M4 Max.
 After the landing, `journeys` reads the landed record to report journeys, and
 at that scale the reading still runs out of heap, as it does in 0.15.0; a CI
 job that only combines runs `journeys combine`.
@@ -36,8 +35,7 @@ writes the record and returns `CombinedRecord`: the counts, the commit, the
 files two shards' indexes cut differently, and one `CombinedShard` per shard
 named, with its path, commit, files, and whether it measured coverage and
 kept cases. A shard that observed nothing, as a shard job that ran no test
-writes, adds nothing, and must still have started from the record the others
-did. `openTestCoverage` and `TestCoverageView`, `recordedRun`, `RecordedRun`,
+writes, adds nothing, and must still have read the record the others did. `openTestCoverage` and `TestCoverageView`, `recordedRun`, `RecordedRun`,
 `landedCoverage`, and `followRowsIn` are exported for a
 landing that reads a combined record's columns instead of decoding it.
 
@@ -72,18 +70,27 @@ durations). What changes is the record a run writes, below.
 **Breaking:**
 
 - Every record a run writes names the record it started from, in a new
-  `run.base` part: `none` when the run was laid over no record, and otherwise
-  the `sha256` digest of the record the first run at its commit was laid
-  over. 0.15.0 reads such a record's coverage and refuses its case index
-  with an unknown section, `run.base`. Shards that started
-  from different records fail the build — two bases, two commits, two before
-  layers (the case index each shard's run started from), one that began over
-  no case index beside one that did, or one file on two texts before them.
-  The message names the shards and the records they started from, and says
-  to run the whole build again so that every shard restores the same cached
-  record through that `actions/cache` step. A shard that names no record it
-  started from, as one written by 0.15.0 or by the JVM agent does, is
-  refused: record it again with this build.
+  `run.base` part: the `sha256` digest of the record its selection read
+  and placed its tests by, and, where the run was laid over another,
+  `<read> over <laid>`. A side that is no record is `none`, and a run that
+  read none and was laid over none writes `none`. A later run at the same
+  commit carries the base the first one wrote. The JVM agent writes `none`:
+  Surefire or Gradle hands it the classes a separate `variance select`
+  chose, and it builds its snapshot from its own rows. 0.15.0 reads such a
+  record's coverage and refuses its case index with an unknown section,
+  `run.base`.
+- Shards that started apart fail the build. Two that chose their tests from
+  two records are named with the record each read, and the message says to
+  run the whole build again so every shard reads the same record: this
+  checkout's, restored by the `actions/cache` step, or else the mainline's
+  from the share. Two that read one record but were laid over two are named
+  with the records they were laid over. So are two commits, two before
+  layers (the case index each shard's run started from), one that began
+  over no case index beside one that did, and one file on two texts before
+  them.
+- A shard written by 0.15.0 names no base, and combining it with shards of
+  this version or alone fails, naming which shards each version wrote and saying to
+  run every shard on one version, the one that combines them.
 - A run is no longer laid over a record it cannot read, or one written under
   other probes: the runner's teardown, `variance land` and `landedCoverage`
   fail with the reason, where 0.15.0 replaced the record or dropped it

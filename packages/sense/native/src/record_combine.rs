@@ -24,7 +24,7 @@ use crate::record_coverage::{self, Parts};
 use crate::record_coverage_fold::Fold;
 use crate::record_layout::LAYOUT;
 use crate::record_parts;
-use crate::record_start::Starts;
+use crate::record_start::{self, Starts};
 
 #[napi(object)]
 pub struct CombinedShard {
@@ -117,13 +117,21 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
     order.sort_by(|left, right| order::code_unit(&paths[*left], &paths[*right]).then(left.cmp(right)));
     let unreadable = |path: &str, error: String| format!("cannot read the record {path}: {error}");
 
-    // Every shard's test files, off its header, so the fold sizes its sets once.
+    // Every shard's test files, off its header, so the fold sizes its sets
+    // once; and whether it names its start, so shards of two versions are
+    // refused before any is read.
     let mut universe = 0;
+    let mut based = Vec::with_capacity(order.len());
     for at in &order {
         let (head, length) = load(*at, Some(4))?;
         let stated = head.get(..4).map_or(0, |bytes| u32::from_le_bytes(bytes.try_into().unwrap_or_default()) as usize);
         let (head, _) = load(*at, Some(4 + stated))?;
-        universe += record_coverage::tests_in(&head, length).map_err(|error| unreadable(&paths[*at], error))?;
+        let head = record_coverage::tests_in(&head, length).map_err(|error| unreadable(&paths[*at], error))?;
+        universe += head.tests;
+        based.push((paths[*at].as_str(), !head.based));
+    }
+    if let Some(refused) = record_start::versions_apart(&based) {
+        return Err(refused);
     }
 
     let mut fold = Fold::new(universe);
