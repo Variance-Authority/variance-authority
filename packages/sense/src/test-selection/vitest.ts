@@ -18,8 +18,9 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { notingRead } from './record-base.js';
-import { selectionFrom, timesFrom } from './selection-environment.js';
+import { landingTimes, selectionFrom } from './selection-environment.js';
 import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
+import { shardArgument } from './shard-placement.js';
 
 export interface TestSelectionOptions {
   /**
@@ -244,7 +245,13 @@ export function withTestSelection(
   };
 }
 
-/** The sequencer that drops what the selection skips and places a `--shard` by recorded time. */
+/**
+ * The sequencer that drops what the selection skips and places a `--shard` by
+ * recorded time. Under `--shard` the run passes with no tests unless the
+ * configuration says otherwise: Vitest 4 refuses a run with fewer files than
+ * shards before any sequencer places one, and a shard left no file is a
+ * placement, as it is under Jest.
+ */
 function selecting(
   config: UserConfig,
   root: string,
@@ -253,13 +260,11 @@ function selecting(
   coverageFile: string,
   selection: (() => Promise<SuiteSelection>) | undefined,
   run: SelectionRun,
-): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
+): Pick<NonNullable<UserConfig['test']>, 'sequence' | 'passWithNoTests'> {
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
-  // A record named by file is the one this run lands in, so its times are read
-  // there; a suite's are read where `variance select` reads its record.
-  const times = notingRead(coverageFile, timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) }));
+  const times = landingTimes(coverageFile, { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
@@ -269,7 +274,8 @@ function selecting(
     },
   });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
-  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };
+  const empty = shardArgument(process.argv) !== undefined && config.test?.passWithNoTests === undefined ? { passWithNoTests: true } : {};
+  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> }, ...empty };
 }
 
 /**

@@ -145,6 +145,13 @@ describe('a Jest run under --shard, with the times a record holds', () => {
     for (const name of ['beta', 'delta', 'each', 'gamma']) expect(second.stderr).toMatch(new RegExp(`PASS .*${name}\\.case\\.ts`));
     expect(second.stderr).not.toMatch(/PASS .*alpha\.case\.ts/);
   }, 60_000);
+
+  it('passes a shard there are too few files to give one, and says so', async () => {
+    const { stderr, ran } = await runWith('empty-shard', {}, '--shard', '6/6');
+
+    expect(stderr).toContain('variance-authority: shard 6/6 by file count: 0 of 5 files;');
+    expect(ran).toEqual([]);
+  }, 60_000);
 });
 
 describe('a Jest run handed a selection, under --randomize', () => {

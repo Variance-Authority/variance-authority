@@ -42,7 +42,7 @@ describe('--shard', () => {
   });
 });
 
-describe('placing by checksum', () => {
+describe('placing by count, when nothing was timed', () => {
   it('gives every subject to exactly one shard', () => {
     const subjects = suite(40, 3);
     const owner = owners(subjects, 4);
@@ -61,11 +61,13 @@ describe('placing by checksum', () => {
     }
   });
 
-  it('moves no other file when a file is added', () => {
-    const before = owners(suite(40, 2), 4);
-    const after = owners([...suite(40, 2), subject('story:new--a', 'src/new.stories.tsx')], 4);
+  it('gives each shard the same number of files, a file of many stories weighing as much as one of one', () => {
+    const subjects = [...suite(3, 1), subject('story:big--a', 'src/big.stories.tsx'), subject('story:big--b', 'src/big.stories.tsx')];
+    const first = assign(subjects, { index: 1, total: 2 }, undefined);
+    const second = assign(subjects, { index: 2, total: 2 }, undefined);
 
-    for (const [id, shard] of before) expect(after.get(id)).toBe(shard);
+    expect(first.by).toBe('count');
+    expect([first.queue.length, second.queue.length]).toEqual([2, 2]);
   });
 
   it('keeps a subject with no declaring file as its own group', () => {
@@ -127,7 +129,7 @@ describe('what a shard reports about subjects it did not observe', () => {
     const [entry] = entries.values();
 
     expect(entries.size).toBe(assignment.elsewhere.size);
-    expect(entry?.because).toMatch(/^assigned to shard 2\/2 by checksum, with every subject its file declares$/);
+    expect(entry?.because).toMatch(/^assigned to shard 2\/2 by count, with every subject its file declares$/);
     expect(isShardFilter(entry!)).toBe(true);
   });
 

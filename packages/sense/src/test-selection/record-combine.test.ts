@@ -90,6 +90,14 @@ describe('combineRecords against the TypeScript writers', () => {
     }
   });
 
+  it('refuses a file two shards both recorded, such as a setup project every Playwright shard runs, naming both', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('ab.bin', ['a.test.ts', 'b.test.ts'])];
+
+    expect(() => combineRecords(shards, join(root, 'combined.bin'))).toThrow(
+      /`a\.test\.ts` was recorded by .*a\.bin and again by .*ab\.bin\. A test file belongs to one shard/u,
+    );
+  });
+
   it('folds back the last-run layer and Eyes a landing wrote, byte for byte', async () => {
     const recorded = await recordOf('one.bin', ['a.test.ts', 'b.test.ts']);
     const into = join(root, 'combined.bin');

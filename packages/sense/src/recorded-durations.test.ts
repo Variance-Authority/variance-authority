@@ -210,6 +210,14 @@ describe('the times a shard places its files by', () => {
     expect(times).toEqual({ recording: at, read, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]) });
   });
 
+  it('throws when what is recorded there does not read, because a shard placed without it may disagree with one that read it', () => {
+    const at = testCoverageFile(root);
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, 'not a record');
+
+    expect(() => recordedTimes(at)).toThrow();
+  });
+
   it('says why when nothing is recorded there, rather than handing an empty map', () => {
     expect(recordedTimes(testCoverageFile(root))).toEqual({ recording: testCoverageFile(root), unread: 'nothing is recorded there' });
   });

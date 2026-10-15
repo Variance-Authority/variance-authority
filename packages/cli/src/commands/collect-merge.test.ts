@@ -95,7 +95,7 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
 
     expect(index.commit).toBe('c0ffee');
     expect(index.coverage?.map((entry) => entry.outcome)).toEqual(Array(7).fill('collected'));
-    expect(index.provenance).toMatchObject({ assignment: 'checksum', storybook: 'sb' });
+    expect(index.provenance).toMatchObject({ assignment: 'count', storybook: 'sb' });
     expect(index.subjects).toHaveLength(7);
   });
 
@@ -200,6 +200,16 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
 
       const omitting = edit(first!, (part) => ({ ...part, outcomes: part.outcomes.slice(1) }));
       expect(refusal([omitting, second!])).toMatch(/says nothing of/);
+    });
+
+    it('cut by checksum, as a version before whole-file placement cut its shards', async () => {
+      const [first, second] = await partsOf(2);
+      const legacy = (named: Named): Named => ({ ...named, part: { ...named.part, assignment: 'checksum' } });
+      expect(refusal([legacy(first!), legacy(second!)])).toBe(
+        'evidence-1.json was cut by checksum, which this version does not place shards by; collect every shard again',
+      );
+      const [whole] = await partsOf(undefined);
+      expect(merged([legacy(whole!)]).index.provenance).toMatchObject({ assignment: 'checksum' });
     });
 
     it('with a subject at a position the plan gives another', async () => {

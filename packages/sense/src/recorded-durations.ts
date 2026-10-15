@@ -123,25 +123,25 @@ export function recordedDurations(
  * commit it was taken at: what a sharded run places its files by. A file whose
  * runner reported none is absent rather than zero, so the placement prices it
  * the way it prices a file the record never saw.
+ *
+ * Nothing recorded there is a reason, which every shard reads alike. A record
+ * that is there and does not read throws: a shard placed by count beside one
+ * that read it would take files the other takes.
  */
 export function recordedTimes(recording: string): SuiteTimes {
   if (!existsSync(recording)) return { recording, unread: 'nothing is recorded there' };
-  try {
-    const placed = askCoverageFile(recording, (view) => {
-      const paths = view.testPath.all();
-      const durations = view.testDuration?.all();
-      const times = new Map<string, number>();
-      paths.forEach((path, test) => {
-        const duration = durations?.[test] ?? NO_DURATION;
-        if (duration !== NO_DURATION) times.set(view.string(path), duration);
-      });
-      return { times, ...(view.commit === undefined ? {} : { commit: view.commit }) };
+  const placed = askCoverageFile(recording, (view) => {
+    const paths = view.testPath.all();
+    const durations = view.testDuration?.all();
+    const times = new Map<string, number>();
+    paths.forEach((path, test) => {
+      const duration = durations?.[test] ?? NO_DURATION;
+      if (duration !== NO_DURATION) times.set(view.string(path), duration);
     });
-    // The record read, which a shard's record names (`record-base.ts`).
-    return { recording, read: recordDigestAt(recording), ...placed };
-  } catch (error) {
-    return { recording, unread: messageOf(error) };
-  }
+    return { times, ...(view.commit === undefined ? {} : { commit: view.commit }) };
+  });
+  // The record read, which a shard's record names (`record-base.ts`).
+  return { recording, read: recordDigestAt(recording), ...placed };
 }
 
 /**

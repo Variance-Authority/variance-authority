@@ -107,8 +107,9 @@ that drops nothing keeps your setting.
 
 The files are removed in a `sequence.sequencer` that wraps the one your
 configuration names, before it shards and sorts, so every shard divides the
-same list. `--shard` places that list by the time each file took on the last
-recorded run, as [sharding](../../docs/sharding.md) shows. Watch mode does not select.
+same list. `--shard` places that list by whole files, by the time each file took
+on the last recorded run, or by file count when the record has no times, as [sharding](../../docs/sharding.md) shows. Your sequencer still sorts
+each shard, but it does not choose the shard's files. Watch mode does not select.
 `@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
 names the package.
 

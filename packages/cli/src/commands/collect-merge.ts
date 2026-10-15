@@ -96,6 +96,9 @@ function ownershipRefusal(parts: readonly Named[]): string | undefined {
   const entries = parts[0]!.part.plan.subjects;
   const planned = entries.map((entry) => ({ subject: { id: entry.id, kind: 'story' as const }, ...(entry.declaredIn === undefined ? {} : { declaredIn: entry.declaredIn }) }));
   for (const { path, part } of parts) {
+    if (part.assignment !== 'count' && (part.shard?.total ?? 1) > 1) {
+      return `${path} was cut by ${part.assignment}, which this version does not place shards by; collect every shard again`;
+    }
     const assignment = assign(planned, part.shard, undefined);
     const owned = new Set(assignment.queue.flat());
     for (const outcome of part.outcomes) {
