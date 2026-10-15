@@ -85,7 +85,7 @@ Before it reads a subject, the run waits for each of these:
   boundary under the subject shows its children.
 - **A route that has not hydrated.** The route collector, the part of this tool
   that opens each URL you name and reads it, waits until React has committed
-  every root on a server-rendered route.
+  every root that reaches the subject.
 - **The marker you declare.** A `ready` selector, when you name one, is waited
   for first ([below](#mark-the-subject-ready)).
 
@@ -97,15 +97,17 @@ and 10 seconds for a `ready` marker on a route or 15 on a story. They are the
 [Storybook collector](../packages/storybook-collector/README.md#options), and
 `suspenseTimeoutMs` on one `observe` call in a Playwright test. A boundary still
 open when its wait runs out refuses the subject, and the message names the
-boundary, where it is, and the component that wrote it. How the wait reads
-React's tree, and the message in full, are in
+boundary, where it is, and, in a development build, the component that wrote
+it. How the wait reads React's tree, and the message in full, are in
 [holding a page still](stabilization.md#the-wait-and-the-decision-it-forces).
 
-The run does not wait for scripts or `fetch` responses. The route and Storybook
-collectors also hold the read until the requests the page made are answered, but
-that network wait counts only images, fonts and media, and a script or a
-response still in flight when the subject is read is neither waited for nor
-reported. A `React.lazy` chunk is still waited for, through its boundary.
+The run does not wait for a script or a `fetch` response requested after the
+document has loaded. The route and Storybook collectors also hold the read until
+the requests the page made are answered, but that network wait counts only
+images, fonts and media, and a script or a response still in flight when the
+subject is read is neither waited for nor reported
+([below](#what-the-run-does-not-see-work-an-effect-starts)). A `React.lazy`
+chunk is still waited for, through its boundary.
 
 ## What the run does not see: work an effect starts
 
@@ -126,10 +128,14 @@ happens:
 - **Readings that agree** say the page is still, not that it is finished. Two
   screenshots of the spinner taken 50 ms apart agree.
 
-A timer or CPU work could be seen only by replacing `setTimeout` or `Promise` in
-the page, and a run does not substitute the page's runtime: a difference the
-patch caused would read as one your code caused
-([how far an intervention goes](stabilization.md#how-far-an-intervention-goes)).
+Some of that work leaves a trace the run could read. An `import()` or a
+`fetch()` an effect starts at mount is on the wire while the subject is read,
+and the run neither waits for it nor names it. That is ours to fix. A timer is
+not on the wire, and counting the page's timers would not help: a page with a
+`setInterval` or a poll never reaches zero, and a timer does not say whether a
+render follows it. Seeing one would mean replacing `setTimeout` in the page, and
+the only part of the page's runtime a run replaces is `Date` ([how far an
+intervention goes](stabilization.md#how-far-an-intervention-goes)).
 
 That costs you in two ways. Close to the point where the work finishes as the
 waits do, the subject records its spinner on one run and its content on the
@@ -209,14 +215,16 @@ Sometimes the loading state is the design under review. Declare it, and the run
 records the fallback on purpose: `loading: ['docs/diagram-loading']` on a
 collector, or `loading: true` in `observe`
 ([loading and Suspense boundaries](../packages/playwright-test/README.md#loading-and-suspense-boundaries)).
-A subject declared this way waits for no boundary, and the declaration is checked in both
-directions ([the wait, and the decision it forces](stabilization.md#the-wait-and-the-decision-it-forces)).
+A subject declared this way waits for no boundary, and the declaration is
+checked in both directions
+([the wait, and the decision it forces](stabilization.md#the-wait-and-the-decision-it-forces)).
 One of those checks is the one an effect spinner meets: a declared subject that
 holds no Suspense boundary at all is refused, and in a Playwright test `observe`
 throws, because an effect's spinner is not a fallback.
 
-So the loading state of the first version of the diagram cannot be recorded on
-purpose. Put the work under Suspense first, then give the declared subject a
-promise that does not settle while it is read, for example a story that reads a
+So the loading state of the first version of the diagram cannot be declared:
+nothing on the page says its spinner is a loading state rather than content that
+has not arrived. Put the work under Suspense first, then give the declared
+subject a promise that does not settle while it is read, for example a story that reads a
 promise which never settles. Its boundary stays open, and the run records the
 fallback every time.

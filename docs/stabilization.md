@@ -719,7 +719,8 @@ cannot prevent.
 
 `network.settle()` resolves when none of the images, fonts and media the page
 requested is in flight. Not a poll over the nodes that existed at one moment: a
-count of what has been asked for and not yet answered, which is the honest version of "the images have loaded".
+count of what has been asked for and not yet answered, which is the honest
+version of "the images have loaded".
 
 On timeout it does not throw. A page holding a long-poll open is a normal page,
 so the outstanding URLs become a diagnostic and the subject is read anyway —

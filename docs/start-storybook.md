@@ -98,8 +98,8 @@ If the selector never appears, collection fails naming the story and the
 selector, rather than photographing a spinner. React Suspense is handled without
 a marker: the collector waits for every boundary under the story root to settle,
 and reports a story still showing its fallback as not collected. Work an effect
-starts is not waited for, and [content that loads late](late-content.md) shows how to put it
-under Suspense instead.
+starts is not waited for, and [content that loads late](late-content.md) shows
+how to put it under Suspense instead.
 
 ### What a story declares about itself
 
