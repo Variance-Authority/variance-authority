@@ -5,6 +5,7 @@ import {
   type CommitUpdater,
   type FiberRootUpdate,
 } from './updaters.js';
+import { HOOK_KEY, injectedVersion, installHook, reactHasMounted, type DevToolsHook } from './hook.js';
 
 /**
  * Every commit React makes, and which components rendered in it.
@@ -218,22 +219,6 @@ export interface TapOptions {
   readonly createHook?: boolean;
 }
 
-const HOOK_KEY = '__REACT_DEVTOOLS_GLOBAL_HOOK__';
-const CONTAINER_KEY_PREFIX = '__reactContainer$';
-
-interface DevToolsHook {
-  renderers?: Map<number, { version?: string }>;
-  supportsFiber?: boolean;
-  inject?: (internals: unknown) => number;
-  // `| undefined` in the value type, not only optional: `stop()` restores
-  // whatever was here before, and on a page with no DevTools that is `undefined`.
-  // Under `exactOptionalPropertyTypes` a bare `?:` cannot be assigned back what
-  // it was read as, which would leave the tap unable to undo itself.
-  onCommitFiberRoot?: ((...args: unknown[]) => void) | undefined;
-  onPostCommitFiberRoot?: ((...args: unknown[]) => void) | undefined;
-  onCommitFiberUnmount?: ((...args: unknown[]) => void) | undefined;
-}
-
 /**
  * Attach to React's commit stream, installing a hook if there is not one.
  *
@@ -414,67 +399,6 @@ function flagsOf(fiber: Fiber): { own: number; subtree: number } {
     own: typeof record.flags === 'number' ? record.flags : 0,
     subtree: typeof record.subtreeFlags === 'number' ? record.subtreeFlags : 0,
   };
-}
-
-/**
- * The minimum `react-dom` requires of a hook, and nothing more.
- *
- * `inject` must return an id and the `on*` methods must exist, or `react-dom`
- * throws while wiring itself up — which would break the page this is supposed to
- * be observing. `supportsFiber` is what it checks before talking at all.
- */
-function installHook(scope: Record<string, unknown>): DevToolsHook {
-  const renderers = new Map<number, { version?: string }>();
-  let nextId = 1;
-
-  const hook: DevToolsHook = {
-    renderers,
-    supportsFiber: true,
-    inject: (internals: unknown) => {
-      const id = nextId++;
-      renderers.set(id, (internals as { version?: string }) ?? {});
-      return id;
-    },
-    onCommitFiberRoot: () => {},
-    onPostCommitFiberRoot: () => {},
-    onCommitFiberUnmount: () => {},
-  };
-
-  scope[HOOK_KEY] = hook;
-  return hook;
-}
-
-function injectedVersion(hook: DevToolsHook): string | undefined {
-  const renderers = hook.renderers;
-  if (!renderers || typeof renderers.forEach !== 'function') return undefined;
-
-  let version: string | undefined;
-  renderers.forEach((renderer) => {
-    if (version === undefined && typeof renderer?.version === 'string') version = renderer.version;
-  });
-  return version;
-}
-
-/**
- * Has React already mounted something in this document?
- *
- * The observable proxy for "the hook was installed too late". Structural, like
- * `findReactContainers` — it asks the document rather than trusting a flag
- * somebody set.
- */
-function reactHasMounted(scope: Record<string, unknown>): boolean {
-  const doc = (scope['document'] ?? globalThis.document) as Document | undefined;
-  if (!doc?.querySelectorAll) return false;
-
-  const all = doc.querySelectorAll('*');
-  for (let index = 0; index < all.length; index += 1) {
-    const element = all[index] as unknown as Record<string, unknown> | undefined;
-    if (!element) continue;
-    for (const key of Object.keys(element)) {
-      if (key.startsWith(CONTAINER_KEY_PREFIX)) return true;
-    }
-  }
-  return false;
 }
 
 function refused(reason: TapRefusal): CommitTap {
