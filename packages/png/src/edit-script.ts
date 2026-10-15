@@ -141,7 +141,9 @@ function anchors(
  * Myers' shortest edit script between `left[from, to)` and `right[at, until)`,
  * or `undefined` past `limit` rounds or once `budget` is spent. The trace
  * keeps, for each `d`, only the diagonals `-d..d` that round reached, which is
- * what makes D² memory rather than D·(N+M).
+ * what makes D² memory rather than D·(N+M). The caller has taken the common
+ * head off both ranges, so the first rows differ, the path leaves (0, 0) on an
+ * edit, and the walk back ends there with no run of equal rows left before it.
  */
 function myers(
   left: Float64Array,
@@ -202,11 +204,6 @@ function myers(
     else script.push(['-', from + px]);
     x = px;
     y = py;
-  }
-  while (x > 0 && y > 0) {
-    x -= 1;
-    y -= 1;
-    script.push(['=', from + x, at + y]);
   }
   return script.reverse();
 }
