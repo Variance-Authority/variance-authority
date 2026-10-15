@@ -10,6 +10,8 @@ import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { hasFiber } from './fiber.js';
 import { awaitHydration } from './hydration.js';
+import { UNCOMMITTED, resolveProvenance } from './resolve.js';
+import { componentFiberOf, wiringOf } from './wiring.js';
 
 function Header() {
   return h('span', null, 'early');
@@ -95,6 +97,31 @@ describe('waiting for React to hydrate the subject', () => {
     expect(settled.waitedMs).toBeGreaterThanOrEqual(80);
   });
 
+  /**
+   * The fiber on `<span>` belongs to a render React has not committed, and may
+   * never commit: a hydration that fails is thrown away and rendered again on
+   * the client. A component read off it would be reported as observed when
+   * nothing on screen came from it.
+   */
+  it('reads no component off a node whose root has not committed', async () => {
+    const page = await hydrating();
+    const span = page.container.querySelector('span')!;
+    expect(hasFiber(span)).toBe(true);
+
+    expect(resolveProvenance(span)).toBe(UNCOMMITTED);
+    expect(resolveProvenance(span)).toMatchObject({ status: 'no-fiber', reason: 'uncommitted' });
+    expect(wiringOf(span)).toBeUndefined();
+    expect(componentFiberOf(span)).toBeNull();
+
+    page.open();
+    await awaitHydration(subjectOf(page.container), { timeoutMs: 5_000, pollMs: 4 });
+
+    const resolved = resolveProvenance(span);
+    expect(resolved.status).toBe('resolved');
+    if (resolved.status === 'resolved') expect(resolved.provenance.owners[0]?.name).toBe('Header');
+    expect(componentFiberOf(span)).not.toBeNull();
+  });
+
   it('returns once React commits the hydration, however long the shell held', async () => {
     const page = await hydrating();
     setTimeout(page.open, 120);
@@ -143,6 +170,34 @@ describe('waiting for React to hydrate the subject', () => {
 
     held.open();
     expect(await awaitHydration(section, { timeoutMs: 5_000, pollMs: 4 })).toMatchObject({
+      state: 'hydrated',
+      roots: 1,
+      pending: 0,
+    });
+  });
+
+  /**
+   * A root that committed nothing is committed. Its `element` is `null` either
+   * way, so what tells it from a root still on its first render is whether a
+   * render ran (`current.alternate`) and whether work is left (`pendingLanes`).
+   */
+  it('reads a root that committed `null` as committed, and one never rendered as not', async () => {
+    const section = document.createElement('section');
+    const container = document.createElement('div');
+    section.appendChild(container);
+    document.body.appendChild(section);
+
+    const root = createRoot(container);
+    roots.push(root);
+    await ticks();
+    expect(await awaitHydration(section, { timeoutMs: 40, pollMs: 4 })).toMatchObject({
+      state: 'hydrating',
+      pending: 1,
+    });
+
+    root.render(null);
+    await ticks();
+    expect(await awaitHydration(section, { timeoutMs: 1_000, pollMs: 4 })).toMatchObject({
       state: 'hydrated',
       roots: 1,
       pending: 0,

@@ -86,7 +86,7 @@ Two functions return this, and they differ only in what they return on failure:
 
 | | returns | use it when |
 |---|---|---|
-| `resolveProvenance(node)` | `{ status: 'resolved', provenance }`, or `{ status: 'no-fiber', reason }` where `reason` is `'no-client-fiber'` or `'unmounted'` | the reason belongs in a diagnostic |
+| `resolveProvenance(node)` | `{ status: 'resolved', provenance }`, or `{ status: 'no-fiber', reason }` where `reason` is `'no-client-fiber'`, `'unmounted'` or `'uncommitted'` | the reason belongs in a diagnostic |
 | `provenanceOf(node)` | the `Provenance` value, or `undefined` | you are filling a field that is optional anyway |
 
 `provenanceOf` is `resolveProvenance` with the reason discarded. Neither throws:
@@ -275,6 +275,12 @@ reaches past the component that rendered the node.
   `'unmounted'` for a node whose tree was torn down. An empty chain would be a
   claim — "owned by nobody" — and indistinguishable from a node rendered
   directly by a root.
+- **Nothing is read off a render React has not committed.** While a root is
+  still hydrating, or on its first render, the nodes React has reached carry a
+  fiber, and the render they belong to may be thrown away. Such a node reports
+  `{ status: 'no-fiber', reason: 'uncommitted' }`, and `wiringOf` and
+  `holdingOf` return nothing for it; the same node resolves once the root
+  commits. `awaitHydration` waits for that commit.
 - **`createdBy` is development-only.** React populates `_debugOwner` from
   `element._owner`, which production builds leave empty; the field is then
   omitted and attribution degrades to the enclosing component.

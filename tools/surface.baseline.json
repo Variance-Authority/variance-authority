@@ -2086,6 +2086,7 @@
         "SuspenseWaitOptions": "interface",
         "TapOptions": "interface",
         "TapRefusal": "type",
+        "UNCOMMITTED": "const",
         "UNMOUNTED": "const",
         "awaitHydration": "function",
         "awaitQuiet": "function",

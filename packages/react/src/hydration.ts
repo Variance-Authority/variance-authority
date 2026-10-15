@@ -1,4 +1,5 @@
 import { containerFiber, fiberRootOf, findReactContainers } from './fiber.js';
+import { rootCommitted } from './root-state.js';
 
 /**
  * Waiting for React to hydrate the document a server rendered, and saying so
@@ -59,8 +60,10 @@ export type HydrationState =
   /**
    * A root reaches the subject and React had not committed it when the wait
    * ran out: still dehydrated, or created and not yet rendered. The fibers a
-   * component is read from are missing or work in progress, so a node with no
-   * component here is unobserved, not unattributed.
+   * component is read from are missing or work in progress, and nothing is
+   * read off them (`resolveProvenance` answers `'uncommitted'`). An effect that
+   * runs after hydration can still change the image, so a collector refuses a
+   * subject in this state, as it refuses one still showing a fallback.
    */
   | 'hydrating'
   /**
@@ -112,7 +115,7 @@ export async function awaitHydration(
   for (;;) {
     const roots = rootsReaching(node);
     let pending = 0;
-    for (const root of roots) if (!committed(root)) pending += 1;
+    for (const root of roots) if (!rootCommitted(root)) pending += 1;
 
     const waitedMs = now() - started;
     if (roots.size > 0 && pending === 0) {
@@ -155,29 +158,6 @@ function parentOf(node: Node): Node | null {
   if (node.parentNode !== null) return node.parentNode;
   const host = (node as Partial<ShadowRoot>).host;
   return host ?? null;
-}
-
-/**
- * Whether React has committed this root, read off its current `HostRoot`.
- *
- * INTERNAL CONTRACT: `HostRoot.memoizedState` is `{ element, isDehydrated, … }`
- * in React 18 and 19. `hydrateRoot` starts it with `isDehydrated: true` and the
- * hydration commit replaces it; `createRoot` starts it with `element: null` and
- * the first commit puts the rendered element there. React 17's legacy
- * `hydrate` and `render` commit synchronously, so a reader never sees them
- * mid-flight. If React renames either field, the symptom is a subject that
- * reads `hydrating` until the budget runs out on every page — loud, and named
- * in every report, rather than quiet.
- */
-function committed(root: object): boolean {
-  const current = (root as { readonly current?: { readonly memoizedState?: unknown } | null }).current;
-  const state = current?.memoizedState as
-    | { readonly element?: unknown; readonly isDehydrated?: unknown }
-    | null
-    | undefined;
-  if (state === null || state === undefined) return false;
-  if (state.isDehydrated === true) return false;
-  return state.element !== null && state.element !== undefined;
 }
 
 function now(): number {

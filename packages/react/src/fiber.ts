@@ -1,3 +1,5 @@
+import { rootCommitted } from './root-state.js';
+
 /**
  * Access to React's fiber tree from a DOM node.
  *
@@ -340,7 +342,11 @@ function rawFiber(node: object): Fiber | null {
 export function currentFiber(fiber: Fiber): Fiber | null {
   const root = rootOf(fiber);
   if (root === null) return null;
+  return currentUnder(fiber, root);
+}
 
+/** {@link currentFiber} once the walk to the top has been made. */
+function currentUnder(fiber: Fiber, root: Fiber): Fiber {
   const fiberRoot = root.stateNode as { current?: Fiber } | null | undefined;
   // Shape we do not recognise: prefer possibly-stale data over no data, since a
   // one-render-old props digest still names the right component.
@@ -392,6 +398,28 @@ export function fiberRootOf(node: Node): object | null {
   const top = rootOf(raw);
   const root = top?.stateNode;
   return typeof root === 'object' && root !== null ? root : null;
+}
+
+/**
+ * The committed fiber for a DOM node, `'uncommitted'` when the root it belongs
+ * to has not committed, or null if React never touched it.
+ *
+ * {@link findFiber} answers with a fiber for a node React completed during a
+ * render it has not committed — the whole document, while a shell that suspends
+ * holds hydration — because the work-in-progress fiber has no alternate to fall
+ * back on. Anything read off it is a render that may never reach the screen: a
+ * hydration React gives up on is thrown away and rendered again on the client.
+ * What a component *is* and what it was *holding* are read only from here, so a
+ * node like that reports why it has none instead of reporting one.
+ */
+export function findCommittedFiber(node: Node): Fiber | 'uncommitted' | null {
+  const raw = rawFiber(node as unknown as object);
+  if (raw === null) return null;
+  const top = rootOf(raw);
+  if (top === null) return null;
+  const root = top.stateNode;
+  if (typeof root === 'object' && root !== null && !rootCommitted(root)) return 'uncommitted';
+  return currentUnder(raw, top);
 }
 
 /** True when the node was rendered by React, regardless of tree liveness. */

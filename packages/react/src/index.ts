@@ -27,7 +27,7 @@ export type {
   NoFiberResult,
   NoFiberReason,
 } from './resolve.js';
-export { resolveProvenance, provenanceOf, NO_FIBER, UNMOUNTED } from './resolve.js';
+export { resolveProvenance, provenanceOf, NO_FIBER, UNCOMMITTED, UNMOUNTED } from './resolve.js';
 export type { DigestPass } from './props.js';
 export { digestPass } from './props.js';
 

@@ -269,7 +269,7 @@ function checkedTarget(value: unknown, where: string): TargetSnapshot {
 
 function checkedNoFiber(value: Record<string, unknown>, where: string): TargetSnapshot['provenance'] {
   const reason = value['reason'];
-  if (reason !== 'no-client-fiber' && reason !== 'unmounted') {
+  if (reason !== 'no-client-fiber' && reason !== 'unmounted' && reason !== 'uncommitted') {
     throw new Error(`${where} has unknown no-Fiber reason`);
   }
   return { status: 'no-fiber', reason };
