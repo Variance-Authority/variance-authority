@@ -39,7 +39,10 @@ React Compiler's own documentation asks to run first in a Babel pipeline, so
 any probe in front of it is read as the component. V8 coverage (`c8`, Vitest's `v8` provider) counts the
 engine's output and maps it back through the composed source map, after every
 transform. This decision takes V8's placement and keeps regions cut from the
-source, as Istanbul's are.
+source, as Istanbul's are. It keeps the project's own probes rather than V8's
+precise coverage, which is a Node inspector API that reaches no browser page,
+as [spec 0027](../../specs/0027-a-test-is-selected-by-what-it-executed.md#why-not-v8-coverage)
+records.
 
 ## Decision
 
