@@ -87,7 +87,9 @@ times. A missing record never fails a build:
   No shard is left empty while there are as many files as shards.
 - **A shard with no file passes.** With fewer files than shards, some shard
   takes none, and it passes under every runner. For Jest, `withTestSelection`
-  sets `passWithNoTests` unless your configuration sets it.
+  sets `passWithNoTests` when the command line has `--shard` and your
+  configuration does not set it, so an unsharded run that finds no file still
+  fails.
 - **Shards that read different records split differently**, so a file can run
   in two shards or in none. Each shard asks the share when it starts, so a
   publish that lands between two shards' starts gives them two records, and a

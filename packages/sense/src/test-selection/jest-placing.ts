@@ -72,14 +72,18 @@ export interface PlacingOptions {
   /** The suite's recorded times, read once, and only by a run under `--shard`. */
   readonly times: () => Promise<SuiteTimes>;
   readonly say?: (line: string) => void;
+  /** The command line the configuration is evaluated under; `process.argv` unless handed. */
+  readonly argv?: readonly string[];
 }
 
 /**
  * The `testSequencer` a configuration takes to place a `--shard` by the rule
- * every runner's is placed by, and `passWithNoTests` unless the configuration
- * sets it. A suite of fewer files than shards leaves a shard none, and Jest
- * fails a run that found none; by the time the sequencer knows, the global
- * configuration is frozen, so the setting is made here, before Jest reads it.
+ * every runner's is placed by, and `passWithNoTests` when the command line asks
+ * for `--shard` and the configuration does not set it. A suite of fewer files
+ * than shards leaves a shard none, and Jest fails a run that found none; by the
+ * time the sequencer knows, the global configuration is frozen, so the setting
+ * is made here, before Jest reads it. An unsharded run that finds nothing still
+ * fails.
  */
 export function placingSequencer(
   config: { readonly [key: string]: unknown },
@@ -110,5 +114,6 @@ export function placingSequencer(
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;
-  return { testSequencer: PLACING_SEQUENCER, ...(config.passWithNoTests === undefined ? { passWithNoTests: true } : {}) };
+  const sharded = (options.argv ?? process.argv).some((argument) => argument === '--shard' || argument.startsWith('--shard='));
+  return { testSequencer: PLACING_SEQUENCER, ...(sharded && config.passWithNoTests === undefined ? { passWithNoTests: true } : {}) };
 }

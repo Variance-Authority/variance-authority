@@ -40,9 +40,11 @@ its `cost` and `load` are always present, one per group when placed by count.
 by the same rule, and a subject another shard owns reads
 `assigned to shard k/n by count, …`.
 
-A Jest configuration wrapped by `withTestSelection` gets `passWithNoTests: true`
-unless it sets `passWithNoTests` itself, so a shard left no file, because there
-are fewer files than shards, passes as it does under Vitest and Playwright.
+A Jest configuration wrapped by `withTestSelection` and evaluated under
+`--shard` gets `passWithNoTests: true` unless it sets `passWithNoTests` itself,
+so a shard left no file, because there are fewer files than shards, passes as it
+does under Vitest and Playwright. An unsharded run that finds no file still
+fails.
 
 `shardOf(files, shard, times)` and `landingTimes(record, options)` are exported
 from `@variance-authority/sense/test-selection`, for a seam that places a shard
