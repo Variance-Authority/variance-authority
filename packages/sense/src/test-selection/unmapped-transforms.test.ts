@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { refuseTransformsAfter, transformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import { testSelectionProbes } from './probes.js';
 
