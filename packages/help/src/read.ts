@@ -139,7 +139,9 @@ export interface IndexedUsageOptions {
   /**
    * Whether that publication also saves this scan's records into the source
    * index. On. `variance index` turns it off: it published the index this scan
-   * read a moment before, and it is the index's owner.
+   * read a moment before, and it is the index's owner. A scan over part of the
+   * checkout, a workspace's root and the members it lists outside it, keeps an
+   * index of its own that nothing else saves, and saves it whatever this says.
    */
   readonly saveIndex?: boolean;
   /**
@@ -204,11 +206,12 @@ async function scanIndexed(
   const sources = new Map<string, IndexedSource>();
 
   const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(where, dirs)}`, () => scanRelations({
-    // The whole checkout, not the workspace members. A repository holds source
-    // that no `workspaces` entry claims — `tools/`, a scripts directory, a
-    // config that imports from a package — and that source imports these
-    // packages like anything else does. The scan declines to descend into a
-    // checkout that is not this one, so the root means this repository.
+    // What `scanScope` names: the workspace's own directory whole, not only its
+    // members, since it holds source no `workspaces` entry claims — `tools/`, a
+    // scripts directory, a config that imports from a package — and each member
+    // it lists outside that directory. Nothing beside what it lists can import
+    // from it. The scan declines to descend into a checkout that is not this
+    // one, so the root means this repository.
     root: where,
     dirs,
     cache: index.cache,

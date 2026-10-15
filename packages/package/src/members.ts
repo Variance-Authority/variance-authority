@@ -21,7 +21,9 @@ import { parse } from 'yaml';
  */
 
 /** Directories no member list reaches into, whatever its entries say — pnpm's own two. */
-const NEVER = ['**/node_modules/**', '**/bower_components/**'];
+/** Directories no member list reaches into, as a glob and as a listed path. */
+const NEVER_DIRS = ['node_modules', 'bower_components'];
+const NEVER = NEVER_DIRS.map((dir) => `**/${dir}/**`);
 
 /**
  * The manifest names a member directory is read by, in the order one is
@@ -121,7 +123,7 @@ export function members(root: string, read: (path: string) => Record<string, unk
  */
 function manifestsIn(root: string, entry: string, names: readonly string[]): string[] {
   const dir = posix.normalize(entry.replace(/\/+$/, ''));
-  if (dir.split('/').some((segment) => segment === 'node_modules' || segment === 'bower_components')) return [];
+  if (dir.split('/').some((segment) => NEVER_DIRS.includes(segment))) return [];
   let held: ReadonlySet<string>;
   try {
     held = new Set(readdirSync(join(root, dir)));

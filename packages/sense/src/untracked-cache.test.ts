@@ -92,6 +92,20 @@ describe('the untracked files of a checkout that caches them', () => {
       const tree = await gitTreeOf(src, ['.']);
       expect(tree?.paths()).toEqual(['Button.tsx', 'fresh/Clock.tsx']);
     });
+
+    // Asked in `normal` mode, git collapses an untracked directory to one line,
+    // and the root, or a directory above it, can be that line.
+    it(`are every file of a root git has never tracked, and of one inside an untracked directory, ${configured}`, async () => {
+      const root = await repository(mode);
+      await write(root, 'fresh/pkg/src/a.ts', 'export const a = 1\n');
+      const fresh = join(root, 'fresh');
+      const pkg = join(fresh, 'pkg');
+
+      expect(await workingTreeChanges(fresh, 'fresh/')).toEqual({ changed: ['pkg/src/a.ts'], gone: [] });
+      expect(await workingTreeChanges(pkg, 'fresh/pkg/')).toEqual({ changed: ['src/a.ts'], gone: [] });
+      expect((await gitTreeOf(fresh, ['.']))?.paths()).toEqual(['pkg/src/a.ts']);
+      expect((await gitTreeOf(pkg, ['.']))?.paths()).toEqual(['src/a.ts']);
+    });
   }
 });
 

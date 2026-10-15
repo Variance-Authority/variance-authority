@@ -250,6 +250,12 @@ fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>) -> Option<(Moved,
             }
             at += 1;
         }
+        // Collapsed by `normal`, the root itself, or a directory above it, is
+        // one untracked line, and every file under the root is untracked.
+        if codes == b"??" && entry.ends_with(b"/") && prefix.starts_with(&entry[3..]) {
+            collapsed.push(b".");
+            continue;
+        }
         let Some(path) = entry[3..].strip_prefix(prefix) else {
             continue;
         };

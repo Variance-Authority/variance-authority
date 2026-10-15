@@ -71,6 +71,13 @@ export async function workingTreeChanges(root: string, prefix: string): Promise<
       at += 1;
     }
 
+    // Collapsed by `normal`, the root itself, or a directory above it, is one
+    // untracked line, and every file under the root is untracked.
+    if (codes === '??' && entry.endsWith('/') && prefix.startsWith(entry.slice(3))) {
+      collapsed.push('.');
+      continue;
+    }
+
     // Asked of the whole checkout, status names paths beside the root too. A
     // rename across the root is the deletion or the addition on the root's side.
     if (!entry.startsWith(prefix, 3)) continue;
