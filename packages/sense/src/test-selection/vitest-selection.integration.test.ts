@@ -184,9 +184,6 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
         ...(selected ? { FIXTURE_SKIP: '[]' } : {}),
       },
     });
-    // The mainline's record holds no times, so the shards are placed by
-    // checksum, and a shard the checksum left no file runs none and records none.
-    if (!existsSync(coverageFile)) return { ran: [], layer: undefined };
     return {
       ran: decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort(),
       layer: await readOwnLayer(coverageFile),
@@ -198,8 +195,8 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     const second = await shard(2, false);
 
     expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
+    expect(first.ran).toHaveLength(1);
     expect(first.layer?.pinned).toBeUndefined();
-    expect(second.layer?.pinned).toBeUndefined();
   }, 30_000);
 
   it('records alone when a command-line `--reporter` replaces the seam\'s reporter', async () => {
@@ -208,7 +205,6 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
 
     expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(first.layer?.pinned).toBeUndefined();
-    expect(second.layer?.pinned).toBeUndefined();
   }, 30_000);
 
   it('records over the mainline it was laid on when it selects', async () => {

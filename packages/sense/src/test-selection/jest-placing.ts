@@ -9,7 +9,7 @@
  *
  * `testSequencer` is a global setting, so the project's own is chained rather
  * than replaced: it sorts, caches and answers everything else. The shard is
- * never its: placed by the times recorded, or by checksum when none are, as
+ * never its: placed by the times recorded, or by file count when none are, as
  * `shard-placement.ts` places every runner's.
  */
 
@@ -74,11 +74,17 @@ export interface PlacingOptions {
   readonly say?: (line: string) => void;
 }
 
-/** The `testSequencer` a configuration takes to place a `--shard` by the rule every runner's is placed by. */
+/**
+ * The `testSequencer` a configuration takes to place a `--shard` by the rule
+ * every runner's is placed by, and `passWithNoTests` unless the configuration
+ * sets it. A suite of fewer files than shards leaves a shard none, and Jest
+ * fails a run that found none; by the time the sequencer knows, the global
+ * configuration is frozen, so the setting is made here, before Jest reads it.
+ */
 export function placingSequencer(
   config: { readonly [key: string]: unknown },
   options: PlacingOptions,
-): { testSequencer?: string } {
+): { testSequencer?: string; passWithNoTests?: boolean } {
   if (config.testSequencer === PLACING_SEQUENCER) return {};
   const say = options.say ?? ((line: string) => process.stderr.write(`${line}\n`));
   const from = createRequire(resolve(options.rootDir, 'package.json'));
@@ -100,11 +106,9 @@ export function placingSequencer(
       const part = shardOf(tests.map((test) => projectPath(options.root, test.path)), asked, await (read ??= options.times()));
       if (!told) say(part.line);
       told = true;
-      // FIXME: a shard the checksum leaves empty, as a suite of fewer files than shards leaves one, fails under
-      // Jest with "No tests found": its globalConfig is frozen, so passWithNoTests cannot be set from here.
       return part.take.map((at) => tests[at]!);
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;
-  return { testSequencer: PLACING_SEQUENCER };
+  return { testSequencer: PLACING_SEQUENCER, ...(config.passWithNoTests === undefined ? { passWithNoTests: true } : {}) };
 }

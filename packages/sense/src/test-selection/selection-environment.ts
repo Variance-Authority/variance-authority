@@ -104,7 +104,7 @@ export function selectionFrom(
  * A record named by file is read where it is; a suite's is read by the cli,
  * from where `variance select` reads it, this checkout's or the mainline's.
  * A cli the configuration does not resolve is a reason rather than a failure:
- * the shard is placed by checksum instead, and the line it prints says why.
+ * the shard is placed by file count instead, and the line it prints says why.
  */
 export function timesFrom(request: SelectionRequest & { readonly recording?: string }): () => Promise<SuiteTimes> {
   return async () => {

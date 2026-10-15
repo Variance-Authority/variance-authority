@@ -27,8 +27,8 @@
  * The line before the run says `selected none of M`.
  *
  * Under `--shard k/n` the files left are placed whole by the time the suite's
- * record holds for each, or by checksum when it holds none, rather than cut by
- * count: every shard places every file and keeps its own part
+ * record holds for each, or by file count when it holds none, rather than by
+ * Vitest's own cut: every shard places every file and keeps its own part
  * (`shard-placement.ts`), and stderr says which part, by what, and what it is
  * expected to take. The project's sequencer never cuts the shard. A shard the
  * placement leaves empty passes, as one the selection leaves empty does.

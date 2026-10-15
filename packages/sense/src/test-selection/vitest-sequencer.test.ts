@@ -230,7 +230,7 @@ describe('the sequencer under --shard', () => {
     expect(await shard(2)).toEqual({ part: [], passes: true });
   });
 
-  it('places whole files by checksum when nothing is timed, and says why', async () => {
+  it('places whole files by count when nothing is timed, and says why', async () => {
     const lines: string[] = [];
     const Sequencer = selectingSequencer(Reversing, {
       root,
@@ -241,21 +241,21 @@ describe('the sequencer under --shard', () => {
 
     const part = await new Sequencer(context({ shard: { index: 1, count: 2 } })).shard(files.map(spec));
 
-    expect(names(part)).toEqual(['b.test.ts', 'c.test.ts']);
-    expect(lines).toEqual(['variance-authority: shard 1/2 by checksum: 2 of 4 files; no times at /cache/unit.bin: nothing is recorded there']);
+    expect(names(part)).toEqual(['a.test.ts', 'c.test.ts']);
+    expect(lines).toEqual(['variance-authority: shard 1/2 by file count: 2 of 4 files; no times at /cache/unit.bin: nothing is recorded there']);
   });
 
-  it('places by checksum when it is handed no way to read times', async () => {
+  it('places by count when it is handed no way to read times', async () => {
     const lines: string[] = [];
     const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, say: (line) => lines.push(line) });
 
     const part = await new Sequencer(context({ shard: { index: 2, count: 2 } })).shard(files.map(spec));
 
-    expect(names(part)).toEqual(['a.test.ts', 'd.test.ts']);
-    expect(lines).toEqual(['variance-authority: shard 2/2 by checksum: 2 of 4 files; no times at the record: no record was named to read them from']);
+    expect(names(part)).toEqual(['b.test.ts', 'd.test.ts']);
+    expect(lines).toEqual(['variance-authority: shard 2/2 by file count: 2 of 4 files; no times at the record: no record was named to read them from']);
   });
 
-  it('passes a shard the placement left empty, and only that one', async () => {
+  it('passes a shard left empty by fewer files than shards, and only that one', async () => {
     const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, say: () => {} });
     const shard = async (index: number) => {
       const config: SequencerContext['config'] = { shard: { index, count: 2 } };
@@ -263,8 +263,8 @@ describe('the sequencer under --shard', () => {
       return { part: names(await sequencer.sort(await sequencer.shard([spec('a.test.ts')]))), passes: config.passWithNoTests };
     };
 
-    expect(await shard(1)).toEqual({ part: [], passes: true });
-    expect(await shard(2)).toEqual({ part: ['a.test.ts'], passes: undefined });
+    expect(await shard(1)).toEqual({ part: ['a.test.ts'], passes: undefined });
+    expect(await shard(2)).toEqual({ part: [], passes: true });
   });
 
   it('reads no times and says nothing when no shard is asked for and nothing is selected', async () => {
