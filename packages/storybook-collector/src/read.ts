@@ -1,7 +1,7 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { matchesGlob } from '@variance-authority/core/judge';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
-import { acquireFromAgent, unresizable } from '@variance-authority/playwright';
+import { UnansweredAssets, acquireFromAgent, unresizable } from '@variance-authority/playwright';
 import { suspenseRefusal } from '@variance-authority/react';
 import { collectStory, harnessPage } from '@variance-authority/storybook';
 import type { StoryRecorder } from './execution.js';
@@ -164,7 +164,14 @@ export async function readStory(
   // uses, and the page cannot know what the bytes were. Never reset between
   // stories — one page serves the whole run, and a story whose asset was fetched
   // during an earlier story still references it.
-  const raw = await acquireFromAgent(page, network, request);
+  let raw: string;
+  try {
+    raw = await acquireFromAgent(page, network, request);
+  } catch (error) {
+    if (!(error instanceof UnansweredAssets)) throw error;
+    await recorder?.note(page, planned.subject.id, false);
+    return { ok: false, because: error.message };
+  }
 
   const acquired = JSON.parse(raw) as Acquired;
 

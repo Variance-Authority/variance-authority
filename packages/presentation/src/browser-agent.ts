@@ -17,6 +17,8 @@ export interface PresentationAcquireRequest {
   readonly fonts?: readonly string[];
   readonly stabilize?: readonly string[];
   readonly suspense?: { readonly timeoutMs?: number };
+  /** The subject is its loading state: a pending boundary is read, not refused. */
+  readonly loading?: boolean;
 }
 
 export interface PresentationAcquired {
@@ -41,7 +43,7 @@ export async function acquirePresentation(
   // reading it would record the fallback as the presentation.
   const unsettled = suspenseRefusal(
     await awaitSuspense(root, request.suspense ?? {}),
-    { subjectId: request.subject.id },
+    { subjectId: request.subject.id, declaredLoading: request.loading === true },
   );
   if (unsettled !== undefined) throw new Error(unsettled);
   const portalRoots = portalContentOf(root);

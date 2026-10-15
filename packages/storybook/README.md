@@ -215,7 +215,7 @@ Storybook's own viewport entries are written. Any other unit is refused: `em` an
 | `events` | `STORYBOOK_EVENTS` | the channel event names this adapter listens for — `{ setCurrentStory, updateGlobals, storyRendered, storyFinished, storyThrewException, storyErrored, storyMissing, playFunctionThrewException }`. Override any of them if a Storybook build renamed one |
 | `globals` | `{ a11y: { manual: true } }` | Storybook globals to set on the preview, once per document, before any story is shown. The default stands `@storybook/addon-a11y`'s automatic scan down for this pass. Pass `{}` to change nothing |
 | `roots` | `#storybook-root`, `#root` | where the story mounts, tried in order |
-| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Consulted when no Storybook event named the error |
+| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Consulted when no Storybook event named the error, and on a preview with no channel |
 | `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Called only for `rendered` stories, and sequentially — one call finishes before the next story is shown |
 
 ## Readiness

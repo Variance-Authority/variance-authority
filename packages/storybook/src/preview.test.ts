@@ -87,7 +87,7 @@ describe('showing stories on one page', () => {
 
   it('reports Storybook’s own signal when it is the one that fired', async () => {
     // The distinction the whole result type exists for: this readiness knows
-    // about decorators and loaders, and the fallback does not.
+    // about decorators and loaders, and markup does not.
     preview = fakePreview({});
     const page = fakePage(preview);
 
@@ -321,10 +321,20 @@ describe('a preview with no channel', () => {
 
     const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
 
-    expect(outcome.status).not.toBe('rendered');
+    expect(outcome.status).toBe('timeout');
     expect(outcome.readiness).toBe('none');
     expect(outcome.channel).toBe(false);
     expect(outcome.error?.message).toContain('readySelector');
+  });
+
+  it('reports a story that crashed as errored, not as a missing marker', async () => {
+    preview = fakePreview({ 'a--one': 'overlay' }, false);
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
+
+    expect(outcome.status).toBe('errored');
+    expect(outcome.error?.message).toContain('a--one could not be rendered');
   });
 
   it('pays a reload per story, and reports that it paid one', async () => {
@@ -380,8 +390,8 @@ describe('the page function', () => {
     // keeps calling `querySelector` until its own deadline, which is invisible
     // in a browser about to be driven to the next story and is a timer outliving
     // its DOM anywhere else. The first story of a session is the case that hits
-    // it every time: it arrives already selected, so the markup poll starts, and
-    // `storyRendered` lands between its two samples.
+    // it every time: it arrives already selected, so the bound starts, and
+    // `storyRendered` lands before it expires.
     preview = fakePreview({});
     const page = fakePage(preview);
 

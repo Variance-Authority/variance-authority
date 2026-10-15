@@ -246,9 +246,10 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     }
     // Nothing on this page can say the story is ready, so it is not read. Markup
     // that stopped changing would be a guess at a story that may still be waiting
-    // on a fetch, a font or an image.
+    // on a fetch, a font or an image. A story that crashed is still said so.
+    const shown = overlay();
     return Promise.resolve(
-      result('timeout', 'none', {
+      shown !== null ? result('errored', 'none', shown) : result('timeout', 'none', {
         message:
           `no Storybook channel was found on the preview window, so nothing said \`${request.storyId}\` ` +
           `was ready and it was not read. Configure \`readySelector\` with a marker the story ` +
@@ -447,7 +448,10 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
         return;
       }
       if (marker !== undefined) {
-        settleByMarker(marker, request.timeoutMs, () => signalled || renderState() === 'over', [
+        // With no `currentRender`, an event that fired before this ran is lost,
+        // and the marker is the evidence left.
+        const told = (): boolean => signalled || state === 'unknown' || renderState() === 'over';
+        settleByMarker(marker, request.timeoutMs, told, [
           `the story was already selected when this ran, so readiness waited on the subject's own ` +
             `marker \`${marker}\` and on Storybook's \`currentRender\`.`,
         ]).then(finish, failed);

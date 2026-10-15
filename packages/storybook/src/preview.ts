@@ -144,7 +144,7 @@ export interface CollectOptions {
   readonly baseUrl: string;
   /** Budget for one story to become ready. Defaults to 15s. */
   readonly timeoutMs?: number;
-  /** Markup sampling interval on the fallback path. Defaults to 50ms. */
+  /** How often the `readySelector` marker is looked for. Defaults to 50ms. */
   readonly pollMs?: number;
   readonly events?: ShowEvents;
   readonly roots?: readonly string[];

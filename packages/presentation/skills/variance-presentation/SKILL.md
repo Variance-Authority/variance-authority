@@ -202,6 +202,8 @@ Options:
 - `fonts`: font identities the caller has independently established.
 - `suspense.timeoutMs`: bound on React Suspense under the subject; a boundary
   still pending at it rejects the call instead of sensing the fallback.
+- `loading`: `true` senses the fallback of a subject that is its loading state;
+  a subject with no boundary pending then rejects the call.
 - `stabilize`: optional intervention ids replacing the default recipe entirely.
   The ids this build knows are `hold-animations`, `pin-animations`,
   `hide-caret`, `hide-scrollbars`, `hide-presentational-images`, `no-hover`,

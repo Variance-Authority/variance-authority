@@ -5,6 +5,14 @@ import { stillArriving } from './arrivals.js';
 import type { NetworkObservation } from './network.js';
 
 /**
+ * An image, font or media request the read asked for and never got. The subject
+ * is refused, not the run: a collector catches this and goes on to the next one.
+ */
+export class UnansweredAssets extends Error {
+  override readonly name = 'UnansweredAssets';
+}
+
+/**
  * Call the page agent, over an asset set the page has finished asking for.
  *
  * Both shipped collectors reach the browser through this one function, and the
@@ -99,7 +107,7 @@ export async function acquireFromAgent<Request extends object>(
   }
 
   const unanswered = await aside.time('network', async () => network.settle());
-  if (unanswered !== undefined) throw new Error(unanswered);
+  if (unanswered !== undefined) throw new UnansweredAssets(unanswered);
   const settled = observed();
 
   if (sameAssets(sent, settled)) {

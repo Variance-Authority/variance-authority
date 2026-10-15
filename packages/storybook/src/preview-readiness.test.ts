@@ -149,3 +149,43 @@ describe('a subject that declares its own readiness', () => {
     expect(outcome.warnings.join(' ')).toContain('the application saying it has settled');
   });
 });
+
+// The first story of a session arrives selected by its URL, so whatever Storybook
+// said about it may have been said before anything listened.
+describe('a story the URL already selected', () => {
+  it('refuses a selected story whose render had already failed', async () => {
+    preview = fakePreview({ 'a--one': 'overlay' });
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
+
+    expect(outcome.status).toBe('errored');
+    expect(outcome.error?.message).toContain('a--one could not be rendered');
+  });
+
+  it('names the missing `currentRender` when a selected story never says it is over', async () => {
+    preview = fakePreview({ 'a--one': 'silent' }, true, 'unrendered');
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
+
+    expect(outcome.status).toBe('timeout');
+    expect(outcome.error?.message).toContain('currentRender');
+  });
+
+  it('reads a selected story on its marker when nothing says whether its render is over', async () => {
+    // Its `storyRendered` fired before anything listened, and no `currentRender`
+    // remembers it: the marker the subject attached is the evidence left.
+    preview = fakePreview({ 'a--one': 'declared-early' }, true, 'unrendered');
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', {
+      baseUrl: BASE,
+      ...TIMING,
+      readySelector: READY,
+    });
+
+    expect(outcome.status).toBe('rendered');
+    expect(outcome.readiness).toBe('declared');
+  });
+});

@@ -284,6 +284,28 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image the server never answers', () => {
       await page.close();
     }
   }, 60_000);
+
+  // One page serves a whole Storybook run and is never reset, so the stalled
+  // request outlives its story. It was named in that story's refusal; the next
+  // story did not start it and is not refused for it.
+  it('refuses only the subject that started it, not the next one on the page', async () => {
+    const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
+
+    try {
+      const network = await observeNetwork(page);
+      const arrived = new Promise<void>((resolve) => {
+        withheldArrived = resolve;
+      });
+      await page.goto(`${base}/withholding`, { waitUntil: 'domcontentloaded' });
+      await arrived;
+
+      expect(await network.settle(0)).toMatch(/\/withheld\.png/);
+      expect(await network.settle(0)).toBeUndefined();
+      await network.close();
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('an animated GIF, which no CSS reaches', () => {

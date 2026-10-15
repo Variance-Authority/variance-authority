@@ -2,7 +2,13 @@ import type { SourceIndex } from '@variance-authority/core/attribute';
 import { stepClock, type Diagnostic } from '@variance-authority/core/format';
 import { matchesGlob } from '@variance-authority/core/judge';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
-import { ARRIVAL_GLOBAL, acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
+import {
+  ARRIVAL_GLOBAL,
+  UnansweredAssets,
+  acquireFromAgent,
+  unresizable,
+  unwidened,
+} from '@variance-authority/playwright';
 import { suspenseRefusal, type HydrationSettlement } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
 import type { RouteRecorder } from './execution.js';
@@ -218,7 +224,14 @@ export async function readRoute(
   // The assets are its business, not this request's: they are read from the wire
   // and they keep arriving while the page is being held still.
   const after = stepClock(() => performance.now());
-  const raw = await acquireFromAgent(page, network, request, after);
+  let raw: string;
+  try {
+    raw = await acquireFromAgent(page, network, request, after);
+  } catch (error) {
+    if (!(error instanceof UnansweredAssets)) throw error;
+    await noted(false);
+    return { ok: false, because: error.message };
+  }
 
   const parsing = stepClock(() => performance.now());
   const acquired = await parsing.time('parse', () => JSON.parse(raw) as Acquired);
