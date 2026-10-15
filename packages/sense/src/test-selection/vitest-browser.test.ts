@@ -212,3 +212,7 @@ describe('a test file that runs in a page', () => {
     }
   });
 });
+
+it.todo(
+  'a module run in a page is probed after the transforms, as one run in Node is — needs `vi.mock`’s mock, loaded under the file’s name in a page, carried back to the file (FIXME on `late` in vitest-plugin.ts)',
+);

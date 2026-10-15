@@ -198,6 +198,10 @@ export function selectionPlugin(
       // through the map back to the file, or marked as loaded where none
       // leads back.
       // With `before-transforms`, every module is probed here, on the text as read.
+      // FIXME: in a page every module is probed here, ahead of the transforms,
+      // so a compiler that reads syntax reads the probes, as it did before the
+      // probes went in last. Needs `vi.mock`'s mock carried back to the file in
+      // a page — see the `it.todo` in vitest-browser.test.ts.
       const late = !inPage && !before;
       if (id !== file && late) return null;
       const text = id === file && late ? disk(file) : undefined;
@@ -251,6 +255,7 @@ export function selectionPlugin(
       const file = cleanId(id);
       const text = held.get(id);
       held.delete(id);
+      // FIXME: `inPage` skips the probes here; see the FIXME on `late` above.
       if (own(file) || inPage || before || first.delete(id)) return null;
       const original = heldOriginal(file, text);
       const captured = after(file, code, () => this.getCombinedSourcemap(), unmappedSteps(this, id, notes), id !== file, original);
