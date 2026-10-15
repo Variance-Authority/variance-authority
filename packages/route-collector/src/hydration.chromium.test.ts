@@ -388,8 +388,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('reading components off a route that hydrate
 
     expect(codes(collected)).toEqual(['hydration-changed-markup']);
     const message = collected.diagnostics?.[0]?.message ?? '';
-    expect(message).toMatch(/early/);
-    expect(message).toMatch(/client/);
+    expect(message).toMatch(/the hydration commit left `[^`]*early[^`]*` and the client then left `[^`]*client[^`]*`/);
     expect(message).toMatch(/Flip committed after hydrating/);
   }, 120_000);
 
