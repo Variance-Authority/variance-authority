@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shardOf } from './shard-placement.js';
+import { shardArgument, shardOf } from './shard-placement.js';
 
 const timed = (entries: Record<string, number>) => ({
   recording: '/r/coverage.va',
@@ -76,5 +76,13 @@ describe('the files one shard of a run takes', () => {
     const parts = [1, 2, 3].map((index) => shardOf(files, { index, count: 3 }, { unread: 'nothing is recorded there' }).take);
 
     expect(parts).toEqual([[0], [1], [2]]);
+  });
+});
+
+describe('the shard a command line asks for', () => {
+  it('reads either spelling the runners take, and nothing from an argument that only mentions a shard', () => {
+    expect(shardArgument(['node', 'cli.js', 'test', '--shard', '2/3'])).toEqual({ index: 2, count: 3 });
+    expect(shardArgument(['node', 'cli.js', 'test', '--shard=1/2'])).toEqual({ index: 1, count: 2 });
+    expect(shardArgument(['node', 'cli.js', 'test', '--grep', 'shard'])).toBeUndefined();
   });
 });

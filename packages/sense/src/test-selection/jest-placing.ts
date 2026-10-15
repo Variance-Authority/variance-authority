@@ -19,7 +19,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
-import { shardOf } from './shard-placement.js';
+import { shardArgument, shardOf } from './shard-placement.js';
 import type { SuiteTimes } from './suite-selection.js';
 
 /** The sequencer module a wrapped configuration names, by absolute path. */
@@ -114,6 +114,6 @@ export function placingSequencer(
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;
-  const sharded = (options.argv ?? process.argv).some((argument) => argument === '--shard' || argument.startsWith('--shard='));
+  const sharded = shardArgument(options.argv ?? process.argv) !== undefined;
   return { testSequencer: PLACING_SEQUENCER, ...(sharded && config.passWithNoTests === undefined ? { passWithNoTests: true } : {}) };
 }

@@ -105,16 +105,6 @@ export function installedPlaywright(from: string): string {
   }
 }
 
-/** The `--shard k/n` a command line asks for, in either spelling Playwright's parser takes. */
-export function shardArgument(argv: readonly string[]): PlaywrightShard | undefined {
-  for (const [at, argument] of argv.entries()) {
-    const value = argument === '--shard' ? argv[at + 1] : argument.startsWith('--shard=') ? argument.slice('--shard='.length) : undefined;
-    const parsed = value === undefined ? null : /^(\d+)\/(\d+)$/u.exec(value);
-    if (parsed !== null) return { current: Number(parsed[1]), total: Number(parsed[2]) };
-  }
-  return undefined;
-}
-
 /**
  * The reporters a command line's `--reporter` names, split at commas as
  * Playwright splits them; `undefined` when it names none, and the

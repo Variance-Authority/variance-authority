@@ -28,7 +28,8 @@ import { createRequire } from 'node:module';
 import { dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
-import { installedPlaywright, reporterArgument, shardArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
+import { shardArgument } from '@variance-authority/sense/test-selection';
+import { installedPlaywright, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
 
 /** The reporter entry, by the specifier a configuration names it with. */
 export const SELECTION_REPORTER = '@variance-authority/playwright-test/reporter';
@@ -118,7 +119,8 @@ export function withTestSelection<Config extends PlaywrightSelectionConfig>(
  */
 function refuseShard(configured: PlaywrightShard | null | undefined): void {
   const argv = process.argv;
-  const shard = shardArgument(argv) ?? configured ?? undefined;
+  const asked = shardArgument(argv);
+  const shard = asked === undefined ? configured ?? undefined : { current: asked.index, total: asked.count };
   if (shard === undefined) return;
   const old = shardRefusal(installedPlaywright(process.cwd()), shard);
   if (old !== undefined) throw new Error(old);

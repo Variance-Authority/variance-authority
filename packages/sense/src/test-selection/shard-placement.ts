@@ -77,3 +77,18 @@ function positions(files: readonly string[], keys: readonly string[]): number[] 
 function counted(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
+
+/**
+ * The `--shard k/n` a command line asks for, in either spelling, `--shard k/n`
+ * or `--shard=k/n`; `undefined` when it asks for none. Every runner's seam reads
+ * the command line through this one, to settle what has to be settled before
+ * the runner places anything.
+ */
+export function shardArgument(argv: readonly string[]): ShardAsked | undefined {
+  for (const [at, argument] of argv.entries()) {
+    const value = argument === '--shard' ? argv[at + 1] : argument.startsWith('--shard=') ? argument.slice('--shard='.length) : undefined;
+    const parsed = value === undefined ? null : /^(\d+)\/(\d+)$/u.exec(value);
+    if (parsed !== null) return { index: Number(parsed[1]), count: Number(parsed[2]) };
+  }
+  return undefined;
+}

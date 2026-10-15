@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import type { FullConfig, Suite, TestRun } from '@playwright/test/reporter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ExecutionReporter from './reporter.js';
-import { reporterArgument, shardArgument } from './whole-file-shard.js';
+import { reporterArgument } from './whole-file-shard.js';
 
 let root: string;
 let said: string[];
@@ -117,12 +117,6 @@ describe('the reporter that places a Playwright shard by whole files', () => {
     const without = parts.find((part) => !part.kept.includes('mobile:tests/a.spec.ts'))!;
 
     expect([...without.excluded].some((target) => (target as Suite).type === 'project')).toBe(true);
-  });
-
-  it('reads the shard a command line asks for, in either spelling Playwright takes', () => {
-    expect(shardArgument(['node', 'cli.js', 'test', '--shard', '2/3'])).toEqual({ current: 2, total: 3 });
-    expect(shardArgument(['node', 'cli.js', 'test', '--shard=1/2'])).toEqual({ current: 1, total: 2 });
-    expect(shardArgument(['node', 'cli.js', 'test', '--grep', 'shard'])).toBeUndefined();
   });
 
   it('reads the reporters a command line names, which replace the configuration\'s', () => {
