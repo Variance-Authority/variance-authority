@@ -218,10 +218,9 @@ export async function locatePictures(
  */
 export const LONGEST_CARRIED_SIDE = 16384;
 
-/** Whether either side of `page` passes {@link LONGEST_CARRIED_SIDE}; never when its size is unknown. */
+/** Whether `page` is longer than {@link LONGEST_CARRIED_SIDE}; never when its height is unknown. */
 function pastTexture(page: Picture): boolean {
-  if (page.width === undefined || page.height === undefined) return false;
-  return Math.max(page.width, page.height) > LONGEST_CARRIED_SIDE;
+  return page.height !== undefined && page.height > LONGEST_CARRIED_SIDE;
 }
 
 function withoutLeft({ left: _, ...picture }: Picture): Picture {
