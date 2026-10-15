@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 
+use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
 use crate::case_fold;
@@ -59,6 +60,16 @@ pub struct CombinedRecord {
     /// Shards whose record names its read `unknown`, so no read of theirs was
     /// checked against the others'.
     pub unchecked: Vec<String>,
+    /// The modules the shards describe apart, when nothing was written: cut
+    /// them in the checkout and fold again with that cut.
+    pub disputed: Option<Disputed>,
+}
+
+/// Modules the shards cut two ways over one text, and the probes to cut them under.
+#[napi(object)]
+pub struct Disputed {
+    pub instrumentation: String,
+    pub files: Vec<String>,
 }
 
 pub(crate) struct Combined {
@@ -84,7 +95,9 @@ struct Held {
 }
 
 /// The records at `paths` folded into one record's bytes.
-pub(crate) fn combine(paths: &[String]) -> Result<Combined, String> {
+/// `cut`, a record with no tests, is the checkout's cut of the modules a fold
+/// without it named disputed.
+pub(crate) fn combine(paths: &[String], cut: Option<&[u8]>) -> Result<Combined, String> {
     let failed = |path: &str, error: std::io::Error| match error.kind() {
         std::io::ErrorKind::NotFound => format!("there is no record at {path}"),
         _ => format!("cannot read {path}: {error}"),
@@ -102,20 +115,20 @@ pub(crate) fn combine(paths: &[String]) -> Result<Combined, String> {
         file.take(prefix as u64).read_to_end(&mut bytes).map_err(|error| failed(path, error))?;
         Ok((Cow::Owned(bytes), length))
     };
-    combined(paths, load)
+    combined(paths, cut, load)
 }
 
 /// The records `named`, each `(path, bytes)`, folded into one record's bytes.
 #[cfg(test)]
-pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)]) -> Result<Combined, String> {
+pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)], cut: Option<&[u8]>) -> Result<Combined, String> {
     let paths: Vec<String> = named.iter().map(|(path, _)| path.clone()).collect();
     let load = |at: usize, _: Option<usize>| Ok((Cow::Borrowed(named[at].1.as_slice()), named[at].1.len()));
-    combined(&paths, load)
+    combined(&paths, cut, load)
 }
 
 /// The records `paths` names folded, each read by `load`: whole, or its first
 /// bytes when a limit is given, with its length either way.
-fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<(Cow<'a, [u8]>, usize), String>) -> Result<Combined, String> {
+fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Option<usize>) -> Result<(Cow<'a, [u8]>, usize), String>) -> Result<Combined, String> {
     if paths.is_empty() {
         return Err("no records were named to combine".to_owned());
     }
@@ -140,7 +153,12 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
         return Err(refused);
     }
 
-    let mut fold = Fold::new(universe);
+    let cut = cut.map(record_coverage::read).transpose().map_err(|error| format!("cannot read the checkout's cut: {error}"))?;
+    let cut = match &cut {
+        Some(record) => Some(record.coverage.as_ref().ok_or("the checkout's cut holds no coverage")?),
+        None => None,
+    };
+    let mut fold = Fold::new(universe, cut)?;
     let mut starts = Starts::new();
     let mut inventories: HashMap<String, Vec<Inventory>> = HashMap::new();
     let mut held: Vec<(usize, Held)> = Vec::with_capacity(paths.len());
@@ -191,6 +209,27 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
             index,
             parts: record.parts,
         }));
+    }
+
+    let disputed = fold.disputed();
+    if !disputed.is_empty() {
+        if cut.is_some() {
+            return Err(disputed.into_iter().map(|(_, refusal)| refusal).collect::<Vec<_>>().join("\n"));
+        }
+        let disputed = Disputed { instrumentation: fold.instrumentation().unwrap_or_default().to_owned(), files: disputed.into_iter().map(|(file, _)| file).collect() };
+        let result = CombinedRecord {
+            shards: Vec::new(),
+            tests: 0,
+            modules: 0,
+            crossings: 0.0,
+            cases: None,
+            commit: None,
+            renumbered: Vec::new(),
+            read: None,
+            unchecked: Vec::new(),
+            disputed: Some(disputed),
+        };
+        return Ok(Combined { bytes: Vec::new(), result });
     }
 
     let mut columns: Vec<Column> = Vec::new();
@@ -263,6 +302,7 @@ fn combined<'a>(paths: &[String], load: impl Fn(usize, Option<usize>) -> Result<
         renumbered,
         read: starts.read().map(str::to_owned),
         unchecked: starts.unchecked().to_vec(),
+        disputed: None,
     };
     let mut shards: Vec<(usize, CombinedShard)> = held
         .into_iter()
@@ -315,14 +355,22 @@ fn fold_index(read: Vec<case_shard::Shard>, inventories: HashMap<String, Vec<Inv
     case_fold::fold(read, inventories, true)
 }
 
-/// Fold the records at `paths` and write the one record at `output`.
+/// Fold the records at `paths` and write the one record at `output`, unless
+/// the result names modules disputed: then nothing is written, and the caller
+/// folds again with `cut`, the checkout's cut of them.
 #[napi(catch_unwind)]
-pub fn combine_records(paths: Vec<String>, output: String) -> napi::Result<CombinedRecord> {
-    let combined = combine(&paths).map_err(napi::Error::from_reason)?;
-    journey_output::replace(&output, &combined.bytes).map_err(napi::Error::from_reason)?;
+pub fn combine_records(paths: Vec<String>, output: String, cut: Option<Buffer>) -> napi::Result<CombinedRecord> {
+    let combined = combine(&paths, cut.as_deref()).map_err(napi::Error::from_reason)?;
+    if combined.result.disputed.is_none() {
+        journey_output::replace(&output, &combined.bytes).map_err(napi::Error::from_reason)?;
+    }
     Ok(combined.result)
 }
 
 #[cfg(test)]
 #[path = "record_combine_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "record_combine_dispute_tests.rs"]
+mod dispute_tests;

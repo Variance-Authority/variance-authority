@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
+import { landSuite } from '../index.js';
 import { EXIT_CLEAN } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { probedModule } from './mainline-fixture.js';
@@ -68,6 +69,20 @@ describe('`variance journeys` and the project config', () => {
     expect(existsSync(record)).toBe(true);
     expect(out).toContain(`folded 2 snapshots into ${record}`);
     expect(out).toContain('the whole journal, because `--suite` reads no project config');
+  });
+
+  it('lands a sharded suite for CI with the landing summary alone, never the reading', async () => {
+    const shards = [join(root, 'a.bin'), join(root, 'b.bin')];
+    await writeTestCoverage(shards[0]!, shard(['a.test.ts']));
+    await writeTestCoverage(shards[1]!, shard(['b.test.ts']));
+
+    const said = await landSuite(root, shards, 'integration');
+
+    const record = testCoverageFile(root, { suite: 'integration' });
+    expect(existsSync(record)).toBe(true);
+    expect(said.split('\n')[0]).toBe(`folded 2 snapshots into ${record}`);
+    expect(said).not.toContain('journal');
+    expect(said.split('\n').length).toBeLessThanOrEqual(4);
   });
 
   it('without `--suite`, is read, and the reading names the report it would narrow to', async () => {

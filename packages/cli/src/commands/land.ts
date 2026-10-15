@@ -84,7 +84,7 @@ async function landCombined(
 ): Promise<LandedJourneys> {
   let combined;
   try {
-    combined = selection.combineRecords(shards, combinedAt);
+    combined = selection.combineRecords(shards, combinedAt, root);
   } catch (error) {
     throw new OperatorError(messageOf(error), { cause: error });
   }

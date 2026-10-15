@@ -4,12 +4,12 @@ use crate::journey_journal::{Test, FINISHED};
 use crate::journey_record::{Block, Module};
 use crate::record_fixture::{self as fixture, block, module, spec, test, Spec};
 
-fn named(records: &[&[u8]]) -> Vec<(String, Vec<u8>)> {
+pub(super) fn named(records: &[&[u8]]) -> Vec<(String, Vec<u8>)> {
     records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect()
 }
 
-fn combined(records: &[&[u8]]) -> Result<Combined, String> {
-    combine_bytes(&named(records))
+pub(super) fn combined(records: &[&[u8]]) -> Result<Combined, String> {
+    combine_bytes(&named(records), None)
 }
 
 fn refused(records: &[&[u8]]) -> String {
@@ -25,7 +25,7 @@ fn two() -> (Vec<u8>, Vec<u8>) {
     (fixture::write(&first), fixture::write(&second))
 }
 
-fn files(names: &[&str]) -> Vec<String> {
+pub(super) fn files(names: &[&str]) -> Vec<String> {
     names.iter().map(|name| (*name).to_owned()).collect()
 }
 
@@ -96,15 +96,6 @@ fn refuses_a_module_two_shards_built_from_different_text() {
     let one = fixture::write(&spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
     let other = fixture::write(&spec(vec![test("b.test.ts")], vec![changed]));
     assert!(refused(&[&one, &other]).contains("`src/a.ts` is different source in"));
-}
-
-#[test]
-fn refuses_a_region_two_shards_describe_differently() {
-    let mut moved = block(0, &[0]);
-    moved.start = 40;
-    let one = fixture::write(&spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
-    let other = fixture::write(&spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![moved])]));
-    assert!(refused(&[&one, &other]).contains("`src/a.ts` region 0 is described differently"));
 }
 
 #[test]
@@ -342,7 +333,7 @@ fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file(
 fn a_record_that_is_not_there_is_refused_by_name() {
     let missing = std::env::temp_dir().join(format!("variance-combine-missing-{}.bin", std::process::id()));
     let path = missing.to_string_lossy().into_owned();
-    let error = combine(&[path.clone()]).err().expect("the combine is refused");
+    let error = combine(&[path.clone()], None).err().expect("the combine is refused");
     assert_eq!(error, format!("there is no record at {path}"));
 }
 

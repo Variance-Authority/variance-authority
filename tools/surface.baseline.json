@@ -111,6 +111,7 @@
         "formatPush": "function",
         "formatReport": "function",
         "isOperatorError": "function",
+        "landSuite": "function",
         "layMainline": "function",
         "loadCollector": "function",
         "loadConfig": "function",
