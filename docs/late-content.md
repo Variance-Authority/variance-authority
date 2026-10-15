@@ -32,28 +32,29 @@ function Diagram({ source }) {
 }
 ```
 
-In the second version the same work is a promise, and the component reads it
-with `use()` under a `<Suspense>` boundary:
+In the second version a component above a `<Suspense>` boundary starts the same
+work as a promise, and the component under the boundary reads it with `use()`:
 
 ```jsx
-const rendered = new Map();
-
-function diagramOf(source) {
-  if (!rendered.has(source)) {
-    rendered.set(source, import('./render-diagram').then(({ render }) => render(source)));
-  }
-  return rendered.get(source);
+function renderDiagram(source) {
+  return import('./render-diagram').then(({ render }) => render(source));
 }
 
-function Diagram({ source }) {
-  const svg = use(diagramOf(source));
-  return <div dangerouslySetInnerHTML={{ __html: svg }} />;
+function DiagramFrame({ source }) {
+  const [diagram] = useState(() => renderDiagram(source));
+  return (
+    <Suspense fallback={<Spinner />}>
+      <Diagram diagram={diagram} />
+    </Suspense>
+  );
 }
 
-// where it is used
-<Suspense fallback={<Spinner />}>
-  <Diagram source={source} />
-</Suspense>;
+function Diagram({ diagram }) {
+  return <div dangerouslySetInnerHTML={{ __html: use(diagram) }} />;
+}
+
+// where it is used: a new source is a new frame, with a new promise
+<DiagramFrame key={source} source={source} />;
 ```
 
 Both versions show a user the same spinner and then the same diagram. A run
@@ -146,34 +147,95 @@ shown to anyone, because the diagram is never recorded.
 
 ## Put the work under Suspense
 
-The fix is to put the work where React reports it: a promise the component
-reads with `use()`, under a `<Suspense>` boundary. That is the second version
-of the diagram above. It has one rule that matters: **one promise per input,
-created outside render.** `diagramOf` keeps one promise for each `source` in a
-module-level map. A promise created inside the component body is a new promise
-on every render, and the component suspends on each new one forever.
+The fix is to put the work where React reports it: a promise that a component
+under a `<Suspense>` boundary reads with `use()`. That is the second version of
+the diagram above. It has one rule that matters: **the promise is created once
+per input, by a component above the boundary.** Where the promise lives decides
+whether it works and how long it stays in memory:
+
+- **In the component that reads it**, the promise is new on every render. React
+  keeps no state for a component that suspended before it first committed, so
+  every attempt starts the work again, and the component suspends on each new
+  promise forever.
+- **In a module-level cache**, keyed by input, the promise is created once, but
+  it lives as long as the page does. Every input ever rendered, and the result
+  it settled with, stays in memory. That holds only for a small, fixed set of
+  inputs.
+- **In the state of the component above the boundary**, the promise is created
+  once and goes when that component unmounts. `DiagramFrame` holds it, and
+  `key={source}` makes a new source a new frame with a new promise. The work
+  starts before the component that needs it renders, the pattern known as
+  render-as-you-fetch.
+
+The work can also stay in the effect, when it must not start during render: the
+frame holds a promise that is not settled yet, and the effect settles it:
+
+```jsx
+function DiagramFrame({ source }) {
+  const [diagram] = useState(() => Promise.withResolvers());
+  useEffect(() => {
+    renderDiagram(source).then(diagram.resolve, diagram.reject);
+  }, [diagram, source]);
+  return (
+    <Suspense fallback={<Spinner />}>
+      <Diagram diagram={diagram.promise} />
+    </Suspense>
+  );
+}
+
+// used the same way, keyed by source
+<DiagramFrame key={source} source={source} />;
+```
+
+That is the first version with one change: the result goes into a promise the
+boundary waits on, not into state. A promise settles once, so this frame needs
+the key as much as the state-factory frame does: without it, a new source runs
+the effect again and the old diagram stays.
+
+Both frames run the work twice in development under `<StrictMode>`, which calls
+the state factory and the effect twice and keeps one result. On a page the
+server renders, they differ:
+
+- **The state factory** runs on the server too, so the renderer has to load and
+  run there, and the browser runs the work again when it hydrates.
+- **The effect** never runs on the server, so its promise does not settle there.
+  A streaming render holds the boundary open until the server gives up on it;
+  render this frame in the browser only.
+
+Wrapping the first version in `<Suspense>` does none of this. A boundary waits
+only while something under it suspends, and an effect's spinner is a finished
+render: the boundary shows it as its content, and the run records it as before.
 
 After the change:
 
 - **The run waits for the work.** The import and the render are inside the
   promise, so the boundary shows its fallback until both are done.
+- **Work that fails reaches your error boundary.** A chunk that does not load
+  or a render that throws rejects the promise, and the nearest error boundary
+  shows its state instead of a spinner that never goes.
 - **Work that never finishes is reported.** A promise that never settles keeps
   its boundary open, and the run refuses the subject with the boundary's name
   instead of recording a spinner as your baseline.
-- **Your users see the same thing.** The boundary's fallback is the spinner the
-  effect used to render.
+- **Your users see the same thing on the first render.** The boundary's
+  fallback is the spinner the effect used to render. On a new source the keyed
+  frame shows the spinner again, where the effect kept the old diagram until the
+  new one was ready. To keep the old one, hold `{ source, promise }` in state
+  without a key, replace it when `source` changes, and read it through
+  `useDeferredValue`.
 
 `use()` is React 19. On React 18, use `React.lazy` for code, and the Suspense
 mode of your data library for data, for example `useSuspenseQuery` in TanStack
-Query. Work that is code and then computation, like the diagram, goes in the
-data library's query function as one promise. Both suspend the same way, and
-the run waits for them the same way.
+Query, with `source` in the query key. The library keeps the promise in its own
+cache, and drops an entry once no component has read it for a while, `gcTime` in
+TanStack Query. Work that is code and then computation, like the diagram, goes
+in the data library's query function as one promise. Both suspend the same way,
+and the run waits for them the same way.
 
-## When the work stays in an effect
+## When the work cannot reach a boundary
 
-Some work stays in an effect: a third-party widget that renders itself, a
-measurement of the laid-out page, a component you do not own. Then you say
-when the subject is done, or you say that the placeholder is what you review.
+Some work cannot be handed to a boundary: a third-party widget that renders
+itself, a component you do not own. Then you say when the subject is done, or
+you say that the placeholder is what you review.
 
 Do not add a sleep. A sleep is a guess about the machine. A delay that is long
 enough on your laptop is too short on a busy CI runner, and every subject that
