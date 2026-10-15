@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use napi::bindgen_prelude::{Buffer, Uint32Array};
+use napi::Either;
 use napi_derive::napi;
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
@@ -13,7 +14,7 @@ use crate::acquire::{read_all, read_git, Answer, Outcome};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::read::Kind;
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, Tsconfig};
 
 const RESOLVERS: usize = 6;
 
@@ -63,7 +64,7 @@ pub(crate) struct ScanOptions {
     pub largest_file: Option<u32>,
     pub digests: Option<bool>,
     pub readers: Option<u32>,
-    pub tsconfig: Option<String>,
+    pub tsconfig: Tsconfig,
     pub condition_names: Option<Vec<String>>,
 }
 
@@ -72,7 +73,7 @@ pub(crate) struct GraphOptions {
     pub seeds: Vec<String>,
     pub largest_file: Option<u32>,
     pub readers: Option<u32>,
-    pub tsconfig: Option<String>,
+    pub tsconfig: Tsconfig,
     pub condition_names: Option<Vec<String>>,
     pub include_parses: bool,
 }
@@ -108,7 +109,7 @@ pub fn scan_batch(
     largest_file: Option<u32>,
     digests: Option<bool>,
     readers: Option<u32>,
-    tsconfig: Option<String>,
+    tsconfig: Option<Either<String, bool>>,
     condition_names: Option<Vec<String>>,
     listed: Option<Vec<String>>,
 ) -> ScanBatch {
@@ -120,7 +121,7 @@ pub fn scan_batch(
             largest_file,
             digests,
             readers,
-            tsconfig,
+            tsconfig: Tsconfig::from_js(tsconfig),
             condition_names,
         },
         None,

@@ -63,7 +63,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
   ): NativeScanBatch;
   scanGraph(
@@ -71,7 +71,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     seeds: string[],
     largestFile?: number,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     includeParses?: boolean,
   ): NativeScanBatch;
@@ -191,7 +191,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     listed?: string[],
   ): NativeScanBatch;

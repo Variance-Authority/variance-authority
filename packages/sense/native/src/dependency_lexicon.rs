@@ -228,7 +228,7 @@ fn refresh(root: String, index: String, path: String, refreshed_at: String) -> n
             ((entry.owner.as_str(), entry.specifier.as_str()), entry.entry.as_str()))).collect();
     let carried = prior.as_ref().zip(changed.as_ref()).map(|(prior, changed)| clean::Prior::new(prior, changed));
     let owner_by_manifest: HashMap<&str, &Owner> = owners.iter().map(|owner| (owner.manifest.as_str(), owner)).collect();
-    let resolver = Resolvers::new(None, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
+    let resolver = Resolvers::new(crate::resolve::Tsconfig::Auto, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
     let parsed = DashMap::<String, Arc<OnceLock<(Api, bool)>>>::new();
     let importer_of = |manifest: &str| root_path.join(&owner_by_manifest[manifest].directory).join("__variance_dependency__.ts");
     let resolve = |manifest: &str, package: &str| {

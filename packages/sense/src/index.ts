@@ -117,6 +117,7 @@ export {
 export { layerMoves, type LayerCause, type LayerHeld, type LayerMoves, type LayerPresence } from './layer-moves.js';
 export { tierMoves, type TierCause, type TierMoves } from './tier-moves.js';
 export { declaredTiers, parseTiers, tierLabel, tierOf, TiersError, type TierPlace, type Tiers } from './tiers.js';
+export { parseTypescript, tsconfigUse, TypescriptError, type TsconfigUse } from './typescript.js';
 export {
   cappedLayers,
   cappedTiers,

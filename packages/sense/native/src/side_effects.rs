@@ -41,7 +41,7 @@ use crate::resolve::Resolvers;
 #[napi(catch_unwind)]
 pub fn resolve_sources(root: String, file: String, sources: Vec<String>, listed: Option<Vec<String>>) -> Vec<String> {
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
-    let resolvers = Resolvers::new(None, None);
+    let resolvers = Resolvers::new(crate::resolve::Tsconfig::Auto, None);
     // The resolver answers with the path a symlink leads to, and a repository
     // path is cut from the root that path lies under.
     let root = std::fs::canonicalize(&root).unwrap_or_else(|_| PathBuf::from(&root));

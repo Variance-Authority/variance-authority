@@ -52,6 +52,7 @@
  * is bounded by `git add`, and `digests: false` turns the whole mechanism off.
  */
 
+import { isAbsolute, relative, sep } from 'node:path';
 import type { Digest } from './digest.js';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
@@ -176,6 +177,17 @@ export async function shapeOf(input: {
 }
 
 /**
+ * How the digest names a `tsconfig` setting: `auto`, `off`, or the file from the
+ * checkout's root, so a worktree laid out alike adopts the primary checkout's
+ * records under a config the root config names.
+ */
+function tsconfigNamed(root: string, tsconfig: string | false | undefined): string {
+  if (tsconfig === undefined || tsconfig === 'auto') return 'auto';
+  if (tsconfig === false) return 'off';
+  return `file ${isAbsolute(tsconfig) ? relative(root, tsconfig).split(sep).join('/') : tsconfig}`;
+}
+
+/**
  * The configuration half of {@link shapeOf}: the digest and the aliases,
  * without the directory digests, which the addon's update derives from its own
  * listing and a caller that hands it only the digest would build for nothing.
@@ -195,7 +207,7 @@ export async function configOf(input: {
   // checkout's records wherever the two are laid out alike.
   const header = [
     `version ${VERSION}`,
-    `tsconfig ${options?.tsconfig ?? 'auto'}`,
+    `tsconfig ${tsconfigNamed(root, options?.tsconfig)}`,
     // Unnamed conditions add each governing `tsconfig`'s `customConditions`,
     // whose contents the config digest already holds; named ones are the whole
     // set, and no `tsconfig` moves them.

@@ -214,7 +214,7 @@ impl Graph {
             },
         );
         let by_file: HashMap<&str, usize> = index.iter().enumerate().map(|(at, crossing)| (crossing.file, at)).collect();
-        let resolvers = Resolvers::new(None, None);
+        let resolvers = Resolvers::new(crate::resolve::Tsconfig::Auto, None);
         let absolute = Path::new(root);
         let mut graph = Graph {
             files: Vec::new(),

@@ -117,6 +117,10 @@ describe('naming the shape of a tree', () => {
 
     expect((await shapeOf(files, { conditionNames: ['import'] })).config).not.toBe(before.config);
     expect((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config).not.toBe(before.config);
+    expect((await shapeOf(files, { tsconfig: false })).config).not.toBe(before.config);
+    // Named from the checkout, so a worktree laid out alike keeps the digest.
+    expect((await shapeOf(files, { tsconfig: `${root}/tsconfig.build.json` })).config)
+      .toBe((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config);
     // A declined record names its bytes, so a raised limit has to let it go.
     expect((await shapeOf(files, { largestFile: 8 })).config).not.toBe(before.config);
   });
