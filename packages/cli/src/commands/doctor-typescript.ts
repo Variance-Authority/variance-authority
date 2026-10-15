@@ -6,8 +6,8 @@ import { tsconfigUse, TypescriptError, type TsconfigUse } from '@variance-author
  * Whether the `tsconfig` a scan reads asks anything of a resolution.
  *
  * Every scan finds and reads the config that governs each file it opens, for
- * the conditions it adds and the `paths` it maps. A repository whose configs do
- * neither pays for that and gains no resolved import, and `typescript.tsconfig:
+ * the conditions it adds, the `paths` it maps and the `baseUrl` it resolves
+ * bare specifiers through. A repository whose configs do none of these pays for that and gains no resolved import, and `typescript.tsconfig:
  * false` in the root config stops it. The setting reaches the whole
  * repository, so the suggestion is made only when no config the listing holds
  * asks; the configs that can govern the directory doctor runs in are counted
@@ -35,15 +35,17 @@ export function formatTypescript(finding: TypescriptFinding): readonly string[] 
   if (finding.configs === undefined) {
     return [...lines, '  git gave no listing here, so no config was read'];
   }
-  const { under, configs, conditioned, mapped } = finding;
+  const { under, configs, conditioned, mapped, based } = finding;
   const governing = new Set(finding.governing ?? configs);
   const conditions = new Set(conditioned);
   const paths = new Set(mapped);
+  const bases = new Set(based);
   const asks = (file: string): readonly string[] =>
-    [conditions.has(file) ? 'customConditions' : '', paths.has(file) ? 'paths' : ''].filter(Boolean);
+    [conditions.has(file) ? 'customConditions' : '', paths.has(file) ? 'paths' : '', bases.has(file) ? 'baseUrl' : ''].filter(Boolean);
   const counted = (files: readonly string[]): string => {
-    const [adding, mapping] = [files.filter((file) => conditions.has(file)).length, files.filter((file) => paths.has(file)).length];
-    return `${adding} ${adding === 1 ? 'adds' : 'add'} conditions, ${mapping} ${mapping === 1 ? 'maps' : 'map'} paths`;
+    const [adding, mapping, basing] = [conditions, paths, bases].map((set) => files.filter((file) => set.has(file)).length);
+    return `${adding} ${adding === 1 ? 'adds' : 'add'} conditions, ${mapping} ${mapping === 1 ? 'maps' : 'map'} paths, ` +
+      `${basing} ${basing === 1 ? 'sets' : 'set'} baseUrl`;
   };
   lines.push(`  ${configs.length} tsconfig ${configs.length === 1 ? 'file' : 'files'} in the repository; ${counted(configs)}`);
   if (under !== '') lines.push(`  ${governing.size} of them can govern ${under}; ${counted([...governing])}`);

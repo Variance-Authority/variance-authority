@@ -210,7 +210,7 @@ describe('formatDiagnosis', () => {
   it('prints the typescript finding, and a warning in it moves no exit code', async () => {
     const diagnosis = {
       ...(await doctor(configOf(), probesWith([]))),
-      typescript: { declared: false as const, under: '', configs: ['tsconfig.json'], conditioned: ['tsconfig.json'], mapped: [] },
+      typescript: { declared: false as const, under: '', configs: ['tsconfig.json'], conditioned: ['tsconfig.json'], mapped: [], based: [] },
     };
 
     expect(formatDiagnosis(diagnosis)).toContain('typescript: tsconfig off\n  1 tsconfig file in the repository');

@@ -168,6 +168,7 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
       governing: ['packages/app/tsconfig.json', 'tsconfig.json'],
       conditioned: [],
       mapped: [],
+      based: [],
     });
   });
 
@@ -190,6 +191,15 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
     expect(await tsconfigUse(root)).toMatchObject({ conditioned: [], mapped: ['packages/app/tsconfig.json', 'tsconfig.base.json'] });
   });
 
+  it('names a config that sets baseUrl alone, by what it inherits, since a bare specifier resolves through it', async () => {
+    const root = await workspace({
+      'tsconfig.base.json': JSON.stringify({ compilerOptions: { baseUrl: 'src' } }),
+      'packages/app/tsconfig.json': '{ "extends": "../../tsconfig.base.json" }',
+    });
+
+    expect(await tsconfigUse(root)).toMatchObject({ mapped: [], based: ['packages/app/tsconfig.json', 'tsconfig.base.json'] });
+  });
+
   it('reads what the listing holds, so not an ignored config, and names the declared config from the root', async () => {
     const root = await workspace({ 'tsconfig.app.json': WITHOUT, 'variance.config.json': declaring({ tsconfig: 'tsconfig.app.json' }) });
     await writeFile(join(root, '.gitignore'), 'tsconfig.json\n');
@@ -202,6 +212,7 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
       governing: ['tsconfig.app.json'],
       conditioned: [],
       mapped: [],
+      based: [],
     });
   });
 
@@ -227,7 +238,7 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
     roots.push(root);
     await writeFile(join(root, 'tsconfig.json'), WITH);
 
-    expect(await tsconfigUse(root)).toEqual({ declared: undefined, under: '', conditioned: [], mapped: [] });
+    expect(await tsconfigUse(root)).toEqual({ declared: undefined, under: '', conditioned: [], mapped: [], based: [] });
   });
 
   it('says false when the root config turns the tsconfig off', async () => {

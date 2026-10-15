@@ -190,7 +190,7 @@
             { "type": "string", "minLength": 1 }
           ],
           "default": "auto",
-          "description": "The `tsconfig` whose `paths` and `customConditions` decide where an import lands in every scan. `\"auto\"` reads the nearest config that owns each file. A path from the repository root, such as `tsconfig.app.json`, reads that config and the projects it references. `false` reads no `tsconfig`: imports resolve through `package.json` alone, which suits a repository whose packages export the files they hold, or one with no TypeScript. `variance doctor` says when no `tsconfig` in the repository names `customConditions` or `paths`."
+          "description": "The `tsconfig` whose `paths` and `customConditions` decide where an import lands in every scan. `\"auto\"` reads the nearest config that owns each file. A path from the repository root, such as `tsconfig.app.json`, reads that config and the projects it references. `false` reads no `tsconfig`: imports resolve through `package.json` alone, which suits a repository whose packages export the files they hold, or one with no TypeScript. `variance doctor` says when no `tsconfig` in the repository names `customConditions`, `paths` or `baseUrl`."
         }
       },
       "description": "How scans read TypeScript's configuration. Read only from the variance.config.json at the repository root."

@@ -102,6 +102,7 @@ export interface TsconfigUse {
   readonly governing?: readonly string[];
   readonly conditioned: readonly string[];
   readonly mapped: readonly string[];
+  readonly based: readonly string[];
 }
 
 /**
@@ -114,8 +115,9 @@ export interface TsconfigUse {
  * it, so the ones that can govern the directory asked are named apart: a
  * monorepo holds products whose configs ask for different things. Every path is
  * from the repository root, slash-separated. A config is `conditioned` when it
- * adds a condition, and `mapped` when it maps `paths`, either of its own or by
- * what it extends. One that cannot be read is listed in `configs` and in
+ * adds a condition, `mapped` when it maps `paths`, and `based` when it sets
+ * `baseUrl`, through which a bare specifier resolves with no `paths` at all;
+ * each of its own or by what it extends. One that cannot be read is listed in `configs` and in
  * neither. `configs` is absent where git gives no listing, where nothing says which
  * configs are the repository's.
  */
@@ -125,7 +127,7 @@ export async function tsconfigUse(from: string): Promise<TsconfigUse> {
   const declared = typeof named === 'string' && named !== 'auto' ? fromRoot(top, named) : named;
   const under = fromRoot(top, resolve(from));
   const tree = await gitTreeOf(top);
-  if (tree === undefined) return { declared, under, conditioned: [], mapped: [] };
+  if (tree === undefined) return { declared, under, conditioned: [], mapped: [], based: [] };
   const configs = [...tree.named([])];
   const read = declaredOptionsReader();
   const options = configs.map((file) => ({ file, options: read(join(top, file)) }));
@@ -136,6 +138,7 @@ export async function tsconfigUse(from: string): Promise<TsconfigUse> {
     governing: configs.filter((file) => governs(file, under)),
     conditioned: options.filter(({ options }) => (options?.conditions.length ?? 0) > 0).map(({ file }) => file),
     mapped: options.filter(({ options }) => options?.paths === true).map(({ file }) => file),
+    based: options.filter(({ options }) => options?.baseUrl === true).map(({ file }) => file),
   };
 }
 

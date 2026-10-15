@@ -13,7 +13,7 @@ afterEach(async () => {
 
 describe('formatTypescript', () => {
   it('suggests turning the tsconfig off when no config in the repository adds a condition or maps a path', () => {
-    const text = formatTypescript({ under: '', declared: undefined, configs: ['tsconfig.json'], conditioned: [], mapped: [] }).join('\n');
+    const text = formatTypescript({ under: '', declared: undefined, configs: ['tsconfig.json'], conditioned: [], mapped: [], based: [] }).join('\n');
 
     expect(text).toContain('typescript: tsconfig auto, the default');
     expect(text).toContain('1 tsconfig file in the repository; 0 add conditions, 0 map paths');
@@ -27,6 +27,7 @@ describe('formatTypescript', () => {
       configs: ['packages/app/tsconfig.json', 'tsconfig.base.json'],
       conditioned: ['packages/app/tsconfig.json', 'tsconfig.base.json'],
       mapped: ['tsconfig.base.json'],
+      based: [],
     }).join('\n');
 
     expect(text).toContain('typescript: tsconfig auto\n');
@@ -35,8 +36,23 @@ describe('formatTypescript', () => {
     expect(text).not.toContain('"tsconfig": false');
   });
 
+  it('suggests nothing when a config resolves through baseUrl alone', () => {
+    const text = formatTypescript({
+      under: '',
+      declared: undefined,
+      configs: ['tsconfig.json'],
+      conditioned: [],
+      mapped: [],
+      based: ['tsconfig.json'],
+    }).join('\n');
+
+    expect(text).toContain('1 tsconfig file in the repository; 0 add conditions, 0 map paths, 1 sets baseUrl');
+    expect(text).toContain('  tsconfig.json: baseUrl');
+    expect(text).not.toContain('"tsconfig": false');
+  });
+
   it('warns when the tsconfig is off and a config asks for what is then not read', () => {
-    const text = formatTypescript({ under: '', declared: false, configs: ['tsconfig.json'], conditioned: ['tsconfig.json'], mapped: [] }).join('\n');
+    const text = formatTypescript({ under: '', declared: false, configs: ['tsconfig.json'], conditioned: ['tsconfig.json'], mapped: [], based: [] }).join('\n');
 
     expect(text).toContain('typescript: tsconfig off');
     expect(text).toContain('no scan reads them');
@@ -49,6 +65,7 @@ describe('formatTypescript', () => {
       configs: ['tsconfig.app.json'],
       conditioned: ['tsconfig.app.json'],
       mapped: [],
+      based: [],
     }).join('\n');
 
     expect(text).toContain('typescript: tsconfig tsconfig.app.json');
@@ -63,6 +80,7 @@ describe('formatTypescript', () => {
       governing: ['jira/tsconfig.json'],
       conditioned: [],
       mapped: ['confluence/tsconfig.json'],
+      based: [],
     }).join('\n');
 
     expect(text).toContain('2 tsconfig files in the repository; 0 add conditions, 1 maps paths');
@@ -79,6 +97,7 @@ describe('formatTypescript', () => {
       governing: ['jira/tsconfig.json'],
       conditioned: [],
       mapped: ['confluence/tsconfig.json', 'jira/tsconfig.json'],
+      based: [],
     }).join('\n');
 
     expect(text).toContain('  jira/tsconfig.json: paths\n  confluence/tsconfig.json: paths');
@@ -87,14 +106,14 @@ describe('formatTypescript', () => {
 
   it('lists ten configs and counts the rest', () => {
     const configs = Array.from({ length: 12 }, (_, i) => `p${String(i).padStart(2, '0')}/tsconfig.json`);
-    const lines = formatTypescript({ under: '', declared: undefined, configs, conditioned: [], mapped: configs });
+    const lines = formatTypescript({ under: '', declared: undefined, configs, conditioned: [], mapped: configs, based: [] });
 
     expect(lines.filter((line) => line.endsWith(': paths'))).toHaveLength(10);
     expect(lines).toContain('  and 2 more');
   });
 
   it('says no config was read where git gave no listing', () => {
-    expect(formatTypescript({ under: '', declared: undefined, conditioned: [], mapped: [] }).join('\n')).toContain('git gave no listing here');
+    expect(formatTypescript({ under: '', declared: undefined, conditioned: [], mapped: [], based: [] }).join('\n')).toContain('git gave no listing here');
   });
 
   it('prints a refused root config rather than failing the diagnosis', () => {

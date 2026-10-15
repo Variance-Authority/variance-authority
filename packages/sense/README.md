@@ -1436,8 +1436,8 @@ rather than into built output the checkout does not hold. When you pass
 `customConditions`. A call that passes no `tsconfig` takes the one
 `typescript.tsconfig` in the root `variance.config.json` names, `"auto"` when it
 names none. `await tsconfigUse(directory)` lists every config the repository
-holds, the ones that can govern that directory, and which ask for `paths` or
-conditions.
+holds, the ones that can govern that directory, and which ask for `paths`,
+`baseUrl` or conditions.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
 still joins the graph. When a workspace package's `tsconfig` names both `outDir`
