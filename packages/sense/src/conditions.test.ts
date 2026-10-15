@@ -114,7 +114,7 @@ describe('a condition only the tsconfig names', () => {
     expect(oracle(root, named)).toBe(TARGET);
   });
 
-  it('reads conditions through a self-referencing project', async () => {
+  it('reads no conditions from a project that references itself, which oxc refuses', async () => {
     const root = await workspace({
       'packages/app/tsconfig.json': JSON.stringify({
         compilerOptions: { customConditions: ['@acme/source'] },
@@ -122,10 +122,11 @@ describe('a condition only the tsconfig names', () => {
       }),
     });
 
-    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual(['@acme/source']);
+    expect(await scanned(root) ?? []).not.toContain(TARGET);
+    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual([]);
   });
 
-  it('preserves both directions of cyclic project references across queries', async () => {
+  it('answers from each side of a reference cycle, reading each side one level deep', async () => {
     const root = await workspace({
       'packages/app/tsconfig.json': JSON.stringify({
         compilerOptions: { customConditions: ['@acme/source'] },

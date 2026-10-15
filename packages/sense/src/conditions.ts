@@ -59,46 +59,48 @@ interface Chain {
  */
 export function customConditionsFor(tsconfig: string): (file: string) => readonly string[] {
   const chains = new Map<string, Chain | undefined>();
+  const projects = new Map<string, Config | undefined>();
   const configs = new Map<string, Config | undefined>();
   const nearest = new Map<string, string | undefined>();
 
+  /** One config without its references: what it is when another config references it. */
+  const project = (path: string): Config | undefined => {
+    if (projects.has(path)) return projects.get(path);
+    const chain = chainOf(path, chains, new Set());
+    const directory = dirname(path);
+    const config = chain === undefined
+      ? undefined
+      : {
+          directory,
+          files: chain.files?.map((file) => placed(directory, file)),
+          include: chain.include?.map((pattern) => placed(directory, pattern)),
+          exclude: chain.exclude?.map((pattern) => placed(directory, pattern)),
+          allowJs: chain.allowJs === true,
+          references: [],
+          conditions: chain.conditions,
+        };
+    projects.set(path, config);
+    return config;
+  };
+
+  // A governing config with the projects it references, one level deep, the way
+  // `oxc-resolver` loads them: a referenced project's own references are never
+  // read, and a config that references itself is refused.
   const load = (path: string): Config | undefined => {
     if (configs.has(path)) return configs.get(path);
-    const pending = [path];
-    const links: { references: Config[]; paths: string[] }[] = [];
-    for (let cursor = 0; cursor < pending.length; cursor++) {
-      const current = pending[cursor]!;
-      if (configs.has(current)) continue;
-      const chain = chainOf(current, chains, new Set());
-      if (chain === undefined) {
-        configs.set(current, undefined);
-        continue;
-      }
-      const directory = dirname(current);
-      const references: Config[] = [];
-      configs.set(current, {
-        directory,
-        files: chain.files?.map((file) => placed(directory, file)),
-        include: chain.include?.map((pattern) => placed(directory, pattern)),
-        exclude: chain.exclude?.map((pattern) => placed(directory, pattern)),
-        allowJs: chain.allowJs === true,
-        references,
-        conditions: chain.conditions,
-      });
-      const paths = chain.references
-        .map((reference) => configFile(normalize(join(directory, reference))))
-        .filter((found): found is string => found !== undefined);
-      links.push({ references, paths });
-      for (const found of paths) if (!configs.has(found)) pending.push(found);
-    }
-    // Wire edges after discovering nodes so cycles retain both directions.
-    for (const { references, paths } of links) {
-      for (const found of paths) {
-        const reference = configs.get(found);
-        if (reference !== undefined) references.push(reference);
-      }
-    }
-    return configs.get(path);
+    const own = project(path);
+    const paths = (chains.get(path)?.references ?? [])
+      .map((reference) => configFile(normalize(join(dirname(path), reference))));
+    const config = own === undefined || paths.includes(path)
+      ? undefined
+      : {
+          ...own,
+          references: paths
+            .map((found) => found === undefined ? undefined : project(found))
+            .filter((found): found is Config => found !== undefined),
+        };
+    configs.set(path, config);
+    return config;
   };
 
   const governing = (file: string): Config | undefined => {
