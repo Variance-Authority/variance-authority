@@ -693,6 +693,8 @@ public final class Coverage {
     out.words("blocks.loadedSet", loadedSet);
     out.add("sets.blob", sets.bytes(), 1);
     out.words("sets.off", sets.offsets());
+    // FIXME: a JVM shard cannot name the record its skip list came from, so two shards
+    // that selected from two records still combine as one start.
     out.add("run.base", NO_BASE.getBytes(StandardCharsets.UTF_8), 1);
     return out.bytes();
   }
