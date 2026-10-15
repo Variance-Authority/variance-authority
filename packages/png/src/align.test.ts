@@ -180,10 +180,11 @@ describe('content that moved down the page', () => {
   });
 
   it('compares a page whose stretches nest as deep as it is long', () => {
-    // Each pass finds one row that occurs once on each side, and the stretch
-    // after it still holds an edit past one search, until 12,000 passes in:
+    // Each pass finds one run that occurs once on each side, and the stretch
+    // after it still holds an edit past one search, for 12,000 passes:
     // 2,1,3,2,4,3,… against 1,2,3,…, over 3,000 rows that differ throughout.
-    // Followed pass by pass, this outgrew the call stack.
+    // Followed to the bottom, this outgrew the call stack; the work bound stops
+    // the split a few dozen passes in and compares the rest by position.
     const depth = 12_000;
     const before = distinct([...range(1, depth + 1).flatMap((k) => [k + 1, k]), ...range(0, 3000).map((i) => 30_000 + (i % 2))]);
     const after = distinct([...range(1, depth + 1), ...range(0, 3000).map((i) => 40_000 + (i % 2))]);

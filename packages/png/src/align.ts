@@ -30,7 +30,8 @@ import { edits, type Edit } from './edit-script.js';
  * and the lines it reflowed further down came to 3,031 runs on a 28,519-row
  * page. Past `limit` the search stops and the columns are split at runs each
  * side holds once ({@link edits}), so the rows an edit only moved still pair,
- * and a stretch that shares no such run is one band weighed against position.
+ * and a stretch that shares no such run, or that the split reaches after
+ * spending its work bound, is compared by position within it.
  *
  * Only whole rows are matched. Content that moves in one column beside a column
  * that stays put does not move whole rows, and is compared where it sits.
