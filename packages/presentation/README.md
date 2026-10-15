@@ -284,7 +284,7 @@ reading.
 | --- | --- |
 | `subjectId`, `title` | Name the sensed boundary in the returned report. Defaults to `presentation` with no title. |
 | `fonts` | Font identities you established for this capture. The report returns them, and a substitution changes `report.digest` while `report.contentDigest` stays the same. |
-| `suspense` | `{ timeoutMs }` for settling React boundaries before reading. |
+| `suspense` | `{ timeoutMs }`, the bound on React Suspense boundaries under the subject. A boundary still pending at the bound rejects the call and names the subject. |
 | `stabilize` | Replaces the default stabilization recipe. |
 | `paint` | `true`, or a list of the layers above. |
 | `accessibility` | The browser-computed ARIA snapshot read beside this capture. The report keeps it as an independent semantic reading and it covers `report.contentDigest`. Leave it out only when nothing observed it. |
