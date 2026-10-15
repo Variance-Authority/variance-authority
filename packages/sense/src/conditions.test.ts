@@ -114,6 +114,36 @@ describe('a condition only the tsconfig names', () => {
     expect(oracle(root, named)).toBe(TARGET);
   });
 
+  it('reads conditions through a self-referencing project', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '.' }],
+      }),
+    });
+
+    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual(['@acme/source']);
+  });
+
+  it('preserves both directions of cyclic project references across queries', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '../lib' }],
+      }),
+      'packages/lib/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/lib-source'] },
+        references: [{ path: '../app' }],
+      }),
+    });
+    for (const entry of ['app', 'lib']) {
+      const conditions = customConditionsFor(join(root, `packages/${entry}/tsconfig.json`));
+      expect(conditions(join(root, IMPORTER))).toEqual(['@acme/source']);
+      expect(conditions(join(root, TARGET))).toEqual(['@acme/lib-source']);
+      expect(conditions(join(root, IMPORTER))).toEqual(['@acme/source']);
+    }
+  });
+
   it('keeps conditions a caller names as the whole set', async () => {
     const root = await workspace({ 'tsconfig.json': WITH });
     const named = { conditionNames: ['import', 'default'] };

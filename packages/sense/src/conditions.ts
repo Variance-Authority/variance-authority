@@ -64,24 +64,41 @@ export function customConditionsFor(tsconfig: string): (file: string) => readonl
 
   const load = (path: string): Config | undefined => {
     if (configs.has(path)) return configs.get(path);
-    const chain = chainOf(path, chains, new Set());
-    const directory = dirname(path);
-    const config = chain === undefined
-      ? undefined
-      : {
-          directory,
-          files: chain.files?.map((file) => placed(directory, file)),
-          include: chain.include?.map((pattern) => placed(directory, pattern)),
-          exclude: chain.exclude?.map((pattern) => placed(directory, pattern)),
-          allowJs: chain.allowJs === true,
-          references: chain.references
-            .map((reference) => configFile(normalize(join(directory, reference))))
-            .map((found) => found === undefined ? undefined : load(found))
-            .filter((found): found is Config => found !== undefined),
-          conditions: chain.conditions,
-        };
-    configs.set(path, config);
-    return config;
+    const pending = [path];
+    const links: { references: Config[]; paths: string[] }[] = [];
+    for (let cursor = 0; cursor < pending.length; cursor++) {
+      const current = pending[cursor]!;
+      if (configs.has(current)) continue;
+      const chain = chainOf(current, chains, new Set());
+      if (chain === undefined) {
+        configs.set(current, undefined);
+        continue;
+      }
+      const directory = dirname(current);
+      const references: Config[] = [];
+      configs.set(current, {
+        directory,
+        files: chain.files?.map((file) => placed(directory, file)),
+        include: chain.include?.map((pattern) => placed(directory, pattern)),
+        exclude: chain.exclude?.map((pattern) => placed(directory, pattern)),
+        allowJs: chain.allowJs === true,
+        references,
+        conditions: chain.conditions,
+      });
+      const paths = chain.references
+        .map((reference) => configFile(normalize(join(directory, reference))))
+        .filter((found): found is string => found !== undefined);
+      links.push({ references, paths });
+      for (const found of paths) if (!configs.has(found)) pending.push(found);
+    }
+    // Wire edges after discovering nodes so cycles retain both directions.
+    for (const { references, paths } of links) {
+      for (const found of paths) {
+        const reference = configs.get(found);
+        if (reference !== undefined) references.push(reference);
+      }
+    }
+    return configs.get(path);
   };
 
   const governing = (file: string): Config | undefined => {
