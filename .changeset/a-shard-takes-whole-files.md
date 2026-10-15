@@ -18,7 +18,8 @@ A file several projects run, or `repeatEach` repeats, goes with all its copies
 to one shard; setup and teardown projects are not placed, and a project with no
 file in the shard is left out whole. Playwright runs a setup project in every
 shard that needs it, so combining the shards' records refuses its files as run
-by two shards. `PWTEST_SHARD_WEIGHTS` has no effect under the placement.
+by two shards. `PWTEST_SHARD_WEIGHTS` is ignored for placement, though
+Playwright still validates it.
 
 This needs Playwright 1.62 or newer. `withTestSelection` refuses a run that asks
 for a shard, by `--shard` or by `shard` in the configuration, when the
@@ -26,8 +27,11 @@ configuration is evaluated, before any test starts: on an older Playwright with
 `variance-authority: refusing shard k/n: Playwright <version> would split it
 test by test, …; placing whole files needs Playwright 1.62 or newer`, and when
 a `--reporter` on the command line replaces the configuration's reporters
-without naming `@variance-authority/playwright-test/reporter`. A run with no
-shard runs as before.
+without naming `@variance-authority/playwright-test/reporter`, by that
+specifier or by a path that resolves to it. The version is the one the
+configuration's directory resolves, from `-c`/`--config` or the working
+directory. A configuration that names the reporter without `withTestSelection`
+is not refused. A run with no shard runs as before.
 
 When the record has no times, or none for the files collected, a Vitest, Jest
 or Playwright shard prices every file the same and places them by the same

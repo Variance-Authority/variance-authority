@@ -25,8 +25,10 @@
  * costs a file write it would have spent on the merge anyway.
  *
  * Under `--shard k/n` it also places the shard, by whole files
- * (`whole-file-shard.ts`), and turns Playwright's own split off; below
- * Playwright 1.62, which cannot, it refuses the run.
+ * (`whole-file-shard.ts`), and turns Playwright's own split off. Below
+ * Playwright 1.62 nothing calls `preprocess`, so Playwright's split runs:
+ * `withTestSelection` refuses such a run when the configuration is evaluated,
+ * and a configuration that names this reporter without it is not refused.
  */
 
 import type { Reporter } from '@playwright/test/reporter';

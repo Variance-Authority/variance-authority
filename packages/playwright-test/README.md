@@ -616,15 +616,22 @@ Three things decide whether the placement runs:
   whose `--reporter` does not name `@variance-authority/playwright-test/reporter`
   is refused the same way. Name it there too, as in
   `--reporter=dot,@variance-authority/playwright-test/reporter`, or name extra
-  reporters in the configuration. A tool that starts Playwright through its API
+  reporters in the configuration. A path that resolves to the reporter, as
+  Playwright resolves `--reporter` from the working directory, names it too.
+  A tool that starts Playwright through its API
   and replaces the reporters is not seen: the shard is then split by
   Playwright, test by test, with no line.
 - **`--shard` is on the command line or `shard` in the configuration.** Without
   either, the reporter places nothing.
 
-`PWTEST_SHARD_WEIGHTS` has no effect under the placement: Playwright reads the
-weights only in its own split, which the placement turns off. The recorded
-times are what weigh each shard.
+`PWTEST_SHARD_WEIGHTS` is ignored for placement: Playwright applies the weights
+only in its own split, which the placement turns off, and the recorded times
+weigh each shard. Playwright still validates the variable as it reads the
+command line, and refuses a weight that is not a non-negative number.
+
+A configuration that names `@variance-authority/playwright-test/reporter` in
+`reporter` itself, without `withTestSelection`, is not refused below
+Playwright 1.62, and Playwright splits its shards test by test.
 
 ### Record which spec line reached each region
 
