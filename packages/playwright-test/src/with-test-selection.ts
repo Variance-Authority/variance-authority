@@ -23,9 +23,9 @@
  * Playwright folds once — so it is added once, at the top.
  */
 
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, sep } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
 import { shardArgument } from '@variance-authority/sense/test-selection';
@@ -114,20 +114,53 @@ export function withTestSelection<Config extends PlaywrightSelectionConfig>(
 
 /**
  * Throw when this run asks for a shard nothing would place by whole files: a
- * Playwright with no `preprocess`, which the project at the cwd resolves, or a
- * `--reporter` that leaves the selection reporter out.
+ * Playwright with no `preprocess`, which the configuration's directory
+ * resolves, or a `--reporter` that leaves the selection reporter out.
  */
 function refuseShard(configured: PlaywrightShard | null | undefined): void {
   const argv = process.argv;
   const asked = shardArgument(argv);
   const shard = asked === undefined ? configured ?? undefined : { current: asked.index, total: asked.count };
   if (shard === undefined) return;
-  const old = shardRefusal(installedPlaywright(process.cwd()), shard);
+  const old = shardRefusal(installedPlaywright(configDirectory(argv)), shard);
   if (old !== undefined) throw new Error(old);
   const reporters = reporterArgument(argv);
-  if (reporters === undefined || reporters.includes(SELECTION_REPORTER)) return;
+  if (reporters === undefined || reporters.some(isSelectionReporter)) return;
   throw new Error(
     `variance-authority: refusing shard ${shard.current}/${shard.total}: --reporter ${reporters.join(',')} replaces the configuration's reporters, ` +
       `so ${SELECTION_REPORTER}, which places the shard by whole files, would not run; name it in --reporter too`,
   );
+}
+
+/**
+ * The directory of the configuration Playwright loads: `-c`/`--config`
+ * resolved from the cwd, a file's directory or the directory named, and the
+ * cwd when neither is given — where Playwright looks for one.
+ */
+function configDirectory(argv: readonly string[]): string {
+  let named: string | undefined;
+  for (const [at, argument] of argv.entries()) {
+    if (argument === '-c' || argument === '--config') named = argv[at + 1];
+    else if (argument.startsWith('--config=')) named = argument.slice('--config='.length);
+  }
+  if (named === undefined) return process.cwd();
+  const at = resolve(process.cwd(), named);
+  return existsSync(at) && statSync(at).isDirectory() ? at : dirname(at);
+}
+
+/**
+ * Whether a `--reporter` name is the selection reporter, resolved as
+ * Playwright resolves a command line's reporter: a path that exists from the
+ * cwd, else a module from the cwd.
+ */
+function isSelectionReporter(name: string): boolean {
+  if (name === SELECTION_REPORTER) return true;
+  const own = realpathSync(createRequire(import.meta.url).resolve(SELECTION_REPORTER));
+  const local = resolve(process.cwd(), name);
+  try {
+    const at = existsSync(local) ? local : createRequire(resolve(process.cwd(), 'package.json')).resolve(name);
+    return realpathSync(at) === own;
+  } catch {
+    return false;
+  }
 }

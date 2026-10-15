@@ -4,7 +4,8 @@
 
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { relative, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SELECTION_REPORTER, withTestSelection } from './with-test-selection.js';
 
@@ -104,14 +105,26 @@ describe('a configuration evaluated for a shard', () => {
     await Promise.all(projects.splice(0).map((path) => rm(path, { recursive: true, force: true })));
   });
 
-  /** Evaluate the wrapper as `playwright test <argv>` would, from a project that installed Playwright `version`. */
-  async function evaluated(version: string, argv: readonly string[], config: Record<string, unknown> = {}) {
-    const project = await mkdtemp(resolve(tmpdir(), 'variance-playwright-project-'));
-    projects.push(project);
-    const installed = resolve(project, 'node_modules/@playwright/test');
+  /** A package at `at` that installed Playwright `version`. */
+  async function installing(at: string, version: string): Promise<void> {
+    const installed = resolve(at, 'node_modules/@playwright/test');
     await mkdir(installed, { recursive: true });
     await writeFile(resolve(installed, 'package.json'), JSON.stringify({ name: '@playwright/test', version }));
-    await writeFile(resolve(project, 'package.json'), '{}');
+    await writeFile(resolve(at, 'package.json'), '{}');
+  }
+
+  /**
+   * Evaluate the wrapper as `playwright test <argv>` would, from a project that
+   * installed Playwright `version`, and whose `app` package installed `app`'s.
+   */
+  async function evaluated(version: string, argv: readonly string[], config: Record<string, unknown> = {}, app?: string) {
+    const project = await mkdtemp(resolve(tmpdir(), 'variance-playwright-project-'));
+    projects.push(project);
+    await installing(project, version);
+    if (app !== undefined) {
+      await installing(resolve(project, 'app'), app);
+      await writeFile(resolve(project, 'app/playwright.config.ts'), 'export default {};');
+    }
     vi.spyOn(process, 'cwd').mockReturnValue(project);
     vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test', ...argv]);
     return () => withTestSelection(config);
@@ -142,5 +155,20 @@ describe('a configuration evaluated for a shard', () => {
     );
     expect(await evaluated('1.62.1', ['--shard', '1/2', '--reporter', `dot,${SELECTION_REPORTER}`])).not.toThrow();
     expect(await evaluated('1.62.1', ['--reporter', 'dot'])).not.toThrow();
+  });
+
+  it('reads the Playwright the configuration\'s own package installed, not the one at the cwd', async () => {
+    expect(await evaluated('1.62.1', ['-c', 'app/playwright.config.ts', '--shard', '1/2'], {}, '1.55.0')).toThrow(refusal);
+    expect(await evaluated('1.62.1', ['--config=app', '--shard', '1/2'], {}, '1.55.0')).toThrow(refusal);
+    expect(await evaluated('1.55.0', ['--config', 'app', '--shard', '1/2'], {}, '1.62.1')).not.toThrow();
+  });
+
+  it('keeps a --reporter that names the selection reporter by its path, as Playwright resolves it from the cwd', async () => {
+    const reporter = createRequire(import.meta.url).resolve(SELECTION_REPORTER);
+    expect(await evaluated('1.62.1', ['--shard', '1/2', '--reporter', `dot,${reporter}`])).not.toThrow();
+    const project = await evaluated('1.62.1', []);
+    const from = process.cwd();
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test', '--shard', '1/2', `--reporter=./${relative(from, reporter)}`]);
+    expect(project).not.toThrow();
   });
 });
