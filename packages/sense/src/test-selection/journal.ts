@@ -16,8 +16,9 @@
  * Three parts, and each is somebody's:
  *
  * 1. **The plugin** ({@link testSelectionProbes}, next door in `probes.ts` with
- *    the rest of the build half) belongs in the adopter's own build — a
- *    Storybook `viteFinal`, an application dev server. It instruments
+ *    the rest of the build half) belongs in the adopter's own build — an
+ *    application's `vite.config.ts` or dev server; a Storybook takes it through
+ *    the `@variance-authority/storybook-collector` addon. It instruments
  *    product source and hoists a collector in front of it. Its probes report the
  *    file and the digest of the text they were placed on, and nothing else is
  *    written down.
@@ -86,6 +87,12 @@ export {
   type InstrumentingPlugin,
   type TestSelectionProbeOptions,
 } from './probes.js';
+export {
+  testSelectionRule,
+  type ProbesLoaderOptions,
+  type TestSelectionRule,
+  type TestSelectionRuleOptions,
+} from './probes-rule.js';
 
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };
@@ -93,6 +100,9 @@ export { moduleId } from './captured-modules.js';
 
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
+
+/** Where the probes go: after the project's transforms, or ahead of them. */
+export type { ProbePlacement } from './instrumented-modules.js';
 
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's

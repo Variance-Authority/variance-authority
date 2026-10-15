@@ -8,7 +8,7 @@
 
 use napi::bindgen_prelude::{Buffer, Uint32Array};
 use napi_derive::napi;
-use variance_sense_instrument::native::{cut, header};
+use variance_sense_instrument::native::{cut, header, place, Cut};
 
 /// One module's instrumentation, as columns: one entry per block, in ordinal order.
 #[napi(object)]
@@ -27,6 +27,8 @@ pub struct Instrumented {
     pub names: Vec<String>,
     pub paths: Vec<String>,
     pub digests: Vec<String>,
+    /// Whether `code` imports or exports: a script takes the collector by `require`.
+    pub module: bool,
 }
 
 /// `instrument()` from `src/instrument/index.ts`, or `null` where it must answer.
@@ -39,6 +41,44 @@ pub fn instrument_module(source: String, file: String, entries: bool, module: Op
     if let Some(module) = module {
         out.code.insert_str(out.header_byte, &header(&module, out.blocks.len()));
     }
+    Some(columns(out))
+}
+
+/// `instrumentTransformed()` from `src/instrument/index.ts`: the regions of
+/// `authored`, their probes placed in `transformed` through `mappings`, the
+/// composed map from it to its sources, of which `authored` is number `source`.
+#[napi(object)]
+pub struct Placed {
+    pub instrumented: Instrumented,
+    /// The map from `instrumented.code` back to `transformed`.
+    pub mappings: String,
+    /// With `carry`, the composed map moved onto `instrumented.code`, its
+    /// sources and names as they were; `null` without it.
+    pub carried: Option<String>,
+}
+
+/// `null` when either text does not parse.
+#[napi(js_name = "place", catch_unwind)]
+#[allow(clippy::too_many_arguments)]
+pub fn place_module(
+    authored: String,
+    transformed: String,
+    file: String,
+    mappings: String,
+    source: u32,
+    entries: bool,
+    module: String,
+    carry: bool,
+) -> Option<Placed> {
+    let placed = place(&authored, &transformed, &file, &mappings, source, &module, entries, carry)?;
+    Some(Placed {
+        instrumented: columns(placed.cut),
+        mappings: placed.mappings,
+        carried: placed.carried,
+    })
+}
+
+fn columns(out: Cut) -> Instrumented {
     let count = out.blocks.len();
     let (mut kinds, mut owners, mut starts, mut ends) =
         (Vec::with_capacity(count), Vec::with_capacity(count), Vec::with_capacity(count), Vec::with_capacity(count));
@@ -51,7 +91,7 @@ pub fn instrument_module(source: String, file: String, entries: bool, module: Op
         names.push(block.name);
         paths.push(block.path);
     }
-    Some(Instrumented {
+    Instrumented {
         code: out.code,
         header_at: out.header_at,
         source_digest: out.source_digest,
@@ -62,7 +102,8 @@ pub fn instrument_module(source: String, file: String, entries: bool, module: Op
         names,
         paths,
         digests: out.digests,
-    })
+        module: out.module,
+    }
 }
 
 /// The header one module carries, for a caller that writes a module by hand.
