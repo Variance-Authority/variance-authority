@@ -43,13 +43,12 @@ Every page `sitemap.xml` lists is a subject of the `site` check in
 `.github/workflows/variance.yml`, read from the build `yarn start` serves:
 `variance.config.json` here, and the collector in `variance/routes.mjs`. A page
 added to `NAVIGATION` is watched without an edit there. The check builds with
-`yarn build --mode unminified`: the production build with nothing minified, so
-a change names the client component that wrote it, `NavigationLinks`, and not a
-minified `wo`. A server component leaves no name in a production build, so a
-change inside one is named by the nearest client component above it. To run the
-check against your own build, build it that way, start the server and, from the
-repository root, run the line below. `yarn deploy` uploads whatever `dist/`
-holds, so build again without `--mode unminified` before you deploy.
+`yarn build --mode unminified`: the production build with its script left
+unminified, so a change names the client component that wrote it,
+`NavigationLinks`, and not a minified `wo`. A server component leaves no name
+in a production build, so a change inside one is named by the nearest client
+component above it. To run the check against your own build, build it that
+way, start the server and, from the repository root, run the line below.
 
 ```bash
 node packages/cli/dist/bin.js run --config site/variance.config.json

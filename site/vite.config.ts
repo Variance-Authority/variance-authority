@@ -29,9 +29,10 @@ async function probes(): Promise<Plugin[]> {
 
 /**
  * `--mode unminified` builds the site the `site` check photographs: the
- * production build with nothing minified, so a change is attributed to the
- * client component that wrote it under its source name rather than a minified
- * `wo`. React stays on its production build, which is what the deploy paints.
+ * production build with its script unminified, so a change is attributed to
+ * the client component that wrote it under its source name rather than a
+ * minified `wo`. React stays on its production build, which is what the
+ * deploy paints.
  */
 function unminified(mode: string): Plugin[] {
   if (mode !== "unminified") return [];
@@ -39,7 +40,9 @@ function unminified(mode: string): Plugin[] {
     {
       name: "site:unminified-build",
       enforce: "post",
-      configEnvironment: () => ({ build: { minify: false } }),
+      // `cssMinify` follows `minify` unless it is set, and the stylesheet the
+      // deploy serves is minified, so only the script is left as written.
+      configEnvironment: () => ({ build: { minify: false, cssMinify: true } }),
     },
   ];
 }
