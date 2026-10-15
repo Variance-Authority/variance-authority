@@ -2,6 +2,7 @@
 '@variance-authority/png': minor
 '@variance-authority/raster': minor
 '@variance-authority/observe': minor
+'@variance-authority/core': minor
 '@variance-authority/playwright-test': patch
 ---
 
@@ -17,9 +18,15 @@ section, and the content it pushed down matches. A pairing is kept only when it
 leaves fewer pixels differing than position does, a row it leaves unpaired
 charged in full, so a line that changed in place is not shifted against its
 neighbours. The rows a gap grew by are inserted, as the rows it lost are
-removed, so a button whose padding grew has a region where it grew. Images of different widths, or an
-edit longer than 2,000 runs of rows, are compared position by position on the
-union box, as before.
+removed, so a button whose padding grew has a region where it grew. Images of
+different widths, or an edit longer than 2,000 runs of rows, are compared
+position by position on the union box, as before.
+
+An inserted row is marked edge to edge, since nothing says where its content
+begins, so a region inside one is joined by its rows rather than its area: to
+the tightest box whose rows span it. `attributeRegions` takes the inserted rows
+as `inserted`. Joined by area, every such band went to the subject's root, and
+a card whose button grew named the card rather than the button.
 
 `RasterComparison.alignment` carries the pairing as `RowAlignment`: the after
 rows `inserted`, the before rows `removed` with the after row they left from,

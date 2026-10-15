@@ -300,6 +300,7 @@ export async function decide(
       : attributeRegions(isolation.regions, options.snapshot, {
           scale: after.identity.deviceScaleFactor,
           before: left,
+          ...(comparison.alignment === undefined ? {} : { inserted: comparison.alignment.inserted }),
         })
   ).map((attributed) => {
     const fingerprint = prints.get(attributed.region);
