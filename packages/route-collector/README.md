@@ -348,7 +348,9 @@ reads React's own record of each root on, above or under the selected roots,
 the `Document` included, and waits until every one has committed: while React
 has work it can do or effects to run, and, while it is stuck on a promise or
 no root is there yet, for as long as anything the page requested is still
-arriving. No clock ends the wait. A route
+arriving. On a page React has not loaded on, only a script still arriving
+counts, because only a script brings a renderer, so a long poll on a page
+React does not render holds nothing. No clock ends the wait. A route
 React stops hydrating with nothing left arriving is refused at once, as a route
 still showing a Suspense fallback is: an effect that runs after
 hydration can paint a different image, so the same route would record one image

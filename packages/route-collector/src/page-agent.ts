@@ -14,7 +14,7 @@ import {
   digestPass,
   wiringOf,
 } from '@variance-authority/react';
-import type { CommitTap, HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
+import type { AwaitedArrival, CommitTap, HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
 import { stepClock } from '@variance-authority/core/format';
 import type { PageRegion, RawCapture, RenderDocument, Step, Viewport } from '@variance-authority/core/format';
 
@@ -196,13 +196,13 @@ function rootOf(selectors: readonly string[]): Element {
  * question is asked once it has, so that a request a task was about to send
  * has been sent.
  */
-function outstandingFor(arrival: string | undefined): { outstanding?: () => Promise<boolean> } {
+function outstandingFor(arrival: string | undefined): { outstanding?: (of: AwaitedArrival) => Promise<boolean> } {
   const ask = arrival === undefined ? undefined : (globalThis as unknown as Record<string, unknown>)[arrival];
   if (typeof ask !== 'function') return {};
   return {
-    outstanding: async () => {
+    outstanding: async (of) => {
       await idle();
-      if (!(await (ask as () => Promise<boolean>)())) return false;
+      if (!(await (ask as (of: AwaitedArrival) => Promise<boolean>)(of))) return false;
       await idle();
       return true;
     },

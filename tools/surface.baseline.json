@@ -2059,6 +2059,7 @@
     "names": {
       ".": {
         "ANONYMOUS": "const",
+        "AwaitedArrival": "type",
         "Commit": "interface",
         "CommitTap": "interface",
         "CommitUpdater": "interface",

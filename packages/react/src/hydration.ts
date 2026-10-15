@@ -92,9 +92,18 @@ export interface HydrationWaitOptions {
    * Whatever settles any of those arrives from outside React, and this is the
    * caller saying whether anything still is. Without it, such a subject is read
    * as it stands.
+   *
+   * `of` is what can settle it. A promise can be on any request — a chunk, a
+   * payload, a long poll — so a root React has is asked about `'any'`. A page
+   * the tap saw no React load on is asked about `'script'`, because only a
+   * script brings a renderer; a long poll held open on a page with no React is
+   * not something React is coming on.
    */
-  readonly outstanding?: () => Promise<boolean>;
+  readonly outstanding?: (of: AwaitedArrival) => Promise<boolean>;
 }
+
+/** What a hydration wait asks the wire about: anything the page requested, or scripts. */
+export type AwaitedArrival = 'any' | 'script';
 
 export type HydrationState =
   /** Every React root that reaches the subject had committed. Components read off it are observed. */
@@ -205,13 +214,14 @@ export async function awaitHydration(
     }
     // React can do nothing until something outside it answers. Waited for only
     // while something still might.
-    if (options.outstanding !== undefined && (await options.outstanding())) continue;
+    const unloaded = roots.size === 0 && tap !== undefined && tap.reactVersion === undefined;
+    if (options.outstanding !== undefined && (await options.outstanding(unloaded ? 'script' : 'any'))) continue;
     return {
       state: roots.size === 0 ? 'unrooted' : 'hydrating',
       roots: roots.size,
       pending,
       waitedMs: now() - started,
-      ...(roots.size === 0 && tap !== undefined && tap.reactVersion === undefined ? { loaded: false as const } : {}),
+      ...(unloaded ? { loaded: false as const } : {}),
     };
   }
 }

@@ -16,8 +16,9 @@ React had no work it could do and nothing was arriving to give it some. A slow
 route is waited for however long its responses take; a route held on a timer
 or on a promise nothing settles is refused without waiting.
 
-A route React never loaded on is read once nothing it requested is still
-arriving: the route agent taps React's commits from before the page's first
+A route React never loaded on is read once no script it requested is still
+arriving, because only a script brings a renderer, so a long poll on such a page
+holds nothing: the route agent taps React's commits from before the page's first
 script, so it knows no React came, and its `react-root-absent` warning says
 React had not loaded and suggests `wiring: false`.
 
@@ -29,9 +30,10 @@ the markup at the hydration commit and the client's around the change, and
 names the components of that root that committed after hydrating. The route is
 still read as it ended.
 
-`awaitHydration` takes `tap`, a `tapCommits` tap, and `outstanding`, a function
-that resolves `true` once something the page requested has arrived and `false`
-when nothing is in flight; without it, a root stuck on a promise is returned as
+`awaitHydration` takes `tap`, a `tapCommits` tap, and `outstanding(of)`, a
+function that resolves `true` once something the page requested has arrived and
+`false` when nothing is in flight. `of` is an `AwaitedArrival`: `'script'` when
+the tap saw no React load, so only scripts count, and `'any'` otherwise; without it, a root stuck on a promise is returned as
 `hydrating` at once. Its `timeoutMs` option is gone. Its settlement carries
 `loaded: false` when the tap saw no React load, and `changed`, a
 `MarkupChange`, when the markup moved. A `tapCommits` tap gains

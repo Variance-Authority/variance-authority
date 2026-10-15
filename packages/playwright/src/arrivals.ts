@@ -41,7 +41,8 @@ export function stillArriving(page: Page): readonly string[] {
  *
  * The page installs `globalThis[ARRIVAL_GLOBAL]`, which resolves `true` once
  * the next request in flight has finished or failed, and `false` at once when
- * none is. Asked by a page agent that is waiting on something only the outside
+ * none is. Called with `'script'`, it answers only for scripts in flight: a
+ * page waiting for a renderer to arrive is waiting on nothing else. Asked by a page agent that is waiting on something only the outside
  * can settle — a hydration suspended on a chunk or a payload, a client that has
  * not created its root — so that the wait is as long as the wire is busy and
  * not a moment longer, with no clock deciding either.
@@ -75,8 +76,9 @@ export async function watchArrivals(page: Page): Promise<void> {
   page.on('requestfinished', ended);
   page.on('requestfailed', ended);
 
-  await page.exposeFunction(ARRIVAL_GLOBAL, async (): Promise<boolean> => {
-    if (inFlight.size === 0) return false;
+  await page.exposeFunction(ARRIVAL_GLOBAL, async (of?: unknown): Promise<boolean> => {
+    const awaited = of === 'script' ? [...inFlight].some((request) => request.resourceType() === 'script') : inFlight.size > 0;
+    if (!awaited) return false;
     await new Promise<void>((resolve) => waiters.push(resolve));
     return true;
   });

@@ -156,6 +156,11 @@ const FLIP_HTML =
 const STATIC_HTML =
   '<!doctype html><html><body><main id="app"><span>early</span><p>late</p></main></body></html>';
 
+/** The same again, holding open a request the server never answers, as a chat widget's long poll does. */
+const POLLING_HTML =
+  '<!doctype html><html><body><main id="app"><span>early</span><p>late</p></main>' +
+  "<script>fetch('/poll')</script></body></html>";
+
 const PLAN: Plan = {
   subjects: [{ subject: { id: 'page/app', kind: 'route' } }],
   notObserved: [],
@@ -182,6 +187,7 @@ beforeAll(async () => {
 
   writeFileSync(join(root, 'index.html'), INDEX_HTML);
   writeFileSync(join(root, 'static.html'), STATIC_HTML);
+  writeFileSync(join(root, 'polling.html'), POLLING_HTML);
   writeFileSync(join(root, 'src', 'App.jsx'), APP);
   writeFileSync(join(root, 'src', 'main.jsx'), MAIN);
   writeFileSync(join(root, 'src', 'ready.js'), READY);
@@ -215,6 +221,7 @@ beforeAll(async () => {
             const ms = Number(query.get('ms') ?? '0');
             setTimeout(() => (query.has('drop') ? request.socket.destroy() : response.end('held')), ms);
           });
+          dev.middlewares.use('/poll', () => {});
           dev.middlewares.use('/events', (_request, response) => {
             response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
             response.write('data: open\n\n');
@@ -366,6 +373,14 @@ describe.skipIf(!BROWSER_AVAILABLE)('reading components off a route that hydrate
     expect(codes(collected)).toEqual(['react-root-absent']);
     expect(hydrationMs(collected)).toBeLessThan(1_000);
     expect(collected.diagnostics?.[0]?.message).toMatch(/React had not loaded on page\/app once nothing the page requested was still arriving/);
+  }, 120_000);
+
+  it('reads a route React never loaded on beside a request that never ends', async () => {
+    // Only a script brings React; a long poll on a page without it is not one.
+    const collected = await read(`${base}polling.html`);
+
+    expect(codes(collected)).toEqual(['react-root-absent']);
+    expect(hydrationMs(collected)).toBeLessThan(1_000);
   }, 120_000);
 
   it('says when hydration changed the markup the server sent', async () => {

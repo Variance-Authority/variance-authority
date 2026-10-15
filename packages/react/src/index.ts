@@ -71,7 +71,13 @@ export type {
 } from './arrival.js';
 export { awaitSuspense, suspenseRefusal } from './arrival.js';
 
-export type { HydrationSettlement, HydrationState, HydrationWaitOptions, MarkupChange } from './hydration.js';
+export type {
+  AwaitedArrival,
+  HydrationSettlement,
+  HydrationState,
+  HydrationWaitOptions,
+  MarkupChange,
+} from './hydration.js';
 export { awaitHydration } from './hydration.js';
 
 export type {

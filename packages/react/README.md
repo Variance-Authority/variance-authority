@@ -283,7 +283,9 @@ reaches past the component that rendered the node.
   resolves once the root commits. `awaitHydration` waits for that commit for
   as long as React has work it can do; stuck on a promise, or with no root yet,
   it waits only while its `outstanding` option says something is still arriving,
-  and otherwise returns at once. No clock decides either. Given `tap`, a
+  and otherwise returns at once. It asks `outstanding('script')` when the tap saw
+  no React load, because only a script brings a renderer, and
+  `outstanding('any')` otherwise. No clock decides either. Given `tap`, a
   `tapCommits` tap installed before React loaded, it also waits for the effects
   of a root's commits, says `loaded: false` of a page React never loaded on, and
   reports the markup that changed after the hydration commit — the tap copies it

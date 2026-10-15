@@ -142,6 +142,7 @@ once you need it.
 | stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
 | record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
 | skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+| read no components on a site React does not render | `wiring: false` | [hydration, before anything is read](#hydration-before-anything-is-read) |
 
 ## Before your first run
 
@@ -847,41 +848,47 @@ route collector reads that component off React's tree in the page. A
 server-rendered route is complete on screen before React owns it: until React
 commits the root the route belongs to, there is no component to read, and
 neither `load` nor a settled network says when that commit happens. So the
-collector reads a route once React has hydrated it, waits only while React or
-the page can still get there, and refuses a route that cannot.
+collector waits for React to hydrate a route for as long as React or the page
+can still get it there. A root React cannot finish is refused. A route with no
+root is read without its components.
 
 No clock decides how long that is. React's own record does, and the wire:
 
-- While a root has a render React can do, or a commit has effects React has not
-  run yet, the collector waits for React. A route React has already committed
-  is read as soon as its effects have run.
-- While no React root is there yet, the collector waits for as long as anything
-  the page requested is still arriving: a client is a script, and a script is a
-  request. It watches React's commits from before the page's first script, so a
-  route nothing more is arriving on and no `react-dom` loaded on is read then,
-  with a warning that React did not load.
-- While React is stuck on a promise — a chunk, a payload — the collector waits
-  for as long as anything the page requested is still arriving, however long
-  that takes. A request that stays open, such as a long poll, keeps the wait
-  open for as long as it stays open, and one that never closes holds the route
-  with it, and a run that ends while the route waits names the request. An
-  event stream, a WebSocket or a playing video is not counted: it is a channel,
-  not a response anything waits on. Nor is a font or an image: React waits on
-  neither, and the font and asset waits below name the one that never answers.
-  A request that fails has stopped arriving.
-- When React is stuck and nothing is arriving, the route is refused at once,
-  counting the roots that had not committed. The collector watches what the
-  page receives, not what it schedules, so a promise a timer settles is refused
-  too, even when the timer would fire a moment later.
+- **React has work.** While a root has a render React can do, or a commit has
+  effects React has not run yet, the collector waits for React. A route React
+  has already committed is read as soon as its effects have run.
+- **React is stuck on a promise.** While React waits on a chunk or a payload,
+  the collector waits for as long as anything the page requested is still
+  arriving, however long that takes. A request that fails has stopped arriving.
+- **Nothing is arriving.** When React is stuck and nothing is arriving, the
+  route is refused at once, counting the roots that had not committed. The
+  collector watches what the page receives, not what it schedules, so a promise
+  a timer settles is refused too, even when the timer would fire a moment
+  later.
+- **React has loaded and has no root yet.** The collector waits for as long as
+  anything the page requested is still arriving: the client that creates the
+  root may be waiting on it. Once nothing is arriving, the route is read with a
+  `react-root-absent` warning.
+- **React has not loaded.** The collector waits only for scripts still
+  arriving, because only a script brings a renderer. It watches React's commits
+  from before the page's first script, so it knows when none has loaded. Once
+  no script is arriving, the route is read with a `react-root-absent` warning.
+- **Not counted.** An event stream, a WebSocket or a playing video is a
+  channel, not a response anything waits on. A font or an image is not counted
+  either: React waits on neither, and
+  [`wait-for-fonts` and `wait-for-images`](#what-runs-and-what-it-absorbs) name
+  the one that never answers.
 
-A refusal means the first render React hydrates, the shell, read a promise
-outside any `<Suspense>` that the wire does not settle: one a timer settles, one
-whose request failed, or one that never settles. Settle a timer's promise from
-the request it stands in for, and let a failed request reject, so an error
-boundary renders its error instead of the shell waiting on it. Or move the read
-under a `<Suspense>` boundary, whose fallback the next section's wait handles.
-When React renders none of your routes, set `wiring: false`: the collector then
-reads no components, waits for nothing and says nothing.
+A request that stays open, such as a long poll, counts while React is stuck or
+has loaded without a root. The collector cannot tell it apart from the response
+React waits on, so one that never closes holds the route until your test
+runner's timeout or the job's stops the run, and that failure names the request.
+Open the long poll from an effect: an effect runs after the root commits, so the
+request opens once nothing waits on the wire. The
+[asset wait](#waiting-on-what-was-actually-requested) does the opposite and
+reads a page past a long poll. There, the markup is final and only a late image
+is missing. Here, the markup on screen is the server's, and the render that
+replaces it has not happened.
 
 A route refused uncommitted is refused for the reason an open Suspense boundary
 is: the image is not the one the route settles on. The markup the server sent is
@@ -899,6 +906,25 @@ the server's markup is not recorded in its place. Find the promise the first
 render holds on.
 ```
 
+A refusal means the first render React hydrates, the shell, read a promise
+outside any `<Suspense>` that the wire does not settle: one a timer settles, one
+whose request failed, or one that never settles. Settle a timer's promise from
+the request it stands in for, and let a failed request reject, so an error
+boundary renders its error instead of the shell waiting on it. Or move the read
+under a `<Suspense>` boundary, whose fallback the next section's wait handles.
+`loading` and `suspenseTimeoutMs` do not apply here: they decide what a
+fallback means, and a root that has not committed has no boundary React has
+finished reading. The one setting that skips this wait is `wiring: false`,
+which reads no components either.
+
+A route where no root is found is collected, not refused, with a
+`react-root-absent` `warn` diagnostic on that subject, which the report
+carries. No component could have been read there: either React does not render
+it, or its client never created a root, and the warning says which, and is how
+you tell that apart from a node no component rendered. When React renders none
+of your routes, set `wiring: false`: the collector then reads no components,
+waits for nothing and says nothing.
+
 A route that hydrates is read twice: its markup as React's hydration commit
 found it, copied in that commit, and again once React has nothing left to do.
 The copy is taken at the commit rather than when the collector looked, so a
@@ -915,19 +941,11 @@ server's page first. Render the same markup on the server, or move the
 difference into a client-only component.
 ```
 
-What the hydration commit itself writes is already in the copy. A mismatch React
-recovers from by rendering on the client, and a layout effect that writes the
-DOM, compare as no change; React reports a mismatch itself, through
+The copy is taken once the hydration commit has written the DOM, so what that
+commit writes compares as no change. Two cases are missed that way: a mismatch
+React recovers from by rendering the root on the client, and a layout effect
+that writes the DOM. React reports the mismatch itself, through
 `onRecoverableError`.
-
-A route where no root is found is collected, not refused, with a
-`react-root-absent` `warn` diagnostic on that subject, which the report
-carries. A client that loaded React but has not created its root is waited for
-while the page is still receiving, as a stuck root is; when nothing more
-arrives, the route is collected with this warning. No component could have been
-read there: either React does not render it, or its client never created a
-root, and the warning says which, and is how you tell that apart from a node no
-component rendered.
 
 The roots read are every root on the subject, above it up to the `Document`,
 under it, and behind a portal the subject renders through. No component is read

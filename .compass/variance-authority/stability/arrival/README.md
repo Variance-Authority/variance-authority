@@ -66,7 +66,8 @@ A wait needs a reason, and every reason is React's record or the wire's. A
 root with a render React can do, or a commit whose effects have not run, is
 waited for; a root stuck on a promise, or a page with no root yet, is waited
 for while a request is arriving, and then refused or read with
-`react-root-absent`. Hydration is compared: the tap copies the markup in the
+`react-root-absent`. A page the tap saw no React load on waits only on a script
+arriving, the one request that can bring a renderer. Hydration is compared: the tap copies the markup in the
 hydration commit, and it is compared with the markup once React has nothing
 left to do, so the answer does not depend on how fast the machine reached it. A
 difference is reported as `hydration-changed-markup`, naming the components of

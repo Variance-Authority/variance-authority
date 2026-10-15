@@ -141,18 +141,19 @@ describe('waiting for React to hydrate the subject', () => {
    */
   it('stops at once on a suspended shell when nothing is arriving to settle it', async () => {
     const page = await hydrating();
-    let asked = 0;
+    const asked: string[] = [];
 
     const settled = await awaitHydration(subjectOf(page.container), {
       pollMs: 4,
-      outstanding: async () => {
-        asked += 1;
+      outstanding: async (of) => {
+        asked.push(of);
         return false;
       },
     });
 
     expect(settled).toMatchObject({ state: 'hydrating', roots: 1, pending: 1 });
-    expect(asked).toBe(1);
+    // The promise can be on any request: a chunk, a payload, a long poll.
+    expect(asked).toEqual(['any']);
     expect(settled.waitedMs).toBeLessThan(20);
   });
 
@@ -378,18 +379,20 @@ describe('waiting for React to hydrate the subject', () => {
     // The tap's own answer on such a page; React has loaded in this one.
     const unloaded = { ...tap, attached: true, reactVersion: undefined } as CommitTap;
 
-    let asked = 0;
+    const asked: string[] = [];
     const settled = await awaitHydration(plain, {
       pollMs: 4,
       tap: unloaded,
-      outstanding: async () => {
-        asked += 1;
+      outstanding: async (of) => {
+        asked.push(of);
         return false;
       },
     });
 
     expect(settled).toMatchObject({ state: 'unrooted', roots: 0, pending: 0, loaded: false });
-    expect(asked).toBe(1);
+    // Only a script brings a renderer: a request of any other kind, a long poll
+    // held open, is not one the page needs for React to arrive.
+    expect(asked).toEqual(['script']);
   });
 
   it('follows a renderer still arriving to the root it hydrates', async () => {
@@ -407,10 +410,12 @@ describe('waiting for React to hydrate the subject', () => {
       },
     } as CommitTap;
 
+    const asked: string[] = [];
     const settled = await awaitHydration(subjectOf(container), {
       pollMs: 4,
       tap: late,
-      outstanding: async () => {
+      outstanding: async (of) => {
+        asked.push(of);
         if (loaded) return false;
         loaded = true;
         roots.push(hydrateRoot(container, h(App, { ready: held.ready })));
@@ -422,6 +427,7 @@ describe('waiting for React to hydrate the subject', () => {
 
     expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
     expect(settled.loaded).toBeUndefined();
+    expect(asked).toEqual(['script']);
   });
 
   it('reports nothing when the markup a wait began on is the markup it ended on', async () => {
