@@ -164,8 +164,8 @@ exclude it. The case records a baseline for the story, then drives
 `variance run --flakes` for it. Whatever the verdict, the run reports the story
 `[unstable]`. The explanation depends on the second reading. When it completes,
 the explanation says the two readings differ and names `Clock` in `src/ds.jsx` as
-the component that wrote the text. When it does not settle before the readiness
-timeout, the explanation says the story root was still changing and the subject
+the component that wrote the text. When Storybook does not report the second
+render, the explanation names the missing `storyRendered` and says the subject
 cannot be taken twice. The run exits **1** — something needs a decision. A
 following `variance accept` refuses the candidate, because there are two readings and
 neither may become the baseline, and prints:
