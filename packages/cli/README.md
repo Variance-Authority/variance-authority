@@ -2391,10 +2391,14 @@ owns its own collector, renderer, storage, or review surface:
   read. `mainlineRead` and `mainlineMissed` print the same `record of
   "<suite>":` line `select` does. The mainline's record is read with the runs
   record the publishing run carried beside it, at `mainline.runs`. In a fresh CI
-  checkout, `layMainline` copies the record and its per-case index into the
-  checkout's own layer, with that runs record as a seed that lists no run, so
-  the run the job makes lands on them, as a cache restore would. `env` stands in
-  for `process.env` when the line is read, and `cacheRoot` for the cache.
+  checkout, `layMainline(root, mainline, instrumentation)` copies the record and
+  its per-case index into the checkout's own layer, with that runs record as a
+  seed that lists no run, so the run the job makes lands on them, as a cache
+  restore would. `instrumentation` is the probes that run records under: a
+  record written under other probes is not copied, because no run could be laid
+  over it, and comes back as `passed`, which `mainlinePassedOver` prints. Pass
+  `undefined` for a landing that lays no coverage. `env` stands in for
+  `process.env` when the line is read, and `cacheRoot` for the cache.
 - `recordedExecutionFile(root, suite)` names the record `distill`, `covering`
   and `review` read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,
