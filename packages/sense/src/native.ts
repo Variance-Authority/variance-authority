@@ -229,8 +229,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   moduleReferences?(file: string, text: string): NativeModuleReferences | null;
   /**
    * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
-   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).
-   * `tsconfig` is the one the scan that built the graph resolved under ([`typescript.ts`](./typescript.ts)).
+   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /**
