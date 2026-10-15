@@ -1611,6 +1611,7 @@
         "ImageSize": "interface",
         "NetworkObservation": "interface",
         "NetworkOptions": "interface",
+        "UnansweredAssets": "class",
         "WidthPlanned": "interface",
         "acquireFromAgent": "function",
         "blankKey": "function",

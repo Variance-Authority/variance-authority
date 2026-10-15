@@ -1,7 +1,7 @@
 import { stepClock } from '@variance-authority/core/format';
 import type { Page } from 'playwright';
 import { describe, expect, it } from 'vitest';
-import { acquireFromAgent } from './acquire.js';
+import { UnansweredAssets, acquireFromAgent } from './acquire.js';
 import { watchArrivals } from './arrivals.js';
 import type { NetworkObservation } from './network.js';
 
@@ -77,6 +77,19 @@ describe('acquiring over an asset map that is still filling', () => {
     await acquireFromAgent(pageRecording(sent), wire, { subjectId: 'route/x' });
 
     expect(sent).toHaveLength(2);
+  });
+
+  it('refuses with its own error when an asset the read asked for never arrives', async () => {
+    // Its own type, so a collector can refuse that subject and go on to the next.
+    const wire = {
+      assets: {},
+      settle: async () => '1 image, font or media request had no answer: below.png',
+    } as unknown as NetworkObservation;
+
+    const reading = acquireFromAgent(pageRecording([]), wire, { subjectId: 'route/x' });
+
+    await expect(reading).rejects.toBeInstanceOf(UnansweredAssets);
+    await expect(reading).rejects.toThrow(/below\.png/);
   });
 
   it('reads once when the wire never moved', async () => {

@@ -108,9 +108,10 @@ it. How the wait reads React's tree, and the message in full, are in
 
 The run does not wait for a script or a `fetch` response requested after the
 document has loaded. The route and Storybook collectors also hold the read until
-the requests the page made are answered, but that network wait counts only
-images, fonts and media, and a script or a response still in flight when the
-subject is read is neither waited for nor reported
+the images, fonts and media the page requested are answered, and refuse the
+subject, naming the URL, when one is still open as the wait runs out. A script
+or a response still in flight when the subject is read is neither waited for
+nor reported
 ([below](#what-the-run-does-not-see-work-an-effect-starts)). A `React.lazy`
 chunk is still waited for, through its boundary.
 
