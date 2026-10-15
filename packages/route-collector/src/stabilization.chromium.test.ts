@@ -353,10 +353,39 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animation in flight, observed twice', ()
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe leaves waiting', () => {
-  it('refuses a route whose web font never answers, naming the font, instead of hanging', async () => {
+  it('refuses a route whose web font never answers, naming its URL, instead of hanging', async () => {
     const BOUND_MS = 40_000;
     const collector: Collector = await (
       await routeCollector({ routes: { 'page/late-font': `${base}/late-font` }, roots: ['#app'] })
+    )({
+      config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' }, fonts: [] },
+      plan: { subjects: [{ subject: { id: 'page/late-font', kind: 'route' } }], notObserved: [], warnings: [] },
+    });
+
+    try {
+      // A throw is as good an answer as a refusal, provided it names the cause.
+      const collecting = collector
+        .collect({ subject: { id: 'page/late-font', kind: 'route' } })
+        .catch((error: unknown) => ({ ok: false, because: String(error) }));
+      const outcome = await Promise.race([
+        collecting,
+        new Promise((resolve) => setTimeout(() => resolve(`still collecting after ${BOUND_MS}ms`), BOUND_MS)),
+      ]);
+
+      // Named by the URL that never answered. The wire sees both requests before
+      // the font trick's own bound would, and its default bound is what this
+      // test pays.
+      expect(outcome).toMatchObject({ ok: false, because: expect.stringMatching(/no answer.*\/stalled\.woff2/) });
+      expect(outcome).toMatchObject({ because: expect.stringMatching(/\/imported\.woff2/) });
+    } finally {
+      await collector.close();
+    }
+  }, 60_000);
+
+  it('refuses a route whose web font never answers, naming the font, with the wire off', async () => {
+    const BOUND_MS = 40_000;
+    const collector: Collector = await (
+      await routeCollector({ routes: { 'page/late-font': `${base}/late-font` }, roots: ['#app'], network: false })
     )({
       config: { viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' }, fonts: [] },
       plan: { subjects: [{ subject: { id: 'page/late-font', kind: 'route' } }], notObserved: [], warnings: [] },

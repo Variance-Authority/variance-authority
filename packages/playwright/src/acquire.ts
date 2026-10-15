@@ -98,7 +98,8 @@ export async function acquireFromAgent<Request extends object>(
     return first;
   }
 
-  await aside.time('network', async () => network.settle());
+  const unanswered = await aside.time('network', async () => network.settle());
+  if (unanswered !== undefined) throw new Error(unanswered);
   const settled = observed();
 
   if (sameAssets(sent, settled)) {

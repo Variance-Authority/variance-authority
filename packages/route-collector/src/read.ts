@@ -159,7 +159,13 @@ export async function readRoute(
   // and an image requested by a script that ran on `load` is still in flight —
   // which the page cannot see (it is not in `document.images` yet) and the wire
   // can.
-  if (network !== undefined) await steps.time('network', async () => network.settle());
+  // One still unanswered at the bound refuses the route, named.
+  const unanswered =
+    network === undefined ? undefined : await steps.time('network', async () => network.settle());
+  if (unanswered !== undefined) {
+    await noted(false);
+    return { ok: false, because: unanswered };
+  }
 
   await steps.time('agent', async () => world.ensureAgent());
 

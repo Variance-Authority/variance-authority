@@ -175,14 +175,15 @@ export interface NetworkObservation {
   closure(): ResourceClosure;
 
   /**
-   * Resolve when no image, font or media request is in flight, or report which are.
+   * Resolve when no image, font or media request is in flight, or say which are.
    *
-   * Never throws on timeout. A page with a long-poll open would otherwise fail a
-   * run for being a normal page, so the outstanding URLs become a diagnostic and
-   * the subject is read anyway — and the diagnostic is on the record, which is
-   * what the reader of a surprising diff needs.
+   * Resolves `undefined` once the last one is answered. At `timeoutMs` with any
+   * still open it resolves the refusal instead, naming them: a subject read
+   * without its image records bytes nobody hashed, and the caller refuses it
+   * rather than read it. Only asset requests are counted, so a long-poll or a
+   * streaming fetch never holds it open.
    */
-  settle(timeoutMs?: number): Promise<void>;
+  settle(timeoutMs?: number): Promise<string | undefined>;
 
   /**
    * Forget what has been observed, for the page that is about to be loaded.
@@ -435,8 +436,8 @@ export async function observeNetwork(
     });
   }
 
-  async function settle(timeoutMs = DEFAULT_SETTLE_MS): Promise<void> {
-    if (inFlight.size === 0) return;
+  async function settle(timeoutMs = DEFAULT_SETTLE_MS): Promise<string | undefined> {
+    if (inFlight.size === 0) return undefined;
 
     const outstanding = await new Promise<readonly string[]>((resolve) => {
       const timer = setTimeout(() => resolve([...inFlight]), timeoutMs);
@@ -447,15 +448,17 @@ export async function observeNetwork(
     });
 
     idle = undefined;
-    if (outstanding.length === 0) return;
+    if (outstanding.length === 0) return undefined;
 
-    diagnostics.push({
-      severity: 'warn',
-      code: 'network-not-quiet',
-      message:
-        `${outstanding.length} request(s) were still in flight after ${timeoutMs}ms and the ` +
-        `subject was read anyway: ${outstanding.slice(0, 5).join(', ')}`,
-    });
+    const requests =
+      outstanding.length === 1
+        ? '1 image, font or media request'
+        : `${outstanding.length} image, font or media requests`;
+    return (
+      `${requests} had no answer after ${timeoutMs}ms, so the subject was not read: ` +
+      `${outstanding.slice(0, 5).join(', ')}` +
+      (outstanding.length > 5 ? ` and ${outstanding.length - 5} more` : '')
+    );
   }
 
   function noteRouteFailure(url: string) {

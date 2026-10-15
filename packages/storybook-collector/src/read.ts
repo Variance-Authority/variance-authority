@@ -101,9 +101,13 @@ export async function readStory(
 
   // After the story has mounted and before it is read. A story whose image is
   // still in flight is a story whose bytes nobody hashed, and the wait is the
-  // driver's because the page cannot see its own requests. Never a failure: a
-  // page that keeps fetching is reported, not refused.
-  await network?.settle();
+  // driver's because the page cannot see its own requests. One still unanswered
+  // at the bound refuses the story, named.
+  const unanswered = await network?.settle();
+  if (unanswered !== undefined) {
+    await recorder?.note(page, planned.subject.id, false);
+    return { ok: false, because: unanswered };
+  }
 
   // Either form matches. A subject is `story:case-surface--x` and a story is
   // `case-surface--x`, and `ready` above is keyed by the second — so a
