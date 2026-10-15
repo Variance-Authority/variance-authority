@@ -71,8 +71,9 @@ export default function MermaidDiagram({ source }: { source: string }) {
 
         // Mermaid sizes each box by laying its label out under <body> in the
         // font above, once. A face still loading is laid out as its fallback,
-        // and the boxes keep that size after Inter swaps in.
-        await document.fonts.load("1em Inter");
+        // and the boxes keep that size after Inter swaps in. A face that
+        // fails to load is measured as the fallback it is shown in.
+        await document.fonts.load("1em Inter").catch(() => undefined);
 
         // A vertical chart stacks its value axis in the height, and at
         // 150px the tick labels overlap and the axis title is cut. It is set
