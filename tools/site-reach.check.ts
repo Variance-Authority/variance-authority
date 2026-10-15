@@ -6,8 +6,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { changedBy, siteReach } from './site-reach.mjs';
 
 /**
- * The `site` check photographs every route the site's sitemap lists, which
- * takes about twenty minutes. Some pull requests cannot change one pixel of
+ * The `site` check photographs the site's catalog and component pages, which
+ * takes long enough to be worth skipping. Some pull requests cannot change one pixel of
  * it: a spec, a test, an example, the review service. Those finish the check
  * once the install and the build have, and every other one runs it as before.
  *
@@ -33,8 +33,6 @@ beforeAll(() => {
 describe('what reaches the site', () => {
   it.each([
     ['its own source', 'site/app/layout.tsx'],
-    ['a README a site page imports as text', 'packages/cli/README.md'],
-    ['a docs page a site page imports as text', 'docs/across-dimensions.md'],
     ['a package the run loads', 'packages/core/src/judge/scope.ts'],
     ['a package the site imports', 'packages/route-collector/src/read.ts'],
     ['what decides which routes are photographed', 'packages/route-collector/src/sitemap.ts'],
@@ -55,6 +53,11 @@ describe('what reaches the site', () => {
 
   it.each([
     ['a spec', 'docs/specs/0091-a-suite-is-selected-by-a-machine.md'],
+    // The pages that render these are prose, and leave the photographed set by
+    // marking themselves excluded; the catalog pages that quote a lead are
+    // photographed on `main`'s run, which every change reaches.
+    ['a README a site page imports as text', 'packages/cli/README.md'],
+    ['a docs page a site page imports as text', 'docs/across-dimensions.md'],
     ['a test of a package the run loads', 'packages/core/src/judge/ignore.test.ts'],
     ['a fixture of a package the run loads', 'packages/package/src/__fixtures__/workspace/package.json'],
     ['a package nothing in the run loads', 'packages/tribunal/src/index.ts'],

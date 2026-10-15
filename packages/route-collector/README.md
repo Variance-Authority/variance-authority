@@ -290,6 +290,26 @@ subject should be something somebody signs off. A sitemap index is not followed:
 its own `<loc>` values are treated as pages, and links on pages are never
 crawled.
 
+## Leave a page out
+
+A sitemap lists every page a site publishes, and not every page is one you
+review as pixels: a long article, a changelog, a generated reference. Such a
+page changes on every prose edit and can be tens of thousands of pixels tall.
+Mark it on the page itself, with the reason as the value:
+
+```html
+<article data-variance-exclude="a markdown document: its change is reviewed as text">
+```
+
+The attribute can sit on any element of the document, inside the roots or not,
+and it applies to the whole page. Put it in the component that renders the kind
+of page — the layout every article uses — and a page added later leaves the run
+with no edit to the collector. The collector navigates, waits for `ready`, sees
+the attribute, and reads and photographs nothing. The run lists the page as
+`excluded`, with the reason the page gave, beside the subjects the plan left
+out; an excluded page never sends a run to review. A page that drops the
+attribute is photographed on the next run.
+
 ## Observe responsive layouts
 
 Use `widths` when each route must be evaluated at more than one breakpoint:
@@ -519,6 +539,10 @@ console.log(routesFrom(xml));
   what you intend to review.
 - **Every route changes with shared chrome:** tighten `roots`; `body` explicitly
   includes headers, navigation, and overlays.
+- **A page is refused as too large to photograph:** a subject longer than 16,384
+  device pixels on either side is never captured and never clipped; the run
+  records it as failed, with its size. Bound it with tighter `roots`, or
+  [leave the page out](#leave-a-page-out).
 - **Component names have no source lines:** configure `source.dirs` and preserve
   component names in the production bundle. That resolves a name to where the
   component is *declared* — one line however many times the component renders.

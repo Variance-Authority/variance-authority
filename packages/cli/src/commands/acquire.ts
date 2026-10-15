@@ -78,7 +78,10 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
       started = elapsed?.();
       return lane.collector.collect(planned);
     });
-    if (!collected.ok) return input.passed(index, { subject: id, kind: 'failed', because: collected.because });
+    if (!collected.ok) {
+      const kind = collected.excluded === true ? 'excluded' : 'failed';
+      return input.passed(index, { subject: id, kind, because: collected.because });
+    }
 
     // On the clock `started` was read from. The collector's steps first, under
     // its own name: it timed them on its own clock, and only their durations

@@ -26,6 +26,13 @@ import type { RouteWorld } from './world.js';
 
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 
+/**
+ * The attribute a page carries to leave the run, its value the reason. A page
+ * knows it is prose, or a redirect, or a printout; a list in the config would
+ * have to learn it again for every page added.
+ */
+const EXCLUDE_ATTRIBUTE = 'data-variance-exclude';
+
 export interface RouteReading {
   readonly config: CollectorConfig;
   readonly options: RouteCollectorOptions;
@@ -152,6 +159,23 @@ export async function readRoute(
         `the route did not become ready at ${url}` +
         (readyFor(id) === undefined ? '' : ` (waiting for ${readyFor(id)})`) +
         `: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  // After readiness, so a marker a client render attaches has arrived, and
+  // before anything is read or photographed: a page that leaves the run costs
+  // its navigation and nothing more. Read anywhere in the document, not inside
+  // the roots, because the page decides for the whole page.
+  const exclusion = await page.evaluate(
+    (attribute) => document.querySelector(`[${attribute}]`)?.getAttribute(attribute)?.trim() ?? null,
+    EXCLUDE_ATTRIBUTE,
+  );
+  if (exclusion !== null) {
+    await noted(false);
+    return {
+      ok: false,
+      excluded: true,
+      because: `the page excludes itself (\`${EXCLUDE_ATTRIBUTE}\`)${exclusion === '' ? '' : `: ${exclusion}`}`,
     };
   }
 

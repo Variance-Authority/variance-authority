@@ -197,6 +197,18 @@ approved image the plan did not contain — but you learn about it from a run
 rather than from a review. Keep the explicit `routes` form for a suite where
 removing a subject should be something somebody signs off.
 
+A sitemap also lists pages you do not review as pixels: articles, changelogs,
+generated references, which change with every prose edit and run to tens of
+thousands of pixels tall. Leave such a page out from the page itself, with
+`data-variance-exclude="<reason>"` on any element; put it in the layout every
+article shares and each new article is left out too. The run names every page
+it left out, with that reason, and never fails on one. A subject longer than
+16,384 device pixels on either side is never photographed or clipped: the run
+records it as failed with its size, so you bound it with `roots` or leave the
+page out; the
+[route collector's reference](../packages/route-collector/README.md#leave-a-page-out)
+has the details.
+
 ## Routes that will not hold still
 
 Two different things go wrong here, and they fail at different points.

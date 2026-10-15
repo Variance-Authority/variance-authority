@@ -2,18 +2,21 @@
 //
 // Whether a pull request can change what the `site` check photographs.
 //
-// The check builds `site/`, serves it, and photographs every route its sitemap
-// lists, which takes about twenty minutes and is the slowest check a pull
-// request waits for. A change reaches it in one of three ways, and the first two
-// are read out of this checkout rather than listed here, so a page that starts
-// importing another README, or a package the CLI starts depending on, is in
-// reach the moment it is committed:
+// The check builds `site/`, serves it, and photographs the routes its sitemap
+// lists that do not exclude themselves: the catalog and component pages, since
+// every markdown page carries `data-variance-exclude`. It is the slowest check
+// a pull request waits for. A change reaches it in one of three ways, and the
+// first two are read out of this checkout rather than listed here, so a site
+// module that starts importing a package, or a package the CLI starts
+// depending on, is in reach the moment it is committed:
 //
 // - **What the site is built from**: everything under `site/`, and every file
 //   the published source index says a file there reaches. That is the file graph
-//   every other reach question here walks (`affectedBy`), and it is how `docs/`
-//   and the packages' READMEs come in, as `?raw` text, and how the routes
-//   collector and what it imports come in. A site module the reader could not
+//   every other reach question here walks (`affectedBy`), and it is how the
+//   routes collector and what it imports come in. `docs/` and the packages'
+//   READMEs reach it too, as `?raw` text, and do not count: the pages that
+//   render them are excluded, and the catalog pages that quote a lead are
+//   photographed on `main`'s push run. A site module the reader could not
 //   enumerate every import of is a change nobody can read, and runs.
 // - **What photographs it**: the workspace packages the run loads, which are
 //   the one holding the runner (`VARIANCE_RUNNER`, the command the variance
@@ -192,7 +195,9 @@ export async function siteReach(root, changed, runner) {
   for (const file of changed) {
     if (file.startsWith('site/')) return { observe: true, because: `\`${file}\` is the site's own.` };
     const reached = affectedBy(relations, [file]).files;
-    const page = reached.filter((path) => path.startsWith('site/')).sort()[0];
+    // Markdown is text a page shows, and the pages that show it whole leave the
+    // photographed set by excluding themselves.
+    const page = file.endsWith('.md') ? undefined : reached.filter((path) => path.startsWith('site/')).sort()[0];
     if (page !== undefined) return { observe: true, because: `\`${page}\` reaches \`${file}\`.` };
     const owner = owners.find(([, { dir }]) => file.startsWith(`${dir}/`));
     if (owner) {

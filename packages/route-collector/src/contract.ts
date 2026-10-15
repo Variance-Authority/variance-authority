@@ -129,7 +129,16 @@ export type Collected =
       /** How long each step of this reading took, in the order they ran. */
       readonly steps?: readonly Step[];
     }
-  | { readonly ok: false; readonly because: string };
+  | {
+      readonly ok: false;
+      /**
+       * The page marked itself out of the run with `data-variance-exclude`.
+       * A decision, not a defect: the run names it and does not fail on it.
+       * Absent is a failure.
+       */
+      readonly excluded?: true;
+      readonly because: string;
+    };
 
 export interface CollectorContext {
   readonly config: CollectorConfig;

@@ -167,7 +167,17 @@ export type Collected =
        */
       readonly steps?: readonly Step[];
     }
-  | { readonly ok: false; readonly because: string };
+  | {
+      readonly ok: false;
+      /**
+       * The subject left the run by its own decision, which a collector learns
+       * only once it reads it — a page that marks itself excluded. The run
+       * records it as `excluded`, beside the subjects the plan left out, and
+       * does not send the run to review for it. Absent is a failure.
+       */
+      readonly excluded?: true;
+      readonly because: string;
+    };
 
 /**
  * The half of a run this package cannot write.

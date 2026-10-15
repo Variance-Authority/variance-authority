@@ -89,7 +89,11 @@ export default function MarkdownDocument({
   const body = blocks.join("\n\n");
 
   return (
-    <div className="doc-copy" {...reads(sourcePath)}>
+    <div
+      className="doc-copy"
+      {...reads(sourcePath)}
+      data-variance-exclude="a markdown document: its change is reviewed as text, not as pixels"
+    >
       <Markdown
         rehypePlugins={[rehypeRaw]}
         remarkPlugins={[remarkGfm]}
