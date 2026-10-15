@@ -86,11 +86,26 @@ describe('the sequencer that drops what a selection may skip', () => {
       selection: async () => selection(['a.test.ts']),
       say: () => {},
     });
-    const sequencer = new Sequencer({ config: { root, shard: { index: 1, count: 1 } } });
+    // Vitest's own sort runs the largest file first when no results are cached.
+    const size = new Map([['b.test.ts', 1], ['c.test.ts', 3], ['d.test.ts', 2]]);
+    const cache = {
+      getFileTestResults: () => undefined,
+      getFileStats: (key: string) => ({ size: size.get(key.slice(key.indexOf(':') + 1)) ?? 0 }),
+    };
+    const sequencer = new Sequencer({ config: { root }, cache } as SequencerContext);
+    const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'].map((file) => ({ ...spec(file), project: { name: '' } }));
 
-    const part = await sequencer.shard(['a.test.ts', 'b.test.ts'].map(spec));
+    const sorted = await sequencer.sort(files);
 
-    expect(names(part)).toEqual(['b.test.ts']);
+    expect(names(sorted)).toEqual(['c.test.ts', 'd.test.ts', 'b.test.ts']);
+  });
+
+  it('hands a shard call that asks for no shard to the project\'s sequencer', async () => {
+    const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, say: () => {} });
+
+    const part = await new Sequencer(context()).shard(['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'].map(spec));
+
+    expect(names(part)).toEqual(['a.test.ts', 'b.test.ts']);
   });
 
   it('reads the selection once, however many pools and runs ask', async () => {

@@ -79,10 +79,9 @@ export interface PlaywrightShard {
 /**
  * Why a run asking for `shard` is refused under Playwright `version`, which
  * has no `preprocess` and would split the shard test by test; `undefined` when
- * the run asked for no shard or Playwright can place it.
+ * Playwright can place it.
  */
-export function shardRefusal(version: string, shard: PlaywrightShard | null | undefined): string | undefined {
-  if (shard === null || shard === undefined) return undefined;
+export function shardRefusal(version: string, shard: PlaywrightShard): string | undefined {
   const [major = 0, minor = 0] = version.split('.').map((part) => Number.parseInt(part, 10));
   if (major > 1 || (major === 1 && minor >= 62)) return undefined;
   return (

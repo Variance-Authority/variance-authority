@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { FullConfig, Suite, TestRun } from '@playwright/test/reporter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ExecutionReporter from './reporter.js';
-import { reporterArgument } from './whole-file-shard.js';
+import { installedPlaywright, reporterArgument } from './whole-file-shard.js';
 
 let root: string;
 let said: string[];
@@ -138,5 +139,12 @@ describe('the reporter that places a Playwright shard by whole files', () => {
     expect(reporterArgument(['node', 'cli.js', 'test', '--reporter', 'dot,list'])).toEqual(['dot', 'list']);
     expect(reporterArgument(['node', 'cli.js', 'test', '--reporter=dot'])).toEqual(['dot']);
     expect(reporterArgument(['node', 'cli.js', 'test'])).toBeUndefined();
+  });
+
+  it('reads the Playwright installed beside this package when the configuration\'s package resolves none', async () => {
+    await writeFile(resolve(root, 'package.json'), '{}');
+    const beside = (createRequire(import.meta.url)('@playwright/test/package.json') as { version: string }).version;
+
+    expect(installedPlaywright(root)).toBe(beside);
   });
 });
