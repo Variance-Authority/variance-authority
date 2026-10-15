@@ -3,6 +3,7 @@ import type {
   PageRegion,
   RenderDocument,
   SemanticSnapshot,
+  Step,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
@@ -112,6 +113,9 @@ export type Collected =
        * half a person reads.
        */
       readonly stabilization?: readonly string[];
+
+      /** How long each step of this reading took, in the order they ran. */
+      readonly steps?: readonly Step[];
     }
   | { readonly ok: false; readonly because: string };
 

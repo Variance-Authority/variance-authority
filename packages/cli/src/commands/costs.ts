@@ -1,6 +1,5 @@
 import type { Config } from '../config.js';
 import { costsPath, decodeCosts, keepCostBytes, keepCosts, keptCosts, SUBJECT_COSTS_ENTRY } from './costs-entry.js';
-import { workersOf } from './lanes.js';
 import type { CliRunReport } from './run-report.js';
 import { mainlineEntry, type Here } from './share.js';
 import type { Costs } from './shard.js';
@@ -55,16 +54,18 @@ export async function mainlineCosts(
 }
 
 /**
- * The costs a run places by, read only when something is placed by them: a
- * shard's files, or the order several workers take them in. Every shard of a
- * build descends from one merge base, so every shard reads the same costs and
- * agrees on placement.
+ * The costs a run places by: a shard's files, and the order its subjects are
+ * taken in. Read at every width, because that order is also the order the
+ * re-collection budget is granted in (`budgetOf`), and one world taking files
+ * in another order than several would spend it on other subjects. Every shard
+ * of a build descends from one merge base, so every shard reads the same costs
+ * and agrees on placement. A lineage with none places by plan order.
  */
 export async function costsToPlace(
   config: Config,
-  sharded: boolean,
+  options: Here & { readonly mainline?: string } = {},
 ): Promise<{ readonly costs?: MainlineCosts }> {
-  const costs = sharded || workersOf(config) > 1 ? await mainlineCosts(config) : null;
+  const costs = await mainlineCosts(config, options);
   return costs === null ? {} : { costs };
 }
 

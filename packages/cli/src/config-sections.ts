@@ -50,6 +50,8 @@ import {
 export interface AloneConfig {
   /**
    * Subjects to re-collect, at most. Defaults to {@link DEFAULT_ALONE_LIMIT}.
+   * They are the first to change in the order the run takes its subjects, so
+   * the same ones at any `workers`.
    *
    * `0` turns the pass off, which is different from having no collector support:
    * one is a decision and the other is a missing capability, and the report

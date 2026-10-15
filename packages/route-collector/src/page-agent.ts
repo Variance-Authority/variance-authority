@@ -15,7 +15,8 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
-import type { PageRegion, RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
+import { stepClock } from '@variance-authority/core/format';
+import type { PageRegion, RawCapture, RenderDocument, Step, Viewport } from '@variance-authority/core/format';
 
 /**
  * The browser half for a route, which is the cheapest mount there is.
@@ -160,6 +161,13 @@ export interface Acquired {
    * instead of inferring a production build.
    */
   readonly hydration?: HydrationSettlement;
+
+  /**
+   * How long each step in the page took, in the order they ran: the hydration
+   * and Suspense waits, each stabilization wait by id, `frames`, and `read`.
+   * Absent from an agent older than this field.
+   */
+  readonly steps?: readonly Step[];
 }
 
 /**
@@ -181,6 +189,7 @@ function rootOf(selectors: readonly string[]): Element {
 
 export async function acquire(request: AcquireRequest): Promise<string> {
   const root = rootOf(request.roots);
+  const steps = stepClock(() => performance.now());
 
   // Before the Suspense read, because a document React has not committed into
   // holds no boundary to read: `awaitSuspense` would answer `unobserved` — the
@@ -195,7 +204,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   const hydration =
     request.wiring === false
       ? undefined
-      : await awaitHydration(root, request.hydration ?? {});
+      : await steps.time('hydration', async () => awaitHydration(root, request.hydration ?? {}));
 
   // First of everything else, because it decides what the rest of it is looking at.
   // The driver has already settled the wire, which is a different fact: a
@@ -203,20 +212,21 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   // a promise, a retry and a commit. Ahead of stabilization deliberately —
   // content that arrives late brings its own images and fonts, and a
   // `waitForImages` that ran before them waited for the skeleton's.
-  const suspense = await awaitSuspense(root, request.suspense ?? {});
+  const suspense = await steps.time('suspense', async () => awaitSuspense(root, request.suspense ?? {}));
 
   // Before anything is read, and by default. An animation in flight moves
   // `transform` and `opacity`, both of which the semantic representation
   // carries — so an unstabilized collection reports a fade as a regression with
   // a component and a file attached. See `docs/stabilization.md`.
-  const held = await stabilizeAsRequested(root.ownerDocument, request);
+  const held = await stabilizeAsRequested(root.ownerDocument, request, steps);
 
   // Narrowed to this route's own subtree, and handed to **both** keys. The
   // document's key is the one `settle` reads: a document that omitted the assets
   // would produce the digest the baseline was painted from even after a logo's
   // bytes moved, and the run would skip the render and report `unchanged` — the
   // exact false verdict hashing the bytes was added to close.
-  const assets = request.assets === undefined ? {} : assetsFor(root, request.assets);
+  const sent = request.assets;
+  const assets = sent === undefined ? {} : await steps.time('assets', () => assetsFor(root, sent));
 
   const shared = {
     subject: { id: request.subjectId, kind: 'route' as const },
@@ -234,8 +244,8 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   // saving: two indexes built either side of a lazily-inserted `<style>` would
   // describe two different documents, and the run would compare an image of one
   // against the names of the other.
-  const document = { ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI };
-  const capture = collect(root, {
+  const document = await steps.time('document', () => ({ ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI }));
+  const capture = await steps.time('capture', () => collect(root, {
     ...shared,
     engine: request.engine,
     ...(request.timezoneId !== undefined ? { timezoneId: request.timezoneId } : {}),
@@ -254,7 +264,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...(request.holdings === true ? { holdingOf } : {}),
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
-  });
+  }));
 
   return JSON.stringify({
     document,
@@ -262,6 +272,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     stabilization: held.ids,
     suspense,
     ...(hydration !== undefined ? { hydration } : {}),
+    steps: steps.taken,
   });
 }
 
