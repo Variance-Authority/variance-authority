@@ -191,7 +191,7 @@ they return are the ones this page describes.
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
 | `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
-| `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
+| `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
 Nothing else on this page is importable. Where the sections below describe the
@@ -594,7 +594,7 @@ the digest it must still have for its blocks to mean anything.
 
 **Module id.** A probe reports its module as `path@digest`: the
 repository-relative path of the file the transform was handed, and the first 32
-hexadecimal characters of the SHA-256 of the text the probes were placed on.
+hexadecimal characters of the SHA-256 of the text the regions were cut from.
 `moduleId(path, code)` from `@variance-authority/sense/journal` builds it, for a
 driver that writes its own journal. The build writes nothing else down.
 Placing probes is deterministic, so one text, one path and one recipe give one

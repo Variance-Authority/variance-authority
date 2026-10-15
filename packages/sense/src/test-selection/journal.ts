@@ -16,8 +16,9 @@
  * Three parts, and each is somebody's:
  *
  * 1. **The plugin** ({@link testSelectionProbes}, next door in `probes.ts` with
- *    the rest of the build half) belongs in the adopter's own build — a
- *    Storybook `viteFinal`, an application dev server. It instruments
+ *    the rest of the build half) belongs in the adopter's own build — an
+ *    application's `vite.config.ts` or dev server; a Storybook takes it through
+ *    the `@variance-authority/storybook-collector` addon. It instruments
  *    product source and hoists a collector in front of it. Its probes report the
  *    file and the digest of the text they were placed on, and nothing else is
  *    written down.
@@ -86,6 +87,12 @@ export {
   type InstrumentingPlugin,
   type TestSelectionProbeOptions,
 } from './probes.js';
+export {
+  testSelectionRule,
+  type ProbesLoaderOptions,
+  type TestSelectionRule,
+  type TestSelectionRuleOptions,
+} from './probes-rule.js';
 
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };
@@ -93,6 +100,9 @@ export { moduleId } from './captured-modules.js';
 
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
+
+/** Where the probes go: after the project's transforms, or ahead of them. */
+export type { ProbePlacement } from './instrumented-modules.js';
 
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
@@ -119,6 +129,24 @@ export {
   type StagedExecution,
 } from './stage.js';
 export { drainExecution, type EvaluatingPage } from './drain.js';
+// The driver's half of a journey. It opens a socket, so it is here, beside the
+// recorders, and not on the bundle-safe `journey` entry a Worker imports.
+export {
+  SETTLING_MS,
+  driveJourneys,
+  type JourneyCookie,
+  type JourneyDriver,
+  type MintedJourney,
+} from './journey-driver.js';
+// One row per subject a visual run drove, page and heads joined: the recorder
+// a story run and a page run share.
+export {
+  createSubjectRecorder,
+  type SubjectNote,
+  type SubjectRecorder,
+  type SubjectRecording,
+  type SubjectSurface,
+} from './subject-recorder.js';
 
 
 export interface RecordExecutionOptions {

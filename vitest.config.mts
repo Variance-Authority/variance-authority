@@ -88,12 +88,29 @@ const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
  */
 const unprobed = (file: string) => source(file) && marked(ROOT, file);
 
-/** What every slice runs under. */
+/**
+ * What a site test mocks and the root does not install: the site has its own
+ * install, which no slice here runs, so a site module importing one of these
+ * resolves only to the mock its test declares.
+ */
+const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw', 'remark-gfm'];
+
+/**
+ * What every slice runs under.
+ *
+ * The site is outside the workspaces and keeps its own install, but its tests
+ * run here, on the root one: the suite's CI job installs nothing in `site/`. So a module a site
+ * test loads resolves from the root manifest or not at all, and the root
+ * declares the site's rendering dependencies as `devDependencies` at the site's
+ * own ranges. The framework is the exception: `next/link` and
+ * `next/navigation` are interfaces each site test mocks, and the plugin below
+ * only lets their names resolve so the mock has something to replace.
+ */
 const shared = defineConfig({
   plugins: [{
     name: 'site-framework-test-interfaces',
     resolveId(id, importer) {
-      if (importer && SITE.test(importer) && ['next/link', 'next/navigation'].includes(id)) return id;
+      if (importer && SITE.test(importer) && SITE_ONLY.includes(id)) return id;
     },
   }],
   test: {

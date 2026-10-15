@@ -2364,6 +2364,42 @@ That last one is the failure this whole system exists to make impossible. A
 summary that prints "nothing to review" because eleven subjects failed to render
 is worse than no summary at all.
 
+### Where a run spent its time
+
+Each observation in the report carries `steps` beside `costMs`: every phase the
+subject went through, in the order it ran, with its wall time in milliseconds.
+The collector's phases come first under `collect.` (`collect.navigate`,
+`collect.wait-for-fonts`, `collect.capture`), the run's own follow
+(`inspect`, `settle`, `baseline`, `decode`, `compare`, `write`), and a painted
+subject adds the renderer's under `render.` (`render.load`,
+`render.screenshot`). A phase the subject skipped is absent, not zero: a settled
+subject has no `decode`. A route read's `collect.transfer` is the remainder: the
+read's time less the steps the page timed itself, so it holds the crossing from
+the page and anything the page did not time. A settled route subject, with its
+steps cut to five:
+
+```json
+{
+  "subject": "docs/reference",
+  "verdict": "unchanged",
+  "costMs": 452.4,
+  "steps": [
+    { "step": "collect.navigate", "ms": 50.6 },
+    { "step": "collect.capture", "ms": 63.5 },
+    { "step": "collect.normalize", "ms": 53.3 },
+    { "step": "inspect", "ms": 0.8 },
+    { "step": "settle", "ms": 2 }
+  ]
+}
+```
+
+The report's `steps` sums each phase over the subjects that ran it and counts
+them, and `workers` says how many worlds collected side by side. With more than
+one, a phase's total is subject time, not wall time: it can exceed the run's
+duration, and each span includes what the other worlds cost it. Timings are
+part of no digest, so two runs that differ only in timing write the same
+images, records and baselines.
+
 ## Acceptance does not produce an image
 
 It promotes one the run already produced. A command that could re-render on
@@ -2489,8 +2525,8 @@ The remaining top-level keys:
 | `sensitivity` | narrows a named subject to a sensitivity level |
 | `decoder` | which PNG implementation to use |
 | `timezoneId`, `locale` | the IANA timezone and BCP 47 language the collectors read in and the renderer paints in; `UTC` and `en-US` when unset, never the host's. Part of the render identity, so changing one names the moved pair as the cause of every change until it is accepted again |
-| `concurrency` | how many subjects may be in flight at once |
-| `workers` | how many browser worlds one run collects in. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world and the run warns |
+| `concurrency` | how many subjects may be rendered and compared at once, split evenly across the worlds and rounded up, so at least one per world |
+| `workers` | how many browser worlds one run collects in; half the machine's logical cores when unset, never more than a `concurrency` you set and never more than there are files. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world, and the run warns when you set `workers`. Set `1` when the server under test cannot take concurrent pages. The report records the worlds it used in `workers` |
 | `intent` | the default `--intent` label |
 | `suites` | each test suite the repository runs, and its kind: `unit`, `integration`, `e2e` or `visual`. Each suite records on its own. Read only from the file at the repository root, as the [execution record](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite) page describes |
 | `tiers` | line budgets, largest first, that `variance layers` places each package in by how much code it pulls in, and that a `maxTier` rule in a `.relations.json` names. Tier 0 is the first entry and has no limit. Read only from the file at the repository root; see [tiers](https://variance-authority.dev/docs/boundaries#tiers-say-how-much-code-a-package-pulls-in) |

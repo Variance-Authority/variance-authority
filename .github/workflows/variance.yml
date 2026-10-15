@@ -447,6 +447,16 @@ jobs:
   # changes nothing the site is built from or photographed with ends the check
   # green, saying so, in the time it takes to install and build. The check
   # still reports, so nothing waits on one that never starts.
+  #
+  # And `site` reports rather than blocks: a change it finds is a warning on a
+  # green check, with the docket and the report as on any other. A docs page
+  # that renders differently is the change the pull request was opened for far
+  # more often than a defect, and its run takes the longest, so a red `site`
+  # held every such pull request until somebody pressed its label. A run that
+  # did not happen still fails it, and so does a subject it could not observe,
+  # which is how a site server that died mid-run shows, and an accept the
+  # comparison after it did not hold. The label still accepts, so the next run
+  # compares against what was pressed.
   plan:
     if: github.event.action != 'closed'
     runs-on: ubuntu-24.04
@@ -462,7 +472,7 @@ jobs:
           set -euo pipefail
           projects='[
             {"project": "tribunal", "config": "packages/tribunal/variance.config.json", "label": "variance: accept tribunal"},
-            {"project": "site", "config": "site/variance.config.json", "label": "variance: accept site"}
+            {"project": "site", "config": "site/variance.config.json", "label": "variance: accept site", "exit-zero-on-changes": "true"}
           ]'
           if [ "$VARIANCE_EVENT_ACTION" = labeled ]; then
             projects=$(jq --arg label "$VARIANCE_LABEL" 'map(select(.label == $label))' <<< "$projects")
@@ -598,6 +608,8 @@ jobs:
           # these projects never commented then, and taking it would replace
           # the case's.
           adopt-unkeyed-comment: 'false'
+          # A row that reports rather than blocks; see `plan`.
+          exit-zero-on-changes: ${{ matrix['exit-zero-on-changes'] || 'false' }}
           intent: ${{ steps.accept.outputs.intent }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           accept: ${{ steps.accept.outputs.promote == 'true' }}
@@ -605,6 +617,13 @@ jobs:
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
           # This project's label, not the case's.
           to-accept: 'check the report, then add the **${{ matrix.label }}** label to this pull request.'
+
+      # A server that exits mid-read leaves only `ERR_CONNECTION_REFUSED` in
+      # the read's log; why it exited is in its own.
+      - name: print the site server's log
+        if: failure() && matrix.project == 'site' && steps.variance.outcome == 'failure'
+        shell: bash
+        run: cat "$RUNNER_TEMP/site.log"
 
       - if: always() && steps.reach.outputs.observe != 'false'
         uses: actions/upload-artifact@v4

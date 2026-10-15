@@ -149,6 +149,25 @@ chromium_('a run over routes', () => {
     expect(collected.document.html).not.toContain('loading…');
   }, 60_000);
 
+  it('says where the read spent its time, the page\'s own steps in place of the answer they ran inside', async () => {
+    // Away first, so this read navigates: the page already showing is not loaded again.
+    await collector!.collect(PLAN.subjects[0]!);
+    const collected = await collector!.collect(PLAN.subjects[1]!);
+
+    expect(collected.ok).toBe(true);
+    if (!collected.ok) return;
+    const steps = collected.steps ?? [];
+    const names = steps.map((step) => step.step);
+    const named = ['navigate', 'ready', 'agent', 'document', 'capture', 'transfer', 'parse', 'normalize'];
+
+    // In run order: the driver's, then the page's, then what crossing back and
+    // reading the answer cost. `read` itself is gone: the page's steps and
+    // `transfer` are what it was made of.
+    expect(names.filter((name) => named.includes(name))).toEqual(named);
+    expect(names).not.toContain('read');
+    expect(steps.every((step) => step.ms >= 0)).toBe(true);
+  }, 60_000);
+
   it('keeps a route\'s readiness marker when widths split it into several subjects', async () => {
     // `widths` renames the subject and not the route, and the marker belongs to
     // what the route renders. Keyed by the widened id alone, adding one line of

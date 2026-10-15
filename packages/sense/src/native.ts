@@ -15,7 +15,7 @@
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
-import type { NativeInstrumented } from './instrument/spliced.js';
+import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
@@ -31,6 +31,7 @@ import type {
   NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeDistill } from './native-distill.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import { witnessesOf } from './witness.js';
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
@@ -120,12 +121,14 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeDistill {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
    */
   instrument(source: string, file: string, entries: boolean, module?: string): NativeInstrumented | null;
+  /** `authored`'s regions placed in `transformed` through `mappings`: `native/instrument/src/place.rs`. */
+  place(...args: [string, string, string, string, number, boolean, string, boolean]): NativePlaced | null;
   /** The header one module carries: `native/instrument/src/header.rs`. */
   probeHeader(module: string, count: number): string;
   /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */

@@ -1,11 +1,15 @@
 /**
- * The Jest transformer: probes on the project's text, then the project's own transform.
+ * The Jest transformer: the project's own transform, then probes on what it wrote.
  *
  * Named in a configuration by the Jest wrappers, and loaded by Jest once per
  * worker. It wraps whatever transformer the configuration named — `@swc/jest`,
  * `ts-jest`, `babel-jest`, anything with Jest's transformer shape — and never
- * chooses one: the probes land on the file as Jest read it, and the project's
- * transformer runs on that, with the project's options.
+ * chooses one: the project's transformer runs on the file as Jest read it, with
+ * the project's options, and the probes of that file's regions go into what it
+ * wrote, through the map it returned ({@link probedAfter}). A test file is cut
+ * first instead, and the transformer runs on the cut. A transformer that changes
+ * the text and returns no map is run again on the probed text, since nothing
+ * carries the regions into what it wrote.
  *
  * Jest's transform cache decides what it costs: the text this returns is
  * stored on disk under `getCacheKey`, shared by every worker and every later
@@ -15,8 +19,8 @@
  * what the probes mean is written: the reporter cuts the module again from the
  * file and the digest its probes report.
  *
- * A module the instrumenter cannot read, and one `unprobed` names, reaches the
- * inner transformer as it is with one mark after its last line.
+ * A module the instrumenter cannot read, and one `unprobed` names, leaves the
+ * inner transformer with one mark after its last line.
  *
  * A transformer that places the probes itself — a Rust pipeline linking the
  * instrumenter crate the package ships — says so with `senseRecipe`, and is
@@ -37,9 +41,10 @@ import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { markUnplaced, placeModule, planModule } from './captured-modules.js';
-import { defaultInclude } from './instrumented-modules.js';
+import { defaultInclude, projectPath, type ProbePlacement } from './instrumented-modules.js';
+import { probedAfter } from './jest-after.js';
 import type { SelectionTransformerConfig } from './jest.js';
-import type { TransformSourceMap } from './source-lines.js';
+import { namesItsMap, type TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
 export interface JestProjectConfig {
@@ -140,7 +145,7 @@ export async function createTransformer(
     );
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
-  const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed) };
+  const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed), placement: config.placement ?? 'after-transforms' };
   const cuts = config.cadence !== false;
   const cutOf = (source: string, path: string, options: JestTransformRequest): CutTestFile | undefined =>
     cuts && isTestFile(path, options.config) ? cadence(source, path) : undefined;
@@ -174,8 +179,30 @@ export async function createTransformer(
       .update(JSON.stringify(config.unprobed ?? null))
       .update('\0')
       .update(cuts ? 'cadence' : '')
+      .update('\0')
+      .update(how.placement)
       .digest('hex')
       .slice(0, 32);
+  // A transformer that rewrote a module and returned no map leaves nothing to
+  // carry the regions into what it wrote, so it runs again on the probed text:
+  // said once, because every module it transforms pays for it. A file that
+  // names its own map, a build's output, is not said: a transformer that reads
+  // that map answers in the build's sources, as it should, and its file is
+  // probed first, as every seam that composes from that map probes it.
+  let warned = false;
+  const mapless = <T>(path: string, source: string, again: () => T): T => {
+    if (!warned && !namesItsMap(source)) {
+      warned = true;
+      const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0] ?? 'the transformer';
+      console.warn(
+        `variance-authority: \`${name}\` returned no source map back to \`${projectPath(root, path)}\`, so the probes cannot ` +
+          'be placed in what it wrote, and it transforms each such module twice: once to read, once on the probed file. ' +
+          'A compiler that reads syntax, such as a CSS-in-JS extractor or a memoising compiler, then reads the probes too. ' +
+          `Have \`${name}\` return a source map to transform once, with the probes out of its reading.`,
+      );
+    }
+    return again();
+  };
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
   const innerProcessAsync = inner?.processAsync ?? inner?.process;
 
@@ -191,7 +218,9 @@ export async function createTransformer(
       if (innerProcessAsync === undefined) return bare(root, path, options, text, how, cut);
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(await innerProcessAsync(text, path, handed), handed), cut);
-      return behind(await innerProcessAsync(place(root, path, options, text, how), path, forInner(options)), cut);
+      const first = async () => await innerProcessAsync(place(root, path, options, text, how), path, forInner(options));
+      if (places || !after(path, options, how)) return behind(await first(), cut);
+      return probedAfter(root, path, source, await innerProcessAsync(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, source, first);
     },
   };
   const innerProcess = inner?.process?.bind(inner);
@@ -202,7 +231,9 @@ export async function createTransformer(
       if (innerProcess === undefined) return bare(root, path, options, text, how, cut);
       const handed = places ? handOver(root, path, forInner(options), text, how) : undefined;
       if (handed !== undefined) return behind(marked(innerProcess(text, path, handed), handed), cut);
-      return behind(innerProcess(place(root, path, options, text, how), path, forInner(options)), cut);
+      const first = () => innerProcess(place(root, path, options, text, how), path, forInner(options));
+      if (places || !after(path, options, how)) return behind(first(), cut);
+      return probedAfter(root, path, source, innerProcess(text, path, forInner(options)), how.mode, how.unprobed) ?? mapless(path, source, first);
     };
   }
   return transformer;
@@ -213,6 +244,7 @@ interface Placing {
   readonly mode: InstrumentMode;
   readonly excluded: ReadonlySet<string>;
   readonly unprobed: ((file: string) => boolean) | undefined;
+  readonly placement: ProbePlacement;
 }
 
 /** What no wrapped transformer touches: the probes, or the cut and its map. */
@@ -247,8 +279,24 @@ function place(
   source: string,
   { mode, excluded, unprobed }: Placing,
 ): string {
-  if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return source;
+  if (!probes(path, options, { excluded })) return source;
   return placeModule(root, path, source, defaultInclude, unprobed, mode, originalOf(path, source))?.code ?? source;
+}
+
+/**
+ * Whether a module's probes go into what the inner transformer wrote: every
+ * one that gets probes, unless the run places them `before-transforms`. A file that names its own map, a build's output, is
+ * placed after too wherever its transformer's map leads back to it, as
+ * `babel-jest` does reading no map from a file beside it; one that composed
+ * the build's map answers in the build's sources, and is probed first.
+ */
+function after(path: string, options: JestTransformRequest, how: Placing): boolean {
+  return how.placement === 'after-transforms' && probes(path, options, how);
+}
+
+/** Whether a module gets probes, rather than a cut or nothing: neither excluded nor a test. */
+function probes(path: string, options: JestTransformRequest, { excluded }: Pick<Placing, 'excluded'>): boolean {
+  return !excluded.has(resolve(path)) && !isTestFile(path, options.config);
 }
 
 /**

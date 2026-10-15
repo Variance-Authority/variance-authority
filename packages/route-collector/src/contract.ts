@@ -3,6 +3,7 @@ import type {
   PageRegion,
   RenderDocument,
   SemanticSnapshot,
+  Step,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
@@ -112,6 +113,9 @@ export type Collected =
        * half a person reads.
        */
       readonly stabilization?: readonly string[];
+
+      /** How long each step of this reading took, in the order they ran. */
+      readonly steps?: readonly Step[];
     }
   | { readonly ok: false; readonly because: string };
 
@@ -171,5 +175,9 @@ export interface Collector {
    */
   openWorker?(): Promise<Collector>;
 
-  close(): Promise<void>;
+  /**
+   * `costs` is what the run timed for each page, first collection to decision,
+   * by subject id; the execution record carries it as each page's duration.
+   */
+  close(costs?: ReadonlyMap<string, number>): Promise<void>;
 }

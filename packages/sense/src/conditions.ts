@@ -59,11 +59,13 @@ interface Chain {
  */
 export function customConditionsFor(tsconfig: string): (file: string) => readonly string[] {
   const chains = new Map<string, Chain | undefined>();
+  const projects = new Map<string, Config | undefined>();
   const configs = new Map<string, Config | undefined>();
   const nearest = new Map<string, string | undefined>();
 
-  const load = (path: string): Config | undefined => {
-    if (configs.has(path)) return configs.get(path);
+  /** One config without its references: what it is when another config references it. */
+  const project = (path: string): Config | undefined => {
+    if (projects.has(path)) return projects.get(path);
     const chain = chainOf(path, chains, new Set());
     const directory = dirname(path);
     const config = chain === undefined
@@ -74,12 +76,26 @@ export function customConditionsFor(tsconfig: string): (file: string) => readonl
           include: chain.include?.map((pattern) => placed(directory, pattern)),
           exclude: chain.exclude?.map((pattern) => placed(directory, pattern)),
           allowJs: chain.allowJs === true,
-          references: chain.references
-            .map((reference) => configFile(normalize(join(directory, reference))))
-            .map((found) => found === undefined ? undefined : load(found))
-            .filter((found): found is Config => found !== undefined),
+          references: [],
           conditions: chain.conditions,
         };
+    projects.set(path, config);
+    return config;
+  };
+
+  // A governing config with the projects it references, one level deep, the way
+  // `oxc-resolver` loads them: a referenced project's own references are never
+  // read, and a config that references itself or a project that is not there is
+  // refused.
+  const load = (path: string): Config | undefined => {
+    if (configs.has(path)) return configs.get(path);
+    const own = project(path);
+    const references = (chains.get(path)?.references ?? [])
+      .map((reference) => configFile(normalize(join(dirname(path), reference))))
+      .map((found) => found === undefined || found === path ? undefined : project(found));
+    const config = own === undefined || references.includes(undefined)
+      ? undefined
+      : { ...own, references: references as Config[] };
     configs.set(path, config);
     return config;
   };

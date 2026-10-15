@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
+import { writePieces } from '../json-pieces.js';
 
 /** The thirteen commands that read no project configuration at all. */
 export type Configless = Extract<
@@ -84,10 +85,21 @@ export async function constantAnswer(
   return undefined;
 }
 
+/**
+ * Where a command writes. `drained`, where a reader can lag, resolves once
+ * what was written has been taken, `false` when the reader has gone.
+ */
+export interface Streams {
+  out(text: string): void;
+  err(text: string): void;
+  drained?(): Promise<boolean>;
+  detach?: Detach;
+}
+
 /** Run one of them, each of which is about a suite rather than a project. */
 export async function answerConfigless(
   parsed: Configless,
-  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
+  streams: Streams,
 ): Promise<ExitCode> {
   switch (parsed.command) {
     // A watcher is about a suite, not about a project: it listens, holds what a
@@ -110,12 +122,12 @@ export async function answerConfigless(
       if (parsed.format === 'jsonl') {
         const { distillRows } = await import('./distill.js');
         const { rows, unrecorded } = await distillRows(parsed);
-        for (const row of rows) streams.out(`${JSON.stringify(row)}\n`);
+        await writePieces(linesOf(rows), streams);
         if (unrecorded !== undefined) streams.err(`Not recorded: ${unrecorded.length === 1 ? 'suite' : 'suites'} ${unrecorded.join(', ')}.\n`);
         return EXIT_CLEAN;
       }
-      const { distillFiles, formatDistill } = await import('./distill.js');
-      streams.out(formatDistill(await distillFiles(parsed), parsed.format));
+      const { distillFiles, distillPieces } = await import('./distill.js');
+      await writePieces(distillPieces(await distillFiles(parsed), parsed.format), streams);
       return EXIT_CLEAN;
     }
 
@@ -292,4 +304,9 @@ export async function answerConfigless(
       return exit;
     }
   }
+}
+
+/** One JSON line a row, each written as it is reached. */
+function* linesOf(rows: Iterable<unknown>): Generator<string, void, undefined> {
+  for (const row of rows) yield `${JSON.stringify(row)}\n`;
 }

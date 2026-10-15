@@ -1,9 +1,11 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { matchesGlob } from '@variance-authority/core/judge';
+import { stepClock } from '@variance-authority/core/format';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
 import { acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
 import { suspenseRefusal } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
+import type { RouteRecorder } from './execution.js';
 import type { RouteCollectorOptions } from './options.js';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import type { RouteWorld } from './world.js';
@@ -48,6 +50,7 @@ export async function readRoute(
   world: RouteWorld,
   reading: RouteReading,
   planned: PlannedSubject,
+  recorder?: RouteRecorder,
 ): Promise<Collected> {
   const { config, options, routes, roots, portable, source } = reading;
   const { page, engine, region, network } = world;
@@ -93,11 +96,23 @@ export async function readRoute(
   const fixed = unresizable(wanted, config.viewport);
   if (fixed !== undefined) return { ok: false, because: fixed };
 
+  // Every exit after this point closes the subject's window. A page refused
+  // half-way still ran code, in the browser and on the server, and whatever the
+  // browser holds would be drained into the next page otherwise.
+  const noted = async (complete: boolean): Promise<void> => recorder?.note(page, id, complete, roots);
+
+  // This side's steps, in the order they run, with the page's own spliced in
+  // where the page hands them back.
+  const steps = stepClock(() => performance.now());
+
   try {
+    // Before the navigation: the request that serves this page is the one that
+    // has to carry its journey.
+    const journeyed = (await recorder?.join(page, id, url)) ?? false;
     const current = page.viewportSize();
     const resized = current?.width !== wanted.width || current?.height !== wanted.height;
 
-    if (resized) await page.setViewportSize({ width: wanted.width, height: wanted.height });
+    if (resized) await steps.time('resize', async () => page.setViewportSize({ width: wanted.width, height: wanted.height }));
 
     // Re-navigated when the size changed, not merely reflowed. CSS reflows on a
     // resize; a component that read `matchMedia` when it mounted does not, and
@@ -105,7 +120,7 @@ export async function readRoute(
     // resizing a wider one is therefore not the page a visitor at that width
     // gets, and the difference is invisible in the result — which is the
     // direction this project never accepts.
-    if (page.url() !== url || resized) {
+    if (page.url() !== url || resized || journeyed) {
       // Cleared before the navigation, not after: a route run visits one page
       // per subject, so what this page fetches *is* this subject's asset set.
       // Reusing one page across subjects would make it the union, which
@@ -113,7 +128,7 @@ export async function readRoute(
       network?.reset();
       // `goto` navigates even when the address is unchanged, which is what makes
       // a width change a *load* rather than a reflow.
-      await page.goto(url, { waitUntil: 'load' });
+      await steps.time('navigate', async () => page.goto(url, { waitUntil: 'load' }));
     }
 
     // Keyed by route, with the widened id winning when it is named. A readiness
@@ -123,11 +138,14 @@ export async function readRoute(
     // mid-arrival rather than refused.
     const ready = readyFor(id);
     if (ready !== undefined) {
-      await page.waitForSelector(ready, {
-        timeout: options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
-      });
+      await steps.time('ready', async () =>
+        page.waitForSelector(ready, {
+          timeout: options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
+        }),
+      );
     }
   } catch (error) {
+    await noted(false);
     return {
       ok: false,
       because:
@@ -141,9 +159,9 @@ export async function readRoute(
   // and an image requested by a script that ran on `load` is still in flight —
   // which the page cannot see (it is not in `document.images` yet) and the wire
   // can.
-  await network?.settle();
+  if (network !== undefined) await steps.time('network', async () => network.settle());
 
-  await world.ensureAgent();
+  await steps.time('agent', async () => world.ensureAgent());
 
   const declaredLoading = (options.loading ?? []).some((pattern) =>
     matchesGlob(planned.subject.id, pattern),
@@ -192,15 +210,30 @@ export async function readRoute(
 
   // The assets are its business, not this request's: they are read from the wire
   // and they keep arriving while the page is being held still.
-  const raw = await acquireFromAgent(page, network, request);
+  const after = stepClock(() => performance.now());
+  const raw = await acquireFromAgent(page, network, request, after);
 
-  const acquired = JSON.parse(raw) as Acquired;
+  const parsing = stepClock(() => performance.now());
+  const acquired = await parsing.time('parse', () => JSON.parse(raw) as Acquired);
+  // The page's own steps stand in for the `read` they ran inside, and what is
+  // left of it is the answer crossing from the page: `transfer`.
+  for (const step of after.taken) {
+    if (step.step !== 'read') {
+      steps.add([step]);
+      continue;
+    }
+    const inPage = (acquired.steps ?? []).reduce((sum, own) => sum + own.ms, 0);
+    steps.add(acquired.steps);
+    steps.add([{ step: 'transfer', ms: Math.max(0, Math.round((step.ms - inPage) * 10) / 10) }]);
+  }
+  steps.add(parsing.taken);
 
   // The symptom of a page agent older than this driver, named rather than read
   // past: `undefined` here would make `suspenseRefusal` throw inside one route
   // and take the run with it, and defaulting it to "settled" would silently
   // restore the behaviour this exists to end.
   if (acquired.suspense === undefined) {
+    await noted(false);
     return {
       ok: false,
       because:
@@ -215,7 +248,10 @@ export async function readRoute(
     subjectId: planned.subject.id,
     declaredLoading,
   });
-  if (unsettled !== undefined) return { ok: false, because: unsettled };
+  if (unsettled !== undefined) {
+    await noted(false);
+    return { ok: false, because: unsettled };
+  }
 
   // No frames are spent here, and that is deliberate: a route that settles on
   // its document digest has nobody to hand a location to. They ride the snapshot
@@ -227,6 +263,7 @@ export async function readRoute(
   // machine.
   const closure = portable ? network?.closure() : undefined;
   if (closure !== undefined && !closure.ok) {
+    await noted(false);
     return {
       ok: false,
       because:
@@ -234,6 +271,19 @@ export async function readRoute(
         closure.unresolved.join('; '),
     };
   }
+
+  await noted(true);
+
+  // Normalized here rather than in the page: the ruleset is the one the jsdom
+  // path uses, and running it in the browser would make the two profiles two
+  // implementations of it.
+  // `sourceRoot` for the same reason `scanSource` is rooted at the cwd: both
+  // answers name files, and a report that mixes a repository-relative
+  // declaration with an absolute call site is one nobody can paste into
+  // anything.
+  const snapshot = await steps.time('normalize', () =>
+    normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
+  );
 
   return {
     ok: true,
@@ -253,17 +303,11 @@ export async function readRoute(
             baseUrl: page.url(),
             resources: closure.resources,
           },
-    // Normalized here rather than in the page: the ruleset is the one the jsdom
-    // path uses, and running it in the browser would make the two profiles two
-    // implementations of it.
-    // `sourceRoot` for the same reason `scanSource` is rooted at the cwd: both
-    // answers name files, and a report that mixes a repository-relative
-    // declaration with an absolute call site is one nobody can paste into
-    // anything.
-    snapshot: normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
+    snapshot,
     ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
       ? { stabilization: acquired.stabilization }
       : {}),
     ...(source !== undefined ? { source } : {}),
+    steps: steps.taken,
   };
 }

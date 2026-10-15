@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { encodeExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeAsSetExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main, parseArgs } from '../bin.js';
 import { distillRows } from './distill.js';
 import { readExecutionIndex } from './execution-input.js';
@@ -40,7 +40,7 @@ async function fixture() {
       version: 3, instrumentation: 'fixture',
       tests: [{ file, complete: true, preconditions: [] }],
       modules: [{ file: 'src/greet.ts', sourceDigest: digestString(source), instrumented: true, blocks }],
-    }, { index: encodeExecutionIndex({ tests: [test], modules: [{ file: 'src/greet.ts', blocks: blocks.map((block) => ({
+    }, { index: encodeAsSetExecutionIndex({ tests: [test], modules: [{ file: 'src/greet.ts', blocks: blocks.map((block) => ({
       ...block, crossings: block.kind === 'function' ? [{ test: 0, distance: 0 }] : [],
     })) }] }) });
     shards.push(path);
@@ -51,7 +51,7 @@ async function fixture() {
 describe('`journeys merge`', () => {
   it('lands coverage and cases without project configuration or a comparison, from the named checkout', async () => {
     const { root, shards, into } = await fixture();
-    const before = (await Promise.all(shards.map((execution) => distillRows({ root, execution })))).flatMap((read) => read.rows);
+    const before = (await Promise.all(shards.map((execution) => distillRows({ root, execution })))).flatMap((read) => [...read.rows]);
     let out = '';
     let err = '';
     const code = await main(['journeys', 'merge', ...shards, '--into', into, '--root', root], {
@@ -64,7 +64,7 @@ describe('`journeys merge`', () => {
     expect(recordedJourneys).not.toHaveBeenCalled();
     expect((await readTestCoverage(into)).modules[0]!.blocks[0]!.loadedBy).toEqual(['a.test.ts', 'b.test.ts']);
     expect((await readExecutionIndex(into)).tests.map((test) => test.id)).toEqual(['a.test.ts > greets', 'b.test.ts > greets']);
-    expect((await distillRows({ root, execution: into })).rows).toEqual(before);
+    expect([...(await distillRows({ root, execution: into })).rows]).toEqual(before);
   });
 
   it('defaults the source root to the working directory and resolves paths there', () => {

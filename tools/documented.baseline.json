@@ -342,12 +342,6 @@
     "packages": 2
   },
   {
-    "name": "settleRecipe",
-    "kind": "function",
-    "at": "packages/core/src/format/stabilize.ts",
-    "packages": 2
-  },
-  {
     "name": "stringArg",
     "kind": "function",
     "at": "packages/mcp/src/tools/tool.ts",

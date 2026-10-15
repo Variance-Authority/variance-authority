@@ -111,7 +111,7 @@ export interface Selection {
  */
 export async function selectionFor(
   plan: Plan,
-  context: ObserveContext,
+  context: Pick<ObserveContext, 'config' | 'deps' | 'renderer'>,
   options: RunOptions,
 ): Promise<Selection | undefined> {
   const { config, deps, renderer } = context;
