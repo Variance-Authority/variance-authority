@@ -126,6 +126,18 @@ describe('a condition only the tsconfig names', () => {
     expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual([]);
   });
 
+  it('reads no conditions from a project whose reference is missing, which oxc refuses', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '../absent' }],
+      }),
+    });
+
+    expect(await scanned(root) ?? []).not.toContain(TARGET);
+    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual([]);
+  });
+
   it('answers from each side of a reference cycle, reading each side one level deep', async () => {
     const root = await workspace({
       'packages/app/tsconfig.json': JSON.stringify({

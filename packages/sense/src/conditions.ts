@@ -85,20 +85,17 @@ export function customConditionsFor(tsconfig: string): (file: string) => readonl
 
   // A governing config with the projects it references, one level deep, the way
   // `oxc-resolver` loads them: a referenced project's own references are never
-  // read, and a config that references itself is refused.
+  // read, and a config that references itself or a project that is not there is
+  // refused.
   const load = (path: string): Config | undefined => {
     if (configs.has(path)) return configs.get(path);
     const own = project(path);
-    const paths = (chains.get(path)?.references ?? [])
-      .map((reference) => configFile(normalize(join(dirname(path), reference))));
-    const config = own === undefined || paths.includes(path)
+    const references = (chains.get(path)?.references ?? [])
+      .map((reference) => configFile(normalize(join(dirname(path), reference))))
+      .map((found) => found === undefined || found === path ? undefined : project(found));
+    const config = own === undefined || references.includes(undefined)
       ? undefined
-      : {
-          ...own,
-          references: paths
-            .map((found) => found === undefined ? undefined : project(found))
-            .filter((found): found is Config => found !== undefined),
-        };
+      : { ...own, references: references as Config[] };
     configs.set(path, config);
     return config;
   };
