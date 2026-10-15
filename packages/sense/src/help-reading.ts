@@ -96,6 +96,7 @@ export interface NativeHelp {
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
+  declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
 }
 
 function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
@@ -163,4 +164,50 @@ export function importersOf(
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+}
+
+/** One top-level declaration no export of its file binds. */
+export interface DeclaredName {
+  readonly name: string;
+  /** The declaration's kind as the parser harvested it: `function`, `const`, … */
+  readonly kind: string;
+  readonly at: string;
+  /** The package whose source it is; empty at the repository root. */
+  readonly by: string;
+  readonly line: number;
+  /** `source`, `test` or `story`, as `kindOf` says of the file. */
+  readonly fileKind: 'source' | 'test' | 'story';
+  /** The signature's span in the file's UTF-16 offsets, when the parser kept one. */
+  readonly signatureStart?: number | null;
+  readonly signatureEnd?: number | null;
+  /** The doc comment's span, inside its opening and closing marks, when one is written above. */
+  readonly docStart?: number | null;
+  readonly docEnd?: number | null;
+}
+
+/** What `declaredOf` found, and the files whose declarations it could not read. */
+export interface DeclaredNames {
+  /** Ordered by file in code units, then by line. */
+  readonly names: readonly DeclaredName[];
+  /** Files whose parse holds no declarations because none were harvested: unknown, not empty. */
+  readonly unread: readonly string[];
+}
+
+/**
+ * Every top-level declaration the index at `index` holds that no export of its
+ * file binds — the names a file keeps to itself, which no export list holds —
+ * named `query` exactly, or, given `containing`, whose name holds it in any
+ * case; only in `files`, repo-relative, when they are named. A name declared
+ * twice in one file is answered once. `undefined` when no index was
+ * published; throws when the index does not read.
+ */
+export function declaredOf(
+  root: string,
+  query: string,
+  options: { readonly containing?: boolean; readonly files?: Iterable<string> } = {},
+  index: string = sourceIndexPath(root),
+): DeclaredNames | undefined {
+  const containing = options.containing === true;
+  const files = options.files === undefined ? null : [...options.files];
+  return entry('declaredOf')(root, index, containing ? query.toLowerCase() : query, containing, files) ?? undefined;
 }

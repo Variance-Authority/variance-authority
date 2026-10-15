@@ -19,6 +19,7 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
+use crate::help_declared::{declared, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
 use crate::help_members::{member_declarations, MemberSite};
@@ -106,6 +107,16 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
 #[napi]
 pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<MemberSite>>> {
     opened_chain(&index, |layers| member_declarations(&root, layers, &name))
+}
+
+/// Every top-level declaration on the chain at `index` that no export of its
+/// file binds, named `query` or, with `containing`, whose lowercased name holds
+/// `query`, which the caller lowercased; only in `files` when they are named.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_of(root: String, index: String, query: String, containing: bool, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = if containing { Matching::Containing } else { Matching::Exact };
+    opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
 }
 
 /// The chain at `index`, each segment opened in place, handed to `read`;

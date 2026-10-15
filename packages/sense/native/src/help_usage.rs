@@ -312,10 +312,7 @@ fn importers_of(
             // A record whose targets do not line up with the parse's requests answers none of them.
             if resolved.len() != parses.requests.range(row).len() { return (found, passed); }
             let first = parses.requests.at(row) as usize;
-            let by = match owners.files.get(crossing.file) {
-                Some(&(owner, _)) if owner != NO_OWNER => owners.packages[owner as usize].name.as_str(),
-                _ => "",
-            };
+            let by = owners.package_of(crossing.file);
             let kind = kind_of(crossing.file);
             for request in parses.requests.range(row) {
                 let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };

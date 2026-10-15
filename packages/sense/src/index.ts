@@ -205,11 +205,14 @@ export {
 export { gitDigests } from './tree.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  declaredOf,
   encodeSearch,
   exportedDigest,
   importersOf,
   memberDeclarationsOf,
   readHelp,
+  type DeclaredName,
+  type DeclaredNames,
   type EncodedSearch,
   type HelpPublish,
   type HelpReading,

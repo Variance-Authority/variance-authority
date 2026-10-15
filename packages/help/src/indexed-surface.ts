@@ -24,13 +24,13 @@ function add(into: Names, name: string, declaration: Declaration): void {
   else if (!held.has(declaration.kind)) held.set(declaration.kind, declaration);
 }
 
-function headOf(text: string, span: TextSpan | undefined): string | undefined {
+export function headOf(text: string, span: TextSpan | undefined): string | undefined {
   if (span === undefined) return undefined;
   const head = text.slice(span.start, span.end).trimEnd().replace(/;$/, '');
   return head === '' ? undefined : head;
 }
 
-function docOf(text: string, span: TextSpan | undefined): string | undefined {
+export function docOf(text: string, span: TextSpan | undefined): string | undefined {
   if (span === undefined) return undefined;
   const doc = text
     .slice(span.start, span.end)
