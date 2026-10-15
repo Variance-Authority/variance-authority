@@ -324,8 +324,11 @@ export interface NativeOrientMapAnswer {
 
 /** The code-map call on a git listing the addon holds. */
 export interface NativeOrientMapListing {
-  /** Fold the source index at `index` into the code map, carrying this listing rather than asking git again; `null` when there is no index. */
-  prepareOrientMap?(root: string, index: string): Promise<NativeOrientMapPrepared | null>;
+  /**
+   * Fold the source index at `index` into the code map, carrying this listing rather than asking git again,
+   * resolving under the `tsconfig` the scan did; `null` when there is no index.
+   */
+  prepareOrientMap?(root: string, index: string, tsconfig?: string | false): Promise<NativeOrientMapPrepared | null>;
 }
 
 /** The addon's code-map calls, kept apart from the scanner's other calls. */
@@ -334,9 +337,9 @@ export interface NativeOrientMaps {
    * Fold the source index at `index` into the code map kept beside it, with no
    * scan's listing to carry: git lists the checkout for the map. `scanned` is a
    * scan that ran and git could not list, so none is asked for. `null` when
-   * there is no index.
+   * there is no index. `tsconfig` is the one the scan that built the index resolved under.
    */
-  prepareOrientMap?(root: string, index: string, scanned?: boolean | null): Promise<NativeOrientMapPrepared | null>;
+  prepareOrientMap?(root: string, index: string, scanned?: boolean | null, tsconfig?: string | false): Promise<NativeOrientMapPrepared | null>;
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
   orientLayers?(index: string): NativeOrientLayers | null;
@@ -348,8 +351,8 @@ export interface NativeOrientMaps {
 
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
 export interface NativeDependencyLexicon {
-  /** Refresh all installed third-party public declarations on the Rust side. */
-  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): Promise<{
+  /** Refresh all installed third-party public declarations on the Rust side, resolving under `tsconfig` as the scan did. */
+  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string, tsconfig?: string | false): Promise<{
     readonly path: string; readonly packages: number; readonly entrypoints: number;
     readonly reused: number; readonly unavailable: number; readonly unresolved?: number; readonly unchanged: boolean;
   }>;

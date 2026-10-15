@@ -7,6 +7,7 @@ import { updateNatively } from './native-update.js';
 import { readPublishedSources, updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 import { scanRelations } from './scan.js';
+import { importReferences } from './test-selection/references.js';
 import { declaredTsconfig, parseTypescript, tsconfigUse, TypescriptError } from './typescript.js';
 
 /**
@@ -128,14 +129,43 @@ describe('the tsconfig the root config declares', () => {
   });
 });
 
+describe('where an import lands, asked after the scan', () => {
+  // A diff's added import is landed apart from the scan that built the index,
+  // and lands where that scan would have put it.
+  const landed = (root: string) => importReferences(root, undefined, IMPORTER)?.imported ?? [];
+
+  it('follows the condition the discovered config names when the root config says nothing', async () => {
+    const root = await workspace({ 'tsconfig.json': WITH });
+
+    expect(landed(root)).toContain(TARGET);
+  });
+
+  it('follows no condition when the root config turns the tsconfig off', async () => {
+    const root = await workspace({ 'tsconfig.json': WITH, 'variance.config.json': declaring({ tsconfig: false }) });
+
+    expect(landed(root)).not.toContain(TARGET);
+  });
+
+  it('reads the config the root config names rather than the one discovered', async () => {
+    const root = await workspace({
+      'tsconfig.json': WITHOUT,
+      'tsconfig.app.json': WITH,
+      'variance.config.json': declaring({ tsconfig: 'tsconfig.app.json' }),
+    });
+
+    expect(landed(root)).toContain(TARGET);
+  });
+});
+
 describe('what the tracked tsconfigs ask of a resolution', () => {
   it('names no config when none declares a condition or a path, so turning them off loses nothing', async () => {
     const root = await workspace({ 'tsconfig.json': WITHOUT, 'packages/app/tsconfig.json': WITHOUT });
 
-    expect(tsconfigUse(root)).toEqual({
+    expect(await tsconfigUse(root)).toEqual({
       declared: undefined,
       under: '',
       configs: ['packages/app/tsconfig.json', 'tsconfig.json'],
+      governing: ['packages/app/tsconfig.json', 'tsconfig.json'],
       conditioned: [],
       mapped: [],
     });
@@ -148,7 +178,7 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
       'packages/lib/tsconfig.json': '{ "extends": "../../tsconfig.base.json", "compilerOptions": { "customConditions": [] } }',
     });
 
-    expect(tsconfigUse(root).conditioned).toEqual(['packages/app/tsconfig.json', 'tsconfig.base.json']);
+    expect((await tsconfigUse(root)).conditioned).toEqual(['packages/app/tsconfig.json', 'tsconfig.base.json']);
   });
 
   it('names a config that maps paths, by what it inherits', async () => {
@@ -157,34 +187,38 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
       'packages/app/tsconfig.json': '{ "extends": "../../tsconfig.base.json" }',
     });
 
-    expect(tsconfigUse(root)).toMatchObject({ conditioned: [], mapped: ['packages/app/tsconfig.json', 'tsconfig.base.json'] });
+    expect(await tsconfigUse(root)).toMatchObject({ conditioned: [], mapped: ['packages/app/tsconfig.json', 'tsconfig.base.json'] });
   });
 
-  it('reads only what git tracks, and names the declared config from the root', async () => {
+  it('reads what the listing holds, so not an ignored config, and names the declared config from the root', async () => {
     const root = await workspace({ 'tsconfig.app.json': WITHOUT, 'variance.config.json': declaring({ tsconfig: 'tsconfig.app.json' }) });
+    await writeFile(join(root, '.gitignore'), 'tsconfig.json\n');
     await writeFile(join(root, 'tsconfig.json'), WITH);
 
-    expect(tsconfigUse(join(root, 'packages/app'))).toEqual({
+    expect(await tsconfigUse(join(root, 'packages/app'))).toEqual({
       declared: 'tsconfig.app.json',
       under: 'packages/app',
       configs: ['tsconfig.app.json'],
+      governing: ['tsconfig.app.json'],
       conditioned: [],
       mapped: [],
     });
   });
 
-  it('reads the configs that can govern the directory asked: below it, and in each directory above it', async () => {
+  it('reads every config the repository holds, and names apart those that can govern the directory asked', async () => {
+    const lib = JSON.stringify({ compilerOptions: { paths: { '~lib': ['src'] } } });
     const root = await workspace({
       'tsconfig.json': WITHOUT,
       'packages/tsconfig.base.json': WITHOUT,
       'packages/app/tsconfig.json': WITHOUT,
       'packages/app/src/tsconfig.json': WITHOUT,
-      'packages/lib/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '~lib': ['src'] } } }),
+      'packages/lib/tsconfig.json': lib,
     });
 
-    expect(tsconfigUse(join(root, 'packages/app'))).toMatchObject({
-      configs: ['packages/app/src/tsconfig.json', 'packages/app/tsconfig.json', 'packages/tsconfig.base.json', 'tsconfig.json'],
-      mapped: [],
+    expect(await tsconfigUse(join(root, 'packages/app'))).toMatchObject({
+      configs: ['packages/app/src/tsconfig.json', 'packages/app/tsconfig.json', 'packages/lib/tsconfig.json', 'packages/tsconfig.base.json', 'tsconfig.json'],
+      governing: ['packages/app/src/tsconfig.json', 'packages/app/tsconfig.json', 'packages/tsconfig.base.json', 'tsconfig.json'],
+      mapped: ['packages/lib/tsconfig.json'],
     });
   });
 
@@ -193,12 +227,12 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
     roots.push(root);
     await writeFile(join(root, 'tsconfig.json'), WITH);
 
-    expect(tsconfigUse(root)).toEqual({ declared: undefined, under: '', conditioned: [], mapped: [] });
+    expect(await tsconfigUse(root)).toEqual({ declared: undefined, under: '', conditioned: [], mapped: [] });
   });
 
   it('says false when the root config turns the tsconfig off', async () => {
     const root = await workspace({ 'tsconfig.json': WITH, 'variance.config.json': declaring({ tsconfig: false }) });
 
-    expect(tsconfigUse(root)).toMatchObject({ declared: false, conditioned: ['tsconfig.json'] });
+    expect(await tsconfigUse(root)).toMatchObject({ declared: false, conditioned: ['tsconfig.json'] });
   });
 });

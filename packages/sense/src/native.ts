@@ -230,8 +230,9 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /**
    * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).
+   * `tsconfig` is the one the scan that built the graph resolved under ([`typescript.ts`](./typescript.ts)).
    */
-  resolveSources?(root: string, file: string, sources: string[], listed?: string[]): string[];
+  resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /**
    * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
    * `false` when no remote promised any, so a path a read found missing is absent.

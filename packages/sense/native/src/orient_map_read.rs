@@ -21,6 +21,7 @@ use crate::compact::Layer;
 use crate::orient_map_closure::{closures, Closure, Nodes};
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
+use crate::resolve::Tsconfig;
 
 /// One package: a manifest with a name. A second manifest declaring a name
 /// already taken keeps its place, not its name: `name (directory)`.
@@ -114,7 +115,15 @@ fn package_of(value: &str) -> &str {
 /// holds, and the manifests the ones beside them. `made` answers which files
 /// are generated or vendored, asked only once every file's requests are read:
 /// git takes as long to answer as the reading takes, so the two overlap.
-pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made: impl FnOnce() -> HashSet<String>) -> Read {
+/// `tsconfig` is the config the scan that built the index resolved under, so
+/// a manifest's entry lands where that scan would have put it.
+pub(crate) fn read(
+    root: &str,
+    layers: &[Layer],
+    listed: Option<&[String]>,
+    tsconfig: Tsconfig,
+    made: impl FnOnce() -> HashSet<String>,
+) -> Read {
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
     let stories_inside = Regex::new(STORIES_INSIDE).expect("the pattern is fixed");
     let folded = fold(layers);
@@ -180,7 +189,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
         .collect();
     let offering: Vec<&crate::package_owners::Package> = by_name.iter().map(|&owner| &owners.packages[owner as usize]).collect();
     let owner_of_file: Vec<u32> = files.iter().map(|file| file.owner).collect();
-    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file);
+    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file, tsconfig);
     // A package whose own directory is the tests' by its path is a fixture: its
     // manifest says what it offers the test that loads it, not what ships.
     for (package, entries) in packages.iter().zip(entries.iter_mut()) {

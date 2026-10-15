@@ -195,11 +195,18 @@ fn openings(package: &str, manifest: &serde_json::Value) -> BTreeSet<String> {
 /// Refresh the complete installed lexicon from Git, the source index and the
 /// package manager's resolver. No per-dependency object crosses N-API.
 #[napi(ts_return_type = "Promise<LexiconRefresh>")]
-pub fn refresh_dependency_lexicon(root: String, index: String, path: String, refreshed_at: String) -> napi::bindgen_prelude::AsyncTask<crate::off_thread::OffThread<LexiconRefresh>> {
-    crate::off_thread::off_thread(move || refresh(root, index, path, refreshed_at))
+pub fn refresh_dependency_lexicon(
+    root: String,
+    index: String,
+    path: String,
+    refreshed_at: String,
+    tsconfig: Option<napi::Either<String, bool>>,
+) -> napi::bindgen_prelude::AsyncTask<crate::off_thread::OffThread<LexiconRefresh>> {
+    let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
+    crate::off_thread::off_thread(move || refresh(root, index, path, refreshed_at, tsconfig))
 }
 
-fn refresh(root: String, index: String, path: String, refreshed_at: String) -> napi::Result<LexiconRefresh> {
+fn refresh(root: String, index: String, path: String, refreshed_at: String, tsconfig: crate::resolve::Tsconfig) -> napi::Result<LexiconRefresh> {
     let root_path = Path::new(&root);
     let lexicon_path = Path::new(&path);
     // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
@@ -228,7 +235,7 @@ fn refresh(root: String, index: String, path: String, refreshed_at: String) -> n
             ((entry.owner.as_str(), entry.specifier.as_str()), entry.entry.as_str()))).collect();
     let carried = prior.as_ref().zip(changed.as_ref()).map(|(prior, changed)| clean::Prior::new(prior, changed));
     let owner_by_manifest: HashMap<&str, &Owner> = owners.iter().map(|owner| (owner.manifest.as_str(), owner)).collect();
-    let resolver = Resolvers::new(crate::resolve::Tsconfig::Auto, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
+    let resolver = Resolvers::new(tsconfig, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
     let parsed = DashMap::<String, Arc<OnceLock<(Api, bool)>>>::new();
     let importer_of = |manifest: &str| root_path.join(&owner_by_manifest[manifest].directory).join("__variance_dependency__.ts");
     let resolve = |manifest: &str, package: &str| {

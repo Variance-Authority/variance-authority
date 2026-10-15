@@ -6,21 +6,23 @@ import { tsconfigUse, TypescriptError, type TsconfigUse } from '@variance-author
  * Whether the `tsconfig` a scan reads asks anything of a resolution.
  *
  * Every scan finds and reads the config that governs each file it opens, for
- * the conditions it adds and the `paths` it maps. A repository whose tracked
- * configs do neither pays for that and gains no edge, and `typescript.tsconfig:
- * false` in the root config stops it. The configs read are the tracked ones
- * that can govern the directory doctor runs in, and the setting reaches the
- * whole repository, so the choice stays the repository's: a config outside git,
- * or a base read through a package's `exports`, is not seen here. This reports
- * and suggests, and never moves the exit code. Turned off while a tracked config asks for either, every import
- * that reaches its target only through one has no edge, and it says so.
+ * the conditions it adds and the `paths` it maps. A repository whose configs do
+ * neither pays for that and gains no resolved import, and `typescript.tsconfig:
+ * false` in the root config stops it. The setting reaches the whole
+ * repository, so the suggestion is made only when no config the listing holds
+ * asks; the configs that can govern the directory doctor runs in are counted
+ * apart, so a product inside a monorepo sees what it would lose and what the
+ * others would. A base read through a package's `exports` is not seen here.
+ * This reports and suggests, and never moves the exit code. Turned off while a
+ * config asks for either, every import that reaches its target only through
+ * one is not resolved, and it says so.
  */
 
 export type TypescriptFinding = TsconfigUse | { readonly refused: string };
 
-export function typescriptFinding(root: string): TypescriptFinding {
+export async function typescriptFinding(root: string): Promise<TypescriptFinding> {
   try {
-    return tsconfigUse(root);
+    return await tsconfigUse(root);
   } catch (error) {
     if (error instanceof TypescriptError) return { refused: error.message };
     throw error;
@@ -31,31 +33,36 @@ export function formatTypescript(finding: TypescriptFinding): readonly string[] 
   if ('refused' in finding) return ['typescript: REFUSED', `  ${finding.refused}`];
   const lines = [`typescript: tsconfig ${headline(finding.declared)}`];
   if (finding.configs === undefined) {
-    return [...lines, '  not a git checkout, so no tracked config was read'];
+    return [...lines, '  git gave no listing here, so no config was read'];
   }
   const { under, configs, conditioned, mapped } = finding;
-  lines.push(
-    `  ${configs.length} tracked tsconfig ${configs.length === 1 ? 'file' : 'files'}; ` +
-      `${conditioned.length} ${conditioned.length === 1 ? 'adds' : 'add'} conditions, ` +
-      `${mapped.length} ${mapped.length === 1 ? 'maps' : 'map'} paths; ` +
-      `read for ${under === '' ? 'the whole repository' : `${under} and every directory above it`}`,
-  );
+  const governing = new Set(finding.governing ?? configs);
   const conditions = new Set(conditioned);
   const paths = new Set(mapped);
-  const asking = configs.flatMap((file) => {
-    const asks = [conditions.has(file) ? 'customConditions' : '', paths.has(file) ? 'paths' : ''].filter(Boolean);
-    return asks.length === 0 ? [] : [`  ${file}: ${asks.join(', ')}`];
-  });
-  lines.push(...asking.slice(0, LISTED), ...(asking.length > LISTED ? [`  and ${asking.length - LISTED} more`] : []));
-  const asked = asking.length > 0;
-  if (finding.declared === false && asked) {
-    lines.push('  no scan reads them, so an import that reaches its target only through one has no edge');
-  } else if (finding.declared !== false && !asked) {
+  const asks = (file: string): readonly string[] =>
+    [conditions.has(file) ? 'customConditions' : '', paths.has(file) ? 'paths' : ''].filter(Boolean);
+  const counted = (files: readonly string[]): string => {
+    const [adding, mapping] = [files.filter((file) => conditions.has(file)).length, files.filter((file) => paths.has(file)).length];
+    return `${adding} ${adding === 1 ? 'adds' : 'add'} conditions, ${mapping} ${mapping === 1 ? 'maps' : 'map'} paths`;
+  };
+  lines.push(`  ${configs.length} tsconfig ${configs.length === 1 ? 'file' : 'files'} in the repository; ${counted(configs)}`);
+  if (under !== '') lines.push(`  ${governing.size} of them can govern ${under}; ${counted([...governing])}`);
+  // The configs that govern here first: they are what this directory loses.
+  const asking = [...configs.filter((file) => governing.has(file)), ...configs.filter((file) => !governing.has(file))]
+    .filter((file) => asks(file).length > 0);
+  lines.push(
+    ...asking.slice(0, LISTED).map((file) => `  ${file}: ${asks(file).join(', ')}`),
+    ...(asking.length > LISTED ? [`  and ${asking.length - LISTED} more`] : []),
+  );
+  if (finding.declared === false) {
+    if (asking.length > 0) lines.push('  no scan reads them, so an import that reaches its target only through one is not resolved');
+  } else if (asking.length === 0) {
     lines.push(
-      '  reading them changes no edge; `"typescript": { "tsconfig": false }` in the root ' +
+      '  reading them resolves no import differently; `"typescript": { "tsconfig": false }` in the root ' +
         'variance.config.json stops every scan looking for one',
     );
-    if (under !== '') lines.push('  it applies to the whole repository, so run this from each directory a scan reads first');
+  } else if (asking.every((file) => !governing.has(file))) {
+    lines.push(`  none that can govern ${under} asks; \`false\` reaches the whole repository, so it would stop the ${asking.length} that do as well`);
   }
   return lines;
 }

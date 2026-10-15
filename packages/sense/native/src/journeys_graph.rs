@@ -21,7 +21,7 @@ use rayon::prelude::*;
 use crate::compact::Layer;
 use crate::journeys_parse::{parse, Callee, Export, Parsed};
 use crate::package_graph::{fold, join_parses, At, Crossing};
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, Tsconfig};
 
 /// How a resolved call names its target.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -199,7 +199,8 @@ impl Graph {
     /// The graph over everything `seeds` reach, read from the index's layers.
     /// `seeds` are interned first and in order, so their ids are their places.
     /// `commit` is the commit the recording ran at, or why there is none.
-    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String]) -> Graph {
+    /// `tsconfig` is the config the scan that built the index resolved under.
+    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String], tsconfig: Tsconfig) -> Graph {
         let (then, index) = rayon::join(
             || commit.map_err(str::to_owned).and_then(|commit| text_at(root, commit)),
             || {
@@ -214,7 +215,7 @@ impl Graph {
             },
         );
         let by_file: HashMap<&str, usize> = index.iter().enumerate().map(|(at, crossing)| (crossing.file, at)).collect();
-        let resolvers = Resolvers::new(crate::resolve::Tsconfig::Auto, None);
+        let resolvers = Resolvers::new(tsconfig, None);
         let absolute = Path::new(root);
         let mut graph = Graph {
             files: Vec::new(),

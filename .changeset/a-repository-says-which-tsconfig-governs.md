@@ -13,5 +13,6 @@ no `customConditions`. A scan, the source index and the taint graph all read
 it, and `tsconfig: false` is accepted by `scanRelations` and `resolversFor`
 too.
 
-`variance doctor` names the tracked configs that can govern the directory it
-runs in and ask for `paths` or conditions, and suggests `false` when none does.
+`variance doctor` names the configs in the repository that ask for `paths` or
+conditions, those that can govern the directory it runs in first, and suggests
+`false` only when none in the repository does.
