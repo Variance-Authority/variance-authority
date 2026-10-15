@@ -82,9 +82,8 @@ describe('a record laid from the mainline', () => {
     const base = await suiteBase(clone, { env: {} });
     if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
 
-    const laid = await layMainline(clone, base.mainline);
-
-    expect(laid).toBe(testCoverageFile(clone, { suite: 'unit' }));
+    const laid = testCoverageFile(clone, { suite: 'unit' });
+    expect(await layMainline(clone, base.mainline, 'fixture')).toEqual({ laid });
     const ours = await readTestCoverage(made);
     expect((await readTestCoverage(laid)).modules).toEqual(ours.modules);
     expect((await readExecutionIndex(laid)).tests).toEqual([SAID]);

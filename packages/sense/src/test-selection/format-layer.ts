@@ -3,6 +3,7 @@ import { native, nativeRefusal } from '../addon.js';
 import { digestString } from '../digest.js';
 import { instrumentModeOf } from '../instrument/index.js';
 import { encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import { carriedSources } from './carried-sources.js';
 import { sourceCut } from './coverage-rows.js';
 import { editReadings, type EditReadings } from './edit-readings.js';
@@ -35,6 +36,27 @@ export function layRecord(
     ...(options.recut === undefined ? {} : { recut: options.recut }),
     ...(options.readings === undefined ? {} : { readings: Object.fromEntries(options.readings) }),
   }) ?? bytes(current);
+}
+
+/**
+ * The probes the record `previous` was written under, when a run under the
+ * probes `run` cannot be laid over it: the probe check {@link layRecord} makes,
+ * asked before anything is laid, so a caller deciding whether a record can be
+ * a run's base passes it over instead of laying a base every run refuses.
+ *
+ * Nothing when the record was written under `run`, or when the run lays no
+ * coverage and passes no probes. Nothing, too, for a record this build cannot
+ * read: that refusal is the caller's own, on its own terms.
+ */
+export function foreignProbes(previous: Uint8Array, run: string | undefined): string | undefined {
+  if (run === undefined) return undefined;
+  let written: string;
+  try {
+    written = openTestCoverage(previous).instrumentation;
+  } catch {
+    return undefined;
+  }
+  return written === run ? undefined : written;
 }
 
 /**

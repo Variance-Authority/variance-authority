@@ -167,7 +167,7 @@ export {
 } from './prune.js';
 // A run laid over the record at a path: the columns of the file it is about to
 // write over, carried, with this run's rows on top.
-export { layeredCoverage } from './format-layer.js';
+export { foreignProbes, layeredCoverage } from './format-layer.js';
 export { recordBase, recordDigestAt } from './record-base.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The

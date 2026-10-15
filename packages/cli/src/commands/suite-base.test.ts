@@ -21,7 +21,7 @@ import { lineCellOf, type Env } from '../share-lines.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
-import { layMainline, suiteBase } from './suite-base.js';
+import { layMainline, mainlinePassedOver, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
 import { suiteTimes } from './suite-times.js';
 
@@ -146,10 +146,10 @@ describe('the record a worktree that has run nothing measures from', () => {
     const base = await suiteBase(fresh, { env: LOCAL });
     if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
 
-    const laid = await layMainline(fresh, base.mainline);
+    const laid = await layMainline(fresh, base.mainline, 'fixture');
 
     const own = testCoverageFile(fresh, { suite: 'unit' });
-    expect(laid).toBe(own);
+    expect(laid).toEqual({ laid: own });
     expect(await readFile(own)).toEqual(await readFile(base.file));
     expect(keepsCases(own)).toBe(true);
     // The mainline's runs record, as a seed: none of its runs are this checkout's.
@@ -162,7 +162,32 @@ describe('the record a worktree that has run nothing measures from', () => {
       layer: { pinned: { mainline: 'main', commit: base.mainline.commit }, ran: [] },
       repin: { repinned: false, why: 'current' },
     });
-    expect(await layMainline(fresh, base.mainline)).toBeUndefined();
+    expect(await layMainline(fresh, base.mainline, 'fixture')).toBeUndefined();
+  });
+
+  it('is passed over, named with both probes, when the suite\'s run records under other probes than it was written under', async () => {
+    const { origin } = await mainline();
+    const fresh = join(home, 'fresh');
+    await git(home, 'clone', '--quiet', origin, fresh);
+    cacheOf('fresh-cache');
+    const base = await suiteBase(fresh, { env: LOCAL });
+    if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
+    const own = testCoverageFile(fresh, { suite: 'unit' });
+
+    const laid = await layMainline(fresh, base.mainline, 'newer-recipe');
+
+    // No run under `newer-recipe` could be laid over it, so the checkout keeps
+    // no record: the suite has no base, and runs whole.
+    expect(laid).toEqual({ passed: { suite: 'unit', file: base.file, instrumentation: 'fixture', run: 'newer-recipe' } });
+    expect(existsSync(own)).toBe(false);
+    if (laid === undefined || !('passed' in laid)) throw new Error('expected the record passed over');
+    expect(mainlinePassedOver(laid.passed)).toBe(
+      `record of "unit": the mainline's record at ${base.file} was written under the probes \`fixture\`, ` +
+        'and this run records under `newer-recipe`, so no run here can be laid over it and it was not laid',
+    );
+
+    // Under the probes it was written under, it is laid.
+    expect(await layMainline(fresh, base.mainline, 'fixture')).toEqual({ laid: own });
   });
 
   it('is the worktree\'s own once it has one, and the mainline is not asked', async () => {
