@@ -76,6 +76,25 @@ describe('searchNames', () => {
     expect(answer.loose).toBeUndefined();
   });
 
+  it('finds a name no manifest publishes by the words of its documentation', () => {
+    // `tally` is exported by a file beta's entrypoint does not re-export, and
+    // `ledger` is only in its doc comment.
+    const answer = searchNames(INDEX, { query: 'Ledger' });
+    expect(answer.exported?.shown).toContainEqual(
+      expect.objectContaining({ name: 'tally', summary: 'What beta writes into its ledger.', at: 'packages/beta/src/again.ts' }),
+    );
+  });
+
+  it('finds a name no manifest publishes when its documentation holds the description', () => {
+    const answer = searchNames(INDEX, { query: 'ledgers beta writes' });
+    expect(answer.described?.shown.map((match) => match.name)).toContain('tally');
+  });
+
+  it('finds a name no manifest publishes when its documentation holds a word one character off', () => {
+    const loose = searchNames(INDEX, { query: 'ledgr' }).loose;
+    expect(loose?.shown.map((match) => match.name)).toContain('tally');
+  });
+
   it('finds a name from the words it is written in, apart', () => {
     // `keptReading` is the words `kept` and `reading`; the caller who recalls
     // the words and not the casing must still reach it.

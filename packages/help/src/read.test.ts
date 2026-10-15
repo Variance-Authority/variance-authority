@@ -115,6 +115,12 @@ describe('reading a workspace through the source index', () => {
     expect(exported(indexed)).toContain('kept <- beta packages/beta/src/again.ts:3 source');
   });
 
+  it('carries the documentation of a name no manifest publishes, the same both ways', () => {
+    const doc = (help: Help) => help.exported.find((name) => name.name === 'tally')?.doc;
+    expect(doc(walked)).toBe('What beta writes into its ledger.');
+    expect(doc(indexed)).toBe(doc(walked));
+  });
+
   it('answers a second time from the index it just wrote', async () => {
     // Not a timing assertion — a timing assertion measures the machine. What is
     // checked is that the second reading is the same reading, because a cache

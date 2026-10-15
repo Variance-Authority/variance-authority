@@ -63,6 +63,31 @@ describe('what a Rust file asks for', () => {
     expect(exported.get('Read')?.from).toBe('crate::read::Read');
   });
 
+  it('carries the doc written above a published item, past its attributes', () => {
+    // The span is in UTF-16 units, as every reader's is: `é` is two bytes and one unit.
+    const source = [
+      '// é, which is not documentation',
+      "/// Any path's package,",
+      '/// tracked or not.',
+      '#[inline]',
+      'pub(crate) fn owner_of() {}',
+      '// A plain comment documents nothing.',
+      'pub struct Bare;',
+      '/** The block form. */',
+      'pub enum Block {}',
+      '',
+    ].join('\n');
+    const read = readRust('src/a.rs', source);
+    const doc = (name: string): string | undefined => {
+      const span = read.exports?.find((entry) => entry.exported === name)?.doc;
+      return span === undefined ? undefined : source.slice(span.start, span.end);
+    };
+
+    expect(doc('owner_of')).toBe("/// Any path's package,\n/// tracked or not.");
+    expect(doc('Bare')).toBeUndefined();
+    expect(doc('Block')).toBe('* The block form. ');
+  });
+
   it('says so when the parser stopped where a `use` could have been', () => {
     expect(readRust('src/a.rs', 'use self::b::C;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });
