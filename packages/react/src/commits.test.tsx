@@ -14,7 +14,7 @@ import { awaitQuiet, tapCommits } from './index.js';
 // then wraps.
 const installed = tapCommits();
 
-const { createRoot } = await import('react-dom/client');
+const { createRoot, hydrateRoot } = await import('react-dom/client');
 const { createElement: h, act, memo, useEffect, useState } = await import('react');
 
 type Root = ReturnType<typeof createRoot>;
@@ -36,6 +36,26 @@ afterEach(async () => {
   });
   container.remove();
 });
+
+/** The `FiberRoot` React keeps on a container. */
+function fiberRootOn(node: Node): object {
+  const record = node as unknown as Record<string, { readonly stateNode: object } | undefined>;
+  const key = Object.keys(record).find((name) => name.startsWith('__reactContainer$'));
+  const fiber = key === undefined ? undefined : record[key];
+  if (fiber === undefined) throw new Error('no React root on the container');
+  return fiber.stateNode;
+}
+
+/** Commits and their effects outside `act`, which would flush them inside its own scope. */
+async function unacted(run: () => Promise<void>): Promise<void> {
+  const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  env.IS_REACT_ACT_ENVIRONMENT = false;
+  try {
+    await run();
+  } finally {
+    env.IS_REACT_ACT_ENVIRONMENT = true;
+  }
+}
 
 async function render(element: unknown): Promise<void> {
   await act(async () => {
@@ -239,6 +259,97 @@ describe('effects a commit left', () => {
       tap.stop();
       env.IS_REACT_ACT_ENVIRONMENT = true;
     }
+  });
+
+  it('says which root still has effects to run', async () => {
+    function Effect() {
+      useEffect(() => {}, []);
+      return h('span', null, 'effect');
+    }
+    const other = document.createElement('div');
+    document.body.appendChild(other);
+    const still = createRoot(other);
+    const asked: boolean[] = [];
+    const tap = tapCommits({
+      onCommit: () => asked.push(tap.effectsPending(fiberRootOn(container)), tap.effectsPending(fiberRootOn(other))),
+    });
+    await unacted(async () => {
+      try {
+        still.render(h('span', null, 'still'));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        root.render(h(Effect, null));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(asked).toEqual([false, false, true, false]);
+      } finally {
+        tap.stop();
+        still.unmount();
+        other.remove();
+      }
+    });
+  });
+
+  it('counts the effects as run when the hook before it throws on hearing so', async () => {
+    const hook = (globalThis as Record<string, unknown>)['__REACT_DEVTOOLS_GLOBAL_HOOK__'] as {
+      onPostCommitFiberRoot?: (...args: unknown[]) => void;
+    };
+    const original = hook.onPostCommitFiberRoot;
+    hook.onPostCommitFiberRoot = () => {
+      throw new Error('a harness that breaks');
+    };
+    function Effect() {
+      useEffect(() => {}, []);
+      return h('span', null, 'effect');
+    }
+    const tap = tapCommits();
+    await unacted(async () => {
+      try {
+        root.render(h(Effect, null));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        expect(tap.commits()).toHaveLength(1);
+        expect(tap.effectsPending()).toBe(false);
+      } finally {
+        tap.stop();
+        hook.onPostCommitFiberRoot = original;
+      }
+    });
+  });
+});
+
+describe('a root that hydrates', () => {
+  /**
+   * What the server sent survives only until the commit that hydrates it: an
+   * effect that runs after can rewrite it, and nothing in the document then
+   * says what it was. The tap keeps it, and the root's own commits after it.
+   */
+  it('keeps the markup the server sent and the commits that changed it', async () => {
+    function Mounted() {
+      const [mounted, setMounted] = useState(false);
+      useEffect(() => setMounted(true), []);
+      return h('p', null, mounted ? 'client' : 'server');
+    }
+    const served = document.createElement('div');
+    served.innerHTML = '<p>server</p><img src="/never-fetched.png">';
+    document.body.appendChild(served);
+    const tap = tapCommits();
+    await unacted(async () => {
+      try {
+        const hydrated = hydrateRoot(served, [h(Mounted, { key: 'p' }), h('img', { key: 'i', src: '/never-fetched.png' })]);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(served.firstElementChild?.outerHTML).toBe('<p>client</p>');
+
+        const hydration = tap.hydration(fiberRootOn(served));
+        expect((hydration?.markup as Element | undefined)?.innerHTML).toBe('<p>server</p><img src="/never-fetched.png">');
+        expect(hydration?.markup.ownerDocument).not.toBe(document);
+        expect(hydration?.commits().map((commit) => commit.components)).toEqual([['Mounted']]);
+        expect(tap.hydration(fiberRootOn(container))).toBeUndefined();
+        hydrated.unmount();
+      } finally {
+        tap.stop();
+        served.remove();
+      }
+    });
   });
 });
 

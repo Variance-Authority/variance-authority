@@ -1,4 +1,4 @@
-import type { CommitTap } from './commits.js';
+import type { Commit, CommitTap } from './commits.js';
 import { containerFiber, fiberRootOf, findReactContainers } from './fiber.js';
 import { restlessIn } from './quiet.js';
 import { rootCommitted, rootHasWork } from './root-state.js';
@@ -39,29 +39,31 @@ import { rootCommitted, rootHasWork } from './root-state.js';
  * image is right, the geometry is right — so a capture that could not read one
  * has to say why, or its absence looks exactly like a production build.
  *
- * **A wait needs a reason, and ends on one.** No clock decides either. A
- * committed root is read at once. A page React never loaded on is read at once
- * too, when a commit tap installed before the page's scripts can say so: no
- * renderer introduced itself, so no root is coming. A root React has work for —
- * a lane it can render, effects it has not run — is waited for as long as React
- * works, because React will move on its own. A root React can do nothing for —
- * suspended on a promise nothing has pinged, created and never rendered — and a
- * subject no root reaches yet, move only when something outside React answers:
- * a chunk, a payload, a response. Those are waited for while the caller says
- * something the page asked for is still arriving, and read the moment nothing
- * is, with the reason on the settlement. A budget would answer the same
- * question with a guess: too short and a slow machine is refused, too long and
- * every page that will never hydrate pays it in full.
+ * **A wait needs a reason, and ends on one.** No clock decides either. A root
+ * React has work for — a lane it can render, effects it has not run — is waited
+ * for as long as React works, committed or not, because React will move on its
+ * own. A committed root with no work left is read. A root React can do nothing
+ * for — suspended on a promise nothing has pinged, created and never rendered —
+ * and a subject no root reaches yet, move only when something outside React
+ * answers: a chunk, a payload, a response. Those are waited for while the caller
+ * says something the page asked for is still arriving, and read the moment
+ * nothing is, with the reason on the settlement. A page React never loaded on is
+ * one of them, since a renderer can be on the wire too; once nothing is, a
+ * commit tap installed before the page's scripts says that none introduced
+ * itself. A budget would answer the same question with a guess: too short and a
+ * slow machine is refused, too long and every page that will never hydrate pays
+ * it in full.
  *
- * **A wait is compared**, given the tap. When the subject had to be waited for,
- * its markup is read before the wait and again once React has run the effects
- * hydration scheduled and rendered whatever they asked for: the tap is what
- * says the effects ran, and a comparison made without it would read the page
- * before they had. A client that rewrites what the server sent — a mounted
- * flag, a theme read from storage — renders the same markup on both sides of
- * hydration, so React reports no mismatch; the visitor still sees one page and
- * then another. The settlement carries both sides of the first difference, and
- * the components that committed after hydration.
+ * **Hydration is compared**, given the tap. It copies a root's container at the
+ * commit that hydrates it, which is the server's markup, and the settlement
+ * compares the subject with that copy once React has nothing left to do. A
+ * client that rewrites what the server sent — a mounted flag, a theme read from
+ * storage — renders the same markup on both sides of hydration, so React
+ * reports no mismatch; the visitor still sees one page and then another. The
+ * settlement carries both sides of the first difference, and the components
+ * that committed after hydration. Both sides are React's own moments, so the
+ * answer is the same on a machine that reads the route before its effects run
+ * and one that reads it after.
  *
  * Dehydrated Suspense boundaries under a hydrated root are not waited for here.
  * `awaitSuspense` reads them as still arriving, and a subject still arriving is
@@ -75,9 +77,9 @@ export interface HydrationWaitOptions {
    * React's commit stream, tapped before the page's scripts ran.
    *
    * What lets the wait tell a page React will hydrate from one React never
-   * loaded on, what says the effects of a commit have run, and so what lets the
-   * comparison after a wait read the page once they have. Without one, or with
-   * one that did not attach, the wait reads no further than React's roots.
+   * loaded on, what says the effects of a commit have run, and what holds the
+   * server's markup to compare the subject with. Without one, or with one that
+   * did not attach, the wait reads no further than React's roots.
    */
   readonly tap?: CommitTap;
   /**
@@ -131,22 +133,22 @@ export interface HydrationSettlement {
   /** How long this actually waited, in milliseconds. */
   readonly waitedMs: number;
   /**
-   * `false` when the tap saw no React renderer load on the page, which is why
-   * an `unrooted` subject was read without waiting. Absent when there was no
-   * tap to ask, or React had loaded.
+   * `false` when the tap saw no React renderer load on the page by the time
+   * nothing more was arriving, which is why the subject is `unrooted`. Absent
+   * when there was no tap to ask, or React had loaded.
    */
   readonly loaded?: false;
   /**
-   * How hydration changed the subject's markup, when it was waited for with an
-   * attached tap and did: the first difference, as the server sent it and as
-   * the client left it.
+   * How the client changed the subject's markup after the server sent it, when
+   * an attached tap saw the root hydrate and it did: the first difference, as
+   * the server sent it and as the client left it.
    */
   readonly changed?: MarkupChange;
 }
 
 /** The first place two readings of a subject's markup differ, with some context either side. */
 export interface MarkupChange {
-  /** The markup around the difference before hydration. */
+  /** The markup around the difference as the server sent it. */
   readonly before: string;
   /** The same place once React had finished the work hydration left. */
   readonly after: string;
@@ -175,78 +177,100 @@ export async function awaitHydration(
   const pollMs = Math.max(1, options.pollMs ?? DEFAULT_POLL_MS);
   const tap = options.tap?.attached === true ? options.tap : undefined;
   const started = now();
-  // What the subject looked like when it first had to be waited for, and where
-  // React's commit stream stood then: past it, the first `hydrating` commits
-  // are the hydration itself, and anything after them is the client changing it.
-  let before: { readonly markup: string; readonly commit: number; readonly hydrating: number } | undefined;
 
   for (;;) {
     const roots = rootsReaching(node);
     let pending = 0;
-    let working = tap?.effectsPending() === true;
+    let working = false;
     for (const root of roots) {
-      if (rootCommitted(root)) continue;
-      pending += 1;
-      if (rootHasWork(root)) working = true;
+      if (!rootCommitted(root)) pending += 1;
+      if (rootHasWork(root) || tap?.effectsPending(root) === true) working = true;
     }
 
-    if (roots.size > 0 && pending === 0) {
-      const settled = { state: 'hydrated' as const, roots: roots.size, pending: 0 };
-      if (before === undefined || tap === undefined) return { ...settled, waitedMs: now() - started };
-      const changed = await changeAfter(node, before, tap, pollMs);
-      return { ...settled, waitedMs: now() - started, ...(changed !== undefined ? { changed } : {}) };
-    }
-    // Asked once, at the start: a renderer that had not loaded by then is not
-    // loading while the page agent holds the thread between polls.
-    if (roots.size === 0 && before === undefined && tap !== undefined && tap.reactVersion === undefined) {
-      return { state: 'unrooted', roots: 0, pending: 0, waitedMs: now() - started, loaded: false };
-    }
-
-    if (tap !== undefined) {
-      before ??= { markup: markupOf(node), commit: tap.dropped() + tap.commits().length, hydrating: pending };
-    }
     // React has a render it can do, or effects it has not run: it moves on its
     // own, and the next read sees where it got to.
     if (working) {
       await sleep(pollMs);
       continue;
     }
-    // React can do nothing until something outside it answers. Waited for only
-    // while something still might.
-    if (options.outstanding === undefined || !(await options.outstanding())) {
+    if (roots.size > 0 && pending === 0) {
+      const changed = tap === undefined ? undefined : changeOf(node, roots, tap);
       return {
-        state: roots.size === 0 ? 'unrooted' : 'hydrating',
+        state: 'hydrated',
         roots: roots.size,
-        pending,
+        pending: 0,
         waitedMs: now() - started,
+        ...(changed !== undefined ? { changed } : {}),
       };
     }
+    // React can do nothing until something outside it answers. Waited for only
+    // while something still might.
+    if (options.outstanding !== undefined && (await options.outstanding())) continue;
+    return {
+      state: roots.size === 0 ? 'unrooted' : 'hydrating',
+      roots: roots.size,
+      pending,
+      waitedMs: now() - started,
+      ...(roots.size === 0 && tap !== undefined && tap.reactVersion === undefined ? { loaded: false as const } : {}),
+    };
   }
 }
 
 /**
- * The subject's markup once React has finished the work hydration left, compared
- * with what it was before the wait, or `undefined` when the two agree.
+ * The subject as the server sent it, compared with the subject now, or
+ * `undefined` when they agree or no root reaching it was seen to hydrate.
  *
- * Finished first, because hydration commits the server's markup by
- * construction: whatever the client changes, it changes in an effect, and an
- * effect commits after the hydration commit this wait returned on. Finished is
- * React's own record, not a stretch of silence: every root reaching the subject
- * committed with no lane it can render, and every commit's passive effects run.
- * An effect that updates state leaves a lane pending, so the wait follows the
- * chain of commits it starts to its end, however long that takes.
+ * "As the server sent it" is the subject with each root's container put back as
+ * the tap copied it at the hydration commit. A subject inside a container is
+ * found in the copy by its position; when the client has moved what precedes
+ * it, the position no longer says, and the container is compared instead. A
+ * subject portalled out of its root's container was never in what the server
+ * sent there, and compares as nothing.
  */
-async function changeAfter(
-  node: Node,
-  from: { readonly markup: string; readonly commit: number; readonly hydrating: number },
-  tap: CommitTap,
-  pollMs: number,
-): Promise<MarkupChange | undefined> {
-  while (tap.effectsPending() || [...rootsReaching(node)].some((root) => !rootCommitted(root) || rootHasWork(root))) {
-    await sleep(pollMs);
+function changeOf(node: Node, roots: ReadonlySet<object>, tap: CommitTap): MarkupChange | undefined {
+  const subject = elementOf(node);
+  if (subject === undefined) return undefined;
+  let inside: { readonly container: Element; readonly copy: Element } | undefined;
+  const under: Array<{ readonly container: Element; readonly copy: Element }> = [];
+  const commits: Commit[] = [];
+  for (const root of roots) {
+    const container = elementOf((root as { readonly containerInfo?: unknown }).containerInfo);
+    const hydration = tap.hydration(root);
+    const copy = hydration?.markup as Element | undefined;
+    if (container === undefined || copy === undefined) continue;
+    commits.push(...(hydration?.commits() ?? []));
+    // The innermost root holding the subject is the one that rendered it.
+    if (container !== subject && container.contains(subject)) {
+      if (inside === undefined || inside.container.contains(container)) inside = { container, copy };
+    } else if (subject.contains(container)) {
+      under.push({ container, copy });
+    }
   }
-  const before = from.markup;
-  const after = markupOf(node);
+
+  let before: Element | undefined;
+  let after: Element = subject;
+  if (inside !== undefined) {
+    before = at(inside.copy, pathTo(inside.container, subject));
+    if (before === undefined) [before, after] = [inside.copy, inside.container];
+  } else if (under.length > 0) {
+    // A copy of the subject, never the tap's own: that is the server's markup
+    // for whoever asks next. A root on the subject itself was copied whole,
+    // roots inside it included, as the server sent them.
+    const inert = subject.ownerDocument.implementation.createHTMLDocument('');
+    const own = under.find(({ container }) => container === subject);
+    before = inert.importNode(own?.copy ?? subject, true);
+    if (own === undefined) {
+      for (const { container, copy } of under) {
+        at(before, pathTo(subject, container))?.replaceWith(inert.importNode(copy, true));
+      }
+    }
+  }
+  if (before === undefined) return undefined;
+  return difference(before.outerHTML, after.outerHTML, commits);
+}
+
+/** The first difference between two readings, with the components that committed after hydration. */
+function difference(before: string, after: string, commits: readonly Commit[]): MarkupChange | undefined {
   if (after === before) return undefined;
 
   let start = 0;
@@ -265,11 +289,7 @@ async function changeAfter(
     return (from > 0 ? '…' : '') + markup.slice(from, to) + (to < markup.length ? '…' : '');
   };
 
-  // Indexed from the stream's start rather than the retained window, which
-  // drops its oldest commit once it is full.
-  const components = restlessIn(
-    tap.commits().slice(Math.max(0, from.commit + from.hydrating - tap.dropped())),
-  ).map((component) => component.name);
+  const components = restlessIn(commits).map((component) => component.name);
   return {
     before: excerpt(before),
     after: excerpt(after),
@@ -277,10 +297,29 @@ async function changeAfter(
   };
 }
 
-function markupOf(node: Node): string {
-  const element = node as Partial<Element>;
-  if (typeof element.outerHTML === 'string') return element.outerHTML;
-  return (node as Partial<Document>).documentElement?.outerHTML ?? node.textContent ?? '';
+/** The element a subject's markup is read from: itself, or a document's root element. */
+function elementOf(node: unknown): Element | undefined {
+  const candidate = ((node as Partial<Document> | null | undefined)?.documentElement ?? node) as
+    | Partial<Element>
+    | null
+    | undefined;
+  return typeof candidate?.outerHTML === 'string' ? (candidate as Element) : undefined;
+}
+
+/** Child indices from `ancestor` down to `node`. */
+function pathTo(ancestor: Node, node: Node): number[] {
+  const path: number[] = [];
+  for (let at: Node = node; at !== ancestor && at.parentNode !== null; at = at.parentNode) {
+    path.unshift(Array.prototype.indexOf.call(at.parentNode.childNodes, at));
+  }
+  return path;
+}
+
+/** The element at `path` under `root`, or `undefined` when the path leads nowhere there. */
+function at(root: Element, path: readonly number[]): Element | undefined {
+  let node: Node | undefined = root;
+  for (const index of path) node = node?.childNodes[index];
+  return node !== undefined && (node as Partial<Element>).outerHTML !== undefined ? (node as Element) : undefined;
 }
 
 /** Every `FiberRoot` reaching the subject, once each. */

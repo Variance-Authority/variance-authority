@@ -346,17 +346,19 @@ React has not already. A server-rendered route is on screen before React has com
 component behind a node can only be read after that commit. So the collector
 reads React's own record of each root on, above or under the selected roots,
 the `Document` included, and waits until every one has committed: while React
-has work it can do, and, while it is stuck on a promise, for as long as
-anything the page requested is still arriving. No clock ends the wait. A route
+has work it can do or effects to run, and, while it is stuck on a promise or
+no root is there yet, for as long as anything the page requested is still
+arriving. No clock ends the wait. A route
 React stops hydrating with nothing left arriving is refused at once, as a route
 still showing a Suspense fallback is: an effect that runs after
 hydration can paint a different image, so the same route would record one image
 on a slow run and another on a fast one. A route where no React root is found
 is collected with a `react-root-absent` warning, and a changed region on it
-names no component for that reason; a route React never loaded on is read at
-once. A route whose markup hydration changed carries a
-`hydration-changed-markup` warning that quotes the server's markup and the
-client's and names the components that committed after hydrating. With `wiring: false` the collector reads no components, waits for
+names no component for that reason; on a route React never loaded on, the
+warning says so. A route whose markup changed after its hydration commit
+carries a `hydration-changed-markup` warning that quotes the markup at that
+commit and the client's, and names the components that committed after
+hydrating. With `wiring: false` the collector reads no components, waits for
 nothing, and says nothing.
 
 Then it waits for every React Suspense boundary

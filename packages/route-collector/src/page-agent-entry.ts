@@ -33,7 +33,9 @@ const DEFAULT_ROOTS = ['body'] as const;
  * runs, so the tap is made there and the second run takes it rather than
  * wrapping the hook a second time. On the world's first document the bundle
  * arrives after React, and the tap refuses rather than report a page that
- * never commits; `awaitHydration` then waits as it would without one.
+ * never commits; `awaitHydration` then reads it as no tap at all: it waits on
+ * React's lanes and the wire, and neither waits for passive effects nor
+ * compares the markup hydration changed.
  */
 const TAP_GLOBAL = '__variance_authority_route_commits__';
 const scope = globalThis as unknown as Record<string, unknown>;

@@ -2093,6 +2093,7 @@
         "Remount": "interface",
         "RenderMark": "interface",
         "ResolvedProvenance": "interface",
+        "RootHydration": "interface",
         "SuspenseBoundary": "interface",
         "SuspenseOutcome": "type",
         "SuspenseSettlement": "interface",

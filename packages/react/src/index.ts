@@ -77,6 +77,7 @@ export { awaitHydration } from './hydration.js';
 export type {
   Commit,
   CommitTap,
+  RootHydration,
   TapOptions,
   TapRefusal,
 } from './commits.js';

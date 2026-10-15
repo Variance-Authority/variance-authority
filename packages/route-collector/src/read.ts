@@ -370,12 +370,13 @@ function hydrationNotes(settlement: HydrationSettlement, subjectId: string): Dia
       code: 'react-root-absent',
       message:
         settlement.loaded === false
-          ? `React did not load on ${subjectId}, so its components were not read and nothing ` +
-            'waited for it. Set `wiring: false` when React does not render these routes.'
+          ? `React had not loaded on ${subjectId} once nothing the page requested was still ` +
+            'arriving, so its components were not read. Set `wiring: false` when React does not ' +
+            'render these routes.'
           : `No React root was found on, above or under ${subjectId}, and nothing the page ` +
             'requested was still arriving, so its components were not read. Either React does ' +
             'not render this route, or its client creates a root on something other than a ' +
-            'response: a timer, an interaction. Set `wiring: false` when React does not render ' +
+            'response: a timer, an effect, an interaction. Set `wiring: false` when React does not render ' +
             'these routes.',
     });
   }

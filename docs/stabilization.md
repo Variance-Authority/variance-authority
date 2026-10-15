@@ -850,19 +850,25 @@ neither `load` nor a settled network says when that commit happens. So the
 collector reads a route once React has hydrated it, waits only while React or
 the page can still get there, and refuses a route that cannot.
 
-No clock decides how long that is. A route React has already committed is read
-at once, and so is a route React never loaded on: the collector watches React's
-commits from before the page's first script, so it knows when no `react-dom`
-arrived. Otherwise React's own record decides:
+No clock decides how long that is. React's own record does, and the wire:
 
 - While a root has a render React can do, or a commit has effects React has not
-  run yet, the collector waits for React.
+  run yet, the collector waits for React. A route React has already committed
+  is read as soon as its effects have run.
+- While no React root is there yet, the collector waits for as long as anything
+  the page requested is still arriving: a client is a script, and a script is a
+  request. It watches React's commits from before the page's first script, so a
+  route nothing more is arriving on and no `react-dom` loaded on is read then,
+  with a warning that React did not load.
 - While React is stuck on a promise — a chunk, a payload — the collector waits
   for as long as anything the page requested is still arriving, however long
   that takes. A request that stays open, such as a long poll, keeps the wait
   open for as long as it stays open, and one that never closes holds the route
-  with it. An event stream or a WebSocket is not counted: it is a channel, not a
-  response anything waits on.
+  with it, and a run that ends while the route waits names the request. An
+  event stream, a WebSocket or a playing video is not counted: it is a channel,
+  not a response anything waits on. Nor is a font or an image: React waits on
+  neither, and the font and asset waits below name the one that never answers.
+  A request that fails has stopped arriving.
 - When React is stuck and nothing is arriving, the route is refused at once,
   counting the roots that had not committed. The collector watches what the
   page receives, not what it schedules, so a promise a timer settles is refused
@@ -893,12 +899,13 @@ the server's markup is not recorded in its place. Find the promise the first
 render holds on.
 ```
 
-A route that had to be waited for is read twice: its markup when the wait
-began, and again once React has committed and run the effects hydration
-scheduled. When the two differ, the route is collected as it ended, the page a
-visitor is left with, and carries a `hydration-changed-markup` `warn`
-diagnostic that quotes both and names the components that committed after
-hydrating:
+A route that hydrates is read twice: its markup as React's hydration commit
+found it, copied in that commit, and again once React has nothing left to do.
+The copy is taken at the commit rather than when the collector looked, so a
+fast machine and a slow one compare the same two pages. When the two differ,
+the route is collected as it ended, the page a visitor is left with, and
+carries a `hydration-changed-markup` `warn` diagnostic that quotes both and
+names the components of that root that committed after hydrating:
 
 ```
 Hydration changed the markup of page/app: the server sent `<main id="app"><p>early</p></main>`
@@ -907,6 +914,11 @@ hydrating. The reading is of the page after hydration; a visitor sees the
 server's page first. Render the same markup on the server, or move the
 difference into a client-only component.
 ```
+
+What the hydration commit itself writes is already in the copy. A mismatch React
+recovers from by rendering on the client, and a layout effect that writes the
+DOM, compare as no change; React reports a mismatch itself, through
+`onRecoverableError`.
 
 A route where no root is found is collected, not refused, with a
 `react-root-absent` `warn` diagnostic on that subject, which the report
@@ -1075,8 +1087,8 @@ redefine application state, and the only framework hook it installs before the
 application loads is React's commit hook, in the route collector.
 
 The route collector installs `tapCommits` from its page agent before the page's
-first script, and reads it only to know whether React loaded and when the
-effects hydration scheduled have run. No collector calls `awaitQuiet`: silence
+first script, and reads it only to know whether React loaded, when the effects
+a commit scheduled have run, and what the markup was at the hydration commit. No collector calls `awaitQuiet`: silence
 is not a reason to stop waiting, and a tap attached after `react-dom` cannot
 prove the page is quiet.
 

@@ -75,10 +75,14 @@ export function App({ ready }) {
 /**
  * What the shell holds on, from the query string, so one page serves every
  * case: `hold` is a response the server sends after that many milliseconds,
- * `timer` a timer the page sets itself.
+ * `timer` a timer the page sets itself. Beside it the page may open a stream
+ * that never ends (`stream`) or send a request the server drops after that many
+ * milliseconds (`fail`).
  */
 const READY = [
   'const query = new URLSearchParams(location.search);',
+  "if (query.has('stream')) new EventSource('/events');",
+  "if (query.has('fail')) fetch(`/hold?ms=${query.get('fail')}&drop`).catch(() => undefined);",
   "export const ready = query.has('timer')",
   "  ? new Promise((resolve) => setTimeout(resolve, Number(query.get('timer'))))",
   "  : fetch(`/hold?ms=${query.get('hold') ?? '0'}`).then(() => undefined);",
@@ -207,8 +211,13 @@ beforeAll(async () => {
         name: 'hold',
         configureServer(dev) {
           dev.middlewares.use('/hold', (request, response) => {
-            const ms = Number(new URL(request.url ?? '', 'http://hold').searchParams.get('ms') ?? '0');
-            setTimeout(() => response.end('held'), ms);
+            const query = new URL(request.url ?? '', 'http://hold').searchParams;
+            const ms = Number(query.get('ms') ?? '0');
+            setTimeout(() => (query.has('drop') ? request.socket.destroy() : response.end('held')), ms);
+          });
+          dev.middlewares.use('/events', (_request, response) => {
+            response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+            response.write('data: open\n\n');
           });
         },
       },
@@ -321,6 +330,28 @@ describe.skipIf(!BROWSER_AVAILABLE)('reading components off a route that hydrate
     expect(performance.now() - started).toBeLessThan(30_000);
   }, 120_000);
 
+  it('refuses at once beside a stream that stays open', async () => {
+    // An event stream is a channel, not a response: it is open for as long as
+    // the page is, and the shell is not waiting on it.
+    const started = performance.now();
+    const collected = await collect(`${base}?timer=60000&stream`);
+
+    expect(collected.ok).toBe(false);
+    if (collected.ok) return;
+    expect(collected.because).toMatch(/nothing the page requested was still arriving/);
+    expect(performance.now() - started).toBeLessThan(30_000);
+  }, 120_000);
+
+  it('stops waiting when the request it waited on fails', async () => {
+    const started = performance.now();
+    const collected = await collect(`${base}?timer=60000&fail=800`);
+
+    expect(collected.ok).toBe(false);
+    if (collected.ok) return;
+    expect(collected.because).toMatch(/nothing the page requested was still arriving/);
+    expect(performance.now() - started).toBeLessThan(30_000);
+  }, 120_000);
+
   it('says no React root reached a route that has none', async () => {
     const collected = await read(`${base}static.html`);
 
@@ -328,13 +359,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('reading components off a route that hydrate
     expect(codes(collected)).toEqual(['react-root-absent']);
   }, 120_000);
 
-  it('does not wait on a route React never loaded on', async () => {
+  it('reads a route React never loaded on once nothing is arriving', async () => {
     // Nothing is coming: the page loaded and no renderer introduced itself.
     const collected = await read(`${base}static.html`);
 
     expect(codes(collected)).toEqual(['react-root-absent']);
     expect(hydrationMs(collected)).toBeLessThan(1_000);
-    expect(collected.diagnostics?.[0]?.message).toMatch(/React did not load on page\/app/);
+    expect(collected.diagnostics?.[0]?.message).toMatch(/React had not loaded on page\/app once nothing the page requested was still arriving/);
   }, 120_000);
 
   it('says when hydration changed the markup the server sent', async () => {

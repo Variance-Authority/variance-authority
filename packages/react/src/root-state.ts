@@ -53,6 +53,24 @@ export function rootCommitted(root: object): boolean {
 }
 
 /**
+ * Whether the commit React is announcing for this `FiberRoot` hydrated it: the
+ * `HostRoot` it replaced was dehydrated and the one it committed is not.
+ *
+ * INTERNAL CONTRACT: `isDehydrated` on `HostRoot.memoizedState`, as
+ * `rootCommitted` reads it. When React announces a commit, `current` is the tree
+ * it has just committed and `current.alternate` the one it replaced. A renamed
+ * flag reads as no hydration, so no copy: a comparison that is not made rather
+ * than one made against the wrong markup.
+ */
+export function committedHydration(root: object): boolean {
+  const dehydrated = (fiber: unknown): boolean =>
+    (fiber as { readonly memoizedState?: { readonly isDehydrated?: unknown } | null } | null | undefined)
+      ?.memoizedState?.isDehydrated === true;
+  const current = (root as { readonly current?: unknown }).current as { readonly alternate?: unknown } | undefined;
+  return current !== undefined && dehydrated(current.alternate) && !dehydrated(current);
+}
+
+/**
  * Whether React has a render of this `FiberRoot` it can do now: a lane pending
  * that is not suspended, or a suspended one a settled promise has pinged.
  *

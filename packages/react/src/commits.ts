@@ -1,11 +1,12 @@
 import { isOwnerFrame, type Fiber } from './fiber.js';
+import { HOOK_KEY, injectedVersion, installHook, reactHasMounted, type DevToolsHook } from './hook.js';
 import { fiberComponentName } from './names.js';
+import { committedHydration } from './root-state.js';
 import {
   memoizedUpdatersOf,
   type CommitUpdater,
   type FiberRootUpdate,
 } from './updaters.js';
-import { HOOK_KEY, injectedVersion, installHook, reactHasMounted, type DevToolsHook } from './hook.js';
 
 /**
  * Every commit React makes, and which components rendered in it.
@@ -68,14 +69,18 @@ import { HOOK_KEY, injectedVersion, installHook, reactHasMounted, type DevToolsH
 const PERFORMED_WORK = 0b1;
 
 /**
- * `PassiveMask` in React 18 and 19: `Passive | ChildDeletion | Visibility`.
- * React reads it off the finished `HostRoot` to decide whether a commit leaves
- * passive effects to flush, and calls `onPostCommitFiberRoot` once it has. A
- * commit the mask misses still gets its post-commit call in a development
- * build, which also flushes for the profiler, so reading less than React does
- * waits for less, never for a call that is not coming.
+ * `PassiveMask` in React 19: `Passive | ChildDeletion | Visibility`. React reads
+ * it off the finished `HostRoot` to decide whether a commit leaves passive
+ * effects to flush, and calls `onPostCommitFiberRoot` once it has. A commit the
+ * mask misses still gets its post-commit call in a development build, which
+ * also flushes for the profiler, so reading less than React does waits for
+ * less, never for a call that is not coming. Reading more would: a root marked
+ * flushing that React never flushes reads as busy for good.
  */
 const PASSIVE_MASK = 0b10_1000_0001_0000;
+
+/** `PassiveMask` in React 18, which flushes nothing for `Visibility` alone. */
+const PASSIVE_MASK_18 = 0b1000_0001_0000;
 
 /** Runaway guard on the per-commit walk. See `suspense.ts` for the same bound. */
 const MAX_FIBERS = 500_000;
@@ -114,6 +119,20 @@ export interface Commit {
 
   /** Set when `updaterLimit` cut the initiator list short. */
   readonly updatersTruncated?: boolean;
+}
+
+/** What a tap saw of one root's hydration. */
+export interface RootHydration {
+  /**
+   * The root's container as the server sent it, copied at the commit that
+   * hydrated it: the last moment the server's markup is in the document and the
+   * first at which a root is known to own it, so what is compared with it does
+   * not depend on when anyone asked. The copy belongs to a document of its own,
+   * where nothing it holds loads or runs.
+   */
+  readonly markup: Node;
+  /** The root's own commits since, oldest first, as many as the tap keeps. */
+  commits(): readonly Commit[];
 }
 
 /**
@@ -185,8 +204,15 @@ export interface CommitTap {
    * lanes, no callback — while a `useEffect` that will change the page is still
    * queued. React announces the flush with `onPostCommitFiberRoot`, and this is
    * true from a commit that has effects until that call for its root.
+   *
+   * Given a `FiberRoot`, whether that root has; without one, whether any has.
    */
-  effectsPending(): boolean;
+  effectsPending(root?: object): boolean;
+  /**
+   * The `FiberRoot`'s hydration, or `undefined` for a root that never hydrated
+   * or one this tap did not see hydrate.
+   */
+  hydration(root: object): RootHydration | undefined;
   /** Restore whatever was there before. Safe to call twice. */
   stop(): void;
 }
@@ -266,14 +292,21 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
   let stopped = false;
   // Roots whose last commit left passive effects React has not flushed.
   const flushing = new Set<object>();
+  const hydrated = new WeakMap<object, { readonly markup: Node; readonly since: Commit[] }>();
 
   const record = (...args: unknown[]): void => {
     if (stopped) return;
     const fiberRoot = args[1] as FiberRootUpdate | undefined;
     last = now();
+    const hydration = fiberRoot !== undefined && committedHydration(fiberRoot);
+    if (hydration) {
+      const markup = inertCopy((fiberRoot as { readonly containerInfo?: unknown }).containerInfo);
+      if (markup !== undefined) hydrated.set(fiberRoot, { markup, since: [] });
+    }
     if (fiberRoot?.current !== undefined) {
+      const mask = injectedVersion(hook)?.startsWith('18.') === true ? PASSIVE_MASK_18 : PASSIVE_MASK;
       const flags = flagsOf(fiberRoot.current);
-      if (((flags.own | flags.subtree) & PASSIVE_MASK) !== 0) flushing.add(fiberRoot);
+      if (((flags.own | flags.subtree) & mask) !== 0) flushing.add(fiberRoot);
     }
 
     const named = fiberRoot?.current ? componentsThatRendered(fiberRoot.current, nameLimit) : null;
@@ -295,6 +328,8 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     }
 
     recorded.push(commit);
+    const since = hydration || fiberRoot === undefined ? undefined : hydrated.get(fiberRoot)?.since;
+    if (since !== undefined && since.push(commit) > keep) since.shift();
     if (recorded.length > keep) {
       recorded.shift();
       lost += 1;
@@ -319,8 +354,13 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
   };
 
   hook.onPostCommitFiberRoot = (...args: unknown[]): void => {
-    previousPost?.apply(hook, args);
-    if (!stopped) flushing.delete(args[1] as object);
+    // The effects have run whether or not the harness before us throws on
+    // hearing it, and a root left marked would read as busy for good.
+    try {
+      previousPost?.apply(hook, args);
+    } finally {
+      if (!stopped) flushing.delete(args[1] as object);
+    }
   };
 
   return {
@@ -331,7 +371,11 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
     commits: () => recorded.slice(),
     dropped: () => lost,
     quietFor: () => now() - last,
-    effectsPending: () => flushing.size > 0,
+    effectsPending: (root?: object) => (root === undefined ? flushing.size > 0 : flushing.has(root)),
+    hydration: (root: object) => {
+      const seen = hydrated.get(root);
+      return seen === undefined ? undefined : { markup: seen.markup, commits: () => seen.since.slice() };
+    },
     stop: () => {
       if (stopped) return;
       stopped = true;
@@ -386,6 +430,21 @@ function componentsThatRendered(
 }
 
 /**
+ * A copy of a root's container in a document of its own, which has no window:
+ * an image in it does not load and a script does not run. A `Document` container
+ * is copied from its root element, which is what its markup is read from.
+ */
+function inertCopy(container: unknown): Node | undefined {
+  const source = ((container as Partial<Document> | null | undefined)?.documentElement ?? container) as
+    | Partial<Node>
+    | null
+    | undefined;
+  const owner = source?.ownerDocument;
+  if (owner === null || owner === undefined) return undefined;
+  return owner.implementation.createHTMLDocument('').importNode(source as Node, true);
+}
+
+/**
  * Flags, tolerating a fiber shape that does not have them.
  *
  * `flags`/`subtreeFlags` are not on the structural `Fiber` type this package
@@ -409,6 +468,7 @@ function refused(reason: TapRefusal): CommitTap {
     dropped: () => 0,
     quietFor: () => 0,
     effectsPending: () => false,
+    hydration: () => undefined,
     stop: () => {},
   };
 }

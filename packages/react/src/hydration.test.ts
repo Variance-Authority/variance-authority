@@ -8,7 +8,7 @@
 // underneath it, for the reason `commits.test.tsx` gives: a static import would
 // load react-dom before the hook existed, and the tap would hear nothing.
 
-import { createElement as h, use, useEffect, useState } from 'react';
+import { createElement as h, startTransition, use, useEffect, useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { tapCommits, type CommitTap } from './commits.js';
 import { hasFiber } from './fiber.js';
@@ -157,6 +157,28 @@ describe('waiting for React to hydrate the subject', () => {
   });
 
   /**
+   * A shell hydrated inside a transition suspends on a transition lane rather
+   * than the default one. React marks it suspended all the same, so it reads as
+   * work React cannot do, and the wait asks the wire rather than following a
+   * render that is not coming.
+   */
+  it('stops on a shell hydrated in a transition when nothing is arriving to settle it', async () => {
+    const container = document.createElement('div');
+    container.innerHTML = MARKUP;
+    document.body.appendChild(container);
+    const held = gate();
+    gates.push(held.open);
+    startTransition(() => {
+      roots.push(hydrateRoot(container, h(App, { ready: held.ready })));
+    });
+    await ticks();
+
+    const settled = await awaitHydration(subjectOf(container), { pollMs: 4, outstanding: async () => false });
+
+    expect(settled).toMatchObject({ state: 'hydrating', roots: 1, pending: 1 });
+  });
+
+  /**
    * The fiber on `<span>` belongs to a render React has not committed, and may
    * never commit: a hydration that fails is thrown away and rendered again on
    * the client. A component read off it would be reported as observed when
@@ -202,6 +224,24 @@ describe('waiting for React to hydrate the subject', () => {
 
     expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
     expect(settled.waitedMs).toBeLessThan(50);
+  });
+
+  /**
+   * A root that committed before the wait was asked can still have effects
+   * React has not run, and an effect is where a client changes what the server
+   * sent. Read before they run, the page is read one change early.
+   */
+  it('waits for the effects of a root that had already committed', async () => {
+    const page = await hydrating();
+    page.open();
+    await ticks();
+    let asked = 0;
+    const flushing = { ...tap, attached: true, effectsPending: () => (asked += 1) <= 3 } as CommitTap;
+
+    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, tap: flushing });
+
+    expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
+    expect(asked).toBeGreaterThan(3);
   });
 
   /**
@@ -327,15 +367,16 @@ describe('waiting for React to hydrate the subject', () => {
   });
 
   /**
-   * A tap installed before the page's scripts that saw no React load is the
-   * answer the timeout used to be spent finding: no root is coming.
+   * A tap installed before the page's scripts that saw no React load says no
+   * root is coming yet, not that none will: a renderer can still be on the wire,
+   * in a chunk the page imports late. Read once nothing the page asked for is.
    */
-  it('waits for nothing on a page React never loaded on', async () => {
+  it('reads a page React never loaded on once nothing is arriving', async () => {
     const plain = document.createElement('main');
     plain.innerHTML = '<p>static</p>';
     document.body.appendChild(plain);
     // The tap's own answer on such a page; React has loaded in this one.
-    const unloaded = { attached: true, reactVersion: undefined, effectsPending: () => false } as unknown as CommitTap;
+    const unloaded = { ...tap, attached: true, reactVersion: undefined } as CommitTap;
 
     let asked = 0;
     const settled = await awaitHydration(plain, {
@@ -343,12 +384,44 @@ describe('waiting for React to hydrate the subject', () => {
       tap: unloaded,
       outstanding: async () => {
         asked += 1;
-        return true;
+        return false;
       },
     });
 
     expect(settled).toMatchObject({ state: 'unrooted', roots: 0, pending: 0, loaded: false });
-    expect(asked).toBe(0);
+    expect(asked).toBe(1);
+  });
+
+  it('follows a renderer still arriving to the root it hydrates', async () => {
+    const container = document.createElement('div');
+    container.innerHTML = MARKUP;
+    document.body.appendChild(container);
+    const held = gate();
+    gates.push(held.open);
+    let loaded = false;
+    const late = {
+      ...tap,
+      attached: true,
+      get reactVersion() {
+        return loaded ? tap.reactVersion : undefined;
+      },
+    } as CommitTap;
+
+    const settled = await awaitHydration(subjectOf(container), {
+      pollMs: 4,
+      tap: late,
+      outstanding: async () => {
+        if (loaded) return false;
+        loaded = true;
+        roots.push(hydrateRoot(container, h(App, { ready: held.ready })));
+        held.open();
+        await ticks(0);
+        return true;
+      },
+    });
+
+    expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
+    expect(settled.loaded).toBeUndefined();
   });
 
   it('reports nothing when the markup a wait began on is the markup it ended on', async () => {
@@ -366,6 +439,26 @@ describe('waiting for React to hydrate the subject', () => {
     const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, tap, outstanding: arriving(page.open) });
 
     expect(settled.state).toBe('hydrated');
+    expect(settled.changed).toEqual({
+      before: '<main id="app"><p>early</p></main>',
+      after: '<main id="app"><p>client</p></main>',
+      components: ['Flip'],
+    });
+  });
+
+  /**
+   * The comparison does not depend on when the read happens. A fast machine
+   * reads a route after its effects have run, a slow one before, and both are
+   * told the same thing: the server's markup is copied when React hydrates it.
+   */
+  it('quotes the markup hydration changed when the read comes after the change', async () => {
+    const page = await hydrating(Flip, '<main id="app"><p>early</p></main>');
+    page.open();
+    await ticks();
+    expect(page.container.textContent).toBe('client');
+
+    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, tap });
+
     expect(settled.changed).toEqual({
       before: '<main id="app"><p>early</p></main>',
       after: '<main id="app"><p>client</p></main>',
