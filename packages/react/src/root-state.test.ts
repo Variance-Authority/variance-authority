@@ -81,4 +81,19 @@ describe('reading whether a root has committed, when React changes the fields', 
 
     expect(rootCommitted(containerFiber(container)!.stateNode as object)).toBe(true);
   });
+
+  it('reads a committed root as not committed when `current` is renamed', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    roots.push(root);
+    root.render(h('p', null, 'done'));
+    await ticks();
+
+    const fiberRoot = containerFiber(container)!.stateNode as Record<string, unknown>;
+    expect(rootCommitted(fiberRoot)).toBe(true);
+
+    const { current, ...rest } = fiberRoot;
+    expect(rootCommitted({ ...rest, currentFiber: current })).toBe(false);
+  });
 });
