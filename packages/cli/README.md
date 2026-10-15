@@ -1471,9 +1471,8 @@ One file then opens anywhere. On GitHub Actions, upload it
 with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
 opens the page in the browser instead of downloading a zip.
 
-The file grows with what changed, not with the size of your pages. An
-unchanged subject carries no picture, because the page shows no card for it.
-A full page is carried whole, so every card keeps its wipe, blend, blink and
+The file grows with the subjects that changed. An unchanged subject carries no
+picture, because the page shows no card for it. A full page is carried whole, so every card keeps its wipe, blend, blink and
 trio, unless it is longer than 16,384 pixels, the largest image Chromium draws
 in one piece, and its run cut a change picture. Such a page is carried as that
 crop, and its card names each full page it leaves out, with its size. Those
