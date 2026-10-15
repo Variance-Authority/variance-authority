@@ -597,25 +597,34 @@ variance-authority: shard 1/2 by file count: 2 of 3 files; no times at …/cover
 The placement runs on the collected suite, after `--project`, `--grep` and
 `.only`. A file that several projects run, or that `repeatEach` repeats, goes
 with all its copies to one shard. A setup or teardown project is not placed:
-Playwright runs it in every shard that keeps a test that depends on it. A project
-none of whose files are in this shard is left out whole, so its setup does not
-run for nothing. A shard left no file passes.
+Playwright runs it in every shard that keeps a test that depends on it, and each
+of those shards records it, so combining the shards' records refuses its files
+as run by two shards. A project none of whose files are in this shard is left
+out whole, so its setup does not run for nothing. A shard left no file passes.
 
 Three things decide whether the placement runs:
 
 - **Playwright 1.62 or newer.** Older versions give the reporter no way to see
-  the suite before Playwright splits it, so a run that asks for a shard is
-  refused. It exits non-zero with `variance-authority: refusing shard k/n:
-  Playwright <version> would split it test by test`, and the version it needs.
-  A `--shard` on the command line is refused before any test starts; a `shard`
-  in the configuration fails the run when it ends. A run with no shard runs as
-  usual.
+  the suite before Playwright splits it, so `withTestSelection` refuses a run
+  that asks for a shard when the configuration is evaluated, before any test
+  starts, whether `--shard` is on the command line or `shard` is in the
+  configuration. It exits non-zero with `variance-authority: refusing shard
+  k/n: Playwright <version> would split it test by test`, and the version it
+  needs. A run with no shard runs as usual.
 - **The reporter is in the run.** `--reporter` on the command line replaces
-  every reporter your configuration names, this one included, so the shard is
-  split by Playwright, test by test, with no line. Name extra
-  reporters in the configuration instead.
+  every reporter your configuration names, this one included, so a sharded run
+  whose `--reporter` does not name `@variance-authority/playwright-test/reporter`
+  is refused the same way. Name it there too, as in
+  `--reporter=dot,@variance-authority/playwright-test/reporter`, or name extra
+  reporters in the configuration. A tool that starts Playwright through its API
+  and replaces the reporters is not seen: the shard is then split by
+  Playwright, test by test, with no line.
 - **`--shard` is on the command line or `shard` in the configuration.** Without
   either, the reporter places nothing.
+
+`PWTEST_SHARD_WEIGHTS` has no effect under the placement: Playwright reads the
+weights only in its own split, which the placement turns off. The recorded
+times are what weigh each shard.
 
 ### Record which spec line reached each region
 

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import type { FullConfig, Suite, TestRun } from '@playwright/test/reporter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ExecutionReporter from './reporter.js';
-import { shardArgument } from './whole-file-shard.js';
+import { reporterArgument, shardArgument } from './whole-file-shard.js';
 
 let root: string;
 let said: string[];
@@ -119,26 +119,15 @@ describe('the reporter that places a Playwright shard by whole files', () => {
     expect([...without.excluded].some((target) => (target as Suite).type === 'project')).toBe(true);
   });
 
-  it('refuses a shard a Playwright with no preprocess would split test by test, naming its version and the one needed', () => {
-    const reporter = new ExecutionReporter({ root, coverageFile: resolve(root, 'coverage.bin') });
-
-    expect(() => reporter.onBegin({ shard: { current: 1, total: 2 }, version: '1.55.0' } as unknown as FullConfig)).toThrow(
-      'variance-authority: refusing shard 1/2: Playwright 1.55.0 would split it test by test, so a file could run in two shards; ' +
-        'placing whole files needs Playwright 1.62 or newer',
-    );
-    expect(said).toEqual([]);
-  });
-
-  it('runs an older Playwright that asked for no shard as before', () => {
-    const reporter = new ExecutionReporter({ root, coverageFile: resolve(root, 'coverage.bin') });
-
-    expect(() => reporter.onBegin({ shard: null, version: '1.55.0' } as unknown as FullConfig)).not.toThrow();
-    expect(said).toEqual([]);
-  });
-
   it('reads the shard a command line asks for, in either spelling Playwright takes', () => {
     expect(shardArgument(['node', 'cli.js', 'test', '--shard', '2/3'])).toEqual({ current: 2, total: 3 });
     expect(shardArgument(['node', 'cli.js', 'test', '--shard=1/2'])).toEqual({ current: 1, total: 2 });
     expect(shardArgument(['node', 'cli.js', 'test', '--grep', 'shard'])).toBeUndefined();
+  });
+
+  it('reads the reporters a command line names, which replace the configuration\'s', () => {
+    expect(reporterArgument(['node', 'cli.js', 'test', '--reporter', 'dot,list'])).toEqual(['dot', 'list']);
+    expect(reporterArgument(['node', 'cli.js', 'test', '--reporter=dot'])).toEqual(['dot']);
+    expect(reporterArgument(['node', 'cli.js', 'test'])).toBeUndefined();
   });
 });

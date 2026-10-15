@@ -12,8 +12,9 @@
  * by file count when it holds none, every file whole, and stderr says which part.
  *
  * Below 1.62 Playwright would split the shard by test, and a run that asks for
- * one is refused: before anything starts when `--shard` is on the command line,
- * and at `onBegin`, failing the run, when the configuration sets `shard`.
+ * one is refused by `withTestSelection`, when the configuration is evaluated and
+ * before anything starts, whether `--shard` is on the command line or the
+ * configuration sets `shard`.
  *
  * A file several projects run, or `repeatEach` repeats, is one file: all its
  * copies go to one shard. A setup or teardown project is Playwright's to run in
@@ -25,6 +26,7 @@
 // compass: variance-authority.reach
 
 import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import type { FullConfig, Suite, TestRun } from '@playwright/test/reporter';
 import { shardOf, type SuiteTimes } from '@variance-authority/sense/test-selection';
 import { fileOwner } from './test-coordinate.js';
@@ -36,16 +38,18 @@ export interface Preprocess {
   readonly testRun: TestRun;
 }
 
-/** Keep this shard's files and exclude the rest; `false` when the run asked for no shard. */
+/** Keep this shard's files and exclude the rest; a run that asked for no shard is left alone. */
 export async function placeWholeFiles(
   { config, suite, testRun }: Preprocess,
   root: string,
   times: () => Promise<SuiteTimes>,
   say: (line: string) => void,
-): Promise<boolean> {
+): Promise<void> {
   const shard = config.shard;
-  if (shard === null || shard === undefined) return false;
+  if (shard === null || shard === undefined) return;
   testRun.skipSharding();
+  // FIXME: a dependency project runs, and is recorded, in every shard that keeps a test
+  // depending on it, so combining the shards' records refuses its files as run by two shards.
   const dependencies = new Set(
     suite.suites.flatMap((project) => {
       const full = project.project();
@@ -64,7 +68,6 @@ export async function placeWholeFiles(
     else for (const file of files) if (!kept.includes(file)) testRun.exclude(file);
   }
   say(part.line);
-  return true;
 }
 
 /** A shard as Playwright numbers it, `current` from 1. */
@@ -88,21 +91,39 @@ export function shardRefusal(version: string, shard: PlaywrightShard | null | un
   );
 }
 
-/** The version of the Playwright this package was installed beside, its peer. */
-export function installedPlaywright(): string {
-  return (createRequire(import.meta.url)('@playwright/test/package.json') as { version: string }).version;
+/**
+ * The version of `@playwright/test` the project at `from` resolves: the one
+ * running its configuration. The peer this package was installed beside answers
+ * only when `from` resolves none.
+ */
+export function installedPlaywright(from: string): string {
+  const read = (require: NodeJS.Require) => (require('@playwright/test/package.json') as { version: string }).version;
+  try {
+    return read(createRequire(resolve(from, 'package.json')));
+  } catch {
+    return read(createRequire(import.meta.url));
+  }
 }
 
-/**
- * The `--shard k/n` a command line asks for, in either spelling Playwright's
- * parser takes, so a run is refused before anything starts. A shard set in the
- * configuration is read from it at `onBegin` instead.
- */
+/** The `--shard k/n` a command line asks for, in either spelling Playwright's parser takes. */
 export function shardArgument(argv: readonly string[]): PlaywrightShard | undefined {
   for (const [at, argument] of argv.entries()) {
     const value = argument === '--shard' ? argv[at + 1] : argument.startsWith('--shard=') ? argument.slice('--shard='.length) : undefined;
     const parsed = value === undefined ? null : /^(\d+)\/(\d+)$/u.exec(value);
     if (parsed !== null) return { current: Number(parsed[1]), total: Number(parsed[2]) };
+  }
+  return undefined;
+}
+
+/**
+ * The reporters a command line's `--reporter` names, split at commas as
+ * Playwright splits them; `undefined` when it names none, and the
+ * configuration's own reporters run.
+ */
+export function reporterArgument(argv: readonly string[]): readonly string[] | undefined {
+  for (const [at, argument] of argv.entries()) {
+    const value = argument === '--reporter' ? argv[at + 1] : argument.startsWith('--reporter=') ? argument.slice('--reporter='.length) : undefined;
+    if (value !== undefined) return value.split(',');
   }
   return undefined;
 }

@@ -28,6 +28,7 @@ import { createRequire } from 'node:module';
 import { dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
+import { installedPlaywright, reporterArgument, shardArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
 
 /** The reporter entry, by the specifier a configuration names it with. */
 export const SELECTION_REPORTER = '@variance-authority/playwright-test/reporter';
@@ -70,11 +71,17 @@ export interface PlaywrightSelectionConfig {
  * `@variance-authority/sense/journal` — this wires the runner, not the page —
  * and a run whose application has no collector says so on stderr and records
  * nothing.
+ *
+ * A run that asks for a shard, by `--shard` or the configuration's `shard`, is
+ * refused here, before anything starts, when the project's Playwright is older
+ * than 1.62 and would split it test by test, or when a `--reporter` on the
+ * command line replaces the reporter that places it by whole files.
  */
 export function withTestSelection<Config extends PlaywrightSelectionConfig>(
   config: Config = {} as Config,
   recording: ExecutionRecording = {},
 ): Config {
+  refuseShard(config.shard as PlaywrightShard | null | undefined);
   const reporters =
     config.reporter === undefined
       ? ['list' as const]
@@ -102,4 +109,23 @@ export function withTestSelection<Config extends PlaywrightSelectionConfig>(
         }),
     reporter: [...reporters, [SELECTION_REPORTER, { ...recording }] as const],
   };
+}
+
+/**
+ * Throw when this run asks for a shard nothing would place by whole files: a
+ * Playwright with no `preprocess`, which the project at the cwd resolves, or a
+ * `--reporter` that leaves the selection reporter out.
+ */
+function refuseShard(configured: PlaywrightShard | null | undefined): void {
+  const argv = process.argv;
+  const shard = shardArgument(argv) ?? configured ?? undefined;
+  if (shard === undefined) return;
+  const old = shardRefusal(installedPlaywright(process.cwd()), shard);
+  if (old !== undefined) throw new Error(old);
+  const reporters = reporterArgument(argv);
+  if (reporters === undefined || reporters.includes(SELECTION_REPORTER)) return;
+  throw new Error(
+    `variance-authority: refusing shard ${shard.current}/${shard.total}: --reporter ${reporters.join(',')} replaces the configuration's reporters, ` +
+      `so ${SELECTION_REPORTER}, which places the shard by whole files, would not run; name it in --reporter too`,
+  );
 }

@@ -16,11 +16,18 @@ The reporter places the shard in `preprocess`, after `--project`, `--grep` and
 `variance-authority: shard 1/2 by file count: 2 of 3 files; no times at …`.
 A file several projects run, or `repeatEach` repeats, goes with all its copies
 to one shard; setup and teardown projects are not placed, and a project with no
-file in the shard is left out whole. This needs Playwright 1.62 or newer: on an
-older one a run that asks for a shard is refused with a non-zero exit and
+file in the shard is left out whole. Playwright runs a setup project in every
+shard that needs it, so combining the shards' records refuses its files as run
+by two shards. `PWTEST_SHARD_WEIGHTS` has no effect under the placement.
+
+This needs Playwright 1.62 or newer. `withTestSelection` refuses a run that asks
+for a shard, by `--shard` or by `shard` in the configuration, when the
+configuration is evaluated, before any test starts: on an older Playwright with
 `variance-authority: refusing shard k/n: Playwright <version> would split it
-test by test, …; placing whole files needs Playwright 1.62 or newer`. A run
-with no shard runs as before.
+test by test, …; placing whole files needs Playwright 1.62 or newer`, and when
+a `--reporter` on the command line replaces the configuration's reporters
+without naming `@variance-authority/playwright-test/reporter`. A run with no
+shard runs as before.
 
 When the record has no times, or none for the files collected, a Vitest, Jest
 or Playwright shard prices every file the same and places them by the same
@@ -57,6 +64,9 @@ by the same rule.
   each shard.
 - A Playwright run below 1.62 that asks for a shard is refused. Upgrade
   Playwright, or run without `--shard`.
+- A sharded Playwright run whose `--reporter` leaves out
+  `@variance-authority/playwright-test/reporter` is refused. Name it in
+  `--reporter` too.
 - `variance run --shard` and `variance collect --shard` with no recorded costs
   place each file by count, not by a checksum of the file and the shard. The
   shards are balanced, but adding a file can move others to another shard.

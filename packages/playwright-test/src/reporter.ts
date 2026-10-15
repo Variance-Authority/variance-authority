@@ -29,7 +29,7 @@
  * Playwright 1.62, which cannot, it refuses the run.
  */
 
-import type { FullConfig, Reporter } from '@playwright/test/reporter';
+import type { Reporter } from '@playwright/test/reporter';
 import {
   closeStage,
   foldStage,
@@ -45,13 +45,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import {
-  installedPlaywright,
-  placeWholeFiles,
-  shardArgument,
-  shardRefusal,
-  type Preprocess,
-} from './whole-file-shard.js';
+import { placeWholeFiles, type Preprocess } from './whole-file-shard.js';
 
 /**
  * Where the folded record goes. The same values the fixtures were given.
@@ -108,13 +102,8 @@ export default class implements Reporter {
   readonly #snapshot: string;
   readonly #start: string;
   #directory: string | undefined;
-  #placed = false;
 
   constructor(options: ExecutionReporterOptions = {}) {
-    // Before anything starts: a Playwright with no `preprocess` would split the shard test by test.
-    const asked = shardArgument(process.argv);
-    const refused = asked === undefined ? undefined : shardRefusal(installedPlaywright(), asked);
-    if (refused !== undefined) throw new Error(refused);
     this.#options = options;
     const start = resolve(options.root ?? process.cwd());
     this.#start = start;
@@ -139,13 +128,10 @@ export default class implements Reporter {
       ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
       byFile: this.#coverageFile !== undefined,
     });
-    this.#placed = await placeWholeFiles(params, this.#root, times, (line) => process.stderr.write(`${line}\n`));
+    await placeWholeFiles(params, this.#root, times, (line) => process.stderr.write(`${line}\n`));
   }
 
-  onBegin(config: FullConfig): void {
-    // A `shard` the configuration set, which no command line showed the constructor.
-    const refused = this.#placed ? undefined : shardRefusal(config.version, config.shard);
-    if (refused !== undefined) throw new Error(refused);
+  onBegin(): void {
     // Before the first worker is forked, because a worker inherits the
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this

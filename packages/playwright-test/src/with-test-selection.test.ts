@@ -2,7 +2,10 @@
  * The wrapper's one job: the two halves cannot be given different answers.
  */
 
-import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SELECTION_REPORTER, withTestSelection } from './with-test-selection.js';
 
 describe('a configuration that records what it ran', () => {
@@ -90,5 +93,54 @@ describe('a configuration whose specs are cut statement by statement', () => {
     expect(withTestSelection({}, { cadence: false })).not.toHaveProperty('build');
     expect(withTestSelection(config, { cadence: false })['@playwright/test']).toBe(config['@playwright/test']);
     expect(withTestSelection(config, { cadence: false }).build).toBe(config.build);
+  });
+});
+
+describe('a configuration evaluated for a shard', () => {
+  const projects: string[] = [];
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await Promise.all(projects.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  });
+
+  /** Evaluate the wrapper as `playwright test <argv>` would, from a project that installed Playwright `version`. */
+  async function evaluated(version: string, argv: readonly string[], config: Record<string, unknown> = {}) {
+    const project = await mkdtemp(resolve(tmpdir(), 'variance-playwright-project-'));
+    projects.push(project);
+    const installed = resolve(project, 'node_modules/@playwright/test');
+    await mkdir(installed, { recursive: true });
+    await writeFile(resolve(installed, 'package.json'), JSON.stringify({ name: '@playwright/test', version }));
+    await writeFile(resolve(project, 'package.json'), '{}');
+    vi.spyOn(process, 'cwd').mockReturnValue(project);
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test', ...argv]);
+    return () => withTestSelection(config);
+  }
+
+  const refusal =
+    'variance-authority: refusing shard 1/2: Playwright 1.55.0 would split it test by test, so a file could run in two shards; ' +
+    'placing whole files needs Playwright 1.62 or newer';
+
+  it('refuses a --shard the project\'s own Playwright would split test by test, before anything starts', async () => {
+    expect(await evaluated('1.55.0', ['--shard', '1/2'])).toThrow(refusal);
+    expect(await evaluated('1.55.0', ['--shard=1/2'])).toThrow(refusal);
+  });
+
+  it('refuses a shard the configuration sets, under the same Playwright', async () => {
+    expect(await evaluated('1.55.0', [], { shard: { current: 1, total: 2 } })).toThrow(refusal);
+  });
+
+  it('runs an older Playwright that asked for no shard, and a shard Playwright can place, as before', async () => {
+    expect(await evaluated('1.55.0', ['--grep', 'shard'])).not.toThrow();
+    expect(await evaluated('1.62.1', ['--shard', '1/2'])).not.toThrow();
+  });
+
+  it('refuses a shard whose --reporter replaces the reporter that places it, and keeps one that names it', async () => {
+    expect(await evaluated('1.62.1', ['--shard', '1/2', '--reporter=dot'])).toThrow(
+      'variance-authority: refusing shard 1/2: --reporter dot replaces the configuration\'s reporters, ' +
+        `so ${SELECTION_REPORTER}, which places the shard by whole files, would not run; name it in --reporter too`,
+    );
+    expect(await evaluated('1.62.1', ['--shard', '1/2', '--reporter', `dot,${SELECTION_REPORTER}`])).not.toThrow();
+    expect(await evaluated('1.62.1', ['--reporter', 'dot'])).not.toThrow();
   });
 });
