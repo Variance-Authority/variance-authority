@@ -541,7 +541,7 @@ console.log(routesFrom(xml));
   includes headers, navigation, and overlays.
 - **A page is refused as too large to photograph:** a subject longer than 16,384
   device pixels on either side is never captured and never clipped; the run
-  records it as failed, with its size. Bound it with tighter `roots`, or
+  records it as failed, with its size, and exits `1`. Bound it with tighter `roots`, or
   [leave the page out](#leave-a-page-out).
 - **Component names have no source lines:** configure `source.dirs` and preserve
   component names in the production bundle. That resolves a name to where the
