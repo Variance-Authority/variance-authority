@@ -42,10 +42,13 @@ import type { TreeWorld } from './world.js';
 /** What a caller may say about resolution, and nothing about what to scan. */
 export interface ResolveOptions {
   /**
-   * A `tsconfig.json` whose `paths` resolution applies. `'auto'` discovers the
-   * nearest one per file, which is what a workspace of many packages needs.
+   * The `tsconfig.json` whose `paths` and `customConditions` resolution
+   * applies. `'auto'` discovers the nearest one per file, which is what a
+   * workspace of many packages needs; `false` reads none. Absent, the scans
+   * take what the root config declares ([`typescript.ts`](./typescript.ts)),
+   * and `'auto'` when it declares nothing.
    */
-  readonly tsconfig?: string | 'auto';
+  readonly tsconfig?: string | false;
   /**
    * Export conditions, and the whole of them. Absent, a file resolves under
    * {@link DEFAULT_CONDITIONS} plus the `customConditions` of the `tsconfig`
@@ -203,7 +206,9 @@ export function resolversFor(options: ResolveOptions): Resolvers {
       '.mjs': ['.mts', '.mjs'],
       '.cjs': ['.cts', '.cjs'],
     },
-    tsconfig: tsconfig === 'auto' ? 'auto' : { configFile: tsconfig, references: 'auto' },
+    ...(tsconfig === false
+      ? {}
+      : { tsconfig: tsconfig === 'auto' ? 'auto' : { configFile: tsconfig, references: 'auto' } }),
     // Real paths, so a workspace symlink lands on the package's own directory
     // and its files are repository files like any other.
     symlinks: true,
@@ -216,7 +221,7 @@ export function resolversFor(options: ResolveOptions): Resolvers {
     extensionAlias: { '.js': ['.d.ts'], '.mjs': ['.d.mts'], '.cjs': ['.d.cts'] },
   };
   const declarations = modules.cloneWithOptions(declarationOptions);
-  const custom = options.conditionNames === undefined ? customConditionsFor(tsconfig) : undefined;
+  const custom = options.conditionNames === undefined && tsconfig !== false ? customConditionsFor(tsconfig) : undefined;
 
   return {
     modules,

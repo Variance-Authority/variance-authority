@@ -36,21 +36,22 @@ use std::path::PathBuf;
 use rayon::prelude::*;
 
 use crate::package_owners::Package;
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, Tsconfig};
 
 /// Each package's declared entries, as indices into the counted files, by the
 /// package's index in `packages`: the files its manifest offers that resolve to
 /// a counted file it owns. Empty when it offers nothing that does, which is the
 /// caller's to fall back from and to say so. `owner` is each counted file's
-/// package.
-pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32]) -> Vec<Vec<usize>> {
+/// package. `tsconfig` is the config the scan that built the index resolved
+/// under.
+pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], tsconfig: Tsconfig) -> Vec<Vec<usize>> {
     if packages.iter().all(|package| package.offers.is_empty()) {
         return vec![Vec::new(); packages.len()];
     }
     // The resolver answers with the path a symlink leads to, and a repository
     // path is cut from the root that path lies under.
     let root = std::fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root));
-    let resolvers = Resolvers::new(None, None);
+    let resolvers = Resolvers::new(tsconfig, None);
     // A counted file under a directory the disk alone declines, such as a
     // tracked `build/`, is one git listed, and that is the word `resolve` takes.
     let known: HashMap<String, u32> = counted.keys().map(|&path| (path.to_owned(), 0)).collect();

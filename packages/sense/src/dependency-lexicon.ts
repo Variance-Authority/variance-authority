@@ -2,13 +2,15 @@
 import { join, dirname } from 'node:path';
 import { native, nativeRefusal } from './native.js';
 import { sourceIndexPath } from './source-index.js';
+import { declaredTsconfig } from './typescript.js';
 
 /** Publish the installed dependency API corpus and return aggregate counts. */
 export function refreshDependencyLexiconNative(root: string) {
   const addon = native();
   if (addon === undefined) throw new Error(`the dependency lexicon requires the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
   const index = sourceIndexPath(root);
-  return addon.refreshDependencyLexicon(root, index, join(dirname(index), 'dependency-lexicon.json'), new Date().toISOString());
+  // A package resolves where the scan that built the index resolved it.
+  return addon.refreshDependencyLexicon(root, index, join(dirname(index), 'dependency-lexicon.json'), new Date().toISOString(), declaredTsconfig(root));
 }
 
 /** Ask the native lexicon for a bounded set of names. */

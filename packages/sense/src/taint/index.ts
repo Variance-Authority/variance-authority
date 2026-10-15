@@ -90,6 +90,7 @@ import type { Digest } from '../digest.js';
 import { keyFor, parseWay } from '../files.js';
 import { MODULE_EXTENSIONS } from '../read.js';
 import { realPath, resolversFor, type ResolveOptions } from '../resolve.js';
+import { withDeclaredTsconfig } from '../typescript.js';
 import { worldIn } from '../world.js';
 import { rememberDiff, rememberedDiff } from './cache.js';
 import { applied, byCodeUnit, reach, targetFrom, type Said } from './join.js';
@@ -214,7 +215,7 @@ export async function taintRecords(
   if (taints.length === 0) return { records, shadows, additions, shadowedBy, addedBy };
 
   const root = realPath(resolve(options.root));
-  const resolvers = resolversFor(options);
+  const resolvers = resolversFor(withDeclaredTsconfig(root, options));
   // A landing under `build/` needs the listing's word
   // ([`repo-path.ts`](../repo-path.ts)), and the records carry it: every file
   // the scan read or resolved an edge to is one the listing held.

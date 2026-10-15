@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::{Emitted, Listing};
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, Tsconfig};
 
 fn write(root: &Path, files: &[(&str, &str)]) {
     for (path, text) in files {
@@ -57,7 +57,7 @@ fn workspace(name: &str) -> PathBuf {
 }
 
 fn answers(root: &Path) -> Vec<Option<String>> {
-    let resolvers = Resolvers::new(None, None);
+    let resolvers = Resolvers::new(Tsconfig::Auto, None);
     let from = root.join("packages/a/src/x.ts");
     ["@s/b", "@s/b/sub", "@s/b/tool", "@s/b/data", "@s/b/esm", "@s/b/gone", "@s/c", "@s/d"]
         .into_iter()
@@ -96,7 +96,7 @@ fn output_answers_from_its_source_built_or_not() {
     assert_eq!(answers(&root), built, "built, with a stale file");
 
     let from = root.join("packages/a/src/x.ts");
-    let published = Resolvers::new(None, None).resolution(&from, "@p/lib").map(|found| found.path().to_owned());
+    let published = Resolvers::new(Tsconfig::Auto, None).resolution(&from, "@p/lib").map(|found| found.path().to_owned());
     assert_eq!(published, Some(root.join("node_modules/@p/lib/dist/index.js")));
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -120,7 +120,7 @@ fn a_directory_git_lists_is_read_from_the_listing() {
         let regular = vec![true; paths.len()];
         let files = paths.iter().cloned().zip(0..).collect();
         let listing = Listing::of(Arc::new(files), Arc::new(regular), unhashed);
-        let resolvers = Resolvers::over(None, None, Emitted::listed(&root, Some(Arc::new(listing))));
+        let resolvers = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
         let from = root.join("packages/a/src/x.ts");
         ["@s/b", "@s/b/esm", "@s/d"].map(|request| resolvers.resolve(&root, &from, request, None))
     };
@@ -139,7 +139,7 @@ fn a_path_git_vouches_is_a_file_holds_nothing() {
     let answer = |regular: bool| {
         let files = HashMap::from([("packages/b".to_owned(), 0)]);
         let listing = Listing::of(Arc::new(files), Arc::new(vec![regular]), &[]);
-        let resolvers = Resolvers::over(None, None, Emitted::listed(&root, Some(Arc::new(listing))));
+        let resolvers = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
         resolvers.resolve(&root, &root.join("packages/a/src/x.ts"), "../../b/dist/index.js", None)
     };
     assert_eq!(answer(true), None);
@@ -159,7 +159,7 @@ fn an_out_dir_two_levels_inside_another_is_its_own() {
         ("packages/e/src/index.ts", "export {};\n"),
     ]);
     std::os::unix::fs::symlink("../../packages/e", root.join("node_modules/@s/e")).unwrap();
-    let answer = Resolvers::new(None, None).resolve(&root, &root.join("packages/a/src/x.ts"), "@s/e", None);
+    let answer = Resolvers::new(Tsconfig::Auto, None).resolve(&root, &root.join("packages/a/src/x.ts"), "@s/e", None);
     assert_eq!(answer, Some("packages/e/src/index.ts".to_owned()));
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -184,7 +184,7 @@ fn configs_naming_one_out_dir_answer_in_turn() {
     }
     let answers = || {
         let from = root.join("packages/a/src/x.ts");
-        ["@s/f", "@s/g", "@s/g/types"].map(|request| Resolvers::new(None, None).resolve(&root, &from, request, None))
+        ["@s/f", "@s/g", "@s/g/types"].map(|request| Resolvers::new(Tsconfig::Auto, None).resolve(&root, &from, request, None))
     };
     let expected = [Some("packages/f/src/index.ts".to_owned()), None, Some("packages/g/src/index.ts".to_owned())];
     assert_eq!(answers(), expected, "unbuilt");
@@ -208,7 +208,7 @@ fn a_source_that_links_elsewhere_is_read_where_it_points() {
     std::os::unix::fs::symlink("../../packages/h", root.join("node_modules/@s/h")).unwrap();
     let known = HashMap::from([("packages/h/src/index.ts".to_owned(), 0), ("shared/h.ts".to_owned(), 1)]);
     let from = root.join("packages/a/src/x.ts");
-    let answers = ["@s/h", "../../h/src/index.ts"].map(|request| Resolvers::new(None, None).resolve(&root, &from, request, Some(&known)));
+    let answers = ["@s/h", "../../h/src/index.ts"].map(|request| Resolvers::new(Tsconfig::Auto, None).resolve(&root, &from, request, Some(&known)));
     assert_eq!(answers, [Some("shared/h.ts".to_owned()), Some("shared/h.ts".to_owned())]);
     let _ = std::fs::remove_dir_all(&root);
 }

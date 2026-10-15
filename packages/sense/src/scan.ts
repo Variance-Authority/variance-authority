@@ -65,6 +65,7 @@ import {
 import { worldIn, worldOn } from './world.js';
 import { declinedForSize, recordFor, stillTooLarge } from './record.js';
 import { onlyListed } from './repo-path.js';
+import { withDeclaredTsconfig } from './typescript.js';
 import {
   realPath,
   resolversFor,
@@ -249,8 +250,8 @@ interface Scanned {
   readonly listing?: NativeGitTree;
 }
 
-async function scanning(options: ScanOptions): Promise<Scanned> {
-  if (options.changed !== undefined && options.digests !== undefined) {
+async function scanning(asked: ScanOptions): Promise<Scanned> {
+  if (asked.changed !== undefined && asked.digests !== undefined) {
     throw new Error('`changed` supplies Git identity and cannot be combined with `digests`');
   }
   // The real path, because resolution returns one. On macOS a temporary
@@ -258,7 +259,8 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
   // on the wrong side of that link puts every resolved file *outside* the
   // repository — an empty graph, no error, and a selector that narrows to
   // nothing while reporting success.
-  const root = realPath(resolve(options.root));
+  const root = realPath(resolve(asked.root));
+  const options = withDeclaredTsconfig(root, asked);
   const resolvers = resolversFor(options);
   const addon = native();
   if (addon === undefined) {
@@ -492,8 +494,5 @@ function parseKeys(graph: NativeIndexGraph): { has(key: string): boolean; delete
 
 /** Whether a path is there to be opened, without opening it. */
 async function readable(file: string): Promise<boolean> {
-  return access(file).then(
-    () => true,
-    () => false,
-  );
+  return access(file).then(() => true, () => false);
 }

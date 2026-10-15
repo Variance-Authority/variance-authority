@@ -157,6 +157,24 @@ describe('a condition only the tsconfig names', () => {
     }
   });
 
+  it('reads no tsconfig when the caller turns it off', async () => {
+    const root = await workspace({ 'tsconfig.json': WITH });
+    const off = { tsconfig: false } as const;
+
+    expect(await scanned(root, off) ?? []).not.toContain(TARGET);
+    expect(oracle(root, off)).toBeUndefined();
+  });
+
+  it('follows no paths when the caller turns the tsconfig off', async () => {
+    const root = await workspace({
+      'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '~lib': [TARGET] } } }),
+      [IMPORTER]: "import { clamp } from '~lib';\nexport const App = () => clamp(1);\n",
+    });
+
+    expect(await scanned(root)).toContain(TARGET);
+    expect(await scanned(root, { tsconfig: false }) ?? []).not.toContain(TARGET);
+  });
+
   it('keeps conditions a caller names as the whole set', async () => {
     const root = await workspace({ 'tsconfig.json': WITH });
     const named = { conditionNames: ['import', 'default'] };
@@ -203,5 +221,13 @@ describe('the native scanner against the oracle, on custom conditions', () => {
 
     expect(batch.targets[0] ?? '').toBe(oracle(root) ?? '');
     expect(batch.targets[0] ?? '').toBe(name === 'without' || name === 'cleared' ? '' : TARGET);
+  });
+
+  it.runIf(nativeAvailable())('agrees with the tsconfig off', async () => {
+    const root = await workspace(cases['with']!);
+    const batch = native()!.scanBatch(root, [IMPORTER], undefined, undefined, undefined, false);
+
+    expect(batch.targets[0] ?? '').toBe(oracle(root, { tsconfig: false }) ?? '');
+    expect(batch.targets[0] ?? '').toBe('');
   });
 });

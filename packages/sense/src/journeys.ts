@@ -22,6 +22,7 @@ import { BUILTINS } from './native-index-graph.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
+import { declaredTsconfig } from './typescript.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
@@ -147,6 +148,8 @@ export async function prepareJourneys(
 ): Promise<readonly PreparedJourneys[]> {
   const listing = scanned?.listing;
   const walk = listing?.prepareJourneys?.bind(listing) ?? entry('prepareJourneys');
+  // A call lands where the scan that built the index put it.
+  const tsconfig = declaredTsconfig(root);
   const prepared: PreparedJourneys[] = [];
   for (const { suite, recording, looked } of recordings(root)) {
     const named = suite === undefined ? {} : { suite };
@@ -161,7 +164,7 @@ export async function prepareJourneys(
       continue;
     }
     const at = commitOf(recording);
-    const made = walk(root, index, recording, at, out, BUILTINS);
+    const made = walk(root, index, recording, at, out, BUILTINS, tsconfig);
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });
   }
   return prepared;

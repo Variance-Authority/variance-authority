@@ -289,9 +289,9 @@ npx variance report --format html > .variance/report.html
 ```
 
 The HTML is one self-contained file that fetches nothing, so it reads the same
-from your machine or a CI artifact. Each subject gives you the approved image,
-the difference and the candidate, with a wipe, a blend and a blink between the
-two.
+from your machine or a CI artifact. Each subject opens on what changed at its
+own size, and gives you the approved image, the difference and the candidate,
+with a wipe, a blend and a blink between the two.
 
 A run whose observed subjects are all `unchanged`, `ignored` or `new`, with
 every planned subject accounted for, exits `0`. Anything else exits `1`. The

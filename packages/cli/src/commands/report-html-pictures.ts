@@ -4,6 +4,7 @@ import { extname, resolve } from 'node:path';
 import type { CliRunReport } from './run.js';
 import { text } from './report-html-elements.js';
 import { needsReview } from './report-html-subjects.js';
+import { urlOfPath } from './url-of-path.js';
 
 /**
  * Where the page's pictures come from: beside it, or inside it.
@@ -54,9 +55,13 @@ export interface Placement {
   carried(): Iterable<string>;
 }
 
-/** Every picture by its path, relative to the report: the page belongs beside it. */
+/**
+ * Every picture by its path, relative to the report: the page belongs beside it.
+ * The path is a file's name and `src` is a URL, so {@link urlOfPath} turns one
+ * into the other: a name holding `%` names that file, not the one it decodes to.
+ */
 export const BY_PATH: Placement = {
-  attributes: (path) => `src="${text(path)}"`,
+  attributes: (path) => `src="${text(urlOfPath(path))}"`,
   carried: () => [],
 };
 
@@ -114,8 +119,8 @@ const MEDIA: Readonly<Record<string, string>> = {
  * Applied per shard, before the merge, because an image path is relative to
  * the report that named it and the merged report has no directory. A located
  * path is rewritten to the absolute file and is the key the page names it by.
- * Only `before`, `diff` and `after` are pictures; `record` is a sidecar and
- * stays a path. A picture that cannot be opened keeps its path.
+ * Only `before`, `diff`, `after` and `change` are pictures; `record` is a
+ * sidecar and stays a path. A picture that cannot be opened keeps its path.
  *
  * Read one file at a time and only as far as a PNG's header, so locating a
  * run costs its count of pictures, not their bytes.
@@ -132,7 +137,7 @@ export async function locatePictures(
       continue;
     }
     const images = { ...entry.images };
-    for (const side of ['before', 'diff', 'after'] as const) {
+    for (const side of ['before', 'diff', 'after', 'change'] as const) {
       const path = images[side];
       const media = path === undefined ? undefined : MEDIA[extname(path).toLowerCase()];
       if (path === undefined || media === undefined) continue;

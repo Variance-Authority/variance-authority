@@ -361,7 +361,7 @@ const TOP_LEVEL = [
   'workers',
   'cacheRoot',
   'suites',
-  'entrypoints', 'tiers', 'before', 'timezoneId', 'locale',
+  'entrypoints', 'tiers', 'typescript', 'before', 'timezoneId', 'locale',
 ] as const;
 
 /**
