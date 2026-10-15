@@ -14,7 +14,7 @@ use serde::Serialize;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{doc_above, line_of, named_children, text_of};
 
 /// The request a file makes for its own target: the files it sees without asking.
 const OWN_TARGET: &str = "*";
@@ -29,7 +29,8 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
     // The files beside this one, which it sees with no statement of any kind.
     want(&mut requests, &mut seen, OWN_TARGET, OWN_TARGET, 1);
 
-    for child in named_children(root) {
+    let children = named_children(root);
+    for (at, &child) in children.iter().enumerate() {
         let line = line_of(child);
         if child.kind() == "ERROR" || child.is_missing() {
             broken = true;
@@ -46,11 +47,14 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
             continue;
         }
         if let Some(name) = declared(child, source) {
+            // Attributes are inside the declaration's modifiers, so its doc is
+            // the sibling directly before it.
             exports.push(Export {
                 exported: Some(name.clone()),
                 local: Some(name),
                 type_only: false,
                 line,
+                doc: doc_above(&children, at, source, &[]),
                 ..Export::default()
             });
         }

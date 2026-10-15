@@ -100,7 +100,7 @@ fn walk(at: &mut Gathering, node: Node, src: &str, typing: bool, top: bool) {
         }
         "function_definition" | "class_definition" => {
             if top {
-                publish(at, node.child_by_field_name("name"), src, line_of(node));
+                publish(at, node.child_by_field_name("name"), src, line_of(node), docstring(node, src));
             }
             // A body binds nothing at module scope, but it may import.
             if let Some(body) = node.child_by_field_name("body") {
@@ -275,7 +275,7 @@ fn read_assignment(at: &mut Gathering, node: Node, src: &str) {
         }
 
         if left.kind() == "identifier" {
-            publish(at, Some(left), src, line_of(child));
+            publish(at, Some(left), src, line_of(child), None);
         }
     }
 }
@@ -294,12 +294,26 @@ fn strings_in(node: Node, src: &str) -> Vec<String> {
         .collect()
 }
 
+/// The docstring a class or a function opens with, spanned between its quotes:
+/// the first statement of the body, when it is a string and nothing else.
+fn docstring(node: Node, src: &str) -> Option<crate::harvest::TextSpan> {
+    let first = *named_children(node.child_by_field_name("body")?).first()?;
+    let only = match named_children(first).as_slice() {
+        [only] if first.kind() == "expression_statement" && only.kind() == "string" => *only,
+        _ => return None,
+    };
+    let parts = named_children(only);
+    let open = parts.iter().find(|part| part.kind() == "string_start")?;
+    let close = parts.iter().rev().find(|part| part.kind() == "string_end")?;
+    Some(super::span_of(src, open.end_byte(), close.start_byte()))
+}
+
 /// Record a name this module binds at top level.
 ///
 /// Leading-underscore names are left out, which is the convention
 /// `from x import *` itself obeys and the only published-set rule the language
 /// has in the absence of `__all__`.
-fn publish(at: &mut Gathering, name: Option<Node>, src: &str, line: u32) {
+fn publish(at: &mut Gathering, name: Option<Node>, src: &str, line: u32, doc: Option<crate::harvest::TextSpan>) {
     let Some(name) = name else { return };
     let text = text_of(name, src);
     if text.starts_with('_') {
@@ -312,6 +326,7 @@ fn publish(at: &mut Gathering, name: Option<Node>, src: &str, line: u32) {
             local: Some(text.to_string()),
             type_only: false,
             line,
+            doc,
             ..Export::default()
         },
     );

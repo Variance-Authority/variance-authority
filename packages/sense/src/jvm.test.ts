@@ -59,6 +59,20 @@ describe('what a JVM file asks for', () => {
       .toEqual(['Thing', 'parse', 'Registry', 'Name', 'version']);
   });
 
+  it('carries the doc block written above a declaration, past its annotations', () => {
+    const java = ['package a;', '/** Holds one thing. */', '@Deprecated', 'public class Thing {}', '// A plain comment documents nothing.', 'interface Seen {}', ''].join('\n');
+    const kotlin = ['package a', '', '/**', ' * Reads a name,', ' * once.', ' */', 'fun parse() {}', 'val version = 1', ''].join('\n');
+    const doc = (read: Read, source: string, name: string): string | undefined => {
+      const span = read.exports?.find((entry) => entry.exported === name)?.doc;
+      return span === undefined ? undefined : source.slice(span.start, span.end);
+    };
+
+    expect(doc(readJava('Thing.java', java), java, 'Thing')).toBe('* Holds one thing. ');
+    expect(doc(readJava('Thing.java', java), java, 'Seen')).toBeUndefined();
+    expect(doc(readKotlin('t.kt', kotlin), kotlin, 'parse')).toBe('*\n * Reads a name,\n * once.\n ');
+    expect(doc(readKotlin('t.kt', kotlin), kotlin, 'version')).toBeUndefined();
+  });
+
   it('says so when the parser stopped where an import could have been', () => {
     expect(readJava('Thing.java', 'import a.B;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });

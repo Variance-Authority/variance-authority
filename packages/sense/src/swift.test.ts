@@ -43,6 +43,18 @@ describe('what a Swift file asks for', () => {
       .toEqual(['Lens', 'Seen', 'read', 'version']);
   });
 
+  it('carries the doc written above a declaration, past its attributes', () => {
+    const source = ['/// Reads a lens,', '/// once.', '@MainActor', 'struct Lens {}', '// A plain comment documents nothing.', 'func read() {}', ''].join('\n');
+    const read = readSwift('a.swift', source);
+    const doc = (name: string): string | undefined => {
+      const span = read.exports?.find((entry) => entry.exported === name)?.doc;
+      return span === undefined ? undefined : source.slice(span.start, span.end);
+    };
+
+    expect(doc('Lens')).toBe('/// Reads a lens,\n/// once.');
+    expect(doc('read')).toBeUndefined();
+  });
+
   it('says so when the parser stopped where an import could have been', () => {
     expect(readSwift('a.swift', 'import Core\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });

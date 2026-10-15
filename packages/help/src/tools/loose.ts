@@ -12,8 +12,8 @@ import { tokensOf } from '../search-index.js';
  * `prefix: true`, `fuzzy: 0.2` and `maxFuzzy: 1`. Each query term is satisfied
  * by any dictionary term equal to it, starting with it, or one edit from it
  * when the term is three characters or longer; a name is in the answer when
- * every query term is satisfied by its name or by the doc of a published row
- * the area admits.
+ * every query term is satisfied by its name or by the doc of a published or
+ * exported row the area admits.
  *
  * One edit, because the caller is an agent. An agent copies a name; it does
  * not mistype one. What it gets wrong is a letter of a name it recalled from
@@ -39,7 +39,7 @@ export function editsAllowed(term: string, fuzzy: number): number {
  *
  * `already` names are never reached: the substring answered them. `within`,
  * file ids when given, admits a name through a row whose file is in it, and a doc
- * through the published row that carries it.
+ * through the published or exported row that carries it.
  */
 export function looseNames(
   index: SearchIndex,
@@ -62,6 +62,11 @@ export function looseNames(
         const name = index.publishedName(row);
         if (already.has(name) || reached.has(name)) continue;
         if (within === undefined || within.has(index.publishedFile(row))) reached.add(name);
+      }
+      for (const row of index.termExported(id)) {
+        const name = index.exportedName(row);
+        if (already.has(name) || reached.has(name)) continue;
+        if (within === undefined || within.has(index.exportedFile(row))) reached.add(name);
       }
     }
     answer = answer === undefined ? reached : new Set([...answer].filter((name) => reached.has(name)));

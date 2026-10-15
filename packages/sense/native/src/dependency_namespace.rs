@@ -22,7 +22,9 @@ pub(crate) fn text(source: &[u16], span: Option<TextSpan>) -> Option<String> {
 pub(crate) fn doc(source: &[u16], span: Option<TextSpan>) -> Option<String> {
     let raw = text(source, span)?;
     let body = raw.trim_start_matches("/**").trim_end_matches("*/");
-    let lines: Vec<_> = body.lines().map(|line| line.trim().trim_start_matches('*').trim()).collect();
+    // A `///` doc is its lines spanned whole, a JSDoc block is spanned inside its
+    // `/*`, and a docstring between its quotes, indented as its body is.
+    let lines: Vec<_> = body.lines().map(|line| line.trim().trim_start_matches("///").trim_start_matches('*').trim()).collect();
     let cleaned = lines.join("\n").trim().to_owned();
     if cleaned.is_empty() { None } else { Some(cleaned) }
 }

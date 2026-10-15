@@ -45,7 +45,7 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('search over the documentation of unpublished exports', () => {
-  it('finds a TypeScript export and a Rust item by the words of their doc comments', async () => {
+  it('finds a TypeScript export, a Rust item and a Python function by the words of their docs', async () => {
     checkout({
       'package.json': JSON.stringify({ name: 'docs', private: true, workspaces: ['packages/*'] }),
       'packages/lens/package.json': JSON.stringify({ name: '@docs/lens', version: '1.0.0', type: 'module', exports: { '.': './src/index.ts' } }),
@@ -53,6 +53,7 @@ describe('search over the documentation of unpublished exports', () => {
       'packages/lens/src/owners.ts': '/** The nearest named directory above a path. */\nexport function climb(path: string): string {\n  return path;\n}\n',
       'packages/lens/native/Cargo.toml': '[package]\nname = "lens"\nversion = "0.1.0"\n',
       'packages/lens/native/src/lib.rs': "/// Any path's package, tracked or not.\n#[inline]\npub(crate) fn owner_of() {}\n",
+      'packages/lens/tools/ledger.py': 'def settle():\n    """Balance the ledger,\n    once a day.\n    """\n',
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
@@ -64,5 +65,9 @@ describe('search over the documentation of unpublished exports', () => {
     const tracked = await run(['ask', 'search', '--query', 'tracked or not']);
     expect(tracked.out).toContain('owner_of');
     expect(tracked.out).toContain("Any path's package, tracked or not.");
+
+    const balance = await run(['ask', 'search', '--query', 'balance the ledger']);
+    expect(balance.out).toContain('settle');
+    expect(balance.out).toContain('Balance the ledger, once a day.');
   });
 });

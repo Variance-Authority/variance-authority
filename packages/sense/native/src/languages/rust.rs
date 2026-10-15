@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{doc_above, line_of, named_children, text_of};
 
 struct Gathering {
     requests: Vec<Request>,
@@ -107,6 +107,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                         local: Some(name),
                         type_only: false,
                         line,
+                        doc: doc_above(&children, at, source, &["attribute_item"]),
                         ..Export::default()
                     });
                 }
@@ -166,6 +167,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                             local: Some(name),
                             type_only: false,
                             line: line_of(*child),
+                            doc: doc_above(&children, at, source, &["attribute_item"]),
                             ..Export::default()
                         });
                     }

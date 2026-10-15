@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{doc_above, line_of, named_children, text_of};
 
 /// The suffix that makes a request name a package directory rather than a file.
 const WHOLE_PACKAGE: &str = ".*";
@@ -55,7 +55,8 @@ pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
 /// and reads every file as asking for nothing, which is how Kotlin lost its
 /// imports here once already.
 fn walk(node: Node, source: &str, held: &mut Gathering) {
-    for child in named_children(node) {
+    let children = named_children(node);
+    for (at, &child) in children.iter().enumerate() {
         let line = line_of(child);
         if child.kind() == "ERROR" || child.is_missing() {
             held.broken = true;
@@ -98,11 +99,14 @@ fn walk(node: Node, source: &str, held: &mut Gathering) {
 
             _ => {
                 if let Some(name) = declared(child, source) {
+                    // Annotations are inside the declaration's modifiers, so
+                    // its doc is the sibling directly before it.
                     held.exports.push(Export {
                         exported: Some(name.clone()),
                         local: Some(name),
                         type_only: false,
                         line,
+                        doc: doc_above(&children, at, source, &[]),
                         ..Export::default()
                     });
                 }

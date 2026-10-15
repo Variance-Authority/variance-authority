@@ -71,6 +71,10 @@ pub struct Export {
     #[serde(rename = "type")]
     pub type_only: bool,
     pub line: u32,
+    /// The doc comment written above what is exported, in UTF-16 units of the
+    /// file, as every reader's spans are: `Export.doc` in `read.ts`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc: Option<crate::harvest::TextSpan>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]

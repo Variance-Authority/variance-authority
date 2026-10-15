@@ -30,12 +30,19 @@ function headOf(text: string, span: TextSpan | undefined): string | undefined {
   return head === '' ? undefined : head;
 }
 
-function docOf(text: string, span: TextSpan | undefined): string | undefined {
+/**
+ * A doc comment's prose, from the span a reader recorded for it.
+ *
+ * A JSDoc span starts inside `/**` at its `*`, a `///` span is its lines
+ * whole, and a docstring's is indented as its body is, so each line loses its
+ * indentation and whichever of the two marks leads it.
+ */
+export function docOf(text: string, span: TextSpan | undefined): string | undefined {
   if (span === undefined) return undefined;
   const doc = text
     .slice(span.start, span.end)
     .split('\n')
-    .map((line) => line.replace(/^[ \t]*\*[ \t]?/, ''))
+    .map((line) => line.replace(/^[ \t]*(?:(?:\/\/\/|\*)[ \t]?)?/, ''))
     .join('\n')
     .trim();
   return doc === '' ? undefined : doc;

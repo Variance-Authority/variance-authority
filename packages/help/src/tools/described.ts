@@ -12,14 +12,14 @@ import { admittedBy, matchingTerms } from './loose.js';
  * agent would say about `customConditionsFor`, and neither the phrase nor every
  * word is in it. So the question is cut into stems by the rule the installed
  * packages were cut by — the sense addon owns it, stopwords included — and a
- * name answers when its own words, or the documentation of a published row of
- * it, hold at least half of the question's distinct stems. A dictionary term
+ * name answers when its own words, or the documentation of a row that
+ * publishes or exports it, hold at least half of the question's distinct stems. A dictionary term
  * stands for a stem when it reduces to it, so `files` stands for `file` and
  * `filter` does not.
  *
  * Ordered by counts, never a score: the question's words its name holds, then
  * the words it holds at all, then how many rows publish or export it, then the
- * name's own rank. The name comes first because a published doc is a paragraph
+ * name's own rank. The name comes first because a doc is a paragraph
  * and holds a word of almost anything; a name was chosen for what it does.
  */
 
@@ -41,8 +41,8 @@ export interface DescribedName {
  * a stopword — so it was not asked.
  *
  * `already` names are never reached. `within`, file ids when given, admits a
- * name through a row whose file is in it, and a doc through the published row
- * that carries it — the loose pass's rule, for the same reason.
+ * name through a row whose file is in it, and a doc through the published or
+ * exported row that carries it — the loose pass's rule, for the same reason.
  */
 export function describedNames(
   index: SearchIndex,
@@ -78,6 +78,11 @@ export function describedNames(
       for (const row of index.termPublished(term)) {
         const name = index.publishedName(row);
         if (already.has(name) || (within !== undefined && !within.has(index.publishedFile(row)))) continue;
+        mark(held, name, position);
+      }
+      for (const row of index.termExported(term)) {
+        const name = index.exportedName(row);
+        if (already.has(name) || (within !== undefined && !within.has(index.exportedFile(row)))) continue;
         mark(held, name, position);
       }
     }

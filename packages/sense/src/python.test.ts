@@ -79,6 +79,19 @@ describe('what a Python file asks for', () => {
     expect(published).not.toContain('_hidden');
   });
 
+  it('carries the docstring a class or a function opens with, between its quotes', () => {
+    const source = ['class Widget:', '    """A thing on screen.', '', '    Drawn once.', '    """', '', '', 'def draw():', "    '''Paint it.'''", '', '', 'def bare():', '    return 1', ''].join('\n');
+    const read = readPython('w.py', source);
+    const doc = (name: string): string | undefined => {
+      const span = read.exports?.find((entry) => entry.exported === name)?.doc;
+      return span === undefined ? undefined : source.slice(span.start, span.end);
+    };
+
+    expect(doc('Widget')).toBe('A thing on screen.\n\n    Drawn once.\n    ');
+    expect(doc('draw')).toBe('Paint it.');
+    expect(doc('bare')).toBeUndefined();
+  });
+
   it('answers `from x import *` with a set it does not name', () => {
     const read = readPython('t.py', 'from .colors import *\n');
     const opaque = (read.exports ?? []).find((held) => held.exported === undefined);

@@ -21,6 +21,7 @@ pub mod swift;
 use tree_sitter::Node;
 
 use crate::grammar::{self, Grammar};
+use crate::harvest::TextSpan;
 use shape::Read;
 
 /// The 1-based line a node starts on.
@@ -32,6 +33,39 @@ pub fn line_of(node: Node) -> u32 {
 /// tree-sitter does not produce over valid UTF-8 and which must not panic if it does.
 pub fn text_of<'source>(node: Node, source: &'source str) -> &'source str {
     source.get(node.byte_range()).unwrap_or("")
+}
+
+/// The doc comment written above `children[at]`, past the siblings of the
+/// kinds in `attributes`: the `///` lines directly before it, or the one
+/// `/** … */` block. A comment is told by what it is written as, since each
+/// grammar names its comments differently. A block is spanned inside its `/*`
+/// and `*/`, as the TypeScript reader spans a JSDoc block; lines are spanned
+/// whole, from the first `///` to the end of the last.
+pub fn doc_above(children: &[Node], at: usize, source: &str, attributes: &[&str]) -> Option<TextSpan> {
+    let mut lines: Option<(usize, usize)> = None;
+    for sibling in children[..at].iter().rev() {
+        let text = text_of(*sibling, source);
+        let comment = sibling.kind().contains("comment");
+        if lines.is_none() && attributes.contains(&sibling.kind()) {
+            continue;
+        }
+        if comment && text.starts_with("///") && !text.starts_with("////") {
+            let end = sibling.start_byte() + text.trim_end().len();
+            lines = Some((sibling.start_byte(), lines.map_or(end, |(_, end)| end)));
+            continue;
+        }
+        if comment && lines.is_none() && text.starts_with("/**") && !text.starts_with("/***") && text.len() > 4 {
+            return Some(span_of(source, sibling.start_byte() + 2, sibling.end_byte() - 2));
+        }
+        break;
+    }
+    lines.map(|(start, end)| span_of(source, start, end))
+}
+
+/// Byte offsets of `source` as the UTF-16 span every reader writes.
+pub fn span_of(source: &str, start: usize, end: usize) -> TextSpan {
+    let units = |byte: usize| source.get(..byte).map_or(0, |before| before.encode_utf16().count()) as u32;
+    TextSpan { start: units(start), end: units(end) }
 }
 
 /// Every named child of a node, in order.

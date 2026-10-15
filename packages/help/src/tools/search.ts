@@ -106,7 +106,8 @@ function publishedLine(match: PublishedMatch): string {
 function exportedLine(match: ExportedMatch): string {
   const rest = match.files - 1;
   const more = rest === 0 ? '' : ` (+${rest} more ${rest === 1 ? 'file' : 'files'})`;
-  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}`;
+  const said = match.summary === undefined ? '' : ` — ${match.summary}`;
+  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}${said}`;
 }
 
 const matchLine = (match: PublishedMatch | ExportedMatch): string =>

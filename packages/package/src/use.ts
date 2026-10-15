@@ -174,6 +174,8 @@ export interface Named {
   readonly type: boolean;
   /** Whether the exporting file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
+  /** The doc comment written above the export statement, undented; absent when there is none. */
+  readonly doc?: string;
 }
 
 export interface UsageOptions {
@@ -254,6 +256,8 @@ export interface Exported {
   readonly line: number;
   /** `export type { x }` and `export { type x }` alike. */
   readonly type: boolean;
+  /** The doc comment written above the export statement, undented; absent when there is none. */
+  readonly doc?: string;
 }
 
 /**
@@ -279,7 +283,15 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     const kind = kindOf(at);
 
     for (const published of file.publishes ?? []) {
-      usage.exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
+      usage.exported.push({
+        name: published.name,
+        at,
+        by,
+        line: published.line,
+        type: published.type,
+        kind,
+        ...(published.doc === undefined ? {} : { doc: published.doc }),
+      });
     }
 
     for (const asked of file.requests) {
@@ -454,12 +466,13 @@ export function readUsage(
 
     for (const statement of source.parsed.module.staticExports) {
       const line = lineAt(source.writing, statement.start);
+      const doc = source.writing.docs.get(statement.start);
       for (const entry of statement.entries) {
         // `export * from './x'` names nothing here: the set is whatever the
         // other file publishes, and inventing a name for it would claim one
         // this file never wrote.
         const exported = nameOf(entry.exportName.kind, entry.exportName.name);
-        if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType });
+        if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType, ...(doc === undefined ? {} : { doc }) });
 
         const specifier = entry.moduleRequest?.value;
         if (specifier === undefined) continue;

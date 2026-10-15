@@ -253,8 +253,9 @@ specifier before it is the import line you will write, and it goes to
 `--package` when the same name is published from more than one place. So after
 `@variance-authority/core/format · Viewport [interface] …` the next question is
 `symbol --name Viewport`, not `symbol --name @variance-authority/core/format`. An
-unpublished line has a `path:line` instead of a specifier: open the file, or
-pass its name to `symbol` and `uses`, which answer it from the source index.
+unpublished line has a `path:line` instead of a specifier, and the first paragraph
+of its doc comment when it has one: open the file, or pass its name to
+`symbol` and `uses`, which answer it from the source index.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a

@@ -95,6 +95,11 @@ export interface ExportedMatch {
   readonly line: number;
   /** How many files export it, the one shown included. */
   readonly files: number;
+  /**
+   * The first paragraph of its documentation, on one line, as `PublishedMatch`
+   * says it: the shown row's, else the first row of the name that has one.
+   */
+  readonly summary?: string;
 }
 
 /** A name of this repository a description reached, and which of its words it holds. */
@@ -305,6 +310,9 @@ function exported(
         }
         if (chosen === undefined) return [];
         const row = index.exported(chosen);
+        // A barrel re-exports a name with no comment of its own; the doc is
+        // where the name is declared, which is another of its rows.
+        const doc = row.doc ?? rowsOf(name).map((other) => index.exported(other).doc).find((held) => held !== undefined);
         const match: ExportedMatch = {
           source: 'exported',
           name: row.name,
@@ -312,6 +320,7 @@ function exported(
           at: row.at,
           line: row.line,
           files,
+          ...(doc === undefined ? {} : { summary: opening(doc) }),
         };
         return [match];
       }),
@@ -336,7 +345,12 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   const named = ascending(index.namesContaining(query), namesOfWords(index, query));
   const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
   const answered = new Set(hits.map((hit) => hit.name));
-  const rest = exported(index, named, answered, within);
+  // An exported row is reached by its doc as a published one is, and inside an
+  // area only through a row whose file is in it.
+  const documented = index.exportedDocsContaining(query)
+    .filter((row) => within === undefined || within.has(index.exportedFile(row)))
+    .map((row) => index.exportedName(row));
+  const rest = exported(index, ascending(named, documented), answered, within);
   return { query, area, within, named, hits, answered, rest } as const;
 }
 
