@@ -49,8 +49,8 @@ Every writer lays a run over a record through the addon: the runner's
 teardown, the milestone repin (which rebuilds a checkout's record on a newer
 mainline snapshot, keeping the tests the checkout ran) and the shard landing. Recording coverage
 over an existing record now needs the native addon, which ships prebuilt for
-macOS arm64, Linux arm64 and x64 with glibc, and Windows x64; elsewhere it
-builds from source with a Rust toolchain. Joining two readings of one file —
+macOS arm64, Linux arm64 and x64 with glibc, and Windows x64; on another platform it runs only from a source checkout built
+with a Rust toolchain. Joining two readings of one file —
 two cuts of its regions, as a run that edited it holds — needs the addon too,
 in any run.
 

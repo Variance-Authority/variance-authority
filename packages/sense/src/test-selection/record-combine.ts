@@ -18,7 +18,7 @@ export type { NativeCombinedRecord as CombinedRecord, NativeCombinedShard as Com
  * split the suite by — fail the build as unstable sharding, naming both
  * records: the shards restored two cached records, and a test may have run in
  * no shard. Each record names the one its run was laid over
- * (`record-base.ts`), and one that names none is refused. Every fold of shards
+ * (`record-base.ts`), and one with no `run.base` part is refused. Every fold of shards
  * in the product is this one, in the native addon.
  */
 export function combineRecords(shards: readonly string[], output: string): NativeCombinedRecord {

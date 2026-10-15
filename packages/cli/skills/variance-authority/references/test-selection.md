@@ -82,7 +82,8 @@ source index. Paths resolve from the working directory. `--into` names a new
 file; a path that is already there, a shard among them, is refused. The output
 is the same bytes whatever order the shards are named in. It keeps the case
 sections for `distill`, keeps each test file's duration as its one shard
-measured it, and treats a shard with no test files as absent. A shard whose
+measured it. A shard with no test files adds nothing, and must still have
+read, and been laid over, the record the others did. A shard whose
 record names the record its selection read `unknown`, as a JVM shard's does, is
 combined without checking that read, and the output names it. It refuses, by shard, overlapping
 test files or case files, different commits, different probe recipes, a shard

@@ -378,9 +378,10 @@ export { encodeTestCoverage };
 /**
  * Write one snapshot where readers will find it, whole or not at all.
  *
- * The counterpart to {@link readTestCoverage}, and the only writer: every seam
- * that records — the Vitest reporter, a journal transport draining a driven
- * page, a job folding shards — lands its result through here. It is a rename
+ * The counterpart to {@link readTestCoverage}: every seam that encodes a
+ * snapshot from cases — the Vitest reporter, a journal transport draining a driven
+ * page — lands its result through here; bytes already encoded, as a combine
+ * writes, land through `writeCoverageBytes`. It is a rename
  * over a temporary file in the same directory, so a reader that opens the path
  * sees the previous snapshot or this one and never the bytes between; a
  * selector reading a half-written file would not fail, it would narrow on a
