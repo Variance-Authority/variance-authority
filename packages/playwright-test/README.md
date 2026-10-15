@@ -360,8 +360,8 @@ test('the cart states', async ({ page }, testInfo) => {
 ```
 
 `unchanged` and `new` write nothing: there is nothing to look at in the first and
-nothing to compare against in the second. Two images of different sizes leave the pair and no diff, because they have no
-common canvas and the sizes are the whole finding.
+nothing to compare against in the second. A subject that changed size gets a diff on the after image: rows inserted
+above the content are marked, and the content they pushed down is compared where it moved to.
 
 Off by default on the direct path, and off is a real choice: the images are the
 largest thing a run can produce, and a suite that reads the verdict in CI and

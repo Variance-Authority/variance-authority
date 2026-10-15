@@ -29,21 +29,25 @@ function documentOf(overrides: Partial<RenderDocument> = {}): RenderDocument {
 }
 
 describe('assembling a page from a document', () => {
-  it('puts the inherited floor where inheritance can only lose to the subject', () => {
+  it('puts the inherited floor where it loses to the subject and to every rule on the root', () => {
     const page = assemble(
       documentOf({
         inherited: { 'font-size': '13px', '--brand': '#f00' },
-        css: ['[data-va-path="0"]{font-size:20px}'],
+        css: ['html{line-height:1.5}', '[data-va-path="0"]{font-size:20px}'],
       }),
     );
 
-    const root = page.indexOf(':root{');
+    const root = page.indexOf('@layer{html,body{margin:0;padding:0}:root{');
     const rules = page.indexOf('[data-va-path="0"]{font-size:20px}');
     expect(root).toBeGreaterThan(-1);
     // Order is the content of this assertion. The floor reaches the subject only
     // by inheritance, and inheritance loses to any declaration on the element —
     // so the subject's own 20px wins whatever the floor says.
     expect(root).toBeLessThan(rules);
+    // And in a layer of its own, ahead of the document's rules, so it is the
+    // lowest layer: the floor holds computed values, and `html{line-height:1.5}`
+    // must keep its number rather than lose to the floor's `24px`, layered or not.
+    expect(root).toBeLessThan(page.indexOf('html{line-height:1.5}'));
     expect(page).toContain('--brand:#f00');
   });
 
@@ -78,8 +82,21 @@ describe('assembling a page from a document', () => {
       }),
     );
 
-    expect(page).toContain('<aside style="width:600px">');
-    expect(page).toContain('body{width:600px}');
+    expect(page).toContain('<aside style="width:600px !important">');
+    expect(page).toContain('<body>');
+  });
+
+  it('puts the container width on the body when the body is the parent', () => {
+    // Inline and important, so no page rule on the body, as Storybook's padded
+    // layout writes one, overrides it.
+    const page = assemble(
+      documentOf({
+        frame: { html: {}, body: { class: 'sb-main-padded' }, ancestors: [], containerWidth: 343 },
+      }),
+    );
+
+    expect(page).toContain('<body class="sb-main-padded" style="width:343px !important">');
+    expect(page).not.toMatch(/body\{[^}]*width/);
   });
 
   it('keeps a container width alongside a style the ancestor already had', () => {
@@ -94,7 +111,7 @@ describe('assembling a page from a document', () => {
       }),
     );
 
-    expect(page).toContain('style="padding:8px;width:300px"');
+    expect(page).toContain('style="padding:8px;width:300px !important"');
   });
 
   it('does not reproduce the browser default page margin', () => {

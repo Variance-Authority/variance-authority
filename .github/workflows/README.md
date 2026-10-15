@@ -183,9 +183,12 @@ did.
 
 ## The pictures in the comment
 
-The comment shows the leading cause's before and after on its first screen, and
-each further cause's pair inside its fold. The action pushes the report's before
-and after images to `refs/variance/project/<project>/images/<branch>`, named for
+The comment shows the leading cause's change on its first screen, and each
+further cause's inside its fold. A change is one picture at its own size: each
+of the largest changed regions with the rows around it, as before, after and the
+difference, top to bottom. A subject with no region to crop shows its whole
+before and after instead. The action pushes those images from the report to
+`refs/variance/project/<project>/images/<branch>`, named for
 the config's `project` and the pull request's branch, so each job's comment
 links its own pictures. `<project>` is spelled as `variance carry` prints it,
 one path segment whatever the project holds. The ref is one commit with no

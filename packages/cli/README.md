@@ -2759,8 +2759,12 @@ variance comment --body-file body.md \
   --to-accept 'add the **variance: accept** label to this pull request'
 ```
 
-`--image-root` puts pictures in the comment: the leading cause's before and
-after on the first screen, and each further cause's pair in the fold. Give it
+`--image-root` puts pictures in the comment: the leading cause's change on the
+first screen, and each further cause's in the fold. The change is the
+`change.png` a run writes beside a subject's diff: each of the largest changed
+regions with the rows around it, as before, after and the difference, top to
+bottom, at one image pixel per pixel. A subject with no region to crop shows
+its whole before and after instead. Give it
 the address you published the report's directory under. The comment joins each
 image path the report records to it, with every segment percent-encoded, so the
 file `images/story%3Abutton.before.png` is asked for as

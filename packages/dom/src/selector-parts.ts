@@ -27,9 +27,42 @@ export function lastCompound(selector: string): string {
 }
 
 /**
+ * A compound with what its arguments and attribute selectors hold taken out:
+ * `a:not(.plain)` is `a:not()`, `:where(.docs-content h2)` is `:where()`, and
+ * `a[href="#top"]` is `a[]`.
+ *
+ * What is left is what the compound demands of the node by name. A class inside
+ * `:where()` belongs to an ancestor or to an alternative, and a `#` inside an
+ * attribute value is text, so neither names the node, and a key read from them
+ * files the rule where the node never looks.
+ */
+export function outsideArguments(compound: string): string {
+  let depth = 0;
+  let kept = '';
+
+  for (let index = 0; index < compound.length; index += 1) {
+    const char = compound[index]!;
+    if (char === '\\') {
+      const end = escapeEnd(compound, index);
+      if (depth === 0) kept += compound.slice(index, end);
+      index = end - 1;
+      continue;
+    }
+    if (char === ')' || char === ']') depth -= 1;
+    if (depth === 0) kept += char;
+    if (char === '(' || char === '[') depth += 1;
+  }
+
+  return kept;
+}
+
+/**
  * The one walk: the index of the last combinator at depth zero, `-1` when there
  * is none, and the bracket depth the string ends at, which is not zero when it
  * stops inside a `[` or a `(`.
+ *
+ * An escaped character is a character of a name, never structure: `.w-\\[10px\\]`
+ * is one class, and so is `.\\32 xl\\:p-4`, whose space ends the escape.
  */
 function walk(selector: string): { readonly lastBreak: number; readonly depth: number } {
   let depth = 0;
@@ -37,7 +70,8 @@ function walk(selector: string): { readonly lastBreak: number; readonly depth: n
 
   for (let index = 0; index < selector.length; index += 1) {
     const char = selector[index]!;
-    if (char === '(' || char === '[') depth += 1;
+    if (char === '\\') index = escapeEnd(selector, index) - 1;
+    else if (char === '(' || char === '[') depth += 1;
     else if (char === ')' || char === ']') depth -= 1;
     else if (depth === 0 && (char === ' ' || char === '>' || char === '+' || char === '~')) {
       lastBreak = index;
@@ -45,6 +79,28 @@ function walk(selector: string): { readonly lastBreak: number; readonly depth: n
   }
 
   return { lastBreak, depth };
+}
+
+/**
+ * Where the escape starting at `at` ends. A hex escape is up to six hex digits
+ * and the one whitespace that may close it (`\\32 ` is `2`); any other escape is
+ * the one character after the backslash.
+ */
+export function escapeEnd(text: string, at: number): number {
+  const hex = /^[0-9a-f]{1,6}[ \t\n]?/i.exec(text.slice(at + 1, at + 8));
+  return at + 1 + (hex !== null ? hex[0].length : 1);
+}
+
+/** A name with its escapes resolved: `\\32 xl\\:p-4` is `2xl:p-4`. */
+export function unescapeName(name: string): string {
+  return name.replace(/\\(?:([0-9a-f]{1,6})[ \t\n]?|(.))/gis, (_, hex: string | undefined, char: string | undefined) =>
+    hex !== undefined ? codePoint(Number.parseInt(hex, 16)) : char!,
+  );
+}
+
+/** A hex escape's character; zero, a surrogate or past Unicode is U+FFFD, as CSS reads it. */
+function codePoint(value: number): string {
+  return value === 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) ? '\uFFFD' : String.fromCodePoint(value);
 }
 
 /** A selector that styles a pseudo-element, cut into the element it hangs from and the pseudo-element. */

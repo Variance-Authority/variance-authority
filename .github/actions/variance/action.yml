@@ -400,18 +400,19 @@ runs:
         here="$(dirname "$VARIANCE_REPORT")"
         repo="$(mktemp -d)"
         paths="$repo/paths"
-        # Before and after, only where the report holds both, since a subject
-        # with one of them is never pictured; and never a path that leaves the
-        # report's directory.
+        # What the comment shows of each subject: the change, cropped, where the
+        # report has one, and otherwise the before and after, only where it holds
+        # both, since a subject with one of them is never pictured. Never a path
+        # that leaves the report's directory.
         node -e '
           const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+          const inside = (path) => typeof path === "string" && !path.split("/").includes("..");
           for (const { images } of report.observations ?? []) {
-            const pair = [images?.before, images?.after];
-            if (pair.every((path) => typeof path === "string" && !path.split("/").includes("..")))
-              console.log(pair.join("\n"));
+            const shown = inside(images?.change) ? [images.change] : [images?.before, images?.after];
+            if (shown.every(inside)) console.log(shown.join("\n"));
           }
         ' "$VARIANCE_REPORT" > "$paths" || skip "the report could not be read"
-        [ -s "$paths" ] || skip "the report names no before and after images"
+        [ -s "$paths" ] || skip "the report names no image of a change"
 
         git init -q --bare "$repo/git"
         export GIT_DIR="$repo/git" GIT_WORK_TREE="$here"

@@ -5563,6 +5563,7 @@ __metadata:
     "@variance-authority/store": "workspace:^"
     "@variance-authority/vantage": "workspace:^"
     "@variance-authority/wire": "workspace:^"
+    pngjs: "npm:^7.0.0"
   peerDependencies:
     "@playwright/test": ">=1.49 <2"
   languageName: unknown
