@@ -1453,17 +1453,27 @@ remain separate files.
 accounting.
 
 When the page will be opened somewhere its images are not, add
-`--embed-images` and it carries every picture inside it:
+`--embed-images` and it carries the pictures of every subject it shows:
 
 ```bash
 variance report --format html --embed-images > variance-report.html
 ```
 
-One file then opens anywhere, including a phone. On GitHub Actions, upload it
+One file then opens anywhere. On GitHub Actions, upload it
 with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
-opens the page in the browser instead of downloading a zip. The file grows
-with the images: a subject with a baseline and a change carries three
-pictures.
+opens the page in the browser instead of downloading a zip.
+
+The file is about four thirds the size of those pictures: a subject with a
+baseline and a change carries three, and an unchanged subject carries none,
+because the page shows no card for it. Every subject's card comes first in the
+file and the pictures follow in the order the page shows them, so you can
+filter, read regions and copy commands while the pictures are still loading.
+Each picture keeps its place at its own size before it arrives, and is loaded
+lazily, so the browser is asked to decode only the ones near the screen. The
+page's script turns each carried picture into an image, so a viewer that runs
+no script shows the cards without their pictures. The command writes the page
+as it goes, one picture at a time, so its memory does not grow with the run;
+the browser's holds every picture once, at about its size on disk.
 
 ### Detect instability with `run --flakes`
 
@@ -2730,7 +2740,7 @@ file `images/story%3Abutton.before.png` is asked for as
 | Exit `2` before any docket | The run failed operationally rather than finding a reviewable change. | Run `variance doctor` in the same environment; then inspect browser, collector, renderer, and store diagnostics. Do not suppress this with `|| true`. |
 | Every subject is `new` after changing browser or renderer settings | The environment identity changed, so old and new images are intentionally partitioned. | Confirm the engine, viewport scale, fonts, and stabilization inputs. Establish new baselines only when the identity change was intended. |
 | A planned subject is absent from the report | Coverage accounting failed; a complete run must account for observed, excluded, or failed subjects. | Inspect collector failures and, for shards, verify the subject globs cover the whole plan without overlap. |
-| HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory. |
+| HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory, or write it with `--embed-images` so it carries its pictures. |
 | A ready selector times out | The collector opened the subject but its project-owned completion marker never appeared. | Check the collector module's id-to-selector map; do not replace the marker with an arbitrary sleep. |
 | A clean pull request has no comment body | This is expected. `variance comment` emits an empty body for a clean report. | Keep the CI gate on `variance run`; let the posting integration delete or skip its prior comment. |
 | A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |

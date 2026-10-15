@@ -26,6 +26,7 @@ import { ask, costsSubject } from './commands/ask.js';
 import { reviewSubject } from './commands/ask-review.js';
 import { said } from './here.js';
 import { formatReport } from './commands/report.js';
+import { writeReportPage } from './commands/report-page.js';
 import {
   adjudicateReport,
   exitForAdjudication,
@@ -195,7 +196,14 @@ export async function dispatch(
     }
 
     case 'report': {
-      const report = await reportsFor(parsed.reports, config, parsed.embedImages);
+      if (parsed.format === 'html') {
+        const report = await writeReportPage(
+          { paths: parsed.reports, config, embedImages: parsed.embedImages, ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}) },
+          streams,
+        );
+        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+      }
+      const report = await reportsFor(parsed.reports, config);
       streams.out(
         formatReport({
           report,

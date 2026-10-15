@@ -10,6 +10,18 @@ export const SCRIPT = `
 (function(){
 var $=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
 
+/* A carried picture: base64 in an element nothing runs, turned into a blob: URL
+   for every image that names it, and the text dropped so it is held once. */
+window.variancePicture=function(n){
+  var el=document.getElementById('picture-'+n); if(!el) return;
+  var b64=el.textContent, bytes;
+  if(Uint8Array.fromBase64) bytes=Uint8Array.fromBase64(b64);
+  else{var raw=atob(b64); bytes=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i)}
+  var url=URL.createObjectURL(new Blob([bytes],{type:el.getAttribute('data-media')||''}));
+  el.remove();
+  $('img[data-picture="'+n+'"]').forEach(function(img){img.src=url});
+};
+
 /* Region overlay. The natural size is the raster's size, so boxes scale with the
    rendered image and never need a width the report does not carry. */
 $('.subject').forEach(function(card){
@@ -34,7 +46,9 @@ $('.subject').forEach(function(card){
         boxes.appendChild(b);
       });
     };
-    img.complete?paint():img.addEventListener('load',paint);
+    /* Listened for even when complete: a carried picture has no source until
+       its payload arrives, and an image with no source reports complete. */
+    img.addEventListener('load',paint); if(img.complete) paint();
     addEventListener('resize',paint);
   }
 
