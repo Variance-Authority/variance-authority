@@ -187,12 +187,18 @@ export function transformsAfter(plugins: readonly ResolvedPlugin[], self: string
     .map(({ name }) => name);
 }
 
-/** Warn that the plugins {@link transformsAfter} names read the probes, once for each list of them. */
-export function warnTransformsAfter(plugins: readonly ResolvedPlugin[], self: string): void {
+/**
+ * Stop the run where a plugin {@link transformsAfter} names reads the probes:
+ * the compiler the probes go in after would read them again, which is the
+ * failure placing them last exists to prevent.
+ */
+export function refuseTransformsAfter(plugins: readonly ResolvedPlugin[], self: string): void {
   const after = transformsAfter(plugins, self);
   if (after.length === 0) return;
-  console.warn(
-    `variance-authority: ${after.map((name) => `\`${name}\``).join(', ')} ${after.length === 1 ? 'runs' : 'run'} its \`transform\` after ` +
-      `\`${self}\`, ordered \`post\` and listed after it, so ${after.length === 1 ? 'it reads' : 'they read'} the probes. List the probes last.`,
+  const one = after.length === 1;
+  throw new Error(
+    `variance-authority: ${after.map((name) => `\`${name}\``).join(', ')} ${one ? 'runs its' : 'run their'} \`transform\` after ` +
+      `\`${self}\`, ordered \`post\` and listed after it, so ${one ? 'it reads' : 'they read'} the probes: ` +
+      `move ${one ? 'it' : 'them'} ahead of the probes, or set \`placement: 'before-transforms'\`.`,
   );
 }

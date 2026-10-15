@@ -19,7 +19,7 @@ import { digestString } from '../digest.js';
 import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { instrumentTransformed } from '../instrument/transformed.js';
 import { recordedBlocks } from './coverage-rows.js';
-import { insideRoot, isMissing, projectPath, type CapturedModule } from './instrumented-modules.js';
+import { fileOrNone, insideRoot, isMissing, mayTake, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
 
@@ -213,8 +213,8 @@ export class MapRefusal extends Error {}
  * for, one whose map carries a text for the file that is not the file, and
  * code a map with no mappings carries for a file with more than module code,
  * and text the instrumenter cannot parse written from a file it can, is an
- * error; a `variant` is marked instead. Where `code` is the file, this is
- * {@link placeModule}.
+ * error; a `variant` is marked instead. So is a file that is there and cannot
+ * be read. Where `code` is the file, this is {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -226,12 +226,9 @@ export function captureAfter(
   options: AfterOptions = {},
 ): CapturedAfter | undefined {
   const { unprobed, carry = false, original: read = readOriginal, unmapped = [], remedy = REMEDY, variant = false } = options;
-  let disk: string | undefined;
-  try {
-    disk = read(path);
-  } catch {
-    disk = undefined;
-  }
+  // Under `node_modules`, `include` is asked first: no map there is read.
+  if (!mayTake(path, (file) => include(file) || (unprobed !== undefined && insideRoot(root, file) && unprobed(file)))) return undefined;
+  const disk = fileOrNone(path, read);
   // The file is read once: every step below that asks for it again is handed this text.
   const original = disk === undefined ? read : heldOriginal(path, disk, read);
   if (disk === undefined || handedTexts(disk).includes(code)) {

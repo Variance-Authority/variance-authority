@@ -87,9 +87,12 @@ export const COLLECTOR_FILE = fileURLToPath(new URL('./probes-collector.js', imp
  * };
  * ```
  *
- * Loaders of one `enforce` run right to left, so the rule goes first: a
- * project's `post` loader listed ahead of it would run after the probes and
- * read them. With the default `include`, it excludes `node_modules`.
+ * Loaders of one `enforce` run right to left. At the default placement the
+ * rule is a `post` loader and goes first: a project's `post` loader listed
+ * ahead of it would run after the probes and read them. With
+ * `placement: 'before-transforms'` it is a `pre` loader and goes last, so it
+ * runs ahead of every `pre` loader of the project's. With the default
+ * `include`, it excludes `node_modules`.
  *
  * Leave `devtool` writing source maps: the probes go where the map the loaders
  * hand on says each region of the file went, and a module that arrives with no

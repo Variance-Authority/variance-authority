@@ -8,13 +8,13 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import { heldOriginal, pathOf, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
-import { cleanId, projectPath, type ProbePlacement } from './instrumented-modules.js';
+import { cleanId, fileOrNone, mayTake, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
 import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
-import { type UnmappedNotes, type UnmappedStep, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
+import { type UnmappedNotes, type UnmappedStep, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
 
 export interface ConfigPlugin {
@@ -204,7 +204,9 @@ export function selectionPlugin(
       // a page — see the `it.todo` in vitest-browser.test.ts.
       const late = !inPage && !before;
       if (id !== file && late) return null;
-      const text = id === file && late ? disk(file) : undefined;
+      // Under `node_modules`, `include` is asked first: no map there is read.
+      const read = id === file && late && mayTake(file, (at) => run.include(at) || run.unprobed?.(at) === true);
+      const text = read ? fileOrNone(file, (at) => readFileSync(at, 'utf8')) : undefined;
       if (id === file && late) {
         if (text === undefined || !namesItsMap(text)) {
           // A case says which line of the file on disk was running, so a test
@@ -249,7 +251,7 @@ export function selectionPlugin(
       if (before) return;
       const { plugins } = config as unknown as { plugins: readonly { name: string; transform?: unknown }[] };
       notes = watchUnmapped(plugins, PROBES);
-      warnTransformsAfter(plugins, PROBES);
+      refuseTransformsAfter(plugins, PROBES);
     },
     transform: { order: 'post', handler(code, id) {
       const file = cleanId(id);
@@ -280,15 +282,6 @@ function changedOnArrival(root: string, file: string, loaders: readonly string[]
     `\`${projectPath(root, file)}\` reached \`withTestSelection\` already changed: ${by}, ` +
       'and its lines no longer match the file on disk. Let the file load as it is on disk, or leave it out of `include`.',
   );
-}
-
-/** The file on disk, or nothing when it cannot be read: a module no file holds. */
-function disk(file: string): string | undefined {
-  try {
-    return readFileSync(file, 'utf8');
-  } catch {
-    return undefined;
-  }
 }
 
 /**

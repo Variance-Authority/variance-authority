@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { transformsAfter, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
+import { refuseTransformsAfter, transformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import { testSelectionProbes } from './probes.js';
 
 /**
@@ -115,15 +115,10 @@ describe('a plugin whose transform runs after the probes', () => {
     expect(transformsAfter(plugins.slice(0, 1), SELF)).toEqual([]);
   });
 
-  it('is named in a warning when the configuration resolves', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      warnTransformsAfter(plugins, SELF);
-      warnTransformsAfter(plugins.slice(0, 2), SELF);
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0]![0]).toMatch(/`after-the-probes` runs its `transform` after `variance-authority:test-selection-probes`/);
-    } finally {
-      warn.mockRestore();
-    }
+  it('stops the run when the configuration resolves, naming it and both ways out', () => {
+    expect(() => refuseTransformsAfter(plugins.slice(0, 2), SELF)).not.toThrow();
+    expect(() => refuseTransformsAfter(plugins, SELF)).toThrow(
+      /`after-the-probes` runs its `transform` after `variance-authority:test-selection-probes`, ordered `post` and listed after it, so it reads the probes: move it ahead of the probes, or set `placement: 'before-transforms'`/,
+    );
   });
 });

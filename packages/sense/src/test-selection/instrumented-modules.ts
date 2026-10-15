@@ -179,3 +179,31 @@ export async function readNamed(directory: string): Promise<ReadonlyArray<{ name
 export function isMissing(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
+
+/**
+ * The file on disk, or nothing where no file holds the module: a bundler's
+ * virtual module, named by no absolute path or by one with `\0` in it, or a
+ * path nothing is at. A file that is there and cannot be read fails, with
+ * its reason: the probes would otherwise take it for a module no file holds.
+ */
+export function fileOrNone(path: string, read: (path: string) => string): string | undefined {
+  if (!isAbsolute(path) || path.includes('\0')) return undefined;
+  try {
+    return read(path);
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw new Error(`\`${path}\`: the probes cannot read the file to place its regions: ${(error as Error).message}`, { cause: error });
+  }
+}
+
+export const NODE_MODULES = /[/\\]node_modules[/\\]/;
+
+/**
+ * Whether a module could be taken before its file is read. A file under
+ * `node_modules` is taken under its own name alone, as no map there is read,
+ * so `accepts` answers for it unread. Any other file may name a map whose
+ * source `accepts` takes, which only its text says.
+ */
+export function mayTake(file: string, accepts: (file: string) => boolean): boolean {
+  return !NODE_MODULES.test(file) || accepts(file);
+}

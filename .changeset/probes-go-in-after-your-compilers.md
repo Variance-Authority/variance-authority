@@ -20,8 +20,9 @@ around the transformer you configured, in Rstest with a second loader at
 it, digested as its text, placed on its lines — and the probes are written into
 the transformed text where the transforms' combined map carries each region.
 A plugin of yours whose `transform` is ordered `post` and listed after
-`testSelectionProbes` still runs after the probes, and the configuration now
-warns with its name; list it before. A plain `transform` at `enforce: 'post'`
+`testSelectionProbes` would run after the probes and read them, so the run
+stops when the configuration resolves, naming it: list it before the probes,
+or set `placement: 'before-transforms'`. A plain `transform` at `enforce: 'post'`
 runs ahead of the probes. The plugin's `transform` is now an object hook,
 `{ order, handler }`: code that calls it directly calls `transform.handler`.
 Under Rstest the second loader's rule goes first among the rules, after
@@ -46,7 +47,9 @@ map can widen a region too: React Compiler's sends the code after an early
 import, so a probe fires on every render. An import of a variant of a file,
 such as `?raw`, that no map leads back from is recorded as the file loaded.
 Each selects a test it did not need to. None leaves out a test that ran the
-region.
+region, as long as a transform that returns `map: null` moved nothing on any
+line: one that moves code along a line, with no transform after it that writes
+a map, places the probes at the columns the file had.
 
 These stop a run that went through before, each with an error naming the file:
 
@@ -61,6 +64,8 @@ These stop a run that went through before, each with an error naming the file:
   moved.
 - Text your transforms wrote that the instrumenter cannot parse, from a file
   it can.
+- A file the probes cannot read for any reason other than its absence, such
+  as `EACCES`, with the reason.
 - Under Vitest, a test file the run cuts whose `load` hook rewrote it, named
   by the hook's plugin. Any other file a `load` hook rewrote goes on to the
   probes, which place it through the map the hook returned.

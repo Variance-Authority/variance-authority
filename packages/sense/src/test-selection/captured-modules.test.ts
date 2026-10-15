@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
@@ -83,6 +83,19 @@ describe('a module with no file on disk', () => {
     await writeFile(vendored, SOURCE, 'utf8');
 
     expect(captureModule(root, vendored, SOURCE, () => true, undefined)).toBeDefined();
+  });
+});
+
+describe('a module whose file is there and cannot be read', () => {
+  it('fails after the transforms, naming the file and why: only a file that is not there is no file', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+    await chmod(file, 0o000);
+    try {
+      expect(() => captureAfter(root, file, SOURCE, defaultInclude, undefined, map)).toThrow(/src-cart\.js.*EACCES/s);
+    } finally {
+      await chmod(file, 0o644);
+    }
   });
 });
 

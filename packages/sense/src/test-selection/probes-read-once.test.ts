@@ -4,7 +4,7 @@
  * the file it cuts regions from no second time.
  */
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -117,5 +117,63 @@ describe('a module is read from disk once', () => {
 
     expect(placed).toContain('__va');
     expect(reads.get(file)).toBe(1);
+  });
+});
+
+/**
+ * A file under `node_modules` is taken under its own name alone: its map is
+ * not read there. Any other file may name a map whose source `include`
+ * takes, which only its text says, so it is read before `include` is asked.
+ */
+describe('a module `include` does not take is not read', () => {
+  let dependency: string;
+
+  beforeEach(async () => {
+    await mkdir(resolve(root, 'node_modules/dep'), { recursive: true });
+    dependency = resolve(root, 'node_modules/dep/index.js');
+    await writeFile(dependency, SOURCE, 'utf8');
+  });
+
+  it('under Vitest, under `node_modules`', () => {
+    const plugins = withVitest({}, { root, coverageFile: resolve(root, 'coverage.bin') }).plugins as unknown as Seam[];
+    const [cut, probes] = plugins.filter(({ name }) => name.startsWith('variance-authority:test-selection'));
+    handlerOf(cut!).call({}, SOURCE, dependency);
+    expect(handlerOf(probes!).call({ getCombinedSourcemap: () => MAP }, COMPILED, dependency)).toBeNull();
+    expect(reads.get(dependency)).toBeUndefined();
+  });
+
+  it('under a Vite dev server, under `node_modules`', () => {
+    const plugin = testSelectionProbes({ root });
+    plugin.configResolved({ command: 'serve', plugins: [] } as never);
+    expect(plugin.load(dependency)).toBeNull();
+    expect(plugin.transform.handler.call({ getCombinedSourcemap: () => MAP }, COMPILED, dependency)).toBeNull();
+    expect(reads.get(dependency)).toBeUndefined();
+  });
+
+  it('under a Vite build, under `node_modules`', () => {
+    const plugin = testSelectionProbes({ root });
+    plugin.configResolved({ command: 'build', plugins: [] } as never);
+    expect(plugin.transform.handler.call({ getCombinedSourcemap: () => MAP }, COMPILED, dependency)).toBeNull();
+    expect(reads.get(dependency)).toBeUndefined();
+  });
+
+  it('under Rstest, anywhere: a file that names its own map was probed by the first loader', () => {
+    const coverageFile = resolve(root, 'coverage.bin');
+    withRstest({ root }, { coverageFile, include: (path) => path === file });
+    const outside = resolve(root, 'other.js');
+    let passed: string | undefined;
+    for (const at of [dependency, outside]) {
+      rstestAfterLoader.call({
+        resourcePath: at,
+        getOptions: () => ({ coverageFile }),
+        callback: (error: Error | null, code?: string) => {
+          if (error !== null) throw error;
+          passed = code;
+        },
+      }, COMPILED, MAP);
+      expect(passed).toBe(COMPILED);
+    }
+    expect(reads.get(dependency)).toBeUndefined();
+    expect(reads.get(outside)).toBeUndefined();
   });
 });

@@ -28,6 +28,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { digestString } from '../digest.js';
+import { NODE_MODULES } from './instrumented-modules.js';
 import { decode, type Segment } from './map-segments.js';
 
 /** The fields of a bundler's map this reads. */
@@ -258,7 +259,6 @@ export interface RawFrame extends RecordedFrame {
 
 /** A sibling's name only: a `data:` map or a path elsewhere has a `/` in it. */
 const SOURCE_MAPPING_URL = /\/\/[#@] sourceMappingURL=([^\s'"/\\]+)(?=\s*$)/;
-const NODE_MODULES = /[/\\]node_modules[/\\]/;
 
 /**
  * The file on disk, outside `node_modules`. {@link rawFrame} takes it as the

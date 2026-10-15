@@ -992,8 +992,9 @@ where the transforms' combined map carries each region. Code a compiler wrote
 that the map carries to no region gets no probe, so a decorator helper or a
 generated constructor is never recorded. A plugin of yours whose `transform`
 is ordered `post`, `transform: { order: 'post', handler }`, and listed after
-`testSelectionProbes` runs after the probes and reads them: the configuration
-warns with its name, and you list it before. A plain `transform` at
+`testSelectionProbes` would run after the probes and read them, so the run
+stops when the configuration resolves and names it: list it before the probes,
+or set `placement: 'before-transforms'`. A plain `transform` at
 `enforce: 'post'` runs ahead of the probes wherever it is listed.
 
 Where the transforms ahead of the probes rewrote a file and left no map back to

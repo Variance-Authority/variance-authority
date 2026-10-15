@@ -9,10 +9,10 @@
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { readFileSync } from 'node:fs';
 import { captureAfter, heldOriginal, type ComposedMap, placeModule } from './captured-modules.js';
-import { cleanId, defaultInclude, type ProbePlacement } from './instrumented-modules.js';
+import { cleanId, defaultInclude, fileOrNone, mayTake, type ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
-import { type UnmappedNotes, unmappedSteps, warnTransformsAfter, watchUnmapped } from './unmapped-transforms.js';
+import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 
@@ -121,6 +121,8 @@ export interface InstrumentedMap {
 export interface InstrumentingPlugin {
   readonly name: string;
   readonly enforce: 'pre' | 'post';
+  /** The options it was made with, for a plugin that has to keep it rather than add a second. */
+  readonly api: { readonly options: TestSelectionProbeOptions };
   /** Watch every other plugin for a rewrite with no map: {@link watchUnmapped}. */
   readonly configResolved: (config: {
     readonly command: string;
@@ -216,6 +218,7 @@ export function testSelectionProbes(
   return {
     name,
     enforce: before ? 'pre' : 'post',
+    api: { options },
     // `hidden`, so no bundle names a map, and every `.map` it writes is taken back below.
     config: { order: 'post', handler: (config, env) => {
       mapsOurs = !before && env.command === 'build' && !config.build?.sourcemap;
@@ -227,7 +230,7 @@ export function testSelectionProbes(
       // Ahead of every transform, no map is read, so no step is watched for one.
       if (before) return;
       notes = watchUnmapped(config.plugins, name, serving ? 'context' : 'module');
-      warnTransformsAfter(config.plugins, name);
+      refuseTransformsAfter(config.plugins, name);
     },
     // A build in watch mode starts again: what an earlier one noted is stale.
     buildStart: () => {
@@ -296,13 +299,10 @@ export function testSelectionProbes(
    */
   function probedFirst(id: string): { code: string; map: object | null } | null {
     const file = cleanId(id);
-    if (id !== file) return null;
-    let disk: string;
-    try {
-      disk = readFileSync(file, 'utf8');
-    } catch {
-      return null;
-    }
+    // Under `node_modules`, `include` is asked first: no map there is read.
+    if (id !== file || !mayTake(file, include)) return null;
+    const disk = fileOrNone(file, (path) => readFileSync(path, 'utf8'));
+    if (disk === undefined) return null;
     if (!namesItsMap(disk)) {
       held.set(id, disk);
       return null;

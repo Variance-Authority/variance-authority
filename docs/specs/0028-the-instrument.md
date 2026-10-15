@@ -190,7 +190,11 @@ crossing uses a transport before its coverage joins its test file.
   was only appended to; one that moved lines is refused by name. A composed map
   whose text for the file is not the file on disk is refused, which catches a
   `map: null` that moved columns within a line ahead of a step that wrote a
-  map; one with no such step after it is not caught.
+  map; one with no such step after it is not caught, and is a known way to
+  miss a test: its probes are placed at the columns the file had, a region
+  whose code moved along its line is charged to the code now there, and a test
+  that ran it is left out. "None leaves out a test that ran the region" holds
+  under that assumption, that a step returning `map: null` moved nothing.
 - vitest hoists `vi.mock` calls in its own transform. The module probe must be
   inserted at the **first executable statement after the hoisted block**, never
   at offset 0 — a probe above a hoisted mock changes evaluation order.
