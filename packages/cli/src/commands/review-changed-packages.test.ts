@@ -68,12 +68,15 @@ describe('where a change lands, a package at a time', () => {
         region('module', '', 1, 40, 'near', ['packages/a/test/x.test.ts']),
         region('function', 'cap', 3, 20, 'near', ['packages/a/test/x.test.ts']),
         region('branch', 'cap', 9, 9, 'unwalked'),
+        // A branch on the function's first line is read before the function, and does not mark it.
+        region('function', 'round', 12, 18, 'far', ['packages/b/test/y.test.ts']),
+        region('branch', 'round', 12, 12, 'hole'),
         region('function', 'floor', 22, 30, 'hole'),
       ],
     }];
 
     expect(changedPackagesOf(root, files, (changed) => changed)).toEqual([
-      { package: '@x/a', path: 'packages/a', functions: 2, reaches: { near: 1, hole: 1 }, uncovered: 2, own: true, tests: [], importers: 0 },
+      { package: '@x/a', path: 'packages/a', functions: 3, reaches: { near: 1, far: 1, hole: 1 }, uncovered: 3, own: true, tests: ['packages/b'], importers: 0 },
     ]);
   });
 

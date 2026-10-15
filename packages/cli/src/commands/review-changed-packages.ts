@@ -12,7 +12,7 @@
  *
  * The table is bounded whatever the repository's size: the packages with code
  * no nearby test ran come first, and once there are more packages than rows,
- * the ones whose every function a nearby test ran are folded into one row, and
+ * the ones whose every function a nearby test ran in full are folded into one row, and
  * the rest past the budget into another, both counted in it. The JSON keeps
  * every package.
  */
