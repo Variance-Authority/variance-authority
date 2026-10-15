@@ -210,7 +210,7 @@ export async function seedTestCoverage(
       if (!(error instanceof RecordWithoutCoverage)) throw error;
     }
     primary = passedOver(resolve(layers.base, inside), bytes, instrumentation);
-    if (primary !== undefined) throw new Error('written under other probes');
+    if (primary !== undefined) return undefined;
     const { index } = caseSectionsOf(bytes);
     if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
     return sharedRecord(bytes);
@@ -348,15 +348,15 @@ async function seedCommitRuns(file: string, base: string, snapshot: TestCoverage
 
 /**
  * Copy `name` from under `base` to `target` unless `target` is already there,
- * as `opens` returns the bytes, and unless it refuses them. No base and an
- * unreadable one are the same answer: nothing to inherit. Says whether it
- * copied.
+ * as `opens` returns the bytes. A base `opens` returns nothing for is not
+ * copied. No base and an unreadable one are the same answer: nothing to
+ * inherit. Says whether it copied.
  */
 async function seedFrom(
   base: string,
   name: string,
   target: string,
-  opens: (bytes: Uint8Array) => Uint8Array,
+  opens: (bytes: Uint8Array) => Uint8Array | undefined,
 ): Promise<boolean> {
   // FIXME: the check and the copy are two steps, so two first writes in one
   // worktree can both find `target` missing, and the later copy replaces a
@@ -371,7 +371,9 @@ async function seedFrom(
     const bytes = await readFile(resolve(base, name));
     // Opening parses the section index and nothing else, which is the whole of
     // what "this build can read it" means and costs a fraction of a decode.
-    await writeCoverageBytes(target, opens(bytes));
+    const opened = opens(bytes);
+    if (opened === undefined) return false;
+    await writeCoverageBytes(target, opened);
     return true;
   } catch {
     // No base, or one this build has no claim on. Either way there is nothing
