@@ -68,6 +68,13 @@ public final class Coverage {
   private static final int FORMAT = 8;
   private static final int MODEL = 3;
   private static final String INSTRUMENTATION = "sense:instrument/entries-v3";
+  /**
+   * The record this run started from, which combining shards compares: none. The
+   * JVM chooses no tests from a record, since Surefire or Gradle hands it the classes
+   * a separate {@code variance select} chose, and it builds the snapshot from its own
+   * rows rather than laying the run over a record.
+   */
+  private static final String NO_BASE = "none";
   private static final int NO_OWNER = 0xffffffff;
   private static final int KIND_MODULE = 0;
   private static final int KIND_FUNCTION = 1;
@@ -686,6 +693,7 @@ public final class Coverage {
     out.words("blocks.loadedSet", loadedSet);
     out.add("sets.blob", sets.bytes(), 1);
     out.words("sets.off", sets.offsets());
+    out.add("run.base", NO_BASE.getBytes(StandardCharsets.UTF_8), 1);
     return out.bytes();
   }
 

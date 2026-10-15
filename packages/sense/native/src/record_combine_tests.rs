@@ -133,6 +133,13 @@ fn reads_the_untimed_layout_the_jvm_agent_writes() {
     let (tests, _) = fixture::read(&folded.bytes);
     assert_eq!(tests, [("a.test.ts".to_owned(), true, None), ("b.test.ts".to_owned(), true, Some(9))]);
     assert_eq!(journey_columns::decode_any(&folded.bytes).unwrap().0, LAYOUT.coverage.format);
+    // The agent chooses no tests from a record and lays its run over none, so it names none,
+    // and two of its shards combine; one written before it named a base is refused.
+    let mut jvm = spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    jvm.version = LAYOUT.coverage.untimed;
+    assert_eq!(combined(&[&fixture::write(&untimed), &fixture::write(&jvm)]).unwrap().result.shards.len(), 2);
+    jvm.base = None;
+    assert!(refused(&[&fixture::write(&untimed), &fixture::write(&jvm)]).contains("0.15.0 or earlier"));
 }
 
 #[test]
@@ -170,6 +177,7 @@ fn refuses_hostile_records_without_reading_past_them() {
                 Column::Words(name, decoded.words(name).unwrap())
             });
         }
+        columns.push(unbased());
         journey_columns::encode(columns, LAYOUT.coverage.format).unwrap()
     };
     for (section, values) in [
