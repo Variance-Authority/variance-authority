@@ -984,8 +984,8 @@ extractor or React Compiler, reads the text it reads without recording and
 compiles the same output. The probes are placed through the transforms'
 combined map, so under a `vite build` that writes no source map, the default,
 `testSelectionProbes` turns maps on for the transforms, as `hidden`, and takes
-the `.map` files that wrote out of the bundle: the build writes what it wrote
-without the probes. The regions are still the file's own:
+the map of each chunk and asset back out of the bundle: the build writes what it
+wrote without the probes, and a `.map` file another plugin emits stays. The regions are still the file's own:
 each module is cut from the file on disk, named after it, digested as its text
 and placed on its lines, and the probes are written into the transformed text
 where the transforms' combined map carries each region. Code a compiler wrote

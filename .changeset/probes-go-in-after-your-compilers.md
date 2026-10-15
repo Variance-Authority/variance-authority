@@ -31,8 +31,9 @@ A `vite build` that writes no source map, Vite's default, still places the
 probes where your code went. Vite reprints a module that reads
 `import.meta.env`, `process.env` or a `define`, and hands its map on only where
 the build writes maps, so `testSelectionProbes` turns maps on for the
-transforms, as `hidden`, and takes every `.map` file that wrote back out of the
-bundle: the build writes what it wrote without the probes.
+transforms, as `hidden`, and takes the map of each chunk and asset back out of the
+bundle: the build writes what it wrote without the probes. A `.map` file
+another plugin emits stays.
 
 `instrument()` answers two more fields: `module`, whether the text imports or
 exports, and `headerAt`, where the header starts past the directive prologue.

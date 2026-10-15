@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
-import { build, type BuildOptions } from 'vite';
+import { build, type BuildOptions, type Plugin } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deriveModules } from './captured-modules.js';
 import { EXECUTION_GLOBAL, type ExecutionJournal, testSelectionProbes } from './probes.js';
@@ -35,7 +35,7 @@ afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-async function built(sourcemap: BuildOptions['sourcemap']) {
+async function built(sourcemap: BuildOptions['sourcemap'], ahead: Plugin[] = []) {
   const root = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-build-maps-')));
   temporary.push(root);
   await mkdir(resolve(root, 'src'), { recursive: true });
@@ -45,7 +45,7 @@ async function built(sourcemap: BuildOptions['sourcemap']) {
     root,
     configFile: false,
     logLevel: 'silent',
-    plugins: [testSelectionProbes({ root })],
+    plugins: [...ahead, testSelectionProbes({ root })],
     build: { write: false, minify: false, sourcemap, rollupOptions: { input: resolve(root, 'src/main.js') } },
   });
   const [bundle] = Array.isArray(output) ? output : [output];
@@ -82,6 +82,18 @@ describe('`vite build` that writes no source map', () => {
 
     expect(files.map((file) => file.fileName).filter((name) => name.endsWith('.map'))).toEqual([]);
     expect(code).not.toMatch(/sourceMappingURL/);
+  });
+
+  it('keeps a `.map` file another plugin emits, taking out only the maps of what the build wrote', async () => {
+    const emits: Plugin = {
+      name: 'emits-a-map',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'other.map', source: '{}' });
+      },
+    };
+    const { files } = await built(false, [emits]);
+
+    expect(files.map((file) => file.fileName).filter((name) => name.endsWith('.map'))).toEqual(['other.map']);
   });
 
   it('keeps the maps a build writes itself', async () => {

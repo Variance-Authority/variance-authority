@@ -236,7 +236,8 @@ export function testSelectionProbes(
     },
     generateBundle: (_options, bundle) => {
       if (!mapsOurs) return;
-      for (const file of Object.keys(bundle)) if (file.endsWith('.map')) delete bundle[file];
+      // The maps of what the build wrote, each named after its file; a `.map` another plugin emits stays.
+      for (const file of Object.keys(bundle)) if (!file.endsWith('.map')) delete bundle[`${file}.map`];
     },
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
