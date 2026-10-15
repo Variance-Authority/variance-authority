@@ -37,27 +37,30 @@ import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-a
 import {
   enrichSources,
   openSourceIndex,
+  placesOf,
   scanRelations,
   sourceIndexPath,
+  stepped,
   type ParseCache,
+  type Progress,
 } from '@variance-authority/sense';
 import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   ownership,
-  readImportTargets,
-  readOfferings,
+  readWorkspaceManifests,
   type Help,
   type HelpOptions,
   type ImportTargets,
   type Offering,
   type Usage,
   type Use,
+  type WorkspaceManifests,
 } from '@variance-authority/package/help';
 import { collectingUsage } from './collect-usage.js';
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
 import { operatorError } from './operator.js';
-import { coversWhole, scanScope } from './scan-scope.js';
+import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import {
   readWorkspaceSnapshot,
   republishWorkspaceSnapshot,
@@ -136,7 +139,9 @@ export interface IndexedUsageOptions {
   /**
    * Whether that publication also saves this scan's records into the source
    * index. On. `variance index` turns it off: it published the index this scan
-   * read a moment before, and it is the index's owner.
+   * read a moment before, and it is the index's owner. A scan over part of the
+   * checkout, a workspace's root and the members it lists outside it, keeps an
+   * index of its own that nothing else saves, and saves it whatever this says.
    */
   readonly saveIndex?: boolean;
   /**
@@ -173,6 +178,8 @@ export interface IndexedUsageOptions {
   readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
   /** Handed the queryable graph when a caller asks a path-shaped question. */
   readonly tree?: (tree: Tree) => void;
+  /** Told each step as it starts and ends: the manifests, the source, the names, the publish. */
+  readonly progress?: Progress;
 }
 
 async function scanIndexed(
@@ -181,26 +188,30 @@ async function scanIndexed(
   targets: ImportTargets,
   options: IndexedUsageOptions,
   dirs: readonly string[],
+  at: string,
 ): Promise<{
   readonly usage: Usage;
   readonly sources: Map<string, IndexedSource>;
   readonly records: readonly FileRecord[];
   readonly cache: ParseCache;
+  /** Whether the index is the one the reading keeps for itself, beside its root's, which nobody else saves. */
+  readonly ownIndex: boolean;
   /** What the file system refused when the index was written, or `undefined`. */
   save(): Promise<string | undefined>;
 }> {
   const where = resolve(root);
-  const index = await openSourceIndex(options.index ?? sourceIndexPath(where));
+  const index = await openSourceIndex(at);
   const owner = ownership(where);
   const usage = collectingUsage(opened, targets);
   const sources = new Map<string, IndexedSource>();
 
-  const records = await scanRelations({
-    // The whole checkout, not the workspace members. A repository holds source
-    // that no `workspaces` entry claims — `tools/`, a scripts directory, a
-    // config that imports from a package — and that source imports these
-    // packages like anything else does. The scan declines to descend into a
-    // checkout that is not this one, so the root means this repository.
+  const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(where, dirs)}`, () => scanRelations({
+    // What `scanScope` names: the workspace's own directory whole, not only its
+    // members, since it holds source no `workspaces` entry claims — `tools/`, a
+    // scripts directory, a config that imports from a package — and each member
+    // it lists outside that directory. Nothing beside what it lists can import
+    // from it. The scan declines to descend into a checkout that is not this
+    // one, so the root means this repository.
     root: where,
     dirs,
     cache: index.cache,
@@ -214,7 +225,7 @@ async function scanIndexed(
       sources.set(file, { parsed, targets });
       usage.targets(file, targets);
     },
-  });
+  }));
   const tainted = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
   if (tainted.shadows.size > 0) {
     throw new Error(
@@ -233,10 +244,10 @@ async function scanIndexed(
     sources,
     records: tainted.records,
     cache: index.cache,
-    // The index describes the whole of the root it belongs to, and a save keeps
-    // only the records this scan touched. A scan of some of its directories is
-    // answered and published, and never written over the index it read.
-    save: coversWhole(dirs) ? () => index.save() : () => Promise.resolve(undefined),
+    // A save keeps only the records this scan touched, and the index at `at`
+    // covers exactly what this scan reads: the root's own, or the scope's.
+    ownIndex: !coversWhole(dirs),
+    save: () => index.save(),
   };
 }
 
@@ -260,6 +271,12 @@ export async function readWorkspace(root: string, options: ReadingOptions = {}):
   return documentWorkspace(read, options);
 }
 
+/** `readWorkspace` over the manifests a caller read from `root` a moment before. */
+export async function readWorkspaceOver(root: string, manifests: WorkspaceManifests, options: ReadingOptions = {}): Promise<Help> {
+  const read = await scanWorkspace(root, options, manifests);
+  return documentWorkspace(read, options);
+}
+
 /**
  * Refresh volatile source facts while retaining a previously documented surface.
  *
@@ -278,7 +295,7 @@ export async function refreshWorkspace(
   if (!sameSurface(read, read.scanned.usage.exported, documented)) return documentWorkspace(read, options);
   const help = joinUsage(documented, read.offerings, read.scanned.usage);
   if (options.save !== false) {
-    if (options.saveIndex !== false) await read.scanned.save();
+    if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
     await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, options.index);
   }
   return help;
@@ -294,9 +311,10 @@ interface WorkspaceScan {
   readonly changed?: readonly string[];
 }
 
-async function scanWorkspace(root: string, options: ReadingOptions): Promise<WorkspaceScan> {
+async function scanWorkspace(root: string, options: ReadingOptions, read?: WorkspaceManifests): Promise<WorkspaceScan> {
   const where = resolve(root);
-  const offerings = readOfferings(where, { ...options, tolerant: options.tolerant ?? true });
+  const { offerings, targets } = read ?? await stepped(options.progress, `reading the package manifests of ${where}`, () =>
+    readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
   const scope = scanScope(where, offerings);
   const opened = new Set(
     offerings.flatMap((offering) =>
@@ -304,7 +322,8 @@ async function scanWorkspace(root: string, options: ReadingOptions): Promise<Wor
     ),
   );
 
-  const scanned = await scanIndexed(scope.root, opened, readImportTargets(where), options, scope.dirs);
+  const at = scopeSourceIndexPath(options.index ?? sourceIndexPath(where), scope.dirs);
+  const scanned = await scanIndexed(scope.root, opened, targets, options, scope.dirs, at);
   options.tree?.(treeAtWorkspace(treeOf(scanned.records, scope.root), where));
   return {
     workspace: where,
@@ -318,22 +337,26 @@ async function scanWorkspace(root: string, options: ReadingOptions): Promise<Wor
 async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): Promise<Help> {
   const { root, offerings, scanned } = read;
   const byFile = new Map(scanned.records.map((record) => [record.file, record]));
-  const names = await indexedNames(root, offerings, scanned.sources, async (files) => {
-    const subjects = files.flatMap((file) => {
-      const digest = byFile.get(file)?.digest;
-      return digest === undefined ? [] : [{ file, digest }];
+  const help = await stepped(options.progress, 'reading the signatures and comments of the exported names', async () => {
+    const names = await indexedNames(root, offerings, scanned.sources, async (files) => {
+      const subjects = files.flatMap((file) => {
+        const digest = byFile.get(file)?.digest;
+        return digest === undefined ? [] : [{ file, digest }];
+      });
+      return enrichSources(root, subjects, scanned.cache);
     });
-    return enrichSources(root, subjects, scanned.cache);
+    return assembleHelp(root, offerings, scanned.usage, names);
   });
-  const help = assembleHelp(root, offerings, scanned.usage, names);
   // `assembleHelp` has consumed the lazy name reader. Keeping every transient
   // parse alive while two large artifacts are encoded turns a cold publication
   // into garbage-collection work proportional to the repository.
   scanned.sources.clear();
   byFile.clear();
   if (options.save !== false) {
-    if (options.saveIndex !== false) await scanned.save();
-    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);
+    await stepped(options.progress, 'publishing the questions', async () => {
+      if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
+      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);
+    });
   }
   return help;
 }

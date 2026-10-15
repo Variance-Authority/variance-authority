@@ -22,6 +22,8 @@ pub struct Block {
     pub ordinal: u32,
     pub name: String,
     pub start: u32,
+    /// The ordinal of the region around it, or `no_owner`.
+    pub owner: u32,
     /// The tests, by their row in the shard, that called the region.
     pub called: Vec<u32>,
     pub loaded: Vec<u32>,
@@ -52,7 +54,7 @@ pub fn test(file: &'static str) -> Test {
 }
 
 pub fn block(ordinal: u32, called: &[u32]) -> Block {
-    Block { ordinal, name: format!("f{ordinal}"), start: ordinal + 1, called: called.to_vec(), loaded: Vec::new() }
+    Block { ordinal, name: format!("f{ordinal}"), start: ordinal + 1, owner: LAYOUT.coverage.no_owner, called: called.to_vec(), loaded: Vec::new() }
 }
 
 pub fn module(file: &'static str, blocks: Vec<Block>) -> Module {
@@ -101,14 +103,15 @@ pub fn write(spec: &Spec) -> Vec<u8> {
     }
     let test_path: Vec<u32> = spec.tests.iter().map(|test| strings.id(test.file)).collect();
     let mut sets = SetPool::new(spec.tests.len());
-    let (mut module_blocks, mut ordinal, mut digest, mut block_name, mut start, mut set, mut loaded) =
-        (vec![0], Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut module_blocks, mut ordinal, mut digest, mut block_name, mut start, mut owner, mut set, mut loaded) =
+        (vec![0], Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for module in &spec.modules {
         for block in &module.blocks {
             ordinal.push(block.ordinal);
             digest.push(strings.id(&format!("d{}", block.ordinal)));
             block_name.push(strings.id(&block.name));
             start.push(block.start);
+            owner.push(block.owner);
             set.push(sets.intern(&block.called));
             loaded.push(sets.intern(&block.loaded));
         }
@@ -144,7 +147,7 @@ pub fn write(spec: &Spec) -> Vec<u8> {
         words("modules.blocks", module_blocks),
         words("blocks.ordinal", ordinal),
         bytes("blocks.kind", vec![0; blocks]),
-        words("blocks.owner", vec![LAYOUT.coverage.no_owner; blocks]),
+        words("blocks.owner", owner),
         words("blocks.digest", digest),
         words("blocks.name", block_name.clone()),
         words("blocks.path", block_name),

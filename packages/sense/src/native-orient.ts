@@ -359,6 +359,10 @@ export interface NativeDependencyLexicon {
   queryDependencyLexicon(path: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
   dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
+  /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
+  describedWords(query: string): [string, string][];
+  /** Each word's stem, in order. */
+  wordStems(words: string[]): string[];
 }
 
 /** What the published index records of imports and exports, read by `readHelp`. */

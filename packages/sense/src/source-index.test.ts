@@ -369,7 +369,7 @@ describe('the binary source index', () => {
       deletedDirectories: new Set(['lib']),
       records: new Map([['src/button.tsx', { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] }]]),
     });
-    const layers = [first, second].map(decodeSourceIndex);
+    const layers = [first, second].map((bytes) => decodeSourceIndex(bytes));
     const file = await path();
     expect(native()!.appendSourceIndex(file, [], false, [first])).toBeNull();
     expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [second])).toBeNull();

@@ -610,7 +610,8 @@ record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(
 ```
 
 `variance share --suite <name>` queries the remote now, whenever the last fetch
-was. Your test runner's integration never queries the remote. When its first run
+was. Your test runner's integration queries it only under `--shard`, for the
+times it [places the shard by](sharding.md#turn-it-on-in-a-vitest-jest-or-playwright-config). When its first run
 in a checkout has no record to land on, it copies the mainline record last
 fetched on this machine into the checkout's own place, with the runs record
 that came with it, and prints that it did. None of those runs are the

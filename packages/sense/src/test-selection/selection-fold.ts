@@ -147,7 +147,7 @@ export function foldRun(
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run,
     // and not asked by a shard that is a part of one whole run.
-    if (!run.alone) noteSeeded(await seedTestCoverage(coverageFile, root));
+    if (!run.alone) noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation));
     // In the record, with the coverage, in one write. `run.cases` is whether
     // the run could record a case: one whose files ran in a page could not.
     // One that could, and recorded no case and finished no file — no worker

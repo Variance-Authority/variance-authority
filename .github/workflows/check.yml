@@ -468,7 +468,11 @@ jobs:
       # as a seed, into this checkout's own layer: the restore a cache-carried
       # suite gets from the Actions cache, and nothing a developer's checkout
       # does. When the ref is missing or does not read, the line says why and
-      # the slice has no base; nothing older is put in its place.
+      # the slice has no base; nothing older is put in its place. A record
+      # written under other probes than this build records under, as a pull
+      # request that changes the instrumentation sees it, is passed over with a
+      # notice naming both, and the slice has no base either: no run of this
+      # build could be laid over it.
       #
       # The case index is a section of the record, and `keepsCases` reads it
       # off the header. Its presence enables selection.
@@ -662,12 +666,15 @@ jobs:
 
       # Each slice's record, as the suite job that ran it would have left it in
       # this checkout. The mainline's record is laid first, the one the suite
-      # jobs laid. A slice that ran whole in one job handed its record on already
-      # layered, and it replaces the base. A sharded slice's shards are folded
-      # and landed over the base by `variance journeys --suite`, which is what a
-      # sharded suite's fan-in runs anywhere. A slice nothing handed on keeps
-      # the base, and on a push the publish refuses it as recorded at another
-      # commit. Every slice's record sits under one directory, which is what
+      # jobs laid, and passed over as they passed it over when it was written
+      # under other probes than this build records under. A slice that ran
+      # whole in one job handed its record on already layered, and it replaces
+      # the base. A sharded slice's shards are folded
+      # and landed over the base as `variance journeys --suite` lands them, which
+      # is what a sharded suite's fan-in runs anywhere, and only the landing is
+      # printed: nobody reads a whole journal in a log. A slice nothing handed
+      # on keeps the base, and on a push the publish refuses it as recorded at
+      # another commit. Every slice's record sits under one directory, which is what
       # the publish job is handed.
       - name: fold the slices
         id: records
@@ -679,10 +686,12 @@ jobs:
           for suite in $SHARED; do
             recording=$(SUITE="$suite" node --input-type=module -e "
               const cli = await import('@variance-authority/cli');
+              const { instrumentationId } = await import('@variance-authority/sense/instrument');
               const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
               const suite = process.env.SUITE;
               const base = await cli.suiteBase(process.cwd(), { suite });
-              if (base.from === 'mainline') await cli.layMainline(process.cwd(), base.mainline);
+              const laid = base.from === 'mainline' ? await cli.layMainline(process.cwd(), base.mainline, instrumentationId()) : undefined;
+              if (laid !== undefined && 'passed' in laid) console.error(cli.mainlinePassedOver(laid.passed));
               process.stdout.write(testCoverageFile(process.cwd(), { suite }));
             ")
             records=$(dirname "$(dirname "$recording")")
@@ -697,7 +706,10 @@ jobs:
             else
               mapfile -t shards < <(find "$RAN" -path "$RAN/variance-shard-$suite-*" -path "*/suites/$suite/coverage.bin" | sort)
               if [ "${#shards[@]}" -gt 0 ]; then
-                node packages/cli/dist/bin.js journeys "${shards[@]}" --suite "$suite"
+                SUITE="$suite" node --input-type=module -e "
+                  const cli = await import('@variance-authority/cli');
+                  process.stdout.write(await cli.landSuite(process.cwd(), process.argv.slice(1), process.env.SUITE) + '\\n');
+                " "${shards[@]}"
               else
                 echo "$suite: nothing was handed on, so the base stands."
               fi

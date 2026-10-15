@@ -13,7 +13,7 @@ import { CASES } from './__fixtures__/layer-cases.js';
 import { BASELINE, LOCAL, at, rebuilt } from './__fixtures__/layer-shapes.js';
 import { printed } from './__fixtures__/laid.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { layCoverage, layeredCoverage } from './format-layer.js';
+import { foreignProbes, layCoverage, layeredCoverage } from './format-layer.js';
 
 describe('layCoverage', () => {
   for (const [what, { previous, current, onDisk, readings, laid }] of Object.entries(CASES)) {
@@ -59,6 +59,26 @@ describe('layCoverage', () => {
 
     expect(decodeTestCoverage(layCoverage(encodeTestCoverage(previous), current)).modules.map((module) => module.file))
       .toEqual(['src/decide.ts', 'src/\u{1f600}.ts', 'src/\ue001.ts']);
+  });
+});
+
+describe('foreignProbes', () => {
+  it('names the probes of a record the lay refuses for its probes, and nothing for one it lays over', () => {
+    const current = at(LOCAL, 'test/beta.test.ts');
+    const other = encodeTestCoverage({ ...at(BASELINE, 'test/alpha.test.ts'), instrumentation: 'another-recipe' });
+    const same = encodeTestCoverage(at(BASELINE, 'test/alpha.test.ts'));
+
+    expect(foreignProbes(other, current.instrumentation)).toBe('another-recipe');
+    expect(() => layCoverage(other, current)).toThrow(/`another-recipe`/);
+    expect(foreignProbes(same, current.instrumentation)).toBeUndefined();
+    expect(() => layCoverage(same, current)).not.toThrow();
+  });
+
+  it('leaves a record it cannot read to the caller, and asks nothing of a run that lays no coverage', () => {
+    const other = encodeTestCoverage({ ...at(BASELINE, 'test/alpha.test.ts'), instrumentation: 'another-recipe' });
+
+    expect(foreignProbes(Buffer.from('not a snapshot'), 'fixture-instrumentation')).toBeUndefined();
+    expect(foreignProbes(other, undefined)).toBeUndefined();
   });
 });
 

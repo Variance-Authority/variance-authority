@@ -51,19 +51,7 @@ export function looseNames(
   const terms = tokensOf(query);
   if (terms.length === 0) return new Set();
 
-  const heldCache = new Map<number, boolean>();
-  const held = (name: number): boolean => {
-    if (already.has(name)) return false;
-    if (within === undefined) return true;
-    let known = heldCache.get(name);
-    if (known === undefined) {
-      known =
-        index.publishedOf(name).some((row) => within.has(index.publishedFile(row))) ||
-        index.exportedOf(name).some((row) => within.has(index.exportedFile(row)));
-      heldCache.set(name, known);
-    }
-    return known;
-  };
+  const held = admittedBy(index, within, already);
 
   let answer: Set<number> | undefined;
   for (const term of terms) {
@@ -80,6 +68,31 @@ export function looseNames(
     if (answer.size === 0) break;
   }
   return answer ?? new Set();
+}
+
+/**
+ * Whether a name may be reached through its own words: never when `already`
+ * holds it, and inside `within` only through a published or exported row whose
+ * file is in it. Remembered per name, because every matching term asks again.
+ */
+export function admittedBy(
+  index: SearchIndex,
+  within: ReadonlySet<number> | undefined,
+  already: ReadonlySet<number>,
+): (name: number) => boolean {
+  const known = new Map<number, boolean>();
+  return (name) => {
+    if (already.has(name)) return false;
+    if (within === undefined) return true;
+    let admitted = known.get(name);
+    if (admitted === undefined) {
+      admitted =
+        index.publishedOf(name).some((row) => within.has(index.publishedFile(row))) ||
+        index.exportedOf(name).some((row) => within.has(index.exportedFile(row)));
+      known.set(name, admitted);
+    }
+    return admitted;
+  };
 }
 
 /** Dictionary terms equal to `term`, starting with it, or within `edits` of it. */

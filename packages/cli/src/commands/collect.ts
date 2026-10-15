@@ -98,7 +98,7 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
       recipe: input.recipe,
       environments: [...environments].sort(([left], [right]) => codeUnitOrder(left, right)).map(([, environment]) => environment),
       plan: evidencePlanOf(plan),
-      assignment: 'checksum',
+      assignment: 'count',
       ...(input.scope === undefined ? {} : { scope: input.scope }),
       outcomes: outcomes.filter((outcome) => outcome !== null),
       diagnostics: [

@@ -40,7 +40,12 @@ export function testOf(testInfo: TestInfo): ObservedTest {
 
 /** The test file a subject's crossings belong to, repository-relative. */
 export function ownerOf(root: string, testInfo: TestInfo): string {
-  return relative(resolve(root), testInfo.file).split(sep).join('/');
+  return fileOwner(root, testInfo.file);
+}
+
+/** A test file, by its absolute path, as the recording names it: repository-relative. */
+export function fileOwner(root: string, file: string): string {
+  return relative(resolve(root), file).split(sep).join('/');
 }
 
 /** The key a worker files one case under: the attempts of a retry share it. */

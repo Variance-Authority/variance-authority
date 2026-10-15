@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -92,6 +93,33 @@ describe('the published source index', () => {
     }
   });
 
+  it('says which step it is on, and when each one ends, while it updates', async () => {
+    const at = index('progress');
+    const told: string[] = [];
+    const progress = (step: string): (() => void) => {
+      told.push(`start ${step}`);
+      return () => told.push(`end ${step}`);
+    };
+    const listed = realpathSync(root);
+
+    await updateSourceIndex(root, { index: at, progress });
+    // With no index to update, the whole checkout is read, and the last step says so.
+    expect(told.slice(-2)).toEqual([
+      `start reading every file of ${root}, because there is no index to update`,
+      `end reading every file of ${root}, because there is no index to update`,
+    ]);
+
+    told.length = 0;
+    await updateSourceIndex(root, { index: at, progress });
+    // The git listing is its own step: on a large checkout it is most of the update.
+    expect(told).toEqual([
+      `start listing ${listed} with git`,
+      `end listing ${listed} with git`,
+      'start reading the files that changed since the last index',
+      'end reading the files that changed since the last index',
+    ]);
+  });
+
   it('answers a narrower scope with the records a scan of that scope would read', async () => {
     const at = index('within');
     await updateSourceIndex(root, { index: at });
@@ -101,6 +129,21 @@ describe('the published source index', () => {
     expect(sourcesWithin(records, root, ['lib'])).toEqual(await scanRelations({ root, dirs: ['lib'] }));
     expect(sourcesWithin(records, root, ['lib'], ['app/index.ts']).map((record) => record.file))
       .toEqual(['app/index.ts', 'app/lens.ts', 'lib/alone.ts', 'lib/unit.ts']);
+  });
+
+  it('keeps an index over the directories it is given, warm, cold or started from another', async () => {
+    const at = index('dirs');
+    const cold = await updateSourceIndex(root, { index: at, dirs: ['lib'] });
+    expect(cold).toMatchObject({ was: 'missing', files: 2, reread: 2 });
+    expect((await readPublishedSources(at)).records).toEqual(await scanRelations({ root, dirs: ['lib'] }));
+
+    // A wider scope over the same index reads only what the narrower one had not.
+    expect(await updateSourceIndex(root, { index: at, dirs: ['app'] })).toMatchObject({ files: 4, reread: 3 });
+    expect((await readPublishedSources(at)).records).toEqual(await scanRelations({ root, dirs: ['app'] }));
+
+    const started = index('dirs-started');
+    expect(await updateSourceIndex(root, { index: started, dirs: ['app'], primary: at }))
+      .toMatchObject({ was: 'missing', from: at, files: 4, reread: 0 });
   });
 
   it('keeps one index for a checkout, however the path to it is spelled', async () => {

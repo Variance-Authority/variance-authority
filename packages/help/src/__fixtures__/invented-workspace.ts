@@ -11,15 +11,18 @@ import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 /**
  * A checkout of INVENTED packages: a checkout whose one workspace declares `declared` and whose `node_modules`
  * holds each of `packages` as it publishes itself, indexed and refreshed the way
- * `variance index` does. Points the cache at a directory of its own.
+ * `variance index` does. Points the cache at a directory of its own. `own` adds
+ * source files of the checkout's own, by path.
  */
-export async function inventedWorkspace(packages: readonly FixturePackage[], declared: readonly string[]): Promise<string> {
+export async function inventedWorkspace(packages: readonly FixturePackage[], declared: readonly string[],
+  own: Readonly<Record<string, string>> = {}): Promise<string> {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-jobs-cache-'));
   const root = mkdtempSync(join(tmpdir(), 'va-jobs-fixture-'));
   execFileSync('git', ['init', '--quiet', root]);
   const files: Record<string, string> = {
     'package.json': JSON.stringify({ name: 'fixture', dependencies: Object.fromEntries(declared.map((name) => [name, '1.0.0'])) }),
     'src/index.ts': 'export const fixture = 1;\n',
+    ...own,
   };
   for (const item of packages) {
     const base = `node_modules/${item.name}`;

@@ -107,8 +107,9 @@ that drops nothing keeps your setting.
 
 The files are removed in a `sequence.sequencer` that wraps the one your
 configuration names, before it shards and sorts, so every shard divides the
-same list. `--shard` places that list by the time each file took on the last
-recorded run, as [sharding](../../docs/sharding.md) shows. Watch mode does not select.
+same list. `--shard` places that list by whole files, by the time each file took
+on the last recorded run, or by file count when the record has no times, as [sharding](../../docs/sharding.md) shows. Your sequencer still sorts
+each shard, but it does not choose the shard's files. Watch mode does not select.
 `@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
 names the package.
 
@@ -1500,6 +1501,12 @@ const records = sourcesWithin(published.records, process.cwd(), ['src'], []);
 again only the files whose blob changed. Its result names the state it found
 (`was`), the files it holds, and how many it read again (`reread`). Pass
 `packs: false` to read bytes from the working tree, as `scanRelations` does.
+Pass `dirs` for an index that covers some directories of the checkout and what
+they import, rather than all of it, and `primary` to name the index a missing
+one starts from. Without `index`, a worktree's index starts from the primary
+checkout's. `progress` is told each step's name as it starts, the git listing
+and then the read of what changed, and returns the function to call when that
+step ends.
 
 `readPublishedSources(path)` opens a published index and reads nothing from Git
 or the disk beyond it. `publishedSources(root, options)` is the reader with a
@@ -1829,6 +1836,7 @@ import { readFile } from 'node:fs/promises';
 import {
   combineRecords,
   landedCoverage,
+  openTestCoverage,
   seedTestCoverage,
   testCoverageFile,
   withIndexLock,
@@ -1839,7 +1847,7 @@ const combined = 'artifacts/coverage.bin';
 const { commit, tests } = combineRecords(['shard-1/coverage.bin', 'shard-2/coverage.bin'], combined);
 
 const file = testCoverageFile(process.cwd());
-await seedTestCoverage(file, process.cwd());
+await seedTestCoverage(file, process.cwd(), openTestCoverage(await readFile(combined)).instrumentation);
 const landed = await withIndexLock(file, async () => {
   let previous: Uint8Array | undefined;
   try {
@@ -1880,8 +1888,10 @@ record does not place is read from where its runs started, and a reading in
 either checkout reports it as assumed. When the primary checkout has no runs
 record, or one naming another commit than its snapshot, nothing is written. The
 copy lists no run of the worktree's, so `variance review` still requires a run
-or `--since`. In the primary checkout, or for a file you named yourself, it does
-nothing.
+or `--since`. A snapshot written under other probes than the ones you pass,
+the combined record's, is not copied, because the fold could not be laid over
+it: `seedTestCoverage` returns it as passed over and copies nothing. In the
+primary checkout, or for a file you named yourself, it does nothing.
 
 The recipe lays coverage. To land the cases too, in the same write, run
 `variance journeys <shard.bin>...` from the `cli` package: it combines the

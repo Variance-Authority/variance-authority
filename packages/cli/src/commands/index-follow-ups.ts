@@ -31,6 +31,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { dirname } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Parsed } from '../parse.js';
+import { logHeartbeat } from './step-progress.js';
 
 /** The lock, as written beside the index. */
 export interface FollowUpsLock {
@@ -167,7 +168,12 @@ export async function settleFollowUps(parsed: Parsed, streams: { err(text: strin
     await awaitFollowUps(index, (lock) => streams.err(foldingLine(lock)), 'readied');
     return;
   }
-  const waited = await awaitFollowUps(index, (lock) => streams.err(waitingLine(lock)));
+  let quiet: (() => void) | undefined;
+  const waited = await awaitFollowUps(index, (lock) => {
+    streams.err(waitingLine(lock));
+    // A terminal sees the other process's latest step climb; a log has its lines already.
+    if (process.stderr.isTTY === true) quiet = logHeartbeat(lock.log, (text) => streams.err(text));
+  }).finally(() => quiet?.());
   if (!waited.held || waited.finished) return;
   rmSync(followUpsLockPath(index), { force: true });
   if (indexing) return;

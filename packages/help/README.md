@@ -150,7 +150,7 @@ stays available without taking space from the first answer.
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well. For a name a file exports and no entry publishes, the imports the source index resolved |
-| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, then the ones only a looser reading finds |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, then the ones holding half its words by stem and the ones only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
@@ -433,7 +433,7 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the answers are computed from, for a program that
 runs more than one of them or runs them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Eight options, all optional: `index`, the path of the source
+and who imports it. Nine options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `packs`, whether the scan
 reads file bytes from Git's object store, on unless you say otherwise; `save`,
@@ -446,7 +446,15 @@ addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
 graph the scan drew on the way, for a caller that needs the arrows between files
 as well as the names, so it does not scan the checkout a second time to get them;
-and `tree`, a function handed that graph as the path-query surface directly.
+`tree`, a function handed that graph as the path-query surface directly;
+and `progress`, a function told each step's name as it starts, which returns
+the function to call when that step ends, for a caller that shows a slow
+reading as it happens.
+A workspace whose `workspaces` list names members outside its own directory is
+read over its directory and each listed member, named from the top of the Git
+checkout, and keeps that scope's records in a second index next to `index`. That
+one is always saved, whatever `saveIndex` says, because no other caller
+publishes it.
 Taints change which files a path question reaches and never manufacture symbol
 bindings or usage counts. A subtractive taint is refused: a mock is relative to
 one file's run and cannot be flattened into a workspace-wide source tree.
@@ -522,7 +530,10 @@ than as it was when the reading was taken.
 
 It does not rank on prose. `search` is a case-insensitive substring match over
 names and docs, so a match is a fact about the text rather than an opinion about
-the query.
+the query. When it matches nothing, the names holding at least half of the
+query's words, stemmed as installed packages are, follow under their own
+heading, each with the words it holds, ordered by how many of them the name
+holds and then how many it holds at all: counts, never a score.
 
 It does not stop at what a manifest publishes. Most code in any checkout was
 never meant to be published — 1,826 names are published in this repository and

@@ -389,7 +389,7 @@ describe('--shard', () => {
     for (const { report } of shards) {
       expect(report.observations.length).toBeGreaterThan(0);
       for (const entry of report.notObserved ?? []) {
-        expect(entry.because).toMatch(/^assigned to shard \d\/2 by checksum/);
+        expect(entry.because).toMatch(/^assigned to shard \d\/2 by count/);
       }
     }
 

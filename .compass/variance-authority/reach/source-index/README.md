@@ -34,7 +34,11 @@ not moved.
 
 The scope is the checkout, never a reader's question: an index scoped to its
 last caller is right for one reader at a time. A reader filters and never
-updates on the way past, so it answers from the last publish.
+updates on the way past, so it answers from the last publish. A workspace whose
+member list reaches beside its checkout keeps a second index beside the
+checkout's, over its root and each member the list names, named from the top of
+the repository: the list is the scope, as the checkout is the first one's, and
+the help reading is its one owner.
 
 A missing or damaged generation, or one written in another format version, is
 refused by `publishedSources` in CI as an operator error naming the step, and

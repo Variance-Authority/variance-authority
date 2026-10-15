@@ -1,5 +1,6 @@
 import type { RowAlignment, RowSpan } from '@variance-authority/raster';
 import type { DecodedImage } from './mask.js';
+import { edits, type Edit } from './edit-script.js';
 
 /**
  * Which row of the before image each row of the after image shows.
@@ -24,10 +25,13 @@ import type { DecodedImage } from './mask.js';
  * Myers is O((N+M)·D) in time and keeps O(D²) of trace, where N and M count runs
  * rather than rows and D is the size of the edit in runs. A page's runs are
  * about two thirds of its rows, and an insertion is one edit once the common
- * head and tail are trimmed, so an ordinary change costs one hashing pass. A
- * page that changed everywhere is the case D grows in; past `limit` the
- * alignment is abandoned and the caller compares position by position, as it
- * did before anything was aligned.
+ * head and tail are trimmed, so an ordinary change costs one hashing pass. D
+ * grows with every edit on the page, not only the largest: a rewritten section
+ * and the lines it reflowed further down came to 3,031 runs on a 28,519-row
+ * page. Past `limit` the search stops and the columns are split at runs each
+ * side holds once ({@link edits}), so the rows an edit only moved still pair,
+ * and a stretch that shares no such run, or that the split reaches after
+ * spending its work bound, is compared by position within it.
  *
  * Only whole rows are matched. Content that moves in one column beside a column
  * that stays put does not move whole rows, and is compared where it sits.
@@ -37,13 +41,13 @@ export interface AlignedRows extends RowAlignment {
   readonly source: Int32Array;
 }
 
-/** The edit size, in runs, past which two images are compared by position. */
+/** The rounds, in runs, one Myers search takes before the columns are split at runs each side holds once. */
 export const ALIGNMENT_LIMIT = 2000;
 
 /**
  * The pairing, or `undefined` when there is none to make: the widths differ, so
- * no row of one is a row of the other, the edit is larger than `limit`, or the
- * pairing leaves no fewer pixels differing than position does.
+ * no row of one is a row of the other, or the pairing leaves no fewer pixels
+ * differing than position does.
  */
 export function alignRows(
   before: DecodedImage,
@@ -89,7 +93,6 @@ export function alignRows(
   const left = runsOf(hashRows(was, width, before.height, head, tail));
   const right = runsOf(hashRows(now, width, after.height, head, tail));
   const script = edits(left.hash, right.hash, limit);
-  if (script === undefined) return undefined;
 
   const rows = pairing(left, right, script, after.height, (from, to) => differing(was, from, now, to, width));
   return explainsMore(rows, was, now, before.height, after.height, width, head) ? rows : undefined;
@@ -229,87 +232,6 @@ function hashRows(words: Uint32Array, width: number, height: number, head: numbe
   }
 
   return out;
-}
-
-/** One step of the edit script: a run kept on both sides, removed from the left, or added on the right. */
-type Edit = readonly ['=', number, number] | readonly ['-', number] | readonly ['+', number];
-
-/**
- * Myers' shortest edit script between two token columns, after trimming the
- * head and tail they share. The trace keeps, for each `d`, only the diagonals
- * `-d..d` that round reached, which is what makes D² memory rather than D·(N+M).
- */
-function edits(left: Float64Array, right: Float64Array, limit: number): Edit[] | undefined {
-  let head = 0;
-  while (head < left.length && head < right.length && left[head] === right[head]) head += 1;
-  let tail = 0;
-  while (
-    tail < left.length - head &&
-    tail < right.length - head &&
-    left[left.length - 1 - tail] === right[right.length - 1 - tail]
-  ) {
-    tail += 1;
-  }
-
-  const a = left.subarray(head, left.length - tail);
-  const b = right.subarray(head, right.length - tail);
-  const n = a.length;
-  const m = b.length;
-  const offset = n + m + 1;
-  const v = new Int32Array(2 * offset + 1);
-  const trace: Int32Array[] = [];
-  let found = -1;
-
-  for (let d = 0; d <= n + m && found < 0; d += 1) {
-    if (d > limit) return undefined;
-    trace.push(v.slice(offset - d, offset + d + 1));
-    for (let k = -d; k <= d; k += 2) {
-      let x = k === -d || (k !== d && v[offset + k - 1]! < v[offset + k + 1]!) ? v[offset + k + 1]! : v[offset + k - 1]! + 1;
-      let y = x - k;
-      while (x < n && y < m && a[x] === b[y]) {
-        x += 1;
-        y += 1;
-      }
-      v[offset + k] = x;
-      if (x >= n && y >= m) {
-        found = d;
-        break;
-      }
-    }
-  }
-
-  const middle: Edit[] = [];
-  let x = n;
-  let y = m;
-  for (let d = found; d > 0; d -= 1) {
-    const round = trace[d]!;
-    const at = (k: number): number => round[k + d]!;
-    const k = x - y;
-    const previous = k === -d || (k !== d && at(k - 1) < at(k + 1)) ? k + 1 : k - 1;
-    const px = at(previous);
-    const py = px - previous;
-    while (x > px && y > py) {
-      x -= 1;
-      y -= 1;
-      middle.push(['=', head + x, head + y]);
-    }
-    if (x === px) middle.push(['+', head + py]);
-    else middle.push(['-', head + px]);
-    x = px;
-    y = py;
-  }
-  while (x > 0 && y > 0) {
-    x -= 1;
-    y -= 1;
-    middle.push(['=', head + x, head + y]);
-  }
-  middle.reverse();
-
-  const script: Edit[] = [];
-  for (let index = 0; index < head; index += 1) script.push(['=', index, index]);
-  script.push(...middle);
-  for (let index = tail; index > 0; index -= 1) script.push(['=', left.length - index, right.length - index]);
-  return script;
 }
 
 /**
