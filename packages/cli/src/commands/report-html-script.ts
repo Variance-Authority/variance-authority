@@ -36,6 +36,7 @@ $('.subject').forEach(function(card){
       rows.forEach(function(row,i){
         var d=row.getAttribute('data-box'); if(!d) return;
         var p=d.split(',').map(Number), b=document.createElement('b');
+        b.setAttribute('data-for',i);
         b.style.left=(p[0]/img.naturalWidth*100)+'%'; b.style.top=(p[1]/img.naturalHeight*100)+'%';
         b.style.width=(p[2]/img.naturalWidth*100)+'%'; b.style.height=(p[3]/img.naturalHeight*100)+'%';
         if(!row.classList.contains('cause')) b.className='collateral';
@@ -66,6 +67,20 @@ $('.subject').forEach(function(card){
   if(blend){blend.addEventListener('input',function(){
     stage.style.setProperty('--blend',blend.value/100)})}
   card.setMode=setMode;
+
+  /* A row names a box the reviewer may not be looking at: on a tall page it is
+     below the fold of the stage. Clicking the row shows it there. */
+  rows.forEach(function(row,i){
+    row.addEventListener('click',function(e){
+      if(!boxes||(e.target.closest&&e.target.closest('[data-copy]'))) return;
+      if(stage.getAttribute('data-mode')!=='regions'&&card.querySelector('.modes button[data-mode=regions]')) setMode('regions');
+      requestAnimationFrame(function(){
+        var b=boxes.querySelector('b[data-for="'+i+'"]'); if(!b) return;
+        b.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});
+        b.classList.add('on'); setTimeout(function(){b.classList.remove('on')},1200);
+      });
+    });
+  });
   var initial=card.querySelector('.modes button');
   if(initial) setMode(initial.getAttribute('data-mode'));
 
@@ -164,7 +179,7 @@ addEventListener('keydown',function(e){
   if(e.key==='j'){e.preventDefault();go(1)}
   else if(e.key==='k'){e.preventDefault();go(-1)}
   else if(e.key==='/'){e.preventDefault();if(input)input.focus()}
-  else if(e.key>='1'&&e.key<='5'){
+  else if(e.key>='1'&&e.key<='9'){
     var list=cards(), card=list[at]||list[0]; if(!card) return;
     var button=$('.modes button',card)[Number(e.key)-1];
     if(button&&card.setMode){e.preventDefault();card.setMode(button.getAttribute('data-mode'))}
