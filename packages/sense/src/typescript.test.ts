@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { updateNatively } from './native-update.js';
 import { readPublishedSources, updateSourceIndex } from './published.js';
@@ -74,7 +74,7 @@ describe('parseTypescript', () => {
   });
 
   it('refuses anything else, naming the field', () => {
-    for (const value of [true, [], 'auto', { tsconfig: true }, { tsconfig: '' }, { tsconfig: '/abs/tsconfig.json' }, { other: 1 }]) {
+    for (const value of [true, [], 'auto', { tsconfig: true }, { tsconfig: null }, { tsconfig: '' }, { tsconfig: '/abs/tsconfig.json' }, { other: 1 }]) {
       expect(() => parseTypescript(value, 'v.json'), JSON.stringify(value)).toThrow(TypescriptError);
     }
     expect(() => parseTypescript({ tsconfig: '/abs/tsconfig.json' }, 'v.json')).toThrow(/repository root/u);
@@ -98,6 +98,15 @@ describe('the tsconfig the root config declares', () => {
 
     expect(declaredTsconfig(join(root, 'packages/app'))).toBe(join(root, 'tsconfig.app.json'));
     expect(() => declaredTsconfig(missing)).toThrow(/tsconfig\.app\.json.*not a file/u);
+  });
+
+  it('refuses a named config outside the repository, which no record of it could name', async () => {
+    const outside = realPath(await mkdtemp(join(tmpdir(), 'variance-typescript-outside-')));
+    roots.push(outside);
+    await writeFile(join(outside, 'tsconfig.json'), WITH);
+    const root = await workspace({ 'variance.config.json': declaring({ tsconfig: `../${basename(outside)}/tsconfig.json` }) });
+
+    expect(() => declaredTsconfig(root)).toThrow(/repository root/u);
   });
 
   it('reads no tsconfig when it says false, so the condition only a tsconfig names is not followed', async () => {
@@ -214,6 +223,18 @@ describe('what the tracked tsconfigs ask of a resolution', () => {
       conditioned: [],
       mapped: [],
       based: [],
+    });
+  });
+
+  it('reads the named config though the listing does not hold it, and names it as governing every directory', async () => {
+    const paths = JSON.stringify({ compilerOptions: { paths: { '~lib': [TARGET] } } });
+    const root = await workspace({ 'config/aliases.json': paths, 'variance.config.json': declaring({ tsconfig: 'config/aliases.json' }) });
+
+    expect(await tsconfigUse(join(root, 'packages/app'))).toMatchObject({
+      declared: 'config/aliases.json',
+      configs: ['config/aliases.json'],
+      governing: ['config/aliases.json'],
+      mapped: ['config/aliases.json'],
     });
   });
 

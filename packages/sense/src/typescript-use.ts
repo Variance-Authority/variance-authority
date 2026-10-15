@@ -21,7 +21,7 @@ export interface TsconfigUse {
   readonly under: string;
   /** Every `tsconfig*.json` the listing holds; absent where git gives none. */
   readonly configs?: readonly string[];
-  /** Of `configs`, those that can govern a file under `under`: below it, or in a directory above it. */
+  /** Of `configs`, those that can govern a file under `under`: below it, or in a directory above it; all of them when the root config names one. */
   readonly governing?: readonly string[];
   readonly conditioned: readonly string[];
   readonly mapped: readonly string[];
@@ -51,14 +51,18 @@ export async function tsconfigUse(from: string): Promise<TsconfigUse> {
   const under = fromRoot(top, resolve(from));
   const tree = await gitTreeOf(top);
   if (tree === undefined) return { declared, under, conditioned: [], mapped: [], based: [] };
-  const configs = [...tree.named([])];
+  // A named config governs every directory, and need not be a `tsconfig*.json`
+  // the listing holds; the projects it references may be any of the rest.
+  const chosen = typeof declared === 'string' && declared !== 'auto' ? declared : undefined;
+  const listed = tree.named([]);
+  const configs = chosen === undefined || listed.includes(chosen) ? [...listed] : [...listed, chosen].sort();
   const read = declaredOptionsReader();
   const options = configs.map((file) => ({ file, options: read(join(top, file)) }));
   return {
     declared,
     under,
     configs,
-    governing: configs.filter((file) => governs(file, under)),
+    governing: chosen !== undefined ? configs : configs.filter((file) => governs(file, under)),
     conditioned: options.filter(({ options }) => (options?.conditions.length ?? 0) > 0).map(({ file }) => file),
     mapped: options.filter(({ options }) => options?.paths === true).map(({ file }) => file),
     based: options.filter(({ options }) => options?.baseUrl === true).map(({ file }) => file),

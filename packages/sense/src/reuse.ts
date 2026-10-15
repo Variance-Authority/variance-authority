@@ -52,8 +52,9 @@
  * is bounded by `git add`, and `digests: false` turns the whole mechanism off.
  */
 
-import { isAbsolute, relative, sep } from 'node:path';
-import type { Digest } from './digest.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { digestBytes, type Digest } from './digest.js';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
@@ -178,13 +179,17 @@ export async function shapeOf(input: {
 
 /**
  * How the digest names a `tsconfig` setting: `auto`, `off`, or the file from the
- * checkout's root, so a worktree laid out alike adopts the primary checkout's
- * records under a config the root config names.
+ * checkout's root and its contents, so a worktree laid out alike adopts the
+ * primary checkout's records under a config the root config names.
  */
 function tsconfigNamed(root: string, tsconfig: string | false | undefined): string {
   if (tsconfig === undefined || tsconfig === 'auto') return 'auto';
   if (tsconfig === false) return 'off';
-  return `file ${isAbsolute(tsconfig) ? relative(root, tsconfig).split(sep).join('/') : tsconfig}`;
+  const file = isAbsolute(tsconfig) ? tsconfig : resolve(root, tsconfig);
+  // Its contents too: the config digest holds only the `tsconfig*.json` files
+  // the listing holds, and a named one may be ignored or named otherwise.
+  const contents = existsSync(file) ? digestBytes(readFileSync(file)) : 'absent';
+  return `file ${relative(root, file).split(sep).join('/')} ${contents}`;
 }
 
 /**

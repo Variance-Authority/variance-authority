@@ -22,7 +22,7 @@
 // compass: variance-authority.reach.relations
 
 import { statSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import type { ResolveOptions } from './resolve.js';
 import { rootConfig } from './test-selection/cache-layers.js';
 
@@ -52,7 +52,9 @@ export function parseTypescript(value: unknown, where: string): Typescript {
   for (const key of Object.keys(value)) {
     if (key !== 'tsconfig') throw new TypescriptError(where, `typescript.${key}`, 'is not a setting; the one setting is `tsconfig`');
   }
-  const tsconfig = (value as { tsconfig?: unknown }).tsconfig ?? 'auto';
+  // Only an absent key is the default: `null` is a value, and not one of the three.
+  const given = (value as { tsconfig?: unknown }).tsconfig;
+  const tsconfig = given === undefined ? 'auto' : given;
   if (tsconfig !== false && (typeof tsconfig !== 'string' || tsconfig === '')) {
     throw new TypescriptError(where, 'typescript.tsconfig', `must be "auto", a path or false, not ${JSON.stringify(tsconfig)}`);
   }
@@ -73,7 +75,13 @@ export function declaredTsconfig(root: string): string | false | undefined {
   if (config === undefined || config.value['typescript'] === undefined) return undefined;
   const { tsconfig } = parseTypescript(config.value['typescript'], config.file);
   if (tsconfig === false || tsconfig === 'auto') return tsconfig;
-  const file = resolve(dirname(config.file), tsconfig);
+  const top = dirname(config.file);
+  const file = resolve(top, tsconfig);
+  // A record names files from the checkout's root, so a config outside it is
+  // one no record could name.
+  if (relative(top, file).split(sep)[0] === '..') {
+    throw new TypescriptError(config.file, 'typescript.tsconfig', `names ${tsconfig}, which is outside the repository root`);
+  }
   if (statSync(file, { throwIfNoEntry: false })?.isFile() !== true) {
     throw new TypescriptError(config.file, 'typescript.tsconfig', `names ${tsconfig}, which is not a file`);
   }

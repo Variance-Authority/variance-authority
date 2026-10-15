@@ -18,6 +18,7 @@ describe('formatTypescript', () => {
     expect(text).toContain('typescript: tsconfig auto, the default');
     expect(text).toContain('1 tsconfig file in the repository; 0 add conditions, 0 map paths');
     expect(text).toContain('"typescript": { "tsconfig": false }');
+    expect(text).toContain('stops every scan reading one for paths, baseUrl or conditions');
   });
 
   it('names each config a resolution needs, and suggests nothing', () => {
@@ -55,7 +56,7 @@ describe('formatTypescript', () => {
     const text = formatTypescript({ under: '', declared: false, configs: ['tsconfig.json'], conditioned: ['tsconfig.json'], mapped: [], based: [] }).join('\n');
 
     expect(text).toContain('typescript: tsconfig off');
-    expect(text).toContain('no scan reads them');
+    expect(text).toContain('no scan reads them for paths, baseUrl or conditions');
   });
 
   it('names the config the root config names', () => {

@@ -57,11 +57,11 @@ export function formatTypescript(finding: TypescriptFinding): readonly string[] 
     ...(asking.length > LISTED ? [`  and ${asking.length - LISTED} more`] : []),
   );
   if (finding.declared === false) {
-    if (asking.length > 0) lines.push('  no scan reads them, so an import that reaches its target only through one is not resolved');
+    if (asking.length > 0) lines.push('  no scan reads them for paths, baseUrl or conditions, so an import that reaches its target only through one is not resolved');
   } else if (asking.length === 0) {
     lines.push(
       '  reading them resolves no import differently; `"typescript": { "tsconfig": false }` in the root ' +
-        'variance.config.json stops every scan looking for one',
+        'variance.config.json stops every scan reading one for paths, baseUrl or conditions',
     );
   } else if (asking.every((file) => !governing.has(file))) {
     lines.push(`  none that can govern ${under} asks; \`false\` reaches the whole repository, so it would stop the ${asking.length} that do as well`);
