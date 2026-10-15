@@ -28,9 +28,11 @@ const FULL: &str = r#"{
         "signature": {"start": 10, "end": 20}, "doc": {"start": 2, "end": 8}}, {"from": "./c", "line": 6}],
       "symbols": [{"name": "a", "kind": "function", "line": 5, "signature": {"start": 10, "end": 20}}],
       "harvested": true, "declares": ["A"], "mocks": {"minus": ["./b"], "plus": ["./fake"]},
-      "members": [{"request": 0, "name": "render", "line": 9}], "unknown": "a reason"}],
+      "members": [{"request": 0, "name": "render", "line": 9}],
+      "memberDeclarations": [{"name": "resolve", "line": 12, "on": "Scanner"}, {"name": "render", "line": 14, "on": "a class"}],
+      "unknown": "a reason"}],
     ["git:b\u0000.css\u0000+", {"requests": [], "exports": []}],
-    ["git:c", {"requests": []}]
+    ["git:c", {"requests": [], "memberDeclarations": [{"name": "resolve", "line": 4, "on": "Held"}]}]
   ]
 }"#;
 
@@ -49,14 +51,20 @@ fn a_later_layer_deletes_and_replaces_and_its_configuration_wins_even_when_absen
       "records": [["src/b.ts", {"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]}],
                   ["src/c.ts", {"record": {"file": "src/c.ts"}, "witnesses": []}]],
       "deletedRecords": ["src/a.ts"],
-      "parses": [["git:d", {"requests": [], "declares": []}]],
+      "parses": [["git:d", {"requests": [], "declares": [],
+        "memberDeclarations": [{"name": "resolve", "line": 7, "on": "Scanner"}, {"name": "only-in-d", "line": 9, "on": "Later"}]}]],
       "deletedParses": ["git:a", "git:b\u0000.css\u0000+"]
     }"#);
+    // `git:a`'s declarations go with it; `git:c`'s survive from the older layer
+    // and `git:d`'s arrive with the newer one, each re-interned into the fold's
+    // strings. `resolve` on `Scanner` moves from line 12 to line 7.
     let expected = encoded(r#"{
       "directories": [["src", "v1:d"], ["test", "v1:t"]],
       "records": [["src/b.ts", {"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]}],
                   ["src/c.ts", {"record": {"file": "src/c.ts"}, "witnesses": []}]],
-      "parses": [["git:c", {"requests": []}], ["git:d", {"requests": [], "declares": []}]]
+      "parses": [["git:c", {"requests": [], "memberDeclarations": [{"name": "resolve", "line": 4, "on": "Held"}]}],
+                 ["git:d", {"requests": [], "declares": [],
+                   "memberDeclarations": [{"name": "resolve", "line": 7, "on": "Scanner"}, {"name": "only-in-d", "line": 9, "on": "Later"}]}]]
     }"#);
     assert_eq!(compacted(&[&first, &second]).unwrap(), expected);
 }

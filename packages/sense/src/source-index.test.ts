@@ -68,6 +68,13 @@ const PARSED: Parsed = {
   // `./api.js` is named nowhere else, so a dictionary that never collected the
   // mock columns writes some other string here.
   mocks: { minus: ['./api.js'], plus: ['./button.js'] },
+  // Containers and a member name no other column holds, and lines no other
+  // column holds, so a cache, a fold or a decoder that dropped one of the four
+  // columns, or read one in place of another, fails here.
+  memberDeclarations: [
+    { name: 'resolveThings', line: 21, on: 'NativeScanner' },
+    { name: 'Card', line: 24, on: 'a type literal' },
+  ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.

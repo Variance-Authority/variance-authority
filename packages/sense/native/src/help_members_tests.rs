@@ -46,3 +46,49 @@ fn records_every_member_by_name() {
     let names: Vec<String> = member_declarations_in(&parsed.program, &Lines::new(text)).into_iter().map(|declared| declared.name).collect();
     assert_eq!(names, ["x", "y", "z"]);
 }
+
+/// Two layers the way the scan writes them: the newer one rewrites `a.ts`, its
+/// declaration lower and a second container beside it, drops the declaration
+/// from `c.ts`, and leaves `b.ts` to the older layer.
+#[test]
+fn reads_each_file_as_the_newest_layer_holds_it() {
+    use crate::compact::Layer;
+    use crate::generation::Delta;
+    use crate::graph_index::merged;
+
+    let root = std::env::temp_dir().join(format!("sense-help-members-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("package.json"), r#"{"name": "@t/w"}"#).unwrap();
+    let record = |path: &str, digest: &str| format!(r#"["{path}", {{"record": {{"file": "{path}", "digest": "{digest}"}}, "witnesses": []}}]"#);
+    let parse = |digest: &str, declared: &str| format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [], "memberDeclarations": [{declared}]}}]"#);
+    let generation = |document: String| merged(&[], &Delta::of(vec![document]).unwrap());
+    let older = generation(format!(
+        r#"{{"config": "v1:c", "records": [{}, {}, {}], "parses": [{}, {}, {}]}}"#,
+        record("src/a.ts", "git:a1"),
+        record("src/b.ts", "git:b1"),
+        record("src/c.ts", "git:c1"),
+        parse("git:a1", r#"{"name": "resolve", "line": 2, "on": "Scanner"}, {"name": "other", "line": 3, "on": "Scanner"}"#),
+        parse("git:b1", r#"{"name": "resolve", "line": 2, "on": "Held"}"#),
+        parse("git:c1", r#"{"name": "resolve", "line": 4, "on": "Legacy"}"#),
+    ));
+    let newer = generation(format!(
+        r#"{{"records": [{}, {}], "parses": [{}, {}], "deletedParses": ["git:a1\u0000.ts\u0000+", "git:c1\u0000.ts\u0000+"]}}"#,
+        record("src/a.ts", "git:a2"),
+        record("src/c.ts", "git:c2"),
+        parse("git:a2", r#"{"name": "later", "line": 9, "on": "Later"}, {"name": "resolve", "line": 10, "on": "Later"}, {"name": "resolve", "line": 5, "on": "Scanner"}"#),
+        parse("git:c2", r#"{"name": "other", "line": 4, "on": "Legacy"}"#),
+    ));
+    let layers = [Layer::open(&older).unwrap(), Layer::open(&newer).unwrap()];
+
+    let found: Vec<String> = super::member_declarations(root.to_str().unwrap(), &layers, "resolve")
+        .into_iter()
+        .map(|site| format!("{}:{} {} {} {}", site.at, site.line, site.on, site.by, site.kind))
+        .collect();
+    let _ = std::fs::remove_dir_all(&root);
+    assert_eq!(found, [
+        "src/a.ts:5 Scanner @t/w source",
+        "src/a.ts:10 Later @t/w source",
+        "src/b.ts:2 Held @t/w source",
+    ]);
+}

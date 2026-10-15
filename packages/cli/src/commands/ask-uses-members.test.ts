@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -65,6 +65,36 @@ describe('variance ask uses over a member', () => {
     expect(out).toMatch(/^packages\/lib\/src\/references\.test\.ts:2:/m);
     expect(out).toMatch(/^packages\/lib\/src\/accessor\.ts:3:/m);
     expect(out).not.toContain('elsewhere.ts');
+  });
+
+  it('lists every file that declares a member, as the newest index reads each one', async () => {
+    checkout({
+      ...SCANNER,
+      'packages/kit/src/held.ts': 'export class Held {\n  constructor(private resolveThings: () => string[]) {}\n}\n',
+      'packages/lib/src/legacy.ts': 'export type Legacy = {\n  resolveThings(): string[];\n};\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    // The second index layers over the first: `native.ts` is rewritten, its
+    // declaration three lines lower and a second container beside it,
+    // `legacy.ts` drops its declaration, and `held.ts` is read as it was.
+    const root = process.cwd();
+    writeFileSync(
+      join(root, 'packages/lib/src/native.ts'),
+      '// Moved.\n\n\nexport interface Scanner {\n  resolveThings?(root: string): string[];\n}\n\nexport interface Later {\n  resolveThings(): void;\n}\n\nexport function scanner(): Scanner {\n  return {};\n}\n',
+    );
+    writeFileSync(join(root, 'packages/lib/src/legacy.ts'), 'export type Legacy = {\n  other(): string[];\n};\n');
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`resolveThings` is no exported name; it is a member, declared in 3 places:');
+    const listed = out.split('\n').filter((line) => / — /.test(line) && /\.ts:\d+/.test(line));
+    expect(listed).toEqual([
+      'packages/kit/src/held.ts:2 — Held',
+      'packages/lib/src/native.ts:5 — Scanner',
+      'packages/lib/src/native.ts:9 — Later',
+    ]);
   });
 
   it('answers a name that is exported and a member with its imports, then its declarations', async () => {
