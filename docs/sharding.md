@@ -3,9 +3,11 @@
 Shard a Vitest, Jest or Playwright suite with `--shard k/n`, and each shard
 takes whole test files by how long they took on the last recorded run, not by
 how many there are. Each file goes in turn, longest first, to the shard with
-the least time so far. The shards finish close together, and no file runs in
-two shards. Every shard computes the same split from the same record, without
-talking to the others.
+the least time so far, so the shards finish close together. Each shard
+computes the split from the record it reads and the files it collects, without
+talking to the others, so shards that read one record at one commit run every
+file in exactly one shard. A Playwright setup or teardown project is the
+exception: Playwright runs it in every shard that keeps a test depending on it.
 
 Here is this repository's unit suite, 782 test files and 3,259 s of test time,
 on four shards:
@@ -256,6 +258,12 @@ times, every file is priced the same, as
 [when nothing is recorded](#when-nothing-is-recorded) shows. The runner's own
 split never decides: it divides by count, and Playwright under `fullyParallel` divides by test, so one file's tests
 would run in two shards.
+
+A Playwright project that other projects name in `dependencies` or `teardown`
+is not placed: Playwright runs it in every shard that keeps a test depending on
+it, and gives a reporter no way to leave it out. `withTestSelection` records it
+in each of those shards, so combining their records refuses it as a file two
+shards ran, naming the file and both records.
 
 Computing the whole split costs each shard less than a millisecond: 0.34 ms for
 this repository's 782 files.
