@@ -717,9 +717,9 @@ cannot prevent.
 
 ### Waiting on what was actually requested
 
-`network.settle()` resolves when nothing is in flight. Not a poll over the nodes
-that existed at one moment: a count of what has been asked for and not yet
-answered, which is the honest version of "the images have loaded".
+`network.settle()` resolves when none of the images, fonts and media the page
+requested is in flight. Not a poll over the nodes that existed at one moment: a
+count of what has been asked for and not yet answered, which is the honest version of "the images have loaded".
 
 On timeout it does not throw. A page holding a long-poll open is a normal page,
 so the outstanding URLs become a diagnostic and the subject is read anyway —
@@ -943,7 +943,9 @@ test a failed assertion is what the person who can decide sees.
 **The declaration is checked in both directions.** A subject declared as a
 loading capture that turns out to have settled is refused too: a declaration
 nobody deleted is a baseline that flips with the weather, which is the same flake
-arriving from the other side.
+arriving from the other side. So is a declared subject that holds no Suspense
+boundary at all, such as a spinner an effect renders: it has no fallback to
+record on purpose, and what gets recorded depends on how fast the machine is.
 
 `suspenseTimeoutMs: 0` keeps the reading and skips the wait, for a suite whose
 own markers already cover its data.
@@ -1046,7 +1048,7 @@ install framework hooks before the application loads.
 Content an effect sets after it loads something is outside every wait here. An
 effect that starts an import, a request or a timer and then calls `setState`
 leaves React with nothing pending, so the subject is read with its placeholder
-and no diagnostic. [Content that loads late](late-content.md) shows how to move
+and no diagnostic. [Content that loads late](late-content.md) shows how to put
 that work under `<Suspense>`, or mark the subject ready, so a run waits for it.
 
 Collectors inspect Suspense directly, but they do not install `tapCommits` or
