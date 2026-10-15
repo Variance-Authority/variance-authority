@@ -101,8 +101,9 @@ boundary, where it is, and the component that wrote it. How the wait reads
 React's tree, and the message in full, are in
 [holding a page still](stabilization.md#the-wait-and-the-decision-it-forces).
 
-The run does not wait for scripts or `fetch` responses. The collectors' network
-wait counts the images, fonts and media the page requested, and a script or a
+The run does not wait for scripts or `fetch` responses. The route and Storybook
+collectors also hold the read until the requests the page made are answered, but
+that network wait counts only images, fonts and media, and a script or a
 response still in flight when the subject is read is neither waited for nor
 reported. A `React.lazy` chunk is still waited for, through its boundary.
 
@@ -208,7 +209,7 @@ Sometimes the loading state is the design under review. Declare it, and the run
 records the fallback on purpose: `loading: ['docs/diagram-loading']` on a
 collector, or `loading: true` in `observe`
 ([loading and Suspense boundaries](../packages/playwright-test/README.md#loading-and-suspense-boundaries)).
-A declared subject waits for no boundary, and the declaration is checked in both
+A subject declared this way waits for no boundary, and the declaration is checked in both
 directions ([the wait, and the decision it forces](stabilization.md#the-wait-and-the-decision-it-forces)).
 One of those checks is the one an effect spinner meets: a declared subject that
 holds no Suspense boundary at all is refused, and in a Playwright test `observe`
