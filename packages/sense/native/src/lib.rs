@@ -331,7 +331,7 @@ impl GitTree {
         largest_file: Option<u32>,
         digests: Option<bool>,
         readers: Option<u32>,
-        tsconfig: Option<String>,
+        tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
     ) -> batch::ScanBatch {
         let oids = files
@@ -345,7 +345,7 @@ impl GitTree {
                 largest_file,
                 digests,
                 readers,
-                tsconfig,
+                tsconfig: crate::resolve::Tsconfig::from_js(tsconfig),
                 condition_names,
             },
             Some(oids),
@@ -366,7 +366,7 @@ impl GitTree {
         seeds: Vec<String>,
         largest_file: Option<u32>,
         readers: Option<u32>,
-        tsconfig: Option<String>,
+        tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
         include_parses: Option<bool>,
     ) -> batch::ScanBatch {
@@ -376,7 +376,7 @@ impl GitTree {
                 seeds,
                 largest_file,
                 readers,
-                tsconfig,
+                tsconfig: crate::resolve::Tsconfig::from_js(tsconfig),
                 condition_names,
                 include_parses: include_parses.unwrap_or(false),
             },

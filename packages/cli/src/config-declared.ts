@@ -1,13 +1,14 @@
 import { EntrypointsError, parseEntrypoints } from '@variance-authority/sense/test-selection';
-import { declaredTiers, parseTiers, TiersError, type Tiers } from '@variance-authority/sense';
+import { declaredTiers, parseTiers, parseTypescript, TiersError, TypescriptError, type Tiers } from '@variance-authority/sense';
 import { OperatorError } from './exit.js';
-import { fail, type ParseOptions } from './config-values.js';
+import { fail, object, type ParseOptions } from './config-values.js';
 
 /**
  * The sections a command reads through `@variance-authority/sense` rather than
  * through this config: `entrypoints`, where each part of the repository starts
- * for `variance coverage --from`, and `tiers`, the budgets `variance layers`
- * and a `maxTier` rule place packages against.
+ * for `variance coverage --from`; `tiers`, the budgets `variance layers` and a
+ * `maxTier` rule place packages against; and `typescript`, which `tsconfig`
+ * every scan resolves imports under.
  *
  * Their rules live in sense and are carried here rather than written twice.
  * The config holds nothing parsed from them: this only refuses a value the
@@ -17,9 +18,15 @@ export function parseDeclaredAt(root: Record<string, unknown>, options: ParseOpt
   try {
     if (root['entrypoints'] !== undefined) parseEntrypoints(root['entrypoints'], options.source);
     if (root['tiers'] !== undefined) parseTiers(root['tiers'], options.source);
+    // Closed here as well as in sense, so the schema's `typescript` object is
+    // held to a list this config writes down.
+    if (root['typescript'] !== undefined) {
+      parseTypescript(object(root['typescript'], 'typescript', ['tsconfig'], options), options.source);
+    }
   } catch (error) {
     if (error instanceof EntrypointsError) fail(error.field, error.said, options);
     if (error instanceof TiersError) fail('tiers', error.said, options);
+    if (error instanceof TypescriptError) fail(error.field, error.said, options);
     throw error;
   }
 }
