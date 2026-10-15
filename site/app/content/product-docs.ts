@@ -40,6 +40,7 @@ import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
 import jvm from "../../../docs/jvm.md?raw";
+import lateContent from "../../../docs/late-content.md?raw";
 import testStories from "../../../docs/test-stories.md?raw";
 import lexicon from "../../../docs/lexicon.md?raw";
 import locate from "../../../docs/locate.md?raw";
@@ -161,6 +162,7 @@ const documents = [
   ["placement", placement, "docs/placement.md"],
   ["history", history, "docs/history.md"],
   ["stabilization", stabilization, "docs/stabilization.md"],
+  ["late-content", lateContent, "docs/late-content.md"],
   ["flakiness", flakiness, "docs/flakiness.md"],
   ["framework", framework, "docs/framework.md"],
   ["framework-reference", frameworkReference, "docs/framework-reference.md"],

@@ -1043,6 +1043,12 @@ wire for the bytes behind each asset, waits for React to hydrate a
 server-rendered route, and checks that Suspense has resolved. It does not redefine application state, and it does not
 install framework hooks before the application loads.
 
+Content an effect sets after it loads something is outside every wait here. An
+effect that starts an import, a request or a timer and then calls `setState`
+leaves React with nothing pending, so the subject is read with its placeholder
+and no diagnostic. [Content that loads late](late-content.md) shows how to move
+that work under `<Suspense>`, or mark the subject ready, so a run waits for it.
+
 Collectors inspect Suspense directly, but they do not install `tapCommits` or
 call `awaitQuiet`. The commit tap remains an explicit host integration because
 it must attach before `react-dom`; silence from a late tap cannot prove that the
@@ -1065,5 +1071,6 @@ timing change cannot be mistaken for an isolation change.
 ---
 
 **See also.** [Flakiness](flakiness.md) — what kind of thing variance is ·
+[Content that loads late](late-content.md) — making late work something a run waits for ·
 [Ignore rules](ignores.md) — absorbing what cannot be stabilized ·
 [Comparison](compare-visual-review.md) — where each operating model fits
