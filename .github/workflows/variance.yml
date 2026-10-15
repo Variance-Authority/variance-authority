@@ -569,11 +569,10 @@ jobs:
       # `docs/` and the packages' READMEs from this checkout. It is observed as
       # built, served by the same worker setup it deploys with, so a page that
       # differs between the build and production is not this check's to find.
-      # It is built with `--mode development`, React's development build and
-      # nothing minified, so a change names the component that wrote it rather
-      # than `wo`; the pages measured paint byte-for-byte what the production
-      # build paints, and the carried baselines hold it to that. The server
-      # stays up for the rest of the job; the gate reads its sitemap.
+      # It is built with `--mode unminified`, the production build with nothing
+      # minified, so a change names the client component that wrote it rather
+      # than `wo`. The server stays up for the rest of the job; the gate reads
+      # its sitemap.
       - name: build what this project observes
         if: matrix.project == 'site' && steps.reach.outputs.observe != 'false'
         shell: bash
@@ -583,7 +582,7 @@ jobs:
           set -euo pipefail
           cd site
           yarn install --immutable
-          yarn build --mode development
+          yarn build --mode unminified
           nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
           for _ in $(seq 60); do
             if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then exit 0; fi

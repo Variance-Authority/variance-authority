@@ -28,33 +28,18 @@ async function probes(): Promise<Plugin[]> {
 }
 
 /**
- * `--mode development` builds the site the `site` check photographs: React's
- * development build in every environment, nothing minified, so a change is
- * attributed to the component that wrote it under its source name. Under a
- * production React build a server component leaves no name on the page at
- * all, and the minifier renames every client component (`wo`).
- *
- * vinext sets `NODE_ENV` to `production` on every build, and the Cloudflare
- * plugin then defines it for the worker from that, so it is defined last, per
- * environment, rather than set in the shell. Only `NODE_ENV` moves: Vite's
- * `import.meta.env.DEV` and `PROD` still read production, and
- * nothing the site paints branches on them.
+ * `--mode unminified` builds the site the `site` check photographs: the
+ * production build with nothing minified, so a change is attributed to the
+ * client component that wrote it under its source name rather than a minified
+ * `wo`. React stays on its production build, which is what the deploy paints.
  */
-function development(mode: string): Plugin[] {
-  if (mode !== "development") return [];
-  const env = JSON.stringify("development");
+function unminified(mode: string): Plugin[] {
+  if (mode !== "unminified") return [];
   return [
     {
-      name: "site:development-build",
+      name: "site:unminified-build",
       enforce: "post",
-      configEnvironment: () => ({
-        define: {
-          "process.env.NODE_ENV": env,
-          "global.process.env.NODE_ENV": env,
-          "globalThis.process.env.NODE_ENV": env,
-        },
-        build: { minify: false },
-      }),
+      configEnvironment: () => ({ build: { minify: false } }),
     },
   ];
 }
@@ -62,7 +47,7 @@ function development(mode: string): Plugin[] {
 export default defineConfig(async ({ mode }) => ({
   plugins: [
     ...(await probes()),
-    ...development(mode),
+    ...unminified(mode),
     vinext(
       recorded
         ? { cache: { data: { adapter: `${import.meta.dirname}/variance/no-cache.ts`, options: {} } } }
