@@ -102,6 +102,20 @@ fn a_row_put_back_as_the_base_holds_it_leaves_neither_the_row_nor_its_delete() {
 }
 
 #[test]
+fn a_row_the_base_deleted_after_holding_it_is_written_again() {
+    // The base is two segments, oldest first; the later one deletes a row of each kind the earlier holds.
+    let deletes = encoded(r#"{"config": "v1:c", "deletedRecords": ["src/a.ts"], "deletedParses": ["git:c"], "deletedDirectories": ["lib"]}"#);
+    let full: serde_json::Value = serde_json::from_str(FULL).unwrap();
+    let expected = serde_json::json!({
+      "config": "v1:c",
+      "directories": [full["directories"][1]],
+      "records": [full["records"][0]],
+      "parses": [full["parses"][2]],
+    });
+    assert_eq!(merged(&[&encoded(FULL), &deletes], &[&encoded(FULL)]).unwrap(), encoded(&expected.to_string()));
+}
+
+#[test]
 fn a_base_holds_nothing_from_its_first_segment_that_does_not_open() {
     let layer = encoded(FULL);
     assert_eq!(merged(&[b"not a segment", &layer], &[&layer, &layer]).unwrap(), layer);
