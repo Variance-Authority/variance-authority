@@ -5,12 +5,15 @@
 // writes is read back and compared, line for line, with the record the case
 // says it lays.
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CASES } from './__fixtures__/layer-cases.js';
 import { BASELINE, LOCAL, at, rebuilt } from './__fixtures__/layer-shapes.js';
 import { printed } from './__fixtures__/laid.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { layCoverage } from './format-layer.js';
+import { layCoverage, layeredCoverage } from './format-layer.js';
 
 describe('layCoverage', () => {
   for (const [what, { previous, current, onDisk, readings, laid }] of Object.entries(CASES)) {
@@ -56,5 +59,21 @@ describe('layCoverage', () => {
 
     expect(decodeTestCoverage(layCoverage(encodeTestCoverage(previous), current)).modules.map((module) => module.file))
       .toEqual(['src/decide.ts', 'src/\u{1f600}.ts', 'src/\ue001.ts']);
+  });
+});
+
+describe('layeredCoverage', () => {
+  it('writes the run alone where no record is, and refuses one it cannot read, naming the file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'layered-'));
+    try {
+      const file = join(root, 'coverage.bin');
+      const current = at(LOCAL, 'test/beta.test.ts');
+      expect(printed(decodeTestCoverage(await layeredCoverage(file, current, root)))).toEqual(printed(current));
+
+      await writeFile(file, 'not a snapshot');
+      await expect(layeredCoverage(file, current, root)).rejects.toThrow(file);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
