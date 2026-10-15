@@ -12,7 +12,7 @@
  *
  * A file run in part is recorded incomplete, whatever its cases did: the cases
  * it skipped did not record their reach, and a whole record would replace the
- * reach they had with none. See `mergeCoverage`.
+ * reach they had with none.
  */
 
 // compass: variance-authority.reach

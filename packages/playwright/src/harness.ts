@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
 import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
+import { CHROMIUM_RASTER_ARGS } from './renderer.js';
 import { pinnedRegion } from './viewport.js';
 
 /**
@@ -123,7 +124,12 @@ export interface Harness {
 }
 
 export async function createHarness(options: HarnessOptions): Promise<Harness> {
-  const browser = await chromium.launch({ headless: options.headless ?? true });
+  // Laid out under the text settings the renderer paints with, or a line that
+  // fits here wraps there and the painted page is a different height.
+  const browser = await chromium.launch({
+    headless: options.headless ?? true,
+    args: [...CHROMIUM_RASTER_ARGS],
+  });
   const errors: string[] = [];
 
   try {

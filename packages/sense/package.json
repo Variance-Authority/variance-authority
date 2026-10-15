@@ -119,6 +119,7 @@
     "native/instrument/Cargo.toml",
     "native/instrument/build.rs",
     "native/instrument/src/*.rs",
+    "record-layout.json",
     "scripts/overhead.mjs",
     "scripts/probe-write.mjs"
   ],

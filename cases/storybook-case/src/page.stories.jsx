@@ -14,13 +14,24 @@ export default {
   parameters: { layout: 'centered' },
 };
 
+/**
+ * `Button` twice, and something beside it that is not `Button`.
+ *
+ * The note is what a `Button` edit pushes sideways. Pushed down, content is the
+ * same rows lower and pairs with the rows it came from; pushed along a row, it
+ * is a row that differs, so the region over it is collateral — named, and not
+ * the cause.
+ */
 export const Composed = {
   name: 'Stack — composed page',
   render: () => (
     <Tokens>
       <Stack>
         <Card title="Invoice">
-          <Button>Pay</Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--case-space)' }}>
+            <Button>Pay</Button>
+            <span style={{ color: 'var(--case-text)' }}>due on receipt</span>
+          </div>
         </Card>
         <Card title="History">
           <Button variant="secondary">Export</Button>

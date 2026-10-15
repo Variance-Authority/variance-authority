@@ -161,7 +161,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | merge <record.bin>... --into <record> [--root <checkout>]
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
@@ -1453,17 +1453,27 @@ remain separate files.
 accounting.
 
 When the page will be opened somewhere its images are not, add
-`--embed-images` and it carries every picture inside it:
+`--embed-images` and it carries the pictures of every subject it shows:
 
 ```bash
 variance report --format html --embed-images > variance-report.html
 ```
 
-One file then opens anywhere, including a phone. On GitHub Actions, upload it
+One file then opens anywhere. On GitHub Actions, upload it
 with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
-opens the page in the browser instead of downloading a zip. The file grows
-with the images: a subject with a baseline and a change carries three
-pictures.
+opens the page in the browser instead of downloading a zip.
+
+The file is about four thirds the size of those pictures: a subject with a
+baseline and a change carries three, and an unchanged subject carries none,
+because the page shows no card for it. Every subject's card comes first in the
+file and the pictures follow in the order the page shows them, so you can
+filter, read regions and copy commands while the pictures are still loading.
+Each picture keeps its place at its own size before it arrives, and is loaded
+lazily, so the browser is asked to decode only the ones near the screen. The
+page's script turns each carried picture into an image, so a viewer that runs
+no script shows the cards without their pictures. The command writes the page
+as it goes, one picture at a time, so its memory does not grow with the run;
+the browser's holds every picture once, at about its size on disk.
 
 ### Detect instability with `run --flakes`
 
@@ -1588,19 +1598,31 @@ app/src/components/CartCard.tsx  3 observers
   …
 ```
 
-For a CI job that only combines records, `journeys merge` writes the record
-and its counts without computing a journey comparison:
+For a CI job that only combines records, `journeys combine` writes the one
+record an unsharded run would have written, and nothing else:
 
 ```bash
-variance journeys merge shard-1/coverage.bin shard-2/coverage.bin \
-  --into artifacts/coverage.bin --root /work/checkout
+variance journeys combine shard-1/coverage.bin shard-2/coverage.bin \
+  --into artifacts/coverage.bin
 ```
 
-It needs no visual project configuration. `--root` defaults to the working
-directory and names the source checkout the records came from; keep its test
-files present, because landing retires cases whose files were deleted. Shard
-and output paths resolve from the working directory, independently of `--root`.
-The case index and the rules for landing below apply to both commands.
+```
+journeys: combined 2 records into artifacts/coverage.bin (342 tests, 1204 modules, 51873 crossings, 2210 cases, recorded at 4f2a1c9d0b73)
+```
+
+It reads the shards and nothing else: no configuration, no checkout, no
+source index. The output is the same bytes whatever order the shards are named
+in. `--into` names a new file: a path that is already there, a shard among
+them, is refused, because combining over a record would discard it. To lay the
+shards over a record that is already there, name it to `journeys` instead:
+`variance journeys <shard.bin>... --into <record>`. Paths resolve from the
+working directory. Landing the combined record, in this checkout or another,
+is `journeys`'s; the rules below apply to both commands, because `journeys`
+combines its shards the same way and lands the result as one.
+
+Each test file keeps the duration its shard measured: a test file runs in one
+shard, and a file two shards recorded is refused below. A shard that recorded no
+test files changes nothing, whatever commit or recipe it names.
 
 The fold refuses shards that were not one run, naming both files: recorded under
 different probe recipes, or at different commits — and a shard recorded outside
@@ -1609,6 +1631,27 @@ file two shards both recorded means the split overlapped, which only the
 operator can resolve. A module one shard could not instrument is answered by the
 shards that did: that row records that one build could not read the module, and
 is no evidence about the tests another build watched run it.
+Shards whose selection read two records fail the build, naming both. A shard
+whose record names that read `unknown`, as a JVM shard's does, is combined
+without that check, and the output names it.
+
+The cases are refused by the shard that holds them, with what to do. A test
+file whose cases two shards both ran names both shards: two runs of one file's
+cases cannot both be the suite's, so you combine only one of them. A case index
+this build cannot read, the row spelling of older versions among them, is
+recorded again with this version. A case whose lines stand on a file two
+shards cut into different regions is refused, because its lines name regions
+by their order; record every shard with one build. Two shards that hold
+different Eyes journals for one attempt of one case, or a journal of a case
+the combined index does not record, are refused by name. Shards that started
+from different records fail the build: each record names the record its run
+was laid over, or none, and shards that name two, that stand on before layers
+at different commits, or that stand on one file at different text, each split
+the suite against another plan, so a test may have run in no shard. The
+message names the shards and their records; run the whole build again, so
+that every shard restores the same cached record. A shard that names no
+record at all, as one an earlier version wrote, is recorded again with this
+version.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root
@@ -1626,7 +1669,9 @@ coverage, and `covering`, `coverage` and `review` answer from the result. If you
 land a shard that ran a test file to the end and kept no cases, the landing
 drops the index, because no index can hold which of that file's cases run a
 line. Those commands then print that nothing is recorded until a run writes one.
-A shard keeps no cases when its seam recorded none. If another run is writing
+A shard keeps no cases when its seam recorded none, and one that kept cases
+beside one that kept none is refused, because their combined record could
+answer for the cases of only some of its files. If another run is writing
 the record when you land, nothing is written and `journeys` exits non-zero; land
 again once that run ends.
 
@@ -2530,6 +2575,7 @@ The remaining top-level keys:
 | `intent` | the default `--intent` label |
 | `suites` | each test suite the repository runs, and its kind: `unit`, `integration`, `e2e` or `visual`. Each suite records on its own. Read only from the file at the repository root, as the [execution record](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite) page describes |
 | `tiers` | line budgets, largest first, that `variance layers` places each package in by how much code it pulls in, and that a `maxTier` rule in a `.relations.json` names. Tier 0 is the first entry and has no limit. Read only from the file at the repository root; see [tiers](https://variance-authority.dev/docs/boundaries#tiers-say-how-much-code-a-package-pulls-in) |
+| `typescript.tsconfig` | which `tsconfig` decides where an import resolves: `"auto"`, the default, reads the config that governs each file; a path from the repository root reads that config and the projects it references; `false` reads none, so no `paths` and no `customConditions`. `variance doctor` names the configs in the repository that add conditions, map `paths` or set `baseUrl`, and suggests `false` only when none does. Read only from the file at the repository root |
 | `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
 
 `history.token`, and `baselines.token` on a remote store, take either a literal
@@ -2714,8 +2760,12 @@ variance comment --body-file body.md \
   --to-accept 'add the **variance: accept** label to this pull request'
 ```
 
-`--image-root` puts pictures in the comment: the leading cause's before and
-after on the first screen, and each further cause's pair in the fold. Give it
+`--image-root` puts pictures in the comment: the leading cause's change on the
+first screen, and each further cause's in the fold. The change is the
+`change.png` a run writes beside a subject's diff: each of the largest changed
+regions with the rows around it, as before, after and the difference, top to
+bottom, at one image pixel per pixel. A subject with no region to crop shows
+its whole before and after instead. Give it
 the address you published the report's directory under. The comment joins each
 image path the report records to it, with every segment percent-encoded, so the
 file `images/story%3Abutton.before.png` is asked for as
@@ -2730,7 +2780,7 @@ file `images/story%3Abutton.before.png` is asked for as
 | Exit `2` before any docket | The run failed operationally rather than finding a reviewable change. | Run `variance doctor` in the same environment; then inspect browser, collector, renderer, and store diagnostics. Do not suppress this with `|| true`. |
 | Every subject is `new` after changing browser or renderer settings | The environment identity changed, so old and new images are intentionally partitioned. | Confirm the engine, viewport scale, fonts, and stabilization inputs. Establish new baselines only when the identity change was intended. |
 | A planned subject is absent from the report | Coverage accounting failed; a complete run must account for observed, excluded, or failed subjects. | Inspect collector failures and, for shards, verify the subject globs cover the whole plan without overlap. |
-| HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory. |
+| HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory, or write it with `--embed-images` so it carries its pictures. |
 | A ready selector times out | The collector opened the subject but its project-owned completion marker never appeared. | Check the collector module's id-to-selector map; do not replace the marker with an arbitrary sleep. |
 | A clean pull request has no comment body | This is expected. `variance comment` emits an empty body for a clean report. | Keep the CI gate on `variance run`; let the posting integration delete or skip its prior comment. |
 | A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |

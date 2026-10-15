@@ -10,6 +10,7 @@ import type {
 } from './doctor.js';
 import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
+import { formatTypescript } from './doctor-typescript.js';
 
 /**
  * A diagnosis as the two things a caller does with one: an integer, and a page.
@@ -117,6 +118,8 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     `  ${diagnosis.history.because}`,
     '',
     ...formatSkills(diagnosis.skills),
+    '',
+    ...formatTypescript(diagnosis.typescript),
   ].join('\n');
 }
 

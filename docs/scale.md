@@ -456,7 +456,11 @@ The fold lays the shards' cases into the stitched record. A shard that ran a
 test file to the end and kept no cases leaves no index at all, because nothing
 can then say which of that file's cases ran a line.
 
-The fold refuses rather than guesses. Shards recorded at different commits, or
+The fold refuses rather than guesses. Every record names the record its run
+chose and placed its tests from, and the record it was laid over, and shards
+that started from different records fail the build: each split the suite
+against another plan, so a test may have run in no shard.
+Shards recorded at different commits, or
 under different **probe recipes** — the instrumentation configuration a build
 applied — are named and rejected. A journal does not spell out which region a
 test entered; it writes a number, and the numbers are positions in the region

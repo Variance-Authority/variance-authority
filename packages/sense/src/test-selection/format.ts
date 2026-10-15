@@ -362,7 +362,7 @@ function ordered<T>(values: readonly T[], name: (value: T) => string): readonly 
   return values;
 }
 
-export function settledModule(module: CoverageModule): CoverageModule {
+function settledModule(module: CoverageModule): CoverageModule {
   const blocks = settle(byOrdinal(module.blocks), settledBlock);
   return blocks === module.blocks ? module : { ...module, blocks };
 }
@@ -397,7 +397,7 @@ function distinct(values: readonly string[]): readonly string[] {
   return values;
 }
 
-export function settledTest(test: CoverageTest): CoverageTest {
+function settledTest(test: CoverageTest): CoverageTest {
   const preconditions = uniquePreconditions(test.preconditions);
   return preconditions === test.preconditions ? test : { ...test, preconditions };
 }

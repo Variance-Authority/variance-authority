@@ -3,20 +3,19 @@
 /**
  * What a run pays to record what it saw, end to end.
  *
- * Every runner integration in this package ends the same way — `existingCoverage`
- * decodes the index on disk, `mergeCoverage` layers the run over it, and
- * `encodeTestCoverage` writes it back. `native.mjs` times those three separately
- * and attributes their native share; this one times them as the one operation a
- * run actually performs, because the interesting quantity is not any stage's
- * cost but how much of the whole is spent on modules the run never touched.
+ * Every runner integration in this package ends the same way: `layCoverage` lays
+ * the run over the record on disk, bytes in and bytes out, and never decodes the
+ * record it carries. This times that one operation against what decoding the
+ * same record would cost, because the interesting quantity is how much of the
+ * whole is spent on modules the run never touched.
  *
  * Run:  node scripts/round-trip.mjs [modules] [recut]
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { decodeTestCoverage, encodeTestCoverage } from '../dist/test-selection/format.js';
+import { layCoverage } from '../dist/test-selection/format-layer.js';
 import { openTestCoverage } from '../dist/test-selection/format-view.js';
-import { mergeCoverage } from '../dist/test-selection/merge.js';
 import { corpusOf, instrumentedSources } from './coverage-corpus.mjs';
 
 if (!process.execArgv.some((flag) => flag.startsWith('--max-old-space-size'))) {
@@ -68,23 +67,13 @@ console.log(
 
 const opened = median(() => openTestCoverage(bytes));
 const decoded = median(() => decodeTestCoverage(bytes));
-const previous = decodeTestCoverage(bytes);
-const merged = median(() => mergeCoverage(previous, layer));
-const model = mergeCoverage(previous, layer);
-const encoded = median(() => encodeTestCoverage(model));
+const laid = median(() => layCoverage(bytes, layer, new Map()));
 
-const total = decoded + merged + encoded;
-const row = (label, spent) =>
-  console.log(`  ${label.padEnd(34)} ${spent.toFixed(0).padStart(6)} ms   ${((100 * spent) / total).toFixed(1).padStart(5)}%`);
-
-row('decode the index', decoded);
-row('merge the run over it', merged);
-row('encode it back', encoded);
-console.log(`  ${'—'.repeat(34)} ${total.toFixed(0).padStart(6)} ms`);
-console.log(`\n  opening the file instead of decoding it  ${opened.toFixed(2)} ms  ` +
-  `(${(decoded / opened).toFixed(0)}x cheaper, and it is the same file)`);
+console.log(`  lay the run over the record     ${laid.toFixed(0).padStart(6)} ms`);
+console.log(`  decode the record instead       ${decoded.toFixed(0).padStart(6)} ms`);
+console.log(`  open the record instead         ${opened.toFixed(2).padStart(6)} ms`);
 console.log(
-  `\n  per re-recorded module        ${(total / RECUT).toFixed(1)} ms\n` +
-    `  per carried module            ${((total / (MODULES - RECUT)) * 1000).toFixed(1)} µs` +
+  `\n  per re-recorded module        ${(laid / RECUT).toFixed(1)} ms\n` +
+    `  per carried module            ${((laid / (MODULES - RECUT)) * 1000).toFixed(1)} µs` +
     `   x ${(MODULES - RECUT).toLocaleString()} carried`,
 );

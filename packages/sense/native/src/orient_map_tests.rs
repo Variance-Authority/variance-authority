@@ -93,7 +93,7 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), HashSet::new);
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
     let (made, pages, placed) = fold(&read).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
     let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, unmarked: false, made: Some(made), unmade: None, pages, placed };
@@ -174,7 +174,7 @@ fn inode(path: &str) -> u64 {
 fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside_them() {
     let (_root, root, index) = indexed("walked");
     // A scan that could not list with git: the map asks git nothing either.
-    let prepared = prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
+    let prepared = prepare_orient_map(&root, &index, Some(true), crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
     assert!(prepared.walked && !prepared.unmarked && !prepared.relisted && prepared.unmade.is_none());
     let map = prepared.map.expect("a folded map");
     assert_eq!((map.packages, map.areas, map.levels, map.layers, map.unread), (20, 4, 1, 6, 0));
@@ -184,7 +184,7 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
 #[test]
 fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     let (_root, root, index) = indexed("placed");
-    prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
+    prepare_orient_map(&root, &index, Some(true), crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
     let answer = crate::orient_map_layers::orient_layers(index).unwrap().expect("a kept map");
     assert!(answer.current && answer.unmade.is_none());
     let packages = answer.packages.expect("a folded map");
@@ -201,7 +201,7 @@ fn every_package_reads_back_with_its_layer_and_what_it_takes() {
 #[test]
 fn every_package_reads_back_with_the_lines_its_shipped_files_pull_in() {
     let (_root, root, index) = indexed("closures");
-    prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
+    prepare_orient_map(&root, &index, Some(true), crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
     let packages = crate::orient_map_layers::orient_layers(index.clone()).unwrap().unwrap().packages.unwrap();
     let size = |name: &str| {
         let package = packages.iter().find(|package| package.package == name).unwrap();
@@ -221,17 +221,17 @@ fn every_package_reads_back_with_the_lines_its_shipped_files_pull_in() {
 #[test]
 fn a_checkout_with_nothing_to_fold_says_why_and_keeps_no_map() {
     let (fixture, root, index) = indexed("unmade");
-    assert!(prepare_orient_map(&root, &index, None).unwrap().unwrap().map.is_some());
+    assert!(prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap().map.is_some());
     for (directory, _) in packages() {
         std::fs::write(fixture.0.join(directory).join("package.json"), "{}").unwrap();
     }
     std::fs::write(fixture.0.join("package.json"), r#"{"name": "@t/root"}"#).unwrap();
-    let prepared = prepare_orient_map(&root, &index, None).unwrap().unwrap();
+    let prepared = prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert_eq!((prepared.map.is_none(), prepared.unmade.as_deref()), (true, Some("the root's is the only named manifest")));
     let answer = orient_map_page(index.clone(), None).unwrap().expect("the reason, kept beside the index");
     assert_eq!((answer.page.is_none(), answer.layers, answer.unmade.as_deref()), (true, None, Some("the root's is the only named manifest")));
     std::fs::write(fixture.0.join("package.json"), "{}").unwrap();
-    let prepared = prepare_orient_map(&root, &index, None).unwrap().unwrap();
+    let prepared = prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert_eq!(prepared.unmade.as_deref(), Some("no manifest names a package"));
 }
 
@@ -249,7 +249,7 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     assert_eq!(inode(&map_path(&index)), folded, "nothing moved, so nothing was written");
     assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
     // With no scan to carry, git lists the checkout for the map, and says so.
-    let alone = prepare_orient_map(&root, &index, None).unwrap().unwrap();
+    let alone = prepare_orient_map(&root, &index, None, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert!(alone.relisted && !alone.walked);
     assert_eq!(inode(&map_path(&index)), folded);
     // A manifest git holds a new blob for folds the map again.

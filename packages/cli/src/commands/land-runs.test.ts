@@ -137,14 +137,15 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     expect(await readCommitRuns(into)).toMatchObject({ commit: 'C', over: 'H', files: ALL, standing: [] });
   });
 
-  it('names no base when the snapshot it replaces was recorded by other probes', async () => {
+  it('refuses a snapshot recorded by other probes, and leaves its runs as they were', async () => {
     await partial();
+    const before = await readCommitRuns(into);
 
-    await land(run('C', ['other.test.ts'], 'other probes'));
+    await expect(land(run('C', ['other.test.ts'], 'other probes'))).rejects.toThrow(
+      /probes `fixture` and the run under `other probes`[^]*another build; delete it and land again/,
+    );
 
-    const runs = await readCommitRuns(into);
-    expect(runs).toMatchObject({ commit: 'C', files: ['other.test.ts'], standing: [] });
-    expect(runs).not.toHaveProperty('over');
+    expect(await readCommitRuns(into)).toEqual(before);
   });
 
   it('names the commit it was laid over as it stands, from a root that is not a checkout', async () => {

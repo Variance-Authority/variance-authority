@@ -6,7 +6,7 @@
 import { relationsOf, type Relation, type Relations } from '@variance-authority/core/relate';
 import {
   encodeAsSetExecutionIndex,
-  layerTestCoverage,
+  encodeTestCoverage,
   withCaseSections,
   type ExecutionIndex,
   type TestCoverage,
@@ -15,7 +15,7 @@ import { distillFile, type FileDistillation, type FileDistillInput } from './fil
 
 /** The record a run writes: its coverage rows, layered over nothing, and its case index in the set spelling. */
 export function recordOf(coverage: TestCoverage, execution: ExecutionIndex): Uint8Array {
-  return withCaseSections(layerTestCoverage(undefined, coverage), { index: encodeAsSetExecutionIndex(execution) });
+  return withCaseSections(encodeTestCoverage(coverage), { index: encodeAsSetExecutionIndex(execution) });
 }
 
 const file = (name: string) => ({ kind: 'file', name }) as const;

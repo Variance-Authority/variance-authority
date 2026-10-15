@@ -4,6 +4,7 @@ import { OperatorError } from '../exit.js';
 import { listed } from './prose-counts.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';
+import type { Placement } from './report-html-pictures.js';
 import { describeRecipe, recipeOf } from '@variance-authority/core/format';
 import { summarizeLedger } from './ignores.js';
 import { summarizeSensitivities } from './sensitivities.js';
@@ -54,7 +55,7 @@ export interface ReportOptions {
  */
 export function formatReport(options: ReportOptions): string {
   if (options.format === 'json') return asJson(options);
-  if (options.format === 'html') return asHtml(options);
+  if (options.format === 'html') return [...htmlPage(options)].join('');
   // Terminated like the other two, or the next line a CI log prints lands on
   // the end of the report's last sentence.
   return `${asText(options)}\n`;
@@ -67,9 +68,12 @@ export function formatReport(options: ReportOptions): string {
  * question about one subject. A *page* narrowed to one subject would be a page
  * that says nothing about coverage while looking complete, and the reader of an
  * HTML artifact has no prompt to type the unnarrowed command in. So it is
- * refused by name rather than honoured or ignored.
+ * refused by name rather than honoured or ignored — before the first piece, so
+ * a refused page writes nothing.
+ *
+ * In pieces, for the reason `reportHtml` gives; `formatReport` joins them.
  */
-function asHtml(options: ReportOptions): string {
+export function htmlPage(options: Omit<ReportOptions, 'format'> & { readonly placement?: Placement }): Iterable<string> {
   if (options.subject !== undefined) {
     throw new OperatorError(
       '--subject narrows a report to one subject, and an HTML page narrowed that way ' +
@@ -77,7 +81,13 @@ function asHtml(options: ReportOptions): string {
         'for a single subject.',
     );
   }
-  return `${reportHtml(options.report)}\n`;
+  return terminated(reportHtml(options.report, options.placement));
+}
+
+/** Terminated like the other two formats, without joining the page to do it. */
+function* terminated(pieces: Iterable<string>): Generator<string> {
+  yield* pieces;
+  yield '\n';
 }
 
 function asJson(options: ReportOptions): string {

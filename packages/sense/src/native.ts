@@ -33,6 +33,7 @@ import type {
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
+import type { NativeRecords } from './native-record.js';
 import { witnessesOf } from './witness.js';
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
@@ -62,7 +63,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
   ): NativeScanBatch;
   scanGraph(
@@ -70,7 +71,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     seeds: string[],
     largestFile?: number,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     includeParses?: boolean,
   ): NativeScanBatch;
@@ -121,7 +122,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeDistill {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -190,7 +191,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     listed?: string[],
   ): NativeScanBatch;
@@ -228,9 +229,9 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   moduleReferences?(file: string, text: string): NativeModuleReferences | null;
   /**
    * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
-   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).
+   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
    */
-  resolveSources?(root: string, file: string, sources: string[], listed?: string[]): string[];
+  resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /**
    * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
    * `false` when no remote promised any, so a path a read found missing is absent.

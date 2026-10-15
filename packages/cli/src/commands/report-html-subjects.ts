@@ -16,7 +16,8 @@ import type {
   PresentationEffectRecord,
 } from '@variance-authority/report';
 import type { CliObservationRecord } from './run-report.js';
-import { cmd, copy, markers, px, section, slug, text } from './report-html-elements.js';
+import { cmd, copy, markers, opening, px, section, slug, text } from './report-html-elements.js';
+import type { Placement } from './report-html-pictures.js';
 
 /**
  * A subject: the comparison, what moved in it, and what to type next.
@@ -29,13 +30,23 @@ import { cmd, copy, markers, px, section, slug, text } from './report-html-eleme
 
 /* --- subjects ------------------------------------------------------------- */
 
-export function subjects(reviewable: readonly CliObservationRecord[]): string {
-  if (reviewable.length === 0) return '';
-  return section(
-    'Subjects',
-    `${reviewable.length} to look at`,
-    reviewable.map((entry) => subject(entry)).join(''),
-  );
+/**
+ * Every subject the page shows, a card at a time.
+ *
+ * In pieces rather than one string, because this is the part of the page that
+ * grows with the run: a reader that writes as it is handed them holds a card,
+ * not the suite.
+ */
+export function* subjects(reviewable: readonly CliObservationRecord[], placement: Placement): Generator<string> {
+  if (reviewable.length === 0) return;
+  yield opening('Subjects', `${reviewable.length} to look at`);
+  for (const entry of reviewable) yield subject(entry, placement);
+  yield '</section>';
+}
+
+/** Both green verdicts are excluded, for the reason `Docket.reviewable` gives. */
+export function needsReview(verdict: ObservationRecord['verdict']): boolean {
+  return verdict !== 'unchanged' && verdict !== 'ignored';
 }
 
 /** Relationship consequences stay visible without changing which verdicts need review. */
@@ -98,7 +109,7 @@ function evidenceHtml(side: string, evidence: PresentationEffectEvidence): strin
  * is the reason the page is open, and putting it third makes the reader's eye
  * travel past the two things they are trying to compare in order to reach it.
  */
-function subject(entry: CliObservationRecord): string {
+function subject(entry: CliObservationRecord, placement: Placement): string {
   const images = entry.images ?? {};
   const has = {
     before: images.before !== undefined,
@@ -113,9 +124,9 @@ function subject(entry: CliObservationRecord): string {
       : '<div class="stage" data-mode="' +
         text(modes[0] ?? 'trio') +
         '">' +
-        (has.before ? `<img class="before" src="${text(images.before ?? '')}" alt="before">` : '') +
-        (has.diff ? `<img class="diff" src="${text(images.diff ?? '')}" alt="diff">` : '') +
-        (has.after ? `<img class="after" src="${text(images.after ?? '')}" alt="after">` : '') +
+        picture('before', images.before, placement) +
+        picture('diff', images.diff, placement) +
+        picture('after', images.after, placement) +
         '<div class="boxes"></div><div class="handle"></div>' +
         '</div>';
 
@@ -153,6 +164,15 @@ function subject(entry: CliObservationRecord): string {
     commands(entry) +
     '</article>'
   );
+}
+
+/**
+ * One side of the comparison. Lazy, because a run's pictures decoded at once
+ * are gigabytes of bitmap and a reviewer looks at a few of them at a time.
+ */
+function picture(side: 'before' | 'diff' | 'after', path: string | undefined, placement: Placement): string {
+  if (path === undefined) return '';
+  return `<img class="${side}" ${placement.attributes(path)} alt="${side}" loading="lazy" decoding="async">`;
 }
 
 function modesFor(

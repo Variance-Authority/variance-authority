@@ -144,8 +144,9 @@ export interface RenderFrame {
   readonly ancestors: readonly FrameElement[];
 
   /**
-   * Used width of the subject's parent box, in CSS pixels, when layout was
-   * observable.
+   * Used `width` of the subject's parent, in CSS pixels and in the parent's own
+   * `box-sizing`, when layout was observable. Written back on the same box, it
+   * gives the content box a percentage on the subject resolves against.
    *
    * A subject declaring `width: 100%` is a different size in a 1024px page and
    * inside a 600px panel, and nothing else in this document says which it was.

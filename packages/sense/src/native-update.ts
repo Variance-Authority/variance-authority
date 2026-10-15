@@ -17,8 +17,10 @@ import type { NativeGitTree } from './native.js';
 import { BUILTINS, CODE_EXTENSIONS } from './native-index-graph.js';
 import { LARGEST_FILE } from './scan.js';
 import { READABLE } from './language.js';
+import type { ResolveOptions } from './resolve.js';
 import { configOf } from './reuse.js';
 import { gitTreeOf } from './tree.js';
+import { withDeclaredTsconfig } from './typescript.js';
 
 /** `UpdateOptions` in `native/src/source_update.rs`. */
 export interface NativeUpdateOptions {
@@ -26,7 +28,7 @@ export interface NativeUpdateOptions {
   readonly index: string;
   readonly config: string;
   readonly largestFile?: number;
-  readonly tsconfig?: string;
+  readonly tsconfig?: string | false;
   readonly conditionNames?: string[];
   readonly aliases?: string;
   readonly builtins: string[];
@@ -53,12 +55,16 @@ export async function updateNatively(root: string, index: string): Promise<Nativ
   const tree = await gitTreeOf(root, ['.']);
   const held = tree?.native;
   if (tree === undefined || held?.updateIndex === undefined) return undefined;
-  const { config, aliases } = await configOf({ root, tree });
+  // The scan this update stands in for reads the same setting, so the digest
+  // it compares against the chain is the one that scan wrote.
+  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
+  const { config, aliases } = await configOf({ root, tree, options: tsconfig === undefined ? {} : { tsconfig } });
   const done = held.updateIndex({
     root,
     index,
     config,
     largestFile: LARGEST_FILE,
+    ...(tsconfig === undefined ? {} : { tsconfig }),
     ...(aliases === undefined ? {} : { aliases: JSON.stringify(aliases.table) }),
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,

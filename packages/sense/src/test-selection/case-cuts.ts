@@ -3,7 +3,7 @@
  *
  * A landing — a run's, `variance land`'s, or a repin onto a newer milestone —
  * re-cuts a carried module's rows to the text on disk when every region keeps
- * its address (`carriedSources` in `merge-carry.ts`), and lays a run's own
+ * its address (`carriedSources` in `carried-sources.ts`), and lays a run's own
  * cases onto the modules that run recorded. A module the run did not
  * record keeps the case regions it was recorded with, and after the re-cut
  * those are lines of a text the record no longer names. Every reader asks the

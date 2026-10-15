@@ -22,10 +22,19 @@ use variance_sense_instrument::digest;
 mod acquire;
 mod append_index;
 mod batch;
+mod case_fold;
 mod case_id;
+mod case_lines;
 mod case_owner;
 mod case_preconditions;
+mod case_shard;
 mod compact;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod large_alloc;
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[global_allocator]
+static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
 mod conditions;
 mod coverage_rows;
 mod declarations;
@@ -117,6 +126,18 @@ mod promisor;
 mod read;
 mod ready_index;
 mod record;
+mod record_combine;
+mod record_coverage;
+mod record_coverage_columns;
+mod record_coverage_dictionary;
+mod record_coverage_fold;
+mod record_coverage_layer;
+mod record_coverage_recut;
+#[cfg(test)]
+mod record_fixture;
+mod record_layout;
+mod record_parts;
+mod record_start;
 mod resolve;
 mod seed;
 mod segment;
@@ -310,7 +331,7 @@ impl GitTree {
         largest_file: Option<u32>,
         digests: Option<bool>,
         readers: Option<u32>,
-        tsconfig: Option<String>,
+        tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
     ) -> batch::ScanBatch {
         let oids = files
@@ -324,7 +345,7 @@ impl GitTree {
                 largest_file,
                 digests,
                 readers,
-                tsconfig,
+                tsconfig: crate::resolve::Tsconfig::from_js(tsconfig),
                 condition_names,
             },
             Some(oids),
@@ -345,7 +366,7 @@ impl GitTree {
         seeds: Vec<String>,
         largest_file: Option<u32>,
         readers: Option<u32>,
-        tsconfig: Option<String>,
+        tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
         include_parses: Option<bool>,
     ) -> batch::ScanBatch {
@@ -355,7 +376,7 @@ impl GitTree {
                 seeds,
                 largest_file,
                 readers,
-                tsconfig,
+                tsconfig: crate::resolve::Tsconfig::from_js(tsconfig),
                 condition_names,
                 include_parses: include_parses.unwrap_or(false),
             },

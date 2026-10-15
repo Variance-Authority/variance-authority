@@ -120,6 +120,31 @@ describe('portable Eyes evidence', () => {
     })).toThrow(/owners must be an array/);
   });
 
+  it('carries every reason a target has no fiber, and rejects one it cannot read', () => {
+    const archive = (reason: string) => ({
+      eyesVersion: 1,
+      tests: [{
+        id: 'test-1',
+        title: 'uses a button',
+        complete: true,
+        attention: [{
+          kind: 'document-event',
+          event: 'click',
+          trusted: true,
+          target: { nodeName: 'button', provenance: { status: 'no-fiber', reason } },
+          sequence: 0,
+        }],
+      }],
+    });
+
+    for (const reason of ['no-client-fiber', 'unmounted', 'uncommitted']) {
+      expect(parseEyesArchive(archive(reason))).toMatchObject({
+        tests: [{ attention: [{ target: { provenance: { status: 'no-fiber', reason } } }] }],
+      });
+    }
+    expect(() => parseEyesArchive(archive('hydrating'))).toThrow(/unknown no-Fiber reason/);
+  });
+
   it('refuses a journal a record carries when it cannot say whether it is complete, or holds no attention list', () => {
     expect(parseEyesJournal({ complete: true, attention: [] })).toEqual({ complete: true, attention: [] });
     expect(() => parseEyesJournal({ complete: 'yes', attention: [] }, 'journal'))

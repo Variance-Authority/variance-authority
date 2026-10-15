@@ -11,12 +11,12 @@
  *
  * A record holds one table per file, so a fold reads the readings at the
  * regions they all hold, by the same rule that joins one file's tables across
- * shards (`reconcileRegions`), and reads every journal row through the table
+ * shards (the addon's `reconcileRegions`), and reads every journal row through the table
  * its reading cut.
  */
 
 import type { ModuleId } from '../instrument/index.js';
-import { reconcileRegions, type RegionShape } from './execution-merge.js';
+import { native, nativeRefusal } from '../addon.js';
 import { codeUnitOrder, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
 import { isWritten } from './written-lines.js';
 import type { CoverageBlock } from './index.js';
@@ -69,8 +69,7 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>): Jo
       continue;
     }
     const placed = read.map((module) => module.blocks.filter(isWritten));
-    const whole = (shape: RegionShape): Placed => ({ ...shape, kind: 'module', ordinal: 0, digest: sourceDigest, testFiles: [] });
-    const { blocks, lands } = reconcileRegions<Placed>(placed, whole);
+    const { blocks, lands } = reconciled(placed, sourceDigest);
     const { record, from } = rooted(blocks, placed);
     joined.set(id, { file, id, sourceDigest, instrumented: true, blocks: record });
     for (const [at, each] of ids.entries()) {
@@ -80,6 +79,26 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>): Jo
     }
   }
   return { modules: joined, readings };
+}
+
+/**
+ * `placed` read at the regions every reading holds, by the addon. The blocks
+ * kept are the base reading's own objects, which `rooted` finds again by
+ * identity; the region spanning the file, where one is cut, is the module.
+ */
+function reconciled(placed: readonly (readonly Placed[])[], digest: string): {
+  readonly blocks: readonly Placed[];
+  readonly lands: readonly (readonly number[])[];
+} {
+  const reconcile = native()?.reconcileRegions;
+  if (reconcile === undefined) {
+    throw new Error(`joining one file's readings requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `reconcileRegions`'}`);
+  }
+  const shapes = placed.map((reading) => reading.map(({ kind, name, path, startLine, endLine, source }) => ({ kind, name, path, startLine, endLine, source })));
+  const { base, kept, whole, lands } = reconcile(shapes);
+  const blocks = kept.map((at) => placed[base]![at]!);
+  if (whole != null) blocks.push({ ...whole, kind: 'module', ordinal: 0, digest, testFiles: [] });
+  return { blocks, lands };
 }
 
 /**

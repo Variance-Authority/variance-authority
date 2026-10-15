@@ -1,6 +1,6 @@
 use super::*;
 use crate::journey_forks::{between, JourneyEnd};
-use crate::journey_format::{encode, EncodedModule, SetPool};
+use crate::journey_format::{encode, CaseExtras, EncodedModule, SetPool};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_paths::through;
 use crate::journey_record::{Block, Module};
@@ -41,7 +41,7 @@ fn recorded() -> JourneyMasks {
         .enumerate()
         .map(|(at, module)| EncodedModule { module, called: &called[at], loaded: &loaded[at] })
         .collect();
-    let bytes = encode(&tests, &encoded, &sets, None).unwrap();
+    let bytes = encode(&tests, &CaseExtras::default(), &encoded, &sets, None).unwrap();
     JourneyMasks::of(Journey::of("recorded", bytes).unwrap()).unwrap()
 }
 

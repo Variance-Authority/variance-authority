@@ -1,9 +1,9 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import { stepClock, type Diagnostic } from '@variance-authority/core/format';
 import { matchesGlob } from '@variance-authority/core/judge';
-import { stepClock } from '@variance-authority/core/format';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
 import { acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
-import { suspenseRefusal } from '@variance-authority/react';
+import { suspenseRefusal, type HydrationSettlement } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
 import type { RouteRecorder } from './execution.js';
 import type { RouteCollectorOptions } from './options.js';
@@ -196,6 +196,9 @@ export async function readRoute(
     // disagree about what absent meant.
     ...(options.wiring !== undefined ? { wiring: options.wiring } : {}),
     ...(options.holdings !== undefined ? { holdings: options.holdings } : {}),
+    ...(options.hydrationTimeoutMs !== undefined
+      ? { hydration: { timeoutMs: options.hydrationTimeoutMs } }
+      : {}),
     // A subject declared as a loading capture waits for nothing: the whole point
     // of it is the fallback, and paying the timeout to be told the boundary is
     // still there would cost five seconds per route to learn what the
@@ -232,14 +235,23 @@ export async function readRoute(
   // past: `undefined` here would make `suspenseRefusal` throw inside one route
   // and take the run with it, and defaulting it to "settled" would silently
   // restore the behaviour this exists to end.
-  if (acquired.suspense === undefined) {
+  if (acquired.suspense === undefined || (options.wiring !== false && acquired.hydration?.state === undefined)) {
     await noted(false);
     return {
       ok: false,
       because:
-        'the page agent returned no Suspense reading, which means the bundle in ' +
+        'the page agent returned no Suspense or hydration reading, which means the bundle in ' +
         '`@variance-authority/route-collector` predates it — rebuild the package',
     };
+  }
+
+  // Ahead of the Suspense ruling, because it is the cause of that one: a root
+  // that has not committed holds no boundary React has finished reading, and a
+  // loading declaration would be refused for a tree it could not see.
+  const hydrating = acquired.hydration === undefined ? undefined : hydrationRefusal(acquired.hydration, id);
+  if (hydrating !== undefined) {
+    await noted(false);
+    return { ok: false, because: hydrating };
   }
 
   // The forced decision. A route still showing a fallback is refused with the
@@ -274,6 +286,8 @@ export async function readRoute(
 
   await noted(true);
 
+  const hydration = acquired.hydration === undefined ? undefined : rootless(acquired.hydration, id);
+
   // Normalized here rather than in the page: the ruleset is the one the jsdom
   // path uses, and running it in the browser would make the two profiles two
   // implementations of it.
@@ -307,7 +321,54 @@ export async function readRoute(
     ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
       ? { stabilization: acquired.stabilization }
       : {}),
+    ...(hydration !== undefined ? { diagnostics: [hydration] } : {}),
     ...(source !== undefined ? { source } : {}),
     steps: steps.taken,
+  };
+}
+
+/**
+ * Why a route React had not finished hydrating must not be recorded, or
+ * `undefined` when it had.
+ *
+ * Refused, not collected, for the reason ADR-0037 refuses a Suspense fallback.
+ * The server's markup is not the page a visitor ends on: an effect that runs
+ * after hydration — a mounted flag, a theme read from storage, a layout
+ * measured on the client — paints a different image, and a baseline taken
+ * before it flips with the speed of the machine. The components are missing
+ * too, since nothing is read off a render React has not committed.
+ */
+function hydrationRefusal(settlement: HydrationSettlement, subjectId: string): string | undefined {
+  if (settlement.state !== 'hydrating') return undefined;
+  return (
+    `\`${subjectId}\` was still hydrating when it was read: ${settlement.pending} of ` +
+    `${settlement.roots} React root(s) had not committed after ${Math.round(settlement.waitedMs)}ms. ` +
+    'An effect that runs after hydration can paint a different image, so the same route ' +
+    'records one image on a slow run and another on a fast one. Raise `hydrationTimeoutMs`, ' +
+    'or find what holds the shell: a promise read outside any <Suspense> holds hydration ' +
+    'until it settles.'
+  );
+}
+
+/**
+ * What a route no React root was found for says about why it names no
+ * component, or `undefined` when a root was found.
+ *
+ * Collected rather than refused: no React is a page this run can compare, and
+ * a static page or a client that never started is a page somebody may mean to
+ * test. What must not happen is the absence passing unsaid, because without
+ * this line a route with no React reads the same as a node no component wrote.
+ */
+function rootless(settlement: HydrationSettlement, subjectId: string): Diagnostic | undefined {
+  if (settlement.state !== 'unrooted') return undefined;
+  return {
+    severity: 'warn',
+    code: 'react-root-absent',
+    message:
+      `No React root was found on, above or under ${subjectId} after ` +
+      `${Math.round(settlement.waitedMs)}ms, so its components were not read. Either React ` +
+      'does not render this route, or its client had not created a root yet. Set ' +
+      '`wiring: false` when React does not render these routes, or raise ' +
+      '`hydrationTimeoutMs` when the client starts late.',
   };
 }

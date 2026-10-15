@@ -48,6 +48,10 @@ interface Chain {
   readonly exclude?: readonly string[];
   readonly allowJs?: boolean;
   readonly conditions?: readonly string[];
+  /** Whether `paths` maps any specifier; `false` where a config clears what it inherits. */
+  readonly paths?: boolean;
+  /** Whether `baseUrl` names a directory, through which a bare specifier resolves without any `paths`. */
+  readonly baseUrl?: boolean;
   readonly references: readonly string[];
 }
 
@@ -124,6 +128,22 @@ export function customConditionsFor(tsconfig: string): (file: string) => readonl
   return (file) => governing(file)?.conditions ?? [];
 }
 
+/**
+ * What each config asks of a resolution, with everything it extends folded in:
+ * the conditions it adds, whether it maps `paths`, and whether it sets
+ * `baseUrl`, through which the resolver answers a bare specifier. Undefined for a config
+ * that cannot be read, or that extends one that cannot.
+ */
+export function declaredOptionsReader(): (
+  path: string,
+) => { readonly conditions: readonly string[]; readonly paths: boolean; readonly baseUrl: boolean } | undefined {
+  const chains = new Map<string, Chain | undefined>();
+  return (path) => {
+    const chain = chainOf(path, chains, new Set());
+    return chain === undefined ? undefined : { conditions: chain.conditions ?? [], paths: chain.paths === true, baseUrl: chain.baseUrl === true };
+  };
+}
+
 /** A config's own options, then each unset one from its bases, last base first. */
 function chainOf(
   path: string,
@@ -143,12 +163,16 @@ function chainOf(
 
   const options = (raw['compilerOptions'] ?? {}) as Record<string, unknown>;
   const custom = options['customConditions'];
+  const paths = options['paths'];
+  const baseUrl = options['baseUrl'];
   let chain: Chain = {
     ...list('files', raw['files']),
     ...list('include', raw['include']),
     ...list('exclude', raw['exclude']),
     ...(typeof options['allowJs'] === 'boolean' ? { allowJs: options['allowJs'] } : {}),
     ...(custom === undefined ? {} : { conditions: Array.isArray(custom) ? strings(custom) : [] }),
+    ...(paths === undefined ? {} : { paths: typeof paths === 'object' && paths !== null && Object.keys(paths).length > 0 }),
+    ...(baseUrl === undefined ? {} : { baseUrl: typeof baseUrl === 'string' && baseUrl !== '' }),
     references: Array.isArray(raw['references'])
       ? raw['references'].flatMap((reference: unknown) => {
           const at = (reference as { path?: unknown } | null)?.path;
@@ -172,6 +196,8 @@ function chainOf(
       ...(chain.conditions ?? inherited.conditions) === undefined
         ? {}
         : { conditions: chain.conditions ?? inherited.conditions },
+      ...(chain.paths ?? inherited.paths) === undefined ? {} : { paths: chain.paths ?? inherited.paths },
+      ...(chain.baseUrl ?? inherited.baseUrl) === undefined ? {} : { baseUrl: chain.baseUrl ?? inherited.baseUrl },
       references: chain.references,
     };
   }

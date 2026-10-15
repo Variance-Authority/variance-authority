@@ -21,9 +21,9 @@
  * `diffImage`, which writes the file in the report, delegates to it too. The
  * padding rule and the policy come from one place, so a reviewer's mask and a
  * report's mask cannot disagree about a threshold, an anti-aliasing rule, or
- * what a grown capture does to the union box. Two ends computing the same thing
- * from their own copy of the arithmetic is silent breakage; two ends calling one
- * function is not.
+ * which rows of a grown capture are paired with which. Two ends computing the
+ * same thing from their own copy of the arithmetic is silent breakage; two ends
+ * calling one function is not.
  *
  * ## Colour management is turned off, deliberately
  *

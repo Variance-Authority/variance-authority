@@ -1,5 +1,6 @@
 import { constants, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 import { fail } from './format-validation.js';
+import { LAYOUT } from './record-layout.js';
 
 /**
  * The bytes one run of a column is made of, and nothing about columns.
@@ -15,14 +16,14 @@ import { fail } from './format-validation.js';
  * it without a reader knowing anything about the column it came out of.
  */
 
-const RAW = 0;
+const RAW = LAYOUT.codecs.raw;
 
 /**
  * Tag 1 was brotli, and no file this build opens carries it: `FORMAT` moved
  * with the codec, so a snapshot written before it is refused at the header
  * rather than at a run. The number is not reused.
  */
-const ZSTD = 2;
+const ZSTD = LAYOUT.codecs.zstd;
 
 /** Bytes of run count before the table of run bounds. */
 export const HEAD = 4;
@@ -32,8 +33,8 @@ export const HEAD = 4;
  * gain 9 KB across a whole snapshot between 6 and 9 for twice the time, and the
  * blob gets *larger* above 1.
  */
-export const NUMBERS = 6;
-export const TEXT = 1;
+export const NUMBERS = LAYOUT.levels.numbers;
+export const TEXT = LAYOUT.levels.text;
 
 /** Runs behind a table of where each one starts, counted in the first word. */
 export function laid(runs: readonly Buffer[]): Buffer {

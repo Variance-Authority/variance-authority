@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -102,6 +103,8 @@ describe('reading this checkout', () => {
     expect([...selected.skip]).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
     expect([...selected.whole]).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts']);
     expect(selected.declined).toBeUndefined();
+    // The record it chose them from, which a shard's record names (`record-base.ts`).
+    expect(selected.read).toBe(`sha256:${createHash('sha256').update(readFileSync(testCoverageFile(root))).digest('hex')}`);
   });
 
   it('hands a runner nothing to skip, and which reading declined, where nothing was recorded', async () => {
@@ -111,6 +114,7 @@ describe('reading this checkout', () => {
 
     expect(selected.skip.size).toBe(0);
     expect(selected.declined).toBe(`no execution journal at ${testCoverageFile(root)}`);
+    expect(selected.read).toBeUndefined();
   });
 
   it('reads a snapshot named by path, as a recorder in another runtime writes one', async () => {

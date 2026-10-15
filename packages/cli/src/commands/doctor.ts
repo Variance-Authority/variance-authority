@@ -11,6 +11,7 @@ import type { DoctorProbes } from './doctor-probes.js';
 import { cacheFinding, type CacheFinding } from './doctor-cache.js';
 import { agentSkills, type SkillsFinding } from './doctor-skills.js';
 import { baselineFinding, type BaselineFinding } from './doctor-baselines.js';
+import { typescriptFinding, type TypescriptFinding } from './doctor-typescript.js';
 
 /**
  * `variance doctor` — what *this* machine can observe, and nothing else.
@@ -61,6 +62,7 @@ export interface Diagnosis {
   readonly cache: CacheFinding;
   readonly history: HistoryFinding;
   readonly skills: SkillsFinding;
+  readonly typescript: TypescriptFinding;
 }
 
 /**
@@ -168,6 +170,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       cache: cacheFinding(await probes.cache()),
       history: history(config),
       skills: agentSkills(process.cwd()),
+      typescript: await typescriptFinding(process.cwd()),
     };
   }
 
@@ -200,6 +203,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       cache: cacheFinding(await probes.cache()),
       history: history(config),
       skills: agentSkills(process.cwd()),
+      typescript: await typescriptFinding(process.cwd()),
     };
   } finally {
     // Closed here rather than left to the process: doctor is often the last thing

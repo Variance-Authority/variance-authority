@@ -23,6 +23,7 @@ import {
   type TestColumns,
 } from './execution-set-columns.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
+import { LAYOUT } from './record-layout.js';
 
 /** What `openSetColumns` hands back, for a reader that walks every case of a large record without decoding it. */
 export type { SetColumns, StringTable, TestColumns } from './execution-set-columns.js';
@@ -40,7 +41,7 @@ export type { SetColumns, StringTable, TestColumns } from './execution-set-colum
  * `blocks.owner` joined the same way, and a file without it names no region
  * around any.
  */
-export const SET_EXECUTION_FORMAT = 3;
+export const SET_EXECUTION_FORMAT = LAYOUT.cases.format;
 
 export interface SetExecutionModule {
   readonly file: string;

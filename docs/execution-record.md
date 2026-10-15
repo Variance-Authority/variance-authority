@@ -190,7 +190,7 @@ they return are the ones this page describes.
 | Import from | Names |
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
-| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
+| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `landedCoverage`, `combineRecords`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CombinedRecord`, `CombinedShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
 | `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
@@ -333,7 +333,7 @@ array of eight slots, not one per function.
 
 Across test files the ordinals are the join key. Every worker that ran this
 module reports hits against the same eight slots, and the fold unions them per
-ordinal into the block's `testFiles`. `foldTestCoverage` unions the records of a
+ordinal into the block's `testFiles`. `combineRecords` unions the records of a
 sharded run the same way, and refuses two shards that record the module under
 two source digests, because their slot 4 would be two places.
 
@@ -343,7 +343,7 @@ An ordinal is a slot in one instrumented version of a module, and it is not
 what keeps evidence across an edit. What keeps it is the region's address: the
 declaration name path and the structural path inside it, which record where the
 region sits in the module's tree rather than where it sits in the module's
-text. `mergeCoverage` moves a crossing from the previous record onto the
+text. Laying one record over another (`landedCoverage`) moves a crossing from the previous record onto the
 region with the same address, and the digests take no part in that.
 
 So renumbering is not invalidation. Inserting
@@ -629,7 +629,7 @@ apart.
 a module and the first block is the module root.
 
 **Block, across files.** `name`, `path` and `kind`: the address, and what kind
-of region sits at it. `mergeCoverage` matches `name` and `path`, and then checks
+of region sits at it. The lay matches `name` and `path`, and then checks
 the one remaining condition, whether the kinds agree. Nothing above the block
 is part of the match and neither is its digest, so a block keeps its crossings through every edit that leaves it where
 it is. A block with no match in the new table is gone, and what was recorded
@@ -953,9 +953,11 @@ crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
-**Merge with the previous record.** `mergeCoverage` brings forward what the run
-did not observe. When the instrumentation id differs the previous record is
-dropped whole. A test the run observed replaces its previous row. A test the
+**Lay over the previous record.** The native addon's lay brings forward what
+the run did not observe, column to column, without decoding either record. A
+previous record under another instrumentation id, or one this build cannot
+read, is refused with the reason and left where it is: one build records under
+one set of probes and reads what it wrote, so either is another build's. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless no region it crossed survives in the
 new table or a region it crossed has a new digest, in which case it is demoted
 to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows
@@ -970,9 +972,11 @@ structural path together — so the cost is O(M_prev + M_cur) plus
 O(B_prev + B_cur) for each matched module, and the file is sorted on the way
 out.
 
-**Fold shards.** `foldTestCoverage` unions the records of a
-sharded run, in any order, O(sum of shard sizes). It refuses shards with
-differing instrumentation or commit, a test in two shards, and a module with
+**Fold shards.** `combineRecords` unions the records of a sharded run, coverage
+and case parts, in the native addon: O(sum of shard bytes), reading nothing but
+the shards. The shards are taken in code-unit order of their paths, so the
+record is the same bytes whatever order they are named in. It refuses shards
+with differing instrumentation or commit, a test in two shards, and a module with
 two source digests. Where shards disagree about whether a module could be
 read, the instrumented rows answer: a shard that could not instrument a module
 has no rows for the tests another shard recorded running it, and the tests that
@@ -1066,9 +1070,9 @@ test, is refused at open.
 | tests covering a line | O(M + B²) | `coveringTests` |
 | fold worker journals | O(journal bytes) | the reporter of a runner seam |
 | record drained subjects | O(hits + modules reported) | `recordExecution` |
-| merge with the previous record | O(M_prev + M_cur + Σ B) | `mergeCoverage` |
-| re-cut an unobserved module's rows | O(module length) | `mergeCoverage`, per changed module |
-| fold shards | O(Σ shard rows) | `foldTestCoverage` |
+| lay over the previous record | O(M_prev + M_cur + Σ B) | `landedCoverage` |
+| re-cut an unobserved module's rows | O(module length) | `landedCoverage`, per changed module |
+| fold shards | O(Σ shard bytes) | `combineRecords` |
 | encode | O(r log r) | `writeTestCoverage` |
 
 **Further:** [`selecting.md`](selecting.md) for what a run does with the

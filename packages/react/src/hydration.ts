@@ -1,7 +1,9 @@
-import { hasFiber } from './fiber.js';
+import { containerFiber, fiberRootOf, findReactContainers } from './fiber.js';
+import { rootCommitted } from './root-state.js';
 
 /**
- * Waiting for React to commit into a document that was rendered on the server.
+ * Waiting for React to hydrate the document a server rendered, and saying so
+ * when it has not.
  *
  * `load` is not a hydration barrier and neither is a quiet network. A
  * server-rendered route arrives complete — every element, every string, the
@@ -16,21 +18,28 @@ import { hasFiber } from './fiber.js';
  * graph, so the wire is still busy long after `load` and hydration lands while
  * the driver is waiting on it. Every route after that is served from memory: the
  * wire settles at once, the driver reads immediately, and the read happens
- * before the commit. So the subject that attributes cleanly is the first one,
- * and the failure arrives on subject two and stays — which reads as a property
- * of those pages rather than of the order they were visited in.
+ * before the commit. A machine running several worlds at once widens the same
+ * window from the other side: hydration simply finishes later.
  *
- * Nothing about that is loud. The document is right, the image is right, the
- * geometry is right; the only casualty is provenance, and its absence looks
- * exactly like a production build with no development metadata. That is the
- * failure this exists to close, and closing it is a wait rather than a
- * detection: at the moment the driver looks, a page that has not started
- * hydrating and a page that never will are the same page.
+ * **The fiber count is not the answer.** React attaches a fiber to a host node
+ * when it *completes* the node during render, before anything commits. A shell
+ * that suspends — on the RSC payload, a lazy chunk, a promise read outside any
+ * `<Suspense>` — leaves the nodes rendered before it carrying fibers while the
+ * root stays dehydrated, and the count holds still for as long as the shell
+ * does. A wait that took a steady count for a finished commit released the
+ * capture there, and every node past the suspension came back with no
+ * component.
  *
- * So the wait is bounded and the budget is the whole of the cost. A page with no
- * client React pays it once per subject and is then read exactly as before —
- * which is why the caller only runs this when the run has already declared it
- * expects to read fibers.
+ * The answer is React's own: a root records whether it has committed, on the
+ * state of its current `HostRoot`. So the wait finds the roots that reach the
+ * subject and reads that record, and it reports what it read instead of what it
+ * hoped. Nothing about a missing component is loud — the document is right, the
+ * image is right, the geometry is right — so a capture that could not read one
+ * has to say why, or its absence looks exactly like a production build.
+ *
+ * Dehydrated Suspense boundaries under a hydrated root are not waited for here.
+ * `awaitSuspense` reads them as still arriving, and a subject still arriving is
+ * refused (ADR-0037).
  */
 
 export interface HydrationWaitOptions {
@@ -43,111 +52,112 @@ export interface HydrationWaitOptions {
   readonly timeoutMs?: number;
   /** How often to re-read. Defaults to 16, one frame. */
   readonly pollMs?: number;
-  /**
-   * Consecutive reads at an unchanged fiber count before the document counts as
-   * hydrated. Defaults to 2.
-   *
-   * The same guard `awaitSuspense` keeps, against the same shape of mistake.
-   * Hydration is not one commit: React attaches the root, commits part of the
-   * tree, and commits the rest as the streamed payload and the lazy chunks
-   * arrive. A barrier that returned on the first fiber it saw would release the
-   * capture into the middle of that — which is not a failure, it is worse. It
-   * is a subject read with two hundred of its nodes attributed and eight hundred
-   * not, where the missing ones look like components that were never written in
-   * a way this tool can see. Measured on two routes of one site, released on
-   * first sight: 63 and 94 nodes carried provenance where a settled read of the
-   * same pages carried 870 and 1693.
-   */
-  readonly confirmations?: number;
 }
 
+export type HydrationState =
+  /** Every React root that reaches the subject had committed. Components read off it are observed. */
+  | 'hydrated'
+  /**
+   * A root reaches the subject and React had not committed it when the wait
+   * ran out: still dehydrated, or created and not yet rendered. The fibers a
+   * component is read from are missing or work in progress, and nothing is
+   * read off them (`resolveProvenance` answers `'uncommitted'`). An effect that
+   * runs after hydration can still change the image, so a collector refuses a
+   * subject in this state, as it refuses one still showing a fallback.
+   */
+  | 'hydrating'
+  /**
+   * No React root reached the subject. Either React does not render it, or its
+   * client had not created a root by the time the wait ran out: at the moment
+   * of reading those are the same page, and this does not pretend to pick one.
+   */
+  | 'unrooted';
+
 /**
- * What a wait for React to finish hydrating found, whether or not it did.
+ * What a wait for React to hydrate the subject found, whether or not it did.
  *
  * Returned rather than thrown on, because a page that never hydrates is a
- * result and not an error: a collector reads `hydrated` to decide whether the
- * DOM it is about to capture is the one React committed or the one the server
- * sent, and reports the difference instead of guessing. The remaining fields
- * are the evidence behind that answer: how many fibers were found, and how
- * long the wait actually took before it settled or gave up.
+ * result and not an error. A collector reads `state` to say whether the
+ * components it read are observations, and carries the other two answers to
+ * the report instead of letting them look like a page that has no components.
  */
 export interface HydrationSettlement {
-  /** True when the fiber count at or under the root came to rest above zero. */
-  readonly hydrated: boolean;
-  /** Nodes carrying a fiber at the last read. */
-  readonly fibers: number;
+  readonly state: HydrationState;
+  /** React roots that reached the subject at the last read. */
+  readonly roots: number;
+  /** Of those, the ones React had not committed. Zero unless `state` is `hydrating`. */
+  readonly pending: number;
   /** How long this actually waited, in milliseconds. */
   readonly waitedMs: number;
 }
 
 const DEFAULT_HYDRATION_TIMEOUT_MS = 2_000;
 const DEFAULT_POLL_MS = 16;
-const DEFAULT_CONFIRMATIONS = 2;
 
 /**
- * Wait until React has committed at or under `node`, and say whether it did.
+ * Wait until every React root that reaches `node` has committed, and say what
+ * was read if one never does.
  *
- * Returns rather than throws, and a `false` is a legitimate answer rather than a
- * failure: a route table may hold a page this project's adapter was never going
- * to read. The caller decides what that means — here it means the capture goes
- * ahead with no provenance, which is what it did before this wait existed.
+ * A root reaches the subject from one of three places, and each is a case a
+ * real page produces. Above it: the container of the root it was rendered in,
+ * which is the `Document` itself for an app that hydrates the whole page.
+ * Below it: a root mounted inside the subject. On it: the fiber of a subject a
+ * portal moved out of its root's container.
  */
 export async function awaitHydration(
   node: Node,
   options: HydrationWaitOptions = {},
 ): Promise<HydrationSettlement> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_HYDRATION_TIMEOUT_MS;
-  const pollMs = options.pollMs ?? DEFAULT_POLL_MS;
-  const confirmations = options.confirmations ?? DEFAULT_CONFIRMATIONS;
+  const pollMs = Math.max(1, options.pollMs ?? DEFAULT_POLL_MS);
   const started = now();
 
-  let last = -1;
-  let steady = 0;
-
   for (;;) {
-    const fibers = fiberCount(node);
+    const roots = rootsReaching(node);
+    let pending = 0;
+    for (const root of roots) if (!rootCommitted(root)) pending += 1;
 
-    // Zero never confirms. A document React has not reached yet holds still at
-    // zero for as long as anybody watches it, and a barrier that let a steady
-    // count through without asking whether the count was anything would report
-    // every static page as hydrated the moment it was read twice.
-    if (fibers > 0 && fibers === last) {
-      steady += 1;
-      if (steady >= confirmations) return { hydrated: true, waitedMs: now() - started, fibers };
-    } else {
-      steady = fibers > 0 ? 1 : 0;
+    const waitedMs = now() - started;
+    if (roots.size > 0 && pending === 0) {
+      return { state: 'hydrated', roots: roots.size, pending: 0, waitedMs };
     }
-    last = fibers;
+    if (waitedMs >= timeoutMs) {
+      return { state: roots.size === 0 ? 'unrooted' : 'hydrating', roots: roots.size, pending, waitedMs };
+    }
 
-    const waited = now() - started;
-    if (waited >= timeoutMs) return { hydrated: fibers > 0, waitedMs: waited, fibers };
-
-    await sleep(Math.min(pollMs, Math.max(1, timeoutMs - waited)));
+    await sleep(Math.min(pollMs, Math.max(1, timeoutMs - waitedMs)));
   }
 }
 
-/**
- * How many nodes at or under this one React has committed into.
- *
- * Counted rather than sought, because the question is whether hydration has
- * finished and not whether it has started — and the only evidence of finishing
- * available from outside React is that the number stopped moving. The whole
- * subtree is visited on every poll, which is what the budget is really buying:
- * an expando read per element, measured in tens of microseconds over a
- * thousand-element route, against a navigation that costs tens of milliseconds.
- */
-function fiberCount(node: Node): number {
-  let found = hasFiber(node) ? 1 : 0;
+/** Every `FiberRoot` reaching the subject, once each. */
+function rootsReaching(node: Node): Set<object> {
+  const found = new Set<object>();
+  const add = (root: unknown): void => {
+    if (typeof root === 'object' && root !== null) found.add(root);
+  };
+
+  // The subject itself and every ancestor, up to and including the Document,
+  // which `querySelectorAll` can never return.
+  for (let at: Node | null = node; at !== null; at = parentOf(at)) {
+    add(containerFiber(at)?.stateNode);
+  }
 
   const scope = node as Node & Partial<ParentNode>;
-  if (typeof scope.querySelectorAll !== 'function') return found;
-
-  const all = scope.querySelectorAll('*');
-  for (let index = 0; index < all.length; index += 1) {
-    const element = all[index];
-    if (element !== undefined && hasFiber(element)) found += 1;
+  if (typeof scope.querySelectorAll === 'function') {
+    for (const container of findReactContainers(scope as ParentNode)) {
+      add(containerFiber(container)?.stateNode);
+    }
   }
+
+  add(fiberRootOf(node));
   return found;
+}
+
+/** Up the tree, crossing out of a shadow root to its host. */
+function parentOf(node: Node): Node | null {
+  if (node.parentNode !== null) return node.parentNode;
+  const host = (node as Partial<ShadowRoot>).host;
+  return host ?? null;
 }
 
 function now(): number {
