@@ -2,10 +2,11 @@ import { PNG } from 'pngjs';
 import type { DiffRegion } from '@variance-authority/core/attribute';
 import { DEFAULT_POLICY, type DiffPolicy, type RowSpan } from '@variance-authority/raster';
 import { alignRows, type AlignedRows } from './align.js';
-import { drawSheet, type Gap, type Mark, type Moved, type SheetRow } from './change-draw.js';
+import { blankColumns, inked, inkOf, spacingRow, texted } from './change-ink.js';
+import { composeSheet, drawWindow, type ChangeLabels, type Gap, type Mark, type Moved, type SheetRow } from './change-draw.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
-export { CHANGE_COLOURS, changeLayout } from './change-draw.js';
+export { CHANGE_COLOURS, changeLayout, type ChangeLabels } from './change-draw.js';
 
 /**
  * The change at its own size: what a reviewer reads in place of two pages.
@@ -22,16 +23,22 @@ export { CHANGE_COLOURS, changeLayout } from './change-draw.js';
  * each other, read through the row alignment. An inserted row stands opposite
  * stripes on the before side and a removed one opposite stripes on the after
  * side, so everything under an insertion sits beside itself and reads as
- * unchanged. What changed is outlined on both sides, red on before and green on
- * after, around the pages' own pixels. Rows that only moved are not outlined:
- * the gutter beside them carries a bar and a chevron the way they went, and a
- * gap that only got taller is neither outlined nor cut out while anything else
- * changed.
+ * unchanged. What changed is washed on both sides, red on before and green on
+ * after, with an edge just outside it, over the pages' own pixels. Rows that
+ * only moved are not marked on the panels: the gutter beside them carries an
+ * arrow the way they went, and a gap that only got taller is neither marked
+ * nor cut out while anything else changed.
+ *
+ * Every window is as wide as the widest and framed on a canvas, under a label
+ * per column, so the sheet reads as one picture with its sources named.
  */
 export interface ChangeImages {
   /** The whole difference: the after image dimmed with the changed pixels in red. */
   readonly diff: Buffer;
-  /** The cuts, before beside after, one under another. Absent when there was no region to cut. */
+  /**
+   * The cuts, before beside after, one under another and all one width, under
+   * a label per column. Absent when there was no region to cut.
+   */
   readonly change?: Buffer;
 }
 
@@ -44,12 +51,14 @@ const MIN_WIDTH = 320;
 const MAX_ROWS = 400;
 /** Cuts per picture. A reviewer reads the largest few and the sentence counts the rest. */
 const MAX_WINDOWS = 3;
-/** Between two cuts. */
-const WINDOW_GAP = { rows: 12, colour: [0x57, 0x60, 0x6a, 0xff] } as const;
 /** How far an outline moves out to find a blank row to run along. */
 const SNAP_ROWS = 12;
-/** Pixels unlike a row's background that a blank row may still hold: a box's two borders and their anti-aliasing. */
-const BORDER_PIXELS = 4;
+/** How far an outline moves out to find the space before or after a word: a long word in body text. */
+const SNAP_COLUMNS = 96;
+/** How far a cut's ends move out to a row with no text: a line of large body text. */
+const SNAP_LINE = 40;
+/** Blank rows kept between a cut's first or last line and its edge. */
+const LINE_MARGIN = 8;
 /**
  * Rows a gap may grow or shrink by and still be rounding: content moved by a
  * fraction of a pixel lands each gap under it a row taller or shorter. A gap
@@ -81,6 +90,8 @@ export function changeImages(
   after: Buffer,
   regions: readonly DiffRegion[],
   policy: DiffPolicy = DEFAULT_POLICY,
+  /** What the sheet says about itself: the subject, and where each side came from. */
+  labels: ChangeLabels = {},
 ): ChangeImages {
   const was = PNG.sync.read(before);
   const now = PNG.sync.read(after);
@@ -97,9 +108,14 @@ export function changeImages(
       displacement(region, rows) &&
       rows!.grown.some((span) => spacing(span) && span.from < region.y + region.height && span.to > region.y),
   );
-  const lost = (span: RowSpan & { readonly at: number }) =>
-    rows!.shrunk.some((shrunk) => shrunk.from === span.from && shrunk.at === span.at);
-  const removed = (rows?.removed ?? []).filter((span) => !lost(span));
+  // A removed run that is only spacing took nothing away: a gap that got
+  // shorter, whether or not the alignment saw it as a run that shrank.
+  const spaced = (span: RowSpan & { readonly at: number }) =>
+    rows!.shrunk.some((shrunk) => shrunk.from === span.from && shrunk.at === span.at) ||
+    Array.from({ length: span.to - span.from }, (_, at) => span.from + at).every((y) =>
+      spacingRow(was, y, span.from - 1, span.to),
+    );
+  const removed = (rows?.removed ?? []).filter((span) => !spaced(span));
   const { width, height } = difference;
   // A gap that only grew or shrank is cut out too, after every change: it is
   // what moved the rows below it, and without it they move for no reason.
@@ -107,18 +123,29 @@ export function changeImages(
     [...changed.map((region) => ({ region, changed: true })), ...gaps.map((region) => ({ region, changed: false }))],
     [
       ...removed.map((span) => ({ span, changed: true })),
-      ...(rows?.removed ?? []).filter((span) => lost(span) && spacing(span)).map((span) => ({ span, changed: false })),
+      ...(rows?.removed ?? []).filter((span) => spaced(span) && spacing(span)).map((span) => ({ span, changed: false })),
     ],
     width,
     height,
   );
   if (windows.length === 0) return { diff };
 
-  const sheets = windows.map((window) => {
-    const sheet = sheetRows(window, rows, was.height, now.height);
-    const [left, right] = columnsFor(window, sheet, was, now, width);
+  const planned = windows.map((found) => {
+    const window = between(found, rows, was, now);
+    const sheet = sheetRows(window, rows, spaced, was.height, now.height);
+    const ink = inkOf([
+      ...sheet.filter((row) => row.before >= 0).map((row) => [was, row.before] as const),
+      ...sheet.filter((row) => row.after >= 0).map((row) => [now, row.after] as const),
+    ]);
+    return { sheet, ink, columns: columnsFor(window, ink, width) };
+  });
+  // Every window is cut as wide as the widest, widened over its own page
+  // rather than padded, so the panels line up down the sheet.
+  const panel = Math.max(...planned.map(({ columns: [left, right] }) => right - left));
+  const cuts = planned.map(({ sheet, ink, columns }) => {
+    const [left, right] = widened(columns, panel, width, ink);
     const marks = marksFor(sheet, changed, removed, was, now, width, left, right);
-    return drawSheet(
+    return drawWindow(
       was,
       now,
       left,
@@ -129,7 +156,49 @@ export function changeImages(
       gapsFor(sheet),
     );
   });
-  return { diff, change: encode(stack(sheets)) };
+  return { diff, change: encode(composeSheet(cuts, panel, labels)) };
+}
+
+/**
+ * Columns `left` to `right` grown evenly to `panel`, or, when every column the
+ * rows hold anything in fits, those columns in the middle of the panel, so a
+ * line of text is not cut at its edge; slid back onto a canvas `width` wide.
+ */
+function widened([left, right]: [number, number], panel: number, width: number, ink: [number, number] | undefined): [number, number] {
+  const grow = panel - (right - left);
+  let from = left - Math.floor(grow / 2);
+  if (ink !== undefined && ink[1] - ink[0] <= panel) from = Math.round((ink[0] + ink[1] - panel) / 2);
+  let to = from + panel;
+  if (from < 0) [from, to] = [0, to - from];
+  if (to > width) [from, to] = [Math.max(0, from - (to - width)), width];
+  return [from, to];
+}
+
+/**
+ * A cut that starts and ends between two lines rather than through one: each
+ * end moves out to the nearest row that runs through no text on either side.
+ */
+function between(window: Window, rows: AlignedRows | undefined, was: DecodedImage, now: DecodedImage): Window {
+  const busy = (y: number) => {
+    const before = rows === undefined ? y : (rows.source[y] ?? -1);
+    return (
+      (y < now.height && texted(now, y, window.left, window.right)) ||
+      (before >= 0 && before < was.height && texted(was, before, window.left, window.right))
+    );
+  };
+  const height = rows === undefined ? Math.max(was.height, now.height) : now.height;
+  let { top, bottom } = window;
+  for (let step = 0; step < SNAP_LINE && top > 0 && busy(top); step += 1) top -= 1;
+  for (let step = 0; step < SNAP_LINE && bottom < height && busy(bottom - 1); step += 1) bottom += 1;
+  // And blank rows between the edge and the first line, so it does not sit on the frame.
+  const clear = (from: number, step: -1 | 1) => {
+    let count = 0;
+    while (count < LINE_MARGIN && from + step * count >= 0 && from + step * count < height && !busy(from + step * count)) count += 1;
+    return count;
+  };
+  for (let step = clear(top, 1); step < LINE_MARGIN && top > 0 && !busy(top - 1); step += 1) top -= 1;
+  for (let step = clear(bottom - 1, -1); step < LINE_MARGIN && bottom < height && !busy(bottom); step += 1) bottom += 1;
+  return { ...window, top, bottom };
 }
 
 /** A region that is only rows a run of identical rows grew by: it moved what follows and changed nothing. */
@@ -216,6 +285,7 @@ interface PlannedRow extends SheetRow {
 function sheetRows(
   window: Window,
   rows: AlignedRows | undefined,
+  spaced: (span: RowSpan & { readonly at: number }) => boolean,
   beforeHeight: number,
   afterHeight: number,
 ): PlannedRow[] {
@@ -228,7 +298,7 @@ function sheetRows(
     let shrank = false;
     for (const span of rows.removed) {
       if (span.at !== y) continue;
-      if (rows.shrunk.some((lost) => lost.from === span.from && lost.at === span.at)) {
+      if (spaced(span)) {
         shrank ||= span.to - span.from > ROUNDING_ROWS;
         continue;
       }
@@ -254,46 +324,9 @@ function sheetRows(
  * rows, so a column of text is not shown at a quarter of its size beside the
  * margins of a 1280-pixel page.
  */
-function columnsFor(
-  window: Window,
-  sheet: readonly PlannedRow[],
-  was: DecodedImage,
-  now: DecodedImage,
-  width: number,
-): [number, number] {
+function columnsFor(window: Window, ink: [number, number] | undefined, width: number): [number, number] {
   if (window.left > 0 || window.right < width || width <= MIN_WIDTH) return [window.left, window.right];
-  const ink = inkOf([
-    ...sheet.filter((row) => row.before >= 0).map((row) => [was, row.before] as const),
-    ...sheet.filter((row) => row.after >= 0).map((row) => [now, row.after] as const),
-  ]);
   return ink === undefined ? [window.left, window.right] : padded(ink[0], ink[1], width);
-}
-
-/** The columns where any of `rows` differs from its own leftmost pixel: where it holds something. */
-function inkOf(rows: readonly (readonly [DecodedImage, number])[]): [number, number] | undefined {
-  let left = Infinity;
-  let right = -Infinity;
-  for (const [image, y] of rows) {
-    const start = y * image.width * 4;
-    const background = image.data.subarray(start, start + 4);
-    const holds = (x: number) => {
-      const at = start + x * 4;
-      return (
-        image.data[at] !== background[0] ||
-        image.data[at + 1] !== background[1] ||
-        image.data[at + 2] !== background[2] ||
-        image.data[at + 3] !== background[3]
-      );
-    };
-    let x = 0;
-    while (x < image.width && !holds(x)) x += 1;
-    if (x === image.width) continue;
-    left = Math.min(left, x);
-    let end = image.width - 1;
-    while (end >= Math.max(x, right) && !holds(end)) end -= 1;
-    right = Math.max(right, end + 1);
-  }
-  return left < right ? [left, right] : undefined;
 }
 
 /**
@@ -324,13 +357,19 @@ function marksFor(
       row.canvas >= region.y && row.canvas < region.y + region.height ? [index] : [],
     );
     if (indices.length === 0) continue;
+    const own = (side: Mark['side']) => indices.filter((index) => sheet[index]![side] >= 0);
+    const image = (side: Mark['side']) => (side === 'before' ? was : now);
+    // An inserted row is marked across the page; outline what is on it, and
+    // where one side's rows are one colour, where the other side's are.
+    const ink = (side: Mark['side']) => inkOf(own(side).map((index) => [image(side), sheet[index]![side]] as const));
     for (const side of ['before', 'after'] as const) {
-      const own = indices.filter((index) => sheet[index]![side] >= 0);
-      const image = side === 'before' ? was : now;
-      // An inserted row is marked across the page; outline what is on it.
-      const columns: [number, number] =
-        region.width >= width ? (inkOf(own.map((index) => [image, sheet[index]![side]] as const)) ?? [0, width]) : [region.x, region.x + region.width];
-      add(side, own, columns);
+      // A region starts at the first pixel that differs, often inside a letter:
+      // its edges move out to the blank columns either side of the word.
+      const columns =
+        region.width >= width
+          ? (ink(side) ?? ink(side === 'before' ? 'after' : 'before') ?? [0, width])
+          : blankColumns(image(side), own(side).map((index) => sheet[index]![side]), region.x, region.x + region.width, SNAP_COLUMNS);
+      add(side, own(side), columns);
     }
   }
 
@@ -338,6 +377,7 @@ function marksFor(
     const indices = sheet.flatMap((row, index) =>
       row.after < 0 && row.before >= span.from && row.before < span.to ? [index] : [],
     );
+    // A band of one colour is content too: it is not spacing, which `spaced` took out.
     add('before', indices, inkOf(indices.map((index) => [was, sheet[index]!.before] as const)) ?? [0, width]);
   }
 
@@ -359,24 +399,6 @@ function marksFor(
     }
     return { ...mark, top, bottom };
   });
-}
-
-/**
- * Whether row `y` holds anything between columns `from` and `to`: more than a
- * border's worth of pixels unlike the colour most of that stretch is.
- */
-function inked(image: DecodedImage, y: number, from: number, to: number): boolean {
-  const end = Math.min(to, image.width);
-  if (end <= from) return false;
-  const words = new Uint32Array(Uint8Array.from(image.data.subarray((y * image.width + from) * 4, (y * image.width + end) * 4)).buffer);
-  const counts = new Map<number, number>();
-  let background = words[0]!;
-  for (const word of words) {
-    const count = (counts.get(word) ?? 0) + 1;
-    counts.set(word, count);
-    if (count > counts.get(background)!) background = word;
-  }
-  return words.length - counts.get(background)! > BORDER_PIXELS;
 }
 
 /** Outlines on one side that overlap or nearly touch, as one. */
@@ -418,8 +440,14 @@ function movedFor(sheet: readonly PlannedRow[], rows: AlignedRows | undefined, m
     if (row.before < 0 || row.after < 0 || marks.some((mark) => index >= mark.top && index < mark.bottom)) return;
     const span = rows.shifted.find((shift) => row.after >= shift.from && row.after < shift.to);
     if (span === undefined) return;
+    // Runs the same way with no outline between them are one arrow: a row the
+    // alignment left unpaired between two shifts is not a second movement.
     const last = out.at(-1);
-    if (last !== undefined && last.bottom === index && last.down === span.by > 0) out[out.length - 1] = { ...last, bottom: index + 1 };
+    const joins =
+      last !== undefined &&
+      last.down === span.by > 0 &&
+      !marks.some((mark) => mark.top < index && mark.bottom > last.bottom);
+    if (joins) out[out.length - 1] = { ...last, bottom: index + 1 };
     else out.push({ top: index, bottom: index + 1, down: span.by > 0 });
   });
   return out;
@@ -436,25 +464,6 @@ function gapsFor(sheet: readonly PlannedRow[]): Gap[] {
     else out.push({ top: index, bottom: index + 1 });
   });
   return out;
-}
-
-/** Sheets top to bottom, left-aligned on white, gaps between them. */
-function stack(sheets: readonly DecodedImage[]): DecodedImage {
-  const width = Math.max(...sheets.map((sheet) => sheet.width));
-  const height = sheets.reduce((sum, sheet) => sum + sheet.height, 0) + WINDOW_GAP.rows * (sheets.length - 1);
-  const data = new Uint8Array(width * height * 4).fill(0xff);
-  let y = 0;
-  sheets.forEach((sheet, index) => {
-    if (index > 0) {
-      for (let at = y * width * 4; at < (y + WINDOW_GAP.rows) * width * 4; at += 4) data.set(WINDOW_GAP.colour, at);
-      y += WINDOW_GAP.rows;
-    }
-    for (let row = 0; row < sheet.height; row += 1) {
-      data.set(sheet.data.subarray(row * sheet.width * 4, (row + 1) * sheet.width * 4), (y + row) * width * 4);
-    }
-    y += sheet.height;
-  });
-  return { width, height, data };
 }
 
 function encode(image: DecodedImage): Buffer {

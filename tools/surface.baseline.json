@@ -1780,6 +1780,7 @@
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
+        "glyphs",
         "mark.svg"
       ],
       "engines": {
@@ -1789,6 +1790,7 @@
     "names": {
       ".": {
         "ChangeImages": "interface",
+        "ChangeLabels": "interface",
         "DeclaredPainter": "interface",
         "DecodedImage": "interface",
         "PngDecoder": "interface",
