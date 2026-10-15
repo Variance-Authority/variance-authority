@@ -1,8 +1,9 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
 /**
@@ -95,6 +96,12 @@ describe('variance ask uses over a member', () => {
       'packages/lib/src/native.ts:5 — Scanner',
       'packages/lib/src/native.ts:9 — Later',
     ]);
+
+    // Crossed with another question, the file declaring it twice is one file
+    // at both lines.
+    const crossed = await run(['ask', 'intersection', 'uses --name resolveThings', 'discover --path native']);
+    expect(crossed.code).toBe(EXIT_CLEAN);
+    expect(crossed.out).toContain('packages/lib/src/native.ts — 1: lines 5, 9 · 2: the file');
   });
 
   it('answers a name that is exported and a member with its imports, then its declarations', async () => {
@@ -113,5 +120,17 @@ describe('variance ask uses over a member', () => {
     expect(member).toBeGreaterThan(imported);
     expect(out.slice(member)).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
     expect(out.slice(member)).toContain(ROUTE);
+  });
+
+  it('refuses a name nothing publishes and says the member declarations went unread when no source index is published', async () => {
+    const root = checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    rmSync(sourceIndexPath(root));
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'resolveThings']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(out).toBe('');
+    expect(err).toContain('`resolveThings` is not published by this workspace, and no published name contains it');
+    expect(err).toContain('Members by this name were not read: no source index is published; run `variance index`.');
   });
 });
