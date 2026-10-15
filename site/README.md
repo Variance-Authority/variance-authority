@@ -42,8 +42,11 @@ yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 Every page `sitemap.xml` lists is a subject of the `site` check in
 `.github/workflows/variance.yml`, read from the build `yarn start` serves:
 `variance.config.json` here, and the collector in `variance/routes.mjs`. A page
-added to `NAVIGATION` is watched without an edit there. To run it against your
-own build, start the server and, from the repository root:
+added to `NAVIGATION` is watched without an edit there. The check builds with
+`yarn build --mode development`: React's development build, nothing minified,
+so a change names the component that wrote it, `DocsPage` at its line, and not
+a minified `wo`. To run it against your own build, build it that way, start the
+server and, from the repository root:
 
 ```bash
 node packages/cli/dist/bin.js run --config site/variance.config.json
