@@ -87,7 +87,7 @@ selector, verdict or exit code reads it.**
    builds can cut one module differently, and an edit shifts a region down the
    file. The case index already names a region by address — name path and
    structural path, told apart by occurrence, and kind — and `caseMotion` joins
-   two records by it (`addressKey` in `merge-carry.ts`). The ratio uses the
+   two records by it (`addressKey` in `carried-rows.ts`). The ratio uses the
    same join and no second one. A region one suite recorded and no other
    suite's cut matches is counted under its own suite, and the report says how
    many regions did not join.

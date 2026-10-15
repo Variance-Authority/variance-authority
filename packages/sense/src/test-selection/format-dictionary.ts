@@ -1,111 +1,13 @@
 import { codeUnitOrder } from './instrumented-modules.js';
-import type { TestCoverageView } from './format-view.js';
-import type { CoverageModule, CoverageTest } from './index.js';
-
-/**
- * The output's module order, as one integer a row: a previous row number as
- * itself, and a module the run touched or re-cut as the ones' complement of
- * its position in the objects beside it.
- *
- * Four bytes is the whole of what a carried module costs. Everything the layer
- * does between here and the columns reads this array, and only it.
- */
-export type LayeredOrder = Int32Array;
-
-/** The id columns a carried row or a carried test names its strings through. */
-export interface NamingColumns {
-  readonly modulePath: Uint32Array;
-  readonly moduleSource: Uint32Array;
-  readonly moduleBlocks: Uint32Array;
-  readonly blockName: Uint32Array;
-  readonly blockPath: Uint32Array;
-  readonly blockDigest: Uint32Array;
-  readonly testPath: Uint32Array;
-  readonly testPreconditions: Uint32Array;
-  readonly preconditionName: Uint32Array;
-  readonly preconditionDigest: Uint32Array;
-}
 
 /** The dictionary the output gets, and the two ways to name a string in it. */
-export interface LayeredDictionary {
+export interface MergedDictionary {
   /** A previous string id to its new one. Meaningless for an id nothing kept. */
   readonly remap: Uint32Array;
   /** The new id of a string an object-backed row or a test names. */
   readonly id: (value: string) => number;
   readonly blob: Buffer;
   readonly offsets: Uint32Array;
-}
-
-/**
- * The output's dictionary, built without decoding the strings it carries.
- *
- * A layer keeps almost every string the previous snapshot held and adds a few
- * hundred. Deciding which are kept is a pass over the id columns, and an id is
- * an integer; placing the entrants among them is a merge of two ordered runs,
- * and the run that dominates the result is compared and copied as UTF-8 and
- * never becomes a string at all. That is what makes the whole layer cheap: the
- * dictionary is the one part of a snapshot that a rewrite has to touch in full.
- */
-export function layeredDictionary(input: {
-  readonly view: TestCoverageView;
-  readonly rows: LayeredOrder;
-  readonly objects: readonly CoverageModule[];
-  /** The tests the output names as objects. */
-  readonly tests: readonly CoverageTest[];
-  /** The previous test rows the output carries as they are stored, its file and preconditions with it. */
-  readonly carriedTests: readonly number[];
-  readonly instrumentation: string;
-  readonly commit: string | undefined;
-  readonly columns: NamingColumns;
-}): LayeredDictionary {
-  const { view, rows, objects, tests, carriedTests, columns } = input;
-  const { modulePath, moduleSource, moduleBlocks, blockName, blockPath, blockDigest } = columns;
-  const { testPath, testPreconditions, preconditionName, preconditionDigest } = columns;
-  const current = { instrumentation: input.instrumentation, commit: input.commit };
-
-  // Which previous strings the output still names. No string is made to answer
-  // that: marking is a pass over the id columns, and an id is an integer.
-  const stored = view.dictionary();
-  const marked = new Uint8Array(stored.offsets.length - 1);
-  for (const row of rows) {
-    if (row < 0) continue;
-    marked[modulePath[row]!] = 1;
-    marked[moduleSource[row]!] = 1;
-    for (let block = moduleBlocks[row]!; block < moduleBlocks[row + 1]!; block += 1) {
-      marked[blockName[block]!] = 1;
-      marked[blockPath[block]!] = 1;
-      marked[blockDigest[block]!] = 1;
-    }
-  }
-  for (const test of carriedTests) {
-    marked[testPath[test]!] = 1;
-    for (let at = testPreconditions[test]!; at < testPreconditions[test + 1]!; at += 1) {
-      marked[preconditionName[at]!] = 1;
-      marked[preconditionDigest[at]!] = 1;
-    }
-  }
-  // Everything the object-backed side names. Small, because the object-backed
-  // side is what this run actually looked at.
-  const freshValues = new Set<string>();
-  freshValues.add(current.instrumentation);
-  if (current.commit !== undefined) freshValues.add(current.commit);
-  for (const test of tests) {
-    freshValues.add(test.file);
-    for (const precondition of test.preconditions) {
-      freshValues.add(precondition.name);
-      freshValues.add(precondition.digest);
-    }
-  }
-  for (const module of objects) {
-    freshValues.add(module.file);
-    freshValues.add(module.sourceDigest);
-    for (const block of module.blocks) {
-      freshValues.add(block.name);
-      freshValues.add(block.path);
-      freshValues.add(block.digest);
-    }
-  }
-  return mergedDictionary({ ...stored, marked, fresh: freshValues, string: (id) => view.string(id) });
 }
 
 /**
@@ -120,7 +22,7 @@ export function mergedDictionary(input: {
   readonly marked: Uint8Array;
   readonly fresh: ReadonlySet<string>;
   readonly string: (id: number) => string;
-}): LayeredDictionary {
+}): MergedDictionary {
   const { marked, string } = input;
   const previousOffsets = input.offsets;
   const previousBlob = Buffer.isBuffer(input.blob)

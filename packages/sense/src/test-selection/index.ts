@@ -12,13 +12,8 @@ import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
-import type {
-  SourceAudience,
-  SourceAudienceTest,
-  SourcePoint,
-  SourceRegion,
-} from './at-source.js';
-import { foldTestCoverage, mergeCoverage, type CoverageShard } from './merge.js';
+import { NO_BASE } from './record-base.js';
+import type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion } from './at-source.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import {
   narrowByExecutionFromView,
@@ -71,7 +66,7 @@ export {
   encodeExecutionIndex,
   isEncodedExecutionIndex,
 } from './execution-format.js';
-export { mergeExecutionIndexes } from './execution-merge.js';
+export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
@@ -98,7 +93,7 @@ export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
-export { foldTestCoverage, journeyDivergences, mergeCoverage };
+export { journeyDivergences };
 export {
   CACHE_CONFIG,
   cacheLayers,
@@ -106,6 +101,7 @@ export {
   layeredFiles,
   repositoryLayers,
   rootConfig,
+  writesBase,
   type CacheLayers, type RootConfig,
 } from './cache-layers.js';
 export {
@@ -166,13 +162,17 @@ export {
   type Pruned,
   type UnremovedEntry,
 } from './prune.js';
-// The write path's counterpart to `mergeCoverage`: the same fold, over the
-// columns of the file it is about to write over, not over a decoded model.
-export { layerTestCoverage, layeredCoverage } from './format-layer.js';
+// A run laid over the record at a path: the columns of the file it is about to
+// write over, carried, with this run's rows on top.
+export { layeredCoverage } from './format-layer.js';
+export { recordBase, recordDigestAt } from './record-base.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
 export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
+export { openTestCoverage, type TestCoverageView } from './format-view.js';
+// What a landing of shards reads of the record they combined into, and the coverage it lands.
+export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
 export { BLOCK_KINDS } from './format-layout.js';
 export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
@@ -180,7 +180,7 @@ export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 export { withIndexLock } from './index-lock.js';
 export { landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
-export { followRows } from './case-cuts.js';
+export { followRows, followRowsIn } from './case-cuts.js';
 export { editsBetween } from './region-edit.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
@@ -211,7 +211,6 @@ export {
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
-export type { CoverageShard };
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.
@@ -364,8 +363,7 @@ export interface DeviationOptions {
  * binary artifact, and a consumer who cannot decode it cannot see the evidence
  * its own runs produced, only the two summaries this module chose to compute.
  *
- * It is the counterpart to {@link writeTestCoverage}; `mergeCoverage` and
- * `foldTestCoverage` take and return this same shape between the two.
+ * It is the counterpart to {@link writeTestCoverage}.
  */
 export async function readTestCoverage(file: string): Promise<TestCoverage> {
   return decodeTestCoverage(await readFile(file));
@@ -374,30 +372,34 @@ export async function readTestCoverage(file: string): Promise<TestCoverage> {
 /** {@link readTestCoverage} for bytes already in hand, so a caller reading one record reads it once. */
 export { decodeTestCoverage };
 
+/** A run's coverage as the bytes of a record laid over nothing: the counterpart to {@link decodeTestCoverage}. */
+export { encodeTestCoverage };
+
 /**
  * Write one snapshot where readers will find it, whole or not at all.
  *
- * The counterpart to {@link readTestCoverage}, and the only writer: every seam
- * that records — the Vitest reporter, a journal transport draining a driven
- * page, a job folding shards — lands its result through here. It is a rename
+ * The counterpart to {@link readTestCoverage}: every seam that encodes a
+ * snapshot from cases — the Vitest reporter, a journal transport draining a driven
+ * page — lands its result through here; bytes already encoded, as a combine
+ * writes, land through `writeCoverageBytes`. It is a rename
  * over a temporary file in the same directory, so a reader that opens the path
  * sees the previous snapshot or this one and never the bytes between; a
  * selector reading a half-written file would not fail, it would narrow on a
  * truncated record, and that is the one outcome a writer of this file must make
  * impossible.
  *
- * It does not merge. A caller landing a run over what was already recorded
- * reads the existing file, folds with {@link mergeCoverage}, and writes the
- * result; a caller installing a baseline fetched from elsewhere writes it as it
- * came. Which of those is wanted is the caller's knowledge, and a writer that
- * merged on its own would make the second one impossible.
+ * It does not lay. A caller landing a run over what was already recorded lays
+ * it with {@link layeredCoverage} and writes the bytes; a caller installing a
+ * baseline fetched from elsewhere writes it as it came. Which of those is wanted
+ * is the caller's knowledge, and a writer that laid on its own would make the
+ * second one impossible.
  *
- * `cases` are the case sections the record carries; none when not given.
+ * `cases` are the case sections the record carries; none when not given. The
+ * record names the one its run started from as `cases.base`, and as none when
+ * not given, since what it writes was laid over nothing (`record-base.ts`).
  */
 export async function writeTestCoverage(file: string, coverage: TestCoverage, cases: CaseSections = {}): Promise<void> {
-  const bytes = encodeTestCoverage(coverage);
-  const cased = Object.values(cases).some((part) => part !== undefined);
-  await writeCoverageBytes(file, cased ? withCaseSections(bytes, cases) : bytes);
+  await writeCoverageBytes(file, withCaseSections(encodeTestCoverage(coverage), { base: Buffer.from(NO_BASE), ...cases }));
 }
 
 /**

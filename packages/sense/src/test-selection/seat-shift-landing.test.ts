@@ -169,7 +169,7 @@ describe('a local leg at the mainline commit, over a function written in front o
   it('keeps each older test on the region it ran when the function is named', async () => {
     const { coverage, cases, complete } = await landBoth(NAMED, NAMED_INSERTED);
 
-    // The rows hand the new region the crossings around it (`crossingsAround`),
+    // The rows hand the new region the crossings around it (`around`),
     // a rule for a region no run has been asked about. The case index hands it
     // none of the module's: the module changed text, and the function was not
     // there for any older test to run.

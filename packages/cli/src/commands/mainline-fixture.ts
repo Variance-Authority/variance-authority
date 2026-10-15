@@ -9,7 +9,7 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import {
   caseSectionsAt,
   commitRunsFile,
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
@@ -358,7 +358,7 @@ export async function ranHere(dir: string, at: string): Promise<void> {
 
 /** `index`, kept in the record at `record` the way a run keeps its cases. */
 async function keepCases(record: string, index: ExecutionIndex): Promise<void> {
-  await writeFile(record, withCaseSections(await readFile(record), { index: encodeExecutionIndex(index) }));
+  await writeFile(record, withCaseSections(await readFile(record), { index: encodeAsSetExecutionIndex(index) }));
 }
 
 function casesOf(tests: readonly (typeof DISCOUNTS)[]): ExecutionIndex {

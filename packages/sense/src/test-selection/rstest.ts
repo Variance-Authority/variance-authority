@@ -388,5 +388,4 @@ function array<T>(value: T | readonly T[] | undefined): T[] {
   return value === undefined ? [] : Array.isArray(value) ? [...value] : [value as T];
 }
 
-export { mergeCoverage } from './merge.js';
 export { SELECTION_LOADER } from './rstest-loaders.js';

@@ -264,11 +264,11 @@ export type CaseLanding =
   /** `shards` shards' cases were laid into the record at `laid`, in the order they were named. */
   | { readonly laid: string; readonly shards: number }
   /**
-   * A shard that finished a test file kept no cases this build can read, so
-   * the record at `unanswered` can answer for none of that file's cases.
+   * Shards that finished a test file kept no cases this build can read, so
+   * the record at `unanswered` can answer for none of those files' cases.
    * `removed` says whether it held any to drop.
    */
-  | { readonly unanswered: string; readonly shard: string; readonly removed: boolean };
+  | { readonly unanswered: string; readonly shards: readonly string[]; readonly removed: boolean };
 
 /**
  * The case sections of `record` once a landing lays its shards' cases into it,
@@ -345,7 +345,7 @@ export function landCases(
       laid += 1;
     } else if (run.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);
-      return { landing: { unanswered: record, shard: shard.path, removed }, sections: {} };
+      return { landing: { unanswered: record, shards: [shard.path], removed }, sections: {} };
     }
   }
   return { landing: { laid: record, shards: laid }, sections: laid > 1 ? lastOfEveryShard(sections, ran) : sections };

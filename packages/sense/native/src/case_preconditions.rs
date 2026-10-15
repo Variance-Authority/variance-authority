@@ -49,9 +49,26 @@ pub fn heard_across(held: Option<Vec<Precondition>>, said: Option<Vec<Preconditi
     }
 }
 
-/// Two runs of one case as one row, resolved as one run's calls are. `preconditionsAcross`.
+/// Two runs of one case as one row, resolved as one run's calls are. A value
+/// both said is kept at the site that sorts first, its file in code-unit order
+/// and then its line, so the row does not depend on which run came first.
 pub fn across(before: Option<Vec<Precondition>>, after: Option<Vec<Precondition>>) -> Option<Vec<Precondition>> {
-    heard_across(before, after).map(resolve)
+    heard_across(before, after).map(|mut said| {
+        said.sort_by(|left, right| site_order(&left.site, &right.site));
+        resolve(said)
+    })
+}
+
+/// Sites as `file:line`, by file in code-unit order, then by line as a number.
+fn site_order(left: &str, right: &str) -> std::cmp::Ordering {
+    let split = |site: &str| -> (String, Option<u64>) {
+        match site.rfind(':') {
+            Some(at) => (site[..at].to_owned(), site[at + 1..].parse().ok()),
+            None => (site.to_owned(), None),
+        }
+    };
+    let ((left_file, left_line), (right_file, right_line)) = (split(left), split(right));
+    order::code_unit(&left_file, &right_file).then(left_line.cmp(&right_line)).then_with(|| order::code_unit(left, right))
 }
 
 /// The calls with each site named from the checkout. `checkoutSaid`.
@@ -282,5 +299,13 @@ mod tests {
     fn keeps_the_first_site_of_a_value_said_twice() {
         let row = resolve(vec![said("n", Value::from("x"), "b:2", 1), said("n", Value::from("x"), "a:9", 1)]);
         assert_eq!(row, vec![said("n", Value::from("x"), "b:2", 1)]);
+    }
+
+    #[test]
+    fn keeps_a_value_two_runs_said_at_the_site_that_sorts_first_whichever_ran_first() {
+        let (one, two) = (vec![said("n", Value::from("x"), "b.ts:10", 1)], vec![said("n", Value::from("x"), "b.ts:9", 1), said("n", Value::from("x"), "c.ts:1", 1)]);
+        let forward = across(Some(one.clone()), Some(two.clone()));
+        assert_eq!(forward, across(Some(two), Some(one)));
+        assert_eq!(forward, Some(vec![said("n", Value::from("x"), "b.ts:9", 1)]));
     }
 }

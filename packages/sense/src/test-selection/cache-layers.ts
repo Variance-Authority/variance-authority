@@ -45,7 +45,7 @@
 // compass: variance-authority.reach
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -224,6 +224,23 @@ export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
  */
 export function repositoryLayers(root: string, cacheRoot?: string): CacheLayers {
   return cacheLayers(repositoryRoot(root), cacheRoot);
+}
+
+/**
+ * Whether writing `file` from the checkout these `layers` are of would write
+ * the cached base its runs are laid over: in a worktree, a file in the
+ * primary checkout's layer and not in its own. A worktree's runs read through
+ * the base and lay over it in their own layer, and never write it, so a writer
+ * handed such a path by name refuses it. In the primary checkout the base is
+ * its own layer, and nothing is.
+ */
+export function writesBase(layers: CacheLayers, file: string): boolean {
+  if (layers.top === layers.base) return false;
+  const within = (dir: string) => {
+    const path = relative(dir, resolve(file));
+    return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+  };
+  return within(layers.base) && !within(layers.top);
 }
 
 /** The layers to read for one artifact, nearest first; one entry in the primary checkout. */

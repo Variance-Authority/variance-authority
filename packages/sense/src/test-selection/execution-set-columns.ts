@@ -4,9 +4,10 @@ import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js
 import { PRECONDITIONS_COLUMN, UNHEARD } from './case-precondition-column.js';
 import { LINES_COLUMN, LINES_OFFSETS, type LinesTable } from './case-lines.js';
 import type { ExecutionTest } from './reverse.js';
+import { LAYOUT } from './record-layout.js';
 
 /** The version that recorded the set of cases that loaded each region, read as the flag its set implies. */
-export const LOADED_SETS_FORMAT = 2;
+export const LOADED_SETS_FORMAT = LAYOUT.cases.loadedSets;
 
 /**
  * A set-spelled index as the columns it is stored in, every id still an id.

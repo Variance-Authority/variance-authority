@@ -6,6 +6,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import { instrumentationId } from '../instrument/index.js';
 import { lastCaseRunOf } from './case-landing.js';
 import { caseSectionsAt, keepsCases } from './case-record.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -75,13 +76,13 @@ it('keeps no cases in the record of a run that recorded no case and finished no 
 
   expect(existsSync(coverageFile)).toBe(true);
   expect(keepsCases(coverageFile)).toBe(false);
-  expect(caseSectionsAt(coverageFile)).toEqual({});
+  expect(caseSectionsAt(coverageFile)).toEqual({ base: new Uint8Array(Buffer.from('none')) });
   expect(existsSync(shimDirectory)).toBe(false);
 }, 30_000);
 
 it('leaves the cases an earlier run kept in the record and their layers as they were, and the directory the project already had', async () => {
   const earlier = earlierIndex();
-  await writeTestCoverage(coverageFile, { version: 3, instrumentation: 'earlier', tests: [], modules: [] }, { index: earlier });
+  await writeTestCoverage(coverageFile, { version: 3, instrumentation: instrumentationId('presence'), tests: [], modules: [] }, { index: earlier });
   await mkdir(shimDirectory);
 
   await run(unwrapped);

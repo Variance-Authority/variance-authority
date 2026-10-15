@@ -17,7 +17,7 @@
 use std::ops::Range;
 
 use crate::journey_columns::{self, Decoded};
-use crate::journey_stitch::{decode_set, strings};
+use crate::case_shard::{decode_set, strings};
 
 /// The layouts this reads: `FORMAT`, `UNCASED_FORMAT` and `UNTIMED_FORMAT` in `format-layout.ts`.
 const VERSIONS: [u8; 3] = [10, 9, 8];

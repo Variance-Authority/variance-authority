@@ -45,6 +45,42 @@ pub struct Reconciled {
     /// Each reconciled block's owner among them, from the inventory the order
     /// came from; absent when that inventory names none.
     pub owners: Option<Vec<u32>>,
+    /// The inventory the order came from, and the position in it of each
+    /// shared block, which are the first `kept.len()` of `blocks`.
+    pub base: Option<usize>,
+    pub kept: Vec<u32>,
+}
+
+/// One file's inventories read at the regions they share, as JavaScript holds
+/// them: the shared regions by their place in the base inventory, so a caller
+/// whose regions carry more than a shape finds them again.
+#[napi(object)]
+pub struct ReconciledRegions {
+    /// The inventory the shared regions are read from.
+    pub base: u32,
+    /// The position in the base inventory of each shared region, in order.
+    pub kept: Vec<u32>,
+    /// The region spanning the file, after the shared ones, where a region
+    /// lands on nothing shared.
+    pub whole: Option<Block>,
+    /// `lands[inventory][region]`: the region it reads as, among the shared
+    /// regions and then the whole file.
+    pub lands: Vec<Vec<u32>>,
+}
+
+/// Several inventories of one source text, read at the regions they all hold:
+/// [`reconcile`] for the readings of one file that one run's transforms cut.
+#[napi(catch_unwind)]
+pub fn reconcile_regions(inventories: Vec<Vec<Block>>) -> ReconciledRegions {
+    let borrowed: Vec<&[Block]> = inventories.iter().map(Vec::as_slice).collect();
+    let reconciled = reconcile(&borrowed, &vec![None; borrowed.len()]);
+    let shared = reconciled.kept.len();
+    ReconciledRegions {
+        base: reconciled.base.unwrap_or(0) as u32,
+        whole: reconciled.blocks.into_iter().nth(shared),
+        kept: reconciled.kept,
+        lands: reconciled.lands,
+    }
 }
 
 /// Each kept region's owner, as its position among the kept regions: the
@@ -96,12 +132,14 @@ pub fn reconcile(inventories: &[&[Block]], owners: &[Option<&[u32]>]) -> Reconci
     let base_at = (0..inventories.len()).min_by(|left, right| inventory_order(inventories[*left], inventories[*right]));
     let base = base_at.map(|chosen| inventories[chosen]);
     let mut reconciled_owners = None;
+    let mut from_base = Vec::new();
     if let Some(base) = base {
         let held: Vec<HashSet<&(&Block, u32)>> = keyed.iter().map(|keys| keys.iter().collect()).collect();
         let mut kept = Vec::with_capacity(base.len());
-        for key in repeats(base) {
+        for (position, key) in repeats(base).into_iter().enumerate() {
             if held.iter().all(|other| other.contains(&key)) {
                 at.insert(key, blocks.len() as u32);
+                from_base.push(position as u32);
                 kept.push(Some(blocks.len() as u32));
                 blocks.push(key.0.clone());
             } else {
@@ -132,7 +170,7 @@ pub fn reconcile(inventories: &[&[Block]], owners: &[Option<&[u32]>]) -> Reconci
         // The whole file, where one was added, encloses every region and has no owner.
         known.resize(blocks.len(), NO_OWNER);
     }
-    Reconciled { blocks, lands, owners: reconciled_owners }
+    Reconciled { blocks, lands, owners: reconciled_owners, base: base_at, kept: from_base }
 }
 
 /// Each region with the number of regions of its shape up to it: two callbacks

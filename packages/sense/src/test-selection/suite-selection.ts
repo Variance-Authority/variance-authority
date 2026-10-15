@@ -26,6 +26,11 @@ export interface SuiteSelection {
   readonly cases?: ReadonlyMap<string, readonly string[]>;
   /** Which reading could not be made, when one could not: nothing is skipped. */
   readonly declined?: string;
+  /**
+   * The record the selection read, as the `sha256:` digest of its bytes;
+   * absent when it read none. A shard's record names it (`record-base.ts`).
+   */
+  readonly read?: string;
   /** What a person reads after the count. Never parsed. */
   readonly notes: readonly string[];
 }
@@ -38,6 +43,8 @@ export type SuiteTimes =
   | {
       /** The record the times were read from. */
       readonly recording: string;
+      /** That record, as the `sha256:` digest of its bytes, which a shard's record names (`record-base.ts`). */
+      readonly read?: string;
       /** Repository-relative test file to the milliseconds its runner reported; an untimed file is absent. */
       readonly times: ReadonlyMap<string, number>;
       /** The commit the record was taken at; absent when it has no position. */

@@ -11,7 +11,7 @@
  * It is its own module because it is half the script and it is called once.
  */
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { CrossingSets } from '../dist/test-selection/crossing-sets.js';
 import { blob, column, sections, NO_DURATION, NO_OWNER } from '../dist/test-selection/format-layout.js';
 import {
@@ -26,17 +26,21 @@ import {
   count,
   mb,
   names,
+  pad,
   secs,
   stream,
   verdict,
   watch,
 } from './snapshot-scale-fixture.mjs';
 
-/** Write the snapshot the other arms read. */
-export function buildSnapshot() {
+/**
+ * Write the snapshot the other arms read, or, given `shards`, that many shard
+ * records of it into the directory `FILE` names: test `t` is in shard
+ * `t % shards`, as a sharded CI run would split the same suite.
+ */
+export function buildSnapshot(shards = 0) {
   const blocks = MODULES * BLOCKS;
   const name = names(blocks);
-  const total = name.first.instrumentation + 1;
 
   // The graph, and the closures walked out of it. Same shape as `crossings.mjs`:
   // barrels re-exporting leaves is the mechanism that makes a test reach forty
@@ -113,179 +117,206 @@ export function buildSnapshot() {
   );
   console.log(`  as regions: ${count(pairs * BLOCKS)} crossings`);
 
-  // The pool, and one id per region.
-  const cohort = new Uint32Array(COHORTS * words);
-  const cohortStream = stream(31337);
-  for (let at = 0; at < cohort.length; at += 1) cohort[at] = (cohortStream() * 4294967296) >>> 0;
-  const sets = new CrossingSets(TESTS);
-  const blockSet = new Uint32Array(blocks);
-  const scratch = new Uint32Array(TESTS);
-  const interning = Date.now();
-  for (let module = 0; module < MODULES; module += 1) {
-    const base = module * words;
-    for (let block = 0; block < BLOCKS; block += 1) {
-      const mask = block === 0 ? -1 : ((module * 2654435761 + block) >>> 0) % COHORTS;
-      let held = 0;
-      for (let word = 0; word < words; word += 1) {
-        let bits = reach[base + word];
-        if (mask >= 0) bits &= cohort[mask * words + word];
-        while (bits !== 0) {
-          const low = 31 - Math.clz32(bits & -bits);
-          scratch[held++] = (word << 5) + low;
-          bits &= bits - 1;
-        }
-      }
-      blockSet[module * BLOCKS + block] = sets.intern(scratch.subarray(0, held));
-    }
-    if ((module & 0x3fff) === 0) watch();
-  }
-  // FORMAT 8 names a region's loaders out of the same pool. The fixture has no
-  // separate loaded relation, so every region points at the empty set.
-  const blockLoadedSet = new Uint32Array(blocks).fill(sets.intern(scratch.subarray(0, 0)));
-  const pool = sets.pool();
-  watch();
-  console.log(
-    `pool: ${count(sets.size)} distinct sets for ${count(blocks)} regions in ${secs(Date.now() - interning)}, ` +
-      `${mb(pool.bytes.byteLength)} of containers`,
-  );
-
-  // The dictionary, written as bytes in the order the names already sort into.
-  const lengths = new Uint32Array(total);
-  const write = (at, value) => { lengths[at] = value.length; };
-  for (let at = 0; at < blocks; at += 1) write(name.first.digest + at, name.digest(at));
-  for (let at = 0; at < MODULES; at += 1) write(name.first.modulePath + at, name.modulePath(at));
-  for (let at = 0; at < MODULES; at += 1) write(name.first.blockName + at, name.blockName(at));
-  for (let at = 0; at < BLOCKS; at += 1) write(name.first.blockPath + at, name.blockPath(at));
-  for (let at = 0; at < MODULES; at += 1) write(name.first.sourceDigest + at, name.sourceDigest(at));
-  for (let at = 0; at < TESTS; at += 1) write(name.first.testPath + at, name.testPath(at));
-  write(name.first.instrumentation, name.instrumentation);
-  const stringOffsets = new Uint32Array(total + 1);
-  for (let at = 0; at < total; at += 1) stringOffsets[at + 1] = stringOffsets[at] + lengths[at];
-  const stringBlob = Buffer.allocUnsafe(stringOffsets[total]);
-  const put = (at, value) => { stringBlob.write(value, stringOffsets[at], 'latin1'); };
-  for (let at = 0; at < blocks; at += 1) put(name.first.digest + at, name.digest(at));
-  for (let at = 0; at < MODULES; at += 1) put(name.first.modulePath + at, name.modulePath(at));
-  for (let at = 0; at < MODULES; at += 1) put(name.first.blockName + at, name.blockName(at));
-  for (let at = 0; at < BLOCKS; at += 1) put(name.first.blockPath + at, name.blockPath(at));
-  for (let at = 0; at < MODULES; at += 1) put(name.first.sourceDigest + at, name.sourceDigest(at));
-  for (let at = 0; at < TESTS; at += 1) put(name.first.testPath + at, name.testPath(at));
-  put(name.first.instrumentation, name.instrumentation);
-  watch();
-  console.log(`dictionary: ${count(total)} strings, ${mb(stringBlob.length)} of bytes`);
-
-  const moduleBlocks = new Uint32Array(MODULES + 1);
-  for (let at = 0; at <= MODULES; at += 1) moduleBlocks[at] = at * BLOCKS;
-  const modulePaths = Uint32Array.from({ length: MODULES }, (_, at) => name.first.modulePath + at);
-  const moduleSource = Uint32Array.from({ length: MODULES }, (_, at) => name.first.sourceDigest + at);
-  const moduleInstrumented = new Uint8Array(MODULES).fill(1);
-  const blockOrdinal = new Uint32Array(blocks);
-  const blockKind = new Uint8Array(blocks);
-  const blockOwner = new Uint32Array(blocks);
-  const blockDigest = new Uint32Array(blocks);
-  const blockName = new Uint32Array(blocks);
-  const blockPath = new Uint32Array(blocks);
-  const blockStart = new Uint32Array(blocks);
-  const blockEnd = new Uint32Array(blocks);
-  const blockSource = new Uint8Array(blocks).fill(1);
-  for (let module = 0; module < MODULES; module += 1) {
-    for (let ordinal = 0; ordinal < BLOCKS; ordinal += 1) {
-      const at = module * BLOCKS + ordinal;
-      blockOrdinal[at] = ordinal;
-      blockKind[at] = ordinal === 0 ? 0 : 2;
-      blockOwner[at] = ordinal === 0 ? NO_OWNER : 0;
-      blockDigest[at] = name.first.digest + at;
-      blockName[at] = name.first.blockName + module;
-      blockPath[at] = name.first.blockPath + ordinal;
-      blockStart[at] = ordinal * 3 + 1;
-      blockEnd[at] = ordinal * 3 + 3;
-    }
-  }
-  const testPaths = Uint32Array.from({ length: TESTS }, (_, at) => name.first.testPath + at);
-  watch();
-
-  // The preconditions, which both shipped producers write as one entry per
-  // module the test entered — its path and its source digest. Off by default,
-  // because with them the columns alone are larger than the whole rest of the
-  // file, which is the point the flag exists to show.
-  let testPreconditions = new Uint32Array(TESTS + 1);
-  let preconditionName = new Uint32Array(0);
-  let preconditionDigest = new Uint32Array(0);
-  if (process.env.PRECONDITIONS === '1') {
-    const counted = Date.now();
+  /**
+   * One record holding `tests` (global ids, ascending) and every region's
+   * crossings by them: the whole snapshot, or one shard of it. A shard's sets
+   * are the snapshot's sets cut to its tests, so the shards together hold
+   * exactly the snapshot's crossings.
+   */
+  const write = (file, tests) => {
+    const localOf = new Int32Array(TESTS).fill(-1);
+    tests.forEach((test, local) => { localOf[test] = local; });
+    const instrumentation = name.first.testPath + tests.length;
+    const total = instrumentation + 1;
+    // The pool, and one id per region.
+    const cohort = new Uint32Array(COHORTS * words);
+    const cohortStream = stream(31337);
+    for (let at = 0; at < cohort.length; at += 1) cohort[at] = (cohortStream() * 4294967296) >>> 0;
+    const sets = new CrossingSets(tests.length);
+    const blockSet = new Uint32Array(blocks);
+    const scratch = new Uint32Array(tests.length);
+    const interning = Date.now();
     for (let module = 0; module < MODULES; module += 1) {
       const base = module * words;
-      for (let word = 0; word < words; word += 1) {
-        let bits = reach[base + word];
-        while (bits !== 0) {
-          const low = 31 - Math.clz32(bits & -bits);
-          testPreconditions[(word << 5) + low + 1] += 1;
-          bits &= bits - 1;
+      for (let block = 0; block < BLOCKS; block += 1) {
+        const mask = block === 0 ? -1 : ((module * 2654435761 + block) >>> 0) % COHORTS;
+        let held = 0;
+        for (let word = 0; word < words; word += 1) {
+          let bits = reach[base + word];
+          if (mask >= 0) bits &= cohort[mask * words + word];
+          while (bits !== 0) {
+            const low = 31 - Math.clz32(bits & -bits);
+            const local = localOf[(word << 5) + low];
+            if (local >= 0) scratch[held++] = local;
+            bits &= bits - 1;
+          }
         }
-      }
-    }
-    for (let test = 0; test < TESTS; test += 1) testPreconditions[test + 1] += testPreconditions[test];
-    const entries = testPreconditions[TESTS];
-    watch();
-    preconditionName = new Uint32Array(entries);
-    preconditionDigest = new Uint32Array(entries);
-    watch();
-    const at = testPreconditions.slice(0, TESTS);
-    for (let module = 0; module < MODULES; module += 1) {
-      const base = module * words;
-      for (let word = 0; word < words; word += 1) {
-        let bits = reach[base + word];
-        while (bits !== 0) {
-          const low = 31 - Math.clz32(bits & -bits);
-          const test = (word << 5) + low;
-          preconditionName[at[test]] = name.first.modulePath + module;
-          preconditionDigest[at[test]] = name.first.sourceDigest + module;
-          at[test] += 1;
-          bits &= bits - 1;
-        }
+        blockSet[module * BLOCKS + block] = sets.intern(scratch.subarray(0, held));
       }
       if ((module & 0x3fff) === 0) watch();
     }
+    // FORMAT 8 names a region's loaders out of the same pool. The fixture has no
+    // separate loaded relation, so every region points at the empty set.
+    const blockLoadedSet = new Uint32Array(blocks).fill(sets.intern(scratch.subarray(0, 0)));
+    const pool = sets.pool();
     watch();
     console.log(
-      `preconditions: ${count(entries)} entries ` +
-        `(${count(Math.round(entries / TESTS))} per test), ` +
-        `${mb(entries * 8)} of columns in ${secs(Date.now() - counted)}`,
+      `pool: ${count(sets.size)} distinct sets for ${count(blocks)} regions in ${secs(Date.now() - interning)}, ` +
+        `${mb(pool.bytes.byteLength)} of containers`,
     );
-  }
 
-  const written = Date.now();
-  const bytes = sections({
-    'strings.blob': blob(stringBlob, stringOffsets),
-    'strings.off': column(stringOffsets),
-    'snapshot.instrumentation': column(Uint32Array.of(name.first.instrumentation)),
-    'snapshot.commit': column(new Uint32Array(0)),
-    'tests.path': column(testPaths),
-    'tests.complete': column(new Uint8Array(TESTS).fill(1)),
-    'tests.preconditions': column(testPreconditions),
-    // No runner timed these tests, so every row says so.
-    'tests.duration': column(new Uint32Array(TESTS).fill(NO_DURATION)),
-    'preconditions.name': column(preconditionName),
-    'preconditions.digest': column(preconditionDigest),
-    'modules.path': column(modulePaths),
-    'modules.source': column(moduleSource),
-    'modules.instrumented': column(moduleInstrumented),
-    'modules.blocks': column(moduleBlocks),
-    'blocks.ordinal': column(blockOrdinal),
-    'blocks.kind': column(blockKind),
-    'blocks.owner': column(blockOwner),
-    'blocks.digest': column(blockDigest),
-    'blocks.name': column(blockName),
-    'blocks.path': column(blockPath),
-    'blocks.start': column(blockStart),
-    'blocks.end': column(blockEnd),
-    'blocks.source': column(blockSource),
-    'blocks.set': column(blockSet),
-    'sets.blob': blob(pool.bytes, pool.offsets),
-    'sets.off': column(pool.offsets),
-    'blocks.loadedSet': column(blockLoadedSet),
-  });
-  watch();
-  writeFileSync(FILE, bytes);
-  console.log(`written: ${mb(bytes.length)} to ${FILE} in ${secs(Date.now() - written)}`);
+    // The dictionary, written as bytes in the order the names already sort into.
+    const lengths = new Uint32Array(total);
+    const size = (at, value) => { lengths[at] = value.length; };
+    for (let at = 0; at < blocks; at += 1) size(name.first.digest + at, name.digest(at));
+    for (let at = 0; at < MODULES; at += 1) size(name.first.modulePath + at, name.modulePath(at));
+    for (let at = 0; at < MODULES; at += 1) size(name.first.blockName + at, name.blockName(at));
+    for (let at = 0; at < BLOCKS; at += 1) size(name.first.blockPath + at, name.blockPath(at));
+    for (let at = 0; at < MODULES; at += 1) size(name.first.sourceDigest + at, name.sourceDigest(at));
+    for (let at = 0; at < tests.length; at += 1) size(name.first.testPath + at, name.testPath(tests[at]));
+    size(instrumentation, name.instrumentation);
+    const stringOffsets = new Uint32Array(total + 1);
+    for (let at = 0; at < total; at += 1) stringOffsets[at + 1] = stringOffsets[at] + lengths[at];
+    const stringBlob = Buffer.allocUnsafe(stringOffsets[total]);
+    const put = (at, value) => { stringBlob.write(value, stringOffsets[at], 'latin1'); };
+    for (let at = 0; at < blocks; at += 1) put(name.first.digest + at, name.digest(at));
+    for (let at = 0; at < MODULES; at += 1) put(name.first.modulePath + at, name.modulePath(at));
+    for (let at = 0; at < MODULES; at += 1) put(name.first.blockName + at, name.blockName(at));
+    for (let at = 0; at < BLOCKS; at += 1) put(name.first.blockPath + at, name.blockPath(at));
+    for (let at = 0; at < MODULES; at += 1) put(name.first.sourceDigest + at, name.sourceDigest(at));
+    for (let at = 0; at < tests.length; at += 1) put(name.first.testPath + at, name.testPath(tests[at]));
+    put(instrumentation, name.instrumentation);
+    watch();
+    console.log(`dictionary: ${count(total)} strings, ${mb(stringBlob.length)} of bytes`);
+
+    const moduleBlocks = new Uint32Array(MODULES + 1);
+    for (let at = 0; at <= MODULES; at += 1) moduleBlocks[at] = at * BLOCKS;
+    const modulePaths = Uint32Array.from({ length: MODULES }, (_, at) => name.first.modulePath + at);
+    const moduleSource = Uint32Array.from({ length: MODULES }, (_, at) => name.first.sourceDigest + at);
+    const moduleInstrumented = new Uint8Array(MODULES).fill(1);
+    const blockOrdinal = new Uint32Array(blocks);
+    const blockKind = new Uint8Array(blocks);
+    const blockOwner = new Uint32Array(blocks);
+    const blockDigest = new Uint32Array(blocks);
+    const blockName = new Uint32Array(blocks);
+    const blockPath = new Uint32Array(blocks);
+    const blockStart = new Uint32Array(blocks);
+    const blockEnd = new Uint32Array(blocks);
+    const blockSource = new Uint8Array(blocks).fill(1);
+    for (let module = 0; module < MODULES; module += 1) {
+      for (let ordinal = 0; ordinal < BLOCKS; ordinal += 1) {
+        const at = module * BLOCKS + ordinal;
+        blockOrdinal[at] = ordinal;
+        blockKind[at] = ordinal === 0 ? 0 : 2;
+        blockOwner[at] = ordinal === 0 ? NO_OWNER : 0;
+        blockDigest[at] = name.first.digest + at;
+        blockName[at] = name.first.blockName + module;
+        blockPath[at] = name.first.blockPath + ordinal;
+        blockStart[at] = ordinal * 3 + 1;
+        blockEnd[at] = ordinal * 3 + 3;
+      }
+    }
+    const testPaths = Uint32Array.from({ length: tests.length }, (_, at) => name.first.testPath + at);
+    watch();
+
+    // The preconditions, which both shipped producers write as one entry per
+    // module the test entered — its path and its source digest. Off by default,
+    // because with them the columns alone are larger than the whole rest of the
+    // file, which is the point the flag exists to show.
+    let testPreconditions = new Uint32Array(tests.length + 1);
+    let preconditionName = new Uint32Array(0);
+    let preconditionDigest = new Uint32Array(0);
+    if (process.env.PRECONDITIONS === '1') {
+      if (tests.length !== TESTS) throw new Error('PRECONDITIONS=1 writes the whole snapshot only');
+      const counted = Date.now();
+      for (let module = 0; module < MODULES; module += 1) {
+        const base = module * words;
+        for (let word = 0; word < words; word += 1) {
+          let bits = reach[base + word];
+          while (bits !== 0) {
+            const low = 31 - Math.clz32(bits & -bits);
+            testPreconditions[(word << 5) + low + 1] += 1;
+            bits &= bits - 1;
+          }
+        }
+      }
+      for (let test = 0; test < TESTS; test += 1) testPreconditions[test + 1] += testPreconditions[test];
+      const entries = testPreconditions[TESTS];
+      watch();
+      preconditionName = new Uint32Array(entries);
+      preconditionDigest = new Uint32Array(entries);
+      watch();
+      const at = testPreconditions.slice(0, TESTS);
+      for (let module = 0; module < MODULES; module += 1) {
+        const base = module * words;
+        for (let word = 0; word < words; word += 1) {
+          let bits = reach[base + word];
+          while (bits !== 0) {
+            const low = 31 - Math.clz32(bits & -bits);
+            const test = (word << 5) + low;
+            preconditionName[at[test]] = name.first.modulePath + module;
+            preconditionDigest[at[test]] = name.first.sourceDigest + module;
+            at[test] += 1;
+            bits &= bits - 1;
+          }
+        }
+        if ((module & 0x3fff) === 0) watch();
+      }
+      watch();
+      console.log(
+        `preconditions: ${count(entries)} entries ` +
+          `(${count(Math.round(entries / TESTS))} per test), ` +
+          `${mb(entries * 8)} of columns in ${secs(Date.now() - counted)}`,
+      );
+    }
+
+    const written = Date.now();
+    const bytes = sections({
+      'strings.blob': blob(stringBlob, stringOffsets),
+      'strings.off': column(stringOffsets),
+      'snapshot.instrumentation': column(Uint32Array.of(instrumentation)),
+      'snapshot.commit': column(new Uint32Array(0)),
+      'tests.path': column(testPaths),
+      'tests.complete': column(new Uint8Array(tests.length).fill(1)),
+      'tests.preconditions': column(testPreconditions),
+      // No runner timed these tests, so every row says so.
+      'tests.duration': column(new Uint32Array(tests.length).fill(NO_DURATION)),
+      'preconditions.name': column(preconditionName),
+      'preconditions.digest': column(preconditionDigest),
+      'modules.path': column(modulePaths),
+      'modules.source': column(moduleSource),
+      'modules.instrumented': column(moduleInstrumented),
+      'modules.blocks': column(moduleBlocks),
+      'blocks.ordinal': column(blockOrdinal),
+      'blocks.kind': column(blockKind),
+      'blocks.owner': column(blockOwner),
+      'blocks.digest': column(blockDigest),
+      'blocks.name': column(blockName),
+      'blocks.path': column(blockPath),
+      'blocks.start': column(blockStart),
+      'blocks.end': column(blockEnd),
+      'blocks.source': column(blockSource),
+      'blocks.set': column(blockSet),
+      'sets.blob': blob(pool.bytes, pool.offsets),
+      'sets.off': column(pool.offsets),
+      'blocks.loadedSet': column(blockLoadedSet),
+      // Every shard of one build started from no record, as a CI build's
+      // shards record into fresh files (`record-base.ts`).
+      'run.base': { plain: Buffer.from('none'), rows: 4, width: 1 },
+    });
+    watch();
+    writeFileSync(file, bytes);
+    console.log(`written: ${mb(bytes.length)} to ${file} in ${secs(Date.now() - written)}`);
+  };
+
+  const all = Uint32Array.from({ length: TESTS }, (_, at) => at);
+  if (shards === 0) {
+    write(FILE, all);
+  } else {
+    mkdirSync(FILE, { recursive: true });
+    for (let shard = 0; shard < shards; shard += 1) {
+      write(`${FILE}/shard-${pad(shard, 2)}.bin`, all.filter((test) => test % shards === shard));
+    }
+  }
   verdict();
 }
