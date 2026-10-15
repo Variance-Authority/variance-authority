@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
@@ -54,4 +54,36 @@ it('answers a description with the repository\'s own names first, and the packag
   expect(said).toContain('managedStateFor');
   expect(said).toContain('[holds: management, state]');
   expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('react @1.0.0'));
+});
+
+describe('which names the described section holds, and in what order', () => {
+  const ask = async (query: string): Promise<string> => {
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/store.ts': 'export function managedStateFor(key: string): string {\n  return key;\n}\n',
+      'src/state.ts': 'export const stateOf = (key: string): string => key;\n',
+      'src/cache.ts': 'export const cacheEntries: readonly string[] = [];\n',
+      'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',
+    });
+    return answerSearch(searchIndexOf(readHelp(root)), { query }, treeOf([], root), root);
+  };
+
+  it('is absent when every word is a stopword, since there was nothing to describe', async () => {
+    const said = await ask('of the');
+    expect(said).not.toContain('hold at least half');
+    expect(said).not.toContain('[holds:');
+  });
+
+  it('leaves out a name holding fewer than half the words', async () => {
+    // Three stems, so two are needed: `evictionPolicyFor` holds two, `cacheEntries` one.
+    const said = await ask('cache eviction policy');
+    expect(said).toMatch(/evictionPolicyFor .*\[holds: eviction, policy\]/);
+    expect(said).not.toContain('cacheEntries');
+  });
+
+  it('puts the name holding more of the words in its name first', async () => {
+    const said = await ask('state management');
+    expect(said).toMatch(/stateOf .*\[holds: state\]/);
+    expect(said.indexOf('managedStateFor')).toBeGreaterThan(-1);
+    expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('stateOf'));
+  });
 });
