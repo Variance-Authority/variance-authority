@@ -114,6 +114,49 @@ describe('a condition only the tsconfig names', () => {
     expect(oracle(root, named)).toBe(TARGET);
   });
 
+  it('reads no conditions from a project that references itself, which oxc refuses', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '.' }],
+      }),
+    });
+
+    expect(await scanned(root) ?? []).not.toContain(TARGET);
+    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual([]);
+  });
+
+  it('reads no conditions from a project whose reference is missing, which oxc refuses', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '../absent' }],
+      }),
+    });
+
+    expect(await scanned(root) ?? []).not.toContain(TARGET);
+    expect(customConditionsFor('auto')(join(root, IMPORTER))).toEqual([]);
+  });
+
+  it('answers from each side of a reference cycle, reading each side one level deep', async () => {
+    const root = await workspace({
+      'packages/app/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/source'] },
+        references: [{ path: '../lib' }],
+      }),
+      'packages/lib/tsconfig.json': JSON.stringify({
+        compilerOptions: { customConditions: ['@acme/lib-source'] },
+        references: [{ path: '../app' }],
+      }),
+    });
+    for (const entry of ['app', 'lib']) {
+      const conditions = customConditionsFor(join(root, `packages/${entry}/tsconfig.json`));
+      expect(conditions(join(root, IMPORTER))).toEqual(['@acme/source']);
+      expect(conditions(join(root, TARGET))).toEqual(['@acme/lib-source']);
+      expect(conditions(join(root, IMPORTER))).toEqual(['@acme/source']);
+    }
+  });
+
   it('keeps conditions a caller names as the whole set', async () => {
     const root = await workspace({ 'tsconfig.json': WITH });
     const named = { conditionNames: ['import', 'default'] };
