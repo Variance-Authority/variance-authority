@@ -5,11 +5,11 @@
 // way this module expects must read as not committed, and be refused, rather
 // than read as committed and let the capture through mid-hydration.
 
-import { createElement as h, use } from 'react';
+import { createElement as h, Suspense, use } from 'react';
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { containerFiber } from './fiber.js';
-import { rootCommitted } from './root-state.js';
+import { rootCommitted, rootHasWork } from './root-state.js';
 
 const roots: Root[] = [];
 const gates: Array<() => void> = [];
@@ -95,5 +95,50 @@ describe('reading whether a root has committed, when React changes the fields', 
 
     const { current, ...rest } = fiberRoot;
     expect(rootCommitted({ ...rest, currentFiber: current })).toBe(false);
+  });
+});
+
+describe('reading whether React has work on a root', () => {
+  /**
+   * A boundary whose content arrives soon after its fallback committed is
+   * rendered at once and committed later: React holds the commit on a timer
+   * of its own so the fallback does not flash. Its lanes read suspended and
+   * not pinged meanwhile, and the commit is still React's to make.
+   */
+  it('counts a commit React has held back as work', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let open!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const root = createRoot(container);
+    roots.push(root);
+    root.render(h(Suspense, { fallback: h('p', null, 'wait') }, h(Slow, { ready })));
+    await ticks(20);
+    expect(container.textContent).toBe('wait');
+
+    open();
+    await ticks(20);
+    const fiberRoot = containerFiber(container)!.stateNode as object;
+    expect(container.textContent).toBe('wait');
+    expect(rootHasWork(fiberRoot)).toBe(true);
+
+    await ticks(400);
+    expect(container.textContent).toBe('late');
+    expect(rootHasWork(fiberRoot)).toBe(false);
+  });
+
+  it('counts a lane React can render, and a suspended one a settled promise pinged', () => {
+    expect(rootHasWork({ pendingLanes: 0b10, suspendedLanes: 0, pingedLanes: 0 })).toBe(true);
+    expect(rootHasWork({ pendingLanes: 0b10, suspendedLanes: 0b10, pingedLanes: 0b10 })).toBe(true);
+    expect(rootHasWork({ pendingLanes: 0, suspendedLanes: 0, pingedLanes: 0 })).toBe(false);
+  });
+
+  /** A commit waiting on a stylesheet or an image holds a way to cancel it. */
+  it('counts a commit waiting on its resources as work', () => {
+    const lanes = { pendingLanes: 0b100, suspendedLanes: 0b100, pingedLanes: 0, timeoutHandle: -1 };
+    expect(rootHasWork(lanes)).toBe(false);
+    expect(rootHasWork({ ...lanes, cancelPendingCommit: () => {} })).toBe(true);
   });
 });

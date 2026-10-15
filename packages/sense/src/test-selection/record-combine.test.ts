@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,8 @@ import { caseSectionsOf } from './case-record.js';
 import { encodeRecordedEyes } from './eyes-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { landRun } from './commit-runs.js';
-import { combineRecords, writeTestCoverage } from './index.js';
+import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { combineRecords, readTestCoverage, sourceCut, writeTestCoverage } from './index.js';
 import { notingRead } from './record-base.js';
 import { timesFrom } from './selection-environment.js';
 
@@ -83,17 +84,25 @@ describe('combineRecords against the TypeScript writers', () => {
 
     for (const named of [shards, [...shards].reverse()]) {
       const into = join(root, `combined-${named.length}-${named[0]!.endsWith('a.bin') ? 'ab' : 'ba'}.bin`);
-      combineRecords(named, into);
+      combineRecords(named, into, root);
       const combined = await readFile(into);
       expect(readable(combined)).toEqual(readable(whole));
       expect(Buffer.compare(combined, whole)).toBe(0);
     }
   });
 
+  it('refuses a file two shards both recorded, such as a setup project every Playwright shard runs, naming both', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('ab.bin', ['a.test.ts', 'b.test.ts'])];
+
+    expect(() => combineRecords(shards, join(root, 'combined.bin'))).toThrow(
+      /`a\.test\.ts` was recorded by .*a\.bin and again by .*ab\.bin\. A test file belongs to one shard/u,
+    );
+  });
+
   it('folds back the last-run layer and Eyes a landing wrote, byte for byte', async () => {
     const recorded = await recordOf('one.bin', ['a.test.ts', 'b.test.ts']);
     const into = join(root, 'combined.bin');
-    combineRecords([recorded], into);
+    combineRecords([recorded], into, root);
     const [before, after] = [caseSectionsOf(await readFile(recorded)), caseSectionsOf(await readFile(into))];
 
     expect(before.last).toBeDefined();
@@ -126,11 +135,11 @@ describe('combineRecords against the TypeScript writers', () => {
     const named = (bytes: Buffer) => `the record sha256:${createHash('sha256').update(bytes).digest('hex').slice(0, 12)}`;
     for (const [first, second] of [[one, two], [two, one]] as const) {
       const shards = await shardsOver([first, second]);
-      expect(() => combineRecords(shards, join(root, 'combined.bin'))).toThrow(
+      expect(() => combineRecords(shards, join(root, 'combined.bin'), root)).toThrow(
         `the build failed because the sharding was unstable: ${shards[0]} started from ${named(first)}, and ${shards[1]} from ${named(second)}.`,
       );
     }
-    expect(combineRecords(await shardsOver([two, two]), join(root, 'combined.bin')).shards).toHaveLength(2);
+    expect(combineRecords(await shardsOver([two, two]), join(root, 'combined.bin'), root).shards).toHaveLength(2);
   });
 
   // The documented recipe: shards of a run that selects nothing record into
@@ -152,11 +161,48 @@ describe('combineRecords against the TypeScript writers', () => {
     const named = async (path: string) => `the record sha256:${createHash('sha256').update(await readFile(path)).digest('hex').slice(0, 12)}`;
 
     const apart = await shardsReading([one, two], 'apart');
-    const failed = (() => { try { combineRecords(apart, join(root, 'apart.bin')); } catch (error) { return (error as Error).message; } })();
+    const failed = (() => { try { combineRecords(apart, join(root, 'apart.bin'), root); } catch (error) { return (error as Error).message; } })();
     expect(failed).toContain(`the build failed because the sharding was unstable: ${apart[0]} chose its tests from ${await named(one)}, and ${apart[1]} from ${await named(two)}.`);
     expect(failed).toContain('Run the whole build again, so that every shard reads the same record');
 
     const together = await shardsReading([one, one], 'together');
-    expect(combineRecords(together, join(root, 'together.bin')).shards).toHaveLength(2);
+    expect(combineRecords(together, join(root, 'together.bin'), root).shards).toHaveLength(2);
+  });
+});
+
+describe('combineRecords over shards that cut one text two ways', () => {
+  const twice = 'export function both(run: (step: () => number) => void) {\n  run(() => 1);\n  run(() => 2);\n}\n';
+
+  /** Two shards over `src/twice.ts`: one cut as this build cuts it, one carrying a row an older writer described otherwise. */
+  async function disputedShards(): Promise<readonly string[]> {
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'src/twice.ts'), twice);
+    const cut = sourceCut(twice, 'src/twice.ts', 'presence')!;
+    const shard = async (name: string, file: string, digest: (block: number) => string | undefined) => {
+      const path = join(root, name);
+      const blocks = cut.rows.map((row, at) => ({ ...row, digest: digest(at) ?? row.digest, testFiles: [file] }));
+      await writeTestCoverage(path, {
+        version: 3, instrumentation: INSTRUMENTATION_ID, commit: 'c0ffee',
+        tests: [{ file, complete: true, preconditions: [], duration: 1 }],
+        modules: [{ file: 'src/twice.ts', sourceDigest: cut.sourceDigest, instrumented: true, blocks }],
+      });
+      return path;
+    };
+    return [await shard('fresh.bin', 'a.test.ts', () => undefined), await shard('carried.bin', 'b.test.ts', (at) => (at === 1 ? 'older' : undefined))];
+  }
+
+  it('cuts the module again in the checkout and folds both shards onto that cut', async () => {
+    const shards = await disputedShards();
+    const output = join(root, 'combined.bin');
+    expect(combineRecords(shards, output, root).tests).toBe(2);
+    const [module] = (await readTestCoverage(output)).modules;
+    expect(module!.blocks.map((block) => block.digest)).toEqual(sourceCut(twice, 'src/twice.ts', 'presence')!.rows.map((row) => row.digest));
+    expect(module!.blocks.every((block) => block.testFiles.join() === 'a.test.ts,b.test.ts')).toBe(true);
+  });
+
+  it('refuses a module the checkout no longer holds', async () => {
+    const shards = await disputedShards();
+    await rm(join(root, 'src/twice.ts'));
+    expect(() => combineRecords(shards, join(root, 'combined.bin'), root)).toThrow('the checkout holds no text of `src/twice.ts`');
   });
 });

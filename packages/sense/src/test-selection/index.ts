@@ -91,6 +91,8 @@ export { shardsInstall, type KeptInstall } from './kept-install.js';
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
+export { landingTimes } from './selection-environment.js';
+export { shardArgument, shardOf, type ShardAsked, type ShardPart } from './shard-placement.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { journeyDivergences };
@@ -118,6 +120,7 @@ export { repinOwnLayer, type Repin, type RepinRefusal } from './milestone-repin.
 export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 export {
   noteSeeded,
+  type PassedOver,
   readableTestCoverage,
   recordFileFor,
   seedTestCoverage,
@@ -164,7 +167,7 @@ export {
 } from './prune.js';
 // A run laid over the record at a path: the columns of the file it is about to
 // write over, carried, with this run's rows on top.
-export { layeredCoverage } from './format-layer.js';
+export { foreignProbes, layeredCoverage } from './format-layer.js';
 export { recordBase, recordDigestAt } from './record-base.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
@@ -375,6 +378,8 @@ export { decodeTestCoverage };
 /** A run's coverage as the bytes of a record laid over nothing: the counterpart to {@link decodeTestCoverage}. */
 export { encodeTestCoverage };
 
+export { recordedCommit } from './coverage-file.js';
+
 /**
  * Write one snapshot where readers will find it, whole or not at all.
  *
@@ -465,28 +470,6 @@ export async function journeysApart(
   options: JourneyDivergenceOptions = {},
 ): Promise<readonly JourneyDivergence[]> {
   return journeyDivergences(await readTestCoverage(file), options);
-}
-
-/**
- * Where a snapshot was recorded, without decoding it.
- *
- * The one field a caller asking "what has changed since the index was written"
- * needs, and the whole of what it needs. Reading it through
- * {@link readTestCoverage} builds every module and region in the file to reach
- * forty hex characters at the head of it — most of a second at a repository's
- * scale, on a command an operator is waiting at a prompt for. Opening parses the
- * section index and the one string.
- *
- * `undefined` for an index recorded outside a checkout, which has no position,
- * and for a file this build cannot read — the caller's next move is the same
- * either way, and it is not to explain a format to somebody asking about a diff.
- */
-export async function recordedCommit(file: string): Promise<string | undefined> {
-  try {
-    return askCoverageFile(file, (coverage) => coverage.commit);
-  } catch {
-    return undefined;
-  }
 }
 
 /** Compare per-test execution slices with the static code each test can reach. */

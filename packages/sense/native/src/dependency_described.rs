@@ -10,9 +10,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use napi_derive::napi;
 use serde::Serialize;
 
-use super::purposes::stems;
+use super::purposes::{stem, stems};
 use super::{Api, Availability};
 
 /// A package that says it does what was asked.
@@ -46,6 +47,18 @@ fn asked(query: &str) -> BTreeMap<String, String> {
         for stem in stems(word) { asked.entry(stem).or_insert_with(|| word.to_lowercase()); }
     }
     asked
+}
+
+/// The question's distinct stems as `[stem, word]` pairs, for the repository's own names to be asked by the same words as a package.
+#[napi(js_name = "describedWords")]
+pub fn described_words(query: String) -> Vec<Vec<String>> {
+    asked(&query).into_iter().map(|(stem, word)| vec![stem, word]).collect()
+}
+
+/// Each word reduced to its stem, in order: which of a dictionary's terms a stem of `describedWords` stands for.
+#[napi(js_name = "wordStems")]
+pub fn word_stems(words: Vec<String>) -> Vec<String> {
+    words.iter().map(|word| stem(word)).collect()
 }
 
 /// The packages in `rows` that describe `query`, best first; `None` when the question has no word to describe.

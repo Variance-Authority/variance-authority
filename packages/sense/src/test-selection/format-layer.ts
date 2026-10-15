@@ -3,6 +3,7 @@ import { native, nativeRefusal } from '../addon.js';
 import { digestString } from '../digest.js';
 import { instrumentModeOf } from '../instrument/index.js';
 import { encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import { carriedSources } from './carried-sources.js';
 import { sourceCut } from './coverage-rows.js';
 import { editReadings, type EditReadings } from './edit-readings.js';
@@ -38,6 +39,27 @@ export function layRecord(
 }
 
 /**
+ * The probes the record `previous` was written under, when a run under the
+ * probes `run` cannot be laid over it: the probe check {@link layRecord} makes,
+ * asked before anything is laid, so a caller deciding whether a record can be
+ * a run's base passes it over instead of laying a base every run refuses.
+ *
+ * Nothing when the record was written under `run`, or when the run lays no
+ * coverage and passes no probes. Nothing, too, for a record this build cannot
+ * read: that refusal is the caller's own, on its own terms.
+ */
+export function foreignProbes(previous: Uint8Array, run: string | undefined): string | undefined {
+  if (run === undefined) return undefined;
+  let written: string;
+  try {
+    written = openTestCoverage(previous).instrumentation;
+  } catch {
+    return undefined;
+  }
+  return written === run ? undefined : written;
+}
+
+/**
  * `current` laid over the record `previous`, as the bytes to put back
  * ({@link layRecord}); `current` itself over nothing.
  *
@@ -55,25 +77,25 @@ export function layCoverage(
   const encoded = encodeTestCoverage(current);
   if (previous === undefined) return encoded;
   return layRecord(previous, encoded, {
-    ...(onDisk.size === 0 ? {} : { recut: encodeTestCoverage(recut(current, onDisk)) }),
+    ...(onDisk.size === 0 ? {} : { recut: cutRecord(current.instrumentation, onDisk) }),
     ...(readings === undefined ? {} : { readings }),
   });
 }
 
 /**
- * Each module of `onDisk` cut in the text it has now, as a record under
- * `current`'s probes with no tests: a module whose text does not cut, or under
- * a recipe this build does not know, is one held not instrumented.
+ * Each module of `onDisk` cut in the text it has now, as a record under the
+ * probes `instrumentation` with no tests: a module whose text does not cut, or
+ * under a recipe this build does not know, is one held not instrumented.
  */
-function recut(current: TestCoverage, onDisk: ReadonlyMap<string, string>): TestCoverage {
-  const mode = instrumentModeOf(current.instrumentation);
+export function cutRecord(instrumentation: string, onDisk: ReadonlyMap<string, string>): Buffer {
+  const mode = instrumentModeOf(instrumentation);
   const modules = [...onDisk].map(([file, text]): CoverageModule => {
     const fresh = mode === undefined ? undefined : sourceCut(text, file, mode);
     return fresh === undefined
       ? { file, sourceDigest: digestString(text), instrumented: false, blocks: [] }
       : { file, sourceDigest: fresh.sourceDigest, instrumented: true, blocks: fresh.rows };
   });
-  return { version: current.version, instrumentation: current.instrumentation, tests: [], modules };
+  return encodeTestCoverage({ version: 3, instrumentation, tests: [], modules });
 }
 
 /**

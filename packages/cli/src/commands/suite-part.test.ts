@@ -151,7 +151,7 @@ describe('share --publish over every shard', () => {
       retention: 'durable',
       run: { id: 'build-1', commit: COMMIT },
       observations: [{ subject: mine!, verdict: 'unchanged', because: 'nothing moved', regions: [] }],
-      notObserved: [{ subject: theirs!, kind: 'excluded', because: shardOwnedBecause(3 - k, 2, 'checksum') }],
+      notObserved: [{ subject: theirs!, kind: 'excluded', because: shardOwnedBecause(3 - k, 2, 'count') }],
     } as CliRunReport;
   }
 

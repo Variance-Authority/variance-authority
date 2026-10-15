@@ -175,7 +175,7 @@ export interface NetworkObservation {
   closure(): ResourceClosure;
 
   /**
-   * Resolve when nothing is in flight, or report what is still outstanding.
+   * Resolve when no image, font or media request is in flight, or report which are.
    *
    * Never throws on timeout. A page with a long-poll open would otherwise fail a
    * run for being a normal page, so the outstanding URLs become a diagnostic and

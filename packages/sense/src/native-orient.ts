@@ -355,10 +355,16 @@ export interface NativeDependencyLexicon {
   refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string, tsconfig?: string | false): Promise<{
     readonly path: string; readonly packages: number; readonly entrypoints: number;
     readonly reused: number; readonly unavailable: number; readonly unresolved?: number; readonly unchanged: boolean;
+    /** The last refresh's record carried, and of the source only what the index wrote since read. */
+    readonly merged: boolean;
   }>;
   queryDependencyLexicon(path: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
   dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
+  /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
+  describedWords(query: string): [string, string][];
+  /** Each word's stem, in order. */
+  wordStems(words: string[]): string[];
 }
 
 /** What the published index records of imports and exports, read by `readHelp`. */

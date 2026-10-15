@@ -403,7 +403,7 @@ export async function recordExecution(
   // earlier worker's whole contribution — silently, and in the unsafe direction.
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
-  noteSeeded(await seedTestCoverage(coverageFile, root, options.cacheRoot));
+  noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation, options.cacheRoot));
   // In the record, never beside it, and only for a driver that asked. A file the
   // coverage says ran to the end has its cases replaced, and the rest of the
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are

@@ -204,7 +204,8 @@ Two different things go wrong here, and they fail at different points.
 **Readiness** is whether the route has arrived. The collector waits for page
 load, and then for every React Suspense boundary under your roots to resolve
 real content rather than still be showing a fallback. Anything that finishes
-later — a fetch issued after mount — needs a marker you name:
+later — a fetch issued after mount — needs a marker you name, or the work put
+under Suspense ([content that loads late](late-content.md)):
 
 ```js
 routeCollector({

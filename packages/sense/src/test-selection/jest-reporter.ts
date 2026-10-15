@@ -233,7 +233,7 @@ class JestCoverageReporter {
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run,
     // and not asked by a shard that is a part of one whole run.
-    if (!this.#alone) noteSeeded(await seedTestCoverage(coverageFile, root));
+    if (!this.#alone) noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation));
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.

@@ -15,8 +15,8 @@ export { costsOf, costsPath } from './costs-entry.js';
  * shard that read a different commit says which in every exclusion it writes,
  * and the merge refuses the overlap.
  *
- * Nothing here can fail a run. A cost that is not found places by checksum,
- * which is what a run without one always did.
+ * Nothing here can fail a run. A cost that is not found places by count:
+ * every file weighs the same, under the same rule.
  */
 
 export interface MainlineCosts {

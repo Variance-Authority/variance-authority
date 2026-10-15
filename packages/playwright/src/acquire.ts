@@ -1,6 +1,7 @@
 import { stepClock, timeOn, type StepClock } from '@variance-authority/core/format';
 import type { Page } from 'playwright';
 import { AGENT_GLOBAL } from './agent.js';
+import { stillArriving } from './arrivals.js';
 import type { NetworkObservation } from './network.js';
 
 /**
@@ -67,13 +68,24 @@ export async function acquireFromAgent<Request extends object>(
       { ...request, ...(Object.keys(assets).length > 0 ? { assets } : {}) },
     ];
 
-    return page.evaluate(([global, sent]: readonly [string, object]) => {
-      const agent = (
-        globalThis as unknown as Record<string, { acquire(r: object): Promise<string> }>
-      )[global];
-      if (agent === undefined) throw new Error(`missing page agent ${global}`);
-      return agent.acquire(sent);
-    }, payload);
+    try {
+      return await page.evaluate(([global, sent]: readonly [string, object]) => {
+        const agent = (
+          globalThis as unknown as Record<string, { acquire(r: object): Promise<string> }>
+        )[global];
+        if (agent === undefined) throw new Error(`missing page agent ${global}`);
+        return agent.acquire(sent);
+      }, payload);
+    } catch (error) {
+      // An agent waiting on the wire waits as long as a request is open, and
+      // whatever ends the run ends it with Playwright's word for a closed page.
+      const open = stillArriving(page);
+      if (open.length === 0) throw error;
+      const requests = open.length === 1 ? '1 request' : `${open.length} requests`;
+      throw new Error(`the page agent was waiting with ${requests} still arriving: ${open.join(', ')}`, {
+        cause: error,
+      });
+    }
   };
 
   const sent = observed();

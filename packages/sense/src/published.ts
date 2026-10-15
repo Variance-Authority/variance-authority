@@ -28,6 +28,7 @@ import type { NativeGitTree } from './native.js';
 import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
+import { placesOf, stepped, type Progress } from './progress.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
 import { updateNatively } from './native-update.js';
 import { markCheckout } from './test-selection/cache-layers.js';
@@ -114,6 +115,18 @@ export interface SourceUpdateOptions {
   readonly index?: string;
   /** `false` reads each file's bytes from the working tree, as `scanRelations` takes it. */
   readonly packs?: boolean;
+  /** Told each step as it starts and ends: the git listing, then the read of what changed. */
+  readonly progress?: Progress;
+  /**
+   * The directories below `root` the index covers, as `scanRelations` takes
+   * them: what they hold and what it reaches. The whole of `root` when absent.
+   */
+  readonly dirs?: readonly string[];
+  /**
+   * The generation a missing `index` starts from, when it names one of its own.
+   * The primary checkout's, from `primarySourceIndexPath`, when `index` is absent.
+   */
+  readonly primary?: string;
 }
 
 /** What one update read and what it published. */
@@ -148,9 +161,11 @@ export interface SourceUpdate {
 /**
  * Absorb what moved in the checkout into its source index, as one appended layer.
  *
- * The scope is the whole checkout, whoever asks. A reader's question is narrower
- * than that and is answered by filtering what was published; an index whose
- * scope followed its last caller would be right for one reader at a time.
+ * The scope is the index's, whoever asks: the whole checkout, or for an index a
+ * workspace keeps over what its member list names, the `dirs` that list names.
+ * A reader's question is narrower than that and is answered by filtering what
+ * was published; an index whose scope followed its last caller would be right
+ * for one reader at a time.
  */
 export async function updateSourceIndex(
   root: string,
@@ -160,7 +175,8 @@ export async function updateSourceIndex(
   const path = options.index ?? sourceIndexPath(where);
   // The addon answers from the chain in place; only what it declines is decoded here.
   // It reads Git's object store, so a caller that asked for the working tree is not its to answer.
-  const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path);
+  const dirs = options.dirs ?? ['.'];
+  const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path, options.progress, dirs);
   if (natively !== undefined) {
     if (options.index === undefined) markCheckout(realPath(where));
     return {
@@ -179,9 +195,9 @@ export async function updateSourceIndex(
   const written = source.written;
   // A worktree's first update starts from the primary checkout's generation and
   // pays only for what differs between the two checkouts.
-  const primary = options.index === undefined && was === 'missing'
+  const primary = was !== 'missing' ? undefined : options.index === undefined
     ? primarySourceIndexPath(where)
-    : undefined;
+    : options.primary;
   const from = primary !== undefined && seedSourceIndex(path, primary) ? primary : undefined;
   if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
@@ -217,13 +233,15 @@ export async function updateSourceIndex(
   // Counted rather than collected: the update publishes the records through
   // `reuse` and reports how many, and a cold closure the addon holds is never
   // turned into objects for either.
-  const { files, listing } = await scanCount({
+  const { files, listing } = await stepped(options.progress, `reading every file of ${placesOf(where, dirs)}, ${
+    was === 'missing' ? 'because there is no index to update' : 'because the index could not be updated in place'
+  }`, () => scanCount({
     root: where,
-    dirs: ['.'],
+    dirs,
     cache: source.cache,
     reuse,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
-  });
+  }));
   const refused = await source.save();
   // The checkout's own index names its checkout, so the cache can tell when it is gone.
   if (options.index === undefined) markCheckout(realPath(where));

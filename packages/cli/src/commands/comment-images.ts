@@ -1,4 +1,5 @@
 import type { CliRunReport } from './run.js';
+import { urlOfPath } from './url-of-path.js';
 
 /**
  * A subject's change, as the picture a pull-request comment can show.
@@ -39,15 +40,12 @@ export function picturesOf(report: CliRunReport, imageRoot: string | undefined):
 }
 
 /**
- * One `<img>`.
+ * One `<img>`, its path joined to the root as a URL by {@link urlOfPath}.
  *
- * Each segment is percent-encoded, because the store already percent-encodes a
- * subject id into its file name: `story%3Abutton.before.png` is the name on disk,
- * and a URL that carried the `%3A` raw would ask the server for `story:button`.
  * The subject id reaches the `alt` text from the collector, so it is escaped.
  */
 function image(root: string, path: string, alt: string, size = ''): string {
-  const src = `${root}/${path.split('/').map(encodeURIComponent).join('/')}`;
+  const src = `${root}/${urlOfPath(path)}`;
   return `<img src="${attribute(src)}" alt="${attribute(alt)}"${size}>`;
 }
 

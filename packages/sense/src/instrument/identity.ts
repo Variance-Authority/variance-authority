@@ -23,6 +23,11 @@ const IDS: Readonly<Record<InstrumentMode, string>> = {
   entries: 'sense:instrument/entries-v3',
 };
 
+/**
+ * The probes a run under `mode` records under: the identity its record is
+ * stamped with, and the one a record must carry for that run to be laid over
+ * it.
+ */
 export function instrumentationId(mode: InstrumentMode = 'presence'): string {
   return IDS[mode];
 }

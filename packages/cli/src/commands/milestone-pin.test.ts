@@ -62,7 +62,7 @@ async function laidWorktree(): Promise<{ ci: string; first: string; worktree: st
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
   expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first } });
   const own = testCoverageFile(worktree, { suite: 'unit' });
-  expect(await seedTestCoverage(own, worktree)).toMatchObject({ from: 'mainline' });
+  expect(await seedTestCoverage(own, worktree, 'fixture')).toMatchObject({ from: 'mainline' });
   return { ci, first, worktree, own };
 }
 

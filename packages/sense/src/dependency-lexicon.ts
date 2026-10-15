@@ -29,3 +29,21 @@ export function dependencyStackNative(root: string, files: readonly string[], of
   const path = join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json');
   return addon.dependencyStack(path, [...files], offset, limit) ?? undefined;
 }
+
+/**
+ * A question's distinct stems, each with the word it was written as: the words
+ * a package is described by, split the same way, so the repository's own names
+ * are asked by the words its dependencies are.
+ */
+export function describedWordsNative(query: string): readonly (readonly [stem: string, word: string])[] {
+  const addon = native();
+  if (addon === undefined) throw new Error(`described words require the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
+  return addon.describedWords(query);
+}
+
+/** Each word reduced to its stem, in order: the rule `describedWordsNative` stems a question by. */
+export function wordStemsNative(words: readonly string[]): readonly string[] {
+  const addon = native();
+  if (addon === undefined) throw new Error(`word stems require the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
+  return addon.wordStems([...words]);
+}
