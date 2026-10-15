@@ -54,6 +54,14 @@ directions: a subject declared to capture a loading state, that then settles,
 is refused too, because a declaration nobody deleted is a subject whose
 baseline flips between a skeleton and a component depending on the weather.
 
+Hydration is refused on the same terms. A server-rendered subject React has not
+committed is not the image it settles on: an effect that runs after hydration —
+a mounted flag, a theme read from storage, a layout measured on the client —
+paints differently, and nothing is read off a render that has not committed, so
+its components are missing too. A subject no React root was found for is
+collected, and carries `react-root-absent`, so that a region with no component
+on it reads as unobserved and never as unattributed.
+
 It does not decide *why* a page never finished, and it does not fix it. It
 names the boundary, the component that wrote it, and the components still
 committing, and the fix is made where the markup is.
@@ -65,6 +73,12 @@ committing, and the fix is made where the markup is.
   gap between one fallback leaving and the next arriving is never photographed);
   `suspenseRefusal` turns a settlement into `string | undefined`, so a caller's
   use of it is one `if` and cannot decay into a log line.
+- `packages/react/src/hydration.ts` — `awaitHydration` finds every React root
+  on, above (up to the `Document`), under and behind the subject's own fiber,
+  and waits until React's record on each says it has committed. A fiber count
+  is not that record: a shell suspended mid-hydration leaves fibers on the
+  nodes rendered before it. `packages/route-collector/src/read.ts` turns the
+  settlement into the warning.
 - `packages/react/src/suspense.ts` — `boundariesUnder`, which reads a boundary's
   state off the committed fiber and distinguishes resolved, pending and
   dehydrated by traversal, with nothing installed.
