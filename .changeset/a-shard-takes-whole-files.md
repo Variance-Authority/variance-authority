@@ -85,6 +85,9 @@ run reads no times and runs as before. `variance shards` fails the same way.
 - `variance run --shard` and `variance collect --shard` with no recorded costs
   place each file by count, not by a checksum of the file and the shard. The
   shards are balanced, but adding a file can move others to another shard.
-  A collection's `assignment` reads `count`.
+  A collection part's `assignment`, and the `assignment` in the provenance of
+  the suite index merged from it, read `count` where they read `checksum`. An
+  index that reads `checksum` still opens. `variance collect merge` refuses
+  sharded parts an earlier version cut by checksum; collect every shard again.
 - A sharded run whose share does not answer fails rather than placing by
   file count. Run the job again, or hand every shard the record fetched once.
