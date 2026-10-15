@@ -71,28 +71,38 @@ export function committedHydration(root: object): boolean {
 }
 
 /**
- * Whether React has a render of this `FiberRoot` it can do now: a lane pending
- * that is not suspended, or a suspended one a settled promise has pinged.
+ * Whether React has a render of this `FiberRoot` it can do now, or a commit it
+ * has scheduled: a lane pending that is not suspended, a suspended one a
+ * settled promise has pinged, or a finished render whose commit React holds.
  *
  * INTERNAL CONTRACT: `pendingLanes`, `suspendedLanes` and `pingedLanes` are
  * bitsets on the `FiberRoot` in React 18 and 19. A lane is pending from the
  * update that schedules it to the commit that finishes it; a render that
  * suspends marks its lanes suspended, and the promise it waits on pings them
  * when it settles. A lane suspended and not pinged is work React cannot do
- * until something outside it answers.
+ * until something outside it answers — unless React itself holds the commit.
+ * It does that two ways, and marks the lanes suspended for both: content that
+ * resolves soon after its fallback committed is committed on a timer, stored
+ * in `timeoutHandle` and reset to `-1` when it fires; and a commit waiting on
+ * stylesheets or images stores its cancel function in `cancelPendingCommit`
+ * (React 19 only) and clears it to `null`.
  *
- * A renamed field reads as zero, so as no work: the subject is read rather
- * than waited on forever, and `rootCommitted` still refuses one React has not
- * committed.
+ * A renamed field reads as no work: the subject is read rather than waited on
+ * forever, and `rootCommitted` still refuses one React has not committed.
  */
 export function rootHasWork(root: object): boolean {
-  const lanes = root as {
+  const fields = root as {
     readonly pendingLanes?: unknown;
     readonly suspendedLanes?: unknown;
     readonly pingedLanes?: unknown;
+    readonly timeoutHandle?: unknown;
+    readonly cancelPendingCommit?: unknown;
   };
-  const pending = typeof lanes.pendingLanes === 'number' ? lanes.pendingLanes : 0;
-  const suspended = typeof lanes.suspendedLanes === 'number' ? lanes.suspendedLanes : 0;
-  const pinged = typeof lanes.pingedLanes === 'number' ? lanes.pingedLanes : 0;
-  return (pending & ~(suspended & ~pinged)) !== 0;
+  const pending = typeof fields.pendingLanes === 'number' ? fields.pendingLanes : 0;
+  const suspended = typeof fields.suspendedLanes === 'number' ? fields.suspendedLanes : 0;
+  const pinged = typeof fields.pingedLanes === 'number' ? fields.pingedLanes : 0;
+  if ((pending & ~(suspended & ~pinged)) !== 0) return true;
+  if (pending === 0) return false;
+  const held = fields.timeoutHandle !== undefined && fields.timeoutHandle !== -1;
+  return held || typeof fields.cancelPendingCommit === 'function';
 }
