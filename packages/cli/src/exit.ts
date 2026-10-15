@@ -152,7 +152,7 @@ export interface ReviewableReport {
     }[];
 
     /**
-     * Set when two readings of this subject, seconds apart, disagreed.
+     * Set when two readings of this subject in a row disagreed.
      *
      * Only `absorbed` is read, and only for whether it is there. What the field
      * *says* — a component, a file, a band — is a statement about the page and is

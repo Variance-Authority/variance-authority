@@ -29,7 +29,7 @@ export const Loading = {
  *
  * The collector fixes `Date`, and that does not help: its text counts the
  * ticks of its own timer, which the collector leaves running so a page that
- * settles on a timer still settles. Two readings of one mount seconds apart
+ * settles on a timer still settles. Two readings of one mount in a row
  * never agree. A baseline is another mount, and a reading agrees with it only
  * when both were taken the same 50 ms step after mounting, so a comparison
  * against a baseline is a coin flip. It has the tag `ticking`, so a run that

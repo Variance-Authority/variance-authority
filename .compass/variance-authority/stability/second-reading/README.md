@@ -4,8 +4,8 @@
 
 ## Responsibility
 
-Reads a **subject** twice in the world it is already in, seconds apart with
-nothing changed in between, and reports whether it agreed with itself.
+Reads a **subject** twice in a row in the world it is already in, each
+reading taken once the page says it is ready, with nothing changed in between, and reports whether it agreed with itself.
 
 ## Bounded context
 

@@ -39,7 +39,7 @@ describe('a subject that does not read the same way twice', () => {
    *
    * `dark` is what makes it differ from the white baseline — the run has to call
    * it `changed` before any of this is reached at all — and `at` is what moves
-   * between two readings taken seconds apart.
+   * between two readings taken in a row.
    */
   function reading(id: string, at: string): RenderDocument {
     return documentFor(
@@ -181,7 +181,7 @@ describe('a subject that does not read the same way twice', () => {
     // reason order dependence leaves it standing. What is added is that the
     // verdict was decided by whichever of two disagreeing readings came first.
     expect(observation?.verdict).toBe('changed');
-    expect(observation?.unstable?.because).toContain('two readings seconds apart, with nothing changed between, differ');
+    expect(observation?.unstable?.because).toContain('two readings in a row, with nothing changed between, differ');
 
     // The whole ordering argument, as an assertion. A clean-world answer here
     // would compare two readings that do not agree in *any* world, and would have
@@ -198,7 +198,7 @@ describe('a subject that does not read the same way twice', () => {
     });
 
     // "This subject is flaky" is a page to read. `Clock (content)` is a node whose
-    // text moves between two readings seconds apart, and the causes of that are a
+    // text moves between two readings in a row, and the causes of that are a
     // short list — a clock, a seed, a counter, a request that had not landed.
     expect(report.observations[0]?.unstable?.components).toEqual([{ name: 'Clock' }]);
     expect(report.observations[0]?.unstable?.bands).toEqual(['content']);
