@@ -41,13 +41,15 @@ import { urlOfPath } from './url-of-path.js';
  * every card before the pages behind the other views arrive, instead of
  * waiting behind the first card's pages for its change.
  *
- * ## A page larger than the change is not carried
+ * ## A page past the texture limit is not carried
  *
- * The change picture is the changed regions with context, cut from the after
- * page. When a full page holds more pixels than that picture, the page is
- * mostly what did not change, and carrying it makes the file the size of the
- * page rather than of what changed. The card names each page left out, with
- * its size, and shows the views its carried pictures can fill.
+ * An ordinary page is carried whole, so a card keeps its wipe, blend, blink,
+ * regions and trio. A page longer than Chromium's largest texture side is not:
+ * three of them are tens of megabytes a reviewer waits for, and the change
+ * picture already shows what moved in it, at one pixel per pixel. Only a
+ * subject with a change picture leaves its pages out, so no card is left with
+ * nothing to open on. The card names each page left out, with its size, and
+ * shows the views its carried pictures can fill.
  *
  * ## Decoded when shown
  *
@@ -63,7 +65,7 @@ export interface Picture {
   readonly media: string;
   readonly width?: number;
   readonly height?: number;
-  /** Left out of the page: larger than the change picture of every card that shows it. */
+  /** Left out of the page: past the texture limit, and every card that shows it has a change picture. */
   readonly left?: true;
 }
 
@@ -159,10 +161,11 @@ const MEDIA: Readonly<Record<string, string>> = {
  * Only `before`, `diff`, `after` and `change` are pictures; `record` is a
  * sidecar and stays a path. A picture that cannot be opened keeps its path.
  *
- * A page holding more pixels than its subject's change picture is marked
- * `left`, for the reason the file's opening gives, until a card that can
- * afford it shows it too: its bytes are in the page then, and every card that
- * names it shows it. A picture whose header does not say its size is carried.
+ * A page longer than {@link LONGEST_CARRIED_SIDE} on a subject with a change
+ * picture is marked `left`, for the reason the file's opening gives, until a
+ * card without a change picture names it too: its bytes are in the page then,
+ * and every card that names it shows it. A picture whose header does not say
+ * its size is carried.
  *
  * Read one file at a time and only as far as a PNG's header, so locating a
  * run costs its count of pictures, not their bytes.
@@ -194,26 +197,34 @@ export async function locatePictures(
       images[side] = file;
     }
     const change = images.change === undefined ? undefined : found.get(images.change);
+    // A file another card left out as a page is this card's opening picture.
+    if (change?.left === true) found.set(change.file, withoutLeft(change));
+    const cut = change !== undefined;
     for (const side of ['before', 'diff', 'after'] as const) {
       const page = images[side] === undefined ? undefined : found.get(images[side]);
       if (page === undefined) continue;
-      const leave = change !== undefined && largerThan(page, change);
+      const leave = cut && pastTexture(page);
       if (leave && fresh.has(page.file)) found.set(page.file, { ...page, left: true });
-      if (!leave && page.left === true) found.set(page.file, carried(page));
+      if (!leave && page.left === true) found.set(page.file, withoutLeft(page));
     }
     observations.push({ ...entry, images });
   }
   return { ...report, observations };
 }
 
-/** Whether `page` holds more pixels than `change`; never when either size is unknown. */
-function largerThan(page: Picture, change: Picture): boolean {
+/**
+ * Chromium's largest texture side. A picture past it is drawn in tiles, and a
+ * full-page capture past it is a page no viewer of a single file reads whole.
+ */
+export const LONGEST_CARRIED_SIDE = 16384;
+
+/** Whether either side of `page` passes {@link LONGEST_CARRIED_SIDE}; never when its size is unknown. */
+function pastTexture(page: Picture): boolean {
   if (page.width === undefined || page.height === undefined) return false;
-  if (change.width === undefined || change.height === undefined) return false;
-  return page.width * page.height > change.width * change.height;
+  return Math.max(page.width, page.height) > LONGEST_CARRIED_SIDE;
 }
 
-function carried({ left: _, ...picture }: Picture): Picture {
+function withoutLeft({ left: _, ...picture }: Picture): Picture {
   return picture;
 }
 

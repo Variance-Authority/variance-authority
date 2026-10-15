@@ -163,4 +163,17 @@ describe.skipIf(!BROWSER_AVAILABLE)('a carried picture in the browser', () => {
       change: { shown: true, text: false },
     });
   });
+
+  it('turns every picture into an image as it arrives in a browser with no IntersectionObserver', async () => {
+    const at = page as Page;
+    const html = (await written()).replace('<head>', '<head><script>delete window.IntersectionObserver</script>');
+    await at.setContent(html, { waitUntil: 'load' });
+
+    expect(await state(at)).toEqual({
+      before: { shown: true, text: false },
+      diff: { shown: true, text: false },
+      after: { shown: true, text: false },
+      change: { shown: true, text: false },
+    });
+  });
 });

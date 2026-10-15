@@ -263,10 +263,13 @@ describe('report --format html --embed-images', () => {
     }
     expect(html.match(/type="application\/octet-stream"/g)).toHaveLength(1);
     expect(html).toMatch(/<p class="left"[^>]*>[^<]*before 1280×57691/);
+    for (const mode of ['trio', 'wipe', 'blend', 'blink']) expect(html).not.toContain(`data-mode="${mode}"`);
   });
 
-  it('carries every full page no larger than the change picture, so the other views stay', async () => {
-    const short = await cropped('short', 800, 1397);
+  it('carries an ordinary full page whole, though it is larger than the change picture', async () => {
+    // A 3,000-row page with a small change: the crop is a few hundred rows,
+    // and the card keeps its wipe, blend, blink and trio.
+    const short = await cropped('short', 3000, 600);
     await run(0, 4096, [JSON.parse(short.get('entry')!.toString())]);
     const html = (await page()).join('');
 
@@ -274,6 +277,47 @@ describe('report --format html --embed-images', () => {
       expect(html).toContain(short.get(side)!.toString('base64'));
     }
     expect(html).not.toContain('<p class="left"');
+    for (const mode of ['trio', 'wipe', 'blend', 'blink']) expect(html).toContain(`data-mode="${mode}"`);
+  });
+
+  for (const order of ['first', 'second'] as const) {
+    it(`carries a long page once when a card without a change picture names it, listed ${order}`, async () => {
+      // The card with no change picture has nothing else to open on, so the
+      // page is carried, and the card that would have left it out shows it too.
+      const long = await cropped('long', 57691, 1397);
+      const bare = {
+        subject: 'route:/bare',
+        verdict: 'changed',
+        because: '86 pixel(s) differ across 1 region(s)',
+        changedPixels: 86,
+        regions: [],
+        images: { before: 'images/long.before.png', after: 'images/long.after.png' },
+      };
+      const entry = JSON.parse(long.get('entry')!.toString());
+      await run(0, 4096, order === 'first' ? [entry, bare] : [bare, entry]);
+      const html = (await page()).join('');
+
+      const encoded = long.get('before')!.toString('base64');
+      expect(html.indexOf(encoded)).toBeGreaterThan(-1);
+      expect(html.indexOf(encoded)).toBe(html.lastIndexOf(encoded));
+      expect(html.match(/<img class="before"/g)).toHaveLength(2);
+      expect(html).not.toMatch(/<p class="left"[^>]*>[^<]*before 1280×57691/);
+      expect(html.match(/<img class="after"/g)).toHaveLength(2);
+      expect(html).toMatch(/<p class="left"[^>]*>[^<]*diff 1280×57691/);
+    });
+  }
+
+  it('carries a change picture another card names as a page past the limit', async () => {
+    const long = await cropped('long', 57691, 1397);
+    const reused = {
+      ...JSON.parse(long.get('entry')!.toString()),
+      subject: 'route:/reused',
+      images: { change: 'images/long.before.png' },
+    };
+    await run(0, 4096, [JSON.parse(long.get('entry')!.toString()), reused]);
+    const html = (await page()).join('');
+
+    expect(html).toContain(long.get('before')!.toString('base64'));
   });
 
   it('carries the picture every card opens on before any other picture', async () => {
@@ -281,7 +325,7 @@ describe('report --format html --embed-images', () => {
     // second's change is on screen as soon as the first's pages are, rather
     // than after every picture the first subject's other views need.
     const pictures = await run(1, 4096);
-    const short = await cropped('short', 800, 1397);
+    const short = await cropped('short', 3000, 600);
     await writeFile(
       join(root, 'report.json'),
       JSON.stringify({

@@ -202,7 +202,7 @@ function leftOut(pages: readonly (readonly [Side, Picture])[]): string {
   if (pages.length === 0) return '';
   const sizes = pages.map(([side, page]) => `${side} ${dimensions(page)}`).join(' · ');
   return (
-    `<p class="left" title="Larger than the change picture, so this file does not carry it. Each is a file beside report.json.">` +
+    `<p class="left" title="Longer than 16,384 pixels, so this file does not carry it; the change picture shows what moved in it. Each is a file beside report.json.">` +
     `${text(sizes)}<span class="mark quiet">full page not carried</span></p>`
   );
 }
