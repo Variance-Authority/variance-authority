@@ -3139,6 +3139,7 @@
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
         "selectedLines": "function",
+        "shardArgument": "function",
         "shardOf": "function",
         "shardsInstall": "function",
         "sharedPreconditions": "function",
