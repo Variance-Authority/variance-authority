@@ -273,7 +273,7 @@ describe('a subject that does not read the same way twice', () => {
 
   it('treats a second collection that fails as the loudest form of yes', async () => {
     // A collector that produced this subject and then could not produce it again,
-    // seconds later, with nothing changed, has already answered the question. It
+    // right after, with nothing changed, has already answered the question. It
     // is not a coverage hole either — the subject *was* observed, once.
     let calls = 0;
     const collector: Collector = {

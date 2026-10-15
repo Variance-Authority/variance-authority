@@ -131,7 +131,7 @@ export async function again(
         components: [],
         bands: [],
         because:
-          'collected once and then failed to collect a second time, seconds later, with ' +
+          'collected once and then failed to collect a second time, right after, with ' +
           `nothing changed in between: ${second.because}. Whatever the comparison said ` +
           'about this subject was said about a reading that cannot be taken twice',
       },

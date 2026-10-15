@@ -120,11 +120,11 @@ two are exercised separately.
 
 The first five rows are the five a `Button` edit moves. Of the nine subjects below
 them, eight read the same way every time. `Clock — ticking` does not: nothing
-freezes its clock, and its text counts the time since it mounted. Two readings of
-one mount in a row never agree, and a reading agrees with its baseline,
-which is another mount, only when both were taken the same 50 ms step after
-mounting. It has the tag `ticking`, so a run that asserts `unchanged` can exclude
-it.
+freezes its clock, and its text counts the time since it mounted. Two
+consecutive readings of one mount never agree, and a reading agrees with its
+baseline, which is another mount, only when both were taken the same 50 ms
+step after mounting. It has the tag `ticking`, so a run that asserts `unchanged`
+can exclude it.
 
 `Card — receipt not read` declares `exclude: true` in the same place. The report
 lists it as excluded by its own parameters rather than leaving it out.
