@@ -2730,6 +2730,7 @@
         "declaredTiers": "function",
         "dependenciesAround": "function",
         "dependencyStackNative": "function",
+        "describedWordsNative": "function",
         "encodeSearch": "function",
         "enrichSources": "function",
         "exportedDigest": "function",
@@ -2796,6 +2797,7 @@
         "treeShapeOf": "function",
         "tsconfigUse": "function",
         "updateSourceIndex": "function",
+        "wordStemsNative": "function",
         "workingTreeChanges": "function"
       },
       "./read": {
