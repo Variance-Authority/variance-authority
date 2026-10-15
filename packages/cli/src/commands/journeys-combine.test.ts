@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -5,7 +6,8 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { combineRecords, encodeAsSetExecutionIndex, readTestCoverage, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
+import { combineRecords, encodeAsSetExecutionIndex, readTestCoverage, sourceCut, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main, parseArgs } from '../bin.js';
 import { distillRows } from './distill.js';
 import { readExecutionIndex } from './execution-input.js';
@@ -186,5 +188,38 @@ describe('`journeys combine`', () => {
     ['combine', 'one.bin', '--into', 'all.bin', '--config', 'web.json'],
   ])('refuses incomplete or reading-specific arguments: %j', (...args) => {
     expect(() => parseArgs(['journeys', ...args])).toThrow('`variance journeys combine`');
+  });
+});
+
+describe('`variance journeys combine` over shards that cut one text two ways', () => {
+  it('cuts the module again in the checkout it runs in, from any directory of it', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'va-combine-disputed-')));
+    temporary.push(root);
+    execFileSync('git', ['init', '--quiet', root]);
+    await mkdir(join(root, 'src'));
+    const twice = 'export function both(run: (step: () => number) => void) {\n  run(() => 1);\n  run(() => 2);\n}\n';
+    await writeFile(join(root, 'src/twice.ts'), twice);
+    const cut = sourceCut(twice, 'src/twice.ts', 'presence')!;
+    const shards = await Promise.all([['fresh', 'a.test.ts', undefined], ['carried', 'b.test.ts', 'older']].map(async ([name, file, stale]) => {
+      const path = join(root, `${name}.bin`);
+      const blocks = cut.rows.map((row, at) => ({ ...row, digest: at === 1 && stale !== undefined ? stale : row.digest, testFiles: [file!] }));
+      await writeTestCoverage(path, {
+        version: 3, instrumentation: INSTRUMENTATION_ID, commit: 'c0ffee',
+        tests: [{ file: file!, complete: true, preconditions: [], duration: 1 }],
+        modules: [{ file: 'src/twice.ts', sourceDigest: cut.sourceDigest, instrumented: true, blocks }],
+      });
+      return path;
+    }));
+    const into = join(root, 'combined.bin');
+    const cwd = process.cwd();
+    let err = '';
+    try {
+      process.chdir(join(root, 'src'));
+      const code = await main(['journeys', 'combine', ...shards, '--into', into], { out: () => {}, err: (text) => { err += text; } });
+      expect({ code, err }).toEqual({ code: 0, err: '' });
+    } finally {
+      process.chdir(cwd);
+    }
+    expect((await readTestCoverage(into)).modules[0]!.blocks.map((block) => block.testFiles)).toEqual(cut.rows.map(() => ['a.test.ts', 'b.test.ts']));
   });
 });

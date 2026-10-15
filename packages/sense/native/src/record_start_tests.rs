@@ -14,7 +14,7 @@ fn shard(file: &'static str, base: Option<&'static str>) -> Vec<u8> {
 
 fn combined(records: &[&[u8]]) -> Result<Vec<u8>, String> {
     let named: Vec<(String, Vec<u8>)> = records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect();
-    combine_bytes(&named).map(|combined| combined.bytes)
+    combine_bytes(&named, None).map(|combined| combined.bytes)
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn a_shard_that_observed_nothing_started_from_a_record_too() {
 
 fn result(records: &[&[u8]]) -> crate::record_combine::CombinedRecord {
     let named: Vec<(String, Vec<u8>)> = records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect();
-    combine_bytes(&named).unwrap().result
+    combine_bytes(&named, None).unwrap().result
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn checks_no_read_of_a_shard_that_names_it_unknown_and_says_which() {
     assert_eq!(folded.unchecked, ["shard-0.bin"]);
     assert_eq!(folded.read.as_deref(), Some("unknown"), "a combine that checked no read of one shard claims none for all");
     let named: Vec<(String, Vec<u8>)> = vec![("shard-0.bin".into(), unknown.clone()), ("shard-1.bin".into(), read.clone())];
-    let bytes = combine_bytes(&named).unwrap().bytes;
+    let bytes = combine_bytes(&named, None).unwrap().bytes;
     assert_eq!(record_coverage::read(&bytes).unwrap().parts.base.as_deref(), Some(&b"unknown over none"[..]));
     assert!(result(&[&read]).unchecked.is_empty());
     // The record a shard was laid over is still checked.

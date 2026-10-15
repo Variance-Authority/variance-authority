@@ -664,10 +664,11 @@ jobs:
       # this checkout. The mainline's record is laid first, the one the suite
       # jobs laid. A slice that ran whole in one job handed its record on already
       # layered, and it replaces the base. A sharded slice's shards are folded
-      # and landed over the base by `variance journeys --suite`, which is what a
-      # sharded suite's fan-in runs anywhere. A slice nothing handed on keeps
-      # the base, and on a push the publish refuses it as recorded at another
-      # commit. Every slice's record sits under one directory, which is what
+      # and landed over the base as `variance journeys --suite` lands them, which
+      # is what a sharded suite's fan-in runs anywhere, and only the landing is
+      # printed: nobody reads a whole journal in a log. A slice nothing handed
+      # on keeps the base, and on a push the publish refuses it as recorded at
+      # another commit. Every slice's record sits under one directory, which is what
       # the publish job is handed.
       - name: fold the slices
         id: records
@@ -697,7 +698,10 @@ jobs:
             else
               mapfile -t shards < <(find "$RAN" -path "$RAN/variance-shard-$suite-*" -path "*/suites/$suite/coverage.bin" | sort)
               if [ "${#shards[@]}" -gt 0 ]; then
-                node packages/cli/dist/bin.js journeys "${shards[@]}" --suite "$suite"
+                SUITE="$suite" node --input-type=module -e "
+                  const cli = await import('@variance-authority/cli');
+                  process.stdout.write(await cli.landSuite(process.cwd(), process.argv.slice(1), process.env.SUITE) + '\\n');
+                " "${shards[@]}"
               else
                 echo "$suite: nothing was handed on, so the base stands."
               fi

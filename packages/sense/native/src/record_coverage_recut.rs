@@ -56,6 +56,18 @@ pub(crate) fn recut(
     if previous.module_instrumented[row] != 1 || ps.at(previous.module_source[row]) == fs.at(fresh.module_source[module]) {
         return Recut::Kept;
     }
+    carried((previous, ps), row, (fresh, fs), module, reaches)
+}
+
+/// Row `row` of `previous` carried onto row `module` of `fresh`, whatever text
+/// each was cut from: [`Recut::Mislaid`] or [`Recut::Cut`], never kept.
+pub(crate) fn carried(
+    (previous, ps): (&Coverage, Text),
+    row: usize,
+    (fresh, fs): (&Coverage, Text),
+    module: usize,
+    reaches: impl Fn(u8) -> bool,
+) -> Recut {
     let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
     if fresh.module_instrumented[module] != 1
         || !same_numbering(previous.blocks(row).map(|block| address(previous, ps, block)), fresh.blocks(module).map(|block| address(fresh, fs, block)))

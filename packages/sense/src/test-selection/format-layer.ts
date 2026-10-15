@@ -55,25 +55,25 @@ export function layCoverage(
   const encoded = encodeTestCoverage(current);
   if (previous === undefined) return encoded;
   return layRecord(previous, encoded, {
-    ...(onDisk.size === 0 ? {} : { recut: encodeTestCoverage(recut(current, onDisk)) }),
+    ...(onDisk.size === 0 ? {} : { recut: cutRecord(current.instrumentation, onDisk) }),
     ...(readings === undefined ? {} : { readings }),
   });
 }
 
 /**
- * Each module of `onDisk` cut in the text it has now, as a record under
- * `current`'s probes with no tests: a module whose text does not cut, or under
- * a recipe this build does not know, is one held not instrumented.
+ * Each module of `onDisk` cut in the text it has now, as a record under the
+ * probes `instrumentation` with no tests: a module whose text does not cut, or
+ * under a recipe this build does not know, is one held not instrumented.
  */
-function recut(current: TestCoverage, onDisk: ReadonlyMap<string, string>): TestCoverage {
-  const mode = instrumentModeOf(current.instrumentation);
+export function cutRecord(instrumentation: string, onDisk: ReadonlyMap<string, string>): Buffer {
+  const mode = instrumentModeOf(instrumentation);
   const modules = [...onDisk].map(([file, text]): CoverageModule => {
     const fresh = mode === undefined ? undefined : sourceCut(text, file, mode);
     return fresh === undefined
       ? { file, sourceDigest: digestString(text), instrumented: false, blocks: [] }
       : { file, sourceDigest: fresh.sourceDigest, instrumented: true, blocks: fresh.rows };
   });
-  return { version: current.version, instrumentation: current.instrumentation, tests: [], modules };
+  return encodeTestCoverage({ version: 3, instrumentation, tests: [], modules });
 }
 
 /**
