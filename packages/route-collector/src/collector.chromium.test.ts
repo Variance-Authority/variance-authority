@@ -34,6 +34,11 @@ const PAGES: Readonly<Record<string, string>> = {
         document.querySelector('#app').innerHTML =
           '<section data-testid="late"><h1>Arrived</h1></section>';
       }, 120)</script></body></html>`,
+  // Marks itself out of the run. The marker sits outside the root on purpose:
+  // the page decides for the whole page, not for the region a run photographs.
+  '/prose': `<!doctype html><html><body>
+      <article data-variance-exclude="a long markdown document"></article>
+      <main id="app"><p>Prose</p></main></body></html>`,
 };
 
 let server: Server | undefined;
@@ -45,6 +50,7 @@ const PLAN: Plan = {
     { subject: { id: 'page/ready', kind: 'route' } },
     { subject: { id: 'page/deferred', kind: 'route' } },
     { subject: { id: 'page/missing', kind: 'route' } },
+    { subject: { id: 'page/prose', kind: 'route' } },
   ],
   notObserved: [],
   warnings: [],
@@ -74,6 +80,7 @@ beforeAll(async () => {
     routes: {
       'page/ready': `${base}/ready`,
       'page/deferred': `${base}/deferred`,
+      'page/prose': `${base}/prose`,
     },
     roots: ['#app'],
     ready: { 'page/deferred': '[data-testid="late"]' },
@@ -248,6 +255,19 @@ chromium_('a run over routes', () => {
     expect(collected.ok).toBe(false);
     if (collected.ok) return;
     expect(collected.because).toContain('page/missing');
+  }, 60_000);
+
+  it('leaves out a page that marks itself excluded, naming its reason, and photographs nothing', async () => {
+    // The page knows it is prose; a list in the config would have to be kept in
+    // step with every page added. Excluded is a decision and not a failure, so
+    // it travels as its own answer, with the reason the page gave.
+    const collected = await collector!.collect(PLAN.subjects[3]!);
+
+    expect(collected).toEqual({
+      ok: false,
+      excluded: true,
+      because: 'the page excludes itself (`data-variance-exclude`): a long markdown document',
+    });
   }, 60_000);
 });
 

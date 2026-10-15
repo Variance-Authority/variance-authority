@@ -39,6 +39,10 @@ export interface RouteCollectorOptions {
    * A sitemap *index* is not followed. Fetching what a fetched document points at
    * is a crawler, and a crawler is a different product with a different failure
    * mode.
+   *
+   * A listed page that is not reviewed as pixels leaves the run from the page
+   * itself: `data-variance-exclude="<reason>"` on any element. The page is
+   * reported as `excluded` with that reason, and nothing is read from it.
    */
   readonly sitemap?: string;
 

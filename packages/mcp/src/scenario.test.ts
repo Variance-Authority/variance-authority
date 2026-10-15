@@ -105,7 +105,7 @@ describe('a run that could not see 50 of the 300 subjects it planned', () => {
     const text = call(HOLED, 'variance_summary');
 
     expect(text).toContain('not observed: 50 subject(s)');
-    expect(text).toContain('50 the run could not see, 0 excluded by configuration');
+    expect(text).toContain('50 the run could not see, 0 excluded on purpose');
     expect(text).toContain('[failed] story:unseen-0: the collector threw while mounting the story');
   });
 
@@ -143,7 +143,7 @@ describe('a subject that appears only in the coverage list', () => {
   it('separates an exclusion somebody chose from a failure nobody did', () => {
     const text = call(MIXED, 'variance_describe', { subject: 'story:docs' });
 
-    expect(text).toContain('excluded by configuration, not by a failure');
+    expect(text).toContain('excluded on purpose, not by a failure');
     expect(text).not.toContain('It is not a pass.');
   });
 

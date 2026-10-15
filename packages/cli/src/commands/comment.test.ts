@@ -403,7 +403,7 @@ describe('renderComment', () => {
     });
 
     expect(body).toContain('`story:chart` — the story never became ready');
-    expect(body).toContain('1 subject excluded by configuration and not listed');
+    expect(body).toContain('1 subject excluded on purpose and not listed');
     expect(body).not.toContain('story:docs');
   });
 

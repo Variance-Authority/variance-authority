@@ -358,9 +358,9 @@ export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): reado
  * `failed` entries are listed, and above the fold, because each has its own
  * reason, a count of them tells a reviewer nothing they can act on, and the
  * heading counts them among what needs review. `excluded` and unreached entries
- * are counted in the fold by {@link skippedBlocks}: the operator already decided,
- * in a file that was already reviewed, and re-litigating that decision on every
- * pull request is how an exclusion list ends up deleted rather than read.
+ * are counted in the fold by {@link skippedBlocks}: an exclusion was decided in
+ * a reviewed file (config, story tags, a page's marker), the run report keeps
+ * its reason, and re-litigating it on every pull request gets it deleted.
  */
 export function coverageBlocks(
   report: CliRunReport,
@@ -397,7 +397,7 @@ export function skippedBlocks(docket: Docket): readonly string[] {
     ...(docket.excluded === 0
       ? []
       : [
-          `${count(docket.excluded, 'subject')} excluded by configuration and not listed.`,
+          `${count(docket.excluded, 'subject')} excluded on purpose and not listed.`,
         ]),
     // Stated as work avoided rather than coverage lost, because that is what it
     // is: the run read the diff and every stored baseline and concluded these
