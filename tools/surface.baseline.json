@@ -1594,6 +1594,7 @@
     },
     "names": {
       ".": {
+        "ARRIVAL_GLOBAL": "const",
         "BlankRule": "interface",
         "BlankedAsset": "interface",
         "DeclarationReader": "interface",
@@ -1621,6 +1622,7 @@
         "pinnedRegion": "function",
         "unresizable": "function",
         "unwidened": "function",
+        "watchArrivals": "function",
         "widthsOf": "function"
       },
       "./engines": {
@@ -2058,6 +2060,7 @@
     "names": {
       ".": {
         "ANONYMOUS": "const",
+        "AwaitedArrival": "type",
         "Commit": "interface",
         "CommitTap": "interface",
         "CommitUpdater": "interface",
@@ -2079,6 +2082,7 @@
         "HydrationState": "type",
         "HydrationWaitOptions": "interface",
         "LoadingDeclaration": "interface",
+        "MarkupChange": "interface",
         "MemoizedUpdatersResult": "interface",
         "NO_FIBER": "const",
         "NoFiberReason": "type",
@@ -2091,6 +2095,7 @@
         "Remount": "interface",
         "RenderMark": "interface",
         "ResolvedProvenance": "interface",
+        "RootHydration": "interface",
         "SuspenseBoundary": "interface",
         "SuspenseOutcome": "type",
         "SuspenseSettlement": "interface",

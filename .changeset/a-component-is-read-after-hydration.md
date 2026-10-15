@@ -20,12 +20,12 @@ subject, and waits until every one has committed. It returns `state`:
 `hydrated`, `hydrating` or `unrooted`, with `roots`, `pending` and `waitedMs`;
 `hydrated: boolean`, `fibers` and the `confirmations` option are gone.
 
-A route still hydrating when the wait runs out is refused with the number of
-roots that had not committed, as a route still showing a Suspense fallback is:
+A route that stops hydrating with roots uncommitted is refused with their
+number, as a route still showing a Suspense fallback is:
 an effect that runs after hydration can paint a different image. A route with
 no React root is collected with a `react-root-absent` warning, so a region with
 no component says why. A run with `wiring: false` waits for nothing and says
-nothing. The new `hydrationTimeoutMs` option sets the wait, `2000` by default.
+nothing.
 
 `resolveProvenance`, `wiringOf`, `holdingOf` and `componentFiberOf` read
 nothing off a node whose root has not committed. `resolveProvenance` returns

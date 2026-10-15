@@ -3,15 +3,25 @@
 // Real React, for the reason `suspense.test.tsx` gives: a fake `memoizedState`
 // would assert that this file agrees with itself, and the claim of the module
 // is that it agrees with React about whether a root has committed.
+//
+// And a real commit tap, installed at module scope with `react-dom` imported
+// underneath it, for the reason `commits.test.tsx` gives: a static import would
+// load react-dom before the hook existed, and the tap would hear nothing.
 
-import { createElement as h, use } from 'react';
-import { createPortal } from 'react-dom';
-import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
+import { createElement as h, startTransition, use } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { tapCommits, type CommitTap } from './commits.js';
 import { hasFiber } from './fiber.js';
 import { awaitHydration } from './hydration.js';
 import { UNCOMMITTED, resolveProvenance } from './resolve.js';
 import { componentFiberOf, wiringOf } from './wiring.js';
+
+const tap = tapCommits();
+
+const { createPortal } = await import('react-dom');
+const { createRoot, hydrateRoot } = await import('react-dom/client');
+
+type Root = ReturnType<typeof createRoot>;
 
 function Header() {
   return h('span', null, 'early');
@@ -56,16 +66,36 @@ function ticks(ms = 50): Promise<void> {
 }
 
 /** A server-rendered container, hydrated with a shell that holds until `open`. */
-async function hydrating(): Promise<{ readonly container: HTMLElement; open(): void }> {
+async function hydrating(
+  component: typeof App = App,
+  markup = MARKUP,
+): Promise<{ readonly container: HTMLElement; open(): void }> {
   const container = document.createElement('div');
-  container.innerHTML = MARKUP;
+  container.innerHTML = markup;
   document.body.appendChild(container);
 
   const held = gate();
   gates.push(held.open);
-  roots.push(hydrateRoot(container, h(App, { ready: held.ready })));
+  roots.push(hydrateRoot(container, h(component, { ready: held.ready })));
   await ticks();
   return { container, open: held.open };
+}
+
+/**
+ * What a driver answers for a page whose shell holds on one response: it is
+ * still arriving, it arrives and settles the promise, and then nothing is
+ * outstanding.
+ */
+function arriving(open: () => void, afterMs = 40): () => Promise<boolean> {
+  let answered = false;
+  return async () => {
+    if (answered) return false;
+    answered = true;
+    await ticks(afterMs);
+    open();
+    await ticks(0);
+    return true;
+  };
 }
 
 function subjectOf(container: HTMLElement): Element {
@@ -91,10 +121,54 @@ describe('waiting for React to hydrate the subject', () => {
     expect(span !== null && hasFiber(span)).toBe(true);
     expect(late !== null && hasFiber(late)).toBe(false);
 
-    const settled = await awaitHydration(subjectOf(page.container), { timeoutMs: 80, pollMs: 4 });
+    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4 });
 
     expect(settled).toMatchObject({ state: 'hydrating', roots: 1, pending: 1 });
-    expect(settled.waitedMs).toBeGreaterThanOrEqual(80);
+  });
+
+  /**
+   * The suspended shell has no work React can do: whatever settles its promise
+   * arrives from outside. With nothing outstanding to bring it, waiting longer
+   * is waiting for nothing, and the subject is read as it stands at once.
+   */
+  it('stops at once on a suspended shell when nothing is arriving to settle it', async () => {
+    const page = await hydrating();
+    const asked: string[] = [];
+
+    const settled = await awaitHydration(subjectOf(page.container), {
+      pollMs: 4,
+      outstanding: async (of) => {
+        asked.push(of);
+        return false;
+      },
+    });
+
+    expect(settled).toMatchObject({ state: 'hydrating', roots: 1, pending: 1 });
+    // The promise can be on any request: a chunk, a payload, a long poll.
+    expect(asked).toEqual(['any']);
+    expect(settled.waitedMs).toBeLessThan(20);
+  });
+
+  /**
+   * A shell hydrated inside a transition suspends on a transition lane rather
+   * than the default one. React marks it suspended all the same, so it reads as
+   * work React cannot do, and the wait asks the wire rather than following a
+   * render that is not coming.
+   */
+  it('stops on a shell hydrated in a transition when nothing is arriving to settle it', async () => {
+    const container = document.createElement('div');
+    container.innerHTML = MARKUP;
+    document.body.appendChild(container);
+    const held = gate();
+    gates.push(held.open);
+    startTransition(() => {
+      roots.push(hydrateRoot(container, h(App, { ready: held.ready })));
+    });
+    await ticks();
+
+    const settled = await awaitHydration(subjectOf(container), { pollMs: 4, outstanding: async () => false });
+
+    expect(settled).toMatchObject({ state: 'hydrating', roots: 1, pending: 1 });
   });
 
   /**
@@ -113,8 +187,7 @@ describe('waiting for React to hydrate the subject', () => {
     expect(wiringOf(span)).toBeUndefined();
     expect(componentFiberOf(span)).toBeNull();
 
-    page.open();
-    await awaitHydration(subjectOf(page.container), { timeoutMs: 5_000, pollMs: 4 });
+    await awaitHydration(subjectOf(page.container), { pollMs: 4, outstanding: arriving(page.open, 0) });
 
     const resolved = resolveProvenance(span);
     expect(resolved.status).toBe('resolved');
@@ -124,9 +197,11 @@ describe('waiting for React to hydrate the subject', () => {
 
   it('returns once React commits the hydration, however long the shell held', async () => {
     const page = await hydrating();
-    setTimeout(page.open, 120);
 
-    const settled = await awaitHydration(subjectOf(page.container), { timeoutMs: 5_000, pollMs: 4 });
+    const settled = await awaitHydration(subjectOf(page.container), {
+      pollMs: 4,
+      outstanding: arriving(page.open, 120),
+    });
 
     expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
     expect(settled.waitedMs).toBeGreaterThanOrEqual(100);
@@ -138,10 +213,28 @@ describe('waiting for React to hydrate the subject', () => {
     page.open();
     await ticks();
 
-    const settled = await awaitHydration(subjectOf(page.container), { timeoutMs: 5_000 });
+    const settled = await awaitHydration(subjectOf(page.container));
 
     expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
     expect(settled.waitedMs).toBeLessThan(50);
+  });
+
+  /**
+   * A root that committed before the wait was asked can still have effects
+   * React has not run, and an effect is where a client changes what the server
+   * sent. Read before they run, the page is read one change early.
+   */
+  it('waits for the effects of a root that had already committed', async () => {
+    const page = await hydrating();
+    page.open();
+    await ticks();
+    let asked = 0;
+    const flushing = { ...tap, attached: true, effectsPending: () => (asked += 1) <= 3 } as CommitTap;
+
+    const settled = await awaitHydration(subjectOf(page.container), { pollMs: 4, tap: flushing });
+
+    expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
+    expect(asked).toBeGreaterThan(3);
   });
 
   /**
@@ -162,14 +255,13 @@ describe('waiting for React to hydrate the subject', () => {
     root.render(h(App, { ready: held.ready }));
     await ticks();
 
-    expect(await awaitHydration(section, { timeoutMs: 40, pollMs: 4 })).toMatchObject({
+    expect(await awaitHydration(section, { pollMs: 4 })).toMatchObject({
       state: 'hydrating',
       roots: 1,
       pending: 1,
     });
 
-    held.open();
-    expect(await awaitHydration(section, { timeoutMs: 5_000, pollMs: 4 })).toMatchObject({
+    expect(await awaitHydration(section, { pollMs: 4, outstanding: arriving(held.open, 0) })).toMatchObject({
       state: 'hydrated',
       roots: 1,
       pending: 0,
@@ -190,14 +282,14 @@ describe('waiting for React to hydrate the subject', () => {
     const root = createRoot(container);
     roots.push(root);
     await ticks();
-    expect(await awaitHydration(section, { timeoutMs: 40, pollMs: 4 })).toMatchObject({
+    expect(await awaitHydration(section, { pollMs: 4 })).toMatchObject({
       state: 'hydrating',
       pending: 1,
     });
 
     root.render(null);
     await ticks();
-    expect(await awaitHydration(section, { timeoutMs: 1_000, pollMs: 4 })).toMatchObject({
+    expect(await awaitHydration(section, { pollMs: 4 })).toMatchObject({
       state: 'hydrated',
       roots: 1,
       pending: 0,
@@ -218,7 +310,7 @@ describe('waiting for React to hydrate the subject', () => {
     root.render(h('div', null, createPortal(h('em', null, 'away'), outside)));
     await ticks();
 
-    const settled = await awaitHydration(outside.querySelector('em')!, { timeoutMs: 1_000 });
+    const settled = await awaitHydration(outside.querySelector('em')!);
 
     expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
   });
@@ -234,18 +326,99 @@ describe('waiting for React to hydrate the subject', () => {
     plain.innerHTML = '<p>static</p>';
     document.body.appendChild(plain);
 
-    const settled = await awaitHydration(plain, { timeoutMs: 40, pollMs: 4 });
+    const settled = await awaitHydration(plain, { pollMs: 4 });
 
     expect(settled).toMatchObject({ state: 'unrooted', roots: 0, pending: 0 });
-    expect(settled.waitedMs).toBeGreaterThanOrEqual(40);
   });
 
-  it('reads once and waits for nothing at `timeoutMs: 0`', async () => {
-    const page = await hydrating();
+  /**
+   * A client that has not created its root yet is waiting on its own bundle,
+   * which arrives over the wire like anything else. The wait follows it, and
+   * reads the subject the root reaches once it does.
+   */
+  it('follows a client still arriving to the root it creates', async () => {
+    const container = document.createElement('div');
+    container.innerHTML = '<main id="app"><span>early</span><p>late</p></main>';
+    document.body.appendChild(container);
+    const held = gate();
+    gates.push(held.open);
+    let created = false;
 
-    const settled = await awaitHydration(subjectOf(page.container), { timeoutMs: 0 });
+    const settled = await awaitHydration(subjectOf(container), {
+      pollMs: 4,
+      outstanding: async () => {
+        if (created) return false;
+        created = true;
+        roots.push(hydrateRoot(container, h(App, { ready: held.ready })));
+        held.open();
+        await ticks(0);
+        return true;
+      },
+    });
 
-    expect(settled.state).toBe('hydrating');
-    expect(settled.waitedMs).toBeLessThan(20);
+    expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
+  });
+
+  /**
+   * A tap installed before the page's scripts that saw no React load says no
+   * root is coming yet, not that none will: a renderer can still be on the wire,
+   * in a chunk the page imports late. Read once nothing the page asked for is.
+   */
+  it('reads a page React never loaded on once nothing is arriving', async () => {
+    const plain = document.createElement('main');
+    plain.innerHTML = '<p>static</p>';
+    document.body.appendChild(plain);
+    // The tap's own answer on such a page; React has loaded in this one.
+    const unloaded = { ...tap, attached: true, reactVersion: undefined } as CommitTap;
+
+    const asked: string[] = [];
+    const settled = await awaitHydration(plain, {
+      pollMs: 4,
+      tap: unloaded,
+      outstanding: async (of) => {
+        asked.push(of);
+        return false;
+      },
+    });
+
+    expect(settled).toMatchObject({ state: 'unrooted', roots: 0, pending: 0, loaded: false });
+    // Only a script brings a renderer: a request of any other kind, a long poll
+    // held open, is not one the page needs for React to arrive.
+    expect(asked).toEqual(['script']);
+  });
+
+  it('follows a renderer still arriving to the root it hydrates', async () => {
+    const container = document.createElement('div');
+    container.innerHTML = MARKUP;
+    document.body.appendChild(container);
+    const held = gate();
+    gates.push(held.open);
+    let loaded = false;
+    const late = {
+      ...tap,
+      attached: true,
+      get reactVersion() {
+        return loaded ? tap.reactVersion : undefined;
+      },
+    } as CommitTap;
+
+    const asked: string[] = [];
+    const settled = await awaitHydration(subjectOf(container), {
+      pollMs: 4,
+      tap: late,
+      outstanding: async (of) => {
+        asked.push(of);
+        if (loaded) return false;
+        loaded = true;
+        roots.push(hydrateRoot(container, h(App, { ready: held.ready })));
+        held.open();
+        await ticks(0);
+        return true;
+      },
+    });
+
+    expect(settled).toMatchObject({ state: 'hydrated', roots: 1, pending: 0 });
+    expect(settled.loaded).toBeUndefined();
+    expect(asked).toEqual(['script']);
   });
 });

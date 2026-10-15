@@ -4,9 +4,10 @@ A component that loads its code or its data after its first render shows a
 placeholder, then its content, and a screenshot records whichever of the two is
 on screen. A run waits for the late content React reports as pending: a
 `React.lazy` component, a promise read with `use()` inside `<Suspense>`, a
-server-rendered route that has not hydrated. When that wait runs out, the run
-refuses the subject: it records nothing for it and fails with a message that
-names what is still pending. Content an effect sets after it loads something is
+server-rendered route that has not hydrated. When that wait runs out, or React
+is stuck with nothing left arriving that could unstick it, the run refuses the
+subject: it records nothing for it and fails with a message that names what is
+still pending. Content an effect sets after it loads something is
 not pending anywhere React can report, so the run records the placeholder and
 says nothing. This page shows both kinds on one component, and how to turn the
 second kind into the first. None of the ways is a sleep.
@@ -86,13 +87,16 @@ Before it reads a subject, the run waits for each of these:
   boundary under the subject shows its children.
 - **A route that has not hydrated.** The route collector, the part of this tool
   that opens each URL you name and reads it, waits until React has committed
-  every root that reaches the subject.
+  every root that reaches the subject, for as long as React has work it can do
+  or the page is still receiving what React waits on. No clock ends it: a root
+  React cannot finish, with nothing left arriving, is refused at once
+  ([hydration, before anything is read](stabilization.md#hydration-before-anything-is-read)).
 - **The marker you declare.** A `ready` selector, when you name one, is waited
   for first ([below](#mark-the-subject-ready)).
 
-The defaults are 5 seconds for Suspense, 2 seconds for hydration on a route,
-and 10 seconds for a `ready` marker on a route or 15 on a story. They are the
-`suspenseTimeoutMs`, `hydrationTimeoutMs` and `readyTimeoutMs` options of the
+The defaults are 5 seconds for Suspense, and 10 seconds for a `ready` marker on
+a route or 15 on a story. They are the `suspenseTimeoutMs` and `readyTimeoutMs`
+options of the
 [route collector](../packages/route-collector/README.md#options), the
 `suspenseTimeoutMs` and `readyTimeoutMs` options of the
 [Storybook collector](../packages/storybook-collector/README.md#options), and
