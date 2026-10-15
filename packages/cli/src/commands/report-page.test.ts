@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { fileNameFor } from '@variance-authority/core/format';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 
@@ -55,16 +57,25 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-/** A run of `count` changed pages, three pictures each, every picture `bytes` long. */
-async function run(count: number, bytes: number, extra: readonly object[] = []): Promise<Map<string, Buffer>> {
+/**
+ * A run of `count` changed pages, three pictures each, every picture `bytes`
+ * long, written as `<named(at)>.<side>.png` beside the report.
+ */
+async function run(
+  count: number,
+  bytes: number,
+  extra: readonly object[] = [],
+  named: (at: number) => string = (at) => `images/page-${at}`,
+): Promise<Map<string, Buffer>> {
   const pictures = new Map<string, Buffer>();
   const observations: object[] = [];
   for (let at = 0; at < count; at += 1) {
     const images: Record<string, string> = {};
     for (const side of ['before', 'diff', 'after'] as const) {
-      const path = `images/page-${at}.${side}.png`;
+      const path = `${named(at)}.${side}.png`;
       const picture = png(1280, 22000, bytes);
       pictures.set(path, picture);
+      await mkdir(dirname(join(root, path)), { recursive: true });
       await writeFile(join(root, path), picture);
       images[side] = path;
     }
@@ -217,6 +228,24 @@ describe('report --format html --embed-images', () => {
       expect(image).toMatch(/src="[^"]*images\/page-0\.(before|diff|after)\.png"/);
       expect(image).toContain('loading="lazy"');
       expect(image).toContain('decoding="async"');
+    }
+  });
+
+  it('names each picture by the URL of its file, whatever the file name spells', async () => {
+    // The run writes a picture under its subject id percent-encoded, so the
+    // after picture of `route:/page-0` is `route%3A%2Fpage-0.after.png` on disk.
+    // A browser reads `src` as a URL and decodes `%2F` to `/`, so a name written
+    // into it raw asks for a file that does not exist. The directory holds a
+    // space and a `#`, which a URL reads as an escape and a fragment.
+    await run(1, 4096, [], (at) => `shots #1/${fileNameFor(`route:/page-${at}`)}`);
+    const html = (await page({ embed: false })).join('');
+
+    const shown = [...html.matchAll(/<img class="(before|diff|after)" src="([^"]*)"/g)];
+    expect(shown).toHaveLength(3);
+    const report = pathToFileURL(join(root, 'report.json'));
+    for (const [, side, source] of shown) {
+      const file = join(root, 'shots #1', `route%3A%2Fpage-0.${side}.png`);
+      expect(new URL(source as string, report).href).toBe(pathToFileURL(file).href);
     }
   });
 });

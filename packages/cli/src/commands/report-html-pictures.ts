@@ -4,6 +4,7 @@ import { extname, resolve } from 'node:path';
 import type { CliRunReport } from './run.js';
 import { text } from './report-html-elements.js';
 import { needsReview } from './report-html-subjects.js';
+import { urlOfPath } from './url-of-path.js';
 
 /**
  * Where the page's pictures come from: beside it, or inside it.
@@ -54,9 +55,13 @@ export interface Placement {
   carried(): Iterable<string>;
 }
 
-/** Every picture by its path, relative to the report: the page belongs beside it. */
+/**
+ * Every picture by its path, relative to the report: the page belongs beside it.
+ * The path is a file's name and `src` is a URL, so {@link urlOfPath} turns one
+ * into the other: a name holding `%` names that file, not the one it decodes to.
+ */
 export const BY_PATH: Placement = {
-  attributes: (path) => `src="${text(path)}"`,
+  attributes: (path) => `src="${text(urlOfPath(path))}"`,
   carried: () => [],
 };
 
