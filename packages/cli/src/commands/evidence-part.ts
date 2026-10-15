@@ -82,7 +82,7 @@ export interface EvidencePart extends SuitePart {
   readonly environments: readonly EvidenceEnvironment[];
   readonly plan: EvidencePlan;
   /** How the plan was cut. Apart from the recipe, so a sharded collection compares to a whole one. */
-  readonly assignment: 'checksum';
+  readonly assignment: 'count';
   /** `--subjects`, when the collection was narrowed to part of the plan. */
   readonly scope?: string;
   /** One per subject this job owned, in plan order. */

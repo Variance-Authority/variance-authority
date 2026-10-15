@@ -1,7 +1,8 @@
 ---
+'@variance-authority/core': minor
 '@variance-authority/sense': minor
 '@variance-authority/playwright-test': minor
-'@variance-authority/cli': patch
+'@variance-authority/cli': minor
 ---
 
 A shard takes whole files in every runner, and is balanced by file count without times
@@ -27,7 +28,17 @@ rule, so the shards are balanced by file count and none is left empty while
 there are as many files as shards. The line reads
 `shard k/n by file count: <m> of <n> files; <why>`, in place of
 `split by the runner, by count: <why>`. A file the runner hands in more than
-once is placed once, with every copy in one shard.
+once, for each project that runs it, is placed once at its recorded time, which
+already sums every project, with every copy in one shard.
+
+`place` in `@variance-authority/core/shard` is where that rule lives: with
+nothing recorded, every group weighs one and is placed longest first on the
+least-loaded shard like a timed one, ties broken by key in code-unit order and
+then by the lowest shard. Its `by` reads `count` rather than `checksum`, and
+its `cost` and `load` are always present, one per group when placed by count.
+`variance run --shard` and `variance collect --shard` place stories and routes
+by the same rule, and a subject another shard owns reads
+`assigned to shard k/n by count, …`.
 
 A Jest configuration wrapped by `withTestSelection` gets `passWithNoTests: true`
 unless it sets `passWithNoTests` itself, so a shard left no file, because there
@@ -44,3 +55,7 @@ by the same rule.
   each shard.
 - A Playwright run below 1.62 that asks for a shard is refused. Upgrade
   Playwright, or run without `--shard`.
+- `variance run --shard` and `variance collect --shard` with no recorded costs
+  place each file by count, not by a checksum of the file and the shard. The
+  shards are balanced, but adding a file can move others to another shard.
+  A collection's `assignment` reads `count`.

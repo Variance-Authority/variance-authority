@@ -53,17 +53,21 @@ describe('the files one shard of a run takes', () => {
     });
   });
 
-  it('places a file handed more than once, as two projects run it, whole on one shard', () => {
+  it('places a file handed more than once, as two projects run it, whole on one shard, at its recorded time once', () => {
+    // The record's time for a file already sums every project that ran it, so
+    // pricing it once per copy would count each project twice.
     const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'a.test.ts'];
+    const times = timed({ 'a.test.ts': 2000, 'b.test.ts': 3000, 'c.test.ts': 1500 });
 
-    const byTime = shardOf(files, { index: 1, count: 2 }, timed({ 'a.test.ts': 1000, 'b.test.ts': 1000, 'c.test.ts': 1000 }));
+    const byTime = [1, 2].map((index) => shardOf(files, { index, count: 2 }, times));
     const byCount = [1, 2].map((index) => shardOf(files, { index, count: 2 }, { unread: 'nothing is recorded there' }).take);
 
-    expect(byTime).toEqual({
-      take: [0, 3],
-      line: 'variance-authority: shard 1/2 by the times recorded at abcdef012345: 1 of 3 files, 2.0 s (shards 2.0 s to 2.0 s)',
+    expect(byTime[0]).toEqual({
+      take: [1],
+      line: 'variance-authority: shard 1/2 by the times recorded at abcdef012345: 1 of 3 files, 3.0 s (shards 3.0 s to 3.5 s)',
     });
-    expect(byCount).toEqual([[0, 3], [1, 2]]);
+    expect(byTime[1]!.take).toEqual([0, 3, 2]);
+    expect(byCount).toEqual([[0, 3, 2], [1]]);
   });
 
   it('leaves no shard empty while there are as many files as shards', () => {

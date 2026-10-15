@@ -2146,9 +2146,10 @@ follows three rules:
   the longest files first, each on the shard with the least work so far. A
   subject with no recorded cost is priced at the median of the ones that have
   one.
-- **A checksum decides when nothing was recorded.** Each file goes to the shard
-  with the highest `sha256` of the file and the shard number, so adding a file
-  moves no other one.
+- **File count decides when nothing was recorded.** Every file weighs the same
+  and is placed by the same rule, ties broken by path and then by the lowest
+  shard, so the shards differ by at most one file. Adding a file can move
+  others: the placement is a function of the whole plan.
 
 The shard that finishes last is the file `variance ask costs` lists first: it
 prints the slowest files with their summed time, then the slowest subjects, from
@@ -2172,7 +2173,7 @@ its own index and needs no merge.
 
 The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A
-checkout with no share, or a line that holds no costs, places by checksum.
+checkout with no share, or a line that holds no costs, places by file count.
 
 `--subjects <glob>` is the other way to split, when you want to choose the
 slices yourself.
@@ -2358,7 +2359,7 @@ owns its own collector, renderer, storage, or review surface:
 - `run` takes `shard` as `{ index, total }`, the library form of `--shard k/n`,
   and `costs` as `{ commit, costs }`, the subject costs that place files on
   shards and order each worker's queue longest first. The executable reads
-  `costs` from the share; without them a checksum places each file.
+  `costs` from the share; without them each file is placed by count.
 - `formatReport` takes a `format` of `text`, `json`, or `html`. `subject` narrows
   text or JSON to one id and is refused for HTML because a narrowed page would
   hide coverage. Use the CLI's `report` command when the report must be loaded

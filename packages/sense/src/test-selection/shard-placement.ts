@@ -4,8 +4,8 @@
  * `@variance-authority/core/shard` places every suite by: longest first, each
  * file priced at the time the record holds for it. A file it holds no time for
  * is priced at the median of those it does, and when it holds none, every file
- * is priced the same, so the shards are balanced by count and none is left
- * without a file while there are as many files as shards.
+ * weighs the same under the same rule, so the shards are balanced by count and
+ * none is left without a file while there are as many files as shards.
  *
  * Every shard computes the placement of every file and keeps its own part, so
  * shards that discovered the same files and read the same record agree with no
@@ -13,14 +13,15 @@
  * count, and a runner that splits a file's cases divides the file with them.
  *
  * A file is placed whole. One handed in more than once — once for each project
- * of a run that runs it — is one group, priced at its time once per copy, and
- * every copy goes to the same shard.
+ * of a run that runs it — is one group, priced at its recorded time once,
+ * because that time already sums every project that ran it, and every copy goes
+ * to the same shard.
  */
 
 // compass: variance-authority.reach
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { durationText, place } from '@variance-authority/core/shard';
-import { codeUnitOrder } from './instrumented-modules.js';
 import type { SuiteTimes } from './suite-selection.js';
 
 /** `--shard k/n` as the runner parsed it: `index` from 1. */
@@ -42,28 +43,20 @@ export interface ShardPart {
 /** The part of `files` shard `shard.index` of `shard.count` takes, placed by `times`. */
 export function shardOf(files: readonly string[], shard: ShardAsked, times: SuiteTimes): ShardPart {
   const head = `variance-authority: shard ${shard.index}/${shard.count}`;
-  const copies = new Map<string, number>();
-  for (const file of files) copies.set(file, (copies.get(file) ?? 0) + 1);
-  const keys = [...copies.keys()];
+  const keys = [...new Set(files)];
   const recorded = 'unread' in times ? undefined : times.times;
-  // With no time for any file, each copy is priced the same, one unit, so the
-  // placement is the same rule balancing a count rather than a duration.
-  const timed = recorded !== undefined && keys.some((key) => recorded.has(key));
-  const placement = place(
-    keys.map((key) => ({ key, costs: Array.from({ length: copies.get(key)! }, () => (timed ? recorded.get(key) : 1)) })),
-    shard.count,
-  );
+  const placement = place(keys.map((key) => ({ key, costs: [recorded?.get(key)] })), shard.count);
   const mine = keys.filter((_, at) => placement.owner[at] === shard.index);
-  const cost = new Map(keys.map((key, at) => [key, placement.cost![at]!]));
+  const cost = new Map(keys.map((key, at) => [key, placement.cost[at]!]));
   mine.sort((left, right) => cost.get(right)! - cost.get(left)! || codeUnitOrder(left, right));
   const part = `${mine.length} of ${counted(keys.length, 'file')}`;
-  if (!timed || 'unread' in times) {
+  if (placement.by === 'count' || 'unread' in times) {
     const why = 'unread' in times
       ? `no times at ${times.recording ?? 'the record'}: ${times.unread}`
       : `${times.recording} holds no time for any of them`;
     return { take: positions(files, mine), line: `${head} by file count: ${part}; ${why}` };
   }
-  const load = placement.load!;
+  const load = placement.load;
   const untimed = keys.filter((key) => !times.times.has(key)).length;
   const at = times.commit === undefined ? times.recording : times.commit.slice(0, 12);
   const span = `shards ${durationText(Math.min(...load))} to ${durationText(Math.max(...load))}`;

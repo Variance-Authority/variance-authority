@@ -95,7 +95,7 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
 
     expect(index.commit).toBe('c0ffee');
     expect(index.coverage?.map((entry) => entry.outcome)).toEqual(Array(7).fill('collected'));
-    expect(index.provenance).toMatchObject({ assignment: 'checksum', storybook: 'sb' });
+    expect(index.provenance).toMatchObject({ assignment: 'count', storybook: 'sb' });
     expect(index.subjects).toHaveLength(7);
   });
 
