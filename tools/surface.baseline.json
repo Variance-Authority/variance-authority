@@ -1042,11 +1042,7 @@
     "names": {
       ".": {
         "AnsweringOptions": "interface",
-        "DependencyLexicon": "interface",
         "FromIndexOptions": "type",
-        "LexiconAvailability": "interface",
-        "LexiconEntry": "interface",
-        "LexiconIssue": "interface",
         "NamedTree": "interface",
         "PagesOptions": "interface",
         "ReadingOptions": "interface",
@@ -1056,7 +1052,6 @@
         "Written": "interface",
         "publishWorkspaceFromIndex": "function",
         "publishedGeneration": "function",
-        "readDependencyLexicon": "function",
         "readNamedTree": "function",
         "readSearchForAnswer": "function",
         "readWorkspace": "function",

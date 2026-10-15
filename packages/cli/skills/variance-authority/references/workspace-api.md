@@ -230,8 +230,9 @@ pass its name to `symbol` and `uses`, which answer it from the source index.
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a
 third-party section, and prints a line when nothing in it matched. `symbol`
-matches installed third-party declarations from the same lexicon. The full
-signatures and JSDoc are in `dependency-lexicon.json` beside the source index.
+matches installed third-party declarations from the same lexicon, which is
+`dependency-lexicon.bin` beside the source index. It is a binary file: ask
+`search` and `symbol` for what it holds.
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that

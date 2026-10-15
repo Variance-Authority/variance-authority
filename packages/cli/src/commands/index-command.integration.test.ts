@@ -40,7 +40,7 @@ afterEach(() => {
 function unprepared(root: string, unchanged = false): string {
   return 'code map: none, because no manifest names a package\n' +
     `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
-    `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
+    `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin')}\n` +
     `questions: published at ${sourceIndexPath(root)}.help.json\n`;
 }
 
