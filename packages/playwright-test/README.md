@@ -584,13 +584,14 @@ Under `--shard k/n`, the reporter places the shard by whole spec files, and
 Playwright's own split does not run. Playwright splits by test group, and under
 `fullyParallel` a group is one test, so one file's tests would run in two
 shards and each shard would record part of the file. Each file goes to one
-shard, by the time it took on the last recorded run, or by a checksum of its
-path when the record has no times. Every shard computes the same placement from
+shard, by the time it took on the last recorded run. When the record has no
+times, every file is priced the same, so the shards are balanced by file count.
+Every shard computes the same placement from
 the same record, as [sharding](../../docs/sharding.md) shows for Vitest and Jest,
 and prints one line on stderr before the first test:
 
 ```text
-variance-authority: shard 1/2 by checksum: 1 of 3 files; no times at …/coverage.bin: nothing is recorded there
+variance-authority: shard 1/2 by file count: 2 of 3 files; no times at …/coverage.bin: nothing is recorded there
 ```
 
 The placement runs on the collected suite, after `--project`, `--grep` and
@@ -603,9 +604,12 @@ run for nothing. A shard left no file passes.
 Three things decide whether the placement runs:
 
 - **Playwright 1.62 or newer.** Older versions give the reporter no way to see
-  the suite before Playwright splits it. There, Playwright's own split runs and
-  the reporter prints `shard k/n was split by Playwright <version>, test by
-  test, so a file can run in two shards` on stderr.
+  the suite before Playwright splits it, so a run that asks for a shard is
+  refused. It exits non-zero with `variance-authority: refusing shard k/n:
+  Playwright <version> would split it test by test`, and the version it needs.
+  A `--shard` on the command line is refused before any test starts; a `shard`
+  in the configuration fails the run when it ends. A run with no shard runs as
+  usual.
 - **The reporter is in the run.** `--reporter` on the command line replaces
   every reporter your configuration names, this one included, so the shard is
   split by Playwright, test by test, with no line. Name extra

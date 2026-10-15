@@ -73,8 +73,8 @@ A runner wrapped by `withTestSelection` places `--shard k/n` by whole test
 files — Vitest, Jest, and Playwright 1.62 or newer — so no file runs in two
 shards. Each shard prints one stderr line before its first test:
 `shard k/n by the times recorded at <commit>` when the record has times, and
-`shard k/n by checksum` with the reason when it has none. Playwright older than
-1.62 splits by test and prints `was split by Playwright`; a `--reporter` flag
+`shard k/n by file count` with the reason when it has none. A Playwright older
+than 1.62 refuses a sharded run with a non-zero exit; a `--reporter` flag
 drops the reporter that places the shard, and with it the line.
 
 To combine records written by `withTestSelection` into the one record an

@@ -61,19 +61,16 @@ Every later build that branches from that commit reads it.
 covers which record is read when.
 
 When no record can be read, or it has a time for none of the files, the shard
-prints why on that line and places the files by a checksum of each path, so a
-missing record never fails a build:
+prints why on that line and prices every file the same, so the shards are
+balanced by file count and a missing record never fails a build:
 
 ```text
-variance-authority: shard 1/2 by checksum: 1 of 3 files; no times at node_modules/.cache/variance-authority/test-selection/…/coverage.bin: nothing is recorded there
+variance-authority: shard 1/2 by file count: 2 of 3 files; no times at node_modules/.cache/variance-authority/test-selection/…/coverage.bin: nothing is recorded there
 ```
 
-A file's checksum shard depends on its path and the number of shards only, so
-adding or removing a file does not change where any other file goes. The
-shards are not balanced by time: on a small suite one shard can take most of
-the files, or none. A shard left no file passes under Vitest and Playwright.
-Under Jest it fails with *No tests found*; set `passWithNoTests` in your Jest
-configuration for the first sharded build of a suite.
+No shard is left empty while there are as many files as shards. A shard left
+no file, because there are fewer files than shards, passes under every runner:
+the seam sets Jest's `passWithNoTests` unless your configuration sets it.
 
 A test file the record has not seen yet, such as one added on your branch, is
 priced at the median of the files it has, so new files do not all land on one
@@ -212,8 +209,9 @@ three inputs and keeps its own part:
 The same inputs give the same split on every machine. Each file goes in turn,
 longest first, to the shard with the least time so far; ties are broken by the
 file's path, so nothing depends on the order a shard read its files in. With no
-times, every shard places each file by the checksum of its path, which is the
-same in every shard too. The runner's own split never decides: it divides by
+times, every file is priced the same, so the same rule balances the shards by
+file count, and no shard is left empty while there are as many files as shards.
+The runner's own split never decides: it divides by
 count, and Playwright under `fullyParallel` divides by test, so one file's tests
 would run in two shards.
 
@@ -230,9 +228,9 @@ shard takes work from another. A shard finishes last for one of four reasons:
 - **The times are old.** A file that got slower since the record was published
   is still priced at what it took then. The shard's line names the commit the
   times belong to; a mainline that publishes on every push keeps them close.
-- **The shard read no times.** Its line says `by checksum`, and why. If one
-  shard of a build placed by checksum and the others by time, they disagree on
-  the split; the line in each shard's log shows which one did.
+- **The shard read no times.** Its line says `by file count`, and why. If one
+  shard of a build placed by file count and the others by time, they disagree
+  on the split; the line in each shard's log shows which one did.
 - **The machine was slower or started later.** A runner that starts a minute
   late finishes a minute late. The split cannot know that.
 
