@@ -47,7 +47,7 @@ import { beyondOf, compared, installReached, withWhole } from './select-beyond.j
 import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
-import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
+import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -416,7 +416,7 @@ function handedNotes(reading: StandReading, commit: string): readonly string[] {
  */
 export async function recordedOrMainline(
   request: SuiteRequest,
-): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource }> {
+): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource; readonly missed?: MainlineMissed }> {
   const recorded = await recordedSuite(request.root, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
   if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
@@ -429,10 +429,11 @@ export async function recordedOrMainline(
   }
   const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
   if (base.from === 'primary') {
-    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) } };
+    const missed = base.missed === undefined ? {} : { missed: base.missed };
+    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) }, ...missed };
   }
   if (base.missed === undefined) return { at: base.file, held: false };
-  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) } };
+  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) }, missed: base.missed };
 }
 
 /**

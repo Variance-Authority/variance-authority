@@ -58,6 +58,16 @@ was placed. An unsharded run that finds no file still fails.
 from `@variance-authority/sense/test-selection`, for a seam that places a shard
 by the same rule.
 
+A Vitest, Jest or Playwright shard that cannot read the record its times come
+from now fails before any test runs, with
+`variance-authority: the times this shard is placed by could not be read, …`
+and the reason: a share that did not answer or answered with what does not
+read, a record that is there and does not decode, or a CLI that throws as it
+loads. It used to place by file count, beside shards that may have read the
+times. A record that is not there, a share that holds none or is not
+configured, and a CLI that is not installed still place by count. An unsharded
+run reads no times and runs as before. `variance shards` fails the same way.
+
 **Breaking:**
 
 - A Vitest or Jest shard with no times is placed by file count, in code-unit
@@ -72,3 +82,5 @@ by the same rule.
   place each file by count, not by a checksum of the file and the shard. The
   shards are balanced, but adding a file can move others to another shard.
   A collection's `assignment` reads `count`.
+- A sharded run whose share does not answer fails rather than placing by
+  file count. Run the job again, or hand every shard the record fetched once.

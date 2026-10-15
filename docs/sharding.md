@@ -76,8 +76,8 @@ placed as [when nothing is recorded](#when-nothing-is-recorded) shows.
 
 ## When nothing is recorded
 
-The first build of a suite, or any shard that cannot read the record, has no
-times. A missing record never fails a build:
+The first build of a suite has no times, and neither has a build whose share
+holds no record of it. A record that is not there never fails a build:
 
 - **The shard places by file count.** It prices every file the same, places
   them by the same rule, and prints why on its line:
@@ -88,19 +88,21 @@ times. A missing record never fails a build:
 
   No shard is left empty while there are as many files as shards.
 - **A shard with no file passes.** With fewer files than shards, some shard
-  takes none, and it passes under every runner. For Jest, `withTestSelection`
-  sets `passWithNoTests` when the command line has `--shard` and your
-  configuration does not set it, so an unsharded run that finds no file still
-  fails.
+  takes none, and it passes under every runner. For Jest and Vitest,
+  `withTestSelection` sets `passWithNoTests` when the command line has
+  `--shard` and your configuration does not set it, so an unsharded run that
+  finds no file still fails.
+- **A shard that cannot read the record fails.** A share that does not answer,
+  or a record that is there and does not read, stops the shard before any test
+  runs, and the error names what failed. Another shard may have read it, and
+  the two would place different files. Run the job again.
 - **Shards that read different records split differently**, so a file can run
   in two shards or in none. Each shard asks the share when it starts, so a
-  publish that lands between two shards' starts gives them two records, and a
-  shard that cannot reach the share places by file count beside shards placed
-  by time. The line in each shard's log names what it read. On the push to
-  your mainline, step 2's fold fails the build as unstable sharding and names
-  both records; on a pull request nothing folds, so the lines are the only
-  sign. To prevent it, fetch the record once: in the job that plans the
-  shards, `variance share --suite <name>` keeps it under
+  publish that lands between two shards' starts gives them two records. The
+  line in each shard's log names what it read. On the push to your mainline,
+  step 2's fold fails the build as unstable sharding and names both records.
+  On a pull request, fetch the record once: in the job that plans the shards,
+  `variance share --suite <name>` keeps it under
   `node_modules/.cache/variance-authority/share/`. Pass that directory to each
   shard as an artifact, and a shard at the same commit reads it without asking
   the share again.
