@@ -533,13 +533,13 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # About twenty minutes go to photographing the site, and some pull
-      # requests cannot move a pixel of it. `tools/site-reach.mjs` reads the
-      # whole change against the base and says whether it reaches what the site
-      # is built from or what photographs it; a push, a dispatch, the accept
-      # label and a change it cannot read always run. What the site's files
-      # reach is read from the source index, which CI refuses to build on
-      # demand, so `variance index` publishes it first. Nothing after this runs
+      # Photographing the site takes minutes, and some pull requests cannot
+      # move a pixel of it. `tools/site-reach.mjs` reads the whole change
+      # against the base and says whether it reaches what the site is built
+      # from, markdown aside, or what photographs it; a push, a dispatch, the
+      # accept label and a change it cannot read always run. What the site's
+      # files reach is read from the source index, which CI refuses to build
+      # on demand, so `variance index` publishes it first. Nothing after this runs
       # for the site when it says `false`. Any failure here leaves a warning,
       # and the site runs.
       - name: decide whether this change reaches the site

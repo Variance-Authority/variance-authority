@@ -143,11 +143,12 @@ describe.skipIf(!BROWSER_AVAILABLE)('captureSubject', () => {
   it.each([
     ['taller than the ceiling', 'width:420px;height:17000px', VIEWPORT, 17000],
     ['under it in CSS pixels, over it in device pixels', 'width:420px;height:9000px', { ...VIEWPORT, deviceScaleFactor: 2 }, 18000],
+    ['wider than the ceiling', 'width:17000px;height:20px', VIEWPORT, 17000],
   ])('refuses a subject %s, naming its size and the ceiling', async (_name, style, viewport, pixels) => {
     await page.setContent(document_(style));
-    const refusal = captureSubject(page, viewport, SHOT);
-    await expect(refusal).rejects.toThrow(String(pixels));
-    await expect(captureSubject(page, viewport, SHOT)).rejects.toThrow(String(MAX_CAPTURE_PIXELS));
+    await expect(captureSubject(page, viewport, SHOT)).rejects.toThrow(
+      new RegExp(`${pixels}.*${MAX_CAPTURE_PIXELS}`),
+    );
   }, 10_000);
 
   it('photographs a subject exactly at the ceiling', async () => {

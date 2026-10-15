@@ -377,7 +377,7 @@ function coverage(report: RunReport): readonly string[] {
   // `truncated` exists to prevent, applied to the list that matters most.
   return [
     `not observed: ${entries.length} subject(s) — ` +
-      `${failed.length} the run could not see, ${excluded.length} excluded by configuration, ` +
+      `${failed.length} the run could not see, ${excluded.length} excluded on purpose, ` +
       `${unreached.length} not reached by this change`,
     ...failed.map(coverageLine),
     ...excluded.map(coverageLine),
