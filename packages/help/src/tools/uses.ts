@@ -3,6 +3,7 @@ import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
+import { type Members, membersOf, places, routes } from './members.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
 /**
@@ -59,6 +60,17 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  *
  * An index that is missing or does not read leaves the imports by package path
  * standing, and the answer says the rest were not read and why.
+ *
+ * ## A member is declared, not imported
+ *
+ * A method or property of an interface, a type literal or a class is reached
+ * through a value, so no import names it, and this question, which answers by
+ * imports, lists its declarations as well, each on its container: after the
+ * imports when an export has the name too, alone when none does. The scan
+ * records every member declaration with the file's parse, so reading them is a
+ * lookup in the source index. Its callers are `docs_grep`'s: a text search over
+ * the files that import a declaring file, which this answer names, with what a
+ * text match lets in and misses.
  */
 
 /**
@@ -160,12 +172,13 @@ export const uses: Tool<Help> = {
     '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
     'name the file by path, marked as such. Imports within the exporting package are read from the ' +
     'source index, through each `export … from` that passes the name on, marked `(as x)` where one renames it, so a ' +
-    'name exported and not published is answered too. Stories and tests are listed apart. `from`, the file ' +
-    'you are in, sorts sites by shared path.',
+    'name exported and not published is answered too. A member of an interface, a type literal or a class by that ' +
+    'name is listed with its declarations, after the imports, and the docs_grep that finds its callers. Stories ' +
+    'and tests are listed apart. `from`, the file you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The exported name, matched exactly.' },
+      name: { type: 'string', description: 'The exported name or member name, matched exactly.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         type: 'string',
@@ -183,53 +196,80 @@ export const uses: Tool<Help> = {
 
   run(help, input, invocation) {
     const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
-    const { name, found, exported, sites, unread, within } = usesOf(help, input, invocation?.root);
-
-    if (sites.length === 0 && exported.length > 0) {
-      return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it; ${UNCOUNTED}.`;
+    const answer = usesOf(help, input, invocation?.root);
+    const { name, members, exported, found, byPath } = answer;
+    const declared = members.declared.length;
+    if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
+      return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, name)].join('\n');
     }
-    if (sites.length === 0 && unread !== undefined) {
-      return `\`${name}\` is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
+    const imports = imported(answer, from);
+    // An index the imports already said did not read is not said twice.
+    if (declared === 0 && members.unread !== undefined && answer.unread === undefined) {
+      return `${imports}\n\nMembers by this name were not read: ${members.unread}.`;
     }
-    if (sites.length === 0) {
-      return `\`${name}\` is published and nothing in this workspace imports it; ${UNCOUNTED}. docs_symbol has its signature and what is written above it.`;
-    }
-
-    const sorted = order(sites, from);
-    const stories = sorted.filter((use) => use.kind === 'story');
-    const tests = sorted.filter((use) => use.kind === 'test');
-    const source = sorted.filter((use) => use.kind === 'source');
-
-    const nearest =
-      from === undefined
-        ? 'Path order; `from` sorts nearest first.'
-        : `Nearest to ${from} first.`;
-
-    const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
-    const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
-    const published =
-      found.length > 0 ? '' : exported.length > 0 ? `, and no entry publishes it; it is exported at ${exportedAt(exported)}` : ', and no entry publishes it';
-    return [
-      `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
-      nearest,
-      ...listed(stories, 'Stories:', name),
-      ...listed(tests, 'Tests:', name),
-      ...listed(source, 'Source:', name),
-      // The imports by package path are in the Help value; the rest are not.
-      ...(unread === undefined ? [] : [`\nImports that do not name a package path are not listed: ${unread}.`]),
-      ...(within === undefined ? [] : [`\n${UNCOUNTED.charAt(0).toUpperCase()}${UNCOUNTED.slice(1)}.`]),
-    ].join('\n');
+    if (declared === 0) return imports;
+    // The imports already said the order, so the members do not say it again.
+    const lines = memberLines(members, from, name).slice(1);
+    return [imports, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...lines].join('\n');
   },
 
-  // Every file importing the name, at each line that does, read as `run` reads
-  // them; an index that did not read leaves the imports within the package unread.
+  // Every file importing the name, at each line that does, or every file
+  // declaring it as a member, read as `run` reads them; an index that did not
+  // read leaves the imports within the package unread.
   files(help, input, invocation): FileSet {
-    const { sites, unread } = usesOf(help, input, invocation?.root);
+    const { sites, unread, members } = usesOf(help, input, invocation?.root);
     const files = new Map<string, number[]>();
-    for (const site of sites) files.set(site.at, [...(files.get(site.at) ?? []), site.line].sort((left, right) => left - right));
+    for (const site of [...sites, ...members.declared]) {
+      files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
+    }
     return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
   },
 };
+
+/** The declarations of a member, nearest first when `from` is said, and where its callers are read. */
+function memberLines(members: Members, from: string | undefined, name: string): readonly string[] {
+  const nearest = from === undefined ? 'Path order; `from` sorts nearest first.' : `Nearest to ${from} first.`;
+  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name), ...routes(name, members)];
+}
+
+/** The imports of an exported name, as `uses` has always answered them. */
+function imported(answer: ReturnType<typeof usesOf>, from: string | undefined): string {
+  const { name, found, exported, sites, unread, within } = answer;
+  if (sites.length === 0 && exported.length > 0) {
+    return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}, and nothing in this workspace imports it; ${UNCOUNTED}.`;
+  }
+  if (sites.length === 0 && unread !== undefined) {
+    return `\`${name}\` is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
+  }
+  if (sites.length === 0) {
+    return `\`${name}\` is published and nothing in this workspace imports it; ${UNCOUNTED}. docs_symbol has its signature and what is written above it.`;
+  }
+
+  const sorted = order(sites, from);
+  const stories = sorted.filter((use) => use.kind === 'story');
+  const tests = sorted.filter((use) => use.kind === 'test');
+  const source = sorted.filter((use) => use.kind === 'source');
+
+  const nearest =
+    from === undefined
+      ? 'Path order; `from` sorts nearest first.'
+      : `Nearest to ${from} first.`;
+
+  const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
+  const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
+  const published =
+    found.length > 0 ? '' : exported.length > 0 ? `, and no entry publishes it; it is exported at ${exportedAt(exported)}` : ', and no entry publishes it';
+  return [
+    `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
+    nearest,
+    ...listed(stories, 'Stories:', name),
+    ...listed(tests, 'Tests:', name),
+    ...listed(source, 'Source:', name),
+    // The imports by package path are in the Help value; the rest are not.
+    ...(unread === undefined ? [] : [`\nImports that do not name a package path are not listed: ${unread}.`]),
+    ...(within === undefined ? [] : [`\n${UNCOUNTED.charAt(0).toUpperCase()}${UNCOUNTED.slice(1)}.`]),
+  ].join('\n');
+}
 
 /**
  * Every site of the name, and what was read to find them, or the refusal.
@@ -254,7 +294,14 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
     .filter((site) => found.length === 0 || (site.held.to !== undefined && declared.has(site.held.to)))
     .map((site) => ({ ...site.taken, how: how(site) }));
   const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-  if (found.length === 0 && byPath.length === 0 && exported.length === 0) throw new Error(unfound(help, name, wanted));
+  // The scan records every member declaration, so reading the ones by this
+  // name is a lookup in the source index, made whether or not an export has it.
+  const members: Members = membersOf(root, name, wanted);
+  if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
+    if (members.declared.length > 0) return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members };
+    const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
+    throw new Error(`${unfound(help, name, wanted)}${unreadMembers}`);
+  }
   // A published name is read from its entry file as well as its declaration:
   // an entry that renames it, `export { greet as salute }`, passes on a name
   // the declaring file never exports.
@@ -267,5 +314,6 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
-  return { name, found, exported, sites: sitesOf(found, byPath, within ?? [], read), unread, within };
+  const sites = sitesOf(found, byPath, within ?? [], read);
+  return { name, found, exported, byPath, sites, unread, within, members };
 }

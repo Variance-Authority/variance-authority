@@ -1461,7 +1461,7 @@ remain separate files.
 accounting.
 
 When the page will be opened somewhere its images are not, add
-`--embed-images` and it carries the pictures of every subject it shows:
+`--embed-images` and it carries the pictures its cards show:
 
 ```bash
 variance report --format html --embed-images > variance-report.html
@@ -1471,17 +1471,22 @@ One file then opens anywhere. On GitHub Actions, upload it
 with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
 opens the page in the browser instead of downloading a zip.
 
-The file is about four thirds the size of those pictures: a subject with a
-baseline and a change carries three, and an unchanged subject carries none,
-because the page shows no card for it. Every subject's card comes first in the
-file and the pictures follow in the order the page shows them, so you can
-filter, read regions and copy commands while the pictures are still loading.
-Each picture keeps its place at its own size before it arrives, and is loaded
-lazily, so the browser is asked to decode only the ones near the screen. The
+The file grows with the subjects that changed. An unchanged subject carries no
+picture, because the page shows no card for it. A full page is carried whole, so every card keeps its wipe, blend, blink and
+trio, unless it is longer than 16,384 pixels, the largest image Chromium draws
+in one piece, and its run cut a change picture. Such a page is carried as that
+crop, and its card names each full page it leaves out, with its size. Those
+pages stay beside `report.json`, so the run's artifact still holds them.
+
+Every subject's card comes first in the file, then the picture each card opens
+on, then the pictures behind its other views. You can filter, read regions and
+copy commands while the pictures are still arriving, and every card's change is
+on screen before any card's other views have loaded. Each picture keeps its
+place at its own size before it arrives, and stays text until a view near the
+screen shows it, so opening the page decodes only what you are looking at. The
 page's script turns each carried picture into an image, so a viewer that runs
 no script shows the cards without their pictures. The command writes the page
-as it goes, one picture at a time, so its memory does not grow with the run;
-the browser's holds every picture once, at about its size on disk.
+as it goes, one picture at a time, so its memory does not grow with the run.
 
 ### Detect instability with `run --flakes`
 
@@ -2776,8 +2781,13 @@ variance comment --body-file body.md \
 `--image-root` puts pictures in the comment: the leading cause's change on the
 first screen, and each further cause's in the fold. The change is the
 `change.png` a run writes beside a subject's diff: each of the largest changed
-regions with the rows around it, as before, after and the difference, top to
-bottom, at one image pixel per pixel. A subject with no region to crop shows
+regions with the rows around it, before beside after, at one image pixel per
+pixel. Each row sits level with the row it became, with striped filler opposite
+rows only one side has. Every window is the same width, framed, under the
+subject's name and a label per column: `Before` the baseline, `After` this run.
+What changed is washed in red on the before and green on the after, and a blue
+arrow between them runs beside rows that only moved; a blank gap or
+plain box whose height changed is marked there too, with a line across it. A subject with no region to crop shows
 its whole before and after instead. Give it
 the address you published the report's directory under. The comment joins each
 image path the report records to it, with every segment percent-encoded, so the

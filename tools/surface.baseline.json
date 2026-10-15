@@ -1611,6 +1611,7 @@
         "ImageSize": "interface",
         "NetworkObservation": "interface",
         "NetworkOptions": "interface",
+        "UnansweredAssets": "class",
         "WidthPlanned": "interface",
         "acquireFromAgent": "function",
         "blankKey": "function",
@@ -1780,6 +1781,7 @@
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
+        "glyphs",
         "mark.svg"
       ],
       "engines": {
@@ -1789,6 +1791,7 @@
     "names": {
       ".": {
         "ChangeImages": "interface",
+        "ChangeLabels": "interface",
         "DeclaredPainter": "interface",
         "DecodedImage": "interface",
         "PngDecoder": "interface",
@@ -2662,6 +2665,7 @@
         "LayerHeld": "interface",
         "LayerMoves": "interface",
         "LayerPresence": "interface",
+        "MemberSite": "interface",
         "MockTaintOptions": "interface",
         "ModuleCallsTaintOptions": "interface",
         "OrientFlow": "interface",
@@ -2766,6 +2770,7 @@
         "layerMoves": "function",
         "matchesGlob": "function",
         "mayMock": "function",
+        "memberDeclarationsOf": "function",
         "memoryParseCache": "function",
         "memoryRecordCache": "function",
         "mockTaint": "function",

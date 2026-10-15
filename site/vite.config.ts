@@ -27,9 +27,30 @@ async function probes(): Promise<Plugin[]> {
   ];
 }
 
-export default defineConfig({
+/**
+ * `--mode unminified` builds the site the `site` check photographs: the
+ * production build with its script unminified, so a change is attributed to
+ * the client component that wrote it under its source name rather than a
+ * minified `wo`. React stays on its production build, which is what the
+ * deploy paints.
+ */
+function unminified(mode: string): Plugin[] {
+  if (mode !== "unminified") return [];
+  return [
+    {
+      name: "site:unminified-build",
+      enforce: "post",
+      // `cssMinify` follows `minify` unless it is set, and the stylesheet the
+      // deploy serves is minified, so only the script is left as written.
+      configEnvironment: () => ({ build: { minify: false, cssMinify: true } }),
+    },
+  ];
+}
+
+export default defineConfig(async ({ mode }) => ({
   plugins: [
     ...(await probes()),
+    ...unminified(mode),
     vinext(
       recorded
         ? { cache: { data: { adapter: `${import.meta.dirname}/variance/no-cache.ts`, options: {} } } }
@@ -43,4 +64,4 @@ export default defineConfig({
       },
     }),
   ],
-});
+}));

@@ -235,7 +235,7 @@ the bytes arrive cannot change a verdict.
 | `comparePixels` | `(left: DecodedImage, right: DecodedImage, options?: CompareOptions) => RasterComparison` |
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Buffer` |
-| `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy) => { diff: Buffer; change?: Buffer }` |
+| `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
 | `pngSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
 
@@ -270,10 +270,30 @@ its own size, for a page too tall to read whole once it is scaled to a column.
 Pass it the regions the comparison isolated (`isolateRegions` from
 `@variance-authority/core/attribute`). Each of the three heaviest, merged where
 they meet, is cut with 32 rows above and below and at least 320 pixels wide, and
-shown as its before, its after and its difference, top to bottom. A panel stops
-at 400 rows. The before panel is read through the row alignment, so beside an
-insertion it shows the before rows either side of the new content, and at a
-removal it shows the rows that went. With no regions, `change` is absent.
+shown as its before beside its after. A window stops at 400 rows, and its top
+and bottom move out of any line of text they would cut. Every window is cut as
+wide as the widest, so the panels line up down the sheet; each is framed, on a
+neutral canvas, with a margin between one window and the next. The before
+panel is read through the row alignment, so each row sits level with the row it
+became: opposite an insertion the before panel shows striped filler, and at a
+removal the after panel does. What changed is washed in red on the before and
+green on the after, with an edge of the same colour just outside it, widened
+to the space either side of the words it starts and ends in. Rows that only
+moved are not marked on the panels; a blue arrow in the gutter runs beside
+them, its head the way they went. A run of identical rows — a blank gap, or
+the plain inside of a box — that grew or shrank by more than a row is spacing
+that changed: it gets a window while the changes leave one free,
+and a blue line across the gutter rather than a mark, at both edges of a
+gap that grew and at the one place a gap that shrank closed. A gap one row
+taller or shorter is rounding from content that moved, and gets neither. With
+no regions, `change` is absent.
+
+Each column is labelled `Before` or `After`, beside a red or a green dot. `labels` adds
+what the sheet is of and where each side came from: `{ subject: 'story:button',
+before: 'baseline', after: 'this run' }` sets the subject over both columns and
+each source beside its label. The text is Inter, drawn from glyphs shipped in
+`glyphs/` with no browser and no font on the machine; Inter is under the SIL
+Open Font License 1.1, in `glyphs/inter-LICENSE.txt`.
 
 `pngSize` reads the width and height out of the IHDR without decoding, and
 returns `null` for bytes that are not a PNG or are too short for a header.

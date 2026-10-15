@@ -175,25 +175,25 @@ export interface NetworkObservation {
   closure(): ResourceClosure;
 
   /**
-   * Resolve when no image, font or media request is in flight, or report which are.
+   * Resolve when no image, font or media request is in flight, or say which are.
    *
-   * Never throws on timeout. A page with a long-poll open would otherwise fail a
-   * run for being a normal page, so the outstanding URLs become a diagnostic and
-   * the subject is read anyway — and the diagnostic is on the record, which is
-   * what the reader of a surprising diff needs.
+   * Resolves `undefined` once the last one is answered. At `timeoutMs` with any
+   * still open it resolves the refusal instead, naming them: a subject read
+   * without its image records bytes nobody hashed, and the caller refuses it
+   * rather than read it. Only asset requests count, so a long-poll never holds
+   * it open, and only those started since the last settle or reset, so an
+   * earlier subject's stall — named in that subject's refusal — never does.
    */
-  settle(timeoutMs?: number): Promise<void>;
+  settle(timeoutMs?: number): Promise<string | undefined>;
 
   /**
    * Forget what has been observed, for the page that is about to be loaded.
    *
-   * The observation is per *page*, not per subject, because that is what the
-   * wire can see: a request carries no idea which subject will end up using it.
-   * A caller that navigates per subject resets per navigation and gets an asset
-   * set that is exactly its subject's. A caller reusing one page across many
-   * subjects — a Storybook run — does not, and every subject there carries the
-   * page's whole asset set, which over-invalidates rather than under-invalidates
-   * and is the direction to be wrong in.
+   * The observation is per *page*, as a request carries no idea which subject
+   * will use it. A caller navigating per subject resets per navigation and gets
+   * exactly its subject's assets. One reusing a page across subjects — a
+   * Storybook run — does not, so each subject carries the page's whole set:
+   * over-invalidating, the direction to be wrong in.
    */
   reset(): void;
 
@@ -255,7 +255,8 @@ export async function observeNetwork(
   const frozen: string[] = [];
   const blanked: BlankedAsset[] = [];
   const diagnostics: Diagnostic[] = [];
-  const inFlight = new Set<string>();
+  // This subject's open requests, counted per URL as two may share one.
+  let inFlight = new Map<string, number>();
   const resources = new Map<string, RenderResource>();
   const unresolved = new Map<string, string>();
   let idle: (() => void) | undefined;
@@ -289,6 +290,7 @@ export async function observeNetwork(
       // another subject's page fetched.
       resources.clear();
       unresolved.clear();
+      inFlight = new Map();
     },
     async close(): Promise<void> {
       await page.unroute('**/*', handle);
@@ -318,7 +320,8 @@ export async function observeNetwork(
       return;
     }
 
-    inFlight.add(url);
+    const open = inFlight;
+    open.set(url, (open.get(url) ?? 0) + 1);
 
     try {
       const response = await route.fetch();
@@ -356,8 +359,9 @@ export async function observeNetwork(
       unresolved.set(url, `${url} could not be read: ${messageOf(error)}`);
       await route.continue().catch(noteRouteFailure(url));
     } finally {
-      inFlight.delete(url);
-      if (inFlight.size === 0) idle?.();
+      if (open.get(url) === 1) open.delete(url);
+      else open.set(url, open.get(url)! - 1);
+      if (open === inFlight && open.size === 0) idle?.();
     }
   }
 
@@ -435,27 +439,23 @@ export async function observeNetwork(
     });
   }
 
-  async function settle(timeoutMs = DEFAULT_SETTLE_MS): Promise<void> {
-    if (inFlight.size === 0) return;
+  async function settle(timeoutMs = DEFAULT_SETTLE_MS): Promise<string | undefined> {
+    if (inFlight.size === 0) return undefined;
 
     const outstanding = await new Promise<readonly string[]>((resolve) => {
-      const timer = setTimeout(() => resolve([...inFlight]), timeoutMs);
-      idle = (): void => {
-        clearTimeout(timer);
-        resolve([]);
-      };
+      const timer = setTimeout(() => resolve([...inFlight.keys()]), timeoutMs);
+      idle = (): void => (clearTimeout(timer), resolve([]));
     });
-
     idle = undefined;
-    if (outstanding.length === 0) return;
+    inFlight = new Map();
+    if (outstanding.length === 0) return undefined;
 
-    diagnostics.push({
-      severity: 'warn',
-      code: 'network-not-quiet',
-      message:
-        `${outstanding.length} request(s) were still in flight after ${timeoutMs}ms and the ` +
-        `subject was read anyway: ${outstanding.slice(0, 5).join(', ')}`,
-    });
+    const requests = `${outstanding.length} image, font or media request${outstanding.length === 1 ? '' : 's'}`;
+    return (
+      `${requests} had no answer after ${timeoutMs}ms, so the subject was not read: ` +
+      `${outstanding.slice(0, 5).join(', ')}` +
+      (outstanding.length > 5 ? ` and ${outstanding.length - 5} more` : '')
+    );
   }
 
   function noteRouteFailure(url: string) {

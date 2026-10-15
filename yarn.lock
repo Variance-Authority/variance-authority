@@ -5225,6 +5225,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
+    "@playwright/test": "npm:^1.62.1"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/distill": "workspace:^"
     "@variance-authority/eyes": "workspace:^"
@@ -5606,10 +5607,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/presentation@workspace:packages/presentation"
   dependencies:
+    "@types/react": "npm:^19.0.0"
+    "@types/react-dom": "npm:^19.0.0"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/report": "workspace:^"
+    react: "npm:^19.0.0"
+    react-dom: "npm:^19.0.0"
   peerDependencies:
     "@playwright/test": ">=1.49 <2"
   peerDependenciesMeta:

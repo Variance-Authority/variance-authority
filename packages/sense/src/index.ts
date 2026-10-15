@@ -208,10 +208,12 @@ export {
   encodeSearch,
   exportedDigest,
   importersOf,
+  memberDeclarationsOf,
   readHelp,
   type EncodedSearch,
   type HelpPublish,
   type HelpReading,
+  type MemberSite,
   type PublishedRows,
   type SearchGeneration,
 } from './help-reading.js';

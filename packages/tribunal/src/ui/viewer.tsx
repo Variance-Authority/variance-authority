@@ -207,7 +207,10 @@ export function Viewer({
     );
 
   return (
-    <div className="va-viewer">
+    <div
+      className="va-viewer"
+      aria-busy={difference?.state === 'loading' ? true : undefined}
+    >
       <div className="va-viewer-bar">
         <div className="va-viewer-controls">
           <p className="va-modes">

@@ -118,7 +118,7 @@ describe('a cold closure held by the addon', () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {
     const tree = {

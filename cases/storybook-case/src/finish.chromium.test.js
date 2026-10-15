@@ -48,13 +48,11 @@ const STATIC_DIR = join(process.cwd(), 'cases', 'storybook-case', 'storybook-sta
 /**
  * Three stories, and the busy one is deliberately not the first.
  *
- * The first story of a session arrives selected by its URL, so `showStory` finds
- * it already rendering and settles on markup that has stopped changing — which
- * happens during `completing`, one phase *before* the one that matters.
- * `completing` is not pending, so a switch away from it tears down cleanly and
- * the defect does not appear. Reached the way every story after the first is
- * reached — over the channel, waiting for `storyRendered` — the driver is handed
- * the story at `completed`, and the very next phase is `afterEach`.
+ * The first story of a session arrives selected by its URL, so `showStory` may
+ * find its render already over and never wait on the channel at all. Reached the
+ * way every story after the first is reached — over the channel, waiting for
+ * `storyRendered` — the driver is handed the story at `completed`, and the very
+ * next phase is `afterEach`.
  *
  * So the order is the fixture: a plain story to spend the session's first slot,
  * the busy one, and a third to switch to while the second is still finishing.
@@ -180,9 +178,9 @@ live('a story that is still busy when the next one is asked for', () => {
       ]);
 
       // The fixture only means anything if the busy story was reached the way
-      // the defect needs it reached. Settling on quiescent markup would leave it
-      // in `completing`, which tears down cleanly, and this test would pass
-      // against a driver that does not wait at all — as it did, before this line.
+      // the defect needs it reached: over the channel, handed back at `completed`.
+      // Reached any other way, this test would pass against a driver that does
+      // not wait at all — as it did, before this line.
       expect(outcomes[1]?.readiness).toBe('storyRendered');
 
       // The saving, stated as the thing it actually is: one document for both.

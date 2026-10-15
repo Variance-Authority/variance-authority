@@ -75,6 +75,11 @@ export interface Parsed {
    * and absent from any reader but the native one.
    */
   readonly members?: readonly Member[];
+  /**
+   * Every member of an interface, a type literal or a class the file declares.
+   * Absent when it declares none, and absent from any reader but the native one.
+   */
+  readonly memberDeclarations?: readonly MemberDeclaration[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
@@ -102,6 +107,14 @@ export interface Member {
   readonly request: number;
   readonly name: string;
   readonly line: number;
+}
+
+/** One member a file declares, on the interface, type alias or class that holds it. */
+export interface MemberDeclaration {
+  readonly name: string;
+  readonly line: number;
+  /** The container's name, or `a type literal` or `a class` when it has none. */
+  readonly on: string;
 }
 
 /** Content-addressed parses used by a scan and by consumers sharing its work. */
