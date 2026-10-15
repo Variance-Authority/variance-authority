@@ -340,7 +340,7 @@
       "packages/route-collector/src/page-agent-entry.ts",
       "packages/storybook-collector/src/page-agent-entry.ts"
     ],
-    "count": 2
+    "count": 1
   },
   {
     "files": [

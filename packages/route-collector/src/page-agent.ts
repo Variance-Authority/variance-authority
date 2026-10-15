@@ -14,7 +14,7 @@ import {
   digestPass,
   wiringOf,
 } from '@variance-authority/react';
-import type { HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
+import type { AwaitedArrival, CommitTap, HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
 import { stepClock } from '@variance-authority/core/format';
 import type { PageRegion, RawCapture, RenderDocument, Step, Viewport } from '@variance-authority/core/format';
 
@@ -99,15 +99,16 @@ export interface AcquireRequest extends PageRegion {
   readonly wiring?: boolean;
 
   /**
-   * How long to wait for React to commit every root on, above or under the
-   * subject, in milliseconds. Absent means the adapter's own default.
+   * The global a driver installed to say whether anything the page requested is
+   * still arriving, and to wait for it when something is. Absent when the
+   * driver watches nothing, and then a subject React cannot finish on its own
+   * is read as it stands.
    *
-   * Separate from `suspense` because it precedes it: a boundary is React's
-   * record of work in flight, and a document with no fiber in it yet has no
-   * record of anything. Paid only by a subject that is not hydrated when the
-   * driver looks — a page already committed returns on the first read.
+   * Asked by the hydration wait, which precedes `suspense`: a boundary is
+   * React's record of work in flight, and a document with no fiber in it yet
+   * has no record of anything.
    */
-  readonly hydration?: { readonly timeoutMs?: number };
+  readonly arrival?: string;
 
   /**
    * Read held state as evidence. Absent means *off*, and that asymmetry is the
@@ -186,7 +187,41 @@ function rootOf(selectors: readonly string[]): Element {
   throw new Error(`no story root among ${selectors.join(', ')}`);
 }
 
-export async function acquire(request: AcquireRequest): Promise<string> {
+/**
+ * The hydration wait's question to the driver: is anything still arriving.
+ *
+ * An arrival is not yet a page that has run what arrived: the response is in,
+ * and the promise it settles, the ping and the render it schedules are tasks
+ * still queued. So the answer is given once the page has gone idle, and the
+ * question is asked once it has, so that a request a task was about to send
+ * has been sent.
+ */
+function outstandingFor(arrival: string | undefined): { outstanding?: (of: AwaitedArrival) => Promise<boolean> } {
+  const ask = arrival === undefined ? undefined : (globalThis as unknown as Record<string, unknown>)[arrival];
+  if (typeof ask !== 'function') return {};
+  return {
+    outstanding: async (of) => {
+      await idle();
+      if (!(await (ask as (of: AwaitedArrival) => Promise<boolean>)(of))) return false;
+      await idle();
+      return true;
+    },
+  };
+}
+
+/**
+ * Resolve when the page has no task left to run. WebKit has no idle callback,
+ * and there it is the next task instead: everything queued before it has run,
+ * which is the part of idle the wait needs.
+ */
+function idle(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(() => resolve());
+    else setTimeout(resolve, 0);
+  });
+}
+
+export async function acquire(tap: CommitTap, request: AcquireRequest): Promise<string> {
   const root = rootOf(request.roots);
   const steps = stepClock(() => performance.now());
 
@@ -203,7 +238,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   const hydration =
     request.wiring === false
       ? undefined
-      : await steps.time('hydration', async () => awaitHydration(root, request.hydration ?? {}));
+      : await steps.time('hydration', async () => awaitHydration(root, { tap, ...outstandingFor(request.arrival) }));
 
   // First of everything else, because it decides what the rest of it is looking at.
   // The driver has already settled the wire, which is a different fact: a

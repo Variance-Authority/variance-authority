@@ -2,7 +2,7 @@ import type { SourceIndex } from '@variance-authority/core/attribute';
 import { stepClock, type Diagnostic } from '@variance-authority/core/format';
 import { matchesGlob } from '@variance-authority/core/judge';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
-import { acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
+import { ARRIVAL_GLOBAL, acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
 import { suspenseRefusal, type HydrationSettlement } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
 import type { RouteRecorder } from './execution.js';
@@ -196,9 +196,7 @@ export async function readRoute(
     // disagree about what absent meant.
     ...(options.wiring !== undefined ? { wiring: options.wiring } : {}),
     ...(options.holdings !== undefined ? { holdings: options.holdings } : {}),
-    ...(options.hydrationTimeoutMs !== undefined
-      ? { hydration: { timeoutMs: options.hydrationTimeoutMs } }
-      : {}),
+    arrival: ARRIVAL_GLOBAL,
     // A subject declared as a loading capture waits for nothing: the whole point
     // of it is the fallback, and paying the timeout to be told the boundary is
     // still there would cost five seconds per route to learn what the
@@ -286,7 +284,7 @@ export async function readRoute(
 
   await noted(true);
 
-  const hydration = acquired.hydration === undefined ? undefined : rootless(acquired.hydration, id);
+  const hydration = acquired.hydration === undefined ? [] : hydrationNotes(acquired.hydration, id);
 
   // Normalized here rather than in the page: the ruleset is the one the jsdom
   // path uses, and running it in the browser would make the two profiles two
@@ -321,7 +319,7 @@ export async function readRoute(
     ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
       ? { stabilization: acquired.stabilization }
       : {}),
-    ...(hydration !== undefined ? { diagnostics: [hydration] } : {}),
+    ...(hydration.length > 0 ? { diagnostics: hydration } : {}),
     ...(source !== undefined ? { source } : {}),
     steps: steps.taken,
   };
@@ -341,34 +339,59 @@ export async function readRoute(
 function hydrationRefusal(settlement: HydrationSettlement, subjectId: string): string | undefined {
   if (settlement.state !== 'hydrating') return undefined;
   return (
-    `\`${subjectId}\` was still hydrating when it was read: ${settlement.pending} of ` +
-    `${settlement.roots} React root(s) had not committed after ${Math.round(settlement.waitedMs)}ms. ` +
-    'An effect that runs after hydration can paint a different image, so the same route ' +
-    'records one image on a slow run and another on a fast one. Raise `hydrationTimeoutMs`, ' +
-    'or find what holds the shell: a promise read outside any <Suspense> holds hydration ' +
-    'until it settles.'
+    `\`${subjectId}\` stopped hydrating with ${settlement.pending} of ${settlement.roots} React ` +
+    'root(s) uncommitted: React had no work it could do, and nothing the page requested was ' +
+    'still arriving to give it some. A root holds like that on a promise the wire does not ' +
+    'settle — one settled by a timer, one whose request failed, one never settled — read ' +
+    'outside any <Suspense>. An effect that runs after hydration can paint a different image, ' +
+    'so the server\'s markup is not recorded in its place. Find the promise the first ' +
+    'render holds on.'
   );
 }
 
 /**
- * What a route no React root was found for says about why it names no
- * component, or `undefined` when a root was found.
+ * What hydration says about a route that was read: why it names no component,
+ * and whether React changed the markup after the hydration commit.
  *
  * Collected rather than refused: no React is a page this run can compare, and
  * a static page or a client that never started is a page somebody may mean to
  * test. What must not happen is the absence passing unsaid, because without
  * this line a route with no React reads the same as a node no component wrote.
+ *
+ * A change is a warning for the same reason. The reading is of the page the
+ * visitor ends on, so the image is right; the route still shows the visitor
+ * the server's page first and then another one, which no image of either says.
  */
-function rootless(settlement: HydrationSettlement, subjectId: string): Diagnostic | undefined {
-  if (settlement.state !== 'unrooted') return undefined;
-  return {
-    severity: 'warn',
-    code: 'react-root-absent',
-    message:
-      `No React root was found on, above or under ${subjectId} after ` +
-      `${Math.round(settlement.waitedMs)}ms, so its components were not read. Either React ` +
-      'does not render this route, or its client had not created a root yet. Set ' +
-      '`wiring: false` when React does not render these routes, or raise ' +
-      '`hydrationTimeoutMs` when the client starts late.',
-  };
+function hydrationNotes(settlement: HydrationSettlement, subjectId: string): Diagnostic[] {
+  const notes: Diagnostic[] = [];
+  if (settlement.state === 'unrooted') {
+    notes.push({
+      severity: 'warn',
+      code: 'react-root-absent',
+      message:
+        settlement.loaded === false
+          ? `React had not loaded on ${subjectId} once nothing the page requested was still ` +
+            'arriving, so its components were not read. Set `wiring: false` when React does not ' +
+            'render these routes.'
+          : `No React root was found on, above or under ${subjectId}, and nothing the page ` +
+            'requested was still arriving, so its components were not read. Either React does ' +
+            'not render this route, or its client creates a root on something other than a ' +
+            'response: a timer, an effect, an interaction. Set `wiring: false` when React does not render ' +
+            'these routes.',
+    });
+  }
+  const changed = settlement.changed;
+  if (changed !== undefined) {
+    const by = changed.components === undefined ? '' : ` ${changed.components.join(', ')} committed after hydrating.`;
+    notes.push({
+      severity: 'warn',
+      code: 'hydration-changed-markup',
+      message:
+        `Hydration changed the markup of ${subjectId}: the hydration commit left \`${changed.before}\` and the ` +
+        `client then left \`${changed.after}\`.${by} The reading is of the page after hydration; a ` +
+        'visitor sees the server\'s page first. Render the same markup on the server, or move ' +
+        'the difference into a client-only component.',
+    });
+  }
+  return notes;
 }
