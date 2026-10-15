@@ -111,8 +111,22 @@ export function sourceIndexDocuments(stored: StoredSourceIndex): string[] {
   return documents;
 }
 
-/** Decode a complete generation. Any malformed reference rejects the whole file. */
-export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
+/** The keys a later layer of the chain already puts or deletes, so no earlier layer answers for them. */
+export interface DecidedKeys {
+  readonly parses: ReadonlySet<ParseKey>;
+  readonly records: ReadonlySet<string>;
+  readonly directories: ReadonlySet<string>;
+}
+
+/**
+ * Decode a complete generation. Any malformed reference rejects the whole file.
+ *
+ * A row whose key `decided` names is not decoded: a later layer answers for it,
+ * so its values would only hold the heap, and a chain whose later layer puts
+ * every key again would hold the whole graph twice. Its references are not
+ * checked either, since nothing reads them.
+ */
+export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): StoredSourceIndex {
   const opened = openSegment(FORMAT, VERSION, input, WHAT);
   const strings = openStrings(opened.u8('strings.blob'), opened.u32('strings.off'), invalid).text;
   const text = (value: number): string => {
@@ -164,6 +178,8 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
 
   const parses = new Map<ParseKey, Parsed>();
   for (let row = 0; row < parseKey.length; row += 1) {
+    const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
+    if (decided?.parses.has(key)) continue;
     const requests = range(parseRequests, row).map((request) => ({
       value: text(requestValue[request]!),
       kind: text(requestKind[request]!) as Parsed['requests'][number]['kind'],
@@ -199,7 +215,6 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
     const mocks = mocksOf(row);
-    const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
     if (parses.has(key)) throw invalid();
     parses.set(key, {
       requests,
@@ -257,6 +272,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const records = new Map<string, IndexedRecord>();
   for (let row = 0; row < recordFile.length; row += 1) {
     const file = text(recordFile[row]!);
+    if (decided?.records.has(file)) continue;
     const digest = optional(recordDigest[row]!) as Digest | undefined;
     const edges = range(recordEdges, row).map((edge) => ({
       to: text(edgeTo[edge]!),
@@ -298,6 +314,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const directories = new Map<string, Digest>();
   for (let row = 0; row < directoryPath.length; row += 1) {
     const path = text(directoryPath[row]!);
+    if (decided?.directories.has(path)) continue;
     if (directories.has(path)) throw invalid();
     directories.set(path, text(directoryDigest[row]!) as Digest);
   }
