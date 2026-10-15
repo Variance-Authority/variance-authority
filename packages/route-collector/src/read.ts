@@ -1,8 +1,9 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import type { Diagnostic } from '@variance-authority/core/format';
 import { matchesGlob } from '@variance-authority/core/judge';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
 import { acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
-import { suspenseRefusal } from '@variance-authority/react';
+import { suspenseRefusal, type HydrationSettlement } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
 import type { RouteRecorder } from './execution.js';
 import type { RouteCollectorOptions } from './options.js';
@@ -189,6 +190,9 @@ export async function readRoute(
     // disagree about what absent meant.
     ...(options.wiring !== undefined ? { wiring: options.wiring } : {}),
     ...(options.holdings !== undefined ? { holdings: options.holdings } : {}),
+    ...(options.hydrationTimeoutMs !== undefined
+      ? { hydration: { timeoutMs: options.hydrationTimeoutMs } }
+      : {}),
     // A subject declared as a loading capture waits for nothing: the whole point
     // of it is the fallback, and paying the timeout to be told the boundary is
     // still there would cost five seconds per route to learn what the
@@ -211,12 +215,12 @@ export async function readRoute(
   // past: `undefined` here would make `suspenseRefusal` throw inside one route
   // and take the run with it, and defaulting it to "settled" would silently
   // restore the behaviour this exists to end.
-  if (acquired.suspense === undefined) {
+  if (acquired.suspense === undefined || (options.wiring !== false && acquired.hydration?.state === undefined)) {
     await noted(false);
     return {
       ok: false,
       because:
-        'the page agent returned no Suspense reading, which means the bundle in ' +
+        'the page agent returned no Suspense or hydration reading, which means the bundle in ' +
         '`@variance-authority/route-collector` predates it — rebuild the package',
     };
   }
@@ -253,6 +257,8 @@ export async function readRoute(
 
   await noted(true);
 
+  const hydration = acquired.hydration === undefined ? undefined : unhydrated(acquired.hydration, planned.subject.id);
+
   return {
     ok: true,
     document:
@@ -282,6 +288,50 @@ export async function readRoute(
     ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
       ? { stabilization: acquired.stabilization }
       : {}),
+    ...(hydration !== undefined ? { diagnostics: [hydration] } : {}),
     ...(source !== undefined ? { source } : {}),
   };
+}
+
+/**
+ * What a route read without its components says about why, or `undefined`
+ * when React had hydrated it and every component read is an observation.
+ *
+ * Collected rather than refused. The image and the document are right either
+ * way, and a route that keeps its comparison and loses its component names is
+ * better than a route with no comparison. What must not happen is the loss
+ * passing unsaid: a region with no component on a route React had not
+ * finished hydrating is unobserved, and without this line it reads the same as
+ * a node no component wrote.
+ */
+function unhydrated(settlement: HydrationSettlement, subjectId: string): Diagnostic | undefined {
+  const after = `${Math.round(settlement.waitedMs)}ms`;
+
+  if (settlement.state === 'hydrating') {
+    return {
+      severity: 'warn',
+      code: 'hydration-unfinished',
+      message:
+        `React had not finished hydrating ${subjectId} after ${after}: ` +
+        `${settlement.pending} of ${settlement.roots} React root(s) had not committed. ` +
+        'Its components were not read, so a changed region here names no component. ' +
+        'Raise `hydrationTimeoutMs`, or find what holds the shell: a promise read ' +
+        'outside any <Suspense> holds hydration until it settles.',
+    };
+  }
+
+  if (settlement.state === 'unrooted') {
+    return {
+      severity: 'warn',
+      code: 'react-root-absent',
+      message:
+        `No React root was found on, above or under ${subjectId} after ${after}, ` +
+        'so its components were not read. Either React does not render this route, ' +
+        'or its client had not created a root yet. Set `wiring: false` when React ' +
+        'does not render these routes, or raise `hydrationTimeoutMs` when the ' +
+        'client starts late.',
+    };
+  }
+
+  return undefined;
 }

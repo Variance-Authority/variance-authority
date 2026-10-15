@@ -377,6 +377,23 @@ export function findFiber(node: Node): Fiber | null {
   return currentFiber(raw);
 }
 
+/**
+ * The `FiberRoot` the fiber on this node belongs to, whichever buffer it is in.
+ *
+ * Read off the raw expando, not the current fiber, on purpose: a host node
+ * React completed during a render it has not committed carries a
+ * work-in-progress fiber, and that fiber still leads to the root whose state
+ * says the commit has not happened. Null when the node carries no fiber, or
+ * its fiber is detached from any root.
+ */
+export function fiberRootOf(node: Node): object | null {
+  const raw = rawFiber(node as unknown as object);
+  if (raw === null) return null;
+  const top = rootOf(raw);
+  const root = top?.stateNode;
+  return typeof root === 'object' && root !== null ? root : null;
+}
+
 /** True when the node was rendered by React, regardless of tree liveness. */
 export function hasFiber(node: Node): boolean {
   return rawFiber(node as unknown as object) !== null;

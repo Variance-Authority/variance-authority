@@ -225,6 +225,20 @@ export interface RouteCollectorOptions {
   readonly suspenseTimeoutMs?: number;
 
   /**
+   * Milliseconds to wait for React to hydrate a route before reading its
+   * components. Defaults to 2000.
+   *
+   * A server-rendered route is on screen before React owns it, and the
+   * component behind a node can only be read once React has committed the
+   * root it belongs to. A route that has not committed by then is still
+   * collected, with a `hydration-unfinished` diagnostic saying its components
+   * were not read. A route with no React root says `react-root-absent`. Paid
+   * only while a root is still hydrating, or by a route with no root at all;
+   * `wiring: false` skips the wait.
+   */
+  readonly hydrationTimeoutMs?: number;
+
+  /**
    * Record what each page executed and showed, into the shared test-selection
    * index, so a later `--since` run photographs only the pages an edit reached.
    *

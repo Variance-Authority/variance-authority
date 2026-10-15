@@ -98,8 +98,8 @@ export interface AcquireRequest extends PageRegion {
   readonly wiring?: boolean;
 
   /**
-   * How long to wait for React to commit into a server-rendered document, in
-   * milliseconds. Absent means the adapter's own default.
+   * How long to wait for React to commit every root on, above or under the
+   * subject, in milliseconds. Absent means the adapter's own default.
    *
    * Separate from `suspense` because it precedes it: a boundary is React's
    * record of work in flight, and a document with no fiber in it yet has no
@@ -153,10 +153,10 @@ export interface Acquired {
    * Whether React had committed into the document by the time it was read.
    *
    * Absent when the run turned `wiring` off, which is the run saying it never
-   * expected a fiber. Present and `hydrated: false` is the honest shape of a
-   * capture with no provenance in it: a page this adapter cannot read, or one
-   * that took longer to hydrate than the budget allowed. Either way the reader
-   * of a report with no `file:line` on it can tell which of the two it has,
+   * expected a fiber. `hydrating` is a page React had not committed within the
+   * budget, so a node with no component on it is unobserved; `unrooted` is a
+   * page no React root was found on. The driver turns either into a diagnostic,
+   * so the reader of a report with no `file:line` on it can tell which it has,
    * instead of inferring a production build.
    */
   readonly hydration?: HydrationSettlement;

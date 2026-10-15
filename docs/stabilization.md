@@ -142,6 +142,7 @@ once you need it.
 | stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
 | record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
 | skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+| give React longer to hydrate | `hydrationTimeoutMs: 8000` | [hydration, before anything is read](#hydration-before-anything-is-read) |
 
 ## Before your first run
 
@@ -840,11 +841,43 @@ spinner in an `<aside>` is not this `<section>`'s problem.
 waiting for hydration, which is a different state to report than a fetch in
 flight.
 
+### Hydration, before anything is read
+
+A server-rendered route is complete on screen before React owns it. Its
+components can only be read once React has committed the root it belongs to,
+and neither `load` nor a settled network says when that is. A loaded machine
+finishes hydration later, so a read that comes after the commit on an idle
+machine comes before it under load.
+
+The node count is not that signal. React attaches a fiber to a node when it
+renders the node, before it commits. A shell that suspends during hydration,
+on a promise read outside any `<Suspense>`, leaves the nodes rendered before it
+carrying fibers while the root is still uncommitted, and the count holds still
+for as long as the shell does.
+
+So the route collector reads React's own record instead. It finds every root on
+the subject, above it up to the `Document`, under it, and the root of a subject
+rendered through a portal, and waits until each has committed. A route still
+uncommitted when `hydrationTimeoutMs` runs out (default `2000`) is collected,
+not refused, and says why its components are missing:
+
+```
+React had not finished hydrating page/app after 2004ms: 1 of 1 React root(s)
+had not committed. Its components were not read, so a changed region here
+names no component. Raise `hydrationTimeoutMs`, or find what holds the shell:
+a promise read outside any <Suspense> holds hydration until it settles.
+```
+
+Its code is `hydration-unfinished`. A route where no root is found says
+`react-root-absent`, because no component could have been read there: either
+React does not render it, or its client had not created a root yet. A run with
+`wiring: false` reads no components, so it waits for nothing and says nothing.
+
 ### The wait, and the decision it forces
 
 Every collector waits for that reading to come back clean before it reads the
-page. `awaitSuspense` is the *first* thing a page agent does, ahead of
-stabilization — content that arrives late brings its own images and fonts, and a
+page. `awaitSuspense` runs ahead of stabilization, and in the route collector
+right after hydration — content that arrives late brings its own images and fonts, and a
 `waitForImages` that ran first would have waited for the fallback's images
 instead of the content's.
 

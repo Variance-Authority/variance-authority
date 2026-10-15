@@ -1,5 +1,6 @@
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
+  Diagnostic,
   PageRegion,
   RenderDocument,
   SemanticSnapshot,
@@ -112,6 +113,18 @@ export type Collected =
        * half a person reads.
        */
       readonly stabilization?: readonly string[];
+
+      /**
+       * What the collector noticed about the way it read this subject.
+       *
+       * Not about the picture, which the document and the snapshot carry, but
+       * about the reading: a route whose components could not be read because
+       * React had not finished hydrating it, or because no React root reached
+       * it at all. Each leaves a real image to compare and changes what a region
+       * with no component means, so a run carries them into the subject's
+       * record.
+       */
+      readonly diagnostics?: readonly Diagnostic[];
     }
   | { readonly ok: false; readonly because: string };
 
