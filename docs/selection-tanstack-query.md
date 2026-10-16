@@ -102,7 +102,7 @@ tests ran can distinguish them.
 
 A suite declares how precisely it selects with its
 [`precision`](selecting.md#how-precisely-a-suite-selects): a skipped test is a
-cost you cannot see, so you start coarse and move finer as the runs earn it.
+cost you cannot see, so you start coarse and declare a finer step once you trust the record.
 Every step reads the same record, so nothing is recorded again. Asked about the
 one-line change above, and about one in the devtools' `PiPProvider`, in
 `packages/query-devtools/src/contexts/PiPContext.tsx`:
@@ -133,7 +133,7 @@ through a lazy `import()`, so four tests import `PiPContext.tsx` and never load
 it: `file` and `symbol` run them, and `file-use` does not. The graph runs more
 than coverage, never less.
 
-The relief starts inside the file. 83 test files entered `Query.fetch`, and 9
+The steps that read inside the file run fewer. 83 test files entered `Query.fetch`, and 9
 the branch the edit changed; 4 entered `PiPProvider`, and nothing in it splits
 them further.
 

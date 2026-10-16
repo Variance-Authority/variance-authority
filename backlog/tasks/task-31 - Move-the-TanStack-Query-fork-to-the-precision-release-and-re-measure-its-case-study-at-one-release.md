@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-16 11:54'
+updated_date: '2026-10-16 22:46'
 labels: []
 dependencies: []
 references:
@@ -16,7 +17,7 @@ ordinal: 60000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-The case study docs/selection-tanstack-query.md shows one query-core change asked of each precision step (149/149/149/83/9 of 188) and a loop a reader runs on github.com/Variance-Authority/tanstack-query-example. The fork cannot run it yet: it has no variance.config.json declaring suite unit (so a recording lands in coverage.bin, not suites/unit/coverage.bin), and it pins a release that refuses precision. The rest of the page (H1 78%, TLDR bullets 1, 2 and 4, the sixty-commit section) was measured at 0.3.0, while the one-line section and the precision table were measured at the precision release. Measure one commit end to end before any batch.
+The case study docs/selection-tanstack-query.md shows one query-core change asked of each precision step (149/149/149/83/9 of 188) and a loop a reader runs on github.com/Variance-Authority/tanstack-query-example. The fork cannot run it yet: it has no variance.config.json declaring suite unit (so a recording lands in coverage.bin, not suites/unit/coverage.bin), and it pins a release that refuses precision. The rest of the page (H1 78%, TLDR bullets 1, 2 and 5, the sixty-commit section) and the TanStack column of the comparison table in docs/coverage-test-selection.md were measured at 0.3.0, while the one-line section, the index section and the precision table were measured at the precision release. Measure one commit end to end before any batch.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

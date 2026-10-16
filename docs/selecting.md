@@ -292,9 +292,11 @@ the fine steps read what it loaded and entered, from the record. On TanStack
 Query, a one-line edit runs 149 test files at `file` and 9 at `region-use`.
 
 If your suite comes from a graph selector such as `nx affected`, start at
-`file`, which runs every test that imports a changed file. Move to `file-use`
-once your modules load where they are used, and to `region-use` once every
-project the suite runs loads the instrumentation:
+`file`, which runs every test that imports a changed file. Declare `file-use`
+once you trust the record: it never runs a test `file` would skip, and it needs
+only to know which test loaded which file. It runs fewer tests once your
+modules load where they are used. Declare `region-use` once every project the
+suite runs loads the instrumentation:
 
 ```json
 { "suites": { "unit": { "kind": "unit", "precision": "file" } } }
@@ -347,10 +349,8 @@ removing barrel files in Jira: unit tests selected per change fell from about
 
 `function-use` and `region-use` read inside a changed file, so they pay from
 the first run wherever a module is loaded widely and used narrowly, without the
-import work above. That work is still what makes `file-use` sharp, and
-`file-use` is the step that rests on the least: it needs only to know which
-test loaded which file. On TanStack
-Query, a one-line edit inside `Query.fetch` runs 149 test files at `file-use`,
+import work above. That work is still what makes `file-use`, the step that
+rests on the least, run fewer tests. On TanStack Query, a one-line edit inside `Query.fetch` runs 149 test files at `file-use`,
 83 at `function-use` and 9 at `region-use`. They read the regions the
 instrumentation recorded, so they are as exact as that instrumentation: every
 project the suite runs has to load it, as
@@ -364,8 +364,8 @@ differently. The graph and the record miss different tests: the graph takes load
 declare its exports and nothing more, which the `sideEffects` field overrides,
 and a runner config can load a file that no import names. So `file` and
 `symbol` add what the graph reaches to what `file-use` runs, rather than
-replace it, and each step runs every test a finer step runs: moving finer only
-drops tests, and moving coarser never skips one the finer step would run. At
+replace it, and each step runs every test a finer step runs: a finer step only
+drops tests, and a coarser one never skips one the finer step would run. At
 `file`, `symbol` and `file-use` a changed file counts whatever the edit was, a
 comment included.
 
