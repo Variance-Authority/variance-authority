@@ -91,7 +91,7 @@ export interface Parsed {
    * writes. Absent when there are none, and absent from any reader but the
    * native one.
    */
-  readonly carries?: readonly Carry[];
+  readonly carries?: readonly TypeCarry[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
@@ -141,9 +141,9 @@ export interface MemberUse {
 /**
  * A container that carries every member of a type the file writes: an
  * interface that extends it, an alias that is or intersects it, a class that
- * extends or implements it, a component that takes it as its props.
+ * extends or implements it, a function whose first parameter is written as it.
  */
-export interface Carry {
+export interface TypeCarry {
   /** The container's name, as the file declares it. */
   readonly on: string;
   /** The carried type's name as the file writes it: its own declaration's, or the local name of an import. */

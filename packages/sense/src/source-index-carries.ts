@@ -1,5 +1,5 @@
 import { rangeOf, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
-import type { Carry } from './cache.js';
+import type { TypeCarry } from './cache.js';
 
 /**
  * The carry columns of a source-index generation: per parse, every container
@@ -16,7 +16,7 @@ export function openCarries(
   opened: OpenSegment,
   text: (value: number) => string,
   parseCount: number,
-): (row: number) => { readonly carries?: readonly Carry[] } {
+): (row: number) => { readonly carries?: readonly TypeCarry[] } {
   const reject = (): never => { throw opened.reject(); };
   const offsets = opened.u32('parses.carries');
   const on = opened.u32('carries.on');
@@ -25,7 +25,7 @@ export function openCarries(
   if (of.length !== on.length) reject();
 
   return (row) => {
-    const carries = rangeOf(offsets, row, reject).map((at): Carry => ({ on: text(on[at]!), of: text(of[at]!) }));
+    const carries = rangeOf(offsets, row, reject).map((at): TypeCarry => ({ on: text(on[at]!), of: text(of[at]!) }));
     return carries.length === 0 ? {} : { carries };
   };
 }
