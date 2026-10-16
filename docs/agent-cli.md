@@ -81,7 +81,6 @@ variance ask search --query viewport
 variance ask search --query viewport --from packages/app/
 variance ask symbol --name Viewport
 variance ask uses --name collect --from packages/cli/src/index.ts
-variance ask dependents --name collect
 ```
 
 `search` tells you what a thing is called, where it is written, and how to
@@ -104,18 +103,6 @@ one character off. So `tsconfig custom conditions` answers
 and consumers; `uses` prints every import site, ordered by how much path it
 shares with `--from`; `gaps` lists the published names anybody imports that
 nothing documents.
-
-`dependents` answers what a change to one file or one exported name reaches:
-every file that rests on it through imports at any depth, nearest first, each
-with one shortest chain of imports as the evidence. A name's chain ends at the
-file and line that import it, so a chain to `greet` reads `shell.ts (type
-import) → page.ts → hello.ts`, the last with the line of its import.
-Asked of a name, the walk starts at the lines that import that name, so a file
-that imports a different name through the same barrel is not reached. Type-only
-imports are walked, and the step that took one says so. It walks against the
-imports only, from the subject to what rests on it. `--limit` bounds the rows
-printed and counts the rest, and the answer names the files whose imports the
-scan could not resolve, since they may reach the subject unseen.
 
 To read the answer as data, add `--format json`:
 

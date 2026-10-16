@@ -367,28 +367,6 @@ describe('the server', () => {
     expect(text).not.toContain('no source tree was read');
   });
 
-  it('walks what rests on a name for a client, from the tree the host read', async () => {
-    const input = new PassThrough();
-    const output = new PassThrough();
-
-    const stop = serveWorkspace(WORKSPACE, { input, output });
-    input.write(
-      `${JSON.stringify({
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/call',
-        params: { name: 'docs_dependents', arguments: { name: 'behind' } },
-      })}\n`,
-    );
-
-    const line = await new Promise<string>((resolve) => output.once('data', resolve));
-    stop();
-
-    const text = JSON.parse(String(line)).result.content[0].text as string;
-    expect(text).toContain('packages/beta/src/inner/deeper.ts:1 imports `behind`');
-    expect(text).not.toContain('no source tree was read');
-  });
-
   it('refuses a path the checkout does not hold, rather than answering unscoped', async () => {
     const input = new PassThrough();
     const output = new PassThrough();

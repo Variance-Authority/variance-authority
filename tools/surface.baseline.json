@@ -1082,7 +1082,6 @@
         "answerSearch": "function",
         "audience": "function",
         "block": "function",
-        "dependents": "const",
         "discover": "const",
         "doorOf": "function",
         "entriesNamed": "function",
