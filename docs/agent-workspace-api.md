@@ -274,6 +274,7 @@ what it is. It returns the file and line of every import, with the
 stories and the tests — the files written to show the name in use — listed apart
 from the source that depends on it. Pass `from` with the file you are editing and
 the sites arrive ordered by how many leading path segments they share with it.
+Each kind of site shows twelve and counts the rest; pass `limit` to show more.
 
 `docs_uses` lists the imports within the name's own package too: every import
 that resolved to the file declaring it, or to a file that passes it on with
@@ -286,7 +287,9 @@ A name a file exports and no entry publishes, such as a helper exported for the
 file beside it, is answered too. `docs_symbol` gives the file and line that
 export it and how many imports reach that file, directly or through a file that
 passes it on; `docs_uses` lists those imports, from its own package as well as
-from others. A read through an `export * as` namespace and a call through a
+from others. When that file only passes on another file's declaration with
+`export … from`, renamed or not, both name the declaration it reaches, through
+every file between, and `docs_symbol` shows its line as well. A read through an `export * as` namespace and a call through a
 qualified path are not counted.
 
 A name a file declares at its top level and does not export, such as a helper

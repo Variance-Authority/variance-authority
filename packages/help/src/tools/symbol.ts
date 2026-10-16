@@ -5,11 +5,13 @@ import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authorit
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
+import { memberRows } from './container.js';
 import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
 import { declaredAt, declaredBlocks, unreadNote } from './declared.js';
+import { originOf, passesOn } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 
 /**
@@ -25,7 +27,9 @@ export const symbol: Tool<Help> = {
   description:
     'Everything known about one name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
-    'written above it, the README passage that names it — and which packages import it. Names are ' +
+    'written above it, the README passage that names it — which packages import it, and the members an ' +
+    'interface, a type alias or a class declares, one line each. An export that only passes the name on with ' +
+    '`export … from` is followed to the declaration it reaches. Names are ' +
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
     'name a file declares at its top level and does not export, answered with where it is written, and ' +
     'installed third-party declarations when the API catalogue is ' +
@@ -75,7 +79,7 @@ export const symbol: Tool<Help> = {
     // Declared at the top of a file and exported by none: still the workspace's
     // own name, and where it is written says who can reach it.
     const own = exported.length > 0
-      ? [exportedOnly(name, exported, invocation?.root)]
+      ? [exportedOnly(help, name, exported, invocation?.root)]
       : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
 
     if (found.length === 0 && invocation?.root !== undefined) {
@@ -132,7 +136,8 @@ export const symbol: Tool<Help> = {
         ? []
         : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
-    return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
+    const entry = first[2];
+    return [block(first[0], first[1], entry), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...also, ...shown].join('\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
@@ -151,7 +156,11 @@ export const symbol: Tool<Help> = {
     }
     if (at.length === 0) {
       const exported = exportsNamed(help, name, wanted);
-      for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
+      for (const [held] of declaringExports(name, exported, invocation?.root)) {
+        at.push([held.at, held.line]);
+        const origin = originOf(help, invocation?.root, held);
+        if (origin?.line !== undefined) at.push([origin.at, origin.line]);
+      }
     }
     if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new Error(unfound(help, name, wanted));
@@ -227,18 +236,25 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
  * index resolved to that file, or to a file that passes the name on from it.
  * Exports that share a name are told apart, each with the imports of its own
  * file. A file that passes on another one's export is not told apart: its
- * imports are counted with the export it passes on, once.
+ * imports are counted with the export it passes on, once. An export that
+ * passes on a declaration of another file is followed to it, and that line is
+ * shown too. The members of an interface, a type alias or a class come last.
  */
-function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
+function exportedOnly(help: Help, name: string, exported: readonly Named[], root: string | undefined): string {
   return declaringExports(name, exported, root)
-    .map(([held, within]) =>
-      [
+    .map(([held, within]) => {
+      const origin = originOf(help, root, held);
+      const declared: Named = origin?.line === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
+      return [
         name,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
         ...(root === undefined ? [] : lineOf(root, held)),
+        ...(origin === undefined ? [] : [`It ${passesOn(origin)}${declared === held ? '.' : ':'}`]),
+        ...(root === undefined || declared === held ? [] : lineOf(root, declared)),
         ...('uses' in within ? [importedIn(within.uses.length)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
-      ].join('\n'),
-    )
+        ...memberRows(root, declared.at, declared.name, declared.line),
+      ].join('\n');
+    })
     .join('\n\n');
 }
 

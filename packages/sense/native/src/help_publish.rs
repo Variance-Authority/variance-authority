@@ -22,7 +22,8 @@ use crate::compact::Layer;
 use crate::help_declared::{declared, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_members::{member_declarations, MemberSite};
+use crate::help_members::{member_declarations, members_on, ContainerMember, MemberSite};
+use crate::help_origin::{passed_from, PassedFrom};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -107,6 +108,22 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
 #[napi]
 pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<MemberSite>>> {
     opened_chain(&index, |layers| member_declarations(&root, layers, &name))
+}
+
+/// Every member the interface, type alias or class named `on` declares in
+/// `file`, repo-relative, by line; `None` when there is no index.
+#[napi]
+pub fn members_on_of(index: String, file: String, on: String) -> napi::Result<Option<Vec<ContainerMember>>> {
+    opened_chain(&index, |layers| members_on(layers, &file, &on))
+}
+
+/// Each file and name the export `name` of `file`, repo-relative, is passed
+/// on from with `export … from`, nearest first, the last one the file that
+/// declares it; empty when the file passes no such export on, `None` when
+/// there is no index.
+#[napi]
+pub fn passed_from_of(index: String, file: String, name: String) -> napi::Result<Option<Vec<PassedFrom>>> {
+    opened_chain(&index, |layers| passed_from(layers, &file, &name))
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its

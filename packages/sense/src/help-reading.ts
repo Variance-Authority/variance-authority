@@ -97,6 +97,18 @@ export interface MemberSite {
   readonly uses?: readonly MemberUseSite[];
 }
 
+/** One member a container declares: its name and its line. */
+export interface ContainerMember {
+  readonly name: string;
+  readonly line: number;
+}
+
+/** One file a name is passed on from with `export … from`, and the name it has there. */
+export interface PassedFrom {
+  readonly at: string;
+  readonly name: string;
+}
+
 /** One line that uses a member, and how. */
 export interface MemberUseSite {
   readonly at: string;
@@ -113,6 +125,8 @@ export interface NativeHelp {
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
+  membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
+  passedFromOf?(index: string, file: string, name: string): PassedFrom[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
 }
@@ -182,6 +196,30 @@ export function importersOf(
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+}
+
+/**
+ * Every member the interface, type alias or class named `on` declares in
+ * `file`, repo-relative, by line, as the newest parse the index at `index`
+ * holds of the file records them: a property or method signature, a class
+ * method, property or accessor, or a constructor parameter property. A member
+ * of a type literal inside the container is the literal's. `undefined` when no
+ * index was published; throws when the index does not read.
+ */
+export function membersOn(root: string, file: string, on: string, index: string = sourceIndexPath(root)): readonly ContainerMember[] | undefined {
+  return entry('membersOnOf')(index, file, on) ?? undefined;
+}
+
+/**
+ * Each file and name the export `name` of `file`, repo-relative, is passed on
+ * from with `export … from`, renamed or not, nearest first: the last is the
+ * file that declares it. Empty when `file` passes no export by that name on;
+ * a namespace, a bare `export *` and a type-only export end the walk where
+ * they stand. `undefined` when no index was published; throws when the index
+ * does not read.
+ */
+export function passedFrom(root: string, file: string, name: string, index: string = sourceIndexPath(root)): readonly PassedFrom[] | undefined {
+  return entry('passedFromOf')(index, file, name) ?? undefined;
 }
 
 /** One top-level declaration no export of its file binds. */
