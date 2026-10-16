@@ -331,9 +331,9 @@ function exported(
         }
         if (chosen === undefined) return [];
         const row = index.exported(chosen);
-        // A barrel re-exports a name with no comment of its own; the doc is
-        // where the name is declared, which is another of its rows.
-        const doc = row.doc ?? rowsOf(name).map((other) => index.exported(other).doc).find((held) => held !== undefined);
+        // The row's own doc, or none: another row of the same name is another
+        // file, whose comment says nothing about this one.
+        const doc = row.doc;
         const match: ExportedMatch = {
           source: 'exported',
           name: row.name,

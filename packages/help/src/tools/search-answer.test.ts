@@ -85,6 +85,14 @@ describe('searchNames', () => {
     );
   });
 
+  it('gives an export without a doc of its own no summary, though another file exports its name with one', () => {
+    // `sum` in alpha is undocumented; beta's unrelated `sum` has a doc comment.
+    const answer = searchNames(INDEX, { query: 'sum' });
+    const sum = answer.exported?.shown.find((match) => match.name === 'sum');
+    expect(sum).toMatchObject({ at: 'packages/alpha/src/count.ts', files: 2 });
+    expect(sum).not.toHaveProperty('summary');
+  });
+
   it('finds a name no manifest publishes when its documentation holds the description', () => {
     const answer = searchNames(INDEX, { query: 'ledgers beta writes' });
     expect(answer.described?.shown.map((match) => match.name)).toContain('tally');
