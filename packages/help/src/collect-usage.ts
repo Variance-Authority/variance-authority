@@ -51,8 +51,13 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
       let text: string | undefined;
       for (const published of parsed.exports ?? []) {
         if (published.exported !== undefined) {
-          if (published.doc !== undefined) text ??= readFileSync(join(root, at), 'utf8');
-          const doc = text === undefined ? undefined : docOf(text, published.doc);
+          // The TypeScript reader spans an export's doc on the export; the
+          // others span it on the declaration the export binds, by its name.
+          const span = published.doc ?? (published.from === undefined
+            ? parsed.symbols?.find((symbol) => symbol.name === published.local)?.doc
+            : undefined);
+          if (span !== undefined) text ??= readFileSync(join(root, at), 'utf8');
+          const doc = text === undefined ? undefined : docOf(text, span);
           usage.exported.push({
             name: published.exported,
             at,
