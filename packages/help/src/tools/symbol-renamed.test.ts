@@ -36,6 +36,8 @@ async function workspace(): Promise<string> {
     'packages/beta/src/inner.ts': 'export const inner = (text: string): string => text;\n',
     'packages/beta/src/both.ts': "import { inner as loud, inner as quiet } from './inner.js';\nexport const both = [loud, quiet];\n",
     'packages/beta/src/relay.ts': "export { inner as relayed } from './inner.js';\n",
+    'packages/beta/src/kinds.ts': 'export type Kind = string;\n',
+    'packages/beta/src/kind-relay.ts': "export type { Kind as Sort } from './kinds.js';\n",
   };
   for (const [path, value] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -72,4 +74,11 @@ it('answers no local name for a name a re-export renames, which the file publish
   const out = symbol.run(readHelp(root), { name: 'relayed' }, { root });
   expect(out).not.toContain('is a local name');
   expect(out).toContain('packages/beta/src/relay.ts');
+});
+
+it('answers no local name for a name a type-only re-export renames, whose request reads like an `import type`', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'Sort' }, { root });
+  expect(out).not.toContain('is a local name');
+  expect(out).toContain('packages/beta/src/kind-relay.ts');
 });

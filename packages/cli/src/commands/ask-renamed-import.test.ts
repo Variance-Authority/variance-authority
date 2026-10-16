@@ -73,6 +73,12 @@ describe('variance ask over a renamed import', () => {
     expect(across.out).toContain("`welcome` is a local name: apps/app/src/welcome.ts:1 imports `greet` as `welcome` from '@acme/lib'.");
     expect(across.out).toMatch(/packages\/lib\/src\/greet\.ts:1/);
 
+    const relative = await run(['ask', 'symbol', '--name', 'hail']);
+    expect(relative.code).toBe(EXIT_CLEAN);
+    expect(relative.out).toContain("`hail` is a local name: packages/lib/src/hailed.ts:1 imports `greet` as `hail` from './greet.js'.");
+    expect(relative.out).toContain("import { greet } from '@acme/lib'");
+    expect(relative.out).not.toContain('without being published');
+
     const within = await run(['ask', 'symbol', '--name', 'shout']);
     expect(within.code).toBe(EXIT_CLEAN);
     expect(within.out).toContain("`shout` is a local name: packages/lib/src/shout.ts:1 imports `inner` as `shout` from './inner.js'.");

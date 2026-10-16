@@ -103,14 +103,19 @@ export function localNames(
 }
 
 /**
- * The export one import names: the published entry its specifier opens, the
- * export of the file the index resolved it to, or the installed declaration
+ * The export one import names: the published entry its specifier opens or
+ * that the file the index resolved it to declares, the export of that file
+ * when no entry publishes it, or the installed declaration
  * its specifier names. Said as unknown, not left out, when none answers.
  * `undefined` when `wanted` names another package.
  */
 function originalOf(help: Help, root: string, alias: Alias, wanted: string | undefined): Original | undefined {
   const name = alias.imported;
-  const door = entriesNamed(help, name).find(([published, held]) => specifierOf(published, held) === alias.specifier);
+  const named = entriesNamed(help, name);
+  // An import across packages names the entry by its specifier; one within the package names the file, which the index resolved.
+  const door =
+    named.find(([published, held]) => specifierOf(published, held) === alias.specifier) ??
+    (alias.to == null ? undefined : named.find(([, , entry]) => entry.at === alias.to));
   if (door !== undefined) {
     const [published, held, entry] = door;
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
