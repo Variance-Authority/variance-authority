@@ -162,6 +162,7 @@ export const describedOrder = (a: DescribedName | DescribedDeclaration, b: Descr
   b.rows - a.rows ||
   a.rank - b.rank ||
   ('match' in a ? 1 : 0) - ('match' in b ? 1 : 0) ||
-  ('match' in a && 'match' in b ? codeUnitOrder(a.match.at, b.match.at) || a.match.line - b.match.line : 0) ||
   // `const a = 1, b = 2` declares two names on one line; the name settles them.
-  codeUnitOrder('match' in a ? a.match.name : a.name, 'match' in b ? b.match.name : b.name);
+  ('match' in a && 'match' in b
+    ? codeUnitOrder(a.match.at, b.match.at) || a.match.line - b.match.line || codeUnitOrder(a.match.name, b.match.name)
+    : 0);
