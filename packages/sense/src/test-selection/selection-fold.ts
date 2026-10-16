@@ -25,7 +25,7 @@ import {
   type ReadJournal,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
-import { joinedJournals, joinReadings } from './readings.js';
+import { joinedJournals, joinReadings, ownCut } from './readings.js';
 import { freshCases } from './case-fold.js';
 import { caseDurations } from './case-durations.js';
 import {
@@ -99,7 +99,7 @@ export function foldRun(
       : { journals: written, unplaced: new Set<string>() };
     const { unplaced } = placed;
     // A file the run read twice is one record, and every row is read in it.
-    const joined = joinReadings(modules);
+    const joined = joinReadings(modules, ownCut(root, mode));
     const journals = joinedJournals(placed.journals, joined.readings);
     // A file the selection ran in part is incomplete too: the cases it skipped
     // keep the reach they had. See `case-cut.ts`.

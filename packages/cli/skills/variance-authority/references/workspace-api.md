@@ -182,10 +182,11 @@ within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
 that passes it on exports without declaring, is said after it. A name a file
 declares and does not export is answered from the source index, as below, after
-any export of the same name in another file. A member of an interface, a type
-literal or a class, when nothing else declares the name, is answered with its
-container and the file and line that declare it, one block per declaration. A
-name nothing declares is refused.
+any export of the same name in another file. A name an import binds with `as`
+is answered with that import and the original it names. A member of an
+interface, a type literal or a class, when nothing else declares or binds the
+name, is answered with its container and the file and line that declare it, one
+block per declaration. A name nothing declares is refused.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier

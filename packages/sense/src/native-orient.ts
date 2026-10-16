@@ -386,6 +386,8 @@ export interface NativeIndexedUsage {
 export interface NativeNameUse {
   key: string;
   name: string;
+  /** The name the importing file binds it to, or passes it on as, when its binding renames it with `as`. */
+  local?: string | null;
   by: string;
   at: string;
   line: number;
