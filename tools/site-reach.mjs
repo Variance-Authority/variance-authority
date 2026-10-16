@@ -50,7 +50,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
 import { publishedSources } from '@variance-authority/sense';
 import ciInfo from 'ci-info';
 import picomatch from 'picomatch';
@@ -169,7 +169,7 @@ export async function siteReach(root, changed, runner) {
   const { subjects } = JSON.parse(readFileSync(resolve(root, 'site/variance.config.json'), 'utf8'));
   const collector = idOf(relations, 'file', `site/${subjects?.collector ?? ''}`);
   if (collector === undefined) throw new Error('the source index holds no collector for `site/variance.config.json`');
-  const sited = dependenciesOf(relations, [collector]);
+  const sited = dependenciesOf(relations, [collector], { through: RUNTIME_EDGES });
   const seeds = new Set([...packages].filter(([, { dir }]) => runner.startsWith(`${dir}/`)).map(([name]) => name));
   for (const id of sited.nodes) {
     const node = nodeAt(relations, id);
@@ -194,7 +194,7 @@ export async function siteReach(root, changed, runner) {
 
   for (const file of changed) {
     if (file.startsWith('site/')) return { observe: true, because: `\`${file}\` is the site's own.` };
-    const reached = affectedBy(relations, [file]).files;
+    const reached = affectedBy(relations, [file], { through: RUNTIME_EDGES }).files;
     // Markdown is text a page shows, and the pages that show it whole leave the
     // photographed set by excluding themselves.
     const page = file.endsWith('.md') ? undefined : reached.filter((path) => path.startsWith('site/')).sort()[0];

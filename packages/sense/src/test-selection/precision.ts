@@ -27,7 +27,7 @@
  */
 
 import { extname } from 'node:path';
-import { affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -74,7 +74,10 @@ export function selectedByRelations(
   // build that left it uninstrumented recorded none of its loaders. A file the
   // graph does not hold seeds no walk, so it asks nothing of the record.
   const loadsRecorded = changed.every((file) => idOf(relations, 'file', file) === undefined || loadersRecorded(coverage, knownAs(file)));
-  const affected = affectedBy(relations, changed, moved === undefined ? {} : { moved, loadsRecorded });
+  const affected = affectedBy(relations, changed, {
+    through: RUNTIME_EDGES,
+    ...(moved === undefined ? {} : { moved, loadsRecorded }),
+  });
   const selected = new Map<number, ImporterReason[]>();
   for (const file of affected.files) {
     const test = findTest(coverage, file);

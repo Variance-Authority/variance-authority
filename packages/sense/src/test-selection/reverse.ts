@@ -1,4 +1,4 @@
-import { affectedBy, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
@@ -274,7 +274,7 @@ function loadersOf(
   relations: Relations | undefined,
 ): readonly CoveringTest[] | undefined {
   if (relations === undefined) return undefined;
-  const affected = affectedBy(relations, [file]);
+  const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
   if (affected.missing.length > 0) return undefined;
   const files = new Set(affected.files);
   const loaders = index.tests.filter((test) => files.has(test.file));

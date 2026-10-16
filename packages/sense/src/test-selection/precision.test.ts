@@ -273,6 +273,20 @@ describe('the precision a suite declares, from coarsest to finest', () => {
     }
   });
 
+  it('leaves out a test that imports the file for its types alone at file', () => {
+    // Nothing behind `import type` runs, so `omega` loads no line of `src/decide.ts`.
+    const typesOnly = relationsOfFiles(
+      RECORDS.map((record) =>
+        record.file === 'test/omega.test.ts' ? { file: record.file, edges: [{ to: 'src/decide.ts', kind: 'type' as const }] } : record,
+      ),
+    );
+    const narrowing = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), inBranch, {
+      relations: typesOnly,
+      precision: 'file',
+    });
+    expect(narrowing.entered).toEqual(tests.filter((file) => file !== 'test/omega.test.ts'));
+  });
+
   it('keeps a test the record holds and the graph does not at file', () => {
     expect(entered('file')).toContain('test/sigma.test.ts');
   });
