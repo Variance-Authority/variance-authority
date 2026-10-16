@@ -66,24 +66,25 @@ export const symbol: Tool<Help> = {
         b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
         byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
 
+    // Declared in a file and exported by none: still the workspace's
+    // own name, and where it is written says who can reach it. Another file's
+    // export of the same name is another thing, so it never stands for this one.
+    const declared = declaredBlocks(invocation?.root, name, wanted);
+
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
     // A name an import binds to an export of another name: the import, and the export it names.
     const aliased = localNames(help, invocation?.root, name, wanted).blocks;
-    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...aliased].join('\n\n');
+    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared, ...aliased].join('\n\n');
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    // Declared at the top of a file and exported by none: still the workspace's
-    // own name, and where it is written says who can reach it.
     const own = [
-      ...(exported.length > 0
-        ? [exportedOnly(name, exported, invocation?.root)]
-        : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : []),
-      ...(found.length === 0 ? aliased : []),
+      ...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []),
+      ...(found.length === 0 ? [...declared, ...aliased] : []),
     ];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: every answer and refusal below says so.
@@ -146,7 +147,7 @@ export const symbol: Tool<Help> = {
     const within = importsOf(invocation?.root, declaring, name);
     const renamed = renamedSites(name, [...found.flatMap(([, , entry]) => entry.sites), ...('uses' in within ? within.uses : [])]);
 
-    return [block(first[0], first[1], first[2]), ...renamed.map((line) => `\n${line}`), ...also, ...shown, ...aliased.map((one) => `\n${one}`)].join('\n');
+    return [[block(first[0], first[1], first[2]), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'), ...declared, ...aliased].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
@@ -167,7 +168,7 @@ export const symbol: Tool<Help> = {
       const exported = exportsNamed(help, name, wanted);
       for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
     }
-    if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
+    at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     at.push(...localNames(help, invocation?.root, name, wanted).files);
     if (at.length === 0) throw new Error(unfound(help, name, wanted));
     const files = new Map<string, number[]>();
