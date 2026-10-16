@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -15,6 +15,7 @@ import { checkout, run } from './ask-packages-fixture.js';
  */
 
 const cwd = process.cwd();
+const cache = process.env['VARIANCE_AUTHORITY_CACHE'];
 
 beforeEach(() => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-symbol-truth-cache-'));
@@ -22,7 +23,8 @@ beforeEach(() => {
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  if (cache === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  else process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
 });
 
 const NATIVE = {
@@ -30,11 +32,18 @@ const NATIVE = {
     'export interface Scanner {\n  resolveThings?(root: string): string[];\n}\n\nfunction edgeKindBetween(left: string, right: string): string {\n  return left + right;\n}\n\nexport const scanner = (): Scanner => ({ edge: edgeKindBetween });\n',
 };
 
+/** The two files of the checkout's dependency lexicon, beside its source index. */
+function lexiconFiles(root: string): readonly string[] {
+  const directory = dirname(sourceIndexPath(root));
+  return [join(directory, 'dependency-lexicon.bin'), join(directory, 'dependency-lexicon.sites.bin')];
+}
+
 /** The checkout, indexed, with its dependency lexicon removed when `lexicon` is false. */
 async function indexed(lexicon: boolean): Promise<string> {
   const root = checkout(NATIVE);
   expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-  if (!lexicon) rmSync(join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin'), { force: true });
+  expect(lexiconFiles(root).map(existsSync)).toEqual([true, true]);
+  if (!lexicon) for (const file of lexiconFiles(root)) rmSync(file);
   return root;
 }
 
@@ -60,8 +69,10 @@ describe('variance ask symbol says what is true of a name', () => {
   }
 
   it('says nothing in the workspace declares an absent name, and that its dependencies were not checked', async () => {
-    await indexed(false);
-    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    const root = await indexed(false);
+    // An answer not compared with the checkout leaves the lexicon as it found it.
+    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten', '--just-answer']);
+    expect(lexiconFiles(root).map(existsSync)).toEqual([false, false]);
     expect(code).toBe(EXIT_OPERATOR);
     expect(err).not.toMatch(/^variance: the dependency lexicon is not published/m);
     expect(err).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
@@ -75,6 +86,15 @@ describe('variance ask symbol says what is true of a name', () => {
     const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
     expect(code).toBe(EXIT_OPERATOR);
     expect(err).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
+    expect(err).toContain('No installed dependency publishes it either.');
+    expect(err).not.toContain('not known');
+  });
+
+  it('publishes the lexicon a refusal of an absent name needs, and says no installed dependency publishes it', async () => {
+    const root = await indexed(false);
+    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    expect(lexiconFiles(root).map(existsSync)).toEqual([true, true]);
+    expect(code).toBe(EXIT_OPERATOR);
     expect(err).toContain('No installed dependency publishes it either.');
     expect(err).not.toContain('not known');
   });
