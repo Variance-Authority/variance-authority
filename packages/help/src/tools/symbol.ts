@@ -67,20 +67,25 @@ export const symbol: Tool<Help> = {
         b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
         byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
 
+    // Declared in a file and exported by none: still the workspace's
+    // own name, and where it is written says who can reach it. Another file's
+    // export of the same name is another thing, so it never stands for this one.
+    const declared = declaredBlocks(invocation?.root, name, wanted);
+
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
-    if (byPath.length > 0) return importedByPath(help, name, byPath);
+    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared].join('\n\n');
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    // Declared at the top of a file and exported by none: still the workspace's
-    // own name, and where it is written says who can reach it.
-    const own = exported.length > 0
-      ? [exportedOnly(name, exported, invocation?.root)]
-      : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
+    const own = [...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []), ...(found.length === 0 ? declared : [])];
+    // Nothing in the workspace answered, so the name may be declared in a file
+    // whose declarations were not read: every answer and refusal below says so.
+    const notRead = found.length === 0 && own.length === 0 ? unreadNote(invocation?.root, name) : '';
+    const unread = notRead === '' ? [] : [notRead.trimStart()];
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -88,7 +93,7 @@ export const symbol: Tool<Help> = {
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
       // No lexicon of installed names says nothing against the workspace's own export.
       if (everywhere === undefined && own.length > 0) return own.join('\n\n');
-      if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
+      if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\`${notRead === '' ? '' : `.${notRead}`}`);
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
       // A door that declares nothing is a fallback for a package silent about
@@ -112,12 +117,13 @@ export const symbol: Tool<Help> = {
           `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
           ...everywhere.shown.map(described),
           ...cut(everywhere),
+          ...unread,
         ].join('\n\n');
       }
-      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
+      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent, ...unread].join('\n\n');
     }
     if (own.length > 0) return own.join('\n\n');
-    if (found.length === 0) throw new Error(`${unfound(help, name, wanted)}${unreadNote(invocation?.root, name)}`);
+    if (found.length === 0) throw new Error(`${unfound(help, name, wanted)}${notRead}`);
 
     const [first] = found;
     if (first === undefined) throw new Error(`\`${name}\` was found and then was not`);
@@ -137,7 +143,7 @@ export const symbol: Tool<Help> = {
         : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
     const entry = first[2];
-    return [block(first[0], first[1], entry), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...also, ...shown].join('\n');
+    return [[block(first[0], first[1], entry), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...also, ...shown].join('\n'), ...declared].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
@@ -162,7 +168,7 @@ export const symbol: Tool<Help> = {
         if (origin !== undefined) at.push([origin.at, origin.line]);
       }
     }
-    if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
+    at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new Error(unfound(help, name, wanted));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {

@@ -23,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 
 use crate::compact::Layer;
-use crate::package_graph::{fold, join_parses, passed_on_with_types, At, Crossing};
+use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
 use crate::package_owners::NO_OWNER;
 
 /// The declaration an export passes on: the file that declares it, the name
@@ -243,8 +243,9 @@ impl<'a> Parsed<'a> {
                 continue;
             }
             let to = self.resolved[request - first];
-            for (imported, exported, _) in passed_on_with_types(self.layer, self.row, request).unwrap_or_default() {
-                match (imported, exported) {
+            // A walk to a declaration follows `export type { … } from` as it follows any other.
+            for one in passed_on(self.layer, self.row, request).unwrap_or_default() {
+                match (one.imported, one.exported) {
                     ("*", None) => passes.stars.push(to),
                     // A module exports a name once; a second is a syntax error, and the
                     // first is kept. `export * as ns` binds a namespace, no declaration.

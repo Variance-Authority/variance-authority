@@ -44,10 +44,13 @@ The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
-commands reuse a generation for one hour before refreshing it. `--just-answer`
-uses the last published generation regardless of age and prints when it was
-produced. It performs no Git status or refresh, and refuses if there is no
-generation to read. `search` always behaves this way: it is a lookup, and
+commands reuse a generation for one hour before refreshing it, and a name a
+reused generation refuses is looked for again in one made from the checkout
+now, so a function you just wrote is answered rather than reported missing.
+`--just-answer` uses the last published generation regardless of age, and every
+answer and refusal says when it was produced and that the checkout was not
+compared with it. It performs no Git status or refresh, and refuses if there is
+no generation to read. `search` always behaves this way: it is a lookup, and
 producing the generation is the job of the step before it. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
 index](https://variance-authority.dev/docs/agent-workspace-api#choose-the-cheapest-entrance).
@@ -152,7 +155,7 @@ stays available without taking space from the first answer.
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Twelve sites of each kind, unless `limit` says more |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the ones holding half its words by stem and the ones only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
-| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
+| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
@@ -496,8 +499,11 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy, or serves only the recorded generation when
-`justAnswer` is true.
+the same one-hour policy and asks a refused call again of a generation made
+now, or serves only the recorded generation when `justAnswer` is true. A host
+of its own asks `caughtUp` whether a refusal is worth asking again, and is
+handed what to ask again and, when the checkout could not be compared, the line
+its refusal ends with; `snapshotLine` dates an answer.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';

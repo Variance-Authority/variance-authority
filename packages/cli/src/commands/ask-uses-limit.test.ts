@@ -44,4 +44,29 @@ describe('variance ask uses --limit', () => {
     expect(sites(out)).toEqual(sites(all.out).slice(0, 2));
     expect(out).toContain('… 3 more not shown; a higher `limit` shows them.');
   });
+
+  it('cuts the imports of a name its module keeps to itself at the same limit', async () => {
+    checkout({
+      'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
+      'packages/kit/src/lib.rs': 'mod lexicon;\n',
+      'packages/kit/src/lexicon.rs': '#[path = "lexicon_a.rs"]\nmod a;\n#[path = "lexicon_b.rs"]\nmod b;\n#[path = "lexicon_c.rs"]\nmod c;\n\nfn flag() {}\n',
+      'packages/kit/src/lexicon_a.rs': 'use super::flag;\n',
+      'packages/kit/src/lexicon_b.rs': 'use super::flag;\n',
+      'packages/kit/src/lexicon_c.rs': 'use super::flag;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const all = await run(['ask', 'uses', '--name', 'flag']);
+    expect(all.code).toBe(EXIT_CLEAN);
+    expect(all.out).toContain('`flag` is declared, not exported, at packages/kit/src/lexicon.rs:8');
+    const rust = (out: string): readonly string[] => out.split('\n').filter((line) => /^\S+\.rs:\d+\b/.test(line));
+    expect(rust(all.out)).toHaveLength(3);
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'flag', '--limit', '1']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('Imported in 3 places.');
+    expect(rust(out)).toEqual(rust(all.out).slice(0, 1));
+    expect(out).toContain('… 2 more not shown; a higher `limit` shows them.');
+  });
 });

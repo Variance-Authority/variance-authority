@@ -145,6 +145,7 @@ fn want(requests: &mut Vec<Request>, seen: &mut HashSet<String>, value: &str, lo
         // written identically, and the target a name belongs to is a fact about
         // the tree.
         guessed: true,
+        item: false,
     });
 }
 
