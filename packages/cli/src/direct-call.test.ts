@@ -6,10 +6,12 @@ import { directCallLine } from './direct-call.js';
 
 /**
  * The environment each launcher leaves, as measured: Yarn 4 running a bin,
- * `npm exec`, and a package script.
+ * `npm exec`, Yarn 1 running a bin, which it names as if it were a script, and
+ * a package script.
  */
 const YARN = { npm_config_user_agent: 'yarn/4.18.0 npm/? node/v24.18.0 darwin arm64' };
 const NPM_EXEC = { npm_config_user_agent: 'npm/11.16.0 node/v24.18.0 darwin arm64 workspaces/false', npm_command: 'exec', npm_lifecycle_event: 'npx', npm_lifecycle_script: '"variance"' };
+const YARN_1 = { npm_config_user_agent: 'yarn/1.22.22 npm/? node/v24.18.0 darwin arm64', npm_lifecycle_event: 'variance' };
 const SCRIPT = { npm_config_user_agent: 'yarn/4.18.0 npm/? node/v24.18.0 darwin arm64', npm_lifecycle_event: 'check' };
 
 let root: string;
@@ -38,6 +40,10 @@ describe('the faster direct call', () => {
     expect(directCallLine(['--version'], NPM_EXEC, root, self)).toContain('without npm: node_modules/.bin/variance --version');
   });
 
+  it('names it for Yarn 1, which gives the binary it runs the lifecycle event of its own name', () => {
+    expect(directCallLine(['--version'], { ...YARN_1, INIT_CWD: root }, root, self)).toContain('without yarn: node_modules/.bin/variance --version');
+  });
+
   it('quotes a binary path the shell would split', () => {
     const spaced = realpathSync(mkdtempSync(join(tmpdir(), 'va direct call ')));
     try {
@@ -63,9 +69,13 @@ describe('the faster direct call', () => {
     expect(directCallLine(['index'], { ...YARN, INIT_CWD: inside }, inside, self)).toContain(`without yarn: ${join(root, 'node_modules', '.bin', 'variance')} index`);
   });
 
-  it('says nothing when the package manager moved it out of the directory it was typed in', () => {
-    // Its arguments were read from where it runs, so the same words typed where the caller stands are another command.
-    expect(directCallLine(['covering', '--file', 'src/a.ts'], { ...YARN, INIT_CWD: join(root, 'packages', 'app') }, root, self)).toBe('');
+  it('goes to where it runs first when the package manager moved it out of the directory it was typed in', () => {
+    // Yarn 1 runs a binary from the project root. Its arguments were read from there, so the direct call is made there too.
+    const typedIn = join(root, 'packages', 'app');
+    mkdirSync(typedIn, { recursive: true });
+    expect(directCallLine(['covering', '--file', 'src/a.ts'], { ...YARN_1, INIT_CWD: typedIn }, root, self)).toBe(
+      `\nvariance: the same command answers faster without yarn: cd ${root} && node_modules/.bin/variance covering --file src/a.ts\n`,
+    );
   });
 
   it('says nothing when no package manager launched it', () => {

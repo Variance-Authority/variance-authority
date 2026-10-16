@@ -19,18 +19,20 @@ import { said } from './here.js';
  *   of them sets it, and a direct call inherits it only from a script;
  * - not from a package script, which sets `npm_lifecycle_event` to the script's
  *   name: there the script's author chose the call. `npm exec` and `bunx` set it
- *   too, to `npx` and `bunx`, and are launches like any other;
- * - it runs where it was typed: a launcher that moved it, as `INIT_CWD` says,
- *   read its arguments from another directory, so the same words typed where
- *   the caller stands would be another command;
+ *   too, to `npx` and `bunx`, and Yarn 1 sets it to the name of the binary it
+ *   runs: those are launches like any other;
  * - the nearest `node_modules/.bin/variance` above the working directory is this
  *   file. Under Plug'n'Play there is no such directory. pnpm and Windows write a
  *   wrapper script there, which is not this file. A binary that is another
  *   install's would answer in that version's way.
+ *
+ * A launcher that moved the program out of the directory it was typed in, as
+ * Yarn 1 moves it to the project root, read its arguments from where it runs.
+ * `INIT_CWD` keeps where it was typed, so the line goes to where it runs first.
  */
 
-/** The `npm_lifecycle_event` of a package manager's exec, which is a launch and not a script. */
-const EXEC_EVENTS = new Set(['bunx', 'npx']);
+/** The `npm_lifecycle_event` of a launch rather than a script: the execs', and Yarn 1's for this binary. */
+const LAUNCH_EVENTS = new Set(['bunx', 'npx', 'variance']);
 
 /**
  * The line naming the direct call, or nothing when there is none to name.
@@ -47,12 +49,12 @@ export function directCallLine(
   const launcher = env['npm_config_user_agent']?.split('/')[0];
   if (launcher === undefined || launcher === '') return '';
   const event = env['npm_lifecycle_event'];
-  if (event !== undefined && !EXEC_EVENTS.has(event)) return '';
-  const typedIn = env['INIT_CWD'];
-  if (typedIn !== undefined && typedIn !== cwd) return '';
+  if (event !== undefined && !LAUNCH_EVENTS.has(event)) return '';
   const binary = nearestBinary(cwd);
   if (binary === undefined || !sameFile(binary, self)) return '';
-  const command = [said(binary, cwd), ...argv].map(quoted).join(' ');
+  const call = [said(binary, cwd), ...argv].map(quoted).join(' ');
+  const typedIn = env['INIT_CWD'];
+  const command = typedIn === undefined || sameFile(typedIn, cwd) ? call : `cd ${quoted(said(cwd, typedIn))} && ${call}`;
   return `\nvariance: the same command answers faster without ${launcher}: ${command}\n`;
 }
 
