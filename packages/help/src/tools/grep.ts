@@ -1,7 +1,6 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, limitOf, notShown, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { areaLine, areaOf } from './area.js';
-import { limitOf, notShown } from './limit.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /**

@@ -134,6 +134,8 @@ export { NO_ARGS, stringArg };
 export { notObservedSentence } from './tools/subject.js';
 // A long part of an answer, capped and counted the same way in every server.
 export { cappedRows } from './tools/capped.js';
+// How many rows a listing shows, read and refused the same way in every server.
+export { limitOf, notShown } from './tools/limit.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */

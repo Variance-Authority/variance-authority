@@ -1,6 +1,7 @@
 ---
 '@variance-authority/cli': patch
 '@variance-authority/help': patch
+'@variance-authority/mcp': patch
 '@variance-authority/sense': patch
 ---
 
@@ -14,7 +15,8 @@ fits on its line lists nothing more.
 `ask uses --limit <n>` shows that many sites of each kind. Without it the answer
 shows twelve and counts the rest, as before. A `limit` that is not a whole
 number of at least 1 is now refused by `uses`, `grep`, `discover`,
-`intersection` and `slowest-tests` alike, rather than read as the default.
+`intersection`, `slowest-tests` and `variance_costs` alike, rather than read as
+the default, and `variance_costs` now also takes the digits a shell passes.
 
 A name a file only passes on, as in `export { taxOf as levy } from './tax.js'`,
 is now followed to the declaration it reaches, through every file between them,

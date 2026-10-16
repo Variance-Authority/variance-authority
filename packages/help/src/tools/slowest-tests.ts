@@ -22,7 +22,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedDurations, type DurationScope } from '@variance-authority/sense';
-import { limitOf } from './limit.js';
+import { limitOf } from '@variance-authority/mcp/tools';
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 

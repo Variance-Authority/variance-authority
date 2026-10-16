@@ -1,7 +1,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { readsNames } from './discover.js';
-import { limitOf, notShown } from './limit.js';
+import { limitOf, notShown } from '@variance-authority/mcp/tools';
 
 /**
  * `docs_intersection` — the files every one of several whole questions answers.
