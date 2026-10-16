@@ -66,6 +66,11 @@ pub struct Stored<'a> {
 impl<'a> Stored<'a> {
     /// The header, every section's bounds, and the dictionary.
     pub fn open(bytes: &'a [u8]) -> Result<Self, String> {
+        Self::open_as(bytes, FORMAT, VERSION)
+    }
+
+    /// The same framing under another format's name and version, as `segment::encode_as` writes it.
+    pub fn open_as(bytes: &'a [u8], format: &str, version: u8) -> Result<Self, String> {
         let length = bytes
             .get(..4)
             .map(|head| u32::from_le_bytes([head[0], head[1], head[2], head[3]]) as usize)
@@ -74,13 +79,13 @@ impl<'a> Stored<'a> {
         let text = std::str::from_utf8(header).map_err(|_| "a header that is not UTF-8")?;
         let header: Header =
             serde_json::from_str(text.trim_end_matches('\0')).map_err(|error| format!("a header that does not parse: {error}"))?;
-        if header.format != FORMAT {
-            return Err(format!("{} version {}, not {FORMAT} version {VERSION}", header.format, header.version));
+        if header.format != format {
+            return Err(format!("{} version {}, not {format} version {version}", header.format, header.version));
         }
         // Another release wrote it: told apart from bytes that do not read, as the TypeScript reader tells them.
-        if header.version != u32::from(VERSION) {
+        if header.version != u32::from(version) {
             return Err(format!(
-                "a {FORMAT} written in format version {}, and this release reads version {VERSION}; `variance index` rebuilds it",
+                "a {format} written in format version {}, and this release reads version {version}; `variance index` rebuilds it",
                 header.version
             ));
         }

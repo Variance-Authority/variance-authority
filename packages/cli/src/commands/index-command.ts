@@ -184,9 +184,9 @@ async function answerable(root: string, index: string, noGit: boolean, progress:
 async function lexicon(root: string): Promise<string> {
   const { refreshDependencyLexicon } = await import('@variance-authority/help');
   try {
-    const { path, packages, entrypoints, reused, unavailable, unchanged, merged } = await refreshDependencyLexicon(root);
+    const { path, packages, entrypoints, reused, unavailable, unchanged, appended, rebuilt } = await refreshDependencyLexicon(root);
     if (unchanged) return `dependency lexicon: unchanged, nothing read: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${unavailable} unavailable, at ${path}`;
-    const read = merged ? 'merged what the index wrote since the last refresh: ' : '';
+    const read = !rebuilt && appended > 0 ? `${appended} changed source ${appended === 1 ? 'file' : 'files'} read: ` : '';
     return `dependency lexicon: ${read}${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
   } catch (error) {
     return `dependency lexicon: not prepared: ${error instanceof Error ? error.message : String(error)}`;
