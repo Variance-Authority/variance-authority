@@ -14,7 +14,7 @@ use serde::Serialize;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{declaration, kind_of, line_of, named_children, text_of};
+use super::{declaration, file_private, kind_of, line_of, named_children, text_of};
 use crate::harvest::SourceSymbol;
 
 /// The request a file makes for its own target: the files it sees without asking.
@@ -46,7 +46,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
             }
             continue;
         }
-        if let Some(name) = declared(child, source).filter(|_| !file_private(child, source)) {
+        if let Some(name) = declared(child, source).filter(|_| !file_private(child, source, &FILE_PRIVATE)) {
             exports.push(Export {
                 exported: Some(name.clone()),
                 local: Some(name),
@@ -81,7 +81,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
                 other => kind_of(other)?,
             };
             let mut symbol = declaration(&children, at, name, kind, source, &[]);
-            if file_private(node, source) {
+            if file_private(node, source, &FILE_PRIVATE) {
                 symbol.reach = Some("file");
             }
             Some(symbol)
@@ -89,16 +89,8 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
         .collect()
 }
 
-/// Whether `private` or `fileprivate` keeps a top-level declaration to its
-/// file, where the two mean the same. `private(set)` narrows the setter alone,
-/// so the name is still the target's.
-fn file_private(node: Node, source: &str) -> bool {
-    named_children(node)
-        .into_iter()
-        .filter(|child| child.kind() == "modifiers")
-        .flat_map(named_children)
-        .any(|modifier| modifier.kind() == "visibility_modifier" && matches!(text_of(modifier, source), "private" | "fileprivate"))
-}
+/// `private` and `fileprivate` mean the same at the top level: the file.
+const FILE_PRIVATE: [&str; 2] = ["private", "fileprivate"];
 
 /// The keyword a `class_declaration` is written with, which is an anonymous
 /// child; `None` for an extension.
@@ -156,7 +148,7 @@ fn want(requests: &mut Vec<Request>, seen: &mut HashSet<String>, value: &str, lo
     });
 }
 
-/// Top-level declarations this file publishes, unless [`file_private`] keeps one.
+/// Top-level declarations this file publishes, unless [`FILE_PRIVATE`] keeps one.
 ///
 /// `class_declaration` is every nominal type in this grammar — `struct`, `class`,
 /// `enum` and `actor` all reach it — and the keyword that separates them is an

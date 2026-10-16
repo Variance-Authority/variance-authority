@@ -59,6 +59,13 @@ describe('what a JVM file asks for', () => {
       .toEqual(['Thing', 'parse', 'Registry', 'Name', 'version']);
   });
 
+  it('publishes a top-level Java class whatever its modifiers, since none keeps one to its file', () => {
+    const read = readJava('Thing.java', 'package a;\n\nfinal class Thing {}\nabstract class Other {}\n');
+
+    expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['Thing', 'Other']);
+    expect(read.symbols?.map(({ reach }) => reach)).toEqual([undefined, undefined]);
+  });
+
   it('keeps a top-level Kotlin `private` to its file, and publishes an `internal` one to its module', () => {
     const read = readKotlin('t.kt', 'package a\n\nprivate fun helper() {}\nprivate val cache = 1\ninternal class Thing\n');
 

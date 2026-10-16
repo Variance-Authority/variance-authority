@@ -46,7 +46,7 @@ describe('what a Swift file asks for', () => {
   it('keeps a `private` or `fileprivate` declaration to its file, and publishes one whose setter alone is private', () => {
     const read = readSwift(
       'a.swift',
-      'private func helper() {}\nfileprivate struct Cache {}\nprivate(set) var count = 0\npublic let version = 1\n',
+      'private func helper() {}\nfileprivate struct Cache {}\nprivate (set) var count = 0\npublic let version = 1\n',
     );
 
     expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['count', 'version']);

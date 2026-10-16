@@ -64,9 +64,13 @@ describe('what a Rust file asks for', () => {
   });
 
   it('publishes an item another file of its crate can name, and not one `pub(self)` keeps to its module', () => {
-    const read = readRust('src/lib.rs', 'pub(crate) fn shared() {}\npub(super) struct Up;\npub(in crate::a) const A: u8 = 1;\npub(self) fn kept() {}\n');
+    const read = readRust(
+      'src/lib.rs',
+      'pub(crate) fn shared() {}\npub(super) struct Up;\npub(in crate::a) const A: u8 = 1;\npub(self) fn kept() {}\npub(in self) fn held() {}\npub(self) use crate::b::C;\n',
+    );
 
     expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['shared', 'Up', 'A']);
+    expect(read.symbols?.filter(({ name }) => name === 'kept' || name === 'held').map(({ reach }) => reach)).toEqual(['module', 'module']);
   });
 
   it('says so when the parser stopped where a `use` could have been', () => {

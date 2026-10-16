@@ -233,11 +233,12 @@ fn named(node: Node, source: &str) -> Option<String> {
 }
 
 /// Whether another file can name the item: any `pub`, `pub(crate)` and
-/// `pub(super)` among them, but not `pub(self)`, which is no `pub` at all.
+/// `pub(super)` among them, but not `pub(self)` or `pub(in self)`, which are
+/// no `pub` at all.
 fn published(node: Node, source: &str) -> bool {
     named_children(node).iter().any(|child| {
-        child.kind() == "visibility_modifier"
-            && text_of(*child, source).chars().filter(|c| !c.is_whitespace()).collect::<String>() != "pub(self)"
+        let written: String = text_of(*child, source).chars().filter(|c| !c.is_whitespace()).collect();
+        child.kind() == "visibility_modifier" && written != "pub(self)" && written != "pub(inself)"
     })
 }
 
