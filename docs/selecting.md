@@ -11,7 +11,8 @@ that selection inside the runner you already call.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any
-uncertainty widens the run, and the report explains why.
+uncertainty widens the run, and the report explains why. A suite you do not yet
+trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
 evidence inside one test, looking for work its promise does not need.
@@ -280,6 +281,46 @@ that suite's run, and the run names it declined. Two refusals stand over the
 record, because it never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
+
+## How precisely a suite selects
+
+By default a test is skipped unless it entered the code a changed line is in.
+You may not trust that on the first day: a skipped test is a cost you cannot
+see. So a suite declares its `precision`. Start at `file`,
+which runs every test that imports a changed file, and move one step finer when
+the runs have earned it:
+
+```json
+{ "suites": { "unit": { "kind": "unit", "precision": "file" } } }
+```
+
+| `precision` | A test runs when |
+|---|---|
+| `file` | it imports a changed file, directly or through other files, or it loaded one |
+| `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file |
+| `file-use` | it loaded a changed file |
+| `function-use` | it entered the function a changed line is in; a line outside every function runs every test that loaded the file |
+| `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes. A suite that declares nothing reads this |
+
+Every step reads the same record and the same file graph; nothing is recorded
+differently. The graph and the record miss different tests: the graph takes loading a module to
+declare its exports and nothing more, which the `sideEffects` field overrides,
+and a runner config can load a file that no import names. So `file` and
+`symbol` add what the graph reaches to what `file-use` runs, rather than
+replace it, and each step runs every test a finer step runs: moving finer only
+drops tests, and moving coarser never skips one the finer step would run. At
+`file`, `symbol` and `file-use` a changed file counts whatever the edit was, a
+comment included.
+
+A suite that declares [`"relations":
+false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
+declines the graph, so it cannot declare `file` or `symbol`, and the config is
+refused. To see what each step would select for your change, run `variance
+select` once per step.
+
+A [journey](journeys.md) file you hand to `variance select --execution` is read
+by its regions, whatever the suite declares: naming the file asks for that
+reading.
 
 ## What a skipped subject looks like
 

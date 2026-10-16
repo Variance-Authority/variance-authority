@@ -1,6 +1,6 @@
 # Selection wiring: what the run rests on, and what it costs
 
-Read this before you write a suite's `before` or `relations` in
+Read this before you write a suite's `before`, `relations` or `precision` in
 `variance.config.json`, when a selection came back whole, when a config file you
 changed selected nothing, or when a recorded run times out.
 
@@ -88,6 +88,24 @@ a `.nvmrc` or a workflow, which have nothing under them to read. It is not
 normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
 scan has no reader for.
+
+## Declare a suite's precision
+
+A suite's `precision` says how precisely selection decides which tests to
+skip, coarsest first: `file` (every recorded test that imports a changed
+file, through the graph, and every test `file-use` runs), `symbol` (the same
+walk through only the importers of the exports the change moved, and every test
+`file-use` runs), `file-use` (every test that loaded a changed
+file), `function-use` (every test that entered the function a changed line is
+in), `region-use` (the default: every test that entered the changed region).
+Recording is the same at every step.
+
+Leave it unset unless the person adopting selection asks to start coarser; the
+step is theirs to choose, and they move it finer when the runs have earned it.
+`file` and `symbol` read the import graph, so a suite with `"relations": false`
+cannot declare them and the config is refused. Each step runs every test a finer
+step runs. To compare steps for one change, run `variance select` once per
+step; nothing composes them.
 
 ## What selection refuses to narrow
 
