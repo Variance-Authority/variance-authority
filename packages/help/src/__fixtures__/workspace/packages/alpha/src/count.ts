@@ -6,3 +6,6 @@ function counted(): number {
 }
 
 export { counted };
+
+// A value, where a declaration could have been: reading the file must not stop on it.
+export default sum;
