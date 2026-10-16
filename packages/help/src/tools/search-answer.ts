@@ -8,6 +8,7 @@ import { looseNames, matchingTerms } from './loose.js';
 import { describedDeclarations, describedNames, describedOrder } from './described.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches } from './declared.js';
+import { memberMatches } from './members.js';
 import { docRows, exported, first } from './exported-matches.js';
 
 /**
@@ -116,6 +117,21 @@ export interface DeclaredMatch {
   readonly line: number;
 }
 
+/**
+ * A member a file declares: a property or method of an interface, a type
+ * literal or a class, a field of a Rust struct or a variant of a Rust enum.
+ */
+export interface MemberMatch {
+  readonly source: 'member';
+  readonly name: string;
+  /** The container it is on: `Props`, `Shape`, `Shape::Square`, or `a type literal` or `a class` when it has no name. */
+  readonly on: string;
+  /** The package that holds it; absent at the repository root. */
+  readonly package?: string;
+  readonly at: string;
+  readonly line: number;
+}
+
 /** A name of this repository a description reached, and which of its words it holds. */
 export type DescribedMatch = (PublishedMatch | ExportedMatch | DeclaredMatch) & {
   /** The question's words the name or its documentation holds, as the question wrote them. */
@@ -162,6 +178,12 @@ export interface SearchAnswer {
     /** Files whose declarations the index holds none of, since none were read: unknown, not empty. */
     readonly unread: readonly string[];
   };
+  /**
+   * Members whose names hold the query, read off the source index; `uses`
+   * answers who reads and writes one. Absent when no checkout was named or its
+   * index could not be read.
+   */
+  readonly members?: Matches<MemberMatch>;
   /** Present only when the exact sections are empty, which is when it runs. */
   readonly loose?: Matches<PublishedMatch | ExportedMatch>;
   /**
@@ -331,6 +353,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // to offer, so ownership is asked of the paths the question started at and not of the closure.
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to]);
   const declared = declaredMatches(root, query, area?.files, ELSEWHERE_CAP);
+  const members = memberMatches(root, query, area?.files, ELSEWHERE_CAP);
 
   const answer: SearchAnswer = {
     query,
@@ -338,13 +361,14 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
     published: published(index, hits, CAP),
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(declared === undefined ? {} : { declared }),
+    ...(members === undefined ? {} : { members }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
   // The installed packages that describe the words are a different answer from
   // this repository's names, and never stand in for them: only an installed
   // name holding the query as written — which the caller asked for by name —
   // ends the search for names of this repository's own.
-  if (hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
+  if (hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (members?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
 
   // The empty answer read as a description: names holding half of its words,
   // stemmed by the rule packages are. It prints first, so it claims its names

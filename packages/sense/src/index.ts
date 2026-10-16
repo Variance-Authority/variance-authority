@@ -210,6 +210,7 @@ export {
   encodeSearch,
   exportedDigest,
   importersOf,
+  memberDeclarationsContaining,
   memberDeclarationsOf,
   readHelp,
   type DeclaredName,

@@ -76,14 +76,15 @@ export interface Parsed {
    */
   readonly members?: readonly Member[];
   /**
-   * Every member of an interface, a type literal or a class the file declares.
-   * Absent when it declares none, and absent from any reader but the native one.
+   * Every member of an interface, a type literal or a class the file declares,
+   * or every field and variant of a Rust file. Absent when it declares none,
+   * and absent from any reader but the module one and the Rust one.
    */
   readonly memberDeclarations?: readonly MemberDeclaration[];
   /**
    * Every line that reads, writes or destructures a member through a value
    * whose type the line writes. Absent when there are none, and absent from any
-   * reader but the native one.
+   * reader but the module one and the Rust one.
    */
   readonly memberUses?: readonly MemberUse[];
   readonly unknown?: string;
@@ -115,12 +116,18 @@ export interface Member {
   readonly line: number;
 }
 
-/** One member a file declares, on the interface, type alias or class that holds it. */
+/**
+ * One member a file declares, on the interface, type alias or class that holds
+ * it, or on the Rust struct, union or enum; a field of a struct-like variant is
+ * on `Enum::Variant`.
+ */
 export interface MemberDeclaration {
   readonly name: string;
   readonly line: number;
   /** The container's name, or `a type literal` or `a class` when it has none. */
   readonly on: string;
+  /** A Rust enum's variant, which only a path `Enum::Variant` uses; absent for a field or any other member. */
+  readonly variant?: true;
 }
 
 /** One line that uses a member through a value whose type the file writes. */
@@ -130,6 +137,8 @@ export interface MemberUse {
   /** The type's name as the file writes it: its own declaration's, or the local name of an import. */
   readonly of: string;
   readonly how: 'destructure' | 'read' | 'write';
+  /** Written as a path, `Enum::Variant`, which names a variant and never a field; absent for any other use. */
+  readonly variant?: true;
 }
 
 /** Content-addressed parses used by a scan and by consumers sharing its work. */

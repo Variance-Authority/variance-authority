@@ -38,7 +38,8 @@ For [source orientation](orientation.md), ask three questions in this order:
 3. `uses`.
 
 Those relations are resolved module imports, not runtime function calls. A
-member of an interface, a type literal or a class is never imported: `uses`
+member of an interface, a type literal or a class, a field of a Rust struct and
+a variant of a Rust enum are never imported: `uses`
 names where a member by that name is declared, after any imports, and under
 each declaration the lines that read, write or destructure it through a value
 whose type the line writes, such as `props: Props` or `value as Props`. A line

@@ -41,6 +41,11 @@ pub struct MemberUse {
     pub(crate) line: u32,
     pub(crate) of: String,
     pub(crate) how: String,
+    /// Written as a path, `Enum::Variant`, which names a variant and never a
+    /// field: `Props::size` is an associated function where `Props` has a
+    /// field `size`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) variant: bool,
 }
 
 /// Every use `program` writes of a member through a value whose type it
@@ -89,7 +94,7 @@ struct Walker<'n> {
 
 impl Walker<'_> {
     fn add(&mut self, name: &str, at: u32, of: &str, how: &str) {
-        let found = MemberUse { name: name.to_owned(), line: self.lines.at(at), of: of.to_owned(), how: how.to_owned() };
+        let found = MemberUse { name: name.to_owned(), line: self.lines.at(at), of: of.to_owned(), how: how.to_owned(), variant: false };
         if self.seen.insert(found.clone()) { self.found.push(found); }
     }
 

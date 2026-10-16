@@ -7,6 +7,7 @@ import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { ExportedMatch, PublishedMatch } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
+import { memberLine } from './members.js';
 import { searched, searchedFiles } from './search-answer.js';
 
 /**
@@ -211,13 +212,28 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
           ...(declared.total > declared.shown.length ? [`\n${declared.total - declared.shown.length} more not shown.`] : []),
           ...unread,
         ];
+  // Below those, since a member is reached through a value and named by no import.
+  const members = answer.members ?? { total: 0, shown: [] };
+  const memberSection =
+    members.total === 0
+      ? []
+      : [
+          '',
+          `${members.total} more ${members.total === 1 ? 'name is' : 'names are'} declared as a member ${area === undefined ? 'somewhere in the repository' : 'in that area'}:`,
+          '',
+          ...members.shown.map(memberLine),
+          ...(members.total > members.shown.length ? [`\n${members.total - members.shown.length} more not shown.`] : []),
+          '',
+          `Who reads and writes one: \`variance ask uses --name ${members.shown[0]!.name}\`.`,
+        ];
+  const local = [...declaredSection, ...memberSection];
 
-  if (found.total === 0 && rest.total === 0 && declared.total === 0 && (third?.total ?? 0) === 0) {
+  if (found.total === 0 && rest.total === 0 && declared.total === 0 && members.total === 0 && (third?.total ?? 0) === 0) {
     const nowhere =
       area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+    return [...where, nowhere, ...local, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -235,7 +251,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
           ...more,
         ];
 
-  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...local, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
 
   const hidden = rest.total > rest.shown.length ? [`\n${rest.total - rest.shown.length} more not shown.`] : [];
 
@@ -249,7 +265,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     ...hidden,
     '',
     `From a file above to what surrounds it: \`variance ask orient --files ${rest.shown[0]!.at}\`.`,
-    ...declaredSection,
+    ...local,
     ...own,
     ...thirdSection,
     ...describedSection,

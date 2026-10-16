@@ -74,6 +74,7 @@ const PARSED: Parsed = {
   memberDeclarations: [
     { name: 'resolveThings', line: 21, on: 'NativeScanner' },
     { name: 'Card', line: 24, on: 'a type literal' },
+    { name: 'Drained', line: 26, on: 'Phase', variant: true },
   ],
   // A member, a type and lines no other column holds, and every kind of use,
   // so a column dropped or read in place of another fails here.
@@ -81,6 +82,7 @@ const PARSED: Parsed = {
     { name: 'hydrateLater', line: 31, of: 'LazyShell', how: 'read' },
     { name: 'hydrateLater', line: 33, of: 'LazyShell', how: 'write' },
     { name: 'paintOnce', line: 35, of: 'Renamed', how: 'destructure' },
+    { name: 'Drained', line: 37, of: 'Phase', how: 'write', variant: true },
   ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in

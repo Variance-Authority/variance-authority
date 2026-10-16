@@ -14,6 +14,7 @@
 pub mod jvm;
 pub mod python;
 pub mod rust;
+pub mod rust_members;
 pub mod shape;
 pub mod size;
 pub mod swift;
@@ -174,7 +175,14 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
 
     let (read, symbols) = match grammar {
         Grammar::Python => (python::read(file, source, &tree), python::declarations(&tree, source)),
-        Grammar::Rust => (rust::read(file, source, &tree), rust::declarations(&tree, source)),
+        Grammar::Rust => (
+            Read {
+                member_declarations: rust_members::member_declarations(&tree, source),
+                member_uses: rust_members::member_uses(&tree, source),
+                ..rust::read(file, source, &tree)
+            },
+            rust::declarations(&tree, source),
+        ),
         Grammar::Swift => (swift::read(file, source, &tree), swift::declarations(&tree, source)),
         Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source)),
         Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source)),

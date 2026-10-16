@@ -1,7 +1,8 @@
 import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
-import type { DeclaredName } from '@variance-authority/sense';
+import { extname } from 'node:path';
+import { languageOf, type DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
@@ -257,6 +258,15 @@ function keptLine(name: string, kept: readonly DeclaredName[]): string {
 }
 
 /**
+ * How the language of the file at `at` writes a member after its container:
+ * Rust as rustdoc's paths do, `Props::size` and `Shape::Dot`, every other
+ * language with a dot.
+ */
+function memberSeparator(at: string): string {
+  return languageOf(extname(at)) === 'rust' ? '::' : '.';
+}
+
+/**
  * The declarations of a member, then the uses of each one on a named
  * container, nearest first when `from` is said, and where the uses no line
  * types are read.
@@ -266,7 +276,7 @@ function memberLines(members: Members, from: string | undefined, name: string): 
   const used = members.used.flatMap(({ declared, uses }) => {
     if (uses.length === 0) return [];
     const sites = uses.map(({ how: used, ...use }): Site => ({ ...use, by: use.by === '' ? used : `${use.by}, ${used}` }));
-    return listed(order(sites, from), `\`${declared.by}.${name}\`, declared at ${declared.at}:${declared.line}, is used in ${places(uses.length)}:`, name);
+    return listed(order(sites, from), `\`${declared.by}${memberSeparator(declared.at)}${name}\`, declared at ${declared.at}:${declared.line}, is used in ${places(uses.length)}:`, name);
   });
   // A declaration no line reaches through its type is named once, with the others like it.
   const unused = members.used.filter(({ uses }) => uses.length === 0).map(({ declared }) => `\`${declared.by}\` at ${declared.at}:${declared.line}`);

@@ -94,8 +94,8 @@ name's contract, and `uses` for its exact import sites and worked examples.
 
 This is a module graph, not a call graph. A site is an import. Never turn it
 into a claim that one function calls another; open the file or ask a language
-server. A member of an interface, a type literal or a class is never imported,
-so `uses` names its declarations, after any imports, the lines that use each
+server. A member of an interface, a type literal or a class, a field of a Rust
+struct and a variant of a Rust enum are never imported, so `uses` names its declarations, after any imports, the lines that use each
 one through a value whose type they write, and the `grep --to` that finds the
 rest.
 
@@ -250,6 +250,24 @@ or `export { … } from`, to the file that declares it, so `Props.size` and
 `Other.size` are listed apart and a same-named type of another file is neither.
 A binding that shadows an annotated one is no use.
 
+A field of a Rust struct is on the struct, a variant on its enum, and a field of
+a struct-like variant on `Shape::Square`. A use reads the field (`props.size`,
+also inside a macro's tokens), writes it (`self.size += 2`, `&mut props.size`,
+a struct expression `Props { size, .. }`), or destructures it in a struct
+pattern; a variant is written where an expression builds it (`Shape::Dot`,
+`Self::Dot`) and destructured where a pattern matches it. The type is the one
+the line or its scope names: a struct expression or pattern, `self` and `Self`
+inside the `impl` of a type, a parameter or `let` annotated as the type, a
+reference to it or a `Box`, `Rc` or `Arc` of it, and a `let` bound to a struct
+expression. The name is followed through the `use` that binds it, renamed or
+not, to the module that declares it, and through `use super::*` in an inline
+module. A field reached through another field, `self.inner.size`, is the type
+the same file declares `inner` as. A path, `Shape::Dot`, names only a variant,
+so `Props::size` naming a method is no use of the field. Not read, and left to
+the `grep` route: a chain through a field declared in another file, a value
+returned by a call, a type a glob `use crate::shapes::*` brings in, and a
+module-qualified type, `shapes::Props`.
+
 What a type checker infers is not read: a value returned by a call, a generic
 or a mapped type, a value narrowed or copied without an annotation, and a type
 named through a namespace (`ns.Props`). Nor is what the line does not write as
@@ -292,6 +310,9 @@ the same in one line. A script or CommonJS file, a module that hands itself out
 with `export =` and a `macro_rules!` are said to have no recorded reach: their readers cannot tell how the file hands the name out.
 A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.
+A line under *declared as a member* is a member whose name holds the query,
+`on` the container that declares it: pass the name to `uses` for the lines
+that read and write it.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a

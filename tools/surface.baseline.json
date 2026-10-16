@@ -2770,6 +2770,7 @@
         "layerMoves": "function",
         "matchesGlob": "function",
         "mayMock": "function",
+        "memberDeclarationsContaining": "function",
         "memberDeclarationsOf": "function",
         "memoryParseCache": "function",
         "memoryRecordCache": "function",

@@ -82,6 +82,7 @@ export interface HelpReading {
 
 /** One declaration of a member, `on` the interface, type alias or class that holds it. */
 export interface MemberSite {
+  readonly name: string;
   readonly at: string;
   readonly line: number;
   /** The package of the file, or empty when no package holds it. */
@@ -89,6 +90,8 @@ export interface MemberSite {
   readonly kind: 'source' | 'story' | 'test';
   /** The container's name, or `a type literal` or `a class` when it has none. */
   readonly on: string;
+  /** A Rust enum's variant, which only a path `Enum::Variant` uses. */
+  readonly variant: boolean;
   /**
    * Every line that uses the member through a value whose type is written as
    * the container, by file in code units, then by line; absent for a
@@ -113,6 +116,7 @@ export interface NativeHelp {
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
+  memberDeclarationsContainingOf?(root: string, index: string, query: string, files: string[] | null): MemberSite[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
 }
@@ -182,6 +186,21 @@ export function importersOf(
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+}
+
+/**
+ * Every declaration of a member whose name holds `query`, in any case, the
+ * index at `index` records, only in `files` when they are named; each without
+ * its uses. Ordered by file in code units, then by line; `undefined` when no
+ * index was published. Throws when the index does not read.
+ */
+export function memberDeclarationsContaining(
+  root: string,
+  query: string,
+  files?: Iterable<string>,
+  index: string = sourceIndexPath(root),
+): readonly MemberSite[] | undefined {
+  return entry('memberDeclarationsContainingOf')(root, index, query.toLowerCase(), files === undefined ? null : [...files]) ?? undefined;
 }
 
 /** One top-level declaration no export of its file binds. */

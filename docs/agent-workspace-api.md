@@ -71,7 +71,8 @@ This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It can answer what a file
 rests on, what rests on that file, and where an exported name is imported. A
-member of an interface, a type literal or a class is never imported: `uses`
+member of an interface, a type literal or a class, a field of a Rust struct and
+a variant of a Rust enum are never imported: `uses`
 names where a member by that name is declared, after any imports, and under
 each declaration the lines that read, write or destructure it through a value
 whose type the line writes, joined to that declaration through the import that
@@ -309,7 +310,9 @@ declared by that name, and lists no import sites; for a Python name it gives the
 declarations were not read, such as one over the size a read opens, since the
 name may be declared there. `docs_search` lists the name after the exported ones, under a heading that
 says it is not exported, when the name or its documentation holds the query, and
-only when its file is in the area `from` or `to` names.
+only when its file is in the area `from` or `to` names. Below it, under a
+heading that says they are declared as a member, it lists the members whose
+names hold the query, each with the container it is on.
 
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call

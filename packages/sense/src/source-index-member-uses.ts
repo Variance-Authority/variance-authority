@@ -22,8 +22,9 @@ export function openMemberUses(
   const line = opened.u32('member-uses.line');
   const of = opened.u32('member-uses.of');
   const how = opened.u32('member-uses.how');
+  const variant = opened.u8('member-uses.variant');
   validateOffsets(offsets, name.length, parseCount, reject);
-  if (line.length !== name.length || of.length !== name.length || how.length !== name.length) reject();
+  if (line.length !== name.length || of.length !== name.length || how.length !== name.length || variant.length !== name.length) reject();
 
   return (row) => {
     const memberUses = rangeOf(offsets, row, reject).map((at): MemberUse => ({
@@ -31,6 +32,7 @@ export function openMemberUses(
       line: line[at]!,
       of: text(of[at]!),
       how: text(how[at]!) as MemberUse['how'],
+      ...(variant[at] === 1 ? { variant: true as const } : {}),
     }));
     return memberUses.length === 0 ? {} : { memberUses };
   };

@@ -42,6 +42,10 @@ pub struct MemberDeclaration {
     /// The interface, type alias or class the member is on, or how it is
     /// written when it has no name.
     pub(crate) on: String,
+    /// A Rust enum's variant, which a path `Enum::Variant` names, where a
+    /// field is reached by `.` or named in a struct literal or pattern.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) variant: bool,
 }
 
 /// Every member `program` declares, in source order.
@@ -58,6 +62,7 @@ const A_CLASS: &str = "a class";
 /// One declaration of a member, `on` the container that declares it.
 #[napi(object)]
 pub struct MemberSite {
+    pub name: String,
     pub at: String,
     pub line: u32,
     /// The package of the file, or empty when no package holds it.
@@ -65,6 +70,8 @@ pub struct MemberSite {
     /// `story`, `test` or `source`, by the file's name.
     pub kind: String,
     pub on: String,
+    /// A Rust enum's variant, which only a path `Enum::Variant` uses.
+    pub variant: bool,
     /// Every use of the member through a value whose type is written as its
     /// container, ordered by file in code units, then by line; absent for a
     /// container with no name, which no line can write.
@@ -88,13 +95,29 @@ pub struct MemberUseSite {
 /// in code units, then by line. A file whose parse the chain does not hold
 /// declares nothing.
 pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> Vec<MemberSite> {
+    let mut found = declared_members(root, layers, |held| held == name, None);
+    used(root, layers, name, &mut found);
+    found
+}
+
+/// Every declaration of a member whose lowercased name holds `query`, which
+/// the caller lowercased, in `files` when they are named, ordered by file in
+/// code units, then by line; without its uses, which a search does not list.
+pub(crate) fn member_declarations_containing(root: &str, layers: &[Layer], query: &str, files: Option<&[String]>) -> Vec<MemberSite> {
+    declared_members(root, layers, |held| held.to_lowercase().contains(query), files)
+}
+
+/// Every declaration of a member whose name `matches`, in `files` when they
+/// are named, ordered by file in code units, then by line.
+fn declared_members(root: &str, layers: &[Layer], matches: impl Fn(&str) -> bool, files: Option<&[String]>) -> Vec<MemberSite> {
+    let wanted: Option<HashSet<&str>> = files.map(|files| files.iter().map(String::as_str).collect());
     // The digests whose parse declares the name somewhere on the chain; the
     // file's newest parse is joined below and asked again.
     let mut declaring: HashSet<&str> = HashSet::new();
     for layer in layers {
         let (stored, parses) = (&layer.stored, &layer.parses);
         for row in 0..parses.key.len() {
-            if parses.member_declarations.range(row).any(|at| stored.text(parses.member_declaration_name.at(at)) == name) {
+            if parses.member_declarations.range(row).any(|at| matches(stored.text(parses.member_declaration_name.at(at)))) {
                 declaring.insert(stored.text(parses.key.at(row)));
             }
         }
@@ -102,6 +125,7 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
     if declaring.is_empty() { return Vec::new(); }
     let mut crossings: Vec<Crossing> = fold(layers)
         .into_iter()
+        .filter(|&(file, _)| wanted.as_ref().is_none_or(|wanted| wanted.contains(file)))
         .filter(|&(_, (layer, row))| {
             let (stored, records) = (&layers[layer].stored, &layers[layer].records);
             stored.optional(records.digest.at(row)).is_some_and(|digest| declaring.contains(digest))
@@ -120,20 +144,21 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
         let mut sites: Vec<MemberSite> = parses
             .member_declarations
             .range(row)
-            .filter(|&at| stored.text(parses.member_declaration_name.at(at)) == name)
+            .filter(|&at| matches(stored.text(parses.member_declaration_name.at(at))))
             .map(|at| MemberSite {
+                name: stored.text(parses.member_declaration_name.at(at)).to_owned(),
                 at: crossing.file.to_owned(),
                 line: parses.member_declaration_line.at(at),
                 by: by.to_owned(),
                 kind: kind_of(crossing.file).to_owned(),
                 on: stored.text(parses.member_declaration_on.at(at)).to_owned(),
+                variant: parses.member_declaration_variant[at] == 1,
                 uses: None,
             })
             .collect();
         sites.sort_by_key(|site| site.line);
         found.extend(sites);
     }
-    used(root, layers, name, &mut found);
     found
 }
 
@@ -142,22 +167,27 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
 /// the declaring file, or as the name an import of it binds, in a file that
 /// imports it.
 fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
-    // One origin per declaring file and container, which several declarations can share.
-    let mut origins: Vec<(String, String)> = Vec::new();
+    // One origin per declaring file, container and kind, which several
+    // declarations can share. A field and a variant of one name on one
+    // container are two origins: Rust has no type that holds both.
+    let mut origins: Vec<(String, String, bool)> = Vec::new();
     let mut of: Vec<Option<usize>> = Vec::new();
     for site in found.iter() {
         if site.on == A_TYPE_LITERAL || site.on == A_CLASS { of.push(None); continue; }
-        let origin = origins.iter().position(|(at, on)| *at == site.at && *on == site.on).unwrap_or_else(|| {
-            origins.push((site.at.clone(), site.on.clone()));
+        let origin = origins.iter().position(|(at, on, variant)| *at == site.at && *on == site.on && *variant == site.variant).unwrap_or_else(|| {
+            origins.push((site.at.clone(), site.on.clone(), site.variant));
             origins.len() - 1
         });
         of.push(Some(origin));
     }
     if origins.is_empty() { return; }
-    // Where each origin is written, by file and by the name the file writes it as.
+    // Where each origin is written, by file and by the name the file writes it
+    // as. A Rust variant's field is on `Enum::Variant`: the enum is what a `use`
+    // binds and renames, and the variant is written after it as declared.
+    let (heads, tails): (Vec<&str>, Vec<&str>) = origins.iter().map(|(_, on, _)| split(on)).unzip();
     let mut written: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
-    for (origin, (at, on)) in origins.iter().enumerate() {
-        written.entry(at.clone()).or_default().entry(on.clone()).or_default().insert(origin);
+    for (origin, (at, _, _)) in origins.iter().enumerate() {
+        written.entry(at.clone()).or_default().entry(heads[origin].to_owned()).or_default().insert(origin);
     }
     // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
     // field used through a type-only barrel is missed here, though the type is
@@ -183,8 +213,12 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
         let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
         for at in parses.member_uses.range(row) {
             if stored.text(parses.member_use_name.at(at)) != name { continue; }
-            let Some(origins) = names.get(stored.text(parses.member_use_of.at(at))) else { continue };
-            for &origin in origins {
+            let (head, tail) = split(stored.text(parses.member_use_of.at(at)));
+            let Some(names) = names.get(head) else { continue };
+            // A path names a variant, `.` and a literal a field: `Props::size`
+            // is an associated function where `Props` has a field `size`.
+            let variant = parses.member_use_variant[at] == 1;
+            for &origin in names.iter().filter(|&&origin| tails[origin] == tail && origins[origin].2 == variant) {
                 uses[origin].push(MemberUseSite {
                     at: crossing.file.to_owned(),
                     line: parses.member_use_line.at(at),
@@ -204,6 +238,12 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     }
 }
 
+/// A container as the name a file binds and what is written after it:
+/// `Shape::Square` is `Shape` and `::Square`, `Props` is itself and nothing.
+fn split(on: &str) -> (&str, &str) {
+    on.find("::").map_or((on, ""), |at| on.split_at(at))
+}
+
 struct Walker<'n> {
     lines: &'n Lines,
     /// The containers the walk is inside, innermost last.
@@ -217,7 +257,7 @@ impl Walker<'_> {
     fn declare(&mut self, key: Option<std::borrow::Cow<'_, str>>, at: u32) {
         let Some(key) = key else { return };
         let on = self.containers.last().cloned().unwrap_or_default();
-        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on });
+        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, variant: false });
     }
 
     fn within(&mut self, container: String, walk: impl FnOnce(&mut Self)) {

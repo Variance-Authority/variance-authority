@@ -94,6 +94,13 @@ pub struct Read {
     // JVM file into regions; `blocks` is the instrument's to count once one does.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<crate::source_size::Size>,
+    /// Every field and variant the file declares, read by the languages that
+    /// have them; absent when it declares none.
+    #[serde(rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
+    pub member_declarations: Vec<crate::help_members::MemberDeclaration>,
+    /// Every line that uses a field or a variant through a type it names.
+    #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
+    pub member_uses: Vec<crate::help_member_uses::MemberUse>,
 }
 
 impl Read {
@@ -106,6 +113,8 @@ impl Read {
             symbols: Vec::new(),
             harvested: false,
             size: None,
+            member_declarations: Vec::new(),
+            member_uses: Vec::new(),
         }
     }
 }

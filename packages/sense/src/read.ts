@@ -72,7 +72,7 @@
 
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { native, nativeRefusal } from './addon.js';
-import type { SourceSize } from './cache.js';
+import type { MemberDeclaration, MemberUse, SourceSize } from './cache.js';
 import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { ImportDiff } from './taint/index.js';
 
@@ -248,6 +248,12 @@ export interface Read {
 
   /** How big the module is. */
   readonly size?: SourceSize;
+
+  /** Every field and variant a Rust file declares. Absent when it declares none, and from every other tree-sitter reader. */
+  readonly memberDeclarations?: readonly MemberDeclaration[];
+
+  /** Every line of a Rust file that uses a field or a variant through a type it names. Absent when there are none. */
+  readonly memberUses?: readonly MemberUse[];
 }
 
 /** Extensions the module reader claims. Everything else is somebody else's. */

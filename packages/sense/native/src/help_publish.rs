@@ -22,7 +22,7 @@ use crate::compact::Layer;
 use crate::help_declared::{declared, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_members::{member_declarations, MemberSite};
+use crate::help_members::{member_declarations, member_declarations_containing, MemberSite};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -107,6 +107,15 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
 #[napi]
 pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<MemberSite>>> {
     opened_chain(&index, |layers| member_declarations(&root, layers, &name))
+}
+
+/// Every declaration of a member whose lowercased name holds `query`, which the
+/// caller lowercased, the chain at `index` records, only in `files` when they
+/// are named; ordered by file in code units, then by line, without uses.
+/// `None` when there is no index.
+#[napi]
+pub fn member_declarations_containing_of(root: String, index: String, query: String, files: Option<Vec<String>>) -> napi::Result<Option<Vec<MemberSite>>> {
+    opened_chain(&index, |layers| member_declarations_containing(&root, layers, &query, files.as_deref()))
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its

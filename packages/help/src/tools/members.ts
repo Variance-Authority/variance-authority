@@ -24,8 +24,9 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Use } from '@variance-authority/package/help';
-import { memberDeclarationsOf } from '@variance-authority/sense';
+import { memberDeclarationsContaining, memberDeclarationsOf } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
+import type { Matches, MemberMatch } from './search-answer.js';
 
 /** What a text match for the callers lets in and what it misses, said once under the route. */
 export const BY_NAME =
@@ -70,6 +71,44 @@ export function membersOf(root: string | undefined, name: string, wanted: string
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
   return { declared, used };
+}
+
+/**
+ * The member declarations whose names hold `query`, as the `search` section
+ * lists them: the first `cap`, source first, in `files` when an area named
+ * them; nothing when no checkout was named or its index could not be read.
+ */
+export function memberMatches(root: string | undefined, query: string, files: Iterable<string> | undefined, cap: number): Matches<MemberMatch> | undefined {
+  if (root === undefined) return undefined;
+  let found: ReturnType<typeof memberDeclarationsContaining>;
+  try {
+    found = memberDeclarationsContaining(root, query, files);
+  } catch {
+    // The declared section reads the same index and says why it did not read.
+    return undefined;
+  }
+  if (found === undefined) return undefined;
+  // Stable, so the index's file-then-line order holds within a kind.
+  const sites = [...found].sort((left, right) => KIND_ORDER[left.kind] - KIND_ORDER[right.kind]);
+  return {
+    total: sites.length,
+    shown: sites.slice(0, cap).map((site) => ({
+      source: 'member',
+      name: site.name,
+      on: site.on,
+      ...(site.by === '' ? {} : { package: site.by }),
+      at: site.at,
+      line: site.line,
+    })),
+  };
+}
+
+/** Source before tests before stories, as the declared section orders them. */
+const KIND_ORDER = { source: 0, test: 1, story: 2 } as const;
+
+/** One member declaration, as a `search` line writes it. */
+export function memberLine(held: MemberMatch): string {
+  return `${held.name} — on ${held.on} — ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
 }
 
 /**

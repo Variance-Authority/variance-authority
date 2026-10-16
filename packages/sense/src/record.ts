@@ -240,6 +240,8 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
     ...(declares.length === 0 ? {} : { declares }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
     ...(read.size === undefined ? {} : { size: read.size }),
+    ...(read.memberDeclarations === undefined ? {} : { memberDeclarations: read.memberDeclarations }),
+    ...(read.memberUses === undefined ? {} : { memberUses: read.memberUses }),
   };
 }
 

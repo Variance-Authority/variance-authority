@@ -84,11 +84,13 @@ pub struct ParseColumns {
     member_declaration_name: Vec<u32>,
     member_declaration_line: Vec<u32>,
     member_declaration_on: Vec<u32>,
+    member_declaration_variant: Vec<u8>,
     member_uses: Vec<u32>,
     member_use_name: Vec<u32>,
     member_use_line: Vec<u32>,
     member_use_of: Vec<u32>,
     member_use_how: Vec<u32>,
+    member_use_variant: Vec<u8>,
     declare_name: Vec<u32>,
 }
 
@@ -190,17 +192,19 @@ impl ParseColumns {
         self.member_line.push(line);
     }
 
-    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32) {
+    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, variant: bool) {
         self.member_declaration_name.push(name);
         self.member_declaration_line.push(line);
         self.member_declaration_on.push(on);
+        self.member_declaration_variant.push(u8::from(variant));
     }
 
-    pub fn member_use(&mut self, name: u32, line: u32, of: u32, how: u32) {
+    pub fn member_use(&mut self, name: u32, line: u32, of: u32, how: u32, variant: bool) {
         self.member_use_name.push(name);
         self.member_use_line.push(line);
         self.member_use_of.push(of);
         self.member_use_how.push(how);
+        self.member_use_variant.push(u8::from(variant));
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -266,11 +270,13 @@ impl ParseColumns {
             u32s("member-declarations.name", self.member_declaration_name),
             u32s("member-declarations.line", self.member_declaration_line),
             u32s("member-declarations.on", self.member_declaration_on),
+            u8s("member-declarations.variant", self.member_declaration_variant),
             u32s("parses.member-uses", self.member_uses),
             u32s("member-uses.name", self.member_use_name),
             u32s("member-uses.line", self.member_use_line),
             u32s("member-uses.of", self.member_use_of),
             u32s("member-uses.how", self.member_use_how),
+            u8s("member-uses.variant", self.member_use_variant),
             u32s("declares.name", self.declare_name),
         ]
     }

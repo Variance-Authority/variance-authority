@@ -21,14 +21,16 @@ export function openMemberDeclarations(
   const name = opened.u32('member-declarations.name');
   const line = opened.u32('member-declarations.line');
   const on = opened.u32('member-declarations.on');
+  const variant = opened.u8('member-declarations.variant');
   validateOffsets(offsets, name.length, parseCount, reject);
-  if (line.length !== name.length || on.length !== name.length) reject();
+  if (line.length !== name.length || on.length !== name.length || variant.length !== name.length) reject();
 
   return (row) => {
     const memberDeclarations = rangeOf(offsets, row, reject).map((at): MemberDeclaration => ({
       name: text(name[at]!),
       line: line[at]!,
       on: text(on[at]!),
+      ...(variant[at] === 1 ? { variant: true as const } : {}),
     }));
     return memberDeclarations.length === 0 ? {} : { memberDeclarations };
   };
