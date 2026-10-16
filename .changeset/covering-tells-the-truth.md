@@ -3,18 +3,23 @@
 '@variance-authority/cli': patch
 ---
 
-A record cut under retired probes is refused, not read as current
+A record cut under other probes answers, and names what it leaves open
 
-`variance covering` and `variance review` read a record cut under probes this
-build no longer places, such as `sense:instrument/presence-v5` under a build that
-places `presence-v6`, as if it described the code as it is. Its regions are
-numbered by the old probes, so the answer named the wrong cases and missed the
-marks the new probes leave, including which cases only loaded a module. Both
-now refuse such a record by name, saying which probes cut it, which this build
-places, and that `variance share --suite <suite>` fetches the mainline's. A
-handover leaves that suite out with the same reason. `retiredProbes` in
-`@variance-authority/sense/instrument` says what a build places in place of a
-retired identity.
+`variance covering`, `review`, `select`, `journeys` and a `run --since` read a
+record cut under probes this build does not place, such as
+`sense:instrument/presence-v5` under a build that places `presence-v6`, as if
+it described the code as this build cuts it. Each still answers from it, and now
+says beside the answer which probes cut the record, which this build places,
+and that whether a region this build cuts and those probes did not ran is not
+answered. `covering --file` compares that file's regions in the record with the
+ones this build cuts in the text the record was made over, and says when they
+are the same or names the ones that differ. When the mainline's record cut under
+this build's probes is on the machine beneath the one read, the note names its
+path, which `--execution` reads.
+
+A suite with nothing recorded is refused as before, now without naming a
+recorder to run; a suite the share carries names `variance share --suite` to
+fetch the mainline's record.
 
 `covering` on a file the suite declares a precondition of its test files, such
 as a Rust source under a Node suite, now says that the file is not instrumented

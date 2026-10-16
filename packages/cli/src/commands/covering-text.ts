@@ -26,7 +26,7 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...motionText(answer.motion)].join('\n')}\n`;
 }
 
 /** A block that says nothing is left out, not printed as an empty line. */
@@ -88,6 +88,15 @@ function grainText(answer: Covering, where: string): readonly string[] {
 
 function single(runs: readonly HeldLines[]): boolean {
   return runs.length === 1 && runs[0]!.startLine === runs[0]!.endLine;
+}
+
+/**
+ * The record was cut under probes this build does not place: the answer is
+ * the record's, and the note says what that leaves open. Said first, because
+ * it bears on every line after it.
+ */
+export function probesText(answer: Covering): readonly string[] {
+  return answer.probes === undefined ? [] : [answer.probes.note];
 }
 
 /**

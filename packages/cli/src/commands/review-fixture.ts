@@ -13,6 +13,7 @@ import {
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 /**
  * A change a review reads: `main` at the base, the change in the working tree,
@@ -109,7 +110,7 @@ export async function changed(options: {
 
   // The base's record, copied aside before the run the way a pipeline does it.
   const against = join(await mkdtemp(join(tmpdir(), 'variance-review-base-')), 'coverage.bin');
-  await writeTestCoverage(against, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
+  await writeTestCoverage(against, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeAsSetExecutionIndex({
       tests: [DISCOUNTS],
       modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
@@ -155,7 +156,7 @@ export async function recordTotal(coverageFile: string, record: {
   await mkdir(dirname(coverageFile), { recursive: true });
   await writeTestCoverage(coverageFile, {
     version: 3,
-    instrumentation: record.instrumentation ?? 'fixture',
+    instrumentation: record.instrumentation ?? INSTRUMENTATION_ID,
     commit: record.commit,
     tests: record.tests,
     modules: [{

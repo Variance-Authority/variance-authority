@@ -248,9 +248,3 @@ describe('what reaches the runner', () => {
     });
   });
 });
-
-describe('a record cut under probes this build no longer places', () => {
-  // `covering` and `review` refuse one through `currentProbes`; `select` takes
-  // `recordedOrMainline`'s without asking, and selects from regions the old probes numbered.
-  it.todo('is refused by name rather than selected from — needs `recordedOrMainline` to pass its record through `currentProbes`, and a decision on whether a selection with no current record runs the whole suite or refuses');
-});

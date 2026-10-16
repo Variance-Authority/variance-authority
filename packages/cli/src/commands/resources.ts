@@ -17,6 +17,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
+import { probesGap, probesNote } from './probes-gap.js';
 import { selectingRecord, suiteRecord } from './suite-record.js';
 
 /**
@@ -162,7 +163,8 @@ export async function journeyAgainst(
 /**
  * {@link journeyAgainst} over the record `suite` selects from, with what it
  * declares. A suite at `file` or `symbol` precision reads the import
- * graph, so `scan` builds one when the caller had none to hand over.
+ * graph, so `scan` builds one when the caller had none to hand over. A record
+ * cut under probes this build does not place carries the note that says so.
  */
 export async function suiteJourney(
   root: string,
@@ -170,11 +172,15 @@ export async function suiteJourney(
   relations: Relations | undefined,
   suite: string | undefined,
   scan: () => Promise<Relations>,
-): Promise<ExecutionNarrowing | undefined> {
+): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined> {
   const { file, ...declared } = await selectingRecord(root, suite);
   const { byRelations } = await import('@variance-authority/sense/test-selection');
   const graph = relations ?? (byRelations(declared.precision) ? await scan() : undefined);
-  return journeyAgainst(root, diff, graph, file, root, declared);
+  const narrowing = await journeyAgainst(root, diff, graph, file, root, declared);
+  // A record cut under other probes narrows as it holds it, and says what that
+  // leaves open, as a note in the run's list, which ends its notes itself.
+  const gap = narrowing === undefined ? undefined : await probesGap(file, root, suite);
+  return narrowing === undefined || gap === undefined ? narrowing : { ...narrowing, probes: probesNote(gap).replace(/\.$/, '') };
 }
 
 /**

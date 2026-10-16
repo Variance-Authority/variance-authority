@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { formatCoveringAnswer } from './covering-suites.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const SUITES = {
   suites: { unit: { kind: 'unit' }, stories: { kind: 'visual' }, checkout: { kind: 'e2e' } },
@@ -53,7 +54,7 @@ async function recordIn(at: string, suite: string, index: unknown, commit?: stri
   const file = testCoverageFile(at, { suite });
   await mkdir(dirname(file), { recursive: true });
   const made = commit === undefined ? {} : { commit };
-  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', ...made, tests: [], modules: [] }, {
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, ...made, tests: [], modules: [] }, {
     index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
   });
 }
@@ -288,12 +289,12 @@ describe('a file added after the commit a suite recorded at', () => {
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
 
-  it('is said in full as a record older than the file, with the commit and the run that records it', async () => {
+  it('is said in full as a record older than the file, with the commit, and names no run', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at]);
 
     expect(answer.out).toMatch(new RegExp(
       `^unit \\(unit\\): \`src/refund\\.ts\` did not exist at ${then.slice(0, 12)}, the commit the record at \`[^\`]+/suites/unit/[^\`]+\` was made at, ` +
-        'so that record has no answer for it: run the suite and ask again\\.$',
+        'so that record has no answer for it\\.$',
       'mu',
     ));
     expect(answer.out).not.toContain('Not loaded by');

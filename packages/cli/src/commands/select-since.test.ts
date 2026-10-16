@@ -5,7 +5,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { indexOutput } from './index-command.js';
+import { suiteJourney } from './resources.js';
+import { selectionNotes } from './select.js';
 import { selectSuite } from './select-command.js';
 
 /**
@@ -55,6 +58,55 @@ describe('the base a selection reads its diff from', () => {
     const { skip } = await selectSuite({ root, since: 'HEAD' });
 
     expect([...skip]).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
+  });
+});
+
+describe('a record cut under probes this build does not place', () => {
+  const cwd = process.cwd();
+  const RETIRED = 'sense:instrument/presence-v5';
+
+  beforeEach(() => {
+    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-probes-cache-'));
+  });
+
+  afterEach(() => {
+    process.chdir(cwd);
+    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  });
+
+  /** A checkout whose record of {@link snapshot} was cut under {@link RETIRED}, with `other` changed since. */
+  async function retired(): Promise<{ root: string; record: string }> {
+    const { root, head } = checkout();
+    const record = testCoverageFile(root);
+    await writeTestCoverage(record, { ...snapshot(head), instrumentation: RETIRED });
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+    return { root, record };
+  }
+
+  it('is selected from as it holds it, and the selection names the gap', async () => {
+    const { root, record } = await retired();
+
+    const { skip, reading } = await selectSuite({ root, since: 'HEAD' });
+
+    expect([...skip]).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
+    const notes = selectionNotes(reading);
+    expect(notes).toContain(`\`${record}\` was cut under the probes \`${RETIRED}\`, and this build places \`${INSTRUMENTATION_ID}\``);
+    expect(notes).not.toContain('..');
+  });
+
+  it('narrows a run as it holds it, and the run carries the gap as a note', async () => {
+    const { root, record } = await retired();
+    const diff = execFileSync('git', ['diff', 'HEAD'], { cwd: root, encoding: 'utf8' });
+
+    const narrowing = await suiteJourney(root, diff, undefined, undefined, async () => {
+      throw new Error('a suite that declares no precision reads no graph');
+    });
+
+    expect(narrowing?.entered).toEqual(['test/beta.test.ts']);
+    expect(narrowing?.probes?.startsWith(`\`${record}\` was cut under the probes \`${RETIRED}\``)).toBe(true);
+    expect(narrowing?.probes).not.toMatch(/\.$/);
   });
 });
 

@@ -46,6 +46,7 @@ import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
+import { probesGap, probesNote } from './probes-gap.js';
 import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
@@ -223,6 +224,8 @@ export interface Review {
   /** Each package `beyond` names, followed to the files here that depend on it. Absent with `beyond`, or when it could not be compared. */
   readonly packages?: readonly PackageReach[];
   readonly motion?: CoveringMotion;
+  /** What a record cut under probes this build does not place leaves open, said beside the answer read from it (`probes-gap.ts`). */
+  readonly probes?: string;
 }
 
 /** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
@@ -332,6 +335,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // A change with no recorded module ran nothing yet.
   const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured, changedCases)).size === measured.length ? 'ran' : 'before';
   const head = await reviewedCommit(point.repository);
+  const gap = await probesGap(from, root, request.suite);
   return {
     ...(head === undefined ? {} : { head }),
     from: point.base,
@@ -348,6 +352,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(beyond === undefined ? {} : { beyond }),
     ...(packages === undefined ? {} : { packages }),
     ...(motion === undefined ? {} : { motion }),
+    ...(gap === undefined ? {} : { probes: probesNote(gap) }),
   };
 }
 

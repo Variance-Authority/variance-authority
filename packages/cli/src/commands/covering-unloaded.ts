@@ -32,13 +32,14 @@ export function unloadedFile(file: string, from: string, count: number): Operato
 /**
  * Refuse `file`, which the record at `from` does not hold because the commit
  * it was made at, `commit`, did not hold the file. That is a record older than
- * the file, not a run that never loaded it, so it is `older`, not `unloaded`:
- * the next run of the suite is what answers it.
+ * the file, not a run that never loaded it, so it is `older`, not `unloaded`.
+ * No remedy is named: a run of the suite is often impossible where the
+ * question is asked, and a reader who can run it knows so already.
  */
 export function addedSince(file: string, from: string, commit: string): OperatorError {
   return new OperatorError(
     `\`${file}\` did not exist at ${commit.slice(0, 12)}, the commit the record at \`${from}\` was made at, ` +
-      'so that record has no answer for it: run the suite and ask again.',
+      'so that record has no answer for it.',
     { kind: 'older' },
   );
 }

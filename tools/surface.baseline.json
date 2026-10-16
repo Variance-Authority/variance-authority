@@ -2888,8 +2888,7 @@
         "instrumentModeOf": "function",
         "instrumentationId": "function",
         "probeRecipe": "function",
-        "probeRuntime": "function",
-        "retiredProbes": "function"
+        "probeRuntime": "function"
       },
       "./test-selection": {
         "AxisStep": "interface",

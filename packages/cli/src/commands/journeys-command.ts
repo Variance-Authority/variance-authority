@@ -11,6 +11,7 @@ import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
 import { subjectsInReport } from './run-report.js';
 import { landingRecord, suiteRecord } from './suite-record.js';
+import { probesGap, probesNote } from './probes-gap.js';
 
 /** What `variance journeys` was asked for, once the flags are off the command line. */
 export interface JourneysRequest {
@@ -68,7 +69,10 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
     }),
   );
 
-  return `${landed === undefined ? '' : `${formatLanding(landed)}\n\n`}${reading}\n`;
+  // A record cut under other probes is read as it holds it, and the note before the reading says what that leaves open.
+  const gap = await probesGap(record, request.cwd, request.suite);
+  const said = gap === undefined ? '' : `${probesNote(gap)}\n\n`;
+  return `${landed === undefined ? '' : `${formatLanding(landed)}\n\n`}${said}${reading}\n`;
 }
 
 /**

@@ -9,6 +9,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { encodeExecutionIndex, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 import { keepCases } from './covering-scope.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const INDEX = {
   tests: [
@@ -35,7 +36,7 @@ const INDEX = {
 async function recorded(last?: { readonly cases: readonly string[]; readonly commit?: string }): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-scope-'));
   const file = join(dir, 'coverage.bin');
-  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeExecutionIndex(INDEX),
     ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], ...last })) }),
   });

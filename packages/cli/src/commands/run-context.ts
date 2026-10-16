@@ -116,12 +116,13 @@ export interface RunDeps {
    * never recorded is answered by the files that import it. A bumped package
    * arrives in `diff` as the files that import it, changed whole, and only the
    * graph can say which those are, so a reading asked about one is always
-   * handed a graph.
+   * handed a graph. `probes` is the note a record cut under probes this build
+   * does not place carries beside its answer (`probes-gap.ts`).
    */
   readJourney?(
     diff: string,
     relations?: Relations,
-  ): Promise<ExecutionNarrowing | undefined>;
+  ): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined>;
 
   /**
    * Where this run's subjects parted in the source, read off the same journal.

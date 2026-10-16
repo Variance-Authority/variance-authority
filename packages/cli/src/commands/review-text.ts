@@ -62,7 +62,7 @@ export function formatReview(review: Review, format: ReviewFormat): string {
 }
 
 function text(review: Review): string {
-  const lines = [header(review), '', ...summary(review, (code) => code)];
+  const lines = [header(review), ...(review.probes === undefined ? [] : ['', review.probes]), '', ...summary(review, (code) => code)];
   const edits = editRows(review.files);
   if (edits.length > 0) lines.push('', 'Edits:', ...edits.map(([label, count]) => `  ${count.padStart(5)}  ${label}`));
   const reach = reachRows(review.files);
@@ -130,7 +130,7 @@ function markdown(review: Review): string {
   const ran = review.record === 'ran';
   const lines = [REVIEW_MARKER, review.coverage === undefined ? `### 🧭 What this change ${ran ? 'did' : 'might do'}` : '### Test evidence', '', `<sub>${markdownHeader(review, code)}${
     ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
-  }</sub>`, ''];
+  }</sub>`, '', ...(review.probes === undefined ? [] : [`<sub>${review.probes}</sub>`, ''])];
   const changed = changedPackagesMarkdown(review.changedPackages, (reach) => MARK[reach]);
   lines.push(...calloutMarkdown(review), ...changed);
   if (changed.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);

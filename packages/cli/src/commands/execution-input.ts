@@ -3,9 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { parseExecutionIndex } from '@variance-authority/distill';
 import { OperatorError } from '../exit.js';
 import { suiteRecord } from './suite-record.js';
-import { retiredProbes } from '@variance-authority/sense/instrument';
 import {
-  askCoverageFile,
   caseSectionsAt,
   decodeExecutionIndex,
   isEncodedExecutionIndex,
@@ -97,7 +95,8 @@ export async function defaultExecutionFile(
  * defect somebody fixes, and this one is a project that never ran the recorder,
  * which a program asking on every edit has to be able to recognise. A record
  * written before records carried cases is one of these. A record cut under
- * probes this build no longer places is refused by {@link currentProbes}.
+ * probes this build does not place is read like any other, and its reader
+ * names the gap (`probes-gap.ts`).
  */
 export async function recordedExecutionFile(
   root: string,
@@ -105,40 +104,28 @@ export async function recordedExecutionFile(
   record?: string,
 ): Promise<string> {
   const file = await defaultExecutionFile(root, suite, record);
-  if (keepsCases(file)) return currentProbes(file, suite);
+  if (keepsCases(file)) return file;
   throw new OperatorError(
-    `nothing is recorded in \`${root}\`: no run left a per-case index in \`${file}\`. ` +
-      'Run the suite with `withTestSelection` and ask again.',
+    `nothing is recorded in \`${root}\`: no run left a per-case index in \`${file}\`, so no case can be named.${await fetchable(root, suite)}`,
     { kind: 'unrecorded' },
   );
 }
 
 /**
- * `file`, refused when the record there was cut under probes this build no
- * longer places.
- *
- * A record's regions are numbered by the probes that cut it, so after the
- * recipe changes an ordinal names other code, and a record from before reads
- * as an answer about the code as it is now that nobody measured. The run side
- * refuses to lay a run over such a record; a reader refuses to answer from one,
- * because a stale answer given as a current one is the one answer worse than
- * none. A file that holds no coverage of ours — an index a foreign tool wrote,
- * a fixture's own identity — is not ours to call retired, and passes.
+ * Where a record of `suite` can be had without running it: the mainline's,
+ * which `variance share --suite` fetches, for a suite the root config gives to
+ * the share. Nothing for any other suite, because the one other way to a
+ * record is a run of the suite, which is often impossible where the question
+ * is asked, and which the reader knows of already.
  */
-export function currentProbes(file: string, suite?: string): string {
-  let instrumentation: string | undefined;
+async function fetchable(root: string, suite: string | undefined): Promise<string> {
+  const { declaredSuites } = await import('@variance-authority/sense/test-selection');
+  let declared: ReturnType<typeof declaredSuites>;
   try {
-    instrumentation = askCoverageFile(file, (coverage) => coverage.instrumentation);
+    declared = declaredSuites(root);
   } catch {
-    return file;
+    return '';
   }
-  const now = instrumentation === undefined ? undefined : retiredProbes(instrumentation);
-  if (now === undefined) return file;
-  throw new OperatorError(
-    `this record was cut under the probes \`${instrumentation}\`, which this build no longer places ` +
-      `(it places ${now.map((id) => `\`${id}\``).join(' and ')}), so no answer is read from it: ` +
-      'its regions are numbered by the old probes, and an answer read from them would be a stale one given as current. ' +
-      `The record is \`${file}\`; \`variance share --suite ${suite ?? '<suite>'}\` fetches the mainline's, ` +
-      "and a run of the suite records this checkout's own.",
-  );
+  const named = declared?.find((one) => one.name === (suite ?? (declared?.length === 1 ? declared[0]!.name : undefined)));
+  return named?.carry === 'share' ? ` \`variance share --suite ${named.name}\` fetches the mainline's record of it.` : '';
 }

@@ -52,7 +52,8 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import { currentProbes, readExecutionFor, recordedExecutionFile } from './execution-input.js';
+import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
+import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
@@ -175,6 +176,12 @@ export interface Covering {
     readonly of: number;
     readonly notes: readonly string[];
   };
+  /**
+   * Present when the record was cut under probes this build does not place:
+   * the answer is the record's, and this says what the difference leaves
+   * open, for the asked file when one was asked (`probes-gap.ts`).
+   */
+  readonly probes?: ProbesGap & { readonly cut?: CutGap; readonly note: string };
 }
 
 /**
@@ -204,9 +211,19 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     where = kept.where;
     return { index: kept.index, files: read.files, before: index };
   };
-  const answer = await ask(request, reader, (tests) => {
-    reached = tests;
-  });
+  let answer: Covering;
+  try {
+    answer = await ask(request, reader, (tests) => {
+      reached = tests;
+    });
+  } catch (error) {
+    // An answer that the record holds nothing of the file is still the record's, and still carries the gap.
+    if (!(error instanceof OperatorError) || request.execution === undefined && error.kind === 'unrecorded') throw error;
+    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
+    const probes = await gapOf(request, from, undefined);
+    if (probes === undefined) throw error;
+    throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
+  }
   // Twins and counts are read among every case the question reached before `--where` narrowed it.
   const listed = listedIn(answer);
   const twins = names === undefined ? undefined : caseTwins(listed, reached ?? listed, names);
@@ -217,14 +234,28 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     : coveringFiles(answer.tests, whole, request.since === undefined && request.hops === true
       ? await hopsToTests(request)
       : undefined);
+  const probes = await gapOf(request, answer.from, whole);
   return {
     ...answer,
+    ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
     ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
+}
+
+/**
+ * The probes gap of the record `from`, with, for one asked file the record
+ * holds, how its regions there stand against this build's cut.
+ */
+async function gapOf(request: ParsedCovering, from: string, index: ExecutionIndex | undefined): Promise<Covering['probes']> {
+  const gap = await probesGap(from, request.root, request.suite);
+  if (gap === undefined) return undefined;
+  const module = request.since === undefined ? index?.modules.find((candidate) => candidate.file === request.file) : undefined;
+  const cut = module === undefined ? undefined : await cutGap(request.root, await recordedCommit(from), module.file, module.blocks);
+  return { ...gap, ...(cut === undefined ? {} : { cut }), note: probesNote(gap, cut, '--execution') };
 }
 
 /**
@@ -236,9 +267,7 @@ async function ask(
   readIndex: IndexReader,
   reach?: (tests: readonly ExecutionTest[]) => void,
 ): Promise<Covering> {
-  const from = request.execution === undefined
-    ? await recordedExecutionFile(request.root, request.suite)
-    : currentProbes(request.execution, request.suite);
+  const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
   const record = await snapshotFor(request);
 
   if (request.since !== undefined) {

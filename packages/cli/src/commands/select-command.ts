@@ -54,6 +54,7 @@ import { withCases } from './select-cases.js';
 import { handedDiff, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
+import { probesGap, probesNote } from './probes-gap.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
@@ -196,8 +197,13 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const own = at === (await landingRecord(request.root, request.suite));
   const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, own);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
-  const standing =
-    stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!);
+  // A record cut under other probes is selected from as it holds it, and the first note says what that leaves open.
+  const gap = await probesGap(at, request.root, request.suite);
+  const standing = [
+    // A note in this list is a clause the reader ends, so the sentence's own period goes.
+    ...(gap === undefined ? [] : [probesNote(gap, undefined, '--execution').replace(/\.$/, '')]),
+    ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
+  ];
   const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {

@@ -13,7 +13,7 @@ import type { CoveringTest, ExecutionTest } from '@variance-authority/sense/test
 import { runsText, targetText } from './covering-at.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
-import { narrowedText, scopeText, staleText } from './covering-text.js';
+import { narrowedText, probesText, scopeText, staleText } from './covering-text.js';
 import type { Covering, StatedRegion } from './covering.js';
 import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
 import { caseNameOf, twinText, whereText } from './covering-where.js';
@@ -27,6 +27,7 @@ export function formatCoveringRefs(answer: Covering): string {
   // Numbered before the table is read, which is when it knows every case it holds.
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
+    ...probesText(answer),
     ...scopeText(answer),
     ...whereText(answer),
     ...body,

@@ -20,6 +20,7 @@ import { probedModule } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
 import { AFTER, DISCOUNTS, ROUNDS, block, changed, git, roundedBy } from './review-fixture.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -243,7 +244,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const { root, first } = await changed();
     await landRun(testCoverageFile(root), {
       version: 3,
-      instrumentation: 'fixture',
+      instrumentation: INSTRUMENTATION_ID,
       commit: first,
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
       modules: [probedModule(['test/total.test.ts'])],

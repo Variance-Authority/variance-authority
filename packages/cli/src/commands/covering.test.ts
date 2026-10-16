@@ -12,6 +12,7 @@ import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@varianc
 import { covering, formatCovering } from './covering.js';
 import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const INDEX = {
   tests: [
@@ -58,7 +59,7 @@ async function recordFile(): Promise<string> {
   const held = (name: string) => ({ name, digest: digestString(name) });
   await writeTestCoverage(file, {
     version: 3,
-    instrumentation: 'fixture-instrumentation',
+    instrumentation: INSTRUMENTATION_ID,
     tests: [
       { file: 'total.test.ts', complete: true, preconditions: [held('total.test.ts'), held('src/stabilize.ts')] },
       { file: 'flow.test.tsx', complete: true, preconditions: [held('flow.test.tsx')] },
