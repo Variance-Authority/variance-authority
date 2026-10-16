@@ -104,7 +104,9 @@ pub fn refresh_dependency_lexicon(
     crate::off_thread::off_thread(move || refresh(root, index, path, sites, tsconfig))
 }
 
-/// What the requests file holds after a refresh: as it was, or the bytes it now ends with past `end`.
+/// What the requests file is to hold after a refresh: as it was, or the bytes to write past `end`, or whole. It is
+/// written after the catalogue, so a refresh that stops between the two leaves a requests file that has not seen
+/// the chain, and the next refresh reads that increment again.
 enum Wrote { Held, None, Appended(usize, sites::Writer), Rebuilt(Vec<u8>, sites::Writer) }
 
 fn refresh(root: String, index: String, path: String, sites_path: String, tsconfig: crate::resolve::Tsconfig) -> napi::Result<LexiconRefresh> {
@@ -152,13 +154,10 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
         Some(chain) => match state.as_ref().filter(|state| based(state) && state.internal == digest) {
             Some(state) if seen(state) => Wrote::Held,
             Some(state) => match sites::increment(&index, chain, base, state, &internal_names) {
-                Some(writer) => {
-                    sites::append(sites_file, state.end, writer.bytes()).map_err(failed)?;
-                    Wrote::Appended(state.end, writer)
-                }
-                None => rebuilt(&index, chain, base, &internal_names, &digest, sites_file)?,
+                Some(writer) => Wrote::Appended(state.end, writer),
+                None => rebuilt(&index, chain, base, &internal_names, &digest)?,
             },
-            None => rebuilt(&index, chain, base, &internal_names, &digest, sites_file)?,
+            None => rebuilt(&index, chain, base, &internal_names, &digest)?,
         },
     };
     let (appended, rebuilt_whole) = match &wrote {
@@ -176,26 +175,35 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
         (Wrote::Held | Wrote::None, Some(_)) => true,
     };
     if covered && kept.is_some() && moved.is_empty() {
+        written(&wrote, sites_file)?;
         let summary = catalogue.as_ref().map(Catalogue::summary).unwrap_or_default();
         return Ok(refreshed(summary, false, appended, rebuilt_whole, summary[2], None));
     }
 
     // The catalogue is made over the requests the file holds now.
-    let held = matches!(wrote, Wrote::Held);
-    let now = match wrote {
+    let now = match &wrote {
         Wrote::None | Wrote::Held => None,
-        Wrote::Appended(end, writer) => held_sites.as_ref().map(|held| { let mut bytes = held[..end].to_vec(); bytes.extend_from_slice(writer.bytes()); bytes }),
-        Wrote::Rebuilt(bytes, _) => Some(bytes),
+        Wrote::Appended(end, writer) => held_sites.as_ref().map(|held| { let mut bytes = held[..*end].to_vec(); bytes.extend_from_slice(writer.bytes()); bytes }),
+        Wrote::Rebuilt(bytes, _) => Some(bytes.clone()),
     };
-    let now_state = if held { state } else { now.as_deref().and_then(State::read) };
+    let now_state = if matches!(wrote, Wrote::Held) { state } else { now.as_deref().and_then(State::read) };
     let (made, reused, unresolved) = build::made(root_path, owners, listed, internal, now_state.as_ref(), catalogue.as_ref(), tsconfig);
     sites::publish(Path::new(&path), &made.encode()).map_err(failed)?;
+    written(&wrote, sites_file)?;
     Ok(refreshed(made.summary, false, appended, rebuilt_whole, reused, Some(unresolved)))
 }
 
-/// The requests file written whole over the chain's base.
-fn rebuilt(index: &str, chain: &[String], base: usize, internal: &HashSet<&str>, digest: &str, file: &Path) -> napi::Result<Wrote> {
+/// The requests file made whole over the chain's base, not yet written.
+fn rebuilt(index: &str, chain: &[String], base: usize, internal: &HashSet<&str>, digest: &str) -> napi::Result<Wrote> {
     let (bytes, writer) = sites::rebuild(index, chain, base, internal, digest).ok_or_else(|| failed("the source index did not read"))?;
-    sites::publish(file, &bytes).map_err(failed)?;
     Ok(Wrote::Rebuilt(bytes, writer))
+}
+
+/// Write what the requests file is to hold, once the catalogue that covers it stands.
+fn written(wrote: &Wrote, file: &Path) -> napi::Result<()> {
+    match wrote {
+        Wrote::Appended(end, writer) => sites::append(file, *end, writer.bytes()).map_err(failed),
+        Wrote::Rebuilt(bytes, _) => sites::publish(file, bytes).map_err(failed),
+        Wrote::Held | Wrote::None => Ok(()),
+    }
 }
