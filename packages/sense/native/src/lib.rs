@@ -60,6 +60,7 @@ mod harvest;
 mod held;
 mod help_aliases;
 mod help_declared;
+mod help_member_uses;
 mod help_members;
 mod help_publish;
 mod help_search;
