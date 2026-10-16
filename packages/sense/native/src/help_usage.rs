@@ -27,6 +27,11 @@ pub struct NamedExport {
     #[serde(rename = "type")]
     pub r#type: bool,
     pub kind: String,
+    /// The doc comment above the export, or above the declaration it binds in
+    /// the same file, as `dependency_namespace::doc` cuts it from the file at the
+    /// span the index holds; absent when nothing documents it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc: Option<String>,
 }
 
 /// An import of a file of a workspace package, rather than of an entry its
@@ -44,6 +49,7 @@ pub struct DeepRequest {
 }
 
 #[napi(object)]
+#[derive(Clone)]
 pub struct NameUse {
     pub key: String,
     pub name: String,
@@ -122,10 +128,11 @@ impl Targets<'_> {
     }
 }
 
-/// The names one request of the parse at `row` takes, each a use of `key`:
-/// every binding but `*`, and every member read off the module the request
-/// holds whole, through `import()` or `import * as`.
-fn taken(layer: &Layer, row: usize, request: usize, key: &str, by: &str, at: &str, kind: &str) -> Vec<NameUse> {
+/// The names one request of the parse at `row` takes, each a use of `key`,
+/// with the name it binds in the file, empty for a member read: every binding
+/// but `*`, and every member read off the module the request holds whole,
+/// through `import()` or `import * as`.
+fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, at: &str, kind: &str) -> Vec<(NameUse, &'a str)> {
     let (text, parses) = (&layer.stored, &layer.parses);
     let first = parses.requests.at(row) as usize;
     let line = parses.request_line.at(request);
@@ -133,17 +140,18 @@ fn taken(layer: &Layer, row: usize, request: usize, key: &str, by: &str, at: &st
     for binding in parses.request_bindings.range(request) {
         let imported = text.text(parses.binding_imported.at(binding));
         if imported == "*" { continue; }
-        names.push(NameUse { key: key.to_owned(), name: imported.to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0 });
+        let local = text.text(parses.binding_local.at(binding));
+        names.push((NameUse { key: key.to_owned(), name: imported.to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0 }, local));
     }
     let through = if text.text(parses.request_kind.at(request)) == "dynamic" { "dynamic" } else { "namespace" };
     for member in parses.members.range(row) {
         if parses.member_request.at(member) as usize != request - first { continue; }
-        names.push(NameUse { key: key.to_owned(), name: text.text(parses.member_name.at(member)).to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line });
+        names.push((NameUse { key: key.to_owned(), name: text.text(parses.member_name.at(member)).to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line }, ""));
     }
     names
 }
 
-fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
+fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
     let at = crossing.file;
@@ -153,10 +161,26 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
+        // The file is read only when an export of it is documented: the index
+        // holds where each comment is, and the text is the file's.
+        let mut source: Option<Vec<u16>> = None;
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
             let Some(name) = text.optional(id) else { continue };
-            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned() });
+            // The TypeScript reader spans an export's doc on the export; the
+            // others span it on the declaration the export binds, by its name.
+            let declared = || {
+                let local = text.optional(parses.export_local.at(export))?;
+                if text.optional(parses.export_from.at(export)).is_some() { return None }
+                parses.symbols.range(row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == local).and_then(|symbol| parses.doc_of_symbol(symbol))
+            };
+            let doc = parses.doc_of_export(export).or_else(declared).and_then(|span| {
+                let utf16 = source.get_or_insert_with(|| {
+                    std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
+                });
+                crate::dependency_namespace::doc(utf16, Some(span))
+            });
+            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), doc });
         }
     }
     let first = parses.requests.at(row) as usize;
@@ -173,7 +197,7 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -
         let (package, key) = requested(value);
         if !targets.packages.contains(package) { continue; }
         let line = parses.request_line.at(request);
-        let names = taken(&layers[layer], row, request, &key, by, at, kind);
+        let names: Vec<NameUse> = taken(&layers[layer], row, request, &key, by, at, kind).into_iter().map(|(taken, _)| taken).collect();
         let into = match targets.landing(package, &key) {
             Landing::Opened => {
                 part.names.extend(names);
@@ -212,7 +236,7 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         .par_iter()
         .map(|crossing| {
             let by = if crossing.owner == NO_OWNER { "" } else { owners.packages[crossing.owner as usize].name.as_str() };
-            collect(layers, crossing, by, &targets)
+            collect(root, layers, crossing, by, &targets)
         })
         .collect();
     let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
@@ -254,38 +278,64 @@ pub struct Importers {
 /// is written. Each file is followed once per name, so a cycle of re-exports
 /// ends.
 pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
-    let folded = fold(layers);
-    let mut seen: HashSet<(String, String)> = files.iter().map(|file| (file.clone(), name.to_owned())).collect();
-    let mut wanted: HashMap<String, HashSet<String>> = HashMap::new();
-    for file in files {
-        wanted.entry(file.clone()).or_default().insert(name.to_owned());
-    }
-    let (mut found, mut through) = (Vec::new(), HashSet::new());
-    while !wanted.is_empty() {
-        let (uses, passed) = importers_of(root, layers, &folded, &wanted);
-        found.extend(uses);
-        wanted = HashMap::new();
-        for (file, exported) in passed {
-            if seen.insert((file.clone(), exported.clone())) {
-                through.insert(file.clone());
-                wanted.entry(file).or_default().insert(exported);
-            }
-        }
-    }
+    // Every file is one origin, so a file passed the name by two of them is followed once.
+    let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
+        files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
+    let (found, through) = importers_from(root, layers, origins);
+    let mut found: Vec<NameUse> = found.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
     let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
     through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
     Importers { uses: found, through }
 }
 
-/// One step of `importers`: the uses of each wanted name out of its file, and
-/// each `(file, name)` a re-export passes one of them on as.
+/// One use `importers_from` found, of the `origin` it was asked for, with the
+/// name the import binds in the file, empty for a member read.
+pub(crate) struct Taken {
+    pub(crate) origin: usize,
+    pub(crate) taken: NameUse,
+    pub(crate) local: String,
+}
+
+/// `importers` for several names at once: each `(file, name)` of `wanted`
+/// carries the origins it answers for, and every use and every file passing
+/// one on carries them along, so one walk answers them all. Each file is
+/// followed once per name and origin.
+pub(crate) fn importers_from(
+    root: &str,
+    layers: &[Layer],
+    mut wanted: HashMap<String, HashMap<String, HashSet<usize>>>,
+) -> (Vec<Taken>, HashSet<String>) {
+    let folded = fold(layers);
+    let mut seen: HashSet<(String, String, usize)> = HashSet::new();
+    for (file, names) in &wanted {
+        for (name, origins) in names {
+            seen.extend(origins.iter().map(|&origin| (file.clone(), name.clone(), origin)));
+        }
+    }
+    let (mut found, mut through) = (Vec::new(), HashSet::new());
+    while !wanted.is_empty() {
+        let (uses, passed) = importers_of(root, layers, &folded, &wanted);
+        found.extend(uses);
+        wanted = HashMap::new();
+        for (file, exported, origin) in passed {
+            if seen.insert((file.clone(), exported.clone(), origin)) {
+                through.insert(file.clone());
+                wanted.entry(file).or_default().entry(exported).or_default().insert(origin);
+            }
+        }
+    }
+    (found, through)
+}
+
+/// One step of `importers_from`: the uses of each wanted name out of its
+/// file, and each `(file, name, origin)` a re-export passes one of them on as.
 fn importers_of(
     root: &str,
     layers: &[Layer],
     folded: &HashMap<&str, At>,
-    wanted: &HashMap<String, HashSet<String>>,
-) -> (Vec<NameUse>, Vec<(String, String)>) {
+    wanted: &HashMap<String, HashMap<String, HashSet<usize>>>,
+) -> (Vec<Taken>, Vec<(String, String, usize)>) {
     let lands = |at: At| {
         let (stored, records) = (&layers[at.0].stored, &layers[at.0].records);
         records.targets_present[at.1] == 1
@@ -300,7 +350,7 @@ fn importers_of(
     join_parses(layers, &mut crossings);
     let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
     let owners = owners(root, &paths);
-    let parts: Vec<(Vec<NameUse>, Vec<(String, String)>)> = crossings
+    let parts: Vec<(Vec<Taken>, Vec<(String, String, usize)>)> = crossings
         .par_iter()
         .map(|crossing| {
             let (mut found, mut passed) = (Vec::new(), Vec::new());
@@ -317,28 +367,38 @@ fn importers_of(
             for request in parses.requests.range(row) {
                 let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
                 let written = text.text(parses.request_value.at(request));
-                let uses = taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter(|taken| names.contains(&taken.name));
-                if text.text(parses.request_kind.at(request)) != "reexports" {
-                    found.extend(uses);
-                    continue;
-                }
-                let every = || names.iter().filter(|name| *name != "default").map(|name| (crossing.file.to_owned(), name.clone()));
-                match passed_on(&layers[layer], row, request) {
-                    // An export list the parse never recorded reads as the whole module.
-                    None => passed.extend(every()),
-                    Some(listed) => {
-                        for (imported, exported) in listed {
-                            match exported {
-                                None if imported == "*" => passed.extend(every()),
-                                // `export * as ns` passes a namespace: the name is a member read off it.
-                                Some(_) if imported == "*" => {}
-                                Some(exported) if names.contains(imported) => passed.push((crossing.file.to_owned(), exported.to_owned())),
-                                _ => {}
+                let uses = taken(&layers[layer], row, request, written, by, crossing.file, kind)
+                    .into_iter()
+                    .filter_map(|(taken, local)| names.get(&taken.name).map(|origins| (taken, local, origins)));
+                let reexports = text.text(parses.request_kind.at(request)) == "reexports";
+                if reexports {
+                    let every = || names.iter().filter(|(name, _)| *name != "default").flat_map(|(name, origins)| origins.iter().map(|&origin| (crossing.file.to_owned(), name.clone(), origin)));
+                    match passed_on(&layers[layer], row, request) {
+                        // An export list the parse never recorded reads as the whole module.
+                        None => passed.extend(every()),
+                        Some(listed) => {
+                            for (imported, exported) in listed {
+                                match exported {
+                                    None if imported == "*" => passed.extend(every()),
+                                    // `export * as ns` passes a namespace: the name is a member read off it.
+                                    Some(_) if imported == "*" => {}
+                                    Some(exported) => {
+                                        if let Some(origins) = names.get(imported) {
+                                            passed.extend(origins.iter().map(|&origin| (crossing.file.to_owned(), exported.to_owned(), origin)));
+                                        }
+                                    }
+                                    _ => {}
+                                }
                             }
                         }
                     }
                 }
-                found.extend(uses.filter(|taken| taken.r#type));
+                for (taken, local, origins) in uses {
+                    if reexports && !taken.r#type { continue; }
+                    for &origin in origins {
+                        found.push(Taken { origin, taken: taken.clone(), local: local.to_owned() });
+                    }
+                }
             }
             (found, passed)
         })

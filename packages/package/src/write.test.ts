@@ -95,4 +95,8 @@ describe('the first paragraph of a doc', () => {
   it('is one line, whatever the source wrapped at', () => {
     expect(opening('What it is,\nwrapped at eighty.\n\nThen a reason.')).toBe('What it is, wrapped at eighty.');
   });
+
+  it('ends at a line of spaces, and keeps no indentation from a wrapped line', () => {
+    expect(opening('What it is,\n    indented under it.\n   \nThen a reason.')).toBe('What it is, indented under it.');
+  });
 });

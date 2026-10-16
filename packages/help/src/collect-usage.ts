@@ -3,6 +3,8 @@
  * out rather than from a second walk.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
@@ -16,6 +18,7 @@ import {
   type Usage,
   type Use,
 } from '@variance-authority/package/help';
+import { docOf } from './indexed-surface.js';
 
 /** An import by path while its file's targets are still to come. */
 type Pending = { -readonly [key in keyof Deep]: Deep[key] };
@@ -30,7 +33,7 @@ type Pending = { -readonly [key in keyof Deep]: Deep[key] };
  * among them that declare no entry, whose imports are listed apart from the
  * deep ones.
  */
-export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTargets): {
+export function collectingUsage(root: string, opened: ReadonlySet<string>, targets: ImportTargets): {
   accept(at: string, by: string, parsed: Parsed): void;
   targets(at: string, targets: readonly (string | undefined)[]): void;
   read(): Usage;
@@ -43,8 +46,18 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
       if (parsed.unknown !== undefined) usage.unreadable.push(at);
       const kind = kindOf(at);
 
+      // The parse holds where a doc is, not what it says, so the file is read
+      // once for the prose, and only when one of its exports has any.
+      let text: string | undefined;
       for (const published of parsed.exports ?? []) {
         if (published.exported !== undefined) {
+          // The TypeScript reader spans an export's doc on the export; the
+          // others span it on the declaration the export binds, by its name.
+          const span = published.doc ?? (published.from === undefined
+            ? parsed.symbols?.find((symbol) => symbol.name === published.local)?.doc
+            : undefined);
+          if (span !== undefined) text ??= readFileSync(join(root, at), 'utf8');
+          const doc = text === undefined ? undefined : docOf(text, span);
           usage.exported.push({
             name: published.exported,
             at,
@@ -52,6 +65,7 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
             line: published.line,
             type: published.type,
             kind,
+            ...(doc === undefined ? {} : { doc }),
           });
         }
       }

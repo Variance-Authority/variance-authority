@@ -74,6 +74,11 @@ impl ParseRow for Read {
             values.insert(&declared.name);
             values.insert(&declared.on);
         }
+        for used in &self.member_uses {
+            values.insert(&used.name);
+            values.insert(&used.of);
+            values.insert(&used.how);
+        }
         values.extend(self.unknown.as_deref());
     }
 
@@ -113,6 +118,9 @@ impl ParseRow for Read {
         }
         for declared in &self.member_declarations {
             into.member_declaration(id(&declared.name), declared.line, id(&declared.on));
+        }
+        for used in &self.member_uses {
+            into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
         }
     }
 

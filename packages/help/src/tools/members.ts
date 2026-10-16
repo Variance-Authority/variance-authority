@@ -1,5 +1,5 @@
 /**
- * Where a member is declared, which no import names.
+ * Where a member is declared and used, which no import names.
  *
  * A method or property of an interface, a type literal or a class is reached
  * through a value, never imported, so the module graph lists nobody who
@@ -7,9 +7,17 @@
  * records every member each file declares, on the container that holds it,
  * and this reads the ones by one name off the source index.
  *
- * Its callers are text read near a declaration: `docs_grep` with `to` set to
+ * So are its uses where the line writes the value's type: a binding annotated
+ * as the container, a cast to it, an object literal written as one, a pattern
+ * destructuring one. The scan records the type's name as each file writes it,
+ * and the index joins that name to the declaration through the import that
+ * binds it, so each use is listed under the one declaration it belongs to,
+ * whatever other container shares the member's name.
+ *
+ * A value whose type is not written — inferred from a call, a generic, a
+ * mapped type — is text read near a declaration: `docs_grep` with `to` set to
  * a declaring file runs ripgrep over the files that import it, at any depth,
- * which is where a value of that type can come from. That search owns callers,
+ * which is where a value of that type can come from. That search owns those,
  * so this answer routes to it rather than holding a second one.
  */
 
@@ -29,6 +37,12 @@ export const BY_NAME =
 export interface Members {
   /** Each declaration, `by` the container it is on. */
   readonly declared: readonly Use[];
+  /**
+   * Each declaration on a named container, in `declared`'s order, with every
+   * line that uses the member through a value written as that container, `by`
+   * the package and how it uses it.
+   */
+  readonly used: readonly { readonly declared: Use; readonly uses: readonly (Use & { readonly how: string })[] }[];
   /** Why the declarations were not read, when they were not. */
   readonly unread?: string;
 }
@@ -39,19 +53,23 @@ export interface Members {
  * why, when no checkout is named or the index does not read.
  */
 export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
-  if (root === undefined) return { declared: [], unread: 'this host named no checkout to read the source index of' };
+  if (root === undefined) return { declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
   let found: ReturnType<typeof memberDeclarationsOf>;
   try {
     found = memberDeclarationsOf(root, name);
   } catch (error) {
-    return { declared: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
+    return { declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
-  if (found === undefined) return { declared: [], unread: 'no source index is published; run `variance index`' };
+  if (found === undefined) return { declared: [], used: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const declared = found
-    .filter((site) => owner === undefined || site.by === owner)
-    .map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
-  return { declared };
+  const sites = found.filter((site) => owner === undefined || site.by === owner);
+  const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
+  const used = sites.flatMap((site, at) =>
+    site.uses === undefined
+      ? []
+      : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
+  );
+  return { declared, used };
 }
 
 /**
@@ -67,7 +85,7 @@ export function routes(name: string, members: Members): readonly string[] {
       : 'the file that declares the container you mean (`package` narrows the declarations to one package)';
   return [
     '',
-    `Its callers are text in the files that import a declaration: docs_grep with \`query\` \`\\b${name}\\b\` and \`to\` ${to}.`,
+    `A use through a value whose type is not written, or is written as no named container, is text in the files that import a declaration: docs_grep with \`query\` \`\\b${name}\\b\` and \`to\` ${to}.`,
     BY_NAME,
   ];
 }

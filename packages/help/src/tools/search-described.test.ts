@@ -101,4 +101,15 @@ describe('which names the described section holds, and in what order', () => {
     expect(said.indexOf('managedStateFor')).toBeGreaterThan(-1);
     expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('journalOf'));
   });
+
+  it('puts a name whose doc holds every word before one whose name holds half of them', async () => {
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',
+      'src/sweep.ts': '/** The eviction policy a cache runs under. */\nexport const sweep = 1;\n',
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache eviction policy' }, treeOf([], root), root);
+    expect(said).toMatch(/sweep .*\[holds: cache, eviction, policy\]/);
+    expect(said).toMatch(/evictionPolicyFor .*\[holds: eviction, policy\]/);
+    expect(said.indexOf('sweep')).toBeLessThan(said.indexOf('evictionPolicyFor'));
+  });
 });

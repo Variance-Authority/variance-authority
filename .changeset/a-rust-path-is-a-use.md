@@ -19,5 +19,5 @@ export of the same name in another file: the kept declaration, and for a Rust
 item the modules inside its own that import it, follow the export's answer
 instead of being dropped.
 
-The source index format is version 23; an index written by an earlier version
+The source index format is version 24; an index written by an earlier version
 is rebuilt on the next read.

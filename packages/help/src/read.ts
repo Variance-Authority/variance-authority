@@ -202,7 +202,7 @@ async function scanIndexed(
   const where = resolve(root);
   const index = await openSourceIndex(at);
   const owner = ownership(where);
-  const usage = collectingUsage(opened, targets);
+  const usage = collectingUsage(where, opened, targets);
   const sources = new Map<string, IndexedSource>();
 
   const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(where, dirs)}`, () => scanRelations({

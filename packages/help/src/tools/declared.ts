@@ -198,13 +198,15 @@ export function declaredMatches(
 ): (Matches<DeclaredMatch> & { readonly unread: readonly string[] }) | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
-  const shown = read.names.slice(0, cap).map((one): DeclaredMatch => ({
-    source: 'declared',
-    name: one.name,
-    kind: one.kind,
-    ...(one.by === '' ? {} : { package: one.by }),
-    at: one.at,
-    line: one.line,
-  }));
-  return { total: read.names.length, shown, unread: read.unread };
+  return { total: read.names.length, shown: read.names.slice(0, cap).map(declaredMatch), unread: read.unread };
 }
+
+/** One declaration, as a `search` section holds it. */
+export const declaredMatch = (one: DeclaredName): DeclaredMatch => ({
+  source: 'declared',
+  name: one.name,
+  kind: one.kind,
+  ...(one.by === '' ? {} : { package: one.by }),
+  at: one.at,
+  line: one.line,
+});

@@ -6,10 +6,19 @@
 //! property, each on the interface, type alias or class that holds it. The
 //! scan records every one with the file's parse (`read.rs`), and a question
 //! reads them off the chain the index wrote.
+//!
+//! A declaration on a named container is answered with its uses as well: the
+//! lines that read, write or destructure the member through a value whose
+//! type the line writes as that container (`help_member_uses.rs`). The name
+//! the line writes is joined to the declaration the way an import is, in the
+//! declaring file under its own name and in every file that imports it,
+//! through each `export … from` that passes it on, under the name the import
+//! binds; so `Props.size` and `Other.size` are told apart, and a same-named
+//! type of another file is neither. A container with no name has no uses.
 
 // compass: variance-authority.reach.relations
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 use oxc_ast::ast::*;
@@ -18,7 +27,7 @@ use oxc_span::GetSpan;
 use serde::Serialize;
 
 use crate::compact::Layer;
-use crate::help_usage::kind_of;
+use crate::help_usage::{importers_from, kind_of};
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
@@ -42,6 +51,10 @@ pub(crate) fn member_declarations_in(program: &Program<'_>, lines: &Lines) -> Ve
     walker.declared
 }
 
+/// What a member on a container with no name is said to be on.
+const A_TYPE_LITERAL: &str = "a type literal";
+const A_CLASS: &str = "a class";
+
 /// One declaration of a member, `on` the container that declares it.
 #[napi(object)]
 pub struct MemberSite {
@@ -52,6 +65,23 @@ pub struct MemberSite {
     /// `story`, `test` or `source`, by the file's name.
     pub kind: String,
     pub on: String,
+    /// Every use of the member through a value whose type is written as its
+    /// container, ordered by file in code units, then by line; absent for a
+    /// container with no name, which no line can write.
+    pub uses: Option<Vec<MemberUseSite>>,
+}
+
+/// One line that uses a member, `how`: `read`, `write` or `destructure`.
+#[napi(object)]
+#[derive(Clone)]
+pub struct MemberUseSite {
+    pub at: String,
+    pub line: u32,
+    /// The package of the file, or empty when no package holds it.
+    pub by: String,
+    /// `story`, `test` or `source`, by the file's name.
+    pub kind: String,
+    pub how: String,
 }
 
 /// Every declaration of a member named `name` on the chain, ordered by file
@@ -97,12 +127,81 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
                 by: by.to_owned(),
                 kind: kind_of(crossing.file).to_owned(),
                 on: stored.text(parses.member_declaration_on.at(at)).to_owned(),
+                uses: None,
             })
             .collect();
         sites.sort_by_key(|site| site.line);
         found.extend(sites);
     }
+    used(root, layers, name, &mut found);
     found
+}
+
+/// Each declaration of `name` on a named container given its uses: the
+/// member-use rows of member `name` whose type is written as the container, in
+/// the declaring file, or as the name an import of it binds, in a file that
+/// imports it.
+fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
+    // One origin per declaring file and container, which several declarations can share.
+    let mut origins: Vec<(String, String)> = Vec::new();
+    let mut of: Vec<Option<usize>> = Vec::new();
+    for site in found.iter() {
+        if site.on == A_TYPE_LITERAL || site.on == A_CLASS { of.push(None); continue; }
+        let origin = origins.iter().position(|(at, on)| *at == site.at && *on == site.on).unwrap_or_else(|| {
+            origins.push((site.at.clone(), site.on.clone()));
+            origins.len() - 1
+        });
+        of.push(Some(origin));
+    }
+    if origins.is_empty() { return; }
+    // Where each origin is written, by file and by the name the file writes it as.
+    let mut written: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
+    for (origin, (at, on)) in origins.iter().enumerate() {
+        written.entry(at.clone()).or_default().entry(on.clone()).or_default().insert(origin);
+    }
+    // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
+    // field used through a type-only barrel is missed here, though the type is
+    // the one declared.
+    let (taken, _) = importers_from(root, layers, written.clone());
+    for one in taken {
+        // A name read off a namespace is `ns.Props`, which no member-use row writes.
+        if one.taken.through.is_some() || one.local.is_empty() { continue; }
+        written.entry(one.taken.at).or_default().entry(one.local).or_default().insert(one.origin);
+    }
+    let mut crossings: Vec<Crossing> = fold(layers)
+        .into_iter()
+        .filter(|(file, _)| written.contains_key(*file))
+        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .collect();
+    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    join_parses(layers, &mut crossings);
+    let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
+    let owners = owners(root, &paths);
+    let mut uses: Vec<Vec<MemberUseSite>> = vec![Vec::new(); origins.len()];
+    for crossing in &crossings {
+        let (Some((layer, row)), Some(names)) = (crossing.parse, written.get(crossing.file)) else { continue };
+        let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+        for at in parses.member_uses.range(row) {
+            if stored.text(parses.member_use_name.at(at)) != name { continue; }
+            let Some(origins) = names.get(stored.text(parses.member_use_of.at(at))) else { continue };
+            for &origin in origins {
+                uses[origin].push(MemberUseSite {
+                    at: crossing.file.to_owned(),
+                    line: parses.member_use_line.at(at),
+                    by: owners.package_of(crossing.file).to_owned(),
+                    kind: kind_of(crossing.file).to_owned(),
+                    how: stored.text(parses.member_use_how.at(at)).to_owned(),
+                });
+            }
+        }
+    }
+    for list in &mut uses {
+        list.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)).then(a.how.cmp(&b.how)));
+        list.dedup_by(|a, b| a.at == b.at && a.line == b.line && a.how == b.how);
+    }
+    for (site, origin) in found.iter_mut().zip(of) {
+        if let Some(origin) = origin { site.uses = Some(uses[origin].clone()); }
+    }
 }
 
 struct Walker<'n> {
@@ -143,12 +242,12 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_ts_type_literal(&mut self, it: &TSTypeLiteral<'a>) {
-        let container = self.alias.take().unwrap_or_else(|| "a type literal".to_owned());
+        let container = self.alias.take().unwrap_or_else(|| A_TYPE_LITERAL.to_owned());
         self.within(container, |walker| walk::walk_ts_type_literal(walker, it));
     }
 
     fn visit_class(&mut self, it: &Class<'a>) {
-        let container = it.id.as_ref().map_or_else(|| "a class".to_owned(), |id| id.name.to_string());
+        let container = it.id.as_ref().map_or_else(|| A_CLASS.to_owned(), |id| id.name.to_string());
         self.within(container, |walker| walk::walk_class(walker, it));
     }
 

@@ -25,7 +25,7 @@ mod stack;
 #[path = "dependency_described.rs"]
 mod describing;
 #[path = "dependency_purpose.rs"]
-mod purposes;
+pub(crate) mod purposes;
 use purposes::Purpose;
 #[path = "dependency_skills.rs"]
 mod skilled;

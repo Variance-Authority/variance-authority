@@ -70,9 +70,16 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  * imports, lists its declarations as well, each on its container: after the
  * imports when an export has the name too, alone when none does. The scan
  * records every member declaration with the file's parse, so reading them is a
- * lookup in the source index. Its callers are `docs_grep`'s: a text search over
- * the files that import a declaring file, which this answer names, with what a
- * text match lets in and misses.
+ * lookup in the source index.
+ *
+ * Each declaration on a named container is followed by its uses: the lines
+ * that read, write or destructure the member through a value whose type the
+ * line writes as that container — an annotation, an `as`, a `satisfies`. The
+ * type's name is joined to its declaration the way an import is, so two
+ * containers that share a member's name each get their own uses, and a value
+ * typed as neither is a use of neither. What a type checker would infer is
+ * `docs_grep`'s: a text search over the files that import a declaring file,
+ * which this answer names, with what a text match lets in and misses.
  */
 
 /**
@@ -175,7 +182,8 @@ export const uses: Tool<Help> = {
     'name the file by path, marked as such. Imports within the exporting package are read from the ' +
     'source index, through each `export … from` that passes the name on, marked `(as x)` where one renames it, so a ' +
     'name exported and not published is answered too. A member of an interface, a type literal or a class by that ' +
-    'name is listed with its declarations, after the imports, and the docs_grep that finds its callers. A top-level ' +
+    'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
+    'it through a value whose type is written as its container, and the docs_grep that finds the uses no line types. A top-level ' +
     'name a file declares and does not export is answered with where it is declared and who can reach it there. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path.',
   inputSchema: {
@@ -229,7 +237,7 @@ export const uses: Tool<Help> = {
   files(help, input, invocation): FileSet {
     const { sites, unread, members, kept, keptSites } = usesOf(help, input, invocation?.root);
     const files = new Map<string, number[]>();
-    for (const site of [...sites, ...members.declared, ...kept, ...keptSites]) {
+    for (const site of [...sites, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept, ...keptSites]) {
       files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
     }
     return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
@@ -258,10 +266,22 @@ function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly 
   return [keptLine(name, kept), ...taken];
 }
 
-/** The declarations of a member, nearest first when `from` is said, and where its callers are read. */
+/**
+ * The declarations of a member, then the uses of each one on a named
+ * container, nearest first when `from` is said, and where the uses no line
+ * types are read.
+ */
 function memberLines(members: Members, from: string | undefined, name: string): readonly string[] {
   const nearest = from === undefined ? 'Path order; `from` sorts nearest first.' : `Nearest to ${from} first.`;
-  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name), ...routes(name, members)];
+  const used = members.used.flatMap(({ declared, uses }) => {
+    if (uses.length === 0) return [];
+    const sites = uses.map(({ how: used, ...use }): Site => ({ ...use, by: use.by === '' ? used : `${use.by}, ${used}` }));
+    return listed(order(sites, from), `\`${declared.by}.${name}\`, declared at ${declared.at}:${declared.line}, is used in ${places(uses.length)}:`, name);
+  });
+  // A declaration no line reaches through its type is named once, with the others like it.
+  const unused = members.used.filter(({ uses }) => uses.length === 0).map(({ declared }) => `\`${declared.by}\` at ${declared.at}:${declared.line}`);
+  const none = unused.length === 0 ? [] : ['', `No line uses \`${name}\` through a value whose type is written as ${unused.join(', ')}.`];
+  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name), ...used, ...none, ...routes(name, members)];
 }
 
 /** The imports of an exported name, as `uses` has always answered them. */
