@@ -117,7 +117,7 @@ describe('variance ask over a private app that reaches into another package', ()
     const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(
-      '`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a read through an `export * as` namespace and a call through a qualified path are not counted.',
+      '`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a read through an `export * as` namespace and a call through a JavaScript or TypeScript qualified path are not counted.',
     );
   });
 
@@ -143,7 +143,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(code).toBe(EXIT_CLEAN);
     expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/lib\//)).toMatch(/Imported in 1 place\b/);
     expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/kit\//)).toContain(
-      'Nothing in this workspace imports it; a read through an `export * as` namespace and a call through a qualified path are not counted.',
+      'Nothing in this workspace imports it; a read through an `export * as` namespace and a call through a JavaScript or TypeScript qualified path are not counted.',
     );
 
     const uses = await run(['ask', 'uses', '--name', 'roundTax']);

@@ -63,19 +63,20 @@ export const symbol: Tool<Help> = {
         b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
         byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
 
+    // Declared at the top of a file and exported by none: still the workspace's
+    // own name, and where it is written says who can reach it. Another file's
+    // export of the same name is another thing, so it never stands for this one.
+    const declared = declaredBlocks(invocation?.root, name, wanted);
+
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
-    if (byPath.length > 0) return importedByPath(help, name, byPath);
+    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared].join('\n\n');
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    // Declared at the top of a file and exported by none: still the workspace's
-    // own name, and where it is written says who can reach it. Another file's
-    // export of the same name is another thing, so it never stands for this one.
-    const declared = declaredBlocks(invocation?.root, name, wanted);
     const own = [...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []), ...(found.length === 0 ? declared : [])];
 
     if (found.length === 0 && invocation?.root !== undefined) {

@@ -57,8 +57,7 @@
  * here, and are the reason the Rust answer is a floor rather than a total.
  */
 
-import { native, nativeRefusal } from './native.js';
-import { NAMESPACE_NAME, type Read } from './read.js';
+import { NAMESPACE_NAME } from './read.js';
 import type { TreeWorld } from './world.js';
 
 /** What a crate's source sits under, by universal convention and by Cargo. */
@@ -184,10 +183,11 @@ function moduleTree(world: TreeWorld): ModuleTree {
 
     for (const file of tree.below('')) {
       if (!file.endsWith('.rs')) continue;
-      const text = tree.text(file);
-      if (text === undefined) continue;
+      // The scan's own parse: a file is read once, whichever of the two asks first.
+      const read = tree.parsed(file);
+      if (read === undefined) continue;
       children.set(file, new Map());
-      for (const request of readOf(file, text).requests) {
+      for (const request of read.requests) {
         const [binding] = request.bindings;
         // A `mod` line: written, and the file taken whole under its name.
         if (request.guessed === true || binding?.imported !== NAMESPACE_NAME) continue;
@@ -288,13 +288,6 @@ function rootOf(file: string, world: TreeWorld, modules: ModuleTree): string {
     seen.add(at);
   }
   return at;
-}
-
-function readOf(file: string, text: string): Read {
-  const addon = native();
-  if (addon === undefined) throw new Error(`sense: reading a Rust module tree needs the native addon, which did not load: ${nativeRefusal()}`);
-  const answer = addon.readLanguage('rust', file, text);
-  return answer === null ? { requests: [] } : JSON.parse(answer) as Read;
 }
 
 function directoryOf(file: string): string {

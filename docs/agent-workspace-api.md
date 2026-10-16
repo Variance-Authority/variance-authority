@@ -287,7 +287,7 @@ file beside it, is answered too. `docs_symbol` gives the file and line that
 export it and how many imports reach that file, directly or through a file that
 passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. A read through an `export * as` namespace and a call through a
-qualified path are not counted.
+JavaScript or TypeScript qualified path are not counted.
 
 A name a file declares at its top level and does not export, such as a helper
 only its own file calls, is answered from the source index. Not exported means
