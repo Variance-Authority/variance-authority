@@ -8,10 +8,11 @@
  * `git grep` would find it at once. The source index harvested every top-level
  * declaration of every file it parsed, so the declaration is read from there,
  * with who can reach it, as the reader of its language recorded: an ES
- * module's own name is its alone, a Rust item that is not `pub` is its
- * module's and the modules inside it, and a Python module keeps no name from an
- * import that spells it. A reader that cannot tell — a script, a
- * `macro_rules!` — records nothing, and the answer says that.
+ * module's own name, and a Swift or Kotlin `private` one, is its file's alone,
+ * a Rust item that is not `pub` is its module's and the modules inside it, and
+ * a Python module keeps no name from an import that spells it. A reader that
+ * cannot tell — a script, a `macro_rules!` — records nothing, and the answer
+ * says that.
  */
 
 // compass: variance-authority.report.agent-surface
