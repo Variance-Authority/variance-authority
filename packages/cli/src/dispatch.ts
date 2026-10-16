@@ -12,7 +12,7 @@ import {
   identityOf,
   relationsFor,
   run,
-  journeyAgainst,
+  suiteJourney,
   narrowingFor,
   recordedJourneys,
   scanSourceDirs,
@@ -41,7 +41,7 @@ import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, changelogStoreFor, formatChangelog } from './commands/changelog.js';
 import { formatRemoteChangelog, readRemoteChangelog } from './commands/changelog-remote.js';
 import { runJourneys } from './commands/journeys-command.js';
-import { refiningRecord, selectingRecord } from './commands/suite-record.js';
+import { refiningRecord } from './commands/suite-record.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
@@ -147,10 +147,10 @@ export async function dispatch(
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) =>
               relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before),
-            readJourney: async (diff, relations) => {
-              const { file, ...suite } = await selectingRecord(process.cwd(), parsed.suite);
-              return journeyAgainst(process.cwd(), diff, relations, file, process.cwd(), suite);
-            },
+            readJourney: async (diff, relations) =>
+              suiteJourney(process.cwd(), diff, relations, parsed.suite, async () =>
+                relationsFor(process.cwd(), effective.source?.dirs ?? [], effective.source?.taints, effective.before),
+              ),
             readJourneys: async (subjects) => {
               const at = await refiningRecord(process.cwd(), parsed.suite);
               return at === undefined ? undefined : recordedJourneys(process.cwd(), subjects, at);

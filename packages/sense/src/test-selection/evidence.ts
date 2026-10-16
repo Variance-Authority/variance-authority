@@ -10,25 +10,28 @@
  * same record and the same graph.
  *
  * - `file` — a test runs when it imports a changed file, directly or through
- *   other files. The record says only which tests exist.
+ *   other files, or when it loaded one.
  * - `symbol` — the same walk, entering only the importers of the exports a
- *   change moved. A change that moved nothing a module does seeds nothing.
+ *   change moved, and every test that loaded a changed file.
  * - `file-use` — a test runs when it loaded a changed file.
  * - `function-use` — a test runs when it entered the declaration a changed line
  *   is in. A line at the top level of a module is every test that loaded it.
  * - `region-use` — a test runs when it entered the region a changed line is in.
  *   This is what a suite that declares nothing reads.
  *
- * The steps trust different evidence, so a finer one is not always a subset of
- * a coarser one: `file-use` runs a test that only loaded the module, where
- * `symbol` does not, because a traced walk takes loading a module to declare
- * its exports and nothing else (`sideEffects` is the opt-out).
+ * Each step runs every test a finer one runs. The graph and the record trust
+ * different evidence — a traced walk takes loading a module to declare its
+ * exports and nothing else, and a runner's setup file loads a module no import
+ * names — so `file` and `symbol` add what the walk reaches to what `file-use`
+ * reads rather than replace it.
  */
 
 import { affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { kindId, NO_OWNER } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import type { ExecutionNarrowingOptions, ImporterReason } from './importers.js';
-import { findTest, testPathOf, testsGovernedBy } from './lookup.js';
+import { findTest, testPathOf } from './lookup.js';
 import { runsAsBefore } from './runs-as-before.js';
 import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './select.js';
 
@@ -69,19 +72,35 @@ export function selectedByRelations(
 }
 
 /**
- * Every block of the module holding `block` that shares its declaration: the
- * function a changed line is in. A block at the top level shares the module's
- * own region, which every test that loaded the module entered.
+ * Every block of the declaration a changed line is in: the nearest function
+ * that owns `block`, followed up the owner chain, and the regions it holds that
+ * no nearer function owns. A block at the top level is the module's own
+ * region, which every test that loaded the module entered.
  */
 export function declarationOf(coverage: TestCoverageView, block: number): readonly number[] {
   const module = moduleOf(coverage, block);
-  const name = coverage.blockName.at(block);
+  const first = coverage.moduleBlocks.at(module);
+  const end = coverage.moduleBlocks.at(module + 1);
+  const byOrdinal = new Map<number, number>();
+  for (let one = first; one < end; one += 1) byOrdinal.set(coverage.blockOrdinal.at(one), one);
+  const nearest = (from: number): number => {
+    let at = from;
+    while (!DECLARATIONS.has(coverage.blockKind.at(at))) {
+      const owner = coverage.blockOwner.at(at);
+      const next = owner === NO_OWNER ? undefined : byOrdinal.get(owner);
+      if (next === undefined) return at;
+      at = next;
+    }
+    return at;
+  };
+  const declaration = nearest(block);
   const blocks: number[] = [];
-  for (let other = coverage.moduleBlocks.at(module); other < coverage.moduleBlocks.at(module + 1); other += 1) {
-    if (coverage.blockName.at(other) === name) blocks.push(other);
-  }
+  for (let one = first; one < end; one += 1) if (nearest(one) === declaration) blocks.push(one);
   return blocks;
 }
+
+/** The kinds of region a declaration opens: a function, and the module's top level. */
+const DECLARATIONS = new Set([kindId('module'), kindId('function')]);
 
 /** The module row whose blocks hold `block`: `moduleBlocks` is ascending, so a binary search. */
 function moduleOf(coverage: TestCoverageView, block: number): number {
@@ -96,41 +115,35 @@ function moduleOf(coverage: TestCoverageView, block: number): number {
 }
 
 /**
- * A diff read by the import graph alone, at `file` or `symbol` evidence: every
- * recorded test the walk from the changed files reaches, and every test that
- * declares one of them. No region is read, so nothing is stale and no reading
- * is made. A changed file the graph does not hold and no test declares is
- * unread.
+ * The record's reading at `file-use` with what the import graph adds at `file`
+ * or `symbol`: every recorded test the walk from the changed files reaches,
+ * with the chain that reached it beside the reasons the reading gave. A changed
+ * file is unread only when neither the reading nor the graph holds it.
  */
-export function readByRelations(
+export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because'>>(
   coverage: TestCoverageView,
+  reading: Reading,
   changed: readonly string[],
   options: ExecutionNarrowingOptions,
-): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> {
+): Reading {
   const { relations } = options;
   if (relations === undefined) {
     throw new Error(`the suite trusts "${options.evidence}" evidence, which is read from the import graph, and no graph was handed over`);
   }
-  const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const moved = options.evidence === 'symbol' ? (options.moved ?? movedSince(coverage.commit, changed, options.root)) : undefined;
-  const selected = new Map<number, SelectionReason[]>();
-  for (const [test, reasons] of selectedByRelations(coverage, relations, changed, moved)) selected.set(test, [...reasons]);
-  const governed = testsGovernedBy(coverage, [...new Set(changed.flatMap(knownAs))]);
-  for (const [test, held] of governed.tests) {
-    const reasons = selected.get(test) ?? [];
-    for (const name of held) reasons.push({ kind: 'precondition', name });
-    selected.set(test, reasons);
+  const via = new Map<string, SelectionReason[]>(reading.because.map((cause) => [cause.test, [...cause.via]]));
+  for (const [test, reasons] of selectedByRelations(coverage, relations, changed, moved)) {
+    const path = testPathOf(coverage, test);
+    via.set(path, [...(via.get(path) ?? []), ...reasons]);
   }
-  const declared = new Set([...governed.tests.values()].flat());
-  const because = [...selected]
-    .map(([test, via]): SelectionCause => ({ test: testPathOf(coverage, test), via }))
+  const because = [...via]
+    .map(([test, reasons]): SelectionCause => ({ test, via: reasons }))
     .sort((left, right) => codeUnitOrder(left.test, right.test));
   return {
+    ...reading,
     entered: because.map((cause) => cause.test),
-    unread: changed.filter((file) => idOf(relations, 'file', file) === undefined && !knownAs(file).some((name) => declared.has(name))),
-    stale: [],
+    unread: reading.unread.filter((file) => idOf(relations, 'file', file) === undefined),
     because,
-    readings: [],
   };
 }
 
@@ -149,8 +162,4 @@ function movedSince(
   // — is narrowed by what the tree moved.
   const read = runsAsBefore(root, commit, changed);
   return 'moved' in read ? read.moved : undefined;
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

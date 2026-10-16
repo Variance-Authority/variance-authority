@@ -17,7 +17,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
-import { suiteRecord } from './suite-record.js';
+import { selectingRecord, suiteRecord } from './suite-record.js';
 
 /**
  * The machine-shaped things a run needs before it can start: a decoder, a store,
@@ -157,6 +157,24 @@ export async function journeyAgainst(
   suite: { readonly unmeasured?: Unmeasured | undefined; readonly evidence?: Evidence | undefined } = {},
 ): Promise<ExecutionNarrowing | undefined> {
   return (await recordAgainst(root, diff, { relations, at, checkout, ...suite }))?.narrowing;
+}
+
+/**
+ * {@link journeyAgainst} over the record `suite` selects from, with what it
+ * declares. A suite that trusts `file` or `symbol` evidence reads the import
+ * graph, so `scan` builds one when the caller had none to hand over.
+ */
+export async function suiteJourney(
+  root: string,
+  diff: string,
+  relations: Relations | undefined,
+  suite: string | undefined,
+  scan: () => Promise<Relations>,
+): Promise<ExecutionNarrowing | undefined> {
+  const { file, ...declared } = await selectingRecord(root, suite);
+  const { byRelations } = await import('@variance-authority/sense/test-selection');
+  const graph = relations ?? (byRelations(declared.evidence) ? await scan() : undefined);
+  return journeyAgainst(root, diff, graph, file, root, declared);
 }
 
 /**

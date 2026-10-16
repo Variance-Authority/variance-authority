@@ -93,8 +93,9 @@ scan has no reader for.
 
 A suite's `evidence` says how much of the record selection trusts before it
 skips a test, coarsest first: `file` (every recorded test that imports a changed
-file, through the graph), `symbol` (the same walk through only the importers of
-the exports the change moved), `file-use` (every test that loaded a changed
+file, through the graph, and every test `file-use` runs), `symbol` (the same
+walk through only the importers of the exports the change moved, and every test
+`file-use` runs), `file-use` (every test that loaded a changed
 file), `function-use` (every test that entered the function a changed line is
 in), `region-use` (the default: every test that entered the changed region).
 Recording is the same at every step.
@@ -102,10 +103,9 @@ Recording is the same at every step.
 Leave it unset unless the person adopting selection asks to start coarser; the
 step is theirs to choose, and they move it finer when the runs have earned it.
 `file` and `symbol` read the import graph, so a suite with `"relations": false`
-cannot declare them and the config is refused. The steps are not nested sets: a
-test that only loaded a module runs at `file-use` and not at `symbol`. To
-compare steps for one change, run `variance select` once per step; nothing
-composes them.
+cannot declare them and the config is refused. Each step runs every test a finer
+step runs. To compare steps for one change, run `variance select` once per
+step; nothing composes them.
 
 ## What selection refuses to narrow
 

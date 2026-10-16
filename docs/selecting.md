@@ -296,27 +296,24 @@ the runs have earned it:
 
 | `evidence` | A test runs when |
 |---|---|
-| `file` | it imports a changed file, directly or through other files |
-| `symbol` | it imports an export whose behaviour the change altered, directly or through other files |
+| `file` | it imports a changed file, directly or through other files, or it loaded one |
+| `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file |
 | `file-use` | it loaded a changed file |
 | `function-use` | it entered the function a changed line is in |
 | `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes. A suite that declares nothing reads this |
 
 Every step reads the same record and the same file graph; nothing is recorded
-differently. `file` and `symbol` ignore which code each test ran: they walk the
-import graph and run every test it reaches that the record lists. A suite that
-declares [`"relations":
+differently. Each step runs every test a finer step runs, so moving coarser
+never skips a test the step below would run. `file` and `symbol` walk the
+import graph and add every recorded test it reaches to what `file-use` runs.
+The graph and the record see different things: `symbol` takes loading a module
+to declare its exports and nothing more, which the `sideEffects` field
+overrides, and a runner config can load a file that no import names. A suite
+that declares [`"relations":
 false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
-declines that graph, so it cannot declare either, and the config is refused.
-
-The steps trust different evidence, so a finer step is not always a subset of a
-coarser one. A test that only loaded a module runs at `file-use` and not at
-`symbol`, because `symbol` takes loading a module to declare its exports and
-nothing more: the `sideEffects` field is how you say otherwise. A test that
-loaded a changed file through no import the graph holds, such as one a runner
-config names, runs at `file-use` and not at `file`, because `file` reads only
-the graph. To see what each step would select for your
-change, run `variance select` once per step.
+declines the graph, so it cannot declare `file` or `symbol`, and the config is
+refused. To see what each step would select for your change, run `variance
+select` once per step.
 
 A [journey](journeys.md) file you hand to `variance select --execution` is read
 by its regions, whatever the suite declares: naming the file asks for that

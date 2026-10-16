@@ -3042,6 +3042,7 @@
         "askPerStand": "function",
         "atDistance": "function",
         "beforeOf": "function",
+        "byRelations": "function",
         "bytesUnder": "function",
         "cacheLayers": "function",
         "cacheRootFor": "function",

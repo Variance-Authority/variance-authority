@@ -13,8 +13,10 @@ import type { Evidence } from './evidence.js';
  * lines 3 to 5. `alpha` took the branch, `beta` called `decide` without taking
  * it, and `gamma` only loaded the module. `test/omega.test.ts` imports the file
  * and ran nothing of it: the graph names it, the record does not.
+ * `test/sigma.test.ts` loaded the module through a runner's setup file, which
+ * no import names: the record holds it, the graph does not.
  */
-const tests = ['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts', 'test/omega.test.ts'];
+const tests = ['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts', 'test/omega.test.ts', 'test/sigma.test.ts'];
 const coverage: TestCoverage = {
   version: 3,
   instrumentation: 'fixture-instrumentation',
@@ -34,7 +36,7 @@ const coverage: TestCoverage = {
           startLine: 1,
           endLine: 9,
           source: true,
-          testFiles: ['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts'],
+          testFiles: ['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts', 'test/sigma.test.ts'],
         },
         {
           ordinal: 1,
@@ -69,6 +71,7 @@ const RECORDS: readonly FileRecord[] = [
   { file: 'src/decide.ts' },
   { file: 'src/label.ts' },
   ...tests.slice(0, 3).map((file) => ({ file, edges: [{ to: 'src/decide.ts', kind: 'imports' as const }] })),
+  { file: 'test/sigma.test.ts' },
   { file: 'test/omega.test.ts', edges: [{ to: 'src/label.ts', kind: 'imports' as const }, { to: 'src/decide.ts', kind: 'imports' as const }] },
 ];
 const USES: Readonly<Record<string, EdgeUse>> = {
@@ -104,14 +107,17 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
   });
 
   it('selects every test that loaded the file at file use', () => {
-    expect(entered('file-use')).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts']);
+    expect(entered('file-use')).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts', 'test/sigma.test.ts']);
   });
 
-  it('selects every recorded test that imports the file at symbol, narrowed by the exports that moved', () => {
-    expect(entered('symbol', { moved: new Map([['src/decide.ts', ['decide']]]) })).toEqual([
-      'test/alpha.test.ts',
-      'test/beta.test.ts',
-    ]);
+  it('adds the importers of the exports that moved to file use at symbol', () => {
+    const symbol = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), inBranch, {
+      relations,
+      evidence: 'symbol',
+      moved: new Map([['src/decide.ts', ['other']]]),
+    });
+    expect(symbol.entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts', 'test/omega.test.ts', 'test/sigma.test.ts']);
+    expect(entered('symbol', { moved: new Map([['src/decide.ts', ['decide']]]) })).toEqual(entered('file-use'));
   });
 
   it('walks the file whole at symbol when no export reading was taken', () => {
@@ -133,9 +139,51 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
     });
   });
 
-  it('selects a loader at file use that symbol skips, because the two trust different evidence', () => {
-    // gamma imports `other` and ran the module's top level, never `decide`.
-    expect(entered('symbol', { moved: new Map([['src/decide.ts', ['decide']]]) })).not.toContain('test/gamma.test.ts');
-    expect(entered('file-use')).toContain('test/gamma.test.ts');
+  it('runs at every step what each finer step runs', () => {
+    const moved = { moved: new Map([['src/decide.ts', ['decide']]]) };
+    const steps = [entered('region-use'), entered('function-use'), entered('file-use'), entered('symbol', moved), entered('file', moved)];
+    for (let finer = 0; finer + 1 < steps.length; finer += 1) {
+      expect(steps[finer + 1]).toEqual(expect.arrayContaining(steps[finer]!));
+    }
+  });
+
+  it('keeps a test the record holds and the graph does not at file', () => {
+    expect(entered('file')).toContain('test/sigma.test.ts');
+  });
+});
+
+/**
+ * Two classes in one module, each with its own `render` on lines 2 to 4 and
+ * 7 to 9. `alpha` rendered the first, `beta` the second.
+ */
+const twins: TestCoverage = {
+  version: 3,
+  instrumentation: 'fixture-instrumentation',
+  tests: ['test/alpha.test.ts', 'test/beta.test.ts'].map((file) => ({ file, complete: true, preconditions: [] })),
+  modules: [
+    {
+      file: 'src/views.ts',
+      sourceDigest: 'source:views',
+      instrumented: true,
+      blocks: [
+        { ordinal: 0, kind: 'module', digest: 'block:module', name: '', path: 'module', startLine: 1, endLine: 10, source: true, testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'] },
+        { ordinal: 1, kind: 'function', owner: 0, digest: 'block:first', name: 'render', path: 'First/render', startLine: 2, endLine: 4, source: true, testFiles: ['test/alpha.test.ts'] },
+        { ordinal: 2, kind: 'branch', owner: 1, digest: 'block:first:then', name: 'render', path: 'First/render/if#0/then', startLine: 3, endLine: 3, source: true, testFiles: [] },
+        { ordinal: 3, kind: 'function', owner: 0, digest: 'block:second', name: 'render', path: 'Second/render', startLine: 7, endLine: 9, source: true, testFiles: ['test/beta.test.ts'] },
+      ],
+    },
+  ],
+};
+
+describe('the declaration a changed line is in, at function use', () => {
+  it('is the function that owns the line, not every function that shares its name', () => {
+    const inFirst = `--- a/src/views.ts
++++ b/src/views.ts
+@@ -3,1 +3,1 @@
+-      return 'a';
++      return 'b';`;
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(twins)), inFirst, { evidence: 'function-use' }).entered).toEqual([
+      'test/alpha.test.ts',
+    ]);
   });
 });

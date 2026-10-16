@@ -5,7 +5,9 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { selectOutput } from './select-command.js';
+import { suiteJourney } from './resources.js';
 import { indexOutput } from './index-command.js';
 
 /**
@@ -43,6 +45,49 @@ describe('the evidence a suite declares, read by `variance select`', () => {
     expect(await skipped('file')).toBe('');
   });
 });
+
+describe('the evidence a suite declares, read by `run --since`', () => {
+  const cwd = process.cwd();
+
+  beforeEach(() => {
+    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-since-evidence-cache-'));
+  });
+
+  afterEach(() => {
+    process.chdir(cwd);
+    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  });
+
+  it('builds the import graph a suite at file reads when the run had none', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', evidence: 'file' } } });
+    let scanned = 0;
+    const graph = relationsOfFiles([
+      { file: 'src/pad.ts' },
+      ...['alpha', 'beta', 'gamma'].map((name) => ({ file: `test/${name}.test.ts`, edges: [{ to: 'src/pad.ts', kind: 'imports' as const }] })),
+    ]);
+    const narrowing = await suiteJourney(root, INSIDE_PAD, undefined, 'unit', async () => {
+      scanned += 1;
+      return graph;
+    });
+    expect(scanned).toBe(1);
+    expect(narrowing?.entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts']);
+  });
+
+  it('reads regions and builds no graph when the suite declares nothing', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit' } } });
+    const narrowing = await suiteJourney(root, INSIDE_PAD, undefined, 'unit', async () => {
+      throw new Error('no graph is asked for');
+    });
+    expect(narrowing?.entered).toEqual(['test/beta.test.ts']);
+  });
+});
+
+/** A one-line edit inside `pad`. */
+const INSIDE_PAD = `--- a/src/pad.ts
++++ b/src/pad.ts
+@@ -3,1 +3,1 @@
+-  return text.padStart(4, ' ');
++  return text.padStart(5, ' ');`;
 
 async function skipped(evidence: string | undefined): Promise<string> {
   const root = await recorded({ suites: { unit: { kind: 'unit', ...(evidence === undefined ? {} : { evidence }) } } });
