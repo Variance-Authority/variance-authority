@@ -9,7 +9,7 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
-import { declaredAt, declaredBlocks } from './declared.js';
+import { declaredAt, declaredBlocks, unreadNote } from './declared.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 
 /**
@@ -73,7 +73,7 @@ export const symbol: Tool<Help> = {
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
     // Declared at the top of a file and exported by none: still the workspace's
-    // own name, and where it is written says nothing else can import it.
+    // own name, and where it is written says who can reach it.
     const own = exported.length > 0
       ? [exportedOnly(name, exported, invocation?.root)]
       : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
@@ -113,7 +113,7 @@ export const symbol: Tool<Help> = {
       if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
     }
     if (own.length > 0) return own.join('\n\n');
-    if (found.length === 0) throw new Error(unfound(help, name, wanted));
+    if (found.length === 0) throw new Error(`${unfound(help, name, wanted)}${unreadNote(invocation?.root, name)}`);
 
     const [first] = found;
     if (first === undefined) throw new Error(`\`${name}\` was found and then was not`);

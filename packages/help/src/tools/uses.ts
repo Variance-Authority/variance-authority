@@ -3,7 +3,7 @@ import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
-import { declaredAt } from './declared.js';
+import { declaredAt, reachOf, unreadNote } from './declared.js';
 import { type Members, membersOf, places, routes } from './members.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
@@ -175,7 +175,7 @@ export const uses: Tool<Help> = {
     'source index, through each `export … from` that passes the name on, marked `(as x)` where one renames it, so a ' +
     'name exported and not published is answered too. A member of an interface, a type literal or a class by that ' +
     'name is listed with its declarations, after the imports, and the docs_grep that finds its callers. A top-level ' +
-    'name a file declares and does not export is answered with where it is declared, the only file that can use it. Stories ' +
+    'name a file declares and does not export is answered with where it is declared and who can reach it there. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
@@ -229,15 +229,15 @@ export const uses: Tool<Help> = {
   },
 };
 
-/** A name its files keep to themselves: where each declares it, which is every place that can use it. */
+/** A name its files keep to themselves: where each declares it, and who can reach it from there. */
 function keptLine(name: string, kept: readonly (readonly [string, number])[]): string {
   if (kept.length === 1) {
     const [at, line] = kept[0]!;
-    return `\`${name}\` is declared, not exported, at ${at}:${line}, so nothing outside that file can import it.`;
+    return `\`${name}\` is declared, not exported, at ${at}:${line}${reachOf(at, name).clause}.`;
   }
   return [
-    `\`${name}\` is declared, not exported, in ${kept.length} files, so nothing outside each of them can import it:`,
-    ...kept.map(([at, line]) => `  ${at}:${line}`),
+    `\`${name}\` is declared, not exported, in ${kept.length} files:`,
+    ...kept.map(([at, line]) => `  ${at}:${line}${reachOf(at, name).clause}`),
   ].join('\n');
 }
 
@@ -319,7 +319,7 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
     const kept = declaredAt(root, name, wanted);
     if (kept.length > 0) return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members, kept };
     const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
-    throw new Error(`${unfound(help, name, wanted)}${unreadMembers}`);
+    throw new Error(`${unfound(help, name, wanted)}${unreadMembers}${unreadNote(root, name)}`);
   }
   // A published name is read from its entry file as well as its declaration:
   // an entry that renames it, `export { greet as salute }`, passes on a name

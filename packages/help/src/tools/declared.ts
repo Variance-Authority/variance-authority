@@ -7,15 +7,17 @@
  * it. A caller who typed such a name exactly is not wrong about the name, and
  * `git grep` would find it at once. The source index harvested every top-level
  * declaration of every file it parsed, so the declaration is read from there,
- * and where it is written is the whole answer: nothing outside its file can
- * import it.
+ * and where it is written says who can reach it, which is the language's rule:
+ * a JavaScript or TypeScript module's own name is its alone, a Rust item that
+ * is not `pub` is its module's and the modules inside it, and a Python module
+ * keeps no name from an import that spells it.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { declaredOf, type DeclaredName } from '@variance-authority/sense';
+import { declaredOf, languageOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
 
@@ -56,7 +58,7 @@ export function declarations(
 /**
  * One declaration, as `symbol` writes it: the name and its kind, where it is
  * declared, its signature and its documentation as the checkout holds them,
- * and that nothing outside its file can import it. The signature and the
+ * and who can reach it. The signature and the
  * documentation are left out when the file no longer holds the name where the
  * index read it.
  */
@@ -69,8 +71,34 @@ export function declaredBlock(root: string, held: DeclaredName): string {
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
     ...(signature === undefined ? [] : [signature]),
     ...(doc === undefined ? [] : [doc]),
-    `Nothing outside ${held.at} can import it: no export of that file names it.`,
+    reachOf(held.at, held.name).block,
   ].join('\n');
+}
+
+/**
+ * Who can reach a name its file declares and does not export, by the language
+ * of the file: the sentence `symbol` ends a declaration with, and the clause
+ * `uses` ends its line with.
+ */
+export function reachOf(at: string, name: string): { readonly block: string; readonly clause: string } {
+  const language = languageOf(at);
+  if (language === 'rust') {
+    return {
+      block: 'Only the module it is declared in, and the modules inside that one, can name it: it is not `pub`.',
+      clause: ', so only its module and the modules inside it can name it',
+    };
+  }
+  if (language === 'python') {
+    const kept = name.startsWith('_') ? 'a leading underscore' : '`__all__`';
+    return {
+      block: `Another module can still import it by name: ${kept} keeps it out of \`from … import *\` only.`,
+      clause: `; another module can still import it by name, which \`ask grep --query '\\b${name}\\b' --to ${at}\` finds`,
+    };
+  }
+  return {
+    block: `Nothing outside ${at} can import it: no export of that file names it.`,
+    clause: ', so nothing outside that file can import it',
+  };
 }
 
 /** One declaration, as a `search` line writes it. */
@@ -117,6 +145,16 @@ export function declaredBlocks(root: string | undefined, name: string, wanted: s
     ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
     ...unreadLine(read.unread),
   ];
+}
+
+/**
+ * What a refusal of `name` adds when the source index did not read some files'
+ * declarations, so the name may be declared there: a sentence after a space,
+ * or nothing.
+ */
+export function unreadNote(root: string | undefined, name: string): string {
+  const read = declarations(root, name);
+  return 'refused' in read ? '' : unreadLine(read.unread).map((line) => ` ${line}`).join('');
 }
 
 /** Where `symbol` finds the name declared when no file exports it, each at its line. */

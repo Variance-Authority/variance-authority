@@ -196,7 +196,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   // where the tool looked has been handed a fact they cannot place.
   const where = area === undefined ? [] : [areaLine(area), ''];
 
-  // Below the exports, since nothing outside its file can import one of these.
+  // Below the exports, since none of these is a name its file hands out.
   const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
   const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
   const declaredSection =
@@ -274,7 +274,7 @@ export const search: Tool<Help> = {
     'come first, ordered by how many packages import them, each carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
-    'declares at its top level without exporting, with the file and line that declare them. Installed third-party ' +
+    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +

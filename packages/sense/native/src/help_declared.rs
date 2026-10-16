@@ -6,6 +6,8 @@
 //! list, and the index holds it anyway: every parse harvests its file's
 //! top-level declarations. This reads those, so `symbol` and `search` can
 //! answer for a private function the way they answer for an exported one.
+//! `search` matches a declaration's doc comment as well as its name, and the
+//! index holds only the comment's span, so the text is read from the file.
 
 // compass: variance-authority.report.agent-surface
 
@@ -53,7 +55,8 @@ pub struct Declared {
 pub(crate) enum Matching {
     /// The name is `query`.
     Exact,
-    /// The name, lowercased, contains `query`, which the caller lowercased.
+    /// The name, lowercased, contains `query`, which the caller lowercased, or
+    /// the doc comment above it does, read as prose.
     Containing,
 }
 
@@ -62,8 +65,34 @@ fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: usize) -> (O
     if start == NONE || end == NONE { (None, None) } else { (Some(start), Some(end)) }
 }
 
+/// `source` between two UTF-16 offsets, as the index spans a symbol's text.
+fn cut(source: &str, start: u32, end: u32) -> Option<&str> {
+    let (mut from, mut to, mut units) = (None, None, 0u32);
+    for (byte, character) in source.char_indices().chain(std::iter::once((source.len(), '\0'))) {
+        if units == start { from = Some(byte) }
+        if units == end { to = Some(byte); break }
+        units += character.len_utf16() as u32;
+    }
+    source.get(from?..to?)
+}
+
+/// A doc comment as words: each line without its `///`, `//!` or `*` margin,
+/// joined by single spaces and lowercased, so a phrase across a line break
+/// still matches.
+fn prose(doc: &str) -> String {
+    doc.lines()
+        .map(|line| {
+            let line = line.trim();
+            line.strip_prefix("///").or_else(|| line.strip_prefix("//!")).or_else(|| line.strip_prefix('*')).unwrap_or(line).trim()
+        })
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
 /// Every top-level declaration on the chain whose name `matching` admits for
-/// `query`, in `files` when they are named, less the ones its file exports,
+/// `query`, or whose doc does when it is `Containing`, in `files` when they are named, less the ones its file exports,
 /// under that name or another, which the export list already answers. A name
 /// declared twice in one file, as an interface and a const, is one entry: the
 /// first.
@@ -98,9 +127,17 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             };
             let mut named: Vec<&str> = Vec::new();
             let mut hits = Vec::new();
+            // Read once, and only when a doc is the one thing left to match.
+            let mut source: Option<Option<String>> = None;
             for symbol in parses.symbols.range(row) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                if !admits(name) || own.contains(&name) || named.contains(&name) { continue }
+                if own.contains(&name) || named.contains(&name) { continue }
+                let mut documented = || {
+                    let (Some(start), Some(end)) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol) else { return false };
+                    let source = source.get_or_insert_with(|| std::fs::read_to_string(std::path::Path::new(root).join(crossing.file)).ok());
+                    source.as_deref().and_then(|source| cut(source, start, end)).is_some_and(|doc| prose(doc).contains(query))
+                };
+                if !admits(name) && !(matches!(matching, Matching::Containing) && documented()) { continue }
                 named.push(name);
                 hits.push((layer, crossing.file, symbol));
             }

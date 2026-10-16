@@ -36,6 +36,34 @@ const RELAUNCH = {
   ].join('\n'),
 };
 
+const PRIVATE_RUST = {
+  'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
+  'packages/kit/src/lib.rs': [
+    'pub fn restart(argv: &[String]) -> i32 {',
+    '    relaunch(argv)',
+    '}',
+    '',
+    '/// Start the program again,',
+    '/// in a process of its own.',
+    'fn relaunch(argv: &[String]) -> i32 {',
+    '    argv.len() as i32',
+    '}',
+    '',
+  ].join('\n'),
+};
+
+const PRIVATE_PYTHON = {
+  'packages/kit/kit/restart.py': [
+    'def restart(argv):',
+    '    return _relaunch(argv)',
+    '',
+    'def _relaunch(argv):',
+    '    """Start the program again in a process of its own."""',
+    '    return len(argv)',
+    '',
+  ].join('\n'),
+};
+
 describe('variance ask about a name declared and not exported', () => {
   it('answers `symbol` with where it is declared, its signature and its documentation', async () => {
     checkout(RELAUNCH);
@@ -105,6 +133,53 @@ describe('variance ask about a name declared and not exported', () => {
     expect(out).toContain(
       '`relaunch` is declared, not exported, at packages/kit/src/money/restart.ts:4, so nothing outside that file can import it.',
     );
+  });
+
+  it('answers `search` with a declaration whose documentation holds the words', async () => {
+    checkout(RELAUNCH);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'search', '--query', 'process of its own']);
+    expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4$/m);
+  });
+
+  it('answers `symbol` for a Rust item that is not `pub`, with its doc lines and who can name it', async () => {
+    checkout(PRIVATE_RUST);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'relaunch']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    const block = paragraph(out, /^relaunch \[function\]\n/);
+    expect(block).toContain('declared, not exported, at packages/kit/src/lib.rs:7');
+    expect(block).toContain('fn relaunch(argv: &[String]) -> i32');
+    expect(block).toContain('Start the program again,\nin a process of its own.');
+    expect(block).not.toContain('///');
+    expect(block).toContain('Only the module it is declared in, and the modules inside that one, can name it: it is not `pub`.');
+  });
+
+  it('answers `uses` for a Rust item that is not `pub` with who can name it', async () => {
+    checkout(PRIVATE_RUST);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', 'relaunch']);
+    expect(out).toContain(
+      '`relaunch` is declared, not exported, at packages/kit/src/lib.rs:7, so only its module and the modules inside it can name it.',
+    );
+  });
+
+  it('answers `symbol` for an underscored Python name with its docstring, and says another module can still import it', async () => {
+    checkout(PRIVATE_PYTHON);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', '_relaunch']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    const block = paragraph(out, /^_relaunch \[function\]\n/);
+    expect(block).toContain('declared, not exported, at packages/kit/kit/restart.py:4');
+    expect(block).toContain('def _relaunch(argv)');
+    expect(block).toContain('Start the program again in a process of its own.');
+    expect(block).toContain('Another module can still import it by name: a leading underscore keeps it out of `from … import *` only.');
   });
 
   it('writes out five declarations of one name and counts the rest', async () => {

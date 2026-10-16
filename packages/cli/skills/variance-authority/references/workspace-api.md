@@ -255,9 +255,11 @@ specifier before it is the import line you will write, and it goes to
 `symbol --name Viewport`, not `symbol --name @variance-authority/core/format`. An
 unpublished line has a `path:line` instead of a specifier: open the file, or
 pass its name to `symbol` and `uses`, which answer it from the source index.
-A line under *declared … without being exported* is a name only its own file
-can use: `symbol` gives its signature, and `uses` says no other file can import
-it.
+A line under *declared … without being exported* is a name its file does not
+export, matched by its name or its documentation: `symbol` gives its signature
+and who can reach it, which is only that file in JavaScript and TypeScript, its
+module in Rust, and any module that spells it in Python; `uses` says the same in
+one line.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a

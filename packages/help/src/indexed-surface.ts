@@ -35,7 +35,8 @@ export function docOf(text: string, span: TextSpan | undefined): string | undefi
   const doc = text
     .slice(span.start, span.end)
     .split('\n')
-    .map((line) => line.replace(/^[ \t]*\*[ \t]?/, ''))
+    // A JSDoc or Javadoc block's `*` margin, or a Rust or Swift doc line's `///` or `//!`.
+    .map((line) => line.replace(/^[ \t]*(?:\/\/[/!]|\*)[ \t]?/, ''))
     .join('\n')
     .trim();
   return doc === '' ? undefined : doc;

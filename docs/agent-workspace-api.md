@@ -286,10 +286,13 @@ qualified path are not counted.
 
 A name a file declares at its top level and does not export, such as a helper
 only its own file calls, is answered from the source index. `docs_symbol` gives
-its kind, the file and line that declare it, its signature and what is written
-above it; `docs_uses` says that nothing outside that file can import it;
-`docs_search` lists it after the exported names, under a heading that says it is
-not exported.
+its kind, the file and line that declare it, its signature, what is written
+above it, and who can reach it under the file's language. Nothing outside a
+JavaScript or TypeScript file can import it. A Rust item that is not `pub` is
+named only by its module and the modules inside it. A Python module can still
+import an underscored name by spelling it. `docs_uses` says the same in one
+line. `docs_search` lists the name after the exported ones, under a heading that
+says it is not exported, when the name or its documentation holds the query.
 
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
