@@ -108,6 +108,13 @@ pub struct HeldMemberUse {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct HeldOwnUse {
+    name: String,
+    #[serde(default)]
+    line: u32,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct HeldParse {
     requests: Vec<HeldRequest>,
     exports: Option<Vec<HeldExport>>,
@@ -124,6 +131,8 @@ pub struct HeldParse {
     member_declarations: Vec<HeldMemberDeclaration>,
     #[serde(default, rename = "memberUses")]
     member_uses: Vec<HeldMemberUse>,
+    #[serde(default, rename = "ownUses")]
+    own_uses: Vec<HeldOwnUse>,
     unknown: Option<String>,
     #[serde(default)]
     size: Option<crate::source_size::Size>,
@@ -166,6 +175,7 @@ impl ParseRow for HeldParse {
             values.insert(&used.of);
             values.insert(&used.how);
         }
+        values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
         values.extend(self.declares.iter().flatten().map(String::as_str));
         values.extend(self.unknown.as_deref());
     }
@@ -208,6 +218,9 @@ impl ParseRow for HeldParse {
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
+        }
+        for used in &self.own_uses {
+            into.own_use(id(&used.name), used.line);
         }
     }
 

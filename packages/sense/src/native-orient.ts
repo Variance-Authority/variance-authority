@@ -401,6 +401,16 @@ export interface NativeImporters {
   uses: NativeNameUse[];
   /** Every file that passes the name on, in code-unit order; none of the files asked about. */
   through: string[];
+  /** Every line of a file asked about that uses the name it declares, by file in code units, then by line. */
+  inFile: NativeInFile[];
+}
+
+/** One line of a file that uses a name the file declares at its top level. */
+export interface NativeInFile {
+  at: string;
+  line: number;
+  by: string;
+  kind: 'story' | 'test' | 'source';
 }
 
 /** An import of a file rather than an entry, with the file it resolved to when the index recorded one. */

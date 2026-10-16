@@ -61,6 +61,7 @@ mod held;
 mod help_declared;
 mod help_member_uses;
 mod help_members;
+mod help_own_uses;
 mod help_publish;
 mod help_search;
 mod help_usage;

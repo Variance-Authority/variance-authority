@@ -144,7 +144,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                 };
                 let line = line_of(*child);
                 let shared = published(*child, source);
-                for (path, local) in used(argument, source, &[]) {
+                for (path, local, _) in used(argument, source, &[]) {
                     let value = path.join("::");
                     let last = path.last().cloned().unwrap_or_else(|| value.clone());
                     let local = local.unwrap_or_else(|| last.clone());
@@ -279,13 +279,15 @@ fn unquoted(text: &str) -> String {
     rest.strip_suffix('"').unwrap_or(rest).to_string()
 }
 
-/// One `use` argument flattened into the item paths it names.
-fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>)> {
+/// One `use` argument flattened into the item paths it names, each with the
+/// name it binds when it renames one, and whether it is a `*`, whose path is
+/// the module it takes every item of.
+pub(super) fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>, bool)> {
     match node.kind() {
         "scoped_identifier" => {
             let mut path = prefix.to_vec();
             path.extend(segments(Some(node), source));
-            vec![(without_self(path), None)]
+            vec![(without_self(path), None, false)]
         }
         "scoped_use_list" => {
             let mut base = prefix.to_vec();
@@ -308,7 +310,7 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
             let alias = node
                 .child_by_field_name("alias")
                 .map(|alias| text_of(alias, source).to_string());
-            vec![(without_self(path), alias)]
+            vec![(without_self(path), alias, false)]
         }
         "use_wildcard" => {
             // `use a::b::*` — the module is the whole path, and the `*` names no item.
@@ -317,7 +319,7 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
                 Some(inner) => {
                     let mut path = prefix.to_vec();
                     path.extend(segments(Some(*inner), source));
-                    vec![(without_self(path), None)]
+                    vec![(without_self(path), None, true)]
                 }
             }
         }
@@ -328,7 +330,7 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
             }
             let mut path = prefix.to_vec();
             path.extend(own);
-            vec![(without_self(path), None)]
+            vec![(without_self(path), None, false)]
         }
     }
 }

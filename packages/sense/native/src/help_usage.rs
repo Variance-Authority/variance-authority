@@ -262,6 +262,18 @@ pub struct Importers {
     /// Every file that passes the name on with `export … from`, under the name
     /// it exports, in code-unit order; none of the files asked about.
     pub through: Vec<String>,
+    /// Every line of one of the files asked about that uses the name the file
+    /// declares at its top level, by file in code units, then by line.
+    pub in_file: Vec<InFile>,
+}
+
+/// One line of a file that uses a name the file declares at its top level.
+#[napi(object)]
+pub struct InFile {
+    pub at: String,
+    pub line: u32,
+    pub by: String,
+    pub kind: String,
 }
 
 /// Every import, by any file on the chain, of `name` out of one of `files`:
@@ -277,16 +289,46 @@ pub struct Importers {
 /// `default`. A type-only re-export passes nothing on and is listed where it
 /// is written. Each file is followed once per name, so a cycle of re-exports
 /// ends.
+///
+/// A file asked about that declares the name uses it by scope, not by import,
+/// and the scan read those lines with its parse: they are `in_file`.
 pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
     // Every file is one origin, so a file passed the name by two of them is followed once.
     let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
         files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
-    let (found, through) = importers_from(root, layers, origins);
+    let folded = fold(layers);
+    let in_file = in_file(root, layers, &folded, files, name);
+    let (found, through) = importers_folded(root, layers, &folded, origins);
     let mut found: Vec<NameUse> = found.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
     let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
     through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    Importers { uses: found, through }
+    Importers { uses: found, through, in_file }
+}
+
+/// The lines of each of `files` that use `name`, a name the file declares.
+fn in_file(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, files: &[String], name: &str) -> Vec<InFile> {
+    let mut crossings: Vec<Crossing> = files
+        .iter()
+        .filter_map(|file| folded.get_key_value(file.as_str()))
+        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .collect();
+    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    crossings.dedup_by(|a, b| a.file == b.file);
+    join_parses(layers, &mut crossings);
+    let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
+    let owners = owners(root, &paths);
+    let mut found = Vec::new();
+    for crossing in &crossings {
+        let Some((layer, row)) = crossing.parse else { continue };
+        let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+        for at in parses.own_uses.range(row) {
+            if text.text(parses.own_use_name.at(at)) != name { continue; }
+            let (by, kind) = (owners.package_of(crossing.file), kind_of(crossing.file));
+            found.push(InFile { at: crossing.file.to_owned(), line: parses.own_use_line.at(at), by: by.to_owned(), kind: kind.to_owned() });
+        }
+    }
+    found
 }
 
 /// One use `importers_from` found, of the `origin` it was asked for, with the
@@ -304,9 +346,17 @@ pub(crate) struct Taken {
 pub(crate) fn importers_from(
     root: &str,
     layers: &[Layer],
+    wanted: HashMap<String, HashMap<String, HashSet<usize>>>,
+) -> (Vec<Taken>, HashSet<String>) {
+    importers_folded(root, layers, &fold(layers), wanted)
+}
+
+fn importers_folded(
+    root: &str,
+    layers: &[Layer],
+    folded: &HashMap<&str, At>,
     mut wanted: HashMap<String, HashMap<String, HashSet<usize>>>,
 ) -> (Vec<Taken>, HashSet<String>) {
-    let folded = fold(layers);
     let mut seen: HashSet<(String, String, usize)> = HashSet::new();
     for (file, names) in &wanted {
         for (name, origins) in names {
@@ -315,7 +365,7 @@ pub(crate) fn importers_from(
     }
     let (mut found, mut through) = (Vec::new(), HashSet::new());
     while !wanted.is_empty() {
-        let (uses, passed) = importers_of(root, layers, &folded, &wanted);
+        let (uses, passed) = importers_of(root, layers, folded, &wanted);
         found.extend(uses);
         wanted = HashMap::new();
         for (file, exported, origin) in passed {

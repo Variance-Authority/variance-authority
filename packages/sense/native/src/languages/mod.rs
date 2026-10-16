@@ -14,6 +14,7 @@
 pub mod jvm;
 pub mod python;
 pub mod rust;
+pub mod rust_uses;
 pub mod shape;
 pub mod size;
 pub mod swift;
@@ -179,7 +180,13 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
         Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source)),
         Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source)),
     };
-    Some(Read { size: Some(size::size_of(source, &tree, grammar)), symbols, harvested: true, ..read })
+    // FIXME: only Rust reads its own uses; Python, Swift and the JVM languages
+    // answer `ask uses` with what other files import alone.
+    let own_uses = match grammar {
+        Grammar::Rust => rust_uses::own_uses(&tree, source),
+        Grammar::Python | Grammar::Swift | Grammar::Java | Grammar::Kotlin => Vec::new(),
+    };
+    Some(Read { size: Some(size::size_of(source, &tree, grammar)), symbols, harvested: true, own_uses, ..read })
 }
 
 /// The targets a `Package.swift` declares, or nothing when it does not parse.

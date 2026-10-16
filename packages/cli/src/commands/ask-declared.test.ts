@@ -169,7 +169,8 @@ describe('variance ask about a name declared and not exported', () => {
     const both = await run(['ask', 'intersection', 'uses --name tally', 'discover --from packages/kit/src/money/b.ts']);
     expect(both.err).toBe('');
     expect(both.out).toContain('1 file in all of them.');
-    expect(both.out).toContain('packages/kit/src/money/b.ts — 1: line 3 · 2: the file');
+    // Line 1 calls the `tally` its own file declares on line 3, so `uses` puts both lines in.
+    expect(both.out).toContain('packages/kit/src/money/b.ts — 1: lines 1, 3 · 2: the file');
   });
 
   it('answers `symbol` with a declaration in source before one in a test', async () => {

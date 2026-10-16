@@ -82,6 +82,12 @@ const PARSED: Parsed = {
     { name: 'hydrateLater', line: 33, of: 'LazyShell', how: 'write' },
     { name: 'paintOnce', line: 35, of: 'Renamed', how: 'destructure' },
   ],
+  // A name and lines no other column holds, so a column dropped or read in
+  // place of another fails here.
+  ownUses: [
+    { name: 'shadeOwn', line: 41 },
+    { name: 'shadeOwn', line: 43 },
+  ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.

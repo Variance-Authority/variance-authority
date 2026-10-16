@@ -72,7 +72,7 @@
 
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { native, nativeRefusal } from './addon.js';
-import type { SourceSize } from './cache.js';
+import type { OwnUse, SourceSize } from './cache.js';
 import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { ImportDiff } from './taint/index.js';
 
@@ -242,6 +242,9 @@ export interface Read {
 
   /** What the file mocks and loads for real, read off the same tree. Recorded, never applied. */
   readonly mocks?: ImportDiff;
+
+  /** Every line that uses a name the file declares at its top level. Absent when there are none. */
+  readonly ownUses?: readonly OwnUse[];
 
   /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;

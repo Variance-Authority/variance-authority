@@ -55,6 +55,7 @@ oxc_ast = "0.144.0"
 oxc_ast_visit = "0.144.0"
 oxc_parser = "0.144.0"
 oxc_resolver = "=11.24.2"
+oxc_semantic = "0.144.0"
 oxc_span = "0.144.0"
 oxc_syntax = { version = "0.144.0", features = ["to_js_string"] }
 rayon = "1"
