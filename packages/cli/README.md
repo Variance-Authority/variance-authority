@@ -217,8 +217,10 @@ Without the flag a generation is reused for one hour before the next source
 question refreshes it. A question refused from a reused generation, on `ask`
 or `serve`, is asked again of one made now, with the dependency lexicon built
 when it is missing or behind, before the refusal is given; on `ask` that holds
-under `--changed-file` and `--taint-file` too. When neither can be done, the
-refusal says the checkout was not compared with the generation, and why. An injected
+under `--changed-file` and `--taint-file` too. When the checkout cannot be read
+again, the refusal says it was not compared with the generation, and why; when
+the lexicon cannot be built, it says the installed packages were not compared,
+and why. An injected
 `AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
 named, `search` is the exception: it always reads the published generation,
 whatever its age, never scans, and says so on the same line. It refuses when

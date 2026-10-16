@@ -35,7 +35,7 @@ const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkou
 describe('caughtUp', () => {
   it('asks again, of a current generation, a refusal from one made before the question', async () => {
     const started = Date.now();
-    expect(await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => current)).toEqual({ again: true });
+    expect(await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => current)).toEqual({ subject: true });
   });
 
   it('says the checkout was not compared, and why, when reading it again fails', async () => {
@@ -43,18 +43,19 @@ describe('caughtUp', () => {
     const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => {
       throw new Error('a manifest is half-written');
     });
-    expect(caught?.again).toBeUndefined();
+    expect(caught?.subject).toBeUndefined();
     expect(caught?.footer).toMatch(UNREAD);
     expect(caught?.footer).toContain('a manifest is half-written');
   });
 
-  it('says the checkout was not compared, and why, when its dependency lexicon cannot be refreshed', async () => {
+  it('says the installed packages were not compared, and why, when the dependency lexicon cannot be refreshed', async () => {
     const started = Date.now();
-    // A directory git does not hold has no installed packages to list.
+    // A directory git does not hold has no installed packages to list. The
+    // generation was made during the question, so its source was compared.
     const caught = await caughtUp(new Date(started + 1).toISOString(), started, fixture.cache(), async () => 'asked again');
-    expect(caught?.again).toBeUndefined();
-    expect(caught?.footer).toMatch(UNREAD);
-    expect(caught?.footer).toContain('dependency lexicon');
+    expect(caught?.subject).toBeUndefined();
+    expect(caught?.footer).toMatch(/^Installed packages not compared with the checkout: the dependency lexicon could not be refreshed \(.+\)\.$/u);
+    expect(caught?.footer).not.toMatch(/^Snapshot/u);
   });
 
   it('lets a refusal stand from a generation made during the question, or from none', async () => {

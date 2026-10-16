@@ -182,8 +182,8 @@ if (asking(verb) && verb !== undefined) {
       const caught = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering);
       const footer = caught?.footer ?? (justAnswer && first.at !== undefined ? snapshotLine(first.at, true) : undefined);
       try {
-        if (caught?.again === undefined) throw refusal;
-        answer = caught.again.answer();
+        if (caught?.subject === undefined) throw refusal;
+        answer = caught.subject.answer();
       } catch (still) {
         if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
         throw still;

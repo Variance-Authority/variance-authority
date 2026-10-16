@@ -20,11 +20,13 @@ import { refreshDependencyLexicon } from './dependency-lexicon.js';
  * `current` saying a generation made now is wanted rather than the one in hand.
  *
  * Returns undefined when nothing it read can have lagged the checkout, so the
- * refusal stands as it is. Otherwise `again` is what was asked again, and
- * `footer` is the line every refusal of the question ends with when the
- * checkout could not be compared: the lexicon could not be refreshed, or the
- * second reading failed. A refusal from a reading that lagged and could not be
- * brought up to date is not a fact about the checkout, and says so.
+ * refusal stands as it is. Otherwise `subject` is what was asked again, and
+ * `footer` is what every refusal of the question ends with when part of the
+ * checkout could not be compared: the second reading failed, which dates the
+ * refusing generation and says why, or the lexicon could not be refreshed,
+ * which says the installed packages were not compared. A refusal from a
+ * reading that could not be brought up to date is not a fact about the
+ * checkout, and says so.
  */
 export async function caughtUp<Answer>(
   refusedAt: string | undefined,
@@ -34,29 +36,36 @@ export async function caughtUp<Answer>(
 ): Promise<CaughtUp<Answer> | undefined> {
   if (refusedAt === undefined) return undefined;
   const reused = Date.parse(refusedAt) < started;
-  let unread: string | undefined;
+  // Two comparisons, each said on its own line when it could not be made: the
+  // source against the generation the refusal came from, and the installed
+  // packages against the lexicon whichever reading refuses consults.
+  let packages: string | undefined;
   let refreshed = false;
   if (lexiconRoot !== undefined) {
     try {
       refreshed = !(await refreshDependencyLexicon(lexiconRoot)).unchanged;
     } catch (failure) {
-      unread = `its dependency lexicon could not be refreshed: ${messageOf(failure)}`;
+      packages = `Installed packages not compared with the checkout: the dependency lexicon could not be refreshed (${messageOf(failure)}).`;
     }
   }
-  const footer = (why: string): string => snapshotLine(refusedAt, why);
-  if (!reused && !refreshed) return unread === undefined ? undefined : { footer: footer(unread) };
+  if (!reused && !refreshed) return packages === undefined ? undefined : { footer: packages };
   try {
-    return { again: await again(reused), ...(unread === undefined ? {} : { footer: footer(unread) }) };
+    return { subject: await again(reused), ...(packages === undefined ? {} : { footer: packages }) };
   } catch (failure) {
-    return { footer: footer(`it could not be read again: ${messageOf(failure)}`) };
+    const source = snapshotLine(refusedAt, `it could not be read again: ${messageOf(failure)}`);
+    return { footer: packages === undefined ? source : `${source}\n${packages}` };
   }
 }
 
-/** What {@link caughtUp} asked again, and what a refusal that still stands says. */
+/**
+ * What {@link caughtUp} asked again, and what a refusal that still stands says.
+ * The shape is the one `serve` from `@variance-authority/mcp` takes back from
+ * its `again` hook, so a server hands it on as it is.
+ */
 export interface CaughtUp<Answer> {
-  /** The question asked again of a reading brought up to date; absent when none could be made. */
-  readonly again?: Answer;
-  /** The line a refusal ends with when the checkout could not be compared, and why. */
+  /** What the question was asked again of, brought up to date; absent when nothing could be read. */
+  readonly subject?: Answer;
+  /** The lines a refusal ends with when part of the checkout could not be compared, and why. */
   readonly footer?: string;
 }
 

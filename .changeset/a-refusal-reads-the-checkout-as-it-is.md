@@ -16,7 +16,8 @@ the checkout now, with the dependency lexicon built when it is missing or
 behind, and only that answer is given, under `--changed-file` and
 `--taint-file` too; an answer that found its name still comes from the reused
 generation, so only a refusal pays for the reading. When that reading or the
-lexicon fails, the refusal says the checkout was not compared, and why.
+lexicon fails, the refusal says which was not compared with the checkout, and
+why.
 Under `--just-answer` or `justAnswer`, and on `search` when no changed files are
 named, every answer and refusal says the checkout was not compared with the
 generation, and `search --format json` carries `compared: false`. The help
