@@ -150,6 +150,7 @@ fn want(held: &mut Gathering, value: &str, local: &str, line: u32) {
         // Always. See the module doc: nothing in the statement separates this
         // repository's packages from the platform's.
         guessed: true,
+        item: false,
     });
 }
 

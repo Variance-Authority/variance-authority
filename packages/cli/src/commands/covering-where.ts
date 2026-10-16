@@ -31,6 +31,7 @@ import {
   type NameGrammar,
 } from '@variance-authority/sense/test-selection';
 import type { WhereCondition } from '../covering-args.js';
+import { targetText } from './covering-at.js';
 import type { Covering } from './covering.js';
 
 type CasePrecondition = NonNullable<ExecutionTest['preconditions']>[number];
@@ -217,5 +218,5 @@ function coveredText(answer: Covering): string {
   if (answer.changed !== undefined) return answer.since === undefined ? 'the change' : `the change since ${answer.since}`;
   const target = answer.target;
   if (target === undefined) return answer.file ?? '';
-  return `${'line' in target ? `line ${target.line}` : `function ${target.function}`} of ${answer.file ?? ''}`;
+  return `${targetText(target)} of ${answer.file ?? ''}`;
 }

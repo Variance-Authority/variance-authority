@@ -1,6 +1,7 @@
 import {
   EDGE_KINDS,
   NOTHING,
+  RUNTIME_EDGES,
   WHOLE,
   carried,
   dependentsOf,
@@ -465,7 +466,7 @@ function importersUntil(
     relations.dependents,
     [[seed, WHOLE]],
     { hand: (node) => (answers(node, trailOf(traversal, node)) ? NOTHING : WHOLE) },
-    walk,
+    { ...walk, through: RUNTIME_EDGES },
   );
   for (const node of entered) {
     walk.mask[node] = 0;

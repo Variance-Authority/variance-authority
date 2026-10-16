@@ -87,6 +87,19 @@ describe('variance_source_tests', () => {
     expect(text).toContain('test/cart.test.ts [staff]');
   });
 
+  it('answers a scope with the cases that entered a recorded function under it', () => {
+    const scoped: ExecutionIndex = {
+      ...INDEX,
+      modules: [{
+        file: 'src/cart/total.ts',
+        blocks: [{ ...INDEX.modules[0]!.blocks[0]!, name: 'Cart/priceOf' }],
+      }],
+    };
+
+    expect(sourceTests.run(scoped, { file: 'src/cart/total.ts', function: 'Cart' })).toContain('2 named test(s) reached function Cart');
+    expect(sourceTests.run(scoped, { file: 'src/cart/total.ts', function: 'Car' })).toBe('Function Car is not indexed in src/cart/total.ts.');
+  });
+
   it('answers a whole file as compact source ranges', () => {
     const text = sourceTests.run(INDEX, { file: 'src/cart/total.ts' });
 

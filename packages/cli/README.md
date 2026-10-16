@@ -148,7 +148,7 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
@@ -211,15 +211,27 @@ re-running anything and without a second server.
 For source questions, `justAnswer` and its `--just-answer` spelling read the
 last published workspace generation regardless of age. They perform no Git
 status or refresh, refuse when no generation exists, and print when the value
-was produced. Without the flag a generation is reused for one hour before the
-next source question refreshes it. `search` is the exception: it always reads
-the published generation, whatever its age, and never scans. It refuses when
-nothing is published. `--changed-file` and `--taint-file` still ask it for a new
-generation by name.
+was produced, saying under an answer or a refusal that the checkout was not
+compared with it; `search --format json` carries `compared: false` instead.
+Without the flag a generation is reused for one hour before the next source
+question refreshes it. A question refused from a reused generation, on `ask`
+or `serve`, is asked again of one made now, with the dependency lexicon built
+when it is missing or behind, before the refusal is given; on `ask` that holds
+under `--changed-file` and `--taint-file` too. When the checkout cannot be read
+again, the refusal says it was not compared with the generation, and why; when
+the lexicon cannot be built, it says the installed packages were not compared,
+and why. An injected
+`AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
+named, `search` is the exception: it always reads the published generation,
+whatever its age, never scans, and says so on the same line. It refuses when
+nothing is published. `--changed-file` and `--taint-file` still ask it for a
+new generation by name.
 
 A library host that injects `AskRequest.source` receives `SourceReadOptions`.
-Its `tree` field is true only when the selected source tool names a `from` or
-`to` path, so the injected reader can avoid loading the graph for every other
+Its `current` field is true when a question was refused from a generation
+older than the question, and asks for one made from the checkout now. Its
+`tree` field is true only when the selected source tool names a `from` or `to`
+path, so the injected reader can avoid loading the graph for every other
 question and return it through `Sourced.tree` only then.
 
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
@@ -398,6 +410,12 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 
 Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before is folded into one line.
+
+`--line 40-60` asks a run of lines, and `--function Cart` a class: every case
+that entered one of its recorded methods. A line whose edit charges the
+module's own region, such as a module-level statement or the first line of a
+top-level function, is answered at file grain, with the cases that loaded the
+file, and the answer says so.
 
 A module the run loaded without instrumenting it, such as one named in
 `unprobed` or one whose text the run could not parse, has no recorded line. It is a
