@@ -135,6 +135,57 @@ describe('variance ask about a name declared and not exported', () => {
     );
   });
 
+  it('answers `uses` with a declaration and a member of the same name, each where it is', async () => {
+    checkout({
+      'packages/kit/src/money/tool.ts': 'export class Tool {\n  files(): number {\n    return 0;\n  }\n}\n',
+      'packages/kit/src/money/count.ts': 'export const count = (): number => files();\n\nfunction files(): number {\n  return 1;\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'files']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`files` is declared, not exported, at packages/kit/src/money/count.ts:3, so nothing outside that file can import it.');
+    expect(out).toContain('`files` is a member too, declared in 1 place:');
+    expect(out).toContain('packages/kit/src/money/tool.ts:2');
+  });
+
+  it('answers `uses` with one line per declaration, and gives `intersection` each of them', async () => {
+    checkout({
+      'packages/kit/src/money/a.ts': 'export const a = (): number => tally();\n\nfunction tally(): number {\n  return 0;\n}\n',
+      'packages/kit/src/money/b.ts': 'export const b = (): number => tally();\n\nconst tally = (): number => 1;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', 'tally']);
+    expect(out).toContain(
+      [
+        '`tally` is declared, not exported, in 2 files:',
+        '  packages/kit/src/money/a.ts:3, so nothing outside that file can import it',
+        '  packages/kit/src/money/b.ts:3, so nothing outside that file can import it',
+      ].join('\n'),
+    );
+
+    const both = await run(['ask', 'intersection', 'uses --name tally', 'discover --from packages/kit/src/money/b.ts']);
+    expect(both.err).toBe('');
+    expect(both.out).toContain('1 file in all of them.');
+    expect(both.out).toContain('packages/kit/src/money/b.ts — 1: line 3 · 2: the file');
+  });
+
+  it('answers `symbol` with a declaration in source before one in a test', async () => {
+    checkout({
+      'packages/kit/src/money/a.test.ts': 'function relaunch(): number {\n  return 0;\n}\n\nexport {};\n',
+      'packages/kit/src/money/z.ts': 'export const z = (): number => relaunch();\n\nfunction relaunch(): number {\n  return 1;\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'symbol', '--name', 'relaunch']);
+    const source = out.indexOf('declared, not exported, at packages/kit/src/money/z.ts:3');
+    const test = out.indexOf('declared, not exported, at packages/kit/src/money/a.test.ts:1');
+    expect(source).toBeGreaterThanOrEqual(0);
+    expect(test).toBeGreaterThan(source);
+  });
+
   it('answers `search` with a declaration whose documentation holds the words', async () => {
     checkout(RELAUNCH);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -216,6 +267,21 @@ describe('variance ask about a name declared and not exported', () => {
       expect(block).toContain('Who can reach it is not recorded: its reader cannot tell how this file hands it out.');
       expect(block).not.toContain('can import it');
       expect(block).not.toContain('can name it');
+    }
+  });
+
+  it('refuses a name found nowhere with the files whose declarations were not read', async () => {
+    checkout({
+      ...RELAUNCH,
+      // Past the largest file a read opens, so the index holds no parse of it.
+      'packages/kit/src/money/huge.ts': `export const huge = 1;\n${'// filler line\n'.repeat(80_000)}`,
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const unread = 'The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/kit/src/money/huge.ts.';
+    for (const question of [['symbol', '--name', 'nowhere'], ['uses', '--name', 'nowhere'], ['search', '--query', 'nowhere']]) {
+      const { out, err } = await run(['ask', ...question]);
+      expect(`${out}${err}`).toContain(unread);
     }
   });
 

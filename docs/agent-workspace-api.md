@@ -296,9 +296,11 @@ import it. A Rust item is named only by its module and the modules inside it.
 Another Python module can still import the name by spelling it. A script or
 CommonJS file and a `macro_rules!` hand a name out in ways their readers cannot
 tell, so the answer says who can reach it is not recorded. `docs_uses`
-answers with the same file, line and rule in one sentence, and lists no import
-sites; for a Python name it gives the `ask grep` that finds the modules spelling
-it. `docs_search` lists the name after the exported ones, under a heading that
+answers with the same file, line and rule in one sentence, before any member
+declared by that name, and lists no import sites; for a Python name it gives the
+`ask grep` that finds the modules spelling it. Each answer names the files whose
+declarations were not read, such as one over the size a read opens, since the
+name may be declared there. `docs_search` lists the name after the exported ones, under a heading that
 says it is not exported, when the name or its documentation holds the query, and
 only when its file is in the area `from` or `to` names.
 

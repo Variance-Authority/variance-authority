@@ -57,7 +57,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
                 "mod_item" | "macro_definition" => node.child_by_field_name("name").map(|name| text_of(name, source).to_string()),
                 _ => named(node, source),
             }?;
-            let mut symbol = declaration(&children, at, name, kind_of(node.kind()), source, &["attribute_item"]);
+            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, &["attribute_item"]);
             // A `macro_rules!` is in scope by where it is written, and
             // `#[macro_export]` or `#[macro_use]` carry it further: never by
             // the module rule an item's visibility follows.
@@ -213,7 +213,7 @@ fn want(held: &mut Gathering, request: Request) {
 }
 
 /// Item kinds whose `name` field is a name this crate can publish.
-const ITEMS: [&str; 8] = [
+pub(super) const ITEMS: [&str; 8] = [
     "function_item",
     "struct_item",
     "enum_item",

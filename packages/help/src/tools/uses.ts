@@ -201,8 +201,11 @@ export const uses: Tool<Help> = {
     const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
     const answer = usesOf(help, input, invocation?.root);
     const { name, members, exported, found, byPath, kept } = answer;
-    if (kept.length > 0) return keptLine(name, kept);
     const declared = members.declared.length;
+    if (kept.length > 0) {
+      if (declared === 0) return keptLine(name, kept);
+      return [keptLine(name, kept), '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, name)].join('\n');
+    }
     if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
       return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, name)].join('\n');
     }
@@ -314,11 +317,12 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   // name is a lookup in the source index, made whether or not an export has it.
   const members: Members = membersOf(root, name, wanted);
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
-    if (members.declared.length > 0) return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members, kept: [] };
     // A name no file exports may be one a file declares and keeps to itself,
-    // which the source index holds with the file's parse.
+    // which the source index holds with the file's parse, as well as a member.
     const kept = declaredAt(root, name, wanted);
-    if (kept.length > 0) return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members, kept };
+    if (kept.length > 0 || members.declared.length > 0) {
+      return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members, kept };
+    }
     const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
     throw new Error(`${unfound(help, name, wanted)}${unreadMembers}${unreadNote(root, name)}`);
   }

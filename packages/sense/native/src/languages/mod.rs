@@ -50,9 +50,11 @@ pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static st
 }
 
 /// What a declaration's node kind is called in a symbol, the same word across
-/// the grammars that spell it differently.
-pub fn kind_of(node: &str) -> &'static str {
-    match node {
+/// the grammars that spell it differently; nothing for a node that holds a
+/// name and declares nothing, such as Rust's `extern crate`, which a reader
+/// then leaves out.
+pub fn kind_of(node: &str) -> Option<&'static str> {
+    Some(match node {
         "function_item" | "function_definition" | "function_declaration" => "function",
         "struct_item" => "struct",
         "enum_item" | "enum_declaration" => "enum",
@@ -70,8 +72,8 @@ pub fn kind_of(node: &str) -> &'static str {
         "object_declaration" => "object",
         "protocol_declaration" => "protocol",
         "property_declaration" => "property",
-        _ => "declaration",
-    }
+        _ => return None,
+    })
 }
 
 /// A declaration's head: from where it starts to where its body or its value
@@ -166,4 +168,23 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
 pub fn swift_targets(source: &str) -> Option<Vec<swift::Target>> {
     let tree = grammar::parse(Grammar::Swift, source)?;
     Some(swift::targets(source, &tree))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kind_of;
+
+    /// A node a reader admits as a declaration and `kind_of` has no word for
+    /// would be left out of the symbols without a sound.
+    #[test]
+    fn every_node_a_reader_declares_has_a_kind() {
+        let admitted = super::rust::ITEMS.iter()
+            .chain(&["mod_item", "macro_definition"])
+            .chain(super::swift::DECLARATIONS.iter())
+            .chain(super::jvm::DECLARATIONS.iter())
+            .chain(&["function_definition", "class_definition"]);
+        for node in admitted {
+            assert!(kind_of(node).is_some(), "{node} has no kind");
+        }
+    }
 }

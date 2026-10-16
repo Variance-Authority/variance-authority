@@ -49,8 +49,8 @@ pub struct DeclaredName {
 pub struct Declared {
     /// Ordered by file in code units, then by line.
     pub names: Vec<DeclaredName>,
-    /// Files on the chain whose parse holds no declarations because none were
-    /// harvested: unknown, not empty. Code-unit order.
+    /// Files on the chain whose declarations were not read — no parse, or one
+    /// its reader did not harvest: unknown, not empty. Code-unit order.
     pub unread: Vec<String>,
 }
 
@@ -117,7 +117,10 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
     let found: Vec<(Vec<(usize, &str, usize)>, Option<&str>)> = crossings
         .par_iter()
         .map(|crossing| {
-            let Some((layer, row)) = crossing.parse else { return (Vec::new(), None) };
+            // A file with no parse was declined, by its size or its bytes, or
+            // could not be opened: what it declares is as unknown as in a parse
+            // its reader did not harvest.
+            let Some((layer, row)) = crossing.parse else { return (Vec::new(), Some(crossing.file)) };
             let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
             if parses.harvested[row] != 1 { return (Vec::new(), Some(crossing.file)) }
             let own: Vec<&str> = if parses.exports_present[row] == 1 {

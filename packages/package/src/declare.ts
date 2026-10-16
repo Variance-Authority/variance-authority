@@ -53,7 +53,6 @@ export type DeclarationKind =
   | 'protocol'
   | 'actor'
   | 'property'
-  | 'declaration'
   | 'variable';
 
 /** One name, as the file that publishes it declares it. */

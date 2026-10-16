@@ -115,11 +115,22 @@ export function declaredLine(held: DeclaredMatch): string {
   return `${held.name} [${held.kind}] — ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
 }
 
-/** The sentence that says some files' declarations were not read, or nothing when every file's were. */
+/** How many unread files `unreadLine` names before it counts the rest. */
+const UNREAD_NAMED = 3;
+
+/**
+ * The sentence that says some files' declarations were not read, and which,
+ * or nothing when every file's were. Indexing again reads none of them: a file
+ * is declined by its size or its bytes, or its reader did not harvest it.
+ */
 export function unreadLine(unread: readonly string[]): readonly string[] {
   if (unread.length === 0) return [];
   const files = unread.length === 1 ? '1 file' : `${unread.length} files`;
-  return [`The declarations of ${files} were not read into the source index, so a name declared there is not known; run \`variance index\`.`];
+  const named = unread.slice(0, UNREAD_NAMED).join(', ');
+  const more = unread.length - UNREAD_NAMED;
+  return [
+    `The declarations of ${files} were not read into the source index, so a name declared there is not known: ${named}${more > 0 ? ` and ${more} more` : ''}.`,
+  ];
 }
 
 function spanOf(start: number | null | undefined, end: number | null | undefined) {

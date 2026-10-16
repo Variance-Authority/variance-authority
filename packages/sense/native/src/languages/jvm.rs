@@ -119,7 +119,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
         .filter_map(|at| {
             let node = children[at];
             let name = declared(node, source)?;
-            Some(declaration(&children, at, name, kind_of(node.kind()), source, &[]))
+            Some(declaration(&children, at, name, kind_of(node.kind())?, source, &[]))
         })
         .collect()
 }
@@ -154,7 +154,7 @@ fn ends_wide(text: &str) -> bool {
 }
 
 /// Declarations a file publishes to its package and to anything importing it.
-const DECLARATIONS: [&str; 9] = [
+pub(super) const DECLARATIONS: [&str; 9] = [
     "class_declaration",
     "interface_declaration",
     "enum_declaration",

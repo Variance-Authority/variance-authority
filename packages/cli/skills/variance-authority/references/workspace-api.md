@@ -263,6 +263,8 @@ and who can reach it, which is only that file in a JavaScript or TypeScript
 module, its module in Rust, and any module that spells it in Python; `uses` says
 the same in one line. A script or CommonJS file and a `macro_rules!` are said to
 have no recorded reach: their readers cannot tell how the file hands the name out.
+A file whose declarations were not read, such as one over the size a read
+opens, is named under the answer, since the name may be declared there.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a

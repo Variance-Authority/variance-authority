@@ -69,10 +69,10 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
         };
         match node.kind() {
             "function_definition" | "class_definition" => {
-                let Some(name) = node.child_by_field_name("name") else { continue };
+                let (Some(name), Some(kind)) = (node.child_by_field_name("name"), kind_of(node.kind())) else { continue };
                 found.push(SourceSymbol {
                     name: text_of(name, source).to_string(),
-                    kind: kind_of(node.kind()),
+                    kind,
                     line: line_of(node),
                     signature: Some(head(node, source)),
                     doc: docstring(node, source),

@@ -78,7 +78,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
             let name = declared(node, source)?;
             let kind = match node.kind() {
                 "class_declaration" => nominal(node)?,
-                other => kind_of(other),
+                other => kind_of(other)?,
             };
             Some(declaration(&children, at, name, kind, source, &[]))
         })
@@ -146,7 +146,7 @@ fn want(requests: &mut Vec<Request>, seen: &mut HashSet<String>, value: &str, lo
 /// `class_declaration` is every nominal type in this grammar — `struct`, `class`,
 /// `enum` and `actor` all reach it — and the keyword that separates them is an
 /// anonymous node. Nothing here needs to tell them apart.
-const DECLARATIONS: [&str; 5] = [
+pub(super) const DECLARATIONS: [&str; 5] = [
     "class_declaration",
     "protocol_declaration",
     "typealias_declaration",

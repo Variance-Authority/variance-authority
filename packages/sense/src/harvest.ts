@@ -34,7 +34,6 @@ export type SourceSymbolKind =
   | 'protocol'
   | 'actor'
   | 'property'
-  | 'declaration'
   | 'variable';
 
 /**

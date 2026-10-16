@@ -35,9 +35,11 @@ are counted. `search` lists the declarations whose names or documentation hold
 the query under *N more names are declared somewhere in the repository without
 being exported*, after the exported ones, and within the area when `from` or
 `to` is given. `uses` answers with the file and line that declare it, and who
-can reach it. A declaration its own file exports, under its name or another, is
-left to the export lists. When a name is found nowhere and some files'
-declarations were not read, the refusal says so.
+can reach it, before any member declared by that name. A declaration its own
+file exports, under its name or another, is left to the export lists. When some
+files' declarations were not read — a file over the size a read opens, one that
+is not UTF-8, one its reader did not harvest — the answer or refusal names them,
+since a name may be declared there.
 
 `@variance-authority/sense` exports `declaredOf(root, query, { containing, files
 })`, which reads these declarations off the published source index, and a
