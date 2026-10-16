@@ -274,6 +274,8 @@ export interface Request {
   readonly request: string;
   /** The language the importing file was read as, which picks the algorithm. */
   readonly language: LanguageId;
+  /** The specifier is asked for as the item it names, as `Request.item` in `read.ts` says. */
+  readonly item?: boolean;
 }
 
 /**
@@ -296,7 +298,7 @@ export function resolveTo(input: Request): string | undefined {
  * a list, and the languages that can only ever return one return one.
  */
 export function resolveAll(input: Request): readonly string[] {
-  const { resolvers, root, from, request, language } = input;
+  const { resolvers, root, from, request, language, item } = input;
 
   // The importing file, not its directory. Under project references the config
   // that governs a file is chosen by matching the file against each referenced
@@ -314,11 +316,11 @@ export function resolveAll(input: Request): readonly string[] {
     asking.answers.clear();
   }
 
-  const key = `${language}\0${request}`;
+  const key = `${language}\0${item === true ? 'item' : ''}\0${request}`;
   const known = asking.answers.get(key);
   if (known !== undefined) return known;
 
-  const answer = resolved({ resolvers, root, from, request, language });
+  const answer = resolved({ resolvers, root, from, request, language, item });
   asking.answers.set(key, answer);
   return answer;
 }
@@ -329,8 +331,9 @@ function resolved(input: {
   readonly from: string;
   readonly request: string;
   readonly language: LanguageId;
+  readonly item: boolean | undefined;
 }): readonly string[] {
-  const { resolvers, root, from, request, language } = input;
+  const { resolvers, root, from, request, language, item } = input;
 
   if (OVER_THE_TREE.has(language)) {
     const world = resolvers.tree;
@@ -338,7 +341,7 @@ function resolved(input: {
     if (world === undefined || file === undefined) return [];
     switch (language) {
       case 'python': return resolvePython({ from: file, request, world });
-      case 'rust': return resolveRust({ from: file, request, world });
+      case 'rust': return resolveRust({ from: file, request, world, item });
       case 'swift': return resolveSwift({ from: file, request, world });
       default: return resolveJvm({ from: file, request, world });
     }
