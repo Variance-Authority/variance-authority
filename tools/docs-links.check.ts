@@ -73,6 +73,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'packages/lib/src/internal/math.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'save-bar.tsx': "a reader's own component, quoted from a sample test story",
   'packages/query-core/src/query.ts': "TanStack Query's own module, named by the case study",
+  'packages/query-devtools/src/contexts/PiPContext.tsx': "TanStack Query's own module, named by the case study",
   'packages/zod/src/v4/locales/ru.ts': "Zod's own module, named by the case study",
   'packages/resolution/attw.test.ts':
     'a test file in the Zod fork, named for why the record will not speak for it',

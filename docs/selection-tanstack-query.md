@@ -17,9 +17,9 @@ with 9.
 >   1,470. The record selects more than the walk on commits that change a
 >   manifest the Vite configuration reads, and one file more on every commit.
 > - Change one line in `query-core` and the record selects **9 test files**,
->   where `nx affected` selects 168. Declare a coarser
->   [precision](selecting.md#how-precisely-a-suite-selects) and the same line
->   runs 149, then 83.
+>   where `nx affected` selects 168. A coarser
+>   [precision](selecting.md#how-precisely-a-suite-selects) runs 83, then 149:
+>   the import graph adds nothing to what coverage already says.
 > - One commit of setup, and recording costs **1.08×** a suite run.
 
 Nothing in the repository was written with this in mind and no test was changed
@@ -95,28 +95,45 @@ by a handful, and which handful is different for every branch.
 Two orders of magnitude separate the two, and only something present while the
 tests ran can distinguish them.
 
-## The same line, at each precision
+## Two lines, at each precision
 
 A suite declares how precisely it selects with its
 [`precision`](selecting.md#how-precisely-a-suite-selects): a skipped test is a
 cost you cannot see, so you start coarse and move finer as the runs earn it.
 Every step reads the same record, so nothing is recorded again. Asked about the
-one-line change above, each step runs:
+one-line change above, and about one in the devtools' `PiPProvider`, in
+`packages/query-devtools/src/contexts/PiPContext.tsx`:
 
-| `precision` | A test runs when | test files run, of 188 |
-| --- | --- | --- |
-| `file` | it imports a changed file, or it loaded one | 149 |
-| `symbol` | it imports an export the change altered, or it loaded a changed file | 149 |
-| `file-use` | it loaded a changed file | 149 |
-| `function-use` | it entered the function a changed line is in | 83 |
-| `region-use` | it entered the region a changed line is in — the default | **9** |
+```diff
+-    disabled: props.disabled ?? false,
++    disabled: props.disabled === true,
+```
 
-Each step runs every test the next finer step runs. The three coarse steps tie
-here: every test that imports `query.ts`, through any chain, also loaded it, so
-the imports add nothing to what the record already holds. They part on a change
-to a file some importers never loaded. Here the cut comes from the two steps
-that read inside the file: 83 test files entered `Query.fetch`, and 9 entered
-the branch the edit changed.
+each step runs:
+
+| `precision` | A test runs when | `query.ts` | `PiPContext.tsx` |
+| --- | --- | --- | --- |
+| `file` | it imports a changed file, or it loaded one | 149 | 11 |
+| `symbol` | it imports an export the change altered, or it loaded a changed file | 149 | 11 |
+| `file-use` | it loaded a changed file | 149 | 7 |
+| `function-use` | it entered the function a changed line is in | 83 | 4 |
+| `region-use` | it entered the region a changed line is in — the default | **9** | **4** |
+
+Each step runs every test the next finer step runs, out of 188 test files.
+
+The two steps that read the import graph work, and here they buy nothing over
+coverage. `file-use` is what a coverage report already says: which tests loaded
+the file. `file` and `symbol` add only the tests that import a file without
+loading it, and Vitest loads what a test imports, so on `query.ts` every
+importer is a loader and the three tie at 149. The devtools open their panel
+through a lazy `import()`, so four tests import `PiPContext.tsx` and never load
+it: `file` runs them and `file-use` does not. `symbol` keeps them too, because
+they import the package's index, which re-exports the component that renders
+`PiPProvider`. Either way the graph runs more than coverage, never less.
+
+The relief starts inside the file. 83 test files entered `Query.fetch`, and 9
+the branch the edit changed; 4 entered `PiPProvider`, and nothing in it splits
+them further.
 
 To ask it yourself, record once on the
 [fork](https://github.com/Variance-Authority/tanstack-query-example):
@@ -127,7 +144,7 @@ cd tanstack-query-example && pnpm install
 pnpm vitest run                        # records
 ```
 
-Make the one-line edit, then ask once per step. The fork's
+Make either edit, then ask once per step. The fork's
 `variance.config.json` declares only this suite, so each write replaces nothing
 else:
 

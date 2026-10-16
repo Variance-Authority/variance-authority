@@ -317,8 +317,8 @@ false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
 declines the graph, so it cannot declare `file` or `symbol`, and the config is
 refused. To see what each step would select for your change, run `variance
 select` once per step, as [TanStack
-Query](selection-tanstack-query.md#the-same-line-at-each-precision) does for one
-line.
+Query](selection-tanstack-query.md#two-lines-at-each-precision) does for two
+lines.
 
 A [journey](journeys.md) file you hand to `variance select --execution` is read
 by its regions, whatever the suite declares: naming the file asks for that
