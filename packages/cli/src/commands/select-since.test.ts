@@ -1,10 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  cacheRootFor,
+  mainlineReadRoot,
+  testCoverageFile,
+  writeFetchedMainline,
+  writeTestCoverage,
+  type TestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { indexOutput } from './index-command.js';
 import { suiteJourney } from './resources.js';
@@ -108,6 +115,28 @@ describe('a record cut under probes this build does not place', () => {
     expect(narrowing?.probes?.startsWith(`\`${record}\` was cut under the probes \`${RETIRED}\``)).toBe(true);
     expect(narrowing?.probes).not.toMatch(/\.$/);
   });
+
+  it('names a current mainline record on this machine, and the flag that reads it', async () => {
+    const { root, head, git } = checkout();
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { shared: { kind: 'unit', carry: 'share' } } }));
+    git(['add', '-A']);
+    git(['commit', '--quiet', '-m', 'declare the shared suite']);
+    const at = git(['rev-parse', 'HEAD']);
+    await writeTestCoverage(testCoverageFile(root, { suite: 'shared' }), { ...snapshot(at), instrumentation: RETIRED });
+    const cache = cacheRootFor(root);
+    const published = join(mainlineReadRoot(cache, 'shared'), at, 'coverage.bin');
+    await writeTestCoverage(published, { ...snapshot(at), instrumentation: INSTRUMENTATION_ID });
+    await writeFetchedMainline(cache, 'shared', { mainline: 'main', commit: at, fetched: new Date().toISOString() });
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const { reading } = await selectSuite({ root, since: head, suite: 'shared' });
+
+    expect(selectionNotes(reading)).toContain(
+      `is on this machine at \`${published}\`, beneath this checkout's own, which is read first; \`--execution\` with that path reads it`,
+    );
+  });
 });
 
 const SOURCE = [
@@ -122,7 +151,8 @@ const SOURCE = [
 ].join('\n');
 
 function checkout(): { root: string; head: string; git: (args: readonly string[]) => string } {
-  const root = mkdtempSync(join(tmpdir(), 'va-select-since-'));
+  // The real path, as git names the top level: the cache a record is kept in is keyed by it.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-select-since-')));
   const git = (args: readonly string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git(['init', '--quiet', '--initial-branch', 'main']);
   git(['config', 'user.email', 'fixture@example.test']);

@@ -217,8 +217,9 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       reached = tests;
     });
   } catch (error) {
-    // An answer that the record holds nothing of the file is still the record's, and still carries the gap.
-    if (!(error instanceof OperatorError) || request.execution === undefined && error.kind === 'unrecorded') throw error;
+    // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
+    // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
+    if (!(error instanceof OperatorError) || !RECORD_SHAPED.has(error.kind ?? '')) throw error;
     const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
     const probes = await gapOf(request, from, undefined);
     if (probes === undefined) throw error;
@@ -246,6 +247,9 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   };
 }
 
+/** The refusals that say what the record holds of the file, and so are answered from it with its gap beside them. */
+const RECORD_SHAPED: ReadonlySet<string> = new Set(['older', 'unloaded']);
+
 /**
  * The probes gap of the record `from`, with, for one asked file the record
  * holds, how its regions there stand against this build's cut.
@@ -253,8 +257,13 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
 async function gapOf(request: ParsedCovering, from: string, index: ExecutionIndex | undefined): Promise<Covering['probes']> {
   const gap = await probesGap(from, request.root, request.suite);
   if (gap === undefined) return undefined;
-  const module = request.since === undefined ? index?.modules.find((candidate) => candidate.file === request.file) : undefined;
-  const cut = module === undefined ? undefined : await cutGap(request.root, await recordedCommit(from), module.file, module.blocks);
+  // `covering --file` is where a note sends a reader for one file's cut, so when it compared none it says why, not where to ask.
+  const module = index?.modules.find((candidate) => candidate.file === request.file);
+  const cut: CutGap | undefined = request.file === undefined
+    ? undefined
+    : module === undefined
+      ? { file: request.file, unread: 'the record holds no region of it' }
+      : await cutGap(request.root, await recordedCommit(from), module.file, module.blocks);
   return { ...gap, ...(cut === undefined ? {} : { cut }), note: probesNote(gap, cut, '--execution') };
 }
 

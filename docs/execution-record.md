@@ -846,8 +846,10 @@ test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
 under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
-function and nothing between — and every reader refuses a journal or
-snapshot cut under the other.
+function and nothing between. A run refuses to fold a journal, or lay itself
+over a snapshot, cut under another recipe. A reader answers from such a
+snapshot as it holds it, and names both recipes and the regions the difference
+leaves unanswered.
 
 **Worker journal.** Written by the setup file of a Vitest, Jest or Rstest
 worker in its `afterAll`, one per test file, as `<pid>-<uuid>.va` under the

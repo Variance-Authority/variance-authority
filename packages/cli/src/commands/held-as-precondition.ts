@@ -22,8 +22,8 @@ export interface HeldAsPrecondition {
    */
   readonly of: ReadonlyMap<string, readonly string[]>;
   /**
-   * The asked files the run loaded without instrumenting them: each has a
-   * module row with no blocks. An asked file some test file holds and that is
+   * The asked files the run loaded: each has a module row in the record, with
+   * blocks or, loaded without instrumenting it, with none. An asked file some test file holds and that is
    * not here is held only because the suite declares it, which is a statement
    * about the suite rather than a load anybody measured.
    */

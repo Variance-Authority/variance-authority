@@ -340,5 +340,7 @@ describe('a repository whose declared suites have none of them run', () => {
     expect(answer.code).toBe(2);
     expect(JSON.parse(answer.out)).toEqual({ refused: 'unrecorded' });
     expect(answer.err).toContain('none of the suites it declares, "checkout", "stories", "unit", has a per-case index');
+    // A whole run is often impossible where the question is asked, so the refusal sends nobody to one.
+    expect(answer.err).not.toMatch(/\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i);
   });
 });

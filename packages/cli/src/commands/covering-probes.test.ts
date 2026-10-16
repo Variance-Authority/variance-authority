@@ -163,6 +163,16 @@ describe('a record cut under probes this build does not place', () => {
     expect(out).not.toMatch(NO_RUN);
   });
 
+  it.each(['text', 'markdown'])('puts the note beside the review in %s', async (format) => {
+    const { root, first } = await changed({ instrumentation: RETIRED });
+    let out = '';
+    const code = await main(['review', '--since', first, '--root', root, '--format', format], { out: (text) => (out += text), err: () => {} });
+
+    expect(code).toBe(0);
+    expect(out).toContain(`was cut under the probes \`${RETIRED}\`, and this build places \`${INSTRUMENTATION_ID}\``);
+    expect(out).not.toMatch(NO_RUN);
+  });
+
   // The test cache is one per run and keeps a fetched pointer per suite, so this suite's name is its own.
   it('names where a current mainline record is on this machine, and how to read it', async () => {
     const { root, head } = await checkout({ fetched: { kind: 'unit', carry: 'share' } });
@@ -192,6 +202,28 @@ describe('a record cut under probes this build does not place', () => {
     expect(answer.probes?.note).toMatch(/is not (answered|compared)[^.]*\.$/);
     expect(answer.probes?.note).not.toContain('mainline');
     expect(answer.probes?.note).not.toMatch(NO_RUN);
+  });
+
+  it('names the gap beside a refusal that the record holds nothing of the file, and keeps its kind', async () => {
+    const execution = await recorded(RETIRED);
+
+    const refusal = await covering(parse(['--file', 'src/other.ts', '--execution', execution])).catch((error: unknown) => error);
+
+    expect(refusal).toBeInstanceOf(OperatorError);
+    expect((refusal as OperatorError).kind).toBe('unloaded');
+    expect((refusal as OperatorError).message).toMatch(new RegExp(`was cut under the probes \`${RETIRED}\`.*\\.$`));
+    expect((refusal as OperatorError).message).toContain('whether this build cuts src/other.ts as the record does is not answered: the record holds no region of it');
+    expect((refusal as OperatorError).message).not.toContain('variance covering --file');
+  });
+
+  it('says nothing of probes beside a refusal the probes do not bear on', async () => {
+    const execution = await recorded(RETIRED);
+
+    const refusal = await covering(parse(['--file', 'src/total.ts', '--execution', execution, '--where', 'network'])).catch((error: unknown) => error);
+
+    expect(refusal).toBeInstanceOf(OperatorError);
+    expect((refusal as OperatorError).kind).toBe('unmeasured');
+    expect((refusal as OperatorError).message).not.toContain('was cut under the probes');
   });
 
   it('still gives `since` the commit it was recorded at, which the probes do not move', async () => {
