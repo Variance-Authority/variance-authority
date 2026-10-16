@@ -102,6 +102,21 @@ describe('the words a description is asked by', () => {
     expect(declaredName).toBeGreaterThan(symbol);
   });
 
+  it('puts the doc that writes the phrase first when two docs hold every word', async () => {
+    const said = await ask(
+      {
+        'src/alpha.ts': '/** The declared type of a name. */\nexport const alpha = 1;\n',
+        'src/zeta.ts': '/** Where a name is declared. */\nexport const zeta = 1;\n',
+      },
+      'name declared',
+    );
+    const lines = describedLines(said);
+    const alpha = lines.findIndex((line) => line.startsWith('alpha '));
+    const zeta = lines.findIndex((line) => line.startsWith('zeta '));
+    expect(zeta).toBeGreaterThan(-1);
+    expect(alpha).toBeGreaterThan(zeta);
+  });
+
   it('does not count the question\'s grammar as its phrase', async () => {
     const lines = describedLines(
       await ask(
