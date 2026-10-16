@@ -1,7 +1,8 @@
 //! The parse half of a source-index segment, as columns: the part of
 //! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock, member and member-declaration columns `source-index-harvest.ts`,
-//! `-mocks.ts`, `-members.ts` and `-member-declarations.ts` add.
+//! mock, member, member-declaration and member-use columns
+//! `source-index-harvest.ts`, `-mocks.ts`, `-members.ts`,
+//! `-member-declarations.ts` and `-member-uses.ts` add.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -84,6 +85,11 @@ pub struct ParseColumns {
     member_declaration_name: Vec<u32>,
     member_declaration_line: Vec<u32>,
     member_declaration_on: Vec<u32>,
+    member_uses: Vec<u32>,
+    member_use_name: Vec<u32>,
+    member_use_line: Vec<u32>,
+    member_use_of: Vec<u32>,
+    member_use_how: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -129,6 +135,7 @@ impl ParseColumns {
         self.mocks_plus.push(self.mock_plus.len() as u32);
         self.members.push(self.member_name.len() as u32);
         self.member_declarations.push(self.member_declaration_name.len() as u32);
+        self.member_uses.push(self.member_use_name.len() as u32);
     }
 
     pub fn request(&mut self, value: u32, kind: u32, line: u32, republishes: bool, bindings: impl IntoIterator<Item = (u32, u32, bool, u32)>) {
@@ -189,6 +196,13 @@ impl ParseColumns {
         self.member_declaration_name.push(name);
         self.member_declaration_line.push(line);
         self.member_declaration_on.push(on);
+    }
+
+    pub fn member_use(&mut self, name: u32, line: u32, of: u32, how: u32) {
+        self.member_use_name.push(name);
+        self.member_use_line.push(line);
+        self.member_use_of.push(of);
+        self.member_use_how.push(how);
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -255,6 +269,11 @@ impl ParseColumns {
             u32s("member-declarations.name", self.member_declaration_name),
             u32s("member-declarations.line", self.member_declaration_line),
             u32s("member-declarations.on", self.member_declaration_on),
+            u32s("parses.member-uses", self.member_uses),
+            u32s("member-uses.name", self.member_use_name),
+            u32s("member-uses.line", self.member_use_line),
+            u32s("member-uses.of", self.member_use_of),
+            u32s("member-uses.how", self.member_use_how),
             u32s("declares.name", self.declare_name),
         ]
     }

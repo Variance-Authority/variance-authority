@@ -24,4 +24,4 @@ only through `export type` is not selected for it.
 
 The source index records, per request, whether it republishes, since
 `export type … from` and `import type` of the same file share a kind. The
-format moves to version 23, so an existing index is rebuilt once.
+format moves to version 24, so an existing index is rebuilt once.

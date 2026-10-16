@@ -70,6 +70,11 @@ pub(crate) struct Parses<'a> {
     pub member_declaration_name: U32s<'a>,
     pub member_declaration_line: U32s<'a>,
     pub member_declaration_on: U32s<'a>,
+    pub member_uses: U32s<'a>,
+    pub member_use_name: U32s<'a>,
+    pub member_use_line: U32s<'a>,
+    pub member_use_of: U32s<'a>,
+    pub member_use_how: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -86,6 +91,7 @@ impl<'a> Parses<'a> {
         let (mock_minus, mock_plus) = (u32s("mocks.minus")?, u32s("mocks.plus")?);
         let (member_name, declare_name) = (u32s("members.name")?, u32s("declares.name")?);
         let member_declaration_name = u32s("member-declarations.name")?;
+        let member_use_name = u32s("member-uses.name")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -138,6 +144,11 @@ impl<'a> Parses<'a> {
             member_declaration_line: u32s("member-declarations.line")?,
             member_declaration_on: u32s("member-declarations.on")?,
             member_declaration_name,
+            member_uses: stored.offsets("parses.member-uses", rows, member_use_name.len())?,
+            member_use_line: u32s("member-uses.line")?,
+            member_use_of: u32s("member-uses.of")?,
+            member_use_how: u32s("member-uses.how")?,
+            member_use_name,
             declare_name,
         };
         parses.lengths()?;
@@ -218,6 +229,11 @@ impl<'a> Parses<'a> {
         same_length(self.member_declaration_name.len(), &[
             ("member-declarations.line", self.member_declaration_line.len()),
             ("member-declarations.on", self.member_declaration_on.len()),
+        ])?;
+        same_length(self.member_use_name.len(), &[
+            ("member-uses.line", self.member_use_line.len()),
+            ("member-uses.of", self.member_use_of.len()),
+            ("member-uses.how", self.member_use_how.len()),
         ])
     }
 }
@@ -269,6 +285,11 @@ impl ParseRow for ParseView<'_, '_> {
         for at in columns.member_declarations.range(row) {
             text(columns.member_declaration_name, at);
             text(columns.member_declaration_on, at);
+        }
+        for at in columns.member_uses.range(row) {
+            text(columns.member_use_name, at);
+            text(columns.member_use_of, at);
+            text(columns.member_use_how, at);
         }
         for at in self.declares() {
             text(columns.declare_name, at);
@@ -336,6 +357,14 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.member_declaration_name, at),
                 columns.member_declaration_line.at(at),
                 id(columns.member_declaration_on, at),
+            );
+        }
+        for at in columns.member_uses.range(row) {
+            into.member_use(
+                id(columns.member_use_name, at),
+                columns.member_use_line.at(at),
+                id(columns.member_use_of, at),
+                id(columns.member_use_how, at),
             );
         }
     }
