@@ -38,10 +38,11 @@ export type SourceSymbolKind =
 
 /**
  * Who can name a declaration when no export of its file binds it, as the reader
- * of its language knows: its file alone (an ES module), its module and the
- * modules inside it (a Rust item that is not `pub`), or any module that imports
- * it by name, kept out of `from … import *` by a leading underscore or by
- * `__all__` (Python). Absent when the reader cannot tell.
+ * of its language knows: its file alone (an ES module, a Swift or Kotlin
+ * `private`), its module and the modules inside it (a Rust item that is not
+ * `pub`), or any module that imports it by name, kept out of `from … import *`
+ * by a leading underscore or by `__all__` (Python). Absent when the reader
+ * cannot tell.
  */
 export type SourceSymbolReach = 'file' | 'module' | 'underscore' | 'all';
 

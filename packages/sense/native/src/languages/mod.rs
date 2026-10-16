@@ -127,6 +127,24 @@ pub fn span_of(source: &str, start: usize, end: usize) -> TextSpan {
     TextSpan { start: units(start), end: units(end) }
 }
 
+/// A visibility modifier as written, with the whitespace taken out, so
+/// `pub ( self )` reads as `pub(self)` and `private (set)` as `private(set)`.
+pub fn visibility(modifier: Node, source: &str) -> String {
+    text_of(modifier, source).chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// Whether a Swift or Kotlin declaration's [`visibility`], in its `modifiers`,
+/// is one of `keywords`: the ones that keep it to its file. `private(set)`
+/// narrows a setter alone and is none of them.
+pub fn file_private(node: Node, source: &str, keywords: &[&str]) -> bool {
+    named_children(node)
+        .into_iter()
+        .filter(|child| child.kind() == "modifiers")
+        .flat_map(named_children)
+        .filter(|modifier| modifier.kind() == "visibility_modifier")
+        .any(|modifier| keywords.contains(&visibility(modifier, source).as_str()))
+}
+
 /// Every named child of a node, in order.
 pub fn named_children(node: Node) -> Vec<Node> {
     let mut cursor = node.walk();

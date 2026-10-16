@@ -287,12 +287,15 @@ qualified path are not counted.
 
 A name a file declares at its top level and does not export, such as a helper
 only its own file calls, is answered from the source index. Not exported means
-no export of a JavaScript or TypeScript file names it, a Rust item is not `pub`,
-or a Python name has a leading underscore or is left out of `__all__`.
+no export of a JavaScript or TypeScript file names it, a Rust item is not `pub`
+or is `pub(self)`, a Swift declaration is `private` or `fileprivate`, a Kotlin
+one is `private`, or a Python name has a leading underscore or is left out of
+`__all__`.
 `docs_symbol` gives its kind, the file and line that declare it, its signature,
 what is written above it, and who can reach it under the file's language. A name
-in a JavaScript or TypeScript module is that file's alone: no other file can
-import it. A Rust item is named only by its module and the modules inside it.
+in a JavaScript or TypeScript module, a Swift `private` or `fileprivate` one
+and a Kotlin `private` one are that file's alone: no other file can import
+them. A Rust item is named only by its module and the modules inside it.
 Another Python module can still import the name by spelling it. A script or
 CommonJS file, a module that hands itself out with `export =` and a
 `macro_rules!` hand a name out in ways their readers cannot tell, so the answer says who can reach it is not recorded. `docs_uses`

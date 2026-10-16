@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{declaration, kind_of, line_of, named_children, text_of};
+use super::{declaration, kind_of, line_of, named_children, text_of, visibility};
 use crate::harvest::SourceSymbol;
 
 struct Gathering {
@@ -125,7 +125,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                     }
                 }
 
-                if top && published(*child) {
+                if top && published(*child, source) {
                     held.exports.push(Export {
                         exported: Some(name.clone()),
                         local: Some(name),
@@ -141,7 +141,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                     continue;
                 };
                 let line = line_of(*child);
-                let shared = published(*child);
+                let shared = published(*child, source);
                 for (path, local) in used(argument, source, &[]) {
                     let value = path.join("::");
                     let last = path.last().cloned().unwrap_or_else(|| value.clone());
@@ -184,7 +184,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                     continue;
                 }
                 if let Some(name) = named(*child, source) {
-                    if published(*child) {
+                    if published(*child, source) {
                         held.exports.push(Export {
                             exported: Some(name.clone()),
                             local: Some(name),
@@ -232,10 +232,14 @@ fn named(node: Node, source: &str) -> Option<String> {
         .map(|name| text_of(name, source).to_string())
 }
 
-fn published(node: Node) -> bool {
+/// Whether another file can name the item: any `pub`, `pub(crate)` and
+/// `pub(super)` among them, but not `pub(self)` or `pub(in self)`, which are
+/// no `pub` at all.
+fn published(node: Node, source: &str) -> bool {
     named_children(node)
-        .iter()
-        .any(|child| child.kind() == "visibility_modifier")
+        .into_iter()
+        .filter(|child| child.kind() == "visibility_modifier")
+        .any(|modifier| !matches!(visibility(modifier, source).as_str(), "pub(self)" | "pub(inself)"))
 }
 
 /// The filename in `#[path = "other.rs"]`, when the node above is that attribute.
