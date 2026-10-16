@@ -171,16 +171,32 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-Pass `--just-answer` when the caller owns freshness: no Git status, generation,
-or regeneration is performed, and the answer prints the generation time. If no
-generation has been published, the command refuses instead of silently turning
-the question into production work.
+Without `--just-answer`, a source question other than `search` that a reused
+generation refuses is asked again, whether you ask through `variance ask`,
+`variance serve` or `variance-authority-help` and its server: the name is
+looked for again in a generation made from the checkout as it is, and in what
+your installed packages export, with that list built first when it is missing
+or behind. A function you wrote a minute ago, or a package you just installed,
+is answered rather than reported missing, and that holds when you name changed
+files too. Only a refusal pays for that reading; an answer that found its name
+comes from the generation it was found in. When the checkout cannot be read
+again, the refusal names the generation time, says the checkout was not
+compared with it, and says why. When the list of installed exports cannot be
+built, the refusal says the installed packages were not compared, and why.
 
-`search` always answers as if `--just-answer` were given. It opens the
-published search at any age and never scans, because in CI the step before it
-already brought the index up to date and is the one that owns freshness. The
-flag is accepted and changes nothing. With no published generation, `search`
-refuses and names the command to run.
+Pass `--just-answer` when the caller owns freshness: no Git status, generation,
+or regeneration is performed, and every answer and refusal names the generation
+time and says the checkout was not compared with it; as JSON, `search` carries
+`compared: false` beside `generatedAt`. If no generation has been published,
+the command refuses instead of silently turning the question into production
+work.
+
+When no changed files are named, `search` always answers as if `--just-answer`
+were given. It opens the published search at any age and never scans, because
+in CI the step before it already brought the index up to date and is the one
+that owns freshness. The flag is accepted and changes nothing, and the answer
+says, as one under `--just-answer` does, that the checkout was not compared.
+With no published generation, `search` refuses and names the command to run.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited

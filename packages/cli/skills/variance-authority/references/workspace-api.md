@@ -34,9 +34,16 @@ the first argument is positional.
 - **One of the two binaries.** `@variance-authority/cli` provides `variance ask`;
   `@variance-authority/help` provides `variance-authority-help`.
 - **No run, no config, no revision requirement.** Ordinary questions reuse a
-  published generation for up to one hour. `--just-answer` uses the last
-  generation without inspecting the checkout, and refuses when none exists.
-  `search` always reads that way, with or without the flag, and never scans.
+  published generation for up to one hour. On either binary and either
+  server, a question that generation refuses is asked again of one made from
+  the checkout now, with the dependency lexicon built when it is missing or
+  behind, so a refusal is about the checkout as it is; one that could not be
+  read again says the checkout was not compared, and why, and one whose
+  lexicon could not be built says the installed packages were not compared. `--just-answer` uses the
+  last generation without inspecting the checkout and refuses when none exists;
+  its answers and refusals say the checkout was not compared, and JSON carries
+  `compared: false`. When no changed files are named, `search` always reads
+  that way, with or without the flag, says so too, and never scans.
 - **Working directory.** `variance ask` reads the checkout under the working
   directory, so run it from the workspace root; it refuses `--root`.
   `variance-authority-help` takes `--root <dir>`.

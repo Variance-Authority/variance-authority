@@ -125,12 +125,12 @@ describe('variance ask uses over a member', () => {
     expect(out.slice(member)).toContain(ROUTE);
   });
 
-  it('refuses a name nothing publishes and says the member declarations went unread when no source index is published', async () => {
+  it('refuses a name nothing publishes and says the member declarations went unread when no source index is published and `--just-answer` reads the generation as it is', async () => {
     const root = checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     rmSync(sourceIndexPath(root));
 
-    const { code, out, err } = await run(['ask', 'uses', '--name', 'resolveThings']);
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'resolveThings', '--just-answer']);
     expect(code).toBe(EXIT_OPERATOR);
     expect(out).toBe('');
     expect(err).toContain('`resolveThings` is not published by this workspace, and no published name contains it');
