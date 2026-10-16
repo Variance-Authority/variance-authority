@@ -95,8 +95,9 @@ name's contract, and `uses` for its exact import sites and worked examples.
 This is a module graph, not a call graph. A site is an import. Never turn it
 into a claim that one function calls another; open the file or ask a language
 server. A member of an interface, a type literal or a class is never imported,
-so `uses` names its declarations, after any imports, and the `grep --to` that
-finds its callers.
+so `uses` names its declarations, after any imports, the lines that use each
+one through a value whose type they write, and the `grep --to` that finds the
+rest.
 
 ## The verbs
 

@@ -257,8 +257,9 @@ The source graph records module imports, re-exports, literal dynamic imports,
 type imports and asset edges. It is not a function-call graph. `uses` reports
 where a name is imported, or read off a namespace or an `import()`, not where
 code called it at runtime. A member of an interface, a type literal or a class
-is never imported; `uses` names its declarations after any imports, and `grep
---to` a declaring file finds its callers as text.
+is never imported; `uses` names its declarations after any imports, the lines
+that use each one through a value whose type they write, and the `grep --to` a
+declaring file that finds the rest as text.
 
 No graph database service is required. The workspace generation stores a
 compact graph with dependencies and dependents both materialized. The useful
