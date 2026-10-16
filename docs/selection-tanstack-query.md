@@ -138,8 +138,8 @@ for precision in file symbol file-use function-use region-use; do
 done
 ```
 
-Each answer lists the test files to run, and says on stderr how many of the
-recorded test files it skips.
+Each answer lists the test files it skips, and says on stderr how many of the
+recorded test files that is; the rest run.
 
 ## Sixty commits, each against its own parent
 
