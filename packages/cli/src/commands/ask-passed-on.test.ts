@@ -127,6 +127,41 @@ describe('a name only passed on', () => {
     }
   });
 
+  it("lets a file's own export of the name decide before its stars", async () => {
+    checkout({
+      'packages/kit/src/money/inner.ts': "function inner(): number {\n  return 2;\n}\nexport { inner as taxOf };\nexport * from './tax.js';\n",
+      'packages/kit/src/money/own.ts': "export { taxOf as own } from './inner.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'uses', '--name', 'own'])).out)
+      .toContain('at packages/kit/src/money/own.ts:1, which passes on `inner`, declared at packages/kit/src/money/inner.ts:1, ');
+  });
+
+  it('passes over a declaration of the name its file does not export', async () => {
+    checkout({
+      'packages/kit/src/money/hidden.ts': "const taxOf = 0;\nexport * from './tax.js';\n",
+      'packages/kit/src/money/unexported.ts': "export { taxOf as unexported } from './hidden.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'uses', '--name', 'unexported'])).out).toContain(`at packages/kit/src/money/unexported.ts:1, ${DECLARED}, `);
+  });
+
+  it('names no declaration for a namespace, though a star declares the name', async () => {
+    checkout({
+      'packages/kit/src/money/levied.ts': 'export function levy(): number {\n  return 1;\n}\n',
+      'packages/kit/src/money/spaced.ts': "export * as levy from './tax.js';\nexport * from './levied.js';\n",
+      'packages/kit/src/money/spacing.ts': "export { levy as spacing } from './spaced.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const spacing = await run(['ask', 'uses', '--name', 'spacing']);
+    expect(spacing.code).toBe(EXIT_CLEAN);
+    expect(spacing.out).toContain('packages/kit/src/money/spacing.ts:1');
+    expect(spacing.out).not.toContain('passes on');
+  });
+
   it('names no declaration when the files only pass the name to each other', async () => {
     checkout({
       'packages/kit/src/money/left.ts': "export { loop } from './right.js';\n",

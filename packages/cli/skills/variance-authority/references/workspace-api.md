@@ -183,7 +183,11 @@ signature already shows is not repeated.
 A name a file only passes on with `export … from`, renamed, type-only or through
 `export *`, is followed to the file that declares it: the answer says `It passes
 on <name>, declared at <file>:<line>:`, shows that line, and lists its members.
-Files that only pass the name to each other name no declaration.
+The name is resolved the way an import resolves it: the file's own export
+of the name first, then a named `export … from`, then its stars. Files that
+only pass the name to each other name no declaration, and neither do two stars
+that reach different declarations, an `export * as` namespace, or a file the
+source index holds no export list of.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
