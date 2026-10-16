@@ -63,8 +63,6 @@ pub struct DescribedFile {
     pub at: String,
     /// The package whose source it is; empty at the repository root.
     pub by: String,
-    /// `source`, `test` or `story`, as `kindOf` in `package/src/use.ts` says.
-    pub file_kind: String,
     /// The module doc's span, inside its marks, when it writes one.
     pub doc_start: Option<u32>,
     pub doc_end: Option<u32>,
@@ -281,7 +279,6 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             DescribedFile {
                 at: at.to_owned(),
                 by: owners.package_of(at).to_owned(),
-                file_kind: kind_of(at).to_owned(),
                 doc_start: doc.map(|doc| doc.start),
                 doc_end: doc.map(|doc| doc.end),
                 held,

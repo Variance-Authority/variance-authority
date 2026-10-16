@@ -102,6 +102,23 @@ describe('the words a description is asked by', () => {
     expect(declaredName).toBeGreaterThan(symbol);
   });
 
+  it('does not count the question\'s grammar as its phrase', async () => {
+    const lines = describedLines(
+      await ask(
+        {
+          'src/alpha.ts': '/** Where it is: a store and a cache. */\nexport const alpha = 1;\n',
+          'src/store.ts': 'export function cacheStore(): void {}\n',
+        },
+        'where it is the cache for a store',
+      ),
+    );
+    const alpha = lines.findIndex((line) => line.startsWith('alpha '));
+    const cacheStore = lines.findIndex((line) => line.startsWith('cacheStore '));
+    expect(alpha).toBeGreaterThan(-1);
+    expect(cacheStore).toBeGreaterThan(-1);
+    expect(cacheStore).toBeLessThan(alpha);
+  });
+
   it('asks this repository by `module`, `package` and `use`, the words its code is written in', async () => {
     const own = {
       'src/modules.ts': 'export function packageModuleOf(path: string): string {\n  return path;\n}\n',

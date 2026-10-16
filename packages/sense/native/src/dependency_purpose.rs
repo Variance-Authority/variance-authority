@@ -93,17 +93,13 @@ pub(crate) fn code_stems(text: &str) -> Vec<String> {
     cut(text, |word| FUNCTION.contains(&word))
 }
 
-/// The words of `text` in order, each lowercased and stemmed, none dropped:
-/// what a phrase is, for [`near`].
-fn phrase(text: &str) -> Vec<String> {
-    text.split(|ch: char| !ch.is_alphanumeric()).filter(|word| !word.is_empty()).map(stem).collect()
-}
-
 /// How many of the adjacent word pairs of `query` `text` also writes adjacent:
-/// a doc that says the question's phrase, not only its words. Every word
-/// counts here, a function word included, since a phrase is held together by them.
+/// a doc that says the question's phrase, not only its words. Both are read as
+/// [`code_stems`] reads them, so the pairs are of the words a question is
+/// about: `it is` or `of a` are how any sentence is put, and two docs sharing
+/// them share nothing.
 pub(crate) fn near(query: &str, text: &str) -> u32 {
-    let (asked, said) = (phrase(query), phrase(text));
+    let (asked, said) = (code_stems(query), code_stems(text));
     let pairs = |words: &'_ [String]| -> BTreeSet<(String, String)> {
         words.windows(2).map(|pair| (pair[0].clone(), pair[1].clone())).collect()
     };

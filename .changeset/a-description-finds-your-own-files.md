@@ -14,13 +14,18 @@ the doc it opens with, and no reading looked there. Now a file answers in the
 `packages/help/src/tools/loose.ts [file] — @variance-authority/help — The loose
 pass's membership, read off the published dictionary. [holds: loose, reading]`,
 and `--format json` carries it with `source: 'file'`. The doc a file opens with
-is the first block comment ending before its first statement that is not an
+is the first `/**` comment ending before its first statement that is not an
 import, unless it documents that statement.
 
 Between two rows that hold as many of the words, the one whose doc writes more
 of the question's adjacent word pairs adjacent now comes first, before the
-words in the name. `package`, `module` and `use` are words again when your own
-code is asked, while staying stopwords for an installed package.
+words in the name; the pairs are of the words the question is about, not of
+`it is` or `of a`. The words every package says about itself — `package`,
+`module`, `use`, `tool`, `library`, `get`, `set` and the like — are words again
+when your own code is asked, while staying stopwords for an installed package.
+`what`, `where`, `who`, `whom`, `whose`, `why`, `does`, `did`, `was`, `were`,
+`been`, `there`, `their`, `them`, `they`, `then`, `than`, `but`, `about` and
+`each` are now stopwords for both, since they say how a question is put.
 
 The loose reading — words apart, or one character off — now reaches a name its
 file declares and does not export, after every exported one.

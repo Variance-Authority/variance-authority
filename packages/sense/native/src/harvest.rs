@@ -92,8 +92,9 @@ pub struct Harvest {
     pub tagged: HashMap<u32, u8>,
     /// The module's own doc comment, inside its marks: the first `/**` that
     /// ends before the first statement that is not an import and documents no
-    /// such statement, as TypeDoc reads a module comment. A doc above an import
-    /// is the module's, since an import is not documented.
+    /// such statement. A doc above an import is the module's, since an import
+    /// is not documented. A leading licence header written as `/**` is read as
+    /// the module's doc too: no tag is asked for, unlike TypeDoc's `@module`.
     pub module_doc: Option<TextSpan>,
     offsets: Offsets,
 }

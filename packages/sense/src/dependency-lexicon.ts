@@ -39,8 +39,9 @@ export function dependencyStackNative(root: string, files: readonly string[], of
 /**
  * A question's distinct stems, each with the word it was written as, split
  * the way a package's words are, so the repository's own names are asked by
- * the words its dependencies are; `package`, `module` and `use` kept, since
- * code is named in them.
+ * the words its dependencies are, with the words every package says about
+ * itself — `package`, `module`, `use` and the like — kept, since code is
+ * named in them.
  */
 export function describedWordsNative(query: string): readonly (readonly [stem: string, word: string])[] {
   const addon = native();

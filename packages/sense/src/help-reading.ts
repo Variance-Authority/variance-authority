@@ -218,8 +218,6 @@ export interface DescribedFile {
   readonly at: string;
   /** The package whose source it is; empty at the repository root. */
   readonly by: string;
-  /** `source`, `test` or `story`, as `kindOf` says of the file. */
-  readonly fileKind: 'source' | 'test' | 'story';
   /** The module doc's span, inside its marks, when the file opens with one. */
   readonly docStart?: number | null;
   readonly docEnd?: number | null;

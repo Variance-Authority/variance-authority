@@ -26,9 +26,9 @@ import { admittedBy, matchingTerms } from './loose.js';
  * row, so the source index answers for it by the same rule, its name and its
  * doc comment read in the sense addon. A file is described the same way, by
  * the words of its own name and of the doc it opens with — what it is for,
- * which no one declaration in it says. Only `package`, `module` and `use` are
- * asked of code that a package is not asked by: every package says them about
- * itself, and code is named in them.
+ * which no one declaration in it says. The words every package says about
+ * itself — `package`, `module`, `use`, `tool`, `get` and the like — are asked
+ * of code and not of a package, since code is named in them.
  *
  * Ordered by counts, never a score: the question's words it holds at all, then
  * how many of the question's adjacent word pairs its doc writes adjacent, then
@@ -149,8 +149,7 @@ export function describedNames(
   const needed = Math.ceil(asked.length / 2);
   const reached = [...held].filter(([, positions]) => positions.size >= needed);
   // One word has no pair to write adjacent, so no doc is decoded for it.
-  const phrased = query.split(/[^\p{L}\p{N}]+/u).filter((word) => word !== '').length > 1;
-  const near = phrased ? nearOfNative(query, reached.map(([name]) => docAbout(index, name, through.get(name)) ?? '')) : [];
+  const near = asked.length > 1 ? nearOfNative(query, reached.map(([name]) => docAbout(index, name, through.get(name)) ?? '')) : [];
   return reached.map(([name, positions], at): DescribedName => {
     const row = through.get(name);
     return {
