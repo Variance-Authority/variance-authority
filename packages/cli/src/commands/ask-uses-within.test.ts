@@ -200,7 +200,7 @@ describe('variance ask over the imports of a name within its own package', () =>
   });
 
   it('counts a Rust `use` of an item and not the `mod` that declares the module it is in', async () => {
-    // `mod order;` takes the file as a module, as `import * as` does; it
+    // `mod order;` takes the file as a module, as Python's `import m` does; it
     // imports no item, though the item shares the module's name.
     checkout({
       'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
