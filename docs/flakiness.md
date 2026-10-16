@@ -297,7 +297,7 @@ The answer travels in the report, so the summary, the pull-request comment and
 an agent all read one sentence:
 
 ```
-UNSTABLE: 1 subject(s) read twice seconds apart, nothing changed between, …
+UNSTABLE: 1 subject(s) read twice in a row, nothing changed between, …
     story:checkout--summary — Clock (content)
       read differently in 6 run(s), 50% of the 12 sweep(s) that asked, and the most recent
       sweep still saw it

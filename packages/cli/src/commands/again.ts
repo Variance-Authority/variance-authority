@@ -55,7 +55,7 @@ import type { CliObservationRecord } from './run-report.js';
  * One collection, and **never a rasterization.** A `RenderDocument` is a complete
  * statement of what is to be painted, so two documents with the same digest
  * cannot paint differently — the same argument `settle` makes to skip a render
- * against a baseline, made here between two readings taken seconds apart. The
+ * against a baseline, made here between two readings taken in a row. The
  * check is therefore a document digest comparison, at the cost of the cheap tier
  * (~3.4ms on a semantic collection, ADR-0010) against the ~65ms paint this
  * subject has already paid.
@@ -131,7 +131,7 @@ export async function again(
         components: [],
         bands: [],
         because:
-          'collected once and then failed to collect a second time, seconds later, with ' +
+          'collected once and then failed to collect a second time, right after, with ' +
           `nothing changed in between: ${second.because}. Whatever the comparison said ` +
           'about this subject was said about a reading that cannot be taken twice',
       },
@@ -163,7 +163,7 @@ export async function again(
       // Unabsorbed, no comparison of this subject means anything until the
       // instability is fixed: the next run may take the other reading.
       because:
-        `two readings seconds apart, with nothing changed between, differ${describeMovement(moved)}. ` +
+        `two readings in a row, with nothing changed between, differ${describeMovement(moved)}. ` +
         (absorbed !== undefined
           ? `Every band that moved is not asserted on, by \`${absorbed.rule}\` ` +
             `(${sensitivity?.reason ?? absorbed.level}); nothing gates and nothing is refused`

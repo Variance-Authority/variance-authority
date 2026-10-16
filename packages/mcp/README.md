@@ -241,7 +241,7 @@ three different people:
 
 | label | what happened | what to do |
 |---|---|---|
-| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band show where. Do not review the pixel regions — which ones appear was decided by a race |
+| `unstable` | read twice in a row, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band show where. Do not review the pixel regions — which ones appear was decided by a race |
 | `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
 | `changed` | it survived both | review it |
 

@@ -120,11 +120,11 @@ two are exercised separately.
 
 The first five rows are the five a `Button` edit moves. Of the nine subjects below
 them, eight read the same way every time. `Clock — ticking` does not: nothing
-freezes its clock, and its text counts the time since it mounted. Two readings of
-one mount seconds apart never agree, and a reading agrees with its baseline,
-which is another mount, only when both were taken the same 50 ms step after
-mounting. It has the tag `ticking`, so a run that asserts `unchanged` can exclude
-it.
+freezes its clock, and its text counts the time since it mounted. Two
+consecutive readings of one mount never agree, and a reading agrees with its
+baseline, which is another mount, only when both were taken the same 50 ms
+step after mounting. It has the tag `ticking`, so a run that asserts `unchanged`
+can exclude it.
 
 `Card — receipt not read` declares `exclude: true` in the same place. The report
 lists it as excluded by its own parameters rather than leaving it out.
@@ -146,7 +146,7 @@ running, because freezing the clock is the story author's job. A normal run
 compares one reading with a baseline taken from another mount, and the two match
 only when both were taken the same 50 ms step after mounting, so the run calls
 the story `unchanged` or `changed` depending on when it looked. That verdict is
-not the finding. The diagnostic sweep reads the same mount twice, seconds apart,
+not the finding. The diagnostic sweep reads the same mount twice in a row
 and asks whether the two readings agree. They never do.
 
 From the repository root:
