@@ -299,17 +299,20 @@ the runs have earned it:
 | `file` | it imports a changed file, directly or through other files, or it loaded one |
 | `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file |
 | `file-use` | it loaded a changed file |
-| `function-use` | it entered the function a changed line is in |
+| `function-use` | it entered the function a changed line is in; a line outside every function reads as `region-use` |
 | `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes. A suite that declares nothing reads this |
 
 Every step reads the same record and the same file graph; nothing is recorded
-differently. Each step runs every test a finer step runs, so moving coarser
-never skips a test the step below would run. `file` and `symbol` walk the
-import graph and add every recorded test it reaches to what `file-use` runs.
-The graph and the record see different things: `symbol` takes loading a module
-to declare its exports and nothing more, which the `sideEffects` field
-overrides, and a runner config can load a file that no import names. A suite
-that declares [`"relations":
+differently. The graph and the record miss different tests: the graph takes loading a module to
+declare its exports and nothing more, which the `sideEffects` field overrides,
+and a runner config can load a file that no import names. So `file` and
+`symbol` add what the graph reaches to what `file-use` runs, rather than
+replace it, and each step runs every test a finer step runs: moving finer only
+drops tests, and moving coarser never skips one the finer step would run. At
+`file`, `symbol` and `file-use` a changed file counts whatever the edit was, a
+comment included.
+
+A suite that declares [`"relations":
 false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
 declines the graph, so it cannot declare `file` or `symbol`, and the config is
 refused. To see what each step would select for your change, run `variance
