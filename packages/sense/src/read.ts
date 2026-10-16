@@ -234,6 +234,9 @@ export interface Read {
   /** Top-level declarations reduced while the AST is already resident. */
   readonly symbols?: readonly SourceSymbol[];
 
+  /** The declarations were read, including when the file declares none. */
+  readonly harvested?: true;
+
   /** The component names the file declares, sorted. Absent when it declares none. */
   readonly declares?: readonly string[];
 

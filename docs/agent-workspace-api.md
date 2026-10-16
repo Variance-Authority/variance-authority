@@ -1,10 +1,11 @@
 # Find code through the workspace index
 
-`rg` tells you where text is written. This server tells you which exported name
-matches your words in the part of the import graph you are working in, then gives
-you its import line, declaration, signature, documentation, and existing import
-sites. It answers from a dated workspace generation — no build, run, generated
-API site, or `variance.config.json` in between.
+`rg` tells you where text is written. This server tells you which name matches
+your words in the part of the import graph you are working in — an exported name
+first, then one a file keeps to itself — then gives you its declaration,
+signature and documentation, and for an exported name its import line and
+existing import sites. It answers from a dated workspace generation — no build,
+run, generated API site, or `variance.config.json` in between.
 
 This is the source how-to and contract for
 [orientation](orientation.md). Start there when you need to choose between text
@@ -284,6 +285,28 @@ passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. A read through an `export * as` namespace and a call through a
 qualified path are not counted.
 
+A name a file declares at its top level and does not export, such as a helper
+only its own file calls, is answered from the source index. Not exported means
+no export of a JavaScript or TypeScript file names it, a Rust item is not `pub`
+or is `pub(self)`, a Swift declaration is `private` or `fileprivate`, a Kotlin
+one is `private`, or a Python name has a leading underscore or is left out of
+`__all__`.
+`docs_symbol` gives its kind, the file and line that declare it, its signature,
+what is written above it, and who can reach it under the file's language. A name
+in a JavaScript or TypeScript module, a Swift `private` or `fileprivate` one
+and a Kotlin `private` one are that file's alone: no other file can import
+them. A Rust item is named only by its module and the modules inside it.
+Another Python module can still import the name by spelling it. A script or
+CommonJS file, a module that hands itself out with `export =` and a
+`macro_rules!` hand a name out in ways their readers cannot tell, so the answer says who can reach it is not recorded. `docs_uses`
+answers with the same file, line and rule in one sentence, before any member
+declared by that name, and lists no import sites; for a Python name it gives the
+`ask grep` that finds the modules spelling it. Each answer names the files whose
+declarations were not read, such as one over the size a read opens, since the
+name may be declared there. `docs_search` lists the name after the exported ones, under a heading that
+says it is not exported, when the name or its documentation holds the query, and
+only when its file is in the area `from` or `to` names.
+
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
@@ -338,9 +361,11 @@ variance-authority-help search order --from src/fulfilment/
 
 ## What the answer shows, and what it does not
 
-The server reads manifests and TypeScript source, not `dist`. It parses with
-`oxc-parser` and resolves with `oxc-resolver`; no TypeScript language service
-runs behind it. A types target under an output directory is mapped back to that
+The server reads manifests and source, not `dist`. It parses JavaScript and
+TypeScript with `oxc-parser` and resolves with `oxc-resolver`; no TypeScript
+language service runs behind it. Rust, Python, Swift, Java and Kotlin files are
+read with tree-sitter grammars, for their imports and their top-level
+declarations. A types target under an output directory is mapped back to that
 package's source. A consumer is a workspace package whose source imports the
 symbol; it is not a claim about runtime execution or external adoption. A site
 is an import of the name, or a read of it off a module the file holds whole, not

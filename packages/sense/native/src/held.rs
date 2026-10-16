@@ -66,6 +66,8 @@ pub struct HeldSymbol {
     line: u32,
     signature: Option<HeldSpan>,
     doc: Option<HeldSpan>,
+    #[serde(default)]
+    reach: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -174,7 +176,7 @@ impl ParseRow for HeldParse {
             );
         }
         for symbol in &self.symbols {
-            into.symbol(id(&symbol.name), id(&symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc));
+            into.symbol(id(&symbol.name), id(&symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc), crate::harvest::reach_code(symbol.reach.as_deref()));
         }
         for name in self.declares.iter().flatten() {
             into.declare(id(name));

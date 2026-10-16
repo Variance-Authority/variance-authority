@@ -5,7 +5,10 @@ import {
   validateOffsets,
   type OpenSegment,
 } from '@variance-authority/core/segment';
-import type { SourceSymbol, TextSpan } from './harvest.js';
+import type { SourceSymbol, SourceSymbolReach, TextSpan } from './harvest.js';
+
+/** The reaches `symbols.reach` stores, from 1; 0 is none. `REACHES` in `native/src/harvest.rs`. */
+const REACHES: readonly SourceSymbolReach[] = ['file', 'module', 'underscore', 'all'];
 
 export interface HarvestReader {
   symbols(row: number): readonly SourceSymbol[];
@@ -29,13 +32,14 @@ export function openHarvest(
   const signatureEnd = opened.u32('symbols.signature-end');
   const docStart = opened.u32('symbols.doc-start');
   const docEnd = opened.u32('symbols.doc-end');
+  const symbolReach = opened.u8('symbols.reach');
   const exportSignatureStart = opened.u32('exports.signature-start');
   const exportSignatureEnd = opened.u32('exports.signature-end');
   const exportDocStart = opened.u32('exports.doc-start');
   const exportDocEnd = opened.u32('exports.doc-end');
 
   validateOffsets(parseSymbols, symbolName.length, parseCount, reject);
-  sameLength(symbolName.length, [symbolKind, symbolLine, signatureStart, signatureEnd, docStart, docEnd], reject);
+  sameLength(symbolName.length, [symbolKind, symbolLine, signatureStart, signatureEnd, docStart, docEnd, symbolReach], reject);
   sameLength(exportCount, [exportSignatureStart, exportSignatureEnd, exportDocStart, exportDocEnd], reject);
 
   const span = (starts: Uint32Array, ends: Uint32Array, row: number): TextSpan | undefined => {
@@ -52,12 +56,16 @@ export function openHarvest(
     symbols: (row) => rangeOf(parseSymbols, row, reject).map((at) => {
       const signature = span(signatureStart, signatureEnd, at);
       const doc = span(docStart, docEnd, at);
+      const code = symbolReach[at]!;
+      const reach = code === 0 ? undefined : REACHES[code - 1];
+      if (code !== 0 && reach === undefined) throw opened.reject();
       return {
         name: text(symbolName[at]!),
         kind: text(symbolKind[at]!) as SourceSymbol['kind'],
         line: symbolLine[at]!,
         ...(signature === undefined ? {} : { signature }),
         ...(doc === undefined ? {} : { doc }),
+        ...(reach === undefined ? {} : { reach }),
       };
     }),
     exportSignature: (row) => span(exportSignatureStart, exportSignatureEnd, row),

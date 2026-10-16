@@ -50,7 +50,7 @@ export {
   type PersistentParseCache,
   type SourceSize,
 } from './cache.js';
-export type { SourceSymbol, SourceSymbolKind, TextSpan } from './harvest.js';
+export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
 export { enrichSources, type HarvestSubject } from './enrich.js';
 
 export {
@@ -205,11 +205,14 @@ export {
 export { gitDigests } from './tree.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  declaredOf,
   encodeSearch,
   exportedDigest,
   importersOf,
   memberDeclarationsOf,
   readHelp,
+  type DeclaredName,
+  type DeclaredNames,
   type EncodedSearch,
   type HelpPublish,
   type HelpReading,

@@ -24,6 +24,29 @@ pub struct SourceSymbol {
     pub signature: Option<TextSpan>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<TextSpan>,
+    /// Who can name it when no export of its file binds it, as the reader of
+    /// its language knows: one of [`REACHES`]; absent when the reader cannot
+    /// tell, as for a script, whose top level is global or handed out through
+    /// `module.exports`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reach: Option<&'static str>,
+}
+
+/// Every reach a symbol records, in the order the index stores them, from 1:
+/// its file alone (an ES module, a Swift or Kotlin `private`), its module and
+/// the modules inside it (a Rust item that is not `pub`), and any module that
+/// imports it by name, kept out of `from … import *` by a leading underscore or
+/// by `__all__` (Python).
+pub const REACHES: [&str; 4] = ["file", "module", "underscore", "all"];
+
+/// A reach as the index stores it; 0 is none.
+pub fn reach_code(reach: Option<&str>) -> u8 {
+    reach.and_then(|reach| REACHES.iter().position(|known| *known == reach)).map_or(0, |at| at as u8 + 1)
+}
+
+/// The reach the index stored as `code`.
+pub fn reach_of(code: u8) -> Option<&'static str> {
+    code.checked_sub(1).and_then(|at| REACHES.get(at as usize)).copied()
 }
 
 struct Offsets {
@@ -145,6 +168,7 @@ impl Harvest {
             line,
             signature: signature.map(|span| self.span(span)),
             doc,
+            reach: None,
         });
     }
 }

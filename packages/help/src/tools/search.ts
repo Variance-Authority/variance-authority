@@ -6,6 +6,7 @@ import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { ExportedMatch, PublishedMatch } from './search-answer.js';
+import { declaredLine, unreadLine } from './declared.js';
 import { searched, searchedFiles } from './search-answer.js';
 
 /**
@@ -195,12 +196,27 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   // where the tool looked has been handed a fact they cannot place.
   const where = area === undefined ? [] : [areaLine(area), ''];
 
-  if (found.total === 0 && rest.total === 0 && (third?.total ?? 0) === 0) {
+  // Below the exports, since none of these is a name its file hands out.
+  const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
+  const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
+  const declaredSection =
+    declared.total === 0
+      ? unread
+      : [
+          '',
+          `${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being exported:`,
+          '',
+          ...declared.shown.map(declaredLine),
+          ...(declared.total > declared.shown.length ? [`\n${declared.total - declared.shown.length} more not shown.`] : []),
+          ...unread,
+        ];
+
+  if (found.total === 0 && rest.total === 0 && declared.total === 0 && (third?.total ?? 0) === 0) {
     const nowhere =
       area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    return [...where, nowhere, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+    return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -218,7 +234,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
           ...more,
         ];
 
-  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
 
   const hidden = rest.total > rest.shown.length ? [`\n${rest.total - rest.shown.length} more not shown.`] : [];
 
@@ -232,6 +248,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     ...hidden,
     '',
     `From a file above to what surrounds it: \`variance ask orient --files ${rest.shown[0]!.at}\`.`,
+    ...declaredSection,
     ...own,
     ...thirdSection,
     ...describedSection,
@@ -256,7 +273,8 @@ export const search: Tool<Help> = {
     'Find names whose name or documentation contains a string, case-insensitive. Published names ' +
     'come first, ordered by how many packages import them, each carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
-    'but does not publish follow, with the file and line that exports them. Installed third-party ' +
+    'but does not publish follow, with the file and line that exports them, then names a file ' +
+    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +

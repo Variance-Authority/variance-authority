@@ -28,7 +28,7 @@ pub(crate) struct Parses<'a> {
     declares: U32s<'a>,
     declares_present: &'a [u8],
     pub unknown: U32s<'a>,
-    harvested: &'a [u8],
+    pub harvested: &'a [u8],
     bytes: U32s<'a>,
     lines: U32s<'a>,
     blocks: U32s<'a>,
@@ -49,12 +49,14 @@ pub(crate) struct Parses<'a> {
     export_signature: Ends<'a>,
     export_doc: Ends<'a>,
     pub export_tags: &'a [u8],
-    symbols: U32s<'a>,
-    symbol_name: U32s<'a>,
-    symbol_kind: U32s<'a>,
-    symbol_line: U32s<'a>,
-    symbol_signature: Ends<'a>,
-    symbol_doc: Ends<'a>,
+    pub symbols: U32s<'a>,
+    pub symbol_name: U32s<'a>,
+    pub symbol_kind: U32s<'a>,
+    pub symbol_line: U32s<'a>,
+    pub symbol_signature: Ends<'a>,
+    pub symbol_doc: Ends<'a>,
+    /// A symbol's reach as [`crate::harvest::reach_code`] stores it.
+    pub symbol_reach: &'a [u8],
     mocks_minus: U32s<'a>,
     mocks_plus: U32s<'a>,
     mock_minus: U32s<'a>,
@@ -120,6 +122,7 @@ impl<'a> Parses<'a> {
             symbol_line: u32s("symbols.line")?,
             symbol_signature: ends("symbols.signature-start", "symbols.signature-end")?,
             symbol_doc: ends("symbols.doc-start", "symbols.doc-end")?,
+            symbol_reach: stored.u8s("symbols.reach")?,
             symbol_name,
             mocks_minus: stored.offsets("parses.mocks-minus", rows, mock_minus.len())?,
             mocks_plus: stored.offsets("parses.mocks-plus", rows, mock_plus.len())?,
@@ -191,6 +194,7 @@ impl<'a> Parses<'a> {
             ("symbols.signature-end", signature_end.len()),
             ("symbols.doc-start", doc_start.len()),
             ("symbols.doc-end", doc_end.len()),
+            ("symbols.reach", self.symbol_reach.len()),
         ])?;
         same_length(self.member_name.len(), &[
             ("members.request", self.member_request.len()),
@@ -298,6 +302,7 @@ impl ParseRow for ParseView<'_, '_> {
                 columns.symbol_line.at(symbol),
                 span(columns.symbol_signature[0], columns.symbol_signature[1], symbol),
                 span(columns.symbol_doc[0], columns.symbol_doc[1], symbol),
+                columns.symbol_reach[symbol],
             );
         }
         for at in self.declares() {

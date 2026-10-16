@@ -11,7 +11,8 @@ use std::collections::HashMap;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request, NAMESPACE_NAME};
-use super::{line_of, named_children, text_of};
+use super::{declaration, kind_of, line_of, named_children, text_of, visibility};
+use crate::harvest::SourceSymbol;
 
 struct Gathering {
     requests: Vec<Request>,
@@ -43,6 +44,29 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         }),
         ..Read::default()
     }
+}
+
+/// Every item the file declares at its top level, `pub` or not, each with the
+/// doc lines above it and past its attributes.
+pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+    let children = named_children(tree.root_node());
+    (0..children.len())
+        .filter_map(|at| {
+            let node = children[at];
+            let name = match node.kind() {
+                "mod_item" | "macro_definition" => node.child_by_field_name("name").map(|name| text_of(name, source).to_string()),
+                _ => named(node, source),
+            }?;
+            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, &["attribute_item"]);
+            // A `macro_rules!` is in scope by where it is written, and
+            // `#[macro_export]` or `#[macro_use]` carry it further: never by
+            // the module rule an item's visibility follows.
+            if node.kind() != "macro_definition" {
+                symbol.reach = Some("module");
+            }
+            Some(symbol)
+        })
+        .collect()
 }
 
 /// `prefix` is the inline-module path this block sits inside. `mod b;` inside
@@ -103,7 +127,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                     }
                 }
 
-                if top && published(*child) {
+                if top && published(*child, source) {
                     held.exports.push(Export {
                         exported: Some(name.clone()),
                         local: Some(name),
@@ -119,7 +143,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                     continue;
                 };
                 let line = line_of(*child);
-                let shared = published(*child);
+                let shared = published(*child, source);
                 for (path, local) in used(argument, source, &[]) {
                     let value = path.join("::");
                     let last = path.last().cloned().unwrap_or_else(|| value.clone());
@@ -162,7 +186,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                     continue;
                 }
                 if let Some(name) = named(*child, source) {
-                    if published(*child) {
+                    if published(*child, source) {
                         held.exports.push(Export {
                             exported: Some(name.clone()),
                             local: Some(name),
@@ -191,7 +215,7 @@ fn want(held: &mut Gathering, request: Request) {
 }
 
 /// Item kinds whose `name` field is a name this crate can publish.
-const ITEMS: [&str; 8] = [
+pub(super) const ITEMS: [&str; 8] = [
     "function_item",
     "struct_item",
     "enum_item",
@@ -210,10 +234,14 @@ fn named(node: Node, source: &str) -> Option<String> {
         .map(|name| text_of(name, source).to_string())
 }
 
-fn published(node: Node) -> bool {
+/// Whether another file can name the item: any `pub`, `pub(crate)` and
+/// `pub(super)` among them, but not `pub(self)` or `pub(in self)`, which are
+/// no `pub` at all.
+fn published(node: Node, source: &str) -> bool {
     named_children(node)
-        .iter()
-        .any(|child| child.kind() == "visibility_modifier")
+        .into_iter()
+        .filter(|child| child.kind() == "visibility_modifier")
+        .any(|modifier| !matches!(visibility(modifier, source).as_str(), "pub(self)" | "pub(inself)"))
 }
 
 /// The filename in `#[path = "other.rs"]`, when the node above is that attribute.
