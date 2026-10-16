@@ -204,6 +204,7 @@ export {
 export { gitDigests } from './tree.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  aliasesOf,
   declarationPassedOn,
   declaredDescribedOf,
   declaredOf,
@@ -213,6 +214,7 @@ export {
   memberDeclarationsOf,
   membersOn,
   readHelp,
+  type Alias,
   type ContainerMember,
   type DeclaredName,
   type DeclaredNames,

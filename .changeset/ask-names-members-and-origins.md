@@ -26,6 +26,9 @@ names that declaration after the export line, and `ask symbol` shows its line
 and its members too. Files that only pass a name to each other name no
 declaration, and neither does a namespace or a star asked for `default`.
 
+`ask symbol` for a name an import binds with `as` answers its original the
+same way: followed to the declaration a file passes on, with its members.
+
 Yarn 2 and later have no `-s` flag, so `yarn -s variance` fails before the CLI
 starts. The skill now says that `yarn variance` already prints only the CLI's
 output.

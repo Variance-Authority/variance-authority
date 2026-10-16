@@ -2613,6 +2613,7 @@
     },
     "names": {
       ".": {
+        "Alias": "interface",
         "CapViolation": "interface",
         "CasesEntered": "interface",
         "ChainViolation": "interface",
@@ -2745,6 +2746,7 @@
         "TypescriptError": "class",
         "Violation": "interface",
         "WorkingTreeChanges": "interface",
+        "aliasesOf": "function",
         "auditTaints": "function",
         "cappedLayers": "function",
         "cappedTiers": "function",

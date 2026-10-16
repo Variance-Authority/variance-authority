@@ -19,6 +19,7 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
+use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
@@ -101,6 +102,14 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
 #[napi]
 pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
+}
+
+/// Every import on the chain at `index` that binds `local` to an export of
+/// another name, ordered by the importing file in code units, then by line;
+/// `None` when there is no index.
+#[napi]
+pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Option<Vec<Alias>>> {
+    opened_chain(&index, |layers| aliases(&root, layers, &local))
 }
 
 /// Every declaration of a member named `name` the chain at `index` records,

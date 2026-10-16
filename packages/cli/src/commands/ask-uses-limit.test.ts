@@ -7,7 +7,8 @@ import { checkout, run } from './ask-packages-fixture.js';
 
 /**
  * `variance ask uses --limit`, which every other listing question takes: the
- * sites shown per section, every site still counted, and the rest said.
+ * sites shown per section, every site still counted, and the rest said, each
+ * shown site marked with the name its import binds.
  */
 
 const cwd = process.cwd();
@@ -68,5 +69,19 @@ describe('variance ask uses --limit', () => {
     expect(out).toContain('Imported in 3 places.');
     expect(rust(out)).toEqual(rust(all.out).slice(0, 1));
     expect(out).toContain('… 2 more not shown; a higher `limit` shows them.');
+  });
+
+  it('marks each site it shows with the name its import binds, and counts the renamed ones it cuts', async () => {
+    checkout(Object.fromEntries(
+      ['a', 'b', 'c', 'd'].map((one) => [`apps/app/src/greet-${one}.ts`, `import { greet as ${one}Greet } from '@acme/lib';\nexport const ${one} = ${one}Greet('${one}');\n`]),
+    ));
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const all = await run(['ask', 'uses', '--name', 'greet']);
+    const { code, out } = await run(['ask', 'uses', '--name', 'greet', '--limit', '2']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(sites(out)).toEqual(sites(all.out).slice(0, 2));
+    expect(sites(all.out).filter((line) => / \(as [a-d]Greet\)$/.test(line))).toHaveLength(4);
+    expect(out).toContain('… 3 more not shown; a higher `limit` shows them.');
   });
 });
