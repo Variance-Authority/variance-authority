@@ -120,6 +120,16 @@ pub fn declared_of(root: String, index: String, query: String, containing: bool,
     opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
 }
 
+/// The declarations no export binds whose name and doc hold at least `needed`
+/// of `stems` — `describedWords`' stems of a question — in `files` when they
+/// are named, each with the positions of the stems it holds.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_described_of(root: String, index: String, stems: Vec<String>, needed: u32, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = Matching::Described { stems, needed: needed.max(1) as usize };
+    opened_chain(&index, |layers| declared(&root, layers, "", matching, files.as_deref()))
+}
+
 /// The chain at `index`, each segment opened in place, handed to `read`;
 /// `None` when there is no index.
 fn opened_chain<T>(index: &str, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {

@@ -76,6 +76,40 @@ describe('searchNames', () => {
     expect(answer.loose).toBeUndefined();
   });
 
+  it('finds a name no manifest publishes by the words of its documentation', () => {
+    // `tally` is exported by a file beta's entrypoint does not re-export, and
+    // `ledger` is only in its doc comment.
+    const answer = searchNames(INDEX, { query: 'Ledger' });
+    expect(answer.exported?.shown).toContainEqual(
+      expect.objectContaining({ name: 'tally', summary: 'What beta writes into its ledger.', at: 'packages/beta/src/again.ts' }),
+    );
+  });
+
+  it('gives an export without a doc of its own no summary, though another file exports its name with one', () => {
+    // `sum` in alpha is undocumented; beta's unrelated `sum` has a doc comment.
+    const answer = searchNames(INDEX, { query: 'sum' });
+    const sum = answer.exported?.shown.find((match) => match.name === 'sum');
+    expect(sum).toMatchObject({ at: 'packages/alpha/src/count.ts', files: 2 });
+    expect(sum).not.toHaveProperty('summary');
+  });
+
+  it('shows the file whose doc holds the words, not another file exporting the same name', () => {
+    // Only beta's `sum` says "beta counted"; alpha's would be shown first by kind and order.
+    const doc = { name: 'sum', at: 'packages/beta/src/inner/deeper.ts', summary: 'Adds up what beta counted.' };
+    expect(searchNames(INDEX, { query: 'beta counted' }).exported?.shown).toContainEqual(expect.objectContaining(doc));
+    expect(searchNames(INDEX, { query: 'counted beta' }).described?.shown).toContainEqual(expect.objectContaining(doc));
+  });
+
+  it('finds a name no manifest publishes when its documentation holds the description', () => {
+    const answer = searchNames(INDEX, { query: 'ledgers beta writes' });
+    expect(answer.described?.shown.map((match) => match.name)).toContain('tally');
+  });
+
+  it('finds a name no manifest publishes when its documentation holds a word one character off', () => {
+    const loose = searchNames(INDEX, { query: 'ledgr' }).loose;
+    expect(loose?.shown.map((match) => match.name)).toContain('tally');
+  });
+
   it('finds a name from the words it is written in, apart', () => {
     // `keptReading` is the words `kept` and `reading`; the caller who recalls
     // the words and not the casing must still reach it.

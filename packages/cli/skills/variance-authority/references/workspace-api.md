@@ -255,8 +255,9 @@ specifier before it is the import line you will write, and it goes to
 `--package` when the same name is published from more than one place. So after
 `@variance-authority/core/format · Viewport [interface] …` the next question is
 `symbol --name Viewport`, not `symbol --name @variance-authority/core/format`. An
-unpublished line has a `path:line` instead of a specifier: open the file, or
-pass its name to `symbol` and `uses`, which answer it from the source index.
+unpublished line has a `path:line` instead of a specifier, and the first paragraph
+of its doc comment when it has one: open the file, or pass its name to
+`symbol` and `uses`, which answer it from the source index.
 A line under *declared … without being exported* is a name its file does not
 export, matched by its name or its documentation: `symbol` gives its signature
 and who can reach it, which is only that file in a JavaScript or TypeScript
@@ -275,8 +276,10 @@ matches installed third-party declarations from the same lexicon, which is
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names holding at least half of your words by stem, then
-names your words reach loosely — are suggestions, printed before the installed
+follow an empty answer — names holding at least half of your words by stem, in
+any order, in the name or its doc, whether published, exported or declared and
+not exported, the ones holding the most of your words first; then names your
+words reach loosely — are suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.

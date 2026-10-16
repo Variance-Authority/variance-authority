@@ -30,7 +30,7 @@ export type { SearchGeneration };
 
 // The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 2;
+const VERSION = 3;
 const NONE = 0xffffffff;
 
 /** The tokenizer MiniSearch applies by default, which the loose pass was built with. */
@@ -52,8 +52,8 @@ const SECTIONS = [
   'names.name', 'names.rank', 'names.lowerOff', 'names.lower', 'names.pubOff', 'names.pub', 'names.expOff', 'names.exp',
   'pub.name', 'pub.spec', 'pub.kind', 'pub.doc', 'pub.at', 'pub.usedBy', 'pub.uses', 'pub.sitesOff', 'sites.at',
   'pub.docLowerOff', 'pub.docLower',
-  'exp.name', 'exp.at', 'exp.by', 'exp.line', 'exp.kind',
-  'terms.off', 'terms.blob', 'terms.nameOff', 'terms.name', 'terms.pubOff', 'terms.pub',
+  'exp.name', 'exp.at', 'exp.by', 'exp.line', 'exp.kind', 'exp.doc', 'exp.docLowerOff', 'exp.docLower',
+  'terms.off', 'terms.blob', 'terms.nameOff', 'terms.name', 'terms.pubOff', 'terms.pub', 'terms.expOff', 'terms.exp',
 ] as const;
 type SectionName = (typeof SECTIONS)[number];
 
@@ -111,6 +111,7 @@ export interface ExportedRow {
   readonly by: string;
   readonly line: number;
   readonly kind: UseKind;
+  readonly doc?: string;
 }
 
 /** An opened index: columns over one buffer, decoded a row at a time. */
@@ -120,6 +121,8 @@ export interface SearchIndex {
   namesContaining(query: string): readonly number[];
   /** Published rows whose lowercase doc contains `query`, ascending. */
   docsContaining(query: string): readonly number[];
+  /** Exported rows whose lowercase doc contains `query`, ascending. */
+  exportedDocsContaining(query: string): readonly number[];
   name(id: number): string;
   publishedOf(name: number): Uint32Array;
   exportedOf(name: number): Uint32Array;
@@ -141,6 +144,8 @@ export interface SearchIndex {
   exportedFile(row: number): number;
   publishedFile(row: number): number;
   exported(row: number): ExportedRow;
+  /** The name id of one exported row, without decoding the rest of it. */
+  exportedName(row: number): number;
   /** Where one exported row sits among source, test and story: 0, 1 or 2. */
   exportedKind(row: number): number;
   /** The file of one exported row, without decoding the rest of it. */
@@ -153,6 +158,8 @@ export interface SearchIndex {
   termBytes(id: number): Buffer;
   termNames(term: number): Uint32Array;
   termPublished(term: number): Uint32Array;
+  /** The exported rows whose doc holds the term. */
+  termExported(term: number): Uint32Array;
 }
 
 /** Open one encoded index. Throws on anything that is not this format and version. */
@@ -201,7 +208,9 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const sitesAt = u32('sites.at');
   const docLowerOff = u32('pub.docLowerOff');
   const docLower = bytesOf('pub.docLower');
-  const exp = { name: u32('exp.name'), at: u32('exp.at'), by: u32('exp.by'), line: u32('exp.line') };
+  const exp = { name: u32('exp.name'), at: u32('exp.at'), by: u32('exp.by'), line: u32('exp.line'), doc: u32('exp.doc') };
+  const expDocLowerOff = u32('exp.docLowerOff');
+  const expDocLower = bytesOf('exp.docLower');
   const expKind = bytesOf('exp.kind');
   const termOff = u32('terms.off');
   const termBlob = bytesOf('terms.blob');
@@ -209,6 +218,8 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const termName = u32('terms.name');
   const termPubOff = u32('terms.pubOff');
   const termPub = u32('terms.pub');
+  const termExpOff = u32('terms.expOff');
+  const termExp = u32('terms.exp');
 
   const name = (id: number): string => string(nameString[id] ?? NONE);
   const slice = (off: Uint32Array, rows: Uint32Array, key: number): Uint32Array =>
@@ -220,6 +231,11 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     docsContaining: (query) =>
       containing(docLower, docLowerOff, query, (row) => {
         const doc = pub.doc[row] ?? NONE;
+        return doc === NONE ? '' : string(doc).toLowerCase();
+      }),
+    exportedDocsContaining: (query) =>
+      containing(expDocLower, expDocLowerOff, query, (row) => {
+        const doc = exp.doc[row] ?? NONE;
         return doc === NONE ? '' : string(doc).toLowerCase();
       }),
     name,
@@ -267,14 +283,19 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     file: string,
     exportedFile: (row) => exp.at[row] ?? NONE,
     publishedFile: (row) => pub.at[row] ?? NONE,
-    exported: (row) => ({
-      row,
-      name: name(exp.name[row] ?? NONE),
-      at: string(exp.at[row] ?? NONE),
-      by: string(exp.by[row] ?? NONE),
-      line: exp.line[row] ?? 0,
-      kind: USE_KINDS[expKind[row] ?? 0] ?? 'source',
-    }),
+    exported(row) {
+      const doc = exp.doc[row] ?? NONE;
+      return {
+        row,
+        name: name(exp.name[row] ?? NONE),
+        at: string(exp.at[row] ?? NONE),
+        by: string(exp.by[row] ?? NONE),
+        line: exp.line[row] ?? 0,
+        kind: USE_KINDS[expKind[row] ?? 0] ?? 'source',
+        ...(doc === NONE ? {} : { doc: string(doc) }),
+      };
+    },
+    exportedName: (row) => exp.name[row] ?? NONE,
     exportedKind: (row) => expKind[row] ?? 0,
     exportedAt: (row) => string(exp.at[row] ?? NONE),
     publishedAt: (row) => string(pub.at[row] ?? NONE),
@@ -283,6 +304,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     termBytes: (id) => termBlob.subarray(termOff[id] ?? 0, termOff[id + 1] ?? 0),
     termNames: (term) => slice(termNameOff, termName, term),
     termPublished: (term) => slice(termPubOff, termPub, term),
+    termExported: (term) => slice(termExpOff, termExp, term),
   };
 }
 

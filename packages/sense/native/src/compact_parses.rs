@@ -149,6 +149,18 @@ impl<'a> Parses<'a> {
         (bytes != crate::segment::NONE && lines != crate::segment::NONE).then_some(lines)
     }
 
+    /// The doc comment span of one export, in UTF-16 units of its file;
+    /// absent when the reader found none.
+    pub fn doc_of_export(&self, export: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.export_doc[0], self.export_doc[1], export).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
+    /// The doc comment span of one declaration, as [`Self::doc_of_export`]
+    /// is of an export.
+    pub fn doc_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.symbol_doc[0], self.symbol_doc[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
     fn lengths(&self) -> Result<(), String> {
         let rows = self.key.len();
         same_length(rows, &[

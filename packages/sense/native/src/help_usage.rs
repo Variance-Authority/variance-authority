@@ -27,6 +27,11 @@ pub struct NamedExport {
     #[serde(rename = "type")]
     pub r#type: bool,
     pub kind: String,
+    /// The doc comment above the export, or above the declaration it binds in
+    /// the same file, as `dependency_namespace::doc` cuts it from the file at the
+    /// span the index holds; absent when nothing documents it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc: Option<String>,
 }
 
 /// An import of a file of a workspace package, rather than of an entry its
@@ -143,7 +148,7 @@ fn taken(layer: &Layer, row: usize, request: usize, key: &str, by: &str, at: &st
     names
 }
 
-fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
+fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
     let at = crossing.file;
@@ -153,10 +158,26 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
+        // The file is read only when an export of it is documented: the index
+        // holds where each comment is, and the text is the file's.
+        let mut source: Option<Vec<u16>> = None;
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
             let Some(name) = text.optional(id) else { continue };
-            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned() });
+            // The TypeScript reader spans an export's doc on the export; the
+            // others span it on the declaration the export binds, by its name.
+            let declared = || {
+                let local = text.optional(parses.export_local.at(export))?;
+                if text.optional(parses.export_from.at(export)).is_some() { return None }
+                parses.symbols.range(row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == local).and_then(|symbol| parses.doc_of_symbol(symbol))
+            };
+            let doc = parses.doc_of_export(export).or_else(declared).and_then(|span| {
+                let utf16 = source.get_or_insert_with(|| {
+                    std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
+                });
+                crate::dependency_namespace::doc(utf16, Some(span))
+            });
+            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), doc });
         }
     }
     let first = parses.requests.at(row) as usize;
@@ -212,7 +233,7 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         .par_iter()
         .map(|crossing| {
             let by = if crossing.owner == NO_OWNER { "" } else { owners.packages[crossing.owner as usize].name.as_str() };
-            collect(layers, crossing, by, &targets)
+            collect(root, layers, crossing, by, &targets)
         })
         .collect();
     let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
