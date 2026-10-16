@@ -414,6 +414,15 @@ So when you need to know which value a call got, add a `console.log` that
 prints it, record the test again, and read the line at its step. A step shows
 its first 5 lines and counts the rest.
 
+The line goes in the code under test, not in the test. The test checks what it
+checked before; the log only makes this run say what it held, which is what
+site reliability engineering calls white-box monitoring: the system reports
+its internal state, where black-box monitoring sees only what a user would. To
+find the value behind a test that fails on some runs, print it, record runs
+that pass and runs that throw, and [compare them](#compare-readings-of-one-test):
+a value that differs on every reading is listed with the step that printed it.
+Take the `console.log` out before you change the code.
+
 ## What a story does not show
 
 - **Values the code does not print.** Set a breakpoint at the line the story

@@ -374,18 +374,25 @@ review loop.
 
 ## Point an agent at it
 
-`@variance-authority/cli` ships one skill, `variance-authority`, at
-`node_modules/@variance-authority/cli/skills/variance-authority`. It covers
-reports, watchers and connections, choosing which tests to run, and what a
-workspace publishes, and opens a reference file for each only when the question
-needs it. Installing the package puts it on disk; your agent reads it only from
+`@variance-authority/cli` ships two skills, under
+`node_modules/@variance-authority/cli/skills/`:
+
+- **`variance-authority`** covers reports, watchers and connections, choosing
+  which tests to run, and what a workspace publishes, and opens a reference
+  file for each only when the question needs it.
+- **`variance-testing`** is the order to ask in while you write, fix or debug a
+  test: which tests stand on a line, what an edit needs to run, where a failing
+  or flaky test went, and what a change left untested. It links the
+  `variance-authority` references for its flags, so link both.
+
+Installing the package puts them on disk; your agent reads a skill only from
 its own skills directory, in the project or your home directory. Claude Code
-reads `.claude/skills`; most other agents read `.agents/skills`. Link it into
-both rather than copying it, so it follows every update:
+reads `.claude/skills`; most other agents read `.agents/skills`. Link them into
+both rather than copying them, so they follow every update:
 
 ```bash
-mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
-mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
+mkdir -p .agents/skills && for s in variance-authority variance-testing; do ln -s ../../node_modules/@variance-authority/cli/skills/$s .agents/skills/$s; done
+mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -s ../../.agents/skills/$s .claude/skills/$s; done
 ```
 
 An agent opens a skill only when its description matches the task, and it reads
