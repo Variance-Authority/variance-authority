@@ -96,6 +96,13 @@ describe('presentation evidence in a run-report file', () => {
 
     await writeFile(path, JSON.stringify(reportOf({
       verdict: 'changed',
+      because: ' ',
+      after: digestValue('after'),
+    } as never)), 'utf8');
+    await expect(readRunReport(path)).rejects.toThrow('.because names no side');
+
+    await writeFile(path, JSON.stringify(reportOf({
+      verdict: 'changed',
       because: 'the baseline supplied no presentation reading',
       before: digestValue('before'),
       after: 42,
