@@ -90,11 +90,12 @@ pub(crate) fn aliases(root: &str, layers: &[Layer], local: &str) -> Vec<Alias> {
         let mut sites = Vec::new();
         for request in parses.requests.range(row) {
             let specifier = text.text(parses.request_value.at(request));
-            if text.text(parses.request_kind.at(request)) == "reexports" { continue; }
+            // An `export … from` group, `export type` included, binds nothing of its own.
+            if parses.request_republishes[request] == 1 { continue; }
             for at in parses.request_bindings.range(request) {
                 if text.text(parses.binding_local.at(at)) != local { continue; }
                 let imported = text.text(parses.binding_imported.at(at));
-                if imported == local || imported == "*" || republishes(&layers[layer], row, specifier, local) { continue; }
+                if imported == local || imported == "*" { continue; }
                 sites.push(Alias {
                     at: crossing.file.to_owned(),
                     line: parses.binding_line.at(at),
@@ -111,15 +112,4 @@ pub(crate) fn aliases(root: &str, layers: &[Layer], local: &str) -> Vec<Alias> {
         found.extend(sites);
     }
     found
-}
-
-/// Whether the parse at `row` exports `name` from `specifier`: the binding is
-/// one a type-only `export … from` wrote, whose request reads as `type` like
-/// an `import type`'s does.
-fn republishes(layer: &Layer, row: usize, specifier: &str, name: &str) -> bool {
-    let (text, parses) = (&layer.stored, &layer.parses);
-    parses.exports_present[row] == 1
-        && parses.exports.range(row).any(|export| {
-            text.optional(parses.export_from.at(export)) == Some(specifier) && text.optional(parses.export_exported.at(export)) == Some(name)
-        })
 }

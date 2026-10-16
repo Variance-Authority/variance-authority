@@ -42,6 +42,19 @@ describe('variance ask over a renamed import', () => {
     expect(out).toMatch(/^packages\/lib\/src\/hailed\.ts:1 — @acme\/lib \(as hail\)$/m);
   });
 
+  it('names the local name of a renamed import of what a type-only re-export passes on in `uses`', async () => {
+    checkout({
+      'packages/lib/src/typed.ts': "export type { greet as Greet } from './greet.js';\n",
+      'packages/lib/src/called.ts': "import type { Greet as Called } from './typed.js';\nexport type Calling = typeof Called;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/lib\/src\/called\.ts:1 — @acme\/lib \(as Called\) \(type only\)$/m);
+    expect(out).not.toMatch(/typed\.ts/);
+  });
+
   it('names the local name of a renamed import of a name no entry publishes in `uses`', async () => {
     checkout(RENAMED);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

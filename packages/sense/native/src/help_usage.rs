@@ -278,16 +278,25 @@ pub struct Importers {
 /// package graph reads: that is no use, and the file that writes it is
 /// followed instead under the name it exports, so an import through a barrel
 /// is listed and the barrel is not. A bare `export *` passes on every name but
-/// `default`. A type-only re-export passes nothing on and is listed where it
-/// is written. Each file is followed once per name, so a cycle of re-exports
-/// ends.
+/// `default`. The question is about source, so a type-only re-export passes
+/// its names on too, and every use that came through one is a type use,
+/// whatever its importer wrote. Each file is followed once per name, and once
+/// more when a value path reaches a name a type-only one reached first, so a
+/// cycle of re-exports ends.
 pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
     // Every file is one origin, so a file passed the name by two of them is followed once.
     let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
         files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
     let (found, through) = importers_from(root, layers, origins);
     let mut found: Vec<NameUse> = found.into_iter().map(|taken| taken.taken).collect();
-    found.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
+    found.sort_by(|a, b| {
+        crate::order::code_unit(&a.at, &b.at)
+            .then(a.line.cmp(&b.line))
+            .then_with(|| crate::order::code_unit(&a.name, &b.name))
+            .then_with(|| crate::order::code_unit(&a.key, &b.key))
+            // Two bindings of one name on one line differ by what they bind it to.
+            .then_with(|| crate::order::code_unit(a.local.as_deref().unwrap_or(""), b.local.as_deref().unwrap_or("")))
+    });
     let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
     through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
     Importers { uses: found, through }
@@ -301,45 +310,72 @@ pub(crate) struct Taken {
     pub(crate) local: String,
 }
 
+/// Per file, each name wanted out of it, and per origin whether only a
+/// type-only path reached it.
+type Wanted = HashMap<String, HashMap<String, HashMap<usize, bool>>>;
+
 /// `importers` for several names at once: each `(file, name)` of `wanted`
 /// carries the origins it answers for, and every use and every file passing
 /// one on carries them along, so one walk answers them all. Each file is
-/// followed once per name and origin.
+/// followed once per name and origin, and once more when a value path reaches
+/// it after a type-only one; a site reached both ways is a value use.
 pub(crate) fn importers_from(
     root: &str,
     layers: &[Layer],
-    mut wanted: HashMap<String, HashMap<String, HashSet<usize>>>,
+    asked: HashMap<String, HashMap<String, HashSet<usize>>>,
 ) -> (Vec<Taken>, HashSet<String>) {
     let folded = fold(layers);
-    let mut seen: HashSet<(String, String, usize)> = HashSet::new();
+    let mut wanted: Wanted = asked
+        .into_iter()
+        .map(|(file, names)| (file, names.into_iter().map(|(name, origins)| (name, origins.into_iter().map(|origin| (origin, false)).collect())).collect()))
+        .collect();
+    // Each `(file, name, origin)` followed, and whether only a type-only path reached it.
+    let mut seen: HashMap<(String, String, usize), bool> = HashMap::new();
     for (file, names) in &wanted {
         for (name, origins) in names {
-            seen.extend(origins.iter().map(|&origin| (file.clone(), name.clone(), origin)));
+            seen.extend(origins.keys().map(|&origin| ((file.clone(), name.clone(), origin), false)));
         }
     }
-    let (mut found, mut through) = (Vec::new(), HashSet::new());
+    let mut found: HashMap<(usize, String, u32, String, String, String), Taken> = HashMap::new();
+    let mut through = HashSet::new();
     while !wanted.is_empty() {
         let (uses, passed) = importers_of(root, layers, &folded, &wanted);
-        found.extend(uses);
+        for one in uses {
+            let site = (one.origin, one.taken.at.clone(), one.taken.line, one.taken.name.clone(), one.taken.key.clone(), one.local.clone());
+            match found.entry(site) {
+                std::collections::hash_map::Entry::Occupied(mut held) => held.get_mut().taken.r#type &= one.taken.r#type,
+                std::collections::hash_map::Entry::Vacant(free) => {
+                    free.insert(one);
+                }
+            }
+        }
         wanted = HashMap::new();
-        for (file, exported, origin) in passed {
-            if seen.insert((file.clone(), exported.clone(), origin)) {
+        for (file, exported, origin, typed) in passed {
+            let key = (file.clone(), exported.clone(), origin);
+            let follow = match seen.get(&key) {
+                None => true,
+                Some(&held) => held && !typed,
+            };
+            if follow {
+                seen.insert(key, typed);
                 through.insert(file.clone());
-                wanted.entry(file).or_default().entry(exported).or_default().insert(origin);
+                let held = wanted.entry(file).or_default().entry(exported).or_default().entry(origin).or_insert(typed);
+                *held &= typed;
             }
         }
     }
-    (found, through)
+    (found.into_values().collect(), through)
 }
 
 /// One step of `importers_from`: the uses of each wanted name out of its
-/// file, and each `(file, name, origin)` a re-export passes one of them on as.
+/// file, and each `(file, name, origin, type_only)` a re-export passes one of
+/// them on as.
 fn importers_of(
     root: &str,
     layers: &[Layer],
     folded: &HashMap<&str, At>,
-    wanted: &HashMap<String, HashMap<String, HashSet<usize>>>,
-) -> (Vec<Taken>, Vec<(String, String, usize)>) {
+    wanted: &Wanted,
+) -> (Vec<Taken>, Vec<(String, String, usize, bool)>) {
     let lands = |at: At| {
         let (stored, records) = (&layers[at.0].stored, &layers[at.0].records);
         records.targets_present[at.1] == 1
@@ -354,7 +390,7 @@ fn importers_of(
     join_parses(layers, &mut crossings);
     let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
     let owners = owners(root, &paths);
-    let parts: Vec<(Vec<Taken>, Vec<(String, String, usize)>)> = crossings
+    let parts: Vec<(Vec<Taken>, Vec<(String, String, usize, bool)>)> = crossings
         .par_iter()
         .map(|crossing| {
             let (mut found, mut passed) = (Vec::new(), Vec::new());
@@ -370,37 +406,39 @@ fn importers_of(
             let kind = kind_of(crossing.file);
             for request in parses.requests.range(row) {
                 let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
-                let written = text.text(parses.request_value.at(request));
-                let uses = taken(&layers[layer], row, request, written, by, crossing.file, kind)
-                    .into_iter()
-                    .filter_map(|(taken, local)| names.get(&taken.name).map(|origins| (taken, local, origins)));
-                let reexports = text.text(parses.request_kind.at(request)) == "reexports";
-                if reexports {
-                    let every = || names.iter().filter(|(name, _)| *name != "default").flat_map(|(name, origins)| origins.iter().map(|&origin| (crossing.file.to_owned(), name.clone(), origin)));
-                    match passed_on(&layers[layer], row, request) {
-                        // An export list the parse never recorded reads as the whole module.
-                        None => passed.extend(every()),
-                        Some(listed) => {
-                            for (imported, exported) in listed {
-                                match exported {
-                                    None if imported == "*" => passed.extend(every()),
-                                    // `export * as ns` passes a namespace: the name is a member read off it.
-                                    Some(_) if imported == "*" => {}
-                                    Some(exported) => {
-                                        if let Some(origins) = names.get(imported) {
-                                            passed.extend(origins.iter().map(|&origin| (crossing.file.to_owned(), exported.to_owned(), origin)));
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
+                if parses.request_republishes[request] != 1 {
+                    let written = text.text(parses.request_value.at(request));
+                    for (mut taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
+                        let Some(origins) = names.get(&taken.name) else { continue };
+                        let written_type = taken.r#type;
+                        for (&origin, &typed) in origins {
+                            taken.r#type = written_type || typed;
+                            found.push(Taken { origin, taken: taken.clone(), local: local.to_owned() });
                         }
                     }
+                    continue;
                 }
-                for (taken, local, origins) in uses {
-                    if reexports && !taken.r#type { continue; }
-                    for &origin in origins {
-                        found.push(Taken { origin, taken: taken.clone(), local: local.to_owned() });
+                let every = |type_only: bool| {
+                    names.iter().filter(|(name, _)| *name != "default").flat_map(move |(name, origins)| {
+                        origins.iter().map(move |(&origin, &typed)| (crossing.file.to_owned(), name.clone(), origin, typed || type_only))
+                    })
+                };
+                match passed_on(&layers[layer], row, request) {
+                    // An export list the parse never recorded reads as the whole
+                    // module, and as types when the whole statement says `export type`.
+                    None => passed.extend(every(text.text(parses.request_kind.at(request)) == "type")),
+                    Some(listed) => {
+                        for one in listed {
+                            match (one.exported, names.get(one.imported)) {
+                                (None, _) if one.imported == "*" => passed.extend(every(one.type_only)),
+                                // `export * as ns` passes a namespace: the name is a member read off it.
+                                (Some(_), _) if one.imported == "*" => {}
+                                (Some(exported), Some(origins)) => passed.extend(
+                                    origins.iter().map(|(&origin, &typed)| (crossing.file.to_owned(), exported.to_owned(), origin, typed || one.type_only)),
+                                ),
+                                _ => {}
+                            }
+                        }
                     }
                 }
             }

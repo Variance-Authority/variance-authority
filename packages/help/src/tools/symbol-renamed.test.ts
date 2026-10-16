@@ -12,7 +12,7 @@ import { symbol } from './symbol.js';
  * `symbol` over a name an import binds with `as`, where the original is an
  * installed declaration, or a file of the checkout that `files` gives to
  * `intersection`, and where the renaming is a re-export, which publishes the
- * name rather than binding it.
+ * name rather than binding it, also beside an import that binds the same name.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -38,6 +38,8 @@ async function workspace(): Promise<string> {
     'packages/beta/src/relay.ts': "export { inner as relayed } from './inner.js';\n",
     'packages/beta/src/kinds.ts': 'export type Kind = string;\n',
     'packages/beta/src/kind-relay.ts': "export type { Kind as Sort } from './kinds.js';\n",
+    'packages/beta/src/kind-own.ts':
+      "import type { Kind as Ilk } from './kinds.js';\nexport type { Kind as Ilk } from './kinds.js';\nexport type Own = Ilk;\n",
   };
   for (const [path, value] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -81,4 +83,10 @@ it('answers no local name for a name a type-only re-export renames, whose reques
   const out = symbol.run(readHelp(root), { name: 'Sort' }, { root });
   expect(out).not.toContain('is a local name');
   expect(out).toContain('packages/beta/src/kind-relay.ts');
+});
+
+it('answers the local name an `import type` binds beside a type-only re-export of the same name from the same file', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'Ilk' }, { root });
+  expect(out).toContain("`Ilk` is a local name: packages/beta/src/kind-own.ts:1 imports `Kind` as `Ilk` from './kinds.js' (type only).");
 });
