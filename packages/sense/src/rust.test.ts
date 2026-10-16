@@ -111,6 +111,14 @@ describe('what a Rust file declares', () => {
     ]);
   });
 
+  it('says an item is its module\'s, and records no reach for a `macro_rules!`, which no visibility governs', () => {
+    const read = readRust('src/lib.rs', 'fn relaunch() {}\n\n#[macro_export]\nmacro_rules! again {\n    () => {};\n}\n');
+    expect(read.symbols?.map(({ name, kind, reach }) => ({ name, kind, reach }))).toEqual([
+      { name: 'relaunch', kind: 'function', reach: 'module' },
+      { name: 'again', kind: 'macro', reach: undefined },
+    ]);
+  });
+
   it('says a file that declares nothing was read for declarations, which a file it could not read was not', () => {
     const { symbols, harvested } = readRust('src/lib.rs', 'use crate::a::B;\n');
     expect({ symbols, harvested }).toEqual({ symbols: undefined, harvested: true });

@@ -58,6 +58,7 @@ pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
 /// docstring, spanned inside the quotes.
 pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol> {
     let mut found = Vec::new();
+    let mut narrowed = false;
     for child in named_children(tree.root_node()) {
         let node = match child.kind() {
             "decorated_definition" => match child.child_by_field_name("definition") {
@@ -75,12 +76,18 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                     line: line_of(node),
                     signature: Some(head(node, source)),
                     doc: docstring(node, source),
+                    reach: None,
                 });
             }
             "expression_statement" => {
                 for assignment in named_children(node).into_iter().filter(|part| part.kind() == "assignment") {
                     let Some(left) = assignment.child_by_field_name("left") else { continue };
-                    if left.kind() != "identifier" || text_of(left, source) == "__all__" {
+                    if left.kind() != "identifier" {
+                        continue;
+                    }
+                    if text_of(left, source) == "__all__" {
+                        // Read as `read_assignment` reads it: a computed one narrows nothing.
+                        narrowed = assignment.child_by_field_name("right").is_some_and(|right| !strings_in(right, source).is_empty());
                         continue;
                     }
                     found.push(SourceSymbol {
@@ -89,11 +96,17 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                         line: line_of(assignment),
                         signature: Some(head(assignment, source)),
                         doc: None,
+                        reach: None,
                     });
                 }
             }
             _ => {}
         }
+    }
+    // Any module can import a name by spelling it; what keeps one out of
+    // `from … import *` is `__all__` when it is written, else the underscore.
+    for symbol in &mut found {
+        symbol.reach = if narrowed { Some("all") } else if symbol.name.starts_with('_') { Some("underscore") } else { None };
     }
     found
 }

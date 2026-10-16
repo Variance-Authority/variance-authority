@@ -70,6 +70,7 @@ pub struct ParseColumns {
     symbol_line: Vec<u32>,
     symbol_signature: [Vec<u32>; 2],
     symbol_doc: [Vec<u32>; 2],
+    symbol_reach: Vec<u8>,
     mocks_minus: Vec<u32>,
     mocks_plus: Vec<u32>,
     mock_minus: Vec<u32>,
@@ -157,12 +158,14 @@ impl ParseColumns {
         self.export_tags.push(tags);
     }
 
-    pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span) {
+    /// `reach` as [`crate::harvest::reach_code`] stores it.
+    pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, reach: u8) {
         self.symbol_name.push(name);
         self.symbol_kind.push(kind);
         self.symbol_line.push(line);
         span(&mut self.symbol_signature, signature);
         span(&mut self.symbol_doc, doc);
+        self.symbol_reach.push(reach);
     }
 
     pub fn declare(&mut self, name: u32) {
@@ -231,6 +234,7 @@ impl ParseColumns {
             u32s("symbols.signature-end", symbol_signature_end),
             u32s("symbols.doc-start", symbol_doc_start),
             u32s("symbols.doc-end", symbol_doc_end),
+            u8s("symbols.reach", self.symbol_reach),
             u32s("exports.signature-start", export_signature_start),
             u32s("exports.signature-end", export_signature_end),
             u32s("exports.doc-start", export_doc_start),

@@ -1,6 +1,7 @@
 import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
+import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
 import { declaredAt, reachOf, unreadNote } from './declared.js';
@@ -222,7 +223,7 @@ export const uses: Tool<Help> = {
   files(help, input, invocation): FileSet {
     const { sites, unread, members, kept } = usesOf(help, input, invocation?.root);
     const files = new Map<string, number[]>();
-    for (const site of [...sites, ...members.declared, ...kept.map(([at, line]) => ({ at, line }))]) {
+    for (const site of [...sites, ...members.declared, ...kept]) {
       files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
     }
     return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
@@ -230,14 +231,14 @@ export const uses: Tool<Help> = {
 };
 
 /** A name its files keep to themselves: where each declares it, and who can reach it from there. */
-function keptLine(name: string, kept: readonly (readonly [string, number])[]): string {
+function keptLine(name: string, kept: readonly DeclaredName[]): string {
   if (kept.length === 1) {
-    const [at, line] = kept[0]!;
-    return `\`${name}\` is declared, not exported, at ${at}:${line}${reachOf(at, name).clause}.`;
+    const one = kept[0]!;
+    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${reachOf(one).clause}.`;
   }
   return [
     `\`${name}\` is declared, not exported, in ${kept.length} files:`,
-    ...kept.map(([at, line]) => `  ${at}:${line}${reachOf(at, name).clause}`),
+    ...kept.map((one) => `  ${one.at}:${one.line}${reachOf(one).clause}`),
   ].join('\n');
 }
 
@@ -334,5 +335,5 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   const sites = sitesOf(found, byPath, within ?? [], read);
-  return { name, found, exported, byPath, sites, unread, within, members, kept: [] as readonly (readonly [string, number])[] };
+  return { name, found, exported, byPath, sites, unread, within, members, kept: [] as readonly DeclaredName[] };
 }

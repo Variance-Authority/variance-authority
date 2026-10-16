@@ -50,7 +50,7 @@ export {
   type PersistentParseCache,
   type SourceSize,
 } from './cache.js';
-export type { SourceSymbol, SourceSymbolKind, TextSpan } from './harvest.js';
+export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
 export { enrichSources, type HarvestSubject } from './enrich.js';
 
 export {

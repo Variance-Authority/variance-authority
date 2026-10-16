@@ -45,6 +45,7 @@ pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static st
         line: line_of(node),
         signature: Some(head(node, source)),
         doc: doc_above(children, at, source, attributes),
+        reach: None,
     }
 }
 

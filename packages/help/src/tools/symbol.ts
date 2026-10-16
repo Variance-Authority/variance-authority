@@ -153,7 +153,7 @@ export const symbol: Tool<Help> = {
       const exported = exportsNamed(help, name, wanted);
       for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
     }
-    if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted));
+    if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new Error(unfound(help, name, wanted));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {

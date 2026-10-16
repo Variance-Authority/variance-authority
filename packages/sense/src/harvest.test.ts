@@ -53,8 +53,14 @@ describe('declaration facts harvested with a module record', () => {
 
   it('names an anonymous default value as a constant', () => {
     expect(readModule('literal.ts', "export default 'value' as const;").symbols).toEqual([
-      { name: 'default', kind: 'const', line: 1 },
+      { name: 'default', kind: 'const', line: 1, reach: 'file' },
     ]);
+  });
+
+  it('says a module\'s own names are its file\'s, and records no reach for a script, whose top level is not its own', () => {
+    expect(readModule('module.ts', 'export {};\nfunction helper() {}\n').symbols?.map((symbol) => symbol.reach)).toEqual(['file']);
+    const script = readModule('script.cjs', 'function helper() {}\nmodule.exports = { helper };\n').symbols ?? [];
+    expect(script.map((symbol) => [symbol.name, symbol.reach])).toEqual([['helper', undefined]]);
   });
 });
 

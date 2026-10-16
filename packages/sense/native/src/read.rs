@@ -148,6 +148,13 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     let record = &parsed.module_record;
     let lines = Lines::new(source);
     let mut harvest = Harvest::new(&parsed.program, source, &lines, symbols);
+    // A module's own top level is its alone; a script's is global, or handed
+    // out through `module.exports`, which the record does not hold.
+    if record.has_module_syntax {
+        for symbol in &mut harvest.symbols {
+            symbol.reach = Some("file");
+        }
+    }
     let roles = DeclaredRoles::new(&parsed.program, std::mem::take(&mut harvest.tagged));
     let mut requests = Vec::new();
     let mut imports: Vec<ImportGroup> = Vec::new();

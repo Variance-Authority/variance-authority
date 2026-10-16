@@ -39,6 +39,9 @@ pub struct DeclaredName {
     /// The doc comment's span, inside its opening and closing marks, when one is written above.
     pub doc_start: Option<u32>,
     pub doc_end: Option<u32>,
+    /// Who can name it, as the reader of its language recorded: `file`,
+    /// `module`, `underscore` or `all`; absent when the reader cannot tell.
+    pub reach: Option<String>,
 }
 
 /// What `declared` found, and the files whose declarations it could not read.
@@ -171,6 +174,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 signature_end,
                 doc_start,
                 doc_end,
+                reach: crate::harvest::reach_of(parses.symbol_reach[symbol]).map(str::to_owned),
             }
         })
         .collect();

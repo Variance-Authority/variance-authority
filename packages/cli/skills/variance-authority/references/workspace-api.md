@@ -165,7 +165,9 @@ publishes is answered too: the file and line that export it, the line as the
 checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
-that passes it on exports without declaring, is said after it. A name nothing exports is refused.
+that passes it on exports without declaring, is said after it. A name a file
+declares and nothing exports is answered from the source index, as below; a
+name nothing declares is refused.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
@@ -257,9 +259,10 @@ unpublished line has a `path:line` instead of a specifier: open the file, or
 pass its name to `symbol` and `uses`, which answer it from the source index.
 A line under *declared … without being exported* is a name its file does not
 export, matched by its name or its documentation: `symbol` gives its signature
-and who can reach it, which is only that file in JavaScript and TypeScript, its
-module in Rust, and any module that spells it in Python; `uses` says the same in
-one line.
+and who can reach it, which is only that file in a JavaScript or TypeScript
+module, its module in Rust, and any module that spells it in Python; `uses` says
+the same in one line. A script or CommonJS file and a `macro_rules!` are said to
+have no recorded reach: their readers cannot tell how the file hands the name out.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a

@@ -228,6 +228,13 @@ describe('what a Python file declares', () => {
       { name: 'LIMIT', kind: 'variable', line: 10, signature: 'LIMIT', doc: undefined },
     ]);
   });
+
+  it('says what keeps a name out of `from … import *`: `__all__` when it is written, else a leading underscore', () => {
+    const reach = (contents: string) => readPython('pkg/mod.py', contents).symbols?.map(({ name, reach }) => [name, reach]);
+    expect(reach('def _relaunch():\n    pass\n\ndef start():\n    pass\n')).toEqual([['_relaunch', 'underscore'], ['start', undefined]]);
+    expect(reach("__all__ = ['start']\n\ndef start():\n    pass\n\ndef stop():\n    pass\n")).toEqual([['start', 'all'], ['stop', 'all']]);
+    expect(reach('__all__ = names()\n\ndef _relaunch():\n    pass\n')).toEqual([['_relaunch', 'underscore']]);
+  });
 });
 
 /** A symbol's signature and doc, as the spans it carries cut them from `contents`. */

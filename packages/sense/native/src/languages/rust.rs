@@ -57,7 +57,14 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
                 "mod_item" | "macro_definition" => node.child_by_field_name("name").map(|name| text_of(name, source).to_string()),
                 _ => named(node, source),
             }?;
-            Some(declaration(&children, at, name, kind_of(node.kind()), source, &["attribute_item"]))
+            let mut symbol = declaration(&children, at, name, kind_of(node.kind()), source, &["attribute_item"]);
+            // A `macro_rules!` is in scope by where it is written, and
+            // `#[macro_export]` or `#[macro_use]` carry it further: never by
+            // the module rule an item's visibility follows.
+            if node.kind() != "macro_definition" {
+                symbol.reach = Some("module");
+            }
+            Some(symbol)
         })
         .collect()
 }

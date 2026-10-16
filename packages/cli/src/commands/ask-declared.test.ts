@@ -192,6 +192,33 @@ describe('variance ask about a name declared and not exported', () => {
     );
   });
 
+  it('answers `symbol` for a Python name `__all__` leaves out with what keeps it out', async () => {
+    checkout({ 'packages/kit/kit/restart.py': "__all__ = ['restart']\n\ndef restart(argv):\n    return relaunch(argv)\n\ndef relaunch(argv):\n    return len(argv)\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'symbol', '--name', 'relaunch']);
+    expect(paragraph(out, /^relaunch \[function\]\n/)).toContain(
+      'Another module can still import it by name: `__all__` keeps it out of `from … import *` only.',
+    );
+  });
+
+  it('answers `symbol` for a `macro_rules!` and a CommonJS function without a reach their readers cannot tell', async () => {
+    checkout({
+      ...PRIVATE_RUST,
+      'packages/kit/src/again.rs': '#[macro_export]\nmacro_rules! again {\n    () => {};\n}\n',
+      'packages/kit/src/money/legacy.cjs': 'function rerun(argv) {\n  return argv.length;\n}\nmodule.exports = { rerun };\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const [name, kind] of [['again', 'macro'], ['rerun', 'function']] as const) {
+      const { out } = await run(['ask', 'symbol', '--name', name]);
+      const block = paragraph(out, new RegExp(`^${name} \\[${kind}\\]\\n`));
+      expect(block).toContain('Who can reach it is not recorded: its reader cannot tell how this file hands it out.');
+      expect(block).not.toContain('can import it');
+      expect(block).not.toContain('can name it');
+    }
+  });
+
   it('writes out five declarations of one name and counts the rest', async () => {
     const files = Object.fromEntries(
       ['a', 'b', 'c', 'd', 'e', 'f'].map((part) => [

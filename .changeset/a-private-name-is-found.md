@@ -1,6 +1,7 @@
 ---
 '@variance-authority/sense': minor
 '@variance-authority/help': minor
+'@variance-authority/package': minor
 ---
 
 `symbol`, `search` and `uses` answer a name a file declares and does not export
@@ -25,9 +26,11 @@ rather than as declaring nothing.
 with one block per declaration: its kind, the file and line that declare it and
 the package that owns them, its signature and documentation as the checkout
 holds them, and who can reach it under the file's language. Nothing outside a
-JavaScript or TypeScript file can import it; only its module and the modules
+JavaScript or TypeScript module can import it; only its module and the modules
 inside it can name a Rust item; another Python module can still import it by
-name. Source comes before tests and stories, and past five declarations the rest
+name. Each reader records that reach with the declaration, and one that cannot
+tell — a script or CommonJS file, a `macro_rules!` — records none, which the
+answer says. Source comes before tests and stories, and past five declarations the rest
 are counted. `search` lists the declarations whose names or documentation hold
 the query under *N more names are declared somewhere in the repository without
 being exported*, after the exported ones, and within the area when `from` or
@@ -37,6 +40,9 @@ left to the export lists. When a name is found nowhere and some files'
 declarations were not read, the refusal says so.
 
 `@variance-authority/sense` exports `declaredOf(root, query, { containing, files
-})`, which reads these declarations off the published source index. The source
+})`, which reads these declarations off the published source index, and a
+`SourceSymbol` carries its `reach`. `@variance-authority/package`'s
+`DeclarationKind` names the kinds the new readers harvest: `struct`, `trait`,
+`macro`, `record`, `protocol` and the rest. The source
 index format moves to version 21; the first `variance index` after upgrading
 writes it again.

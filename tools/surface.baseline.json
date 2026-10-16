@@ -2704,6 +2704,7 @@
         "SourceSize": "interface",
         "SourceSymbol": "interface",
         "SourceSymbolKind": "type",
+        "SourceSymbolReach": "type",
         "SourceUpdate": "interface",
         "SourceUpdateOptions": "interface",
         "SuiteJourneyMap": "interface",

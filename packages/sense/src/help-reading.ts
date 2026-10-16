@@ -14,6 +14,7 @@
 
 import { native, nativeRefusal } from './native.js';
 import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import type { SourceSymbolReach } from './harvest.js';
 import { sourceIndexPath } from './source-index.js';
 
 type NamedExport = NativeIndexedUsage['exported'][number];
@@ -183,6 +184,8 @@ export interface DeclaredName {
   /** The doc comment's span, inside its opening and closing marks, when one is written above. */
   readonly docStart?: number | null;
   readonly docEnd?: number | null;
+  /** Who can name it, as the reader of its language recorded; absent when the reader cannot tell. */
+  readonly reach?: SourceSymbolReach | null;
 }
 
 /** What `declaredOf` found, and the files whose declarations it could not read. */

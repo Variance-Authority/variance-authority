@@ -7,17 +7,18 @@
  * it. A caller who typed such a name exactly is not wrong about the name, and
  * `git grep` would find it at once. The source index harvested every top-level
  * declaration of every file it parsed, so the declaration is read from there,
- * and where it is written says who can reach it, which is the language's rule:
- * a JavaScript or TypeScript module's own name is its alone, a Rust item that
- * is not `pub` is its module's and the modules inside it, and a Python module
- * keeps no name from an import that spells it.
+ * with who can reach it, as the reader of its language recorded: an ES
+ * module's own name is its alone, a Rust item that is not `pub` is its
+ * module's and the modules inside it, and a Python module keeps no name from an
+ * import that spells it. A reader that cannot tell — a script, a
+ * `macro_rules!` — records nothing, and the answer says that.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { declaredOf, languageOf, type DeclaredName } from '@variance-authority/sense';
+import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
 
@@ -71,34 +72,42 @@ export function declaredBlock(root: string, held: DeclaredName): string {
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
     ...(signature === undefined ? [] : [signature]),
     ...(doc === undefined ? [] : [doc]),
-    reachOf(held.at, held.name).block,
+    reachOf(held).block,
   ].join('\n');
 }
 
 /**
- * Who can reach a name its file declares and does not export, by the language
- * of the file: the sentence `symbol` ends a declaration with, and the clause
- * `uses` ends its line with.
+ * Who can reach a name its file declares and does not export, as its reader
+ * recorded: the sentence `symbol` ends a declaration with, and the clause `uses`
+ * ends its line with.
  */
-export function reachOf(at: string, name: string): { readonly block: string; readonly clause: string } {
-  const language = languageOf(at);
-  if (language === 'rust') {
-    return {
-      block: 'Only the module it is declared in, and the modules inside that one, can name it: it is not `pub`.',
-      clause: ', so only its module and the modules inside it can name it',
-    };
+export function reachOf(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>): { readonly block: string; readonly clause: string } {
+  const { at, name } = held;
+  switch (held.reach) {
+    case 'file':
+      return {
+        block: `Nothing outside ${at} can import it: no export of that file names it.`,
+        clause: ', so nothing outside that file can import it',
+      };
+    case 'module':
+      return {
+        block: 'Only the module it is declared in, and the modules inside that one, can name it: it is not `pub`.',
+        clause: ', so only its module and the modules inside it can name it',
+      };
+    case 'underscore':
+    case 'all': {
+      const kept = held.reach === 'underscore' ? 'a leading underscore' : '`__all__`';
+      return {
+        block: `Another module can still import it by name: ${kept} keeps it out of \`from … import *\` only.`,
+        clause: `; another module can still import it by name, which \`ask grep --query '\\b${name}\\b' --to ${at}\` finds`,
+      };
+    }
+    default:
+      return {
+        block: 'Who can reach it is not recorded: its reader cannot tell how this file hands it out.',
+        clause: '; who can reach it is not recorded',
+      };
   }
-  if (language === 'python') {
-    const kept = name.startsWith('_') ? 'a leading underscore' : '`__all__`';
-    return {
-      block: `Another module can still import it by name: ${kept} keeps it out of \`from … import *\` only.`,
-      clause: `; another module can still import it by name, which \`ask grep --query '\\b${name}\\b' --to ${at}\` finds`,
-    };
-  }
-  return {
-    block: `Nothing outside ${at} can import it: no export of that file names it.`,
-    clause: ', so nothing outside that file can import it',
-  };
 }
 
 /** One declaration, as a `search` line writes it. */
@@ -157,11 +166,11 @@ export function unreadNote(root: string | undefined, name: string): string {
   return 'refused' in read ? '' : unreadLine(read.unread).map((line) => ` ${line}`).join('');
 }
 
-/** Where `symbol` finds the name declared when no file exports it, each at its line. */
-export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly (readonly [string, number])[] {
+/** The declarations of the name when no file exports it, source first; none when the index is not at hand. */
+export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
   const read = declarations(root, name);
   if ('refused' in read) return [];
-  return read.names.filter((one) => wanted === undefined || one.by === wanted).map((one) => [one.at, one.line] as const);
+  return read.names.filter((one) => wanted === undefined || one.by === wanted);
 }
 
 /**
