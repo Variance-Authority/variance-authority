@@ -181,9 +181,6 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
         write(&mut written, at, on, origin);
         write(&mut frontier, at, on, origin);
     }
-    // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
-    // field used through a type-only barrel is missed here, though the type is
-    // the one declared.
     while !frontier.is_empty() {
         let mut reached = frontier.clone();
         let (taken, _) = importers_from(root, layers, frontier);

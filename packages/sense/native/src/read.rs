@@ -59,6 +59,12 @@ pub struct Request {
     pub kind: Kind,
     pub(crate) bindings: Vec<Binding>,
     pub(crate) line: u32,
+    /// An `export … from` group: what it binds it passes on, and takes for no
+    /// use of its own. Every `reexports` request is one, and a `type` one is
+    /// when `export type` writes it, which its kind alone cannot tell from
+    /// `import type`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) republishes: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -223,6 +229,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: lines.at(group.at),
+        republishes: false,
     }));
 
     let mut entries: Vec<_> = record
@@ -297,6 +304,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: group.line,
+        republishes: true,
     }));
 
     let mut reasons = Vec::new();

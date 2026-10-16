@@ -248,7 +248,7 @@ describe('variance ask orient', () => {
     expect(answered.code).toBe(EXIT_OPERATOR);
     expect(answered.err.split('\n')[0]).toBe(
       `the source index at ${at} did not read: segment 0: a variance-authority-source-index written in format version 15, ` +
-        'and this release reads version 24; `variance index` rebuilds it',
+        'and this release reads version 27; `variance index` rebuilds it',
     );
   });
 });

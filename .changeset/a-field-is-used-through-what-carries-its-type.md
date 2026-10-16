@@ -25,5 +25,5 @@ annotated its own binding as `Props`. It now also lists:
   `Pick` of it where the `Pick` keeps `size`; `Omit<Props, 'size'>` lists none.
 
 The declaring file is read by the same rules. A `function` inside a class binds
-its own `this` and lists nothing. The source index format moves to version 24,
+its own `this` and lists nothing. The source index format moves to version 27,
 so the next `variance index` writes a fresh generation.

@@ -10,7 +10,9 @@ import {
   formatCoveringChange,
   type CoveringTest,
   type ExecutionTest,
+  type HeldLines,
 } from '@variance-authority/sense/test-selection';
+import { runsText, targetText } from './covering-at.js';
 import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
@@ -39,8 +41,7 @@ function text(answer: Covering): string {
   if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
 
   const tests = answer.tests ?? [];
-  const target = answer.target ?? { function: '' };
-  const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
+  const where = targetText(answer.target ?? { function: '' });
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
     return narrowedText(answer).join('\n');
@@ -49,6 +50,7 @@ function text(answer: Covering): string {
     return [
       `No named test covered ${where} of ${answer.file}${unentered(answer.stopped)}`,
       ...(answer.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`),
+      ...grainText(answer, where),
       ...narrowedText(answer),
     ].join('\n');
   }
@@ -58,8 +60,34 @@ function text(answer: Covering): string {
     }:`,
     ...caseLines(tests, '  ', answer.files, answer.twins),
     ...legend(tests),
+    ...grainText(answer, where),
     ...narrowedText(answer),
   ].join('\n');
+}
+
+/** Which asked lines the record holds at file grain, and which it has no place for. */
+function grainText(answer: Covering, where: string): readonly string[] {
+  const lines: string[] = [];
+  if (answer.grain === 'file') {
+    lines.push(`At file grain: an edit to ${where} charges the module's own region, so the record names the cases that loaded the file.`);
+  }
+  if (answer.fileGrain !== undefined) {
+    const [one, verb] = single(answer.fileGrain) ? ['Line', 'charges'] : ['Lines', 'charge'];
+    lines.push(`${one} ${runsText(answer.fileGrain)} ${verb} the module's own region: for them the record names the cases that loaded the file.`);
+  }
+  if (answer.outside !== undefined) {
+    const [one, verb] = single(answer.outside) ? ['Line', 'is'] : ['Lines', 'are'];
+    lines.push(`${one} ${runsText(answer.outside)} ${verb} outside every recorded region, so no case can be said to have run ${single(answer.outside) ? 'it' : 'them'}.`);
+  }
+  if (answer.written !== undefined) {
+    const [one, verb] = single(answer.written) ? ['Line', 'was'] : ['Lines', 'were'];
+    lines.push(`${one} ${runsText(answer.written)} ${verb} written since the recording, so no case has run ${single(answer.written) ? 'it' : 'them'}.`);
+  }
+  return lines;
+}
+
+function single(runs: readonly HeldLines[]): boolean {
+  return runs.length === 1 && runs[0]!.startLine === runs[0]!.endLine;
 }
 
 /**

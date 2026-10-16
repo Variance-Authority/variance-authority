@@ -50,13 +50,6 @@
   },
   {
     "files": [
-      "packages/cli/src/commands/covering.ts",
-      "packages/cli/src/commands/covering.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/cli/src/commands/observe-one.ts",
       "packages/cli/src/commands/observe-one.ts"
     ],

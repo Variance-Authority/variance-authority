@@ -36,28 +36,24 @@ import {
   caseTwins,
   changedLines,
   coveringChange,
-  coveringTests,
   anyStopped,
   coveringTestsInFile,
   keepsCases,
-  ranWhileLoading,
-  stoppedBefore,
-  stateOf,
   recordedCommit,
   type CaseTwin,
   type CoveringChange,
   type CoveringRegion,
   type CoveringTest,
   type ExecutionTest,
+  type HeldLines,
   type LineRange,
   type ExecutionIndex,
   type RangeState,
 } from '@variance-authority/sense/test-selection';
-import type { Relations } from '@variance-authority/core/relate';
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
-import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
+import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
@@ -66,7 +62,7 @@ import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { relationsFor } from './source-graph.js';
+import { coveringAt, countOf, fileGraph } from './covering-at.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
@@ -87,6 +83,12 @@ export interface StatedChange extends Omit<CoveringChange, 'regions'> {
   readonly regions: readonly StatedRegion[];
 }
 
+/** A line, a run of lines, or a recorded function or the scope that holds some. */
+export type CoveringTarget =
+  | { readonly line: number }
+  | { readonly lines: HeldLines }
+  | { readonly function: string };
+
 /** What was asked, and what the record said about it. */
 export interface Covering {
   /** The file the question named, absent when it named a diff. */
@@ -95,8 +97,25 @@ export interface Covering {
   readonly since?: string;
   /** Present when the question named a diff: one entry per changed file. */
   readonly changed?: readonly StatedChange[];
-  /** The line or function the question named, absent when it named neither. */
-  readonly target?: { readonly line: number } | { readonly function: string };
+  /** The line, run of lines or function the question named, in the text as it is now; absent when it named none. */
+  readonly target?: CoveringTarget;
+  /**
+   * `file` when an edit to every line the answer read charges the module's own
+   * region — a line only the module holds, or one that opens or closes a
+   * function the module encloses: the record says the module was loaded and
+   * nothing finer, so the cases are the ones that loaded the file.
+   */
+  readonly grain?: 'file';
+  /**
+   * Under a run of lines that also holds finer ones: the lines whose edit
+   * charges the module's own region, for which the cases are the ones that
+   * loaded the file. In the text as it is now.
+   */
+  readonly fileGrain?: readonly HeldLines[];
+  /** Under a run of lines: the lines no recorded region holds, which no case can be said to have run. In the text as it is now. */
+  readonly outside?: readonly HeldLines[];
+  /** Under a run of lines: the lines written since the recording, which no case has run. In the text as it is now. */
+  readonly written?: readonly HeldLines[];
   /** Present when the question named a line or a function. */
   readonly tests?: readonly CoveringTest[];
   /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */
@@ -276,73 +295,8 @@ async function ask(
     return { file, ...frame, from, ...(placement.at === undefined ? {} : { at: placement.at }) };
   }
 
-  if (request.line !== undefined) {
-    const held = request.line;
-    const line = placement === undefined ? held : placement.recordedLine(held);
-    if (line === undefined) {
-      throw new OperatorError(
-        `line ${held} of \`${file}\` was written since the recording, so the record has nothing to say ` +
-          'about it yet: no case has run it. Run the suite to record it.',
-      );
-    }
-    if (!module.blocks.some((block) => block.source && block.startLine <= line && line <= block.endLine)) {
-      throw new OperatorError(
-        `line ${line} of \`${file}\` is outside every recorded region. A blank line, an ` +
-          'import or a type declaration has no region to be covered, so there is no list to ' +
-          'print — which again is not the same as nobody covering it.',
-      );
-    }
-    const target = { file, line };
-    const graph = await loadersFor(before ?? index, target, request.root);
-    const found = coveringTests(index, target, graph);
-    const kept = near.whole ? found : found.filter(near.keep);
-    const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
-    if (before !== undefined) reach?.(reached);
-    const stopped = stoppedBefore(before ?? index, target, graph);
-    return {
-      file: file,
-      target: { line: held },
-      tests: kept,
-      ...(stopped === undefined ? {} : { stopped }),
-      ...stateFor(reached, stopped),
-      ...frame,
-      from,
-      ...countOf(near, kept.length, found.length),
-    };
-  }
-
-  if (request.function !== undefined) {
-    const named = request.function;
-    if (!module.blocks.some((block) =>
-      block.source && block.kind === 'function' && block.name === named,
-    )) {
-      const functions = module.blocks
-        .filter((block) => block.source && block.kind === 'function')
-        .map((block) => block.name);
-      throw new OperatorError(
-        `\`${named}\` is not a recorded function of \`${file}\`. ` +
-          (functions.length === 0
-            ? 'That file has no recorded functions at all.'
-            : `It has ${functions.join(', ')}.`),
-      );
-    }
-    const target = { file, function: named };
-    const graph = await loadersFor(before ?? index, target, request.root);
-    const found = coveringTests(index, target, graph);
-    const kept = near.whole ? found : found.filter(near.keep);
-    const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
-    if (before !== undefined) reach?.(reached);
-    const stopped = stoppedBefore(before ?? index, target, graph);
-    return {
-      file: file,
-      target: { function: named },
-      tests: kept,
-      ...(stopped === undefined ? {} : { stopped }),
-      ...stateFor(reached, stopped),
-      from,
-      ...countOf(near, kept.length, found.length),
-    };
-  }
+  const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near }, reach);
+  if (at !== undefined) return at;
 
   const graph = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
     ? { relations: await fileGraph(request.root) }
@@ -365,12 +319,6 @@ async function ask(
   };
 }
 
-/** The state of one line or function, from the cases that entered it and those that stopped, before `--where`. */
-function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
-  const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
-  return state === undefined ? {} : { state };
-}
-
 /** A changed region as `--where` lists it, stated, with the cases that stopped, over every case that reached it. */
 function stated(listed: CoveringRegion, reached: CoveringRegion): StatedRegion {
   const { stopped: _, ...region } = listed;
@@ -380,15 +328,6 @@ function stated(listed: CoveringRegion, reached: CoveringRegion): StatedRegion {
     ...(reached.stopped === undefined ? {} : { stopped: reached.stopped }),
     ...(state === undefined ? {} : { state }),
   };
-}
-
-/** The narrowing's own report, when there was a narrowing. */
-function countOf(
-  near: Narrowing,
-  kept: number,
-  of: number,
-): Pick<Covering, 'narrowed'> {
-  return near.whole ? {} : { narrowed: { kept, of, notes: near.notes } };
 }
 
 /**
@@ -464,26 +403,4 @@ async function readIndex(
         'a run whose test files ran in a page writes none, and knows which files a test covered but not which case.',
     );
   }
-}
-
-/**
- * The file graph, read only when a region the question landed on ran while its
- * module evaluated, or when a recorded case stopped and a hole has to be told
- * from a region nobody walked.
- *
- * The record credits no case with that: a module evaluates once per realm, for
- * whichever case imported it first. The graph names every case whose file
- * imports the module, and rules out one that mocked it. A question about a
- * region only a case called into never pays for the scan.
- */
-async function loadersFor(
-  index: ExecutionIndex,
-  target: Parameters<typeof ranWhileLoading>[1],
-  root: string,
-): Promise<{ readonly relations?: Relations }> {
-  return ranWhileLoading(index, target) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
-}
-
-function fileGraph(root: string): Promise<Relations> {
-  return relationsFor(root, ['.'], [], []);
 }

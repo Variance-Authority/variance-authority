@@ -45,7 +45,12 @@ export interface CoveringAt extends CoveringSource {
   readonly file: string;
   /** `--line <n>`: one line of it. Alternative to `--function`. */
   readonly line?: number;
-  /** `--function <name>`: one indexed function of it. Alternative to `--line`. */
+  /** `--line <a>-<b>`: a run of more than one line of it. Alternative to `--function`. */
+  readonly lines?: { readonly startLine: number; readonly endLine: number };
+  /**
+   * `--function <name>`: one recorded function of it, or a scope that holds
+   * recorded functions — a class holds its methods. Alternative to `--line`.
+   */
   readonly function?: string;
   /**
    * `--at-distance <range>`: keep only witnesses within this many import hops.
@@ -82,6 +87,23 @@ export interface CoveringSince extends CoveringSource {
 }
 
 export type ParsedCovering = CoveringAt | CoveringSince;
+
+/**
+ * `--line <n>` or `--line <a>-<b>`. A run of one line is that line, so the two
+ * spellings of one question get one answer.
+ */
+function lineOrRange(raw: string): Pick<CoveringAt, 'line'> | Required<Pick<CoveringAt, 'lines'>> {
+  const [first, last = first, ...more] = raw.split('-');
+  const startLine = Number(first);
+  const endLine = Number(last);
+  if (more.length > 0 || ![startLine, endLine].every((one) => Number.isInteger(one) && one >= 1)) {
+    throw new OperatorError(`--line takes a positive integer or a range of two, \`<a>-<b>\`, not \`${raw}\``);
+  }
+  if (endLine < startLine) {
+    throw new OperatorError(`--line ${raw} runs backwards; a range is \`<first>-<last>\`, as \`${endLine}-${startLine}\`.`);
+  }
+  return startLine === endLine ? { line: startLine } : { lines: { startLine, endLine } };
+}
 
 /**
  * Parse the question a person or an agent asks about one piece of source.
@@ -156,17 +178,13 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     );
   }
 
-  let line: number | undefined;
-  if (raw !== undefined) {
-    line = Number(raw);
-    if (!Number.isInteger(line) || line < 1) {
-      throw new OperatorError(`--line must be a positive integer, not \`${raw}\``);
-    }
-  }
+  const asked = raw === undefined ? undefined : lineOrRange(raw);
+  const line = asked === undefined || 'lines' in asked ? undefined : asked.line;
+  const lines = asked !== undefined && 'lines' in asked ? asked.lines : undefined;
 
   const atDistance = parseAtDistance(flags);
   const text = flags.values.get('--text');
-  if (flags.present.has('--hops') && line === undefined && functionName === undefined) {
+  if (flags.present.has('--hops') && asked === undefined && functionName === undefined) {
     throw new OperatorError(
       '`--hops` measures how far each test file whose cases reached a line or function is from ' +
         'it, so it takes `--line` or `--function`; a whole file is answered as ranges, one list of ' +
@@ -179,6 +197,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...source,
     file: checkoutFile(source.root, file, '--file'),
     ...(line === undefined ? {} : { line }),
+    ...(lines === undefined ? {} : { lines }),
     ...(functionName === undefined ? {} : { function: functionName }),
     ...(atDistance === undefined ? {} : { atDistance }),
     ...(flags.present.has('--in-package') ? { inPackage: true as const } : {}),
