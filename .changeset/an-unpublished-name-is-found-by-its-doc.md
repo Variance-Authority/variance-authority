@@ -18,7 +18,8 @@ its name yet. So `variance ask search --query 'owner directory'` missed
 An exported name's doc is now read the way a published name's is: by
 substring, by the words it holds, and by the loose reading. That covers:
 
-- a JSDoc block above a TypeScript export;
+- a JSDoc block above a TypeScript export, or above the declaration
+  `export { x }` or `export default x` names;
 - `///` lines or a `/** … */` block above a Rust, Java, Kotlin or Swift
   declaration, past its attributes or annotations;
 - the docstring a Python class or function opens with.

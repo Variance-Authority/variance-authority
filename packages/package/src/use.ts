@@ -174,7 +174,7 @@ export interface Named {
   readonly type: boolean;
   /** Whether the exporting file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
-  /** The doc comment written above the export statement, undented; absent when there is none. */
+  /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
 }
 
@@ -256,7 +256,7 @@ export interface Exported {
   readonly line: number;
   /** `export type { x }` and `export { type x }` alike. */
   readonly type: boolean;
-  /** The doc comment written above the export statement, undented; absent when there is none. */
+  /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
 }
 
@@ -463,22 +463,15 @@ export function readUsage(
     }
 
     const publishes: Exported[] = [];
-    // `export { x }` and `export default x` carry no comment of their own; the
-    // doc is the one above the declaration they bind, in this file.
+    // `export { x }` has no comment of its own: its doc is above what it binds.
     let declared: ReturnType<typeof declarationsIn> | undefined;
-    const boundDoc = (local: string | null): string | undefined => {
-      if (local === null) return undefined;
-      declared ??= declarationsIn(source);
-      return declared.get(local)?.doc;
-    };
-
+    const boundDoc = (local: string | null) => (local === null ? undefined : (declared ??= declarationsIn(source)).get(local)?.doc);
     for (const statement of source.parsed.module.staticExports) {
       const line = lineAt(source.writing, statement.start);
       const above = source.writing.docs.get(statement.start);
       for (const entry of statement.entries) {
-        // `export * from './x'` names nothing here: the set is whatever the
-        // other file publishes, and inventing a name for it would claim one
-        // this file never wrote.
+        // `export * from './x'` names nothing here: the set is whatever the other
+        // file publishes, and inventing a name would claim one never written.
         const exported = nameOf(entry.exportName.kind, entry.exportName.name);
         const doc = above ?? (entry.moduleRequest === null ? boundDoc(entry.localName.name) : undefined);
         if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType, ...(doc === undefined ? {} : { doc }) });

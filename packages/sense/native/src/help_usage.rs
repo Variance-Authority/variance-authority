@@ -27,9 +27,9 @@ pub struct NamedExport {
     #[serde(rename = "type")]
     pub r#type: bool,
     pub kind: String,
-    /// The doc comment written above the export, as `dependency_namespace::doc`
-    /// cuts it from the file at the span the index holds; absent when nothing
-    /// documents it.
+    /// The doc comment above the export, or above the declaration it binds in
+    /// the same file, as `dependency_namespace::doc` cuts it from the file at the
+    /// span the index holds; absent when nothing documents it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
 }
