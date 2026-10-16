@@ -22,7 +22,7 @@ import { isAbsolute, relative } from 'node:path';
  * that leaves the working directory is genuinely elsewhere: saying so is the
  * information.
  */
-export function said(path: string, from: string = process.cwd()): string {
-  const near = relative(from, path);
+export function said(path: string): string {
+  const near = relative(process.cwd(), path);
   return near === '' || near.startsWith('..') || isAbsolute(near) ? path : near;
 }

@@ -1,15 +1,14 @@
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { said } from './here.js';
 
 /**
  * The same command, called without the package manager that launched it.
  *
- * `yarn variance`, `pnpm exec variance` and `npm exec variance` each start the
- * package manager before this program, and on a large workspace that start —
- * reading the manifest, checking the install — costs more than the answer. An
- * agent asks question after question, so the cost is paid on every one. The
- * installed binary answers the same command without it.
+ * A package manager that runs an installed binary starts itself first, and on a
+ * large workspace that start — reading the manifest, checking the install —
+ * costs more than the answer. An agent asks question after question, so the
+ * cost is paid on every one. The installed binary answers the same command
+ * without it.
  *
  * This is said, not done: how to call the program stays the caller's choice,
  * and the line is one thing it can do about the wait. So it is said only when
@@ -17,22 +16,20 @@ import { said } from './here.js';
  *
  * - a package manager launched it, as `npm_config_user_agent` says — every one
  *   of them sets it, and a direct call inherits it only from a script;
- * - not from a package script, which sets `npm_lifecycle_event` to the script's
- *   name: there the script's author chose the call. `npm exec` and `bunx` set it
- *   too, to `npx` and `bunx`, and Yarn 1 sets it to the name of the binary it
- *   runs: those are launches like any other;
+ * - not from a package script, which sets `npm_lifecycle_event` to the name
+ *   of a script the nearest `package.json` declares: there the script's author
+ *   chose the call. A launch leaves the event unset, or sets it to a name no
+ *   script declares, and which name differs from one package manager to the
+ *   next, so none is read;
  * - the nearest `node_modules/.bin/variance` above the working directory is this
- *   file. Under Plug'n'Play there is no such directory. pnpm and Windows write a
- *   wrapper script there, which is not this file. A binary that is another
- *   install's would answer in that version's way.
+ *   file. Under Plug'n'Play there is no such directory. Some package managers,
+ *   and every one on Windows, write a wrapper script there, which is not this
+ *   file. A binary that is another install's would answer in that version's way.
  *
- * A launcher that moved the program out of the directory it was typed in, as
- * Yarn 1 moves it to the project root, read its arguments from where it runs.
- * `INIT_CWD` keeps where it was typed, so the line goes to where it runs first.
+ * The binary is named by its full path, which runs from wherever the caller
+ * stands: a launcher may run the program in another directory than the one the
+ * command was typed in.
  */
-
-/** The `npm_lifecycle_event` of a launch rather than a script: the execs', and Yarn 1's for this binary. */
-const LAUNCH_EVENTS = new Set(['bunx', 'npx', 'variance']);
 
 /**
  * The line naming the direct call, or nothing when there is none to name.
@@ -46,24 +43,34 @@ export function directCallLine(
   cwd: string,
   self: string,
 ): string {
-  const launcher = env['npm_config_user_agent']?.split('/')[0];
+  const launcher = env['npm_config_user_agent'];
   if (launcher === undefined || launcher === '') return '';
   const event = env['npm_lifecycle_event'];
-  if (event !== undefined && !LAUNCH_EVENTS.has(event)) return '';
-  const binary = nearestBinary(cwd);
+  if (event !== undefined && declaresScript(cwd, event)) return '';
+  const binary = nearest(cwd, join('node_modules', '.bin', 'variance'));
   if (binary === undefined || !sameFile(binary, self)) return '';
-  const call = [said(binary, cwd), ...argv].map(quoted).join(' ');
-  const typedIn = env['INIT_CWD'];
-  const command = typedIn === undefined || sameFile(typedIn, cwd) ? call : `cd ${quoted(said(cwd, typedIn))} && ${call}`;
-  return `\nvariance: the same command answers faster without ${launcher}: ${command}\n`;
+  const command = [binary, ...argv].map(quoted).join(' ');
+  return `\nvariance: the same command answers faster: ${command}\n`;
 }
 
-/** The first `node_modules/.bin/variance` from `cwd` upward, as Node resolves a package. */
-function nearestBinary(cwd: string): string | undefined {
+/** The first `path` from `cwd` upward, as Node resolves a package and a package manager finds its manifest. */
+function nearest(cwd: string, path: string): string | undefined {
   for (let at = cwd; ; at = dirname(at)) {
-    const binary = join(at, 'node_modules', '.bin', 'variance');
-    if (existsSync(binary)) return binary;
+    const candidate = join(at, path);
+    if (existsSync(candidate)) return candidate;
     if (dirname(at) === at) return undefined;
+  }
+}
+
+/** Whether the nearest `package.json` declares a script named `name`. An unreadable one declares nothing. */
+function declaresScript(cwd: string, name: string): boolean {
+  const manifest = nearest(cwd, 'package.json');
+  if (manifest === undefined) return false;
+  try {
+    const scripts: unknown = (JSON.parse(readFileSync(manifest, 'utf8')) as { scripts?: unknown }).scripts;
+    return typeof scripts === 'object' && scripts !== null && Object.hasOwn(scripts, name);
+  } catch {
+    return false;
   }
 }
 

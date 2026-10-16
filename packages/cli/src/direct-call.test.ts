@@ -5,17 +5,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { directCallLine } from './direct-call.js';
 
 /**
- * The environment each launcher leaves, as measured: Yarn 4 running a bin,
- * `npm exec`, Yarn 1 running a bin, which it names as if it were a script, and
- * a package script.
+ * The environment a package manager leaves. Every one sets a user agent, whose
+ * name is never read. A script sets the lifecycle event to the script's name;
+ * other launches leave it unset or set it to a name no script declares.
  */
-const YARN = { npm_config_user_agent: 'yarn/4.18.0 npm/? node/v24.18.0 darwin arm64' };
-const NPM_EXEC = { npm_config_user_agent: 'npm/11.16.0 node/v24.18.0 darwin arm64 workspaces/false', npm_command: 'exec', npm_lifecycle_event: 'npx', npm_lifecycle_script: '"variance"' };
-const YARN_1 = { npm_config_user_agent: 'yarn/1.22.22 npm/? node/v24.18.0 darwin arm64', npm_lifecycle_event: 'variance' };
-const SCRIPT = { npm_config_user_agent: 'yarn/4.18.0 npm/? node/v24.18.0 darwin arm64', npm_lifecycle_event: 'check' };
+const LAUNCHED = { npm_config_user_agent: 'pm/1.0.0 npm/? node/v24.18.0 darwin arm64' };
+const UNDECLARED = { ...LAUNCHED, npm_lifecycle_event: 'exec' };
+const SCRIPT = { ...LAUNCHED, npm_lifecycle_event: 'check' };
 
 let root: string;
 let self: string;
+let binary: string;
 
 beforeEach(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), 'va-direct-call-')));
@@ -23,7 +23,8 @@ beforeEach(() => {
   mkdirSync(join(self, '..'), { recursive: true });
   writeFileSync(self, '');
   mkdirSync(join(root, 'node_modules', '.bin'));
-  symlinkSync('../@variance-authority/cli/dist/bin.js', join(root, 'node_modules', '.bin', 'variance'));
+  binary = join(root, 'node_modules', '.bin', 'variance');
+  symlinkSync('../@variance-authority/cli/dist/bin.js', binary);
 });
 
 afterEach(() => {
@@ -31,17 +32,14 @@ afterEach(() => {
 });
 
 describe('the faster direct call', () => {
-  it('names the installed binary, with the same arguments, when yarn launched it', () => {
-    const line = directCallLine(['ask', 'symbol', '--name', 'readFlags'], YARN, root, self);
-    expect(line).toBe('\nvariance: the same command answers faster without yarn: node_modules/.bin/variance ask symbol --name readFlags\n');
+  it('names the installed binary by its full path, with the same arguments, when a package manager launched it', () => {
+    const line = directCallLine(['ask', 'symbol', '--name', 'readFlags'], LAUNCHED, root, self);
+    expect(line).toBe(`\nvariance: the same command answers faster: ${binary} ask symbol --name readFlags\n`);
   });
 
-  it('names it for `npm exec` too', () => {
-    expect(directCallLine(['--version'], NPM_EXEC, root, self)).toContain('without npm: node_modules/.bin/variance --version');
-  });
-
-  it('names it for Yarn 1, which gives the binary it runs the lifecycle event of its own name', () => {
-    expect(directCallLine(['--version'], { ...YARN_1, INIT_CWD: root }, root, self)).toContain('without yarn: node_modules/.bin/variance --version');
+  it('names it when the lifecycle event is a name no script declares', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { check: 'variance index' } }));
+    expect(directCallLine(['--version'], UNDECLARED, root, self)).toContain(`faster: ${binary} --version`);
   });
 
   it('quotes a binary path the shell would split', () => {
@@ -51,30 +49,30 @@ describe('the faster direct call', () => {
       symlinkSync(self, join(spaced, 'node_modules', '.bin', 'variance'));
       const inside = join(spaced, 'app');
       mkdirSync(inside);
-      expect(directCallLine(['index'], YARN, inside, self)).toContain(`without yarn: '${join(spaced, 'node_modules', '.bin', 'variance')}' index`);
+      expect(directCallLine(['index'], LAUNCHED, inside, self)).toContain(`faster: '${join(spaced, 'node_modules', '.bin', 'variance')}' index`);
     } finally {
       rmSync(spaced, { recursive: true, force: true });
     }
   });
 
   it('quotes an argument the shell would split', () => {
-    expect(directCallLine(['ask', 'search', '--query', "two words, it's"], YARN, root, self)).toContain(
-      `node_modules/.bin/variance ask search --query 'two words, it'\\''s'`,
+    expect(directCallLine(['ask', 'search', '--query', "two words, it's"], LAUNCHED, root, self)).toContain(
+      `${binary} ask search --query 'two words, it'\\''s'`,
     );
   });
 
   it('finds the binary of the checkout from a directory inside it', () => {
     const inside = join(root, 'packages', 'app');
     mkdirSync(inside, { recursive: true });
-    expect(directCallLine(['index'], { ...YARN, INIT_CWD: inside }, inside, self)).toContain(`without yarn: ${join(root, 'node_modules', '.bin', 'variance')} index`);
+    expect(directCallLine(['index'], { ...LAUNCHED, INIT_CWD: inside }, inside, self)).toContain(`faster: ${binary} index`);
   });
 
-  it('goes to where it runs first when the package manager moved it out of the directory it was typed in', () => {
-    // Yarn 1 runs a binary from the project root. Its arguments were read from there, so the direct call is made there too.
+  it('names the full path, which runs from wherever the command was typed', () => {
+    // A package manager may run a binary from the project root, not from the directory it was typed in.
     const typedIn = join(root, 'packages', 'app');
     mkdirSync(typedIn, { recursive: true });
-    expect(directCallLine(['covering', '--file', 'src/a.ts'], { ...YARN_1, INIT_CWD: typedIn }, root, self)).toBe(
-      `\nvariance: the same command answers faster without yarn: cd ${root} && node_modules/.bin/variance covering --file src/a.ts\n`,
+    expect(directCallLine(['covering', '--file', 'src/a.ts'], { ...UNDECLARED, INIT_CWD: typedIn }, root, self)).toBe(
+      `\nvariance: the same command answers faster: ${binary} covering --file src/a.ts\n`,
     );
   });
 
@@ -83,24 +81,33 @@ describe('the faster direct call', () => {
   });
 
   it('says nothing inside a package script, whose author chose the call', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { check: 'variance index' } }));
     expect(directCallLine(['index'], SCRIPT, root, self)).toBe('');
+  });
+
+  it('reads the script from the nearest package, as a workspace runs its own', () => {
+    const app = join(root, 'packages', 'app');
+    mkdirSync(app, { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: {} }));
+    writeFileSync(join(app, 'package.json'), JSON.stringify({ scripts: { check: 'variance index' } }));
+    expect(directCallLine(['index'], SCRIPT, app, self)).toBe('');
   });
 
   it('says nothing when there is no binary to call, as under Plug’n’Play', () => {
     rmSync(join(root, 'node_modules', '.bin'), { recursive: true });
-    expect(directCallLine(['index'], YARN, root, self)).toBe('');
+    expect(directCallLine(['index'], LAUNCHED, root, self)).toBe('');
   });
 
   it('says nothing when the nearest binary is another file than this program', () => {
     const elsewhere = join(root, 'elsewhere.js');
     writeFileSync(elsewhere, '');
-    expect(directCallLine(['index'], YARN, root, elsewhere)).toBe('');
+    expect(directCallLine(['index'], LAUNCHED, root, elsewhere)).toBe('');
   });
 
-  it('says nothing when the binary is a wrapper script, as pnpm and Windows write it', () => {
-    // A wrapper is not this program's file, whatever it runs: pnpm gets no line.
+  it('says nothing when the binary is a wrapper script, as some package managers and Windows write it', () => {
+    // A wrapper is not this program's file, whatever it runs.
     rmSync(join(root, 'node_modules', '.bin', 'variance'));
     writeFileSync(join(root, 'node_modules', '.bin', 'variance'), `#!/bin/sh\nexec node "${self}" "$@"\n`);
-    expect(directCallLine(['index'], { npm_config_user_agent: 'pnpm/11.9.0 npm/? node/v24.18.0 darwin arm64' }, root, self)).toBe('');
+    expect(directCallLine(['index'], LAUNCHED, root, self)).toBe('');
   });
 });
