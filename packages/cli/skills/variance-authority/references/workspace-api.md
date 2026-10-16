@@ -248,17 +248,26 @@ or a variable's annotation, alone or with `| undefined`, an `as`, a `satisfies`
 or a `<Props>` cast, the return type of the function a literal is returned from
 (`(): Props => ({ size: 1 })`), the class `this` is inside, or a `this: Props`
 parameter. A component annotated with a component type `react` exports,
-`FC<Props>` or `React.FunctionComponent<Props>`, takes its first parameter as
-`Props`.
+`FC<Props>` or `React.FunctionComponent<Props>`, or made by `memo` or
+`forwardRef` with a props type argument (`memo<Props>(…)`,
+`forwardRef<Ref, Props>(…)`), takes its first parameter as `Props`, and a class
+that extends `Component<Props>` or `PureComponent<Props>` reads
+`this.props.size` as `Props`. `Partial<Props>`, `Required<Props>` and
+`Readonly<Props>` are `Props`, unless the file declares or imports a type of
+that name.
 
 A container that carries the type is followed too: an interface that extends
 it, an alias that is it or intersects it (`Props & { … }`), a class that
-extends or implements it, and a component whose first parameter is it, so
-`w.size` with `w: Wide` and `<Button size={2} />` with `Button: FC<Props>` are
-uses of `Props.size`. A function carries its first parameter's type whether
+extends or implements it, a component whose first parameter is it, a class
+component of it, and `memo` or `forwardRef` of such a component, so `w.size`
+with `w: Wide` and `<Button size={2} />` with `Button: FC<Props>` are uses of
+`Props.size`. Over `Pick<Props, 'size'>` the container carries only the keys
+the `Pick` names, and over `Omit<Props, 'size'>` every key but those, so a use
+of `size` through `type Rest = Omit<Props, 'size'>` is none. A function carries its first parameter's type whether
 or not JSX renders it, so beside a same-named interface (`function Config(o:
 Options)` and `interface Config`) a use written as `Config` counts for
-`Options` too. Each name is followed through the import that binds it,
+`Options` too, and a class component's own `this.size` counts for its props.
+Each name is followed through the import that binds it,
 renamed or passed on by `export *` or `export { … } from`, to the file that
 declares it, the declaring file included, so `Props.size` and `Other.size` are
 listed apart and a same-named type of another file is neither. A binding that
@@ -266,8 +275,8 @@ shadows an annotated one is no use, and a `function` inside a class binds a
 `this` of its own.
 
 What a type checker infers is not read: a value returned by a call, a generic,
-a mapped or utility type (`Partial<Props>`), a component wrapped in `memo` or
-`forwardRef`, a value narrowed or copied without an annotation, and a type
+a mapped type, a `Pick` or `Omit` whose keys are not string literals, a value
+narrowed or copied without an annotation, and a type
 named through a namespace (`ns.Props`). Nor is what the line does not write as
 a value of the type: an object literal passed to an annotated parameter, and a
 type imported by another name than its declaration's, as a default export or

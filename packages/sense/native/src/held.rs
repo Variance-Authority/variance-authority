@@ -112,6 +112,10 @@ pub struct HeldCarry {
     on: String,
     #[serde(default)]
     of: String,
+    #[serde(default)]
+    only: Vec<String>,
+    #[serde(default)]
+    except: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -178,6 +182,7 @@ impl ParseRow for HeldParse {
         for carry in &self.carries {
             values.insert(&carry.on);
             values.insert(&carry.of);
+            values.extend(carry.only.iter().chain(&carry.except).map(String::as_str));
         }
         values.extend(self.declares.iter().flatten().map(String::as_str));
         values.extend(self.unknown.as_deref());
@@ -223,7 +228,7 @@ impl ParseRow for HeldParse {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
         }
         for carry in &self.carries {
-            into.carry(id(&carry.on), id(&carry.of));
+            into.carry(id(&carry.on), id(&carry.of), carry.only.iter().map(|key| id(key)), carry.except.iter().map(|key| id(key)));
         }
     }
 

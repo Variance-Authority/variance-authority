@@ -82,6 +82,7 @@ impl ParseRow for Read {
         for carry in &self.carries {
             values.insert(&carry.on);
             values.insert(&carry.of);
+            values.extend(carry.only.iter().flatten().chain(&carry.except).map(String::as_str));
         }
         values.extend(self.unknown.as_deref());
     }
@@ -127,7 +128,7 @@ impl ParseRow for Read {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
         }
         for carry in &self.carries {
-            into.carry(id(&carry.on), id(&carry.of));
+            into.carry(id(&carry.on), id(&carry.of), carry.only.iter().flatten().map(|key| id(key)), carry.except.iter().map(|key| id(key)));
         }
     }
 

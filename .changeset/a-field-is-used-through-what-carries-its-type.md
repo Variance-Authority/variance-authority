@@ -16,7 +16,13 @@ annotated its own binding as `Props`. It now also lists:
   intersects it, or as a class that implements it;
 - a component annotated `FC<Props>` or `React.FunctionComponent<Props>` that
   reads or destructures its props;
-- a JSX attribute, `<Button size={2} />`, on a component that takes `Props`.
+- a JSX attribute, `<Button size={2} />`, on a component that takes `Props`;
+- a component made by `memo` or `forwardRef`, typed by its type argument or by
+  its function's parameter, and `memo` of such a component;
+- `this.props.size` in a class that extends `React.Component<Props>` or
+  `PureComponent<Props>`;
+- a use through `Partial`, `Required` or `Readonly` of `Props`, and through
+  `Pick` of it where the `Pick` keeps `size`; `Omit<Props, 'size'>` lists none.
 
 The declaring file is read by the same rules. A `function` inside a class binds
 its own `this` and lists nothing. The source index format moves to version 24,

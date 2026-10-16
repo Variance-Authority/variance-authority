@@ -92,6 +92,10 @@ pub struct ParseColumns {
     carries: Vec<u32>,
     carry_on: Vec<u32>,
     carry_of: Vec<u32>,
+    carry_only: Vec<u32>,
+    carry_only_name: Vec<u32>,
+    carry_except: Vec<u32>,
+    carry_except_name: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -103,7 +107,7 @@ fn span(into: &mut [Vec<u32>; 2], value: Span) {
 impl ParseColumns {
     /// Every row, keyed and sorted by the caller, written in that order.
     pub fn of<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
-        let mut columns = Self { request_bindings: vec![0], ..Self::default() };
+        let mut columns = Self { request_bindings: vec![0], carry_only: vec![0], carry_except: vec![0], ..Self::default() };
         for (key, row) in rows {
             let (digest, way) = key.split_once('\0').unwrap_or((key, ""));
             columns.row(strings.id(digest), strings.id(way));
@@ -207,9 +211,14 @@ impl ParseColumns {
         self.member_use_how.push(how);
     }
 
-    pub fn carry(&mut self, on: u32, of: u32) {
+    /// One carry, with the keys it keeps — none named, every key — and drops.
+    pub fn carry(&mut self, on: u32, of: u32, only: impl IntoIterator<Item = u32>, except: impl IntoIterator<Item = u32>) {
         self.carry_on.push(on);
         self.carry_of.push(of);
+        self.carry_only_name.extend(only);
+        self.carry_only.push(self.carry_only_name.len() as u32);
+        self.carry_except_name.extend(except);
+        self.carry_except.push(self.carry_except_name.len() as u32);
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -283,6 +292,10 @@ impl ParseColumns {
             u32s("parses.carries", self.carries),
             u32s("carries.on", self.carry_on),
             u32s("carries.of", self.carry_of),
+            u32s("carries.only", self.carry_only),
+            u32s("carry-only.name", self.carry_only_name),
+            u32s("carries.except", self.carry_except),
+            u32s("carry-except.name", self.carry_except_name),
             u32s("declares.name", self.declare_name),
         ]
     }

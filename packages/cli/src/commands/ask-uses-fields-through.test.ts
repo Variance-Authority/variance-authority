@@ -11,7 +11,8 @@ import { checkout, run } from './ask-packages-fixture.js';
  * the function that returns it, an interface or a class that carries the
  * field's type (`extends`, `implements`), the class `this` is inside, the
  * props a React component is annotated with, and the props of the component a
- * JSX element renders. The declaring file is read by the same rules as every
+ * JSX element renders, through `memo`, `forwardRef`, a class component and
+ * TypeScript's utility types. The declaring file is read by the same rules as every
  * other file.
  */
 
@@ -117,6 +118,49 @@ const COMPONENTS = {
   ].join('\n'),
 };
 
+const WRAPPED = {
+  'packages/lib/src/through/wrapped.tsx': [
+    "import { forwardRef, memo } from 'react';",
+    "import * as React from 'react';",
+    "import type { Props } from './props.js';",
+    'export const Memo = memo((props: Props) => <b>{props.size}</b>);',
+    'export const Typed = memo<Props>(({ size }) => <b>{size}</b>);',
+    'export const Ref = forwardRef<HTMLElement, Props>((props, ref) => <i ref={ref}>{props.size}</i>);',
+    'export const Again = React.memo(Memo);',
+    'export class Panel extends React.Component<Props> {',
+    '  render() {',
+    '    return <u>{this.props.size}</u>;',
+    '  }',
+    '}',
+    'export const page = (',
+    '  <>',
+    '    <Again size={1} />',
+    '    <Panel size={2} />',
+    '  </>',
+    ');',
+    '',
+  ].join('\n'),
+};
+
+const UTILITY = {
+  'packages/lib/src/through/utility.ts': [
+    "import type { Props } from './props.js';",
+    'export const part = (p: Partial<Props>) => p.size;',
+    "export const kept = (p: Readonly<Pick<Props, 'size'>>) => p.size;",
+    "export type Some = Pick<Props, 'size' | 'label'>;",
+    "export type None = Omit<Props, 'size'>;",
+    'export type Full = Required<Props>;',
+    'export const some = (s: Some) => s.size;',
+    'export const none = (n: None) => n.size;',
+    'export const full = (f: Full) => f.size;',
+    'export interface Grown extends Partial<Props> {',
+    '  label: string;',
+    '}',
+    'export const grown = (g: Grown) => g.size;',
+    '',
+  ].join('\n'),
+};
+
 /** The declaring file's own uses, which every case reaches. */
 const OWN = [
   'packages/lib/src/through/props.ts:4 — @acme/lib, write',
@@ -186,10 +230,43 @@ describe('variance ask uses over a field reached through another type', () => {
     ].sort(byPath));
   });
 
-  // A checker infers these; the source writes no `Props` at the site.
-  it.todo('answers a use through a component wrapped in `memo` or `forwardRef` — needs the walker to read the props type off the wrapper\'s type argument or the wrapped function\'s first parameter, as it does for `FC<Props>`');
-  it.todo('answers a use through a utility type over the field\'s type, `Partial<Props>` or `Pick<Props, "size">` — needs a carry for each of TypeScript\'s homomorphic utility types, with `Pick` and `Omit` carrying only the keys they keep');
-  it.todo('answers `this.props.size` in a class component, `class Panel extends React.Component<Props>` — needs the class heritage to read a qualified base and carry its type argument as the type `this.props` is');
+  it('answers the uses a component wrapped in `memo` or `forwardRef`, and a class component, carry to the field', async () => {
+    checkout({ ...PROPS, ...WRAPPED });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(section(out, '`Props.size`, declared at packages/lib/src/through/props.ts:2, is used in 9 places:')).toEqual([
+      ...OWN,
+      // The wrapped function's first parameter, or the wrapper's type argument, is the props.
+      'packages/lib/src/through/wrapped.tsx:4 — @acme/lib, read',
+      'packages/lib/src/through/wrapped.tsx:5 — @acme/lib, destructure',
+      'packages/lib/src/through/wrapped.tsx:6 — @acme/lib, read',
+      // `this.props` in a class that extends `React.Component<Props>`.
+      'packages/lib/src/through/wrapped.tsx:10 — @acme/lib, read',
+      // A wrapper of a wrapper, and a class component, take the props as their attributes.
+      'packages/lib/src/through/wrapped.tsx:15 — @acme/lib, write',
+      'packages/lib/src/through/wrapped.tsx:16 — @acme/lib, write',
+    ].sort(byPath));
+  });
+
+  it('answers the uses a utility type carries to the field, and none where `Omit` drops it', async () => {
+    checkout({ ...PROPS, ...UTILITY });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(section(out, '`Props.size`, declared at packages/lib/src/through/props.ts:2, is used in 8 places:')).toEqual([
+      ...OWN,
+      // `Partial`, `Readonly` and a `Pick` that keeps the field, written at the use.
+      'packages/lib/src/through/utility.ts:2 — @acme/lib, read',
+      'packages/lib/src/through/utility.ts:3 — @acme/lib, read',
+      // An alias or an interface over a utility type carries what it keeps; `None` drops `size`.
+      'packages/lib/src/through/utility.ts:7 — @acme/lib, read',
+      'packages/lib/src/through/utility.ts:9 — @acme/lib, read',
+      'packages/lib/src/through/utility.ts:13 — @acme/lib, read',
+    ].sort(byPath));
+  });
 });
 
 /** The answer's order: by path in code units, then by line. */

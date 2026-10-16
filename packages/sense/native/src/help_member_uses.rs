@@ -11,33 +11,39 @@
 //! value a function annotated `(): Props` returns) writes each of its keys, and
 //! an annotated pattern (`({ size }: Props) =>`) destructures them. A React
 //! component annotated with a component type `react` exports (`FC<Props>`,
-//! `React.FunctionComponent<Props>`) takes its first parameter as that type, as
-//! `@types/react` declares its call signature. A JSX attribute writes the member
-//! of the component the element names, `<Button size={1} />`, and an indexed
-//! access type reads one, `Props['size']`. Each use records the type's name as
-//! the file writes it; which declaration that name is, through its import, is
-//! the query's join (`help_members.rs`), the same one `uses` makes for an import.
+//! `React.FunctionComponent<Props>`), or made by `memo` or `forwardRef` with a
+//! props type argument (`memo<Props>(…)`, `forwardRef<Ref, Props>(…)`), takes
+//! its first parameter as that type, as `@types/react` declares its call
+//! signature. A class that extends `react`'s `Component<Props>` or
+//! `PureComponent<Props>` holds `this.props` as `Props`. A JSX attribute writes
+//! the member of the component the element names, `<Button size={1} />`, and an
+//! indexed access type reads one, `Props['size']`. `Partial`, `Required` and
+//! `Readonly` of a type are that type (`help_member_types.rs`). Each use records
+//! the type's name as the file writes it; which declaration that name is,
+//! through its import, is the query's join (`help_members.rs`), the same one
+//! `uses` makes for an import.
 //!
-//! A carry says a container holds every member of a type the file writes:
+//! A carry says a container holds the members of a type the file writes:
 //! `interface Wide extends Props`, `type Mixed = Props & { … }`, `class Box
-//! implements Props`, and a component whose first parameter is `Props`, whose
-//! JSX attributes are its props' members. The query walks carries from the
-//! declaring type outwards, so a use written as `Wide`, `Box` or `<Button>`
-//! counts for `Props`.
+//! implements Props`, a component whose first parameter is `Props`, whose JSX
+//! attributes are its props' members, a class component of `Props`, and a
+//! component `memo` or `forwardRef` makes of another. Over `Pick` the carry
+//! keeps only the keys it names, and over `Omit` it drops them. The query walks
+//! carries from the declaring type outwards, so a use written as `Wide`, `Box`
+//! or `<Button>` counts for `Props`.
 //!
 //! A function carries its first parameter's type whether or not it is a
 //! component, since which functions JSX renders is known only where they are
 //! rendered. Carries share one name space for values and types, so a function
 //! merged with a same-named interface (`function Config(o: Options)` beside
 //! `interface Config`) makes a use written as `Config` count for `Options` as
-//! well.
+//! well, and a class component's own `this.size` counts for its props.
 //!
 //! Bindings are scoped as oxc's walk enters and leaves scopes, so a parameter
 //! that shadows an annotated one, `(props) => props.size`, is no use. What a
-//! checker infers — a value returned by a call, a generic, a mapped or utility
-//! type, a component wrapped in `memo` or `forwardRef`, a value narrowed or
-//! aliased without an annotation — names no type here, and is no use of any
-//! declaration.
+//! checker infers — a value returned by a call, a generic, a mapped type, a
+//! value narrowed or aliased without an annotation — names no type here, and
+//! is no use of any declaration.
 
 // compass: variance-authority.reach.relations
 
@@ -50,15 +56,13 @@ use oxc_syntax::scope::{ScopeFlags, ScopeId};
 use serde::Serialize;
 use std::cell::Cell;
 
+use crate::help_member_types::{Keys, Names};
 use crate::read::Lines;
 
 /// How a line uses a member.
 pub(crate) const READ: &str = "read";
 pub(crate) const WRITE: &str = "write";
 pub(crate) const DESTRUCTURE: &str = "destructure";
-
-/// The component types `react` exports whose call signature is `(props: P)`.
-const COMPONENT_TYPES: [&str; 4] = ["FC", "FunctionComponent", "VFC", "VoidFunctionComponent"];
 
 /// One use of a member: its name, its line, the type its value is written
 /// `of`, as the file names it, and `how` the line uses it.
@@ -70,12 +74,17 @@ pub struct MemberUse {
     pub(crate) how: String,
 }
 
-/// A container `on`, declared in the file, that carries every member of the
-/// type the file writes as `of`.
+/// A container `on`, declared in the file, that carries the members of the
+/// type the file writes as `of`: those `only` names, when it names any, less
+/// those in `except`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Carry {
     pub(crate) on: String,
     pub(crate) of: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) only: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) except: Vec<String>,
 }
 
 /// What one walk of a file reads: its member uses and its carries.
@@ -90,9 +99,9 @@ pub(crate) struct Typed {
 pub(crate) fn typed_in(program: &Program<'_>, lines: &Lines) -> Typed {
     let mut walker = Walker {
         lines,
-        react: React::of(program),
+        names: Names::of(program),
         scopes: vec![HashMap::new()],
-        this: vec![Vec::new()],
+        this: vec![This::default()],
         returns: Vec::new(),
         method: false,
         props: None,
@@ -107,92 +116,23 @@ pub(crate) fn typed_in(program: &Program<'_>, lines: &Lines) -> Typed {
     Typed { uses: walker.found, carries: walker.carries }
 }
 
-/// The name of the one type `annotation` writes: a reference by a plain name,
-/// with or without type arguments, alone or in a union with `undefined` or
-/// `null`.
-fn named(annotation: &TSType) -> Option<String> {
-    match annotation {
-        TSType::TSTypeReference(it) => plain(&it.type_name),
-        TSType::TSParenthesizedType(it) => named(&it.type_annotation),
-        TSType::TSUnionType(it) => {
-            let mut left = it.types.iter().filter(|one| !matches!(one, TSType::TSUndefinedKeyword(_) | TSType::TSNullKeyword(_)));
-            match (left.next(), left.next()) {
-                (Some(one), None) => named(one),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-fn plain(name: &TSTypeName) -> Option<String> {
-    match name {
-        TSTypeName::IdentifierReference(name) => Some(name.name.to_string()),
-        _ => None,
-    }
-}
-
-fn annotated(annotation: Option<&TSTypeAnnotation>) -> Option<String> {
-    annotation.and_then(|it| named(&it.type_annotation))
-}
-
-/// The type the first parameter of `params` is annotated with.
-fn first_parameter(params: &FormalParameters) -> Option<String> {
-    params.items.first().and_then(|first| annotated(first.type_annotation.as_deref()))
-}
-
-/// The names this file gives `react`'s component types and the module itself.
+/// What `this` is inside a function or a class: the types it is written as,
+/// and the type a class component's `this.props` is.
 #[derive(Default)]
-struct React {
-    components: HashSet<String>,
-    modules: HashSet<String>,
-}
-
-impl React {
-    fn of(program: &Program) -> React {
-        let mut react = React::default();
-        for statement in &program.body {
-            let Statement::ImportDeclaration(import) = statement else { continue };
-            if import.source.value != "react" { continue; }
-            for specifier in import.specifiers.iter().flatten() {
-                match specifier {
-                    ImportDeclarationSpecifier::ImportSpecifier(it) => {
-                        if COMPONENT_TYPES.contains(&it.imported.name().as_str()) { react.components.insert(it.local.name.to_string()); }
-                    }
-                    ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => { react.modules.insert(it.local.name.to_string()); }
-                    ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => { react.modules.insert(it.local.name.to_string()); }
-                }
-            }
-        }
-        react
-    }
-
-    /// The props type of a component type `annotation` writes: `FC<Props>`
-    /// under the name the file imports it as, or `React.FC<Props>`.
-    fn props(&self, annotation: &TSType) -> Option<String> {
-        let TSType::TSTypeReference(it) = annotation else { return None };
-        let component = match &it.type_name {
-            TSTypeName::IdentifierReference(name) => self.components.contains(name.name.as_str()),
-            TSTypeName::QualifiedName(name) => {
-                matches!(&name.left, TSTypeName::IdentifierReference(left) if self.modules.contains(left.name.as_str()))
-                    && COMPONENT_TYPES.contains(&name.right.name.as_str())
-            }
-            _ => false,
-        };
-        if !component { return None; }
-        it.type_arguments.as_ref().and_then(|arguments| arguments.params.first()).and_then(named)
-    }
+struct This {
+    types: Vec<String>,
+    props: Option<String>,
 }
 
 struct Walker<'n> {
     lines: &'n Lines,
-    react: React,
+    names: Names,
     /// Each binding in scope and the type its annotation names, innermost last;
     /// `None` for a binding written without one.
     scopes: Vec<HashMap<String, Option<String>>>,
-    /// The types `this` is, innermost function or class last; empty where it is
+    /// What `this` is, innermost function or class last; empty where it is
     /// none the source writes.
-    this: Vec<Vec<String>>,
+    this: Vec<This>,
     /// The return type of each function the walk is inside, innermost last.
     returns: Vec<Option<String>>,
     /// The function visited next is a class method's, which keeps `this`.
@@ -215,21 +155,25 @@ impl Walker<'_> {
         if self.seen.insert(found.clone()) { self.found.push(found); }
     }
 
-    fn carry(&mut self, on: &str, of: Option<String>) {
-        let Some(of) = of else { return };
-        let carry = Carry { on: on.to_owned(), of };
+    fn carry(&mut self, on: &str, of: Option<(String, Keys)>) {
+        let Some((of, keys)) = of.filter(|(_, keys)| !keys.none()) else { return };
+        let carry = Carry { on: on.to_owned(), of, only: keys.only, except: keys.except };
         if self.carried.insert(carry.clone()) { self.carries.push(carry); }
     }
 
     /// The types a value is written as: a binding's annotation, the nearest
-    /// scope that binds it deciding, a cast, or `this`.
+    /// scope that binds it deciding, a cast, `this`, or a class component's
+    /// `this.props`.
     fn typed(&self, expression: &Expression) -> Vec<String> {
         match expression.without_parentheses() {
             Expression::Identifier(it) => self.scopes.iter().rev().find_map(|scope| scope.get(it.name.as_str())).cloned().flatten().into_iter().collect(),
-            Expression::ThisExpression(_) => self.this.last().cloned().unwrap_or_default(),
-            Expression::TSAsExpression(it) => named(&it.type_annotation).into_iter().collect(),
-            Expression::TSSatisfiesExpression(it) => named(&it.type_annotation).into_iter().collect(),
-            Expression::TSTypeAssertion(it) => named(&it.type_annotation).into_iter().collect(),
+            Expression::ThisExpression(_) => self.this.last().map(|this| this.types.clone()).unwrap_or_default(),
+            Expression::StaticMemberExpression(it) if it.property.name == "props" && matches!(it.object.without_parentheses(), Expression::ThisExpression(_)) => {
+                self.this.last().and_then(|this| this.props.clone()).into_iter().collect()
+            }
+            Expression::TSAsExpression(it) => self.names.named(&it.type_annotation).into_iter().collect(),
+            Expression::TSSatisfiesExpression(it) => self.names.named(&it.type_annotation).into_iter().collect(),
+            Expression::TSTypeAssertion(it) => self.names.named(&it.type_annotation).into_iter().collect(),
             Expression::TSNonNullExpression(it) => self.typed(&it.expression),
             _ => Vec::new(),
         }
@@ -303,25 +247,25 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_formal_parameter(&mut self, it: &FormalParameter<'a>) {
-        if let Some(of) = annotated(it.type_annotation.as_deref()) { self.bind(&it.pattern, &of); }
+        if let Some(of) = self.names.annotated(it.type_annotation.as_deref()) { self.bind(&it.pattern, &of); }
         walk::walk_formal_parameter(self, it);
     }
 
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         let annotation = it.type_annotation.as_deref().map(|it| &it.type_annotation);
-        let props = annotation.and_then(|annotation| self.react.props(annotation));
+        let props = annotation.and_then(|annotation| self.names.props(annotation));
         if let (BindingPattern::BindingIdentifier(id), Some(init)) = (&it.id, &it.init) {
             let function = match init.without_parentheses() {
-                Expression::ArrowFunctionExpression(function) => Some((function.span.start, first_parameter(&function.params))),
-                Expression::FunctionExpression(function) => Some((function.span.start, first_parameter(&function.params))),
-                _ => None,
+                Expression::ArrowFunctionExpression(function) => Some((Some(function.span.start), self.names.first_parameter(&function.params), props.clone())),
+                Expression::FunctionExpression(function) => Some((Some(function.span.start), self.names.first_parameter(&function.params), props.clone())),
+                other => self.names.wrapped(other).map(|wrapped| (wrapped.function, wrapped.carries, wrapped.props.or_else(|| props.clone()))),
             };
-            if let Some((start, written)) = function {
-                if let Some(of) = &props { self.pending = Some((start, of.clone())); }
-                self.carry(&id.name, written.or_else(|| props.clone()));
+            if let Some((start, written, props)) = function {
+                if let (Some(start), Some(of)) = (start, &props) { self.pending = Some((start, of.clone())); }
+                self.carry(&id.name, written.or(props).map(|of| (of, Keys::default())));
             }
         }
-        let of = annotation.and_then(named);
+        let of = annotation.and_then(|annotation| self.names.named(annotation));
         if let Some(of) = of {
             if let Some(init) = &it.init { self.literal(init, &of); }
             self.bind(&it.id, &of);
@@ -333,21 +277,24 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
-        if let Some(id) = &it.id { self.carry(&id.name, first_parameter(&it.params)); }
+        if let Some(id) = &it.id {
+            let of = self.names.first_parameter(&it.params).map(|of| (of, Keys::default()));
+            self.carry(&id.name, of);
+        }
         let method = std::mem::take(&mut self.method);
         if !method {
-            let this = it.this_param.as_ref().and_then(|this| annotated(this.type_annotation.as_deref()));
-            self.this.push(this.into_iter().collect());
+            let this = it.this_param.as_ref().and_then(|this| self.names.annotated(this.type_annotation.as_deref()));
+            self.this.push(This { types: this.into_iter().collect(), props: None });
         }
         self.props = self.props_for(it.span.start);
-        self.returns.push(annotated(it.return_type.as_deref()));
+        self.returns.push(self.names.annotated(it.return_type.as_deref()));
         walk::walk_function(self, it, flags);
         self.returns.pop();
         if !method { self.this.pop(); }
     }
 
     fn visit_arrow_function_expression(&mut self, it: &ArrowFunctionExpression<'a>) {
-        let returns = annotated(it.return_type.as_deref());
+        let returns = self.names.annotated(it.return_type.as_deref());
         if let (Some(of), Some(body)) = (&returns, it.get_expression()) { self.literal(body, of); }
         self.props = self.props_for(it.span.start);
         self.returns.push(returns);
@@ -367,41 +314,53 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_class(&mut self, it: &Class<'a>) {
-        let mut carried: Vec<String> = Vec::new();
-        if let Some(Expression::Identifier(base)) = it.heritage.as_ref().map(|base| base.expression.without_parentheses()) { carried.push(base.name.to_string()); }
-        carried.extend(it.implements.iter().filter_map(|one| plain(&one.expression)));
+        let mut carried: Vec<(String, Keys)> = Vec::new();
+        let base = it.heritage.as_ref();
+        let props = base.and_then(|base| self.names.class_props(base));
+        if let Some(Expression::Identifier(base)) = base.map(|base| base.expression.without_parentheses()) { carried.push((base.name.to_string(), Keys::default())); }
+        carried.extend(props.clone());
+        carried.extend(it.implements.iter().filter_map(|one| self.names.reference(&one.expression, one.type_arguments.as_deref())));
         // A named class is `this`, and its carries reach what it extends or
-        // implements; an anonymous one has no name to carry from, so `this` is
-        // those types themselves.
-        let this = match &it.id {
+        // implements, and a class component's props; an anonymous one has no
+        // name to carry from, so `this` is those types themselves.
+        let types = match &it.id {
             Some(id) => {
                 for of in &carried { self.carry(&id.name, Some(of.clone())); }
                 vec![id.name.to_string()]
             }
-            None => carried,
+            None => carried.into_iter().map(|(of, _)| of).collect(),
         };
-        self.this.push(this);
+        self.this.push(This { types, props: props.map(|(of, _)| of) });
         walk::walk_class(self, it);
         self.this.pop();
     }
 
     fn visit_ts_interface_declaration(&mut self, it: &TSInterfaceDeclaration<'a>) {
-        for heritage in &it.extends { self.carry(&it.id.name, plain(&heritage.type_name)); }
+        for heritage in &it.extends {
+            let of = self.names.reference(&heritage.type_name, heritage.type_arguments.as_deref());
+            self.carry(&it.id.name, of);
+        }
         walk::walk_ts_interface_declaration(self, it);
     }
 
     fn visit_ts_type_alias_declaration(&mut self, it: &TSTypeAliasDeclaration<'a>) {
         match &it.type_annotation {
             TSType::TSIntersectionType(both) => {
-                for one in &both.types { self.carry(&it.id.name, named(one)); }
+                for one in &both.types {
+                    let of = self.names.carried(one);
+                    self.carry(&it.id.name, of);
+                }
             }
-            other => self.carry(&it.id.name, named(other)),
+            other => {
+                let of = self.names.carried(other);
+                self.carry(&it.id.name, of);
+            }
         }
         walk::walk_ts_type_alias_declaration(self, it);
     }
 
     fn visit_ts_indexed_access_type(&mut self, it: &TSIndexedAccessType<'a>) {
-        if let (Some(of), TSType::TSLiteralType(index)) = (named(&it.object_type), &it.index_type) {
+        if let (Some(of), TSType::TSLiteralType(index)) = (self.names.named(&it.object_type), &it.index_type) {
             if let TSLiteral::StringLiteral(name) = &index.literal { self.add(&name.value, name.span.start, &of, READ); }
         }
         walk::walk_ts_indexed_access_type(self, it);
@@ -419,12 +378,12 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_ts_as_expression(&mut self, it: &TSAsExpression<'a>) {
-        if let Some(of) = named(&it.type_annotation) { self.literal(&it.expression, &of); }
+        if let Some(of) = self.names.named(&it.type_annotation) { self.literal(&it.expression, &of); }
         walk::walk_ts_as_expression(self, it);
     }
 
     fn visit_ts_satisfies_expression(&mut self, it: &TSSatisfiesExpression<'a>) {
-        if let Some(of) = named(&it.type_annotation) { self.literal(&it.expression, &of); }
+        if let Some(of) = self.names.named(&it.type_annotation) { self.literal(&it.expression, &of); }
         walk::walk_ts_satisfies_expression(self, it);
     }
 

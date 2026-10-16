@@ -86,6 +86,8 @@ const PARSED: Parsed = {
   carries: [
     { on: 'WideShell', of: 'NarrowShell' },
     { on: 'PanelButton', of: 'PanelProps' },
+    { on: 'PickedShell', of: 'PanelProps', only: ['keptKey', 'otherKept'] },
+    { on: 'OmittedShell', of: 'NarrowShell', except: ['droppedKey'] },
   ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in

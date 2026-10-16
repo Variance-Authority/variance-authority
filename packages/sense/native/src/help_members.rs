@@ -16,10 +16,11 @@
 //! binds; so `Props.size` and `Other.size` are told apart, and a same-named
 //! type of another file is neither. A container that carries the declaring
 //! one — an interface that extends it, an alias that intersects it, a class
-//! that implements it, a component that takes it as props — is joined the same
-//! way, so `wide.size` through `Wide extends Props` and `<Button size />`
-//! through `Button: FC<Props>` are uses of `Props.size`. A container with no
-//! name has no uses.
+//! that implements it, a component that takes it as props, `memo` or
+//! `forwardRef` of such a component, a class component of it, `Pick` of it
+//! that keeps the member — is joined the same way, so `wide.size` through
+//! `Wide extends Props` and `<Button size />` through `Button: FC<Props>` are
+//! uses of `Props.size`. A container with no name has no uses.
 
 // compass: variance-authority.reach.relations
 
@@ -157,7 +158,8 @@ fn write(into: &mut Written, file: &str, name: &str, origin: usize) -> bool {
 /// The names are reached as a closure: each name reached is followed through
 /// its imports, and each container a reached file declares carrying a reached
 /// name (`interface Wide extends Props`, a component taking `Props`) is reached
-/// in turn, until a round reaches nothing new.
+/// in turn, until a round reaches nothing new. A carry over `Pick` or `Omit`
+/// reaches the container only when it keeps `name`.
 fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     // One origin per declaring file and container, which several declarations can share.
     let mut origins: Vec<(String, String)> = Vec::new();
@@ -198,6 +200,10 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
             let (stored, columns) = (&layers[layer].stored, &layers[layer].parses);
             for at in columns.carries.range(row) {
                 let Some(carried) = names.get(stored.text(columns.carry_of.at(at))) else { continue };
+                // A carry over `Pick` or `Omit` holds only some members, and `name` may not be one.
+                let (only, except) = (columns.carry_only.range(at), columns.carry_except.range(at));
+                if !only.is_empty() && !only.into_iter().any(|key| stored.text(columns.carry_only_name.at(key)) == name) { continue; }
+                if except.into_iter().any(|key| stored.text(columns.carry_except_name.at(key)) == name) { continue; }
                 let on = stored.text(columns.carry_on.at(at));
                 for &origin in carried {
                     if write(&mut written, file, on, origin) { write(&mut frontier, file, on, origin); }

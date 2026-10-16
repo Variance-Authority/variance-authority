@@ -77,6 +77,10 @@ pub(crate) struct Parses<'a> {
     pub carries: U32s<'a>,
     pub carry_on: U32s<'a>,
     pub carry_of: U32s<'a>,
+    pub carry_only: U32s<'a>,
+    pub carry_only_name: U32s<'a>,
+    pub carry_except: U32s<'a>,
+    pub carry_except_name: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -95,6 +99,7 @@ impl<'a> Parses<'a> {
         let member_declaration_name = u32s("member-declarations.name")?;
         let member_use_name = u32s("member-uses.name")?;
         let carry_on = u32s("carries.on")?;
+        let (carry_only_name, carry_except_name) = (u32s("carry-only.name")?, u32s("carry-except.name")?);
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -153,6 +158,10 @@ impl<'a> Parses<'a> {
             member_use_name,
             carries: stored.offsets("parses.carries", rows, carry_on.len())?,
             carry_of: u32s("carries.of")?,
+            carry_only: stored.offsets("carries.only", carry_on.len(), carry_only_name.len())?,
+            carry_except: stored.offsets("carries.except", carry_on.len(), carry_except_name.len())?,
+            carry_only_name,
+            carry_except_name,
             carry_on,
             declare_name,
         };
@@ -299,6 +308,12 @@ impl ParseRow for ParseView<'_, '_> {
         for at in columns.carries.range(row) {
             text(columns.carry_on, at);
             text(columns.carry_of, at);
+            for key in columns.carry_only.range(at) {
+                text(columns.carry_only_name, key);
+            }
+            for key in columns.carry_except.range(at) {
+                text(columns.carry_except_name, key);
+            }
         }
         for at in self.declares() {
             text(columns.declare_name, at);
@@ -376,7 +391,12 @@ impl ParseRow for ParseView<'_, '_> {
             );
         }
         for at in columns.carries.range(row) {
-            into.carry(id(columns.carry_on, at), id(columns.carry_of, at));
+            into.carry(
+                id(columns.carry_on, at),
+                id(columns.carry_of, at),
+                columns.carry_only.range(at).map(|key| id(columns.carry_only_name, key)),
+                columns.carry_except.range(at).map(|key| id(columns.carry_except_name, key)),
+            );
         }
     }
 

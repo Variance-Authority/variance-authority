@@ -139,15 +139,20 @@ export interface MemberUse {
 }
 
 /**
- * A container that carries every member of a type the file writes: an
+ * A container that carries the members of a type the file writes: an
  * interface that extends it, an alias that is or intersects it, a class that
- * extends or implements it, a function whose first parameter is written as it.
+ * extends or implements it, a function whose first parameter is written as it,
+ * a component `memo` or `forwardRef` makes of it, a class component of it.
  */
 export interface TypeCarry {
   /** The container's name, as the file declares it. */
   readonly on: string;
   /** The carried type's name as the file writes it: its own declaration's, or the local name of an import. */
   readonly of: string;
+  /** The members it holds, when a `Pick` names them; every member when absent. */
+  readonly only?: readonly string[];
+  /** The members an `Omit` drops; never beside `only`. */
+  readonly except?: readonly string[];
 }
 
 /** Content-addressed parses used by a scan and by consumers sharing its work. */

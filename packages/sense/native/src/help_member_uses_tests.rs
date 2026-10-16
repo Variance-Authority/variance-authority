@@ -131,3 +131,58 @@ fn a_container_carries_the_members_of_each_type_it_extends_implements_or_takes()
         ]
     );
 }
+
+fn keyed(text: &str) -> Vec<(String, String, Option<Vec<String>>, Vec<String>)> {
+    let allocator = Allocator::default();
+    let parsed = Parser::new(&allocator, text, SourceType::tsx()).parse();
+    typed_in(&parsed.program, &Lines::new(text)).carries.into_iter().map(|carry| (carry.on, carry.of, carry.only, carry.except)).collect()
+}
+
+fn keys(on: &str, of: &str, only: Option<&[&str]>, except: &[&str]) -> (String, String, Option<Vec<String>>, Vec<String>) {
+    let owned = |keys: &[&str]| keys.iter().map(|key| (*key).to_owned()).collect::<Vec<_>>();
+    (on.to_owned(), of.to_owned(), only.map(owned), owned(except))
+}
+
+#[test]
+fn a_component_memo_or_forward_ref_makes_takes_its_props() {
+    let text = "import { memo as keep, forwardRef } from 'react';\nimport React from 'react';\nimport { memo } from './mine';\nexport const A = keep((props: Props) => props.size);\nexport const B = keep<Props>(({ size }) => size);\nexport const C = forwardRef<Element, Props>((props, ref) => props.size);\nexport const D = React.memo(React.forwardRef<Element, Props>(function (props, ref) { return props.size; }));\nexport const E = React.memo(A);\nexport const F = memo<Props>((props) => props.size);\n";
+    assert_eq!(
+        uses_tsx(text),
+        vec![one("size", 4, "Props", "read"), one("size", 5, "Props", "destructure"), one("size", 6, "Props", "read"), one("size", 7, "Props", "read")]
+    );
+    assert_eq!(carried(text), vec![carry("A", "Props"), carry("B", "Props"), carry("C", "Props"), carry("D", "Props"), carry("E", "A")]);
+}
+
+#[test]
+fn a_class_component_holds_its_props_as_this_props() {
+    let text = "import * as React from 'react';\nimport { PureComponent as Pure } from 'react';\nimport { Component } from './mine';\nclass A extends React.Component<Props> {\n  render() { return this.props.size; }\n}\nclass B extends Pure<Readonly<Props>> {\n  render() { return this.props.size; }\n}\nclass C extends Component<Props> {\n  render() { return this.props.size; }\n}\n";
+    assert_eq!(
+        uses_tsx(text),
+        vec![one("size", 5, "Props", "read"), one("props", 5, "A", "read"), one("size", 8, "Props", "read"), one("props", 8, "B", "read"), one("props", 11, "C", "read")]
+    );
+    assert_eq!(carried(text), vec![carry("A", "Props"), carry("B", "Pure"), carry("B", "Props"), carry("C", "Component")]);
+}
+
+#[test]
+fn a_utility_type_is_the_type_it_takes_and_keeps_the_keys_it_names() {
+    let text = "const a = (p: Partial<Props>, q: Readonly<Pick<Props, 'size'>>) => p.size + q.size;\ntype Some = Pick<Props, 'size' | 'label'>;\ntype None = Omit<Props, 'size'>;\ntype Narrow = Omit<Pick<Props, 'size' | 'label'>, 'label'>;\ntype Gone = Pick<Omit<Props, 'size'>, 'size'>;\ntype Loose = Pick<Props, Keys>;\ninterface Grown extends Required<Props> {}\nclass Box implements Partial<Props> {}\n";
+    assert_eq!(uses(text), vec![one("size", 1, "Props", "read")]);
+    assert_eq!(
+        keyed(text),
+        vec![
+            keys("a", "Props", None, &[]),
+            keys("Some", "Props", Some(&["size", "label"]), &[]),
+            keys("None", "Props", None, &["size"]),
+            keys("Narrow", "Props", Some(&["size"]), &[]),
+            keys("Grown", "Props", None, &[]),
+            keys("Box", "Props", None, &[]),
+        ]
+    );
+}
+
+#[test]
+fn a_utility_name_the_file_declares_or_imports_is_its_own_type() {
+    let text = "import type { Pick } from './mine';\ntype Partial<T> = { of: T };\nconst a = (p: Partial<Props>) => p.size;\ntype Some = Pick<Props, 'size'>;\n";
+    assert_eq!(uses(text), vec![one("size", 3, "Partial", "read")]);
+    assert_eq!(carried(text), vec![carry("a", "Partial"), carry("Some", "Pick")]);
+}
