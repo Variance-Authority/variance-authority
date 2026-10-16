@@ -75,6 +75,18 @@ export interface TraversalOptions {
    * uses ([`narrow.ts`](./narrow.ts)).
    */
   readonly moved?: ReadonlyMap<NodeId, readonly string[]>;
+  /**
+   * Whether a record answers, for every seed, which files loaded it. A barrel
+   * over a module the walk holds whole is then entered carrying only the names
+   * it republishes, rather than whole: what the module does as it loads reaches
+   * an importer of the barrel's other names only by loading a seed, and the
+   * record holds every file that did. It is a claim about every seed: one
+   * whose loaders are not all recorded — a file with no row, one a build left
+   * uninstrumented, an installed package — leaves it off. Read only with
+   * {@link moved}; a walk nothing recorded leaves it off, and enters the
+   * barrel whole.
+   */
+  readonly loadsRecorded?: boolean;
 }
 
 /** What depends on these nodes, transitively. Against the arrows. */

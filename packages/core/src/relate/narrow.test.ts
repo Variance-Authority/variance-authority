@@ -173,3 +173,84 @@ describe('a narrowed walk over cycles, self-imports and mocks', () => {
     ]);
   });
 });
+
+/**
+ * A module the walk holds whole — a changed file it has no reading for, or an
+ * importer it entered — still republishes through a barrel only the names the
+ * barrel names. `src/index.ts` forwards `View` from `src/view.ts` and `other`
+ * from `src/other.ts`, the way a package index forwards each component from its
+ * own file.
+ */
+describe('a barrel over a module the walk holds whole', () => {
+  const records: readonly FileRecord[] = [
+    { file: 'src/cart.ts' },
+    { file: 'src/other.ts' },
+    { file: 'src/view.ts', edges: [{ to: 'src/cart.ts', kind: 'dynamic' }] },
+    { file: 'src/index.ts', edges: [{ to: 'src/view.ts', kind: 'reexports' }, { to: 'src/other.ts', kind: 'reexports' }] },
+    { file: 'src/all.ts', edges: [{ to: 'src/view.ts', kind: 'reexports' }] },
+    { file: 'src/ns.ts', edges: [{ to: 'src/view.ts', kind: 'reexports' }, { to: 'src/other.ts', kind: 'reexports' }] },
+    { file: 'src/page.ts', edges: [{ to: 'src/cart.ts', kind: 'imports' }] },
+    { file: 'src/pages.ts', edges: [{ to: 'src/page.ts', kind: 'reexports' }, { to: 'src/other.ts', kind: 'reexports' }] },
+    { file: 'test/page.test.ts', edges: [{ to: 'src/pages.ts', kind: 'imports' }] },
+    { file: 'test/pages-other.test.ts', edges: [{ to: 'src/pages.ts', kind: 'imports' }] },
+    { file: 'test/view.test.ts', edges: [{ to: 'src/index.ts', kind: 'imports' }] },
+    { file: 'test/other.test.ts', edges: [{ to: 'src/index.ts', kind: 'imports' }] },
+    { file: 'test/star.test.ts', edges: [{ to: 'src/all.ts', kind: 'imports' }] },
+    { file: 'test/ns-view.test.ts', edges: [{ to: 'src/ns.ts', kind: 'imports' }] },
+    { file: 'test/ns-other.test.ts', edges: [{ to: 'src/ns.ts', kind: 'imports' }] },
+  ];
+  const uses: Readonly<Record<string, EdgeUse>> = {
+    'src/page.ts>src/cart.ts': { imports: ['total'] },
+    'src/pages.ts>src/page.ts': { reexports: [['Page', 'Page']] },
+    'src/pages.ts>src/other.ts': { reexports: [['other', 'other']] },
+    'test/page.test.ts>src/pages.ts': { imports: ['Page'] },
+    'test/pages-other.test.ts>src/pages.ts': { imports: ['other'] },
+    'src/index.ts>src/view.ts': { reexports: [['View', 'View']] },
+    'src/index.ts>src/other.ts': { reexports: [['other', 'other']] },
+    'src/all.ts>src/view.ts': { reexports: [['*', '*']] },
+    'src/ns.ts>src/view.ts': { reexports: [['*', 'views']] },
+    'src/ns.ts>src/other.ts': { reexports: [['other', 'other']] },
+    'test/view.test.ts>src/index.ts': { imports: ['View'] },
+    'test/other.test.ts>src/index.ts': { imports: ['other'] },
+    'test/star.test.ts>src/all.ts': { imports: ['other'] },
+    'test/ns-view.test.ts>src/ns.ts': { imports: ['views'] },
+    'test/ns-other.test.ts>src/ns.ts': { imports: ['other'] },
+  };
+  const relations = relationsOfFiles(records, { uses: (importer, target) => uses[`${importer}>${target}`] });
+  const from = (file: string, moved: ReadonlyMap<string, readonly string[]>) =>
+    affectedBy(relations, [file], { moved, loadsRecorded: true }).files;
+
+  it('enters the barrel whole when no record answers for the files that loaded the module', () => {
+    const files = affectedBy(relations, ['src/view.ts'], { moved: new Map() }).files;
+    expect(files).toContain('test/other.test.ts');
+    expect(files).toContain('test/ns-other.test.ts');
+  });
+
+  it('forwards from an importer it entered whole only the names the barrel republishes', () => {
+    const files = from('src/cart.ts', new Map([['src/cart.ts', ['total']]]));
+    expect(files).toContain('test/view.test.ts');
+    expect(files).not.toContain('test/other.test.ts');
+  });
+
+  it('forwards from an importer a moved name entered whole only the names the barrel republishes', () => {
+    const files = from('src/cart.ts', new Map([['src/cart.ts', ['total']]]));
+    expect(files).toContain('test/page.test.ts');
+    expect(files).not.toContain('test/pages-other.test.ts');
+  });
+
+  it('forwards from a changed file it holds no reading for only the names the barrel republishes', () => {
+    const files = from('src/view.ts', new Map());
+    expect(files).toContain('test/view.test.ts');
+    expect(files).not.toContain('test/other.test.ts');
+  });
+
+  it('forwards `export * as` from a whole module under the one name it publishes', () => {
+    const files = from('src/view.ts', new Map());
+    expect(files).toContain('test/ns-view.test.ts');
+    expect(files).not.toContain('test/ns-other.test.ts');
+  });
+
+  it('holds a barrel whole behind `export *` from a whole module, whose names the graph does not list', () => {
+    expect(from('src/view.ts', new Map())).toContain('test/star.test.ts');
+  });
+});

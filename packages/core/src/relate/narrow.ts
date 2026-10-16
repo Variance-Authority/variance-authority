@@ -10,7 +10,10 @@
  * Each visited file carries one of two states:
  *
  * - **whole** — what it does as it loads moved, or nobody said which of its
- *   exports did. Every dependent is entered, as the plain walk does.
+ *   exports did. Every dependent is entered whole, as the plain walk does,
+ *   but for a re-export under `loadsRecorded`: there the barrel is entered
+ *   carrying every name it republishes, and whole only behind `export *`,
+ *   whose names the graph does not list.
  * - **the exports that moved** — read from the file's two texts for a seed,
  *   or carried through a re-export for a barrel. A dependent that imports one
  *   of them is entered whole: which of *its* exports read the name is a
@@ -26,7 +29,7 @@
  * reaches the same fixpoint whatever order the seeds arrive in.
  */
 
-import { carried, inIdOrder, NOTHING, WHOLE, type Carry, type CarriedStep } from './carried.js';
+import { carried, inIdOrder, NOTHING, WHOLE, type Carry, type CarriedStep, type Held } from './carried.js';
 import { EDGE_KINDS, type Adjacency, type NodeId } from './graph.js';
 import type { Traversal, TraversalOptions } from './reach.js';
 
@@ -53,14 +56,19 @@ export type Uses = (importer: string, target: string) => EdgeUse | undefined;
 const IMPORTS = EDGE_KINDS.indexOf('imports');
 const REEXPORTS = EDGE_KINDS.indexOf('reexports');
 
-/** What a re-export hands on from `moved`, under the names the importer publishes. */
-function republished(passes: readonly (readonly [string, string])[], moved: ReadonlySet<string>): string[] {
-  const out: string[] = [];
+/**
+ * What a re-export hands on from `moved`, under the names the importer
+ * publishes. From a whole module every name it republishes, and the whole
+ * module behind `export *`, which republishes names the graph does not list.
+ */
+function republished(passes: readonly (readonly [string, string])[], moved: Held): Carry<string> {
+  const out = new Map<string, string>();
   for (const [imported, exported] of passes) {
     if (imported === '*' && exported === '*') {
-      for (const name of moved) if (name !== 'default') out.push(name);
-    } else if (imported === '*' || moved.has(imported)) {
-      out.push(exported);
+      if (moved === WHOLE) return WHOLE;
+      for (const name of moved) if (name !== 'default') out.set(name, name);
+    } else if (moved === WHOLE || imported === '*' || moved.has(imported)) {
+      out.set(exported, exported);
     }
   }
   return out;
@@ -76,8 +84,9 @@ export function narrowed(
   seeds: Iterable<NodeId>,
   moved: ReadonlyMap<NodeId, readonly string[]>,
   uses: Uses,
-  options: Pick<TraversalOptions, 'avoid' | 'through'> = {},
+  options: Pick<TraversalOptions, 'avoid' | 'through' | 'loadsRecorded'> = {},
 ): Traversal {
+  const forwardsFromWhole = options.loadsRecorded === true;
   const via = new Int32Array(names.length).fill(-1);
   const starts = function* () {
     for (const seed of seeds) {
@@ -90,18 +99,20 @@ export function narrowed(
   // carried: a name that reached it by another path is as moved as this one.
   const step: CarriedStep<string> = {
     arrive(next, node, kind, _carry, held): Carry<string> | undefined {
-      if (held === WHOLE || (kind !== IMPORTS && kind !== REEXPORTS)) return WHOLE;
-      const use = uses(names[next]!, names[node]!);
+      if (kind !== IMPORTS && kind !== REEXPORTS) return WHOLE;
       if (kind === IMPORTS) {
-        const imported = use?.imports;
+        if (held === WHOLE) return WHOLE;
+        const imported = uses(names[next]!, names[node]!)?.imports;
         // TODO: enter the importer carrying the exports whose bodies read the
         // name, which needs the addon's per-export reach within the importer;
         // until then an import hop two out is charged whole.
         if (imported === undefined) return undefined;
         return imported.some((name) => held.has(name)) ? WHOLE : NOTHING;
       }
-      if (use?.reexports === undefined) return undefined;
-      return namesOf(republished(use.reexports, held));
+      if (held === WHOLE && !forwardsFromWhole) return WHOLE;
+      const passes = uses(names[next]!, names[node]!)?.reexports;
+      if (passes === undefined) return undefined;
+      return republished(passes, held);
     },
   };
 

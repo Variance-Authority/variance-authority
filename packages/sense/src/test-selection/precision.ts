@@ -34,7 +34,7 @@ import { MODULE_EXTENSIONS } from '../read.js';
 import { kindId, NO_OWNER } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import type { ExecutionNarrowingOptions, ImporterReason } from './importers.js';
-import { findTest, testPathOf } from './lookup.js';
+import { findModules, findTest, testPathOf } from './lookup.js';
 import { applied, type Hunk } from './patch.js';
 import { textAtRecording } from './recorded-text.js';
 import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './select.js';
@@ -56,15 +56,25 @@ export function byRelations(precision: Precision | undefined): precision is 'fil
  *
  * `moved` narrows the walk to the importers of the exports each file's change
  * moved; a file it does not name is walked whole, and so is every file when it
- * is absent.
+ * is absent. With it, and when every changed file the graph holds has rows
+ * and every one instrumented, a barrel over a file walked whole is entered through the
+ * names it republishes, since the record answers for every test that loaded a
+ * changed file.
  */
 export function selectedByRelations(
   coverage: TestCoverageView,
   relations: Relations,
   changed: readonly string[],
   moved: ReadonlyMap<string, readonly string[]> | undefined,
+  knownAs: (file: string) => readonly string[] = (file) => [file],
 ): ReadonlyMap<number, readonly ImporterReason[]> {
-  const affected = affectedBy(relations, changed, moved === undefined ? {} : { moved });
+  // A row holds every test that loaded its file, which is what lets a barrel over
+  // a file the walk holds whole forward only the names it republishes. A changed
+  // file with no row is read by who reads its names, not by who loaded it, and a
+  // build that left it uninstrumented recorded none of its loaders. A file the
+  // graph does not hold seeds no walk, so it asks nothing of the record.
+  const loadsRecorded = changed.every((file) => idOf(relations, 'file', file) === undefined || loadersRecorded(coverage, knownAs(file)));
+  const affected = affectedBy(relations, changed, moved === undefined ? {} : { moved, loadsRecorded });
   const selected = new Map<number, ImporterReason[]>();
   for (const file of affected.files) {
     const test = findTest(coverage, file);
@@ -73,6 +83,12 @@ export function selectedByRelations(
     selected.set(test, [{ kind: 'importer', trail }]);
   }
   return selected;
+}
+
+/** Whether the record holds rows for a file under `names`, and every one of them instrumented. */
+function loadersRecorded(coverage: TestCoverageView, names: readonly string[]): boolean {
+  const rows = names.flatMap((name) => findModules(coverage, name));
+  return rows.length > 0 && rows.every((module) => coverage.moduleInstrumented.at(module) === 1);
 }
 
 /**
@@ -137,7 +153,7 @@ export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | '
   }
   const moved = options.precision === 'symbol' ? (options.moved ?? movedBy(coverage.commit, changed, hunks, options)) : undefined;
   const via = new Map<string, SelectionReason[]>(reading.because.map((cause) => [cause.test, [...cause.via]]));
-  for (const [test, reasons] of selectedByRelations(coverage, relations, changed, moved)) {
+  for (const [test, reasons] of selectedByRelations(coverage, relations, changed, moved, options.knownAs)) {
     const path = testPathOf(coverage, test);
     via.set(path, [...(via.get(path) ?? []), ...reasons]);
   }

@@ -149,6 +149,103 @@ describe('the precision a suite declares, from coarsest to finest', () => {
     expect(onOther.entered).toContain('test/omega.test.ts');
   });
 
+  it('enters a barrel over a file it walks whole only through the names the barrel republishes at symbol', () => {
+    // `src/panel.ts` loads the changed file, and the barrel republishes it beside
+    // `src/label.ts`. A test that imports only the label never loaded the change.
+    const records: readonly FileRecord[] = [
+      ...RECORDS,
+      { file: 'src/panel.ts', edges: [{ to: 'src/decide.ts', kind: 'dynamic' }] },
+      { file: 'src/index.ts', edges: [{ to: 'src/panel.ts', kind: 'reexports' }, { to: 'src/label.ts', kind: 'reexports' }] },
+      { file: 'test/panel.test.ts', edges: [{ to: 'src/index.ts', kind: 'imports' }] },
+      { file: 'test/label.test.ts', edges: [{ to: 'src/index.ts', kind: 'imports' }] },
+    ];
+    const barrel: Readonly<Record<string, EdgeUse>> = {
+      ...USES,
+      'src/index.ts>src/panel.ts': { reexports: [['Panel', 'Panel']] },
+      'src/index.ts>src/label.ts': { reexports: [['label', 'label']] },
+      'test/panel.test.ts>src/index.ts': { imports: ['Panel'] },
+      'test/label.test.ts>src/index.ts': { imports: ['label'] },
+    };
+    const recorded: TestCoverage = {
+      ...coverage,
+      tests: [...coverage.tests, ...['test/label.test.ts', 'test/panel.test.ts'].map((file) => ({ file, complete: true, preconditions: [] }))],
+    };
+    // A changed file the graph does not hold, such as a configuration file, is
+    // no seed of the walk, so it asks nothing of the record.
+    const withNotes = `${inBranch}
+--- a/notes.md
++++ b/notes.md
+@@ -1,1 +1,1 @@
+-old
++new`;
+    for (const diff of [inBranch, withNotes]) {
+      const symbol = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(recorded)), diff, {
+        relations: relationsOfFiles(records, { uses: (importer, target) => barrel[`${importer}>${target}`] }),
+        precision: 'symbol',
+        moved: new Map([['src/decide.ts', ['decide']]]),
+      });
+      expect(symbol.entered).toContain('test/panel.test.ts');
+      expect(symbol.entered).not.toContain('test/label.test.ts');
+    }
+    // A second build that loaded the file without instrumenting it leaves its
+    // loaders out of the record, so the barrel is entered whole again.
+    const twoBuilds: TestCoverage = {
+      ...recorded,
+      modules: [...recorded.modules, { file: 'dist/decide.js', sourceDigest: 'source:decide', instrumented: false, blocks: [] }],
+    };
+    const unread = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(twoBuilds)), inBranch, {
+      relations: relationsOfFiles(records, { uses: (importer, target) => barrel[`${importer}>${target}`] }),
+      precision: 'symbol',
+      moved: new Map([['src/decide.ts', ['decide']]]),
+      knownAs: (file) => (file === 'src/decide.ts' ? ['src/decide.ts', 'dist/decide.js'] : [file]),
+    });
+    expect(unread.entered).toContain('test/label.test.ts');
+  });
+
+  it('enters a barrel whole at symbol when a changed file has no row, since no record says who loaded it', () => {
+    // `src/label.ts` has no row. `src/view.ts` imports the moved `label`, so it may
+    // call it as it loads, and loading the barrel for `other` loads `src/view.ts`.
+    const records: readonly FileRecord[] = [
+      ...RECORDS,
+      { file: 'src/other.ts' },
+      { file: 'src/view.ts', edges: [{ to: 'src/label.ts', kind: 'imports' }] },
+      { file: 'src/index.ts', edges: [{ to: 'src/view.ts', kind: 'reexports' }, { to: 'src/other.ts', kind: 'reexports' }] },
+      { file: 'test/other.test.ts', edges: [{ to: 'src/index.ts', kind: 'imports' }] },
+    ];
+    const barrel: Readonly<Record<string, EdgeUse>> = {
+      ...USES,
+      'src/view.ts>src/label.ts': { imports: ['label'] },
+      'src/index.ts>src/view.ts': { reexports: [['View', 'View']] },
+      'src/index.ts>src/other.ts': { reexports: [['other', 'other']] },
+      'test/other.test.ts>src/index.ts': { imports: ['other'] },
+    };
+    const recorded: TestCoverage = {
+      ...coverage,
+      tests: [...coverage.tests, { file: 'test/other.test.ts', complete: true, preconditions: [] }],
+    };
+    // Every text is readable, so the reading answers for the file by its readers
+    // and no walk of its own enters the barrel whole.
+    const texts: Readonly<Record<string, string>> = {
+      'src/label.ts': "export const label = 'a';\n",
+      'src/view.ts': "import { label } from './label';\nexport const View = label.toUpperCase();\n",
+      'src/index.ts': "export { View } from './view';\nexport { other } from './other';\n",
+      'src/other.ts': "export const other = 1;\n",
+      'test/other.test.ts': "import { other } from '../src/index';\nother;\n",
+    };
+    const rowless = `--- a/src/label.ts
++++ b/src/label.ts
+@@ -1,1 +1,1 @@
+-export const label = 'a';
++export const label = 'b';`;
+    const symbol = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(recorded)), rowless, {
+      relations: relationsOfFiles(records, { uses: (importer, target) => barrel[`${importer}>${target}`] }),
+      precision: 'symbol',
+      moved: new Map([['src/label.ts', ['label']]]),
+      sourceAt: (file) => texts[file],
+    });
+    expect(symbol.entered).toContain('test/other.test.ts');
+  });
+
   it('walks the file whole at symbol when no export reading was taken', () => {
     expect(entered('symbol')).toEqual(tests);
   });
