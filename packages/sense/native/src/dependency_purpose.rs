@@ -56,7 +56,7 @@ pub(super) fn stem(word: &str) -> String {
 }
 
 /// The stems of the words in `text`, splitting camelCase and punctuation; short words and stopwords dropped.
-pub(super) fn stems(text: &str) -> Vec<String> {
+pub(crate) fn stems(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut word = String::new();
     let mut last_lower = false;

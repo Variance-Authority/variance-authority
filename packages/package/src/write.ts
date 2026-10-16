@@ -40,10 +40,14 @@ function place(page: Page, entry: Pick<Entry, 'at' | 'line'>): string {
   return `${page.base ?? ''}${entry.at}#L${entry.line}`;
 }
 
-/** The first paragraph of a doc block: what the name is, before the reasons. */
+/**
+ * The first paragraph of a doc block, on one line: what the name is, before
+ * the reasons. A docstring's lines keep the indentation of its body, which a
+ * line break no longer separates.
+ */
 export function opening(doc: string): string {
-  const [first = ''] = doc.split('\n\n');
-  return first.replace(/\n/g, ' ').trim();
+  const [first = ''] = doc.split(/\n[ \t]*\n/);
+  return first.replace(/[ \t]*\n[ \t]*/g, ' ').trim();
 }
 
 function head(page: Page): string {

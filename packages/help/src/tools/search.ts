@@ -107,7 +107,8 @@ function publishedLine(match: PublishedMatch): string {
 function exportedLine(match: ExportedMatch): string {
   const rest = match.files - 1;
   const more = rest === 0 ? '' : ` (+${rest} more ${rest === 1 ? 'file' : 'files'})`;
-  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}`;
+  const said = match.summary === undefined ? '' : ` — ${match.summary}`;
+  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}${said}`;
 }
 
 const matchLine = (match: PublishedMatch | ExportedMatch): string =>
@@ -181,9 +182,9 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       : [
           '',
           `${held.total} ${held.total === 1 ? 'name in this repository holds' : 'names in this repository hold'} at least half the words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words in the name, then the words held at all.',
+            'read by stem as the packages are, best first: the words held at all, then the words in the name.',
           '',
-          ...held.shown.map((match) => `${matchLine(match)} [holds: ${match.words.join(', ')}]`),
+          ...held.shown.map((match) => `${match.source === 'declared' ? declaredLine(match) : matchLine(match)} [holds: ${match.words.join(', ')}]`),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
         ];
   // This repository's own names before any installed package's: the question

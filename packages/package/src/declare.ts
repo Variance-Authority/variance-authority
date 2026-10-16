@@ -251,12 +251,26 @@ function record(node: Statement, into: Map<string, Declaration>, source: Source,
  * comment was written, above both of them.
  */
 export function declarationsIn(source: Source): Map<string, Declaration> {
+  return declared(source, true);
+}
+
+/**
+ * The names a file binds at its top level, for `export { x }` to look its doc up
+ * in. `export default` binds no name, and its expression is not read: a file
+ * that only lists its exports may default-export any value at all.
+ */
+export function bindingsIn(source: Source): Map<string, Declaration> {
+  return declared(source, false);
+}
+
+function declared(source: Source, defaults: boolean): Map<string, Declaration> {
   const kinds = new Map<string, Declaration>();
 
   for (const node of source.parsed.program.body) {
     const context = around(source, node.start);
 
     if (node.type === 'ExportDefaultDeclaration') {
+      if (!defaults) continue;
       const kind = kindOfDefault(node.declaration, source.at);
       // A default-exported object literal has no head to quote — the whole of it
       // is a value, and a config object is a hundred lines of one.

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
-import { type Parses, parseFile } from './declare.js';
+import { type Parses, bindingsIn, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
 import { type ImportTargets, landing } from './entry.js';
 import { readImportTargets, requested } from './manifest.js';
@@ -180,6 +180,8 @@ export interface Named {
   readonly type: boolean;
   /** Whether the exporting file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
+  /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
+  readonly doc?: string;
 }
 
 export interface UsageOptions {
@@ -262,6 +264,8 @@ export interface Exported {
   readonly line: number;
   /** `export type { x }` and `export { type x }` alike. */
   readonly type: boolean;
+  /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
+  readonly doc?: string;
 }
 
 /**
@@ -287,7 +291,15 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     const kind = kindOf(at);
 
     for (const published of file.publishes ?? []) {
-      usage.exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
+      usage.exported.push({
+        name: published.name,
+        at,
+        by,
+        line: published.line,
+        type: published.type,
+        kind,
+        ...(published.doc === undefined ? {} : { doc: published.doc }),
+      });
     }
 
     for (const asked of file.requests) {
@@ -465,15 +477,18 @@ export function readUsage(
     }
 
     const publishes: Exported[] = [];
-
+    // `export { x }` has no comment of its own: its doc is above what it binds.
+    let declared: ReturnType<typeof bindingsIn> | undefined;
+    const boundDoc = (local: string | null) => (local === null ? undefined : (declared ??= bindingsIn(source)).get(local)?.doc);
     for (const statement of source.parsed.module.staticExports) {
       const line = lineAt(source.writing, statement.start);
+      const above = source.writing.docs.get(statement.start);
       for (const entry of statement.entries) {
-        // `export * from './x'` names nothing here: the set is whatever the
-        // other file publishes, and inventing a name for it would claim one
-        // this file never wrote.
+        // `export * from './x'` names nothing here: the set is whatever the other
+        // file publishes, and inventing a name would claim one never written.
         const exported = nameOf(entry.exportName.kind, entry.exportName.name);
-        if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType });
+        const doc = above ?? (entry.moduleRequest === null ? boundDoc(entry.localName.name) : undefined);
+        if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType, ...(doc === undefined ? {} : { doc }) });
 
         const specifier = entry.moduleRequest?.value;
         if (specifier === undefined) continue;

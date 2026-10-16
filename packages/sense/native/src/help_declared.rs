@@ -42,6 +42,11 @@ pub struct DeclaredName {
     /// Who can name it, as the reader of its language recorded: `file`,
     /// `module`, `underscore` or `all`; absent when the reader cannot tell.
     pub reach: Option<String>,
+    /// Asked by [`Matching::Described`]: the positions, ascending, of the
+    /// asked stems its name or its doc holds; absent for any other question.
+    pub held: Option<Vec<u32>>,
+    /// Asked by [`Matching::Described`]: how many of those its name holds.
+    pub named: Option<u32>,
 }
 
 /// What `declared` found, and the files whose declarations it could not read.
@@ -61,6 +66,16 @@ pub(crate) enum Matching {
     /// The name, lowercased, contains `query`, which the caller lowercased, or
     /// the doc comment above it does, read as prose.
     Containing,
+    /// The words of the name and of its doc, cut into stems as the dependency
+    /// lexicon cuts a package's words, hold at least `needed` of `stems` — the
+    /// question's — in any order and with any words between them.
+    Described { stems: Vec<String>, needed: usize },
+}
+
+/// Which of `asked` the words of `text` hold, as positions into it.
+fn held_in(asked: &[String], text: &str) -> std::collections::BTreeSet<u32> {
+    let words = crate::dependency_lexicon::purposes::stems(text);
+    (0..asked.len() as u32).filter(|&at| words.contains(&asked[at as usize])).collect()
 }
 
 fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: usize) -> (Option<u32>, Option<u32>) {
@@ -75,21 +90,21 @@ fn prose(source: &[u16], start: u32, end: u32) -> Option<String> {
     Some(doc.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase())
 }
 
-/// One file's matches, each a layer, the file and a symbol row, and the file
+/// One file's matches, and the file
 /// itself when its declarations were not read.
-type FileHits<'a> = (Vec<(usize, &'a str, usize)>, Option<&'a str>);
+type FileHits<'a> = (Vec<Hit<'a>>, Option<&'a str>);
+
+/// A layer, a file, a symbol row and, asked by [`Matching::Described`], the
+/// positions of the stems held and how many of them the name holds.
+type Hit<'a> = (usize, &'a str, usize, Option<(Vec<u32>, u32)>);
 
 /// Every top-level declaration on the chain whose name `matching` admits for
-/// `query`, or whose doc does when it is `Containing`, in `files` when they are named, less the ones its file exports,
+/// `query`, or whose doc does when it is `Containing` or `Described`, in `files` when they are named, less the ones its file exports,
 /// under that name or another, which the export list already answers. A name
 /// declared twice in one file, as an interface and a const, is one entry: the
 /// first.
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
     let folded = fold(layers);
-    let admits = |name: &str| match matching {
-        Matching::Exact => name == query,
-        Matching::Containing => name.to_lowercase().contains(query),
-    };
     let wanted: Option<std::collections::HashSet<&str>> = files.map(|files| files.iter().map(String::as_str).collect());
     let mut crossings: Vec<Crossing> = folded
         .iter()
@@ -123,16 +138,27 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             for symbol in parses.symbols.range(row) {
                 let name = text.text(parses.symbol_name.at(symbol));
                 if own.contains(&name) || named.contains(&name) { continue }
-                let mut documented = || {
-                    let (Some(start), Some(end)) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol) else { return false };
+                let mut doc = || {
+                    let (Some(start), Some(end)) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol) else { return None };
                     let source = source.get_or_insert_with(|| {
                         std::fs::read_to_string(std::path::Path::new(root).join(crossing.file)).ok().map(|text| text.encode_utf16().collect())
                     });
-                    source.as_deref().and_then(|source| prose(source, start, end)).is_some_and(|doc| doc.contains(query))
+                    source.as_deref().and_then(|source| prose(source, start, end))
                 };
-                if !admits(name) && !(matches!(matching, Matching::Containing) && documented()) { continue }
+                let described = match &matching {
+                    Matching::Exact if name == query => None,
+                    Matching::Containing if name.to_lowercase().contains(query) || doc().is_some_and(|doc| doc.contains(query)) => None,
+                    Matching::Described { stems, needed } => {
+                        let in_name = held_in(stems, name);
+                        let mut held = in_name.clone();
+                        if held.len() < stems.len() { if let Some(doc) = doc() { held.extend(held_in(stems, &doc)) } }
+                        if held.len() < *needed { continue }
+                        Some((held.into_iter().collect(), in_name.len() as u32))
+                    }
+                    _ => continue,
+                };
                 named.push(name);
-                hits.push((layer, crossing.file, symbol));
+                hits.push((layer, crossing.file, symbol, described));
             }
             (hits, None)
         })
@@ -140,16 +166,16 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
 
     let mut unread: Vec<String> = found.iter().filter_map(|(_, unread)| unread.map(str::to_owned)).collect();
     unread.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    let hits: Vec<(usize, &str, usize)> = found.into_iter().flat_map(|(hits, _)| hits).collect();
+    let hits: Vec<Hit> = found.into_iter().flat_map(|(hits, _)| hits).collect();
     if hits.is_empty() { return Declared { names: Vec::new(), unread } }
 
     // Who owns a file is a question about every manifest above it, so the
     // manifests are read only above the files that matched.
-    let paths = beside(root, hits.iter().map(|&(_, at, _)| at));
+    let paths = beside(root, hits.iter().map(|&(_, at, _, _)| at));
     let owners = owners(root, &paths);
     let names = hits
         .into_iter()
-        .map(|(layer, at, symbol)| {
+        .map(|(layer, at, symbol, described)| {
             let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
             let (signature_start, signature_end) = span(parses.symbol_signature[0], parses.symbol_signature[1], symbol);
             let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
@@ -165,6 +191,8 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 doc_start,
                 doc_end,
                 reach: crate::harvest::reach_of(parses.symbol_reach[symbol]).map(str::to_owned),
+                named: described.as_ref().map(|(_, named)| *named),
+                held: described.map(|(held, _)| held),
             }
         })
         .collect();

@@ -371,7 +371,7 @@ export interface NativeDependencyLexicon {
 
 /** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
-  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
+  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; doc?: string }[];
   /** Imports of a file past every specifier its package declares. */
   deep: NativeByPath[];
   /** Imports of a file of a package that declares no entry. */
