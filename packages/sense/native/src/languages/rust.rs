@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{declaration, kind_of, line_of, named_children, text_of};
+use super::{declaration, kind_of, line_of, named_children, text_of, visibility};
 use crate::harvest::SourceSymbol;
 
 struct Gathering {
@@ -236,10 +236,10 @@ fn named(node: Node, source: &str) -> Option<String> {
 /// `pub(super)` among them, but not `pub(self)` or `pub(in self)`, which are
 /// no `pub` at all.
 fn published(node: Node, source: &str) -> bool {
-    named_children(node).iter().any(|child| {
-        let written: String = text_of(*child, source).chars().filter(|c| !c.is_whitespace()).collect();
-        child.kind() == "visibility_modifier" && written != "pub(self)" && written != "pub(inself)"
-    })
+    named_children(node)
+        .into_iter()
+        .filter(|child| child.kind() == "visibility_modifier")
+        .any(|modifier| !matches!(visibility(modifier, source).as_str(), "pub(self)" | "pub(inself)"))
 }
 
 /// The filename in `#[path = "other.rs"]`, when the node above is that attribute.

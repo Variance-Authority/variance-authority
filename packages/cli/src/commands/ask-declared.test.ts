@@ -227,7 +227,7 @@ describe('variance ask about a name declared and not exported', () => {
     );
   });
 
-  it('answers `symbol` for a Swift `fileprivate` and a Kotlin `private` as declared and kept to their files', async () => {
+  it('answers `symbol` and `uses` for a Swift `fileprivate` and a Kotlin `private` as declared and kept to their files', async () => {
     checkout({
       'packages/kit/Sources/Kit/Restart.swift': 'public func restart() -> Int { relaunch() }\n\nfileprivate func relaunch() -> Int { 0 }\n',
       'packages/kit/src/main/kotlin/kit/Restart.kt': 'package kit\n\nfun restart(): Int = rerun()\n\nprivate fun rerun(): Int = 0\n',
@@ -239,6 +239,8 @@ describe('variance ask about a name declared and not exported', () => {
       const block = paragraph(out, new RegExp(`^${name} \\[function\\]\\n`));
       expect(block).toContain(`declared, not exported, at ${at}`);
       expect(block).toContain(`Nothing outside ${at.slice(0, at.lastIndexOf(':'))} can import it`);
+      expect((await run(['ask', 'uses', '--name', name])).out)
+        .toContain(`\`${name}\` is declared, not exported, at ${at}, so nothing outside that file can import it.`);
     }
   });
 
