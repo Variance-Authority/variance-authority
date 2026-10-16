@@ -220,7 +220,9 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
     // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
     if (!(error instanceof OperatorError) || !RECORD_SHAPED.has(error.kind ?? '')) throw error;
-    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
+    // The refusal is the answer; a record that cannot be found again only leaves it without a note.
+    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
+    if (from === undefined) throw error;
     const probes = await gapOf(request, from, undefined);
     if (probes === undefined) throw error;
     throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });

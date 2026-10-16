@@ -69,13 +69,13 @@ describe('a module every test file imports, asked whole', () => {
     run(['commit', '--quiet', '-m', 'first']);
     process.chdir(root);
     const execution = join(await mkdtemp(join(tmpdir(), 'variance-covering-truth-')), 'cases.json');
-    await writeFile(execution, JSON.stringify({
+    const block = (startLine: number, endLine: number) =>
+      ({ kind: 'function', name: 'hub', path: 'entry', startLine, endLine, source: true, loaded: true, crossings: [{ test: 0, distance: 1 }] });
+    const write = (blocks: readonly object[], to = execution) => writeFile(to, JSON.stringify({
       tests: TESTS.map((file) => ({ id: `${file} > runs`, file, name: 'runs' })),
-      modules: [{
-        file: 'src/hub.ts',
-        blocks: [{ kind: 'function', name: 'hub', path: 'entry', startLine: 1, endLine: 9, source: true, loaded: true, crossings: [{ test: 0, distance: 1 }] }],
-      }],
+      modules: [{ file: 'src/hub.ts', blocks }],
     }));
+    await write([block(1, 9)]);
 
     await indexOutput({ cwd: root });
     const text = formatCovering(await covering(parse(['--file', 'src/hub.ts', '--root', root, '--execution', execution])), 'text');
@@ -88,5 +88,12 @@ describe('a module every test file imports, asked whole', () => {
       '  and 2 cases in 2 test files ran it only while their file imported the module',
       '',
     ].join('\n'));
+
+    // A range run by the same cases as one already printed counts the named ones apart from the ones that only loaded the module.
+    const split = join(execution, '..', 'split.json');
+    await write([block(1, 3), { ...block(4, 5), crossings: [] }, block(6, 9)], split);
+    const twice = formatCovering(await covering(parse(['--file', 'src/hub.ts', '--root', root, '--execution', split])), 'text');
+
+    expect(twice).toContain('lines 6-9\n  the same named test, and 2 cases that only loaded the module, as lines 1-3');
   });
 });
