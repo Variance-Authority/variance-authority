@@ -79,6 +79,28 @@ describe('variance ask about a name declared and not exported', () => {
     expect(block).toContain('Nothing outside packages/kit/src/money/restart.ts can import it');
   });
 
+  it('answers `symbol` with the declaration beside another file\'s export of the same name', async () => {
+    // Two files, two things: the export does not stand for the declaration.
+    checkout({ ...RELAUNCH, 'packages/kit/src/again.ts': 'export const relaunch = 1;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'relaunch']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/kit/src/again.ts:1');
+    expect(paragraph(out, /^relaunch \[function\]\n/)).toContain('declared, not exported, at packages/kit/src/money/restart.ts:4 by @acme/kit');
+  });
+
+  it('answers `symbol` with the declaration beside another package\'s import of the name by its path', async () => {
+    // `@acme/app` imports `addTax` from a file of `@acme/lib`; this one is another thing.
+    checkout({ 'packages/kit/src/money/levy.ts': 'export const levy = (): number => addTax();\n\nfunction addTax(): number {\n  return 1;\n}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'addTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('not published: @acme/lib declares an entry, and this file is not behind it');
+    expect(paragraph(out, /^addTax \[function\]\n/)).toContain('declared, not exported, at packages/kit/src/money/levy.ts:3 by @acme/kit');
+  });
+
   it('answers `search` with the declaration, under a heading that says it is not exported', async () => {
     checkout(RELAUNCH);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

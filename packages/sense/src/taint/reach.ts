@@ -19,7 +19,7 @@
 
 // compass: variance-authority.reach
 
-import { dependenciesOf, idOf, nodeAt, trailOf, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type Relations } from '@variance-authority/core/relate';
 
 /** One module a file shadows, and how far the file's run is from it. */
 export interface ShadowReach {
@@ -40,7 +40,7 @@ export function shadowReach(relations: Relations, file: string): readonly Shadow
   const shadowed = relations.shadows.get(file) ?? [];
   const seed = idOf(relations, 'file', file);
   if (shadowed.length === 0 || seed === undefined) return [];
-  const walk = dependenciesOf(relations, [seed]);
+  const walk = dependenciesOf(relations, [seed], { through: RUNTIME_EDGES });
   const blind = walk.nodes.find((id) => relations.unknown[id] === 1);
   const unread = blind === undefined ? undefined : nodeAt(relations, blind)!.name;
 

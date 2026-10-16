@@ -79,11 +79,11 @@ export type NodeKind = (typeof NODE_KINDS)[number];
  * Edge kinds, in id order.
  *
  * The distinctions are kept because they explain a finding. One of them also
- * decides a walk: `type` is erased by every compiler, so nothing behind it runs
- * and nothing behind it renders, and the default traversal leaves it out
- * (`RUNTIME_EDGES`). A caller whose question is about source rather than about a
- * runtime — a docgen that reads prop types, a type-check gate — passes
- * `EDGE_KINDS` and walks it.
+ * decides a runtime walk: `type` is erased by every compiler, so nothing behind
+ * it runs and nothing behind it renders. A traversal walks every kind unless its
+ * caller names others, because a type-only import is still a dependency; a
+ * caller whose question is what a run loads — test selection — passes
+ * `RUNTIME_EDGES` and leaves it out.
  */
 export const EDGE_KINDS = [
   /** `import x from './y'` — a value import. */
@@ -106,10 +106,11 @@ export const EDGE_KINDS = [
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
 /**
- * The edge kinds a runtime loads through: every kind but `type`. The
- * default for a traversal, and the list a caller widens from. A closure folds a
- * shorter list (`CLOSURE_EDGES`), because a digest is a claim about bytes and
- * one of these kinds leads nowhere any bytes are.
+ * The edge kinds a runtime loads through: every kind but `type`. What a caller
+ * asking a runtime question, such as test selection, passes as `through`; a
+ * traversal walks every kind when it is not told. A closure folds a shorter
+ * list (`CLOSURE_EDGES`), because a digest is a claim about bytes and one of
+ * these kinds leads nowhere any bytes are.
  */
 export const RUNTIME_EDGES: readonly EdgeKind[] = EDGE_KINDS.filter((kind) => kind !== 'type');
 

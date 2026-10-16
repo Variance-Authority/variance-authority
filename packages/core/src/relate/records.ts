@@ -271,8 +271,9 @@ export interface AffectedOptions extends Omit<TraversalOptions, 'moved'> {
  * — a commit that bumps a dependency and edits a file is one seed set and one
  * traversal.
  *
- * One breadth-first search, whatever the number of changed files, over the
- * runtime edges unless the caller names others.
+ * One breadth-first search, whatever the number of changed files, over every
+ * edge kind unless the caller names others: test selection names
+ * `RUNTIME_EDGES`.
  */
 export function affectedBy(
   relations: Relations,

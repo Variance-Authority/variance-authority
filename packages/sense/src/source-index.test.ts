@@ -404,6 +404,21 @@ describe('the binary source index', () => {
     expect(decoded.parses.get(OTHER)).toEqual({ requests: [] });
   });
 
+  it('keeps whether a reader guessed a request, and whether it asked for it as an item', () => {
+    const requests: Parsed['requests'] = [
+      { value: 'self::graph', kind: 'imports', line: 1, bindings: [] },
+      { value: 'crate::graph::Limits', kind: 'imports', line: 2, bindings: [], guessed: true },
+      { value: 'crate::graph', kind: 'imports', line: 3, bindings: [], guessed: true, item: true },
+    ];
+    const decoded = decodeSourceIndex(encodeSourceIndex({
+      parses: new Map([[DIGEST, { requests }]]),
+      directories: new Map(),
+      records: new Map(),
+    }));
+
+    expect(decoded.parses.get(DIGEST)?.requests).toEqual(requests);
+  });
+
   it('readies a chain into the generation its layers read as, oldest first', async () => {
     const styled = `${OTHER}\0.css\0+` as ParseKey;
     const first = encodeSourceIndex({
