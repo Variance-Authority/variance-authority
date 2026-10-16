@@ -146,7 +146,10 @@ function textAt(root: string, held: DeclaredName): string | undefined {
   } catch {
     return undefined;
   }
-  return text.split(/\r?\n/)[held.line - 1]?.includes(held.name) === true ? text : undefined;
+  // The line spells the item's own name: one inside a Rust inline module is
+  // declared as `tests::fixture` and written `fn fixture`.
+  const own = held.name.split('::').at(-1)!;
+  return text.split(/\r?\n/)[held.line - 1]?.includes(own) === true ? text : undefined;
 }
 
 /**
