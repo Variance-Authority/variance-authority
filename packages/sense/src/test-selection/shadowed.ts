@@ -31,7 +31,7 @@
  * stay readable under several taints, or none, without a second recording.
  */
 
-import { dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { testPathOf } from './lookup.js';
 
@@ -83,8 +83,8 @@ function closure(relations: Relations, test: string, direct: readonly string[]):
   const seed = idOf(relations, 'file', test);
   if (seed === undefined) return found;
   const cut = direct.map((file) => idOf(relations, 'file', file)).filter((id): id is NodeId => id !== undefined);
-  const kept = dependenciesOf(relations, [seed], { avoid: cut });
-  for (const id of dependenciesOf(relations, cut).nodes) {
+  const kept = dependenciesOf(relations, [seed], { through: RUNTIME_EDGES, avoid: cut });
+  for (const id of dependenciesOf(relations, cut, { through: RUNTIME_EDGES }).nodes) {
     if (kept.mask[id] === 1) continue;
     const node = nodeAt(relations, id);
     if (node?.kind === 'file') found.add(node.name);

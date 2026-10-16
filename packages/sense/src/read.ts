@@ -162,6 +162,18 @@ export interface Request {
   readonly guessed?: boolean;
 
   /**
+   * Whether the reader asked for the whole specifier as the item it names.
+   *
+   * Rust needs it: `crate::map::JourneyMap::new()` does not say whether `map`
+   * is a module, or whether `new` is a function of the module or of the type,
+   * so the reader asks for every prefix of the path, each bound to its last
+   * segment. A prefix names that item only where the module tree leaves
+   * exactly one segment past the modules; any other prefix names nothing, and
+   * is silent the way a guess is ([`rust.ts`](./rust.ts)).
+   */
+  readonly item?: boolean;
+
+  /**
    * Set on an `export … from`: what it binds it passes on, and takes for no
    * use of its own. Every `reexports` request carries it, and a `type` one
    * does when `export type` writes it, which `kind` alone cannot tell from

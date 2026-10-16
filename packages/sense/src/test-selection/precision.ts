@@ -15,7 +15,10 @@
  *   change moved, and every test that loaded a changed file.
  * - `file-use` — a test runs when it loaded a changed file.
  * - `function-use` — a test runs when it entered the declaration a changed line
- *   is in. A line at the top level of a module is every test that loaded it.
+ *   is in. The top level is read as at `region-use`, and each region that
+ *   reading charges is widened to its function: a changed value is every test
+ *   that entered a function reading it, and a change that runs as the module
+ *   loads is every test that loaded the file.
  * - `region-use` — a test runs when it entered the region a changed line is in.
  *   This is what a suite that declares nothing reads.
  *
@@ -27,7 +30,7 @@
  */
 
 import { extname } from 'node:path';
-import { affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -64,7 +67,10 @@ export function selectedByRelations(
   changed: readonly string[],
   moved: ReadonlyMap<string, readonly string[]> | undefined,
 ): ReadonlyMap<number, readonly ImporterReason[]> {
-  const affected = affectedBy(relations, changed, moved === undefined ? {} : { moved });
+  const affected = affectedBy(relations, changed, {
+    through: RUNTIME_EDGES,
+    ...(moved === undefined ? {} : { moved }),
+  });
   const selected = new Map<number, ImporterReason[]>();
   for (const file of affected.files) {
     const test = findTest(coverage, file);

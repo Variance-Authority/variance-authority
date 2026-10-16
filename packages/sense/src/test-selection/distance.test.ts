@@ -66,6 +66,18 @@ describe('distanceFromView', () => {
     expect(registry).not.toHaveProperty('trail');
   });
 
+  it('refuses a route that crosses an import of types alone', () => {
+    // The card imports the face for its types, so loading the card never ran
+    // the button: the run entered the base by some other way, and no route it
+    // executed explains it.
+    const typesOnly = relationsOfFiles(layerRecords.map((record) =>
+      record.file === 'src/card/card.tsx' ? { file: record.file, edges: [{ to: 'src/button/index.ts', kind: 'type' as const }] } : record));
+    const card = of(read({ relations: typesOnly }), 'test/card.test.tsx');
+
+    expect(card).not.toHaveProperty('hops');
+    expect(card).not.toHaveProperty('trail');
+  });
+
   it('calls a hop past a unit face a reach-through, and names the door', () => {
     const report = of(read({ relations, faces: indexFaces(relations) }), 'test/report.test.tsx');
 
