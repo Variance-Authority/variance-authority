@@ -58,6 +58,7 @@ pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &
         stated: requests.len() as u32,
         loads: Loads::new(lines),
         found: BTreeSet::new(),
+        mock_factory: None,
     };
     walker.visit_program(program);
     // A required request's index is known only once the walk has met every `import()`.
@@ -94,6 +95,7 @@ struct Walker<'l> {
     /// How many requests the record states, which the `import()` ones follow.
     stated: u32,
     loads: Loads<'l>,
+    mock_factory: Option<String>,
     found: BTreeSet<(Via, String, u32)>,
 }
 
@@ -178,7 +180,20 @@ impl<'a> Visit<'a> for Walker<'_> {
 
     // `import('m').then((m) => …)`: the callback's first parameter holds the module.
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        self.loads.call(it);
+        self.loads.call(it, self.mock_factory.as_deref());
+        if let Some(target) = crate::mocks::factory_target(it) {
+            self.visit_expression(&it.callee);
+            for (index, argument) in it.arguments.iter().enumerate() {
+                if index == 1 {
+                    let previous = self.mock_factory.replace(target.clone());
+                    self.visit_argument(argument);
+                    self.mock_factory = previous;
+                } else {
+                    self.visit_argument(argument);
+                }
+            }
+            return;
+        }
         if let Expression::StaticMemberExpression(callee) = it.callee.without_parentheses() {
             let loaded = matches!(callee.object.without_parentheses(), Expression::ImportExpression(_));
             if let (true, "then", Some(request)) = (loaded, callee.property.name.as_str(), self.held(&callee.object)) {

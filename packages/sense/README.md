@@ -1683,16 +1683,20 @@ named it; `tainted.addedBy` is the same for additions. Two taints that shadow
 one module are both credited, so a test left out of a selection can be traced to
 a hand-written table or to the mock reader.
 
-`mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls off test, spec,
-story and setup files and shadows the mocked module. A `requireActual` or
-`importActual` of a module, anywhere in the file, is an import of it, so a mock
-of that module in the same file shadows nothing: a factory forwarding to the
-original and a `beforeEach` restoring its implementation both run the real
-code. Nothing is shadowed either when the factory takes `importOriginal`, when
-the factory is written somewhere this cannot read, when the mock is a `doMock`
-the static imports above it have already evaluated past, and when the
-specifier is not a string literal. Pass `callers` to name
-other mocking objects and `files` to widen which files are read.
+`mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls from test,
+spec, story and setup files. A mock subtracts its target; a real module loaded
+by its factory adds that target. Matching additions and subtractions cancel:
+`jest.mock('./api', () => jest.requireActual('./api'))` leaves existing imports
+unchanged and adds no dependency when the file never imports `./api`.
+A factory loading `./other` instead subtracts `./api` and adds `./other`.
+
+A `requireActual` or `importActual` outside a mock factory is an independent
+real load, including inside `beforeEach`, and adds its module without shadowing
+it. A factory taking `importOriginal`, an opaque factory, and a spy mock leave
+existing imports unchanged. `doMock` does not shadow static imports that ran
+before it. Nonliteral mock targets cannot be resolved and leave existing edges
+unchanged. Pass `callers` to name other mocking objects and `files` to widen
+which files are read.
 
 `taintFile` reads a JSON table you keep beside the repository, keyed by file
 path with `-` and `+` rows, and `taintTable` builds the same taint from a table
