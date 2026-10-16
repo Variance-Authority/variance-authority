@@ -127,6 +127,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
         operands.find((candidate) => verbOf(candidate) === question)?.wants?.(given) === true),
 
     run: (subject, input, invocation?: ToolInvocation<Subject>) => {
+      const limit = limitOf(input, SHOWN);
       const questions = questionsOf(input);
       // Every question is resolved before any is asked, so a misspelled third
       // question costs nothing to refuse.
@@ -161,7 +162,6 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       });
       if (common.length === 0) return [...lines, '', 'No file is in all of them.'].join('\n');
 
-      const limit = limitOf(input, SHOWN);
       lines.push('', `${counted(common.length)} in all of them.`, '');
       for (const file of common.slice(0, limit)) {
         lines.push(`${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`);

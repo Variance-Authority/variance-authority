@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 
 use crate::compact::Layer;
-use crate::package_graph::{fold, join_parses, At, Crossing};
+use crate::package_graph::{fold, join_parses, passed_on_with_types, At, Crossing};
 use crate::package_owners::NO_OWNER;
 
 /// The declaration an export passes on: the file that declares it, the name
@@ -35,8 +35,8 @@ pub struct PassedOnDeclaration {
 /// export of that file passes it. `None` when `file` declares the name itself,
 /// and when the walk ends anywhere but at a declaration: at a namespace
 /// (`export * as`), at a request that resolved to no file of the checkout, at
-/// a file that neither declares nor passes the name, or back at a file it
-/// already passed through.
+/// a file that neither declares nor passes the name, back at a file it
+/// already passed through, or at two stars that reach different declarations.
 pub(crate) fn declaration_passed_on(layers: &[Layer], file: &str, name: &str) -> Option<PassedOnDeclaration> {
     let folded = fold(layers);
     let start = Parsed::of(layers, &folded, file)?;
@@ -47,22 +47,39 @@ pub(crate) fn declaration_passed_on(layers: &[Layer], file: &str, name: &str) ->
     walk(layers, &folded, &start, name, &mut passed)
 }
 
-/// Depth first through what `from` passes `name` on from, the named exports
-/// before the stars.
+/// Depth first through what `from` passes `name` on from. A named export
+/// shadows every star, as in ECMAScript's export resolution; two stars that
+/// reach different declarations make the name ambiguous, and an ambiguous name
+/// names none.
 fn walk(layers: &[Layer], folded: &HashMap<&str, At>, from: &Parsed, name: &str, passed: &mut HashSet<(String, String)>) -> Option<PassedOnDeclaration> {
-    for (to, imported) in from.passes(name) {
-        if !passed.insert((to.to_owned(), imported.clone())) {
-            continue;
-        }
-        let Some(next) = Parsed::of(layers, folded, to) else { continue };
-        if let Some(line) = next.declares(&imported) {
-            return Some(PassedOnDeclaration { at: to.to_owned(), name: imported, line });
-        }
-        if let Some(found) = walk(layers, folded, &next, &imported, passed) {
+    let (named, stars) = from.passes(name);
+    for (to, imported) in named {
+        if let Some(found) = step(layers, folded, to, imported, passed) {
             return Some(found);
         }
     }
-    None
+    let mut reached: Option<PassedOnDeclaration> = None;
+    for (to, imported) in stars {
+        let Some(found) = step(layers, folded, to, imported, passed) else { continue };
+        if reached.as_ref().is_some_and(|first| *first != found) {
+            return None;
+        }
+        reached = Some(found);
+    }
+    reached
+}
+
+/// The declaration of `name` in `to`, or the one `to` passes it on from; `None`
+/// when the walk already passed through `to` under that name.
+fn step(layers: &[Layer], folded: &HashMap<&str, At>, to: &str, name: String, passed: &mut HashSet<(String, String)>) -> Option<PassedOnDeclaration> {
+    if !passed.insert((to.to_owned(), name.clone())) {
+        return None;
+    }
+    let next = Parsed::of(layers, folded, to)?;
+    if let Some(line) = next.declares(&name) {
+        return Some(PassedOnDeclaration { at: to.to_owned(), name, line });
+    }
+    walk(layers, folded, &next, &name, passed)
 }
 
 /// One file's newest record joined to its parse.
@@ -100,37 +117,31 @@ impl<'a> Parsed<'a> {
         parses.symbols.range(self.row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == name).map(|symbol| parses.symbol_line.at(symbol))
     }
 
-    /// Each file and name this file passes `name` on from: every named export
-    /// of a request that passes it, then every `export *` of one.
-    fn passes(&self, name: &str) -> Vec<(&'a str, String)> {
+    /// Each file and name this file passes `name` on from: the named exports
+    /// of its requests that pass it, and apart, the `export *` of each. A file
+    /// whose parse never recorded its export list passes nothing here: it names
+    /// no declaration rather than guess one.
+    fn passes(&self, name: &str) -> (Vec<(&'a str, String)>, Vec<(&'a str, String)>) {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
-        if parses.exports_present[self.row] != 1 {
-            return Vec::new();
-        }
         let (mut named, mut stars) = (Vec::new(), Vec::new());
         let first = parses.requests.at(self.row) as usize;
         for request in parses.requests.range(self.row) {
             // A re-export that carries only types is recorded as a `type` request;
-            // the export rows below say which of those requests pass a name on.
+            // its exports say which of those requests pass a name on.
             if !matches!(text.text(parses.request_kind.at(request)), "reexports" | "type") {
                 continue;
             }
             let Some(to) = self.resolved[request - first] else { continue };
-            let value = text.text(parses.request_value.at(request));
-            for export in parses.exports.range(self.row) {
-                if text.optional(parses.export_from.at(export)) != Some(value) {
-                    continue;
-                }
-                let imported = text.optional(parses.export_imported.at(export)).filter(|imported| *imported != "*");
-                match (imported, text.optional(parses.export_exported.at(export))) {
-                    (Some(imported), Some(exported)) if exported == name => named.push((to, imported.to_owned())),
-                    // A star passes every name on as it is.
-                    (None, None) => stars.push((to, name.to_owned())),
+            for (imported, exported, _) in passed_on_with_types(self.layer, self.row, request).unwrap_or_default() {
+                match (imported, exported) {
+                    ("*", None) => stars.push((to, name.to_owned())),
+                    // `export * as ns` passes a namespace: the name is a member read off it.
+                    ("*", Some(_)) => {}
+                    (imported, Some(exported)) if exported == name => named.push((to, imported.to_owned())),
                     _ => {}
                 }
             }
         }
-        named.extend(stars);
-        named
+        (named, stars)
     }
 }

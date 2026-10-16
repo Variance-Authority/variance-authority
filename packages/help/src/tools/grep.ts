@@ -66,6 +66,7 @@ export const grep: Tool<unknown> = {
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
   run: (_help, input, invocation) => {
+    const limit = limitOf(input, SHOWN);
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const header = [areaLine(area)];
@@ -78,7 +79,6 @@ export const grep: Tool<unknown> = {
       return [...header, ...unread, '', `Nothing in those files matches \`${query}\`.`].join('\n');
     }
 
-    const limit = limitOf(input, SHOWN);
     const matched = new Set(hits.map((hit) => hit.file)).size;
     const lines = [
       ...header,

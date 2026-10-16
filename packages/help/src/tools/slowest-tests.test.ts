@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { limitOf } from './limit.js';
-import { formatSlowest, scopeOf, SLOWEST, slowestTests, spent } from './slowest-tests.js';
+import { formatSlowest, scopeOf, slowestTests, spent } from './slowest-tests.js';
 
 const ANYWHERE = { unrecorded: [] };
 const NO_CASES = { recording: '/cache/coverage.bin', unread: 'nothing is recorded there' };
@@ -95,16 +94,8 @@ describe('the slowest recorded test files, as printed', () => {
 });
 
 describe('how many rows it lists', () => {
-  it('defaults when asked for no number, and takes one from the wire or the shell', () => {
-    expect(limitOf({}, SLOWEST)).toBe(SLOWEST);
-    expect(limitOf({ limit: 3 }, SLOWEST)).toBe(3);
-    expect(limitOf({ limit: '7' }, SLOWEST)).toBe(7);
-  });
-
-  it('refuses a count that is not a whole number of rows', () => {
-    for (const limit of [0, -1, 2.5, 'many', '']) {
-      expect(() => limitOf({ limit }, SLOWEST)).toThrow(/takes a whole number of rows/);
-    }
+  it('refuses a count that is not a whole number of rows, before it reads anything', () => {
+    expect(() => slowestTests.run(undefined, { limit: 0 }, {})).toThrow(/takes a whole number of rows/);
   });
 
   it('declares the limit it reads in the schema the CLI and the server publish', () => {

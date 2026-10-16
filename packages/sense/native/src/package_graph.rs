@@ -396,6 +396,13 @@ pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
 /// passes nothing on. `None` when the parse never recorded its export list,
 /// which reads as the whole module.
 pub(crate) fn passed_on<'a>(layer: &'a Layer<'a>, row: usize, request: usize) -> Option<Vec<(&'a str, Option<&'a str>)>> {
+    passed_on_with_types(layer, row, request)
+        .map(|passed| passed.into_iter().filter(|&(_, _, type_only)| !type_only).map(|(imported, exported, _)| (imported, exported)).collect())
+}
+
+/// What [`passed_on`] reads, type-only exports included and marked: a walk to
+/// a declaration follows `export type { … } from` as it follows any other.
+pub(crate) fn passed_on_with_types<'a>(layer: &'a Layer<'a>, row: usize, request: usize) -> Option<Vec<(&'a str, Option<&'a str>, bool)>> {
     let (text, parses) = (&layer.stored, &layer.parses);
     if parses.exports_present[row] != 1 {
         return None;
@@ -404,8 +411,11 @@ pub(crate) fn passed_on<'a>(layer: &'a Layer<'a>, row: usize, request: usize) ->
     let passed = parses
         .exports
         .range(row)
-        .filter(|&export| parses.export_type[export] != 1 && text.optional(parses.export_from.at(export)) == Some(value))
-        .map(|export| (text.optional(parses.export_imported.at(export)).unwrap_or("*"), text.optional(parses.export_exported.at(export))))
+        .filter(|&export| text.optional(parses.export_from.at(export)) == Some(value))
+        .map(|export| {
+            let imported = text.optional(parses.export_imported.at(export)).unwrap_or("*");
+            (imported, text.optional(parses.export_exported.at(export)), parses.export_type[export] == 1)
+        })
         .collect();
     Some(passed)
 }

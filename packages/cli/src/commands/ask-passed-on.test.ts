@@ -85,6 +85,27 @@ describe('a name only passed on', () => {
     expect(out).toContain('Members:\npackages/kit/src/money/types.ts:2 — percent: number;');
   });
 
+  it('follows a chain of stars, lets a named export shadow a star, and names none for two stars that disagree', async () => {
+    checkout({
+      'packages/kit/src/money/all.ts': "export * from './tax.js';\n",
+      'packages/kit/src/money/every.ts': "export * from './all.js';\n",
+      'packages/kit/src/money/other.ts': 'export function taxOf(): number {\n  return 0;\n}\n',
+      'packages/kit/src/money/shadow.ts': "export * from './other.js';\nexport { taxOf } from './every.js';\n",
+      'packages/kit/src/money/both.ts': "export * from './every.js';\nexport * from './other.js';\n",
+      'packages/kit/src/money/deep.ts': "export { taxOf as deep } from './every.js';\n",
+      'packages/kit/src/money/shadowed.ts': "export { taxOf as shadowed } from './shadow.js';\n",
+      'packages/kit/src/money/clash.ts': "export { taxOf as clash } from './both.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'uses', '--name', 'deep'])).out).toContain(`at packages/kit/src/money/deep.ts:1, ${DECLARED}, `);
+    expect((await run(['ask', 'uses', '--name', 'shadowed'])).out).toContain(`at packages/kit/src/money/shadowed.ts:1, ${DECLARED}, `);
+    const clash = await run(['ask', 'uses', '--name', 'clash']);
+    expect(clash.code).toBe(EXIT_CLEAN);
+    expect(clash.out).toContain('packages/kit/src/money/clash.ts:1');
+    expect(clash.out).not.toContain('passes on');
+  });
+
   it('names no declaration when the files only pass the name to each other', async () => {
     checkout({
       'packages/kit/src/money/left.ts': "export { loop } from './right.js';\n",
@@ -93,7 +114,9 @@ describe('a name only passed on', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     for (const verb of ['uses', 'symbol']) {
-      const { out } = await run(['ask', verb, '--name', 'loop']);
+      const { code, out } = await run(['ask', verb, '--name', 'loop']);
+      expect(code).toBe(EXIT_CLEAN);
+      expect(out).toContain('packages/kit/src/money/left.ts:1');
       expect(out).not.toContain('passes on');
     }
   });

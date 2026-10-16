@@ -3,8 +3,8 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { entryPoints, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
-import { ripgrep } from './ripgrep.js';
 import { limitOf, notShown } from './limit.js';
+import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf } from './unpublished.js';
 
 /**
@@ -285,11 +285,11 @@ export const discover: Tool<unknown> = {
   wants: () => true,
 
   run: (_subject, input, invocation) => {
+    const limit = limitOf(input, SHOWN);
     const { kept, header, answer, matched, reaches } = answered(input, invocation);
     if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
 
     const shown = (file: string, evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${file}:${evidence.line}  `}${evidence.text}`;
-    const limit = limitOf(input, SHOWN);
     const order = reaches === 0 ? '.' : ', nearest first.';
     const lines = [...header, '', `${counted(answer.length)} in all of them${order}`];
     for (const file of answer.slice(0, limit)) {
