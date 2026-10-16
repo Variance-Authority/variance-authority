@@ -11,7 +11,8 @@ that selection inside the runner you already call.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any
-uncertainty widens the run, and the report explains why.
+uncertainty widens the run, and the report explains why. A suite you do not yet
+trust that far [declares coarser evidence](#how-much-of-the-record-a-suite-trusts).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
 evidence inside one test, looking for work its promise does not need.
@@ -283,9 +284,11 @@ and an install that could not be compared.
 
 ## How much of the record a suite trusts
 
-You may not trust a region reading on the first day. A skipped test is a cost
-you cannot see, so a suite declares the evidence it trusts as `evidence`, and
-you move it one step finer when the runs have earned it:
+By default a test is skipped unless it entered the code a changed line is in.
+You may not trust that on the first day: a skipped test is a cost you cannot
+see. So a suite declares the evidence it trusts as `evidence`. Start at `file`,
+which runs every test that imports a changed file, and move one step finer when
+the runs have earned it:
 
 ```json
 { "suites": { "unit": { "kind": "unit", "evidence": "file-use" } } }
@@ -294,14 +297,14 @@ you move it one step finer when the runs have earned it:
 | `evidence` | A test runs when |
 |---|---|
 | `file` | it imports a changed file, directly or through other files |
-| `symbol` | it imports an export the change moved, directly or through other files |
+| `symbol` | it imports an export whose behaviour the change altered, directly or through other files |
 | `file-use` | it loaded a changed file |
 | `function-use` | it entered the function a changed line is in |
 | `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes. A suite that declares nothing reads this |
 
 Every step reads the same record and the same file graph; nothing is recorded
-differently. `file` and `symbol` read the graph alone and run only the tests the
-record names, plus every test that declares a changed file. A suite that
+differently. `file` and `symbol` ignore which code each test ran: they walk the
+import graph and run every test it reaches that the record lists. A suite that
 declares [`"relations":
 false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
 declines that graph, so it cannot declare either, and the config is refused.
