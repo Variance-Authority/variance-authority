@@ -100,7 +100,7 @@ function checkPresentation(path: string, index: number, value: unknown): void {
       throw new Error(`${where}.because is not a string`);
     }
     if (signal.because.trim() === '') {
-      throw new Error(`${where}.because names no side`);
+      throw new Error(`${where}.because is empty`);
     }
     if ('effects' in signal || 'information' in signal) {
       throw new Error(`${where} names a missing side but claims compared evidence`);

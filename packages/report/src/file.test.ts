@@ -76,7 +76,7 @@ describe('presentation evidence in a run-report file', () => {
     expect(await readRunReport(path)).toEqual(report);
   });
 
-  it('refuses a one-sided reading that names no side, or claims compared evidence', async () => {
+  it('refuses a one-sided reading whose because is empty, or that claims compared evidence', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-presentation-report-'));
     const path = join(directory, 'run.json');
 
@@ -99,7 +99,7 @@ describe('presentation evidence in a run-report file', () => {
       because: ' ',
       after: digestValue('after'),
     } as never)), 'utf8');
-    await expect(readRunReport(path)).rejects.toThrow('.because names no side');
+    await expect(readRunReport(path)).rejects.toThrow('.because is empty');
 
     await writeFile(path, JSON.stringify(reportOf({
       verdict: 'changed',
