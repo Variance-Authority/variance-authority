@@ -15,7 +15,8 @@ answered. `covering --file` compares that file's regions in the record with the
 ones this build cuts in the text the record was made over, and says when they
 are the same or names the ones that differ. When the mainline's record cut under
 this build's probes is on the machine beneath the one read, the note names its
-path, which `--execution` reads.
+path, which `--execution` reads. A `covering` refusal that such a record holds
+nothing of the asked file carries the same note.
 
 A suite with nothing recorded is refused as before, now without naming a
 recorder to run; a suite the share carries names `variance share --suite` to
