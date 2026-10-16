@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use tree_sitter::{Node, Tree};
 
-use super::shape::{Binding, Export, Kind, Read, Request};
+use super::shape::{Binding, Export, Kind, Read, Request, NAMESPACE_NAME};
 use super::{declaration, kind_of, line_of, named_children, text_of, visibility};
 use crate::harvest::SourceSymbol;
 
@@ -107,8 +107,10 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                             Request {
                                 value,
                                 kind: Kind::Imports,
+                                // The file is taken whole, as a module bound
+                                // under its name: no item of it is imported.
                                 bindings: vec![Binding {
-                                    imported: name.clone(),
+                                    imported: NAMESPACE_NAME.to_string(),
                                     local: name.clone(),
                                     type_only: false,
                                     line,
