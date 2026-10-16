@@ -47,5 +47,5 @@ since a name may be declared there.
 `SourceSymbol` carries its `reach`. `@variance-authority/package`'s
 `DeclarationKind` names the kinds the new readers harvest: `struct`, `trait`,
 `macro`, `record`, `protocol` and the rest. The source
-index format moves to version 21; the first `variance index` after upgrading
+index format moves to version 22; the first `variance index` after upgrading
 writes it again.
