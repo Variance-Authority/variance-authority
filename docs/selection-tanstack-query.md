@@ -113,9 +113,10 @@ one-line change above, each step runs:
 
 Each step runs every test the next finer step runs. The three coarse steps tie
 here: every test that imports `query.ts`, through any chain, also loaded it, so
-the imports add nothing to what the record already holds. The cut comes from
-the two steps that read inside the file: 83 test files entered `Query.fetch`,
-and 9 entered the branch the edit changed.
+the imports add nothing to what the record already holds. They part on a change
+to a file some importers never loaded. Here the cut comes from the two steps
+that read inside the file: 83 test files entered `Query.fetch`, and 9 entered
+the branch the edit changed.
 
 To ask it yourself, record once on the
 [fork](https://github.com/Variance-Authority/tanstack-query-example):
@@ -137,7 +138,8 @@ for precision in file symbol file-use function-use region-use; do
 done
 ```
 
-Each answer opens with how many of the recorded test files it skips; the rest run.
+Each answer lists the test files to run, and says on stderr how many of the
+recorded test files it skips.
 
 ## Sixty commits, each against its own parent
 
