@@ -12,6 +12,8 @@ listed. Now a type-only re-export passes its names on like any other: the
 barrel is not listed, each import through it is, marked `(type only)` whatever
 the importer wrote, and an import reached both through a type-only re-export
 and through a value one is a value use.
+`variance ask uses` over a field answers the lines that use it through a type
+passed on the same way.
 
 `variance ask orient` reads re-exports the same way. With `--files`, a name a
 barrel passes on with `export { type T } from` across a package line is
