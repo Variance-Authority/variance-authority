@@ -223,16 +223,16 @@ Path order; `from` sorts nearest first.
 
 Member declarations:
 
-packages/lib/src/shapes/props.ts:2 — Props
-packages/lib/src/shapes/props.ts:7 — Other
+src/shapes/props.ts:2 — Props
+src/shapes/props.ts:7 — Other
 
-`Props.size`, declared at packages/lib/src/shapes/props.ts:2, is used in 3 places:
+`Props.size`, declared at src/shapes/props.ts:2, is used in 3 places:
 
-apps/app/src/fit.ts:2 — @acme/app, read
-packages/lib/src/shapes/use.ts:6 — @acme/lib, write
-packages/lib/src/shapes/use.ts:8 — @acme/lib, destructure
+src/shapes/fit.ts:2 — @acme/shop, read
+src/shapes/use.ts:6 — @acme/shop, write
+src/shapes/use.ts:8 — @acme/shop, destructure
 
-No line uses `size` through a value whose type is written as `Other` at packages/lib/src/shapes/props.ts:7.
+No line uses `size` through a value whose type is written as `Other` at src/shapes/props.ts:7.
 
 A use through a value whose type is not written, or is written as no named container, is text in the files that import a declaration: docs_grep with `query` `\bsize\b` and `to` the file that declares the container you mean (`package` narrows the declarations to one package).
 That search matches text, as no type checker runs: it lists comments, strings, a call by key such as `entry('name')` and same-named members of other types in those files, and misses a value whose type comes in through a file that does not import the declaration.
@@ -252,7 +252,7 @@ A binding that shadows an annotated one is no use.
 What a type checker infers is not read: a value returned by a call, a generic
 or a mapped type, a value narrowed or copied without an annotation, and a type
 named through a namespace (`ns.Props`). Those are the `grep` route's: `variance ask grep --query '\bsize\b'
---to packages/lib/src/shapes/props.ts` searches the files that import the
+--to src/shapes/props.ts` searches the files that import the
 declaration, at any depth. A name that an export has as well, such as a wrapper
 function named like the member, lists the wrapper's imports first, then
 `` `prepareJourneys` is a member too, declared in 2 places: `` and the

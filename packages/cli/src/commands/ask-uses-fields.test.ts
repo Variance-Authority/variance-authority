@@ -102,5 +102,5 @@ describe('variance ask uses over a field of an interface or a type', () => {
     ]);
   });
 
-  it.todo('answers a field used through a barrel that passes its type on with `export type { … } from`');
+  it.todo('answers a field used through a barrel that passes its type on with `export type { … } from` — needs `passed_on` to pass a type-only re-export on for a type\'s uses, while the package graph keeps it no runtime edge');
 });
