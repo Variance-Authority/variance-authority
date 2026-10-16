@@ -29,7 +29,7 @@ afterEach(() => {
 
 const SHAPES = {
   'packages/lib/src/shapes/props.ts':
-    'export interface Props {\n  size: number;\n  label?: string;\n}\n\nexport type Other = {\n  size: string;\n};\n',
+    'export interface Props {\n  size: number;\n  label?: string;\n}\n\nexport type Other = {\n  size: string;\n};\n\nexport interface Spare {\n  size: boolean;\n}\n',
   'packages/lib/src/shapes/index.ts': "export * from './props.js';\n",
   'packages/lib/src/shapes/use.ts': [
     "import type { Props } from './props.js';",
@@ -81,10 +81,11 @@ describe('variance ask uses over a field of an interface or a type', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'size']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`size` is no exported name; it is a member, declared in 3 places:');
+    expect(out).toContain('`size` is no exported name; it is a member, declared in 4 places:');
     expect(out).toMatch(/^packages\/lib\/src\/shapes\/other\.ts:3 — a type literal$/m);
     expect(out).toMatch(/^packages\/lib\/src\/shapes\/props\.ts:2 — Props$/m);
     expect(out).toMatch(/^packages\/lib\/src\/shapes\/props\.ts:7 — Other$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/shapes\/props\.ts:11 — Spare$/m);
 
     expect(section(out, '`Props.size`, declared at packages/lib/src/shapes/props.ts:2, is used in 9 places:')).toEqual([
       'apps/app/src/fit.ts:2 — @acme/app, read',
@@ -100,6 +101,9 @@ describe('variance ask uses over a field of an interface or a type', () => {
     expect(section(out, '`Other.size`, declared at packages/lib/src/shapes/props.ts:7, is used in 1 place:')).toEqual([
       'packages/lib/src/shapes/other.ts:2 — @acme/lib, read',
     ]);
+    // A named container no line types is named once; a type literal has no name a line could write, so it is not.
+    expect(out).toContain('No line uses `size` through a value whose type is written as `Spare` at packages/lib/src/shapes/props.ts:11.');
+    expect(out).not.toContain('written as `a type literal`');
   });
 
   it.todo('answers a field used through a barrel that passes its type on with `export type { … } from` — needs `passed_on` to pass a type-only re-export on for a type\'s uses, while the package graph keeps it no runtime edge');

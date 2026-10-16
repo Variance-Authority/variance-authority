@@ -251,7 +251,11 @@ A binding that shadows an annotated one is no use.
 
 What a type checker infers is not read: a value returned by a call, a generic
 or a mapped type, a value narrowed or copied without an annotation, and a type
-named through a namespace (`ns.Props`). Those are the `grep` route's: `variance ask grep --query '\bsize\b'
+named through a namespace (`ns.Props`). Nor is what the line does not write as
+a value of the type: a JSX attribute (`<Box size={2} />`), an object literal
+passed to an annotated parameter, `this.size`, a field inherited through
+`extends` or `&`, and a type imported by another name than its declaration's,
+as a default export or one renamed where it is declared. Those are the `grep` route's: `variance ask grep --query '\bsize\b'
 --to src/shapes/props.ts` searches the files that import the
 declaration, at any depth. A name that an export has as well, such as a wrapper
 function named like the member, lists the wrapper's imports first, then

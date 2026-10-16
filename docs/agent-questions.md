@@ -42,8 +42,8 @@ member of an interface, a type literal or a class is never imported: `uses`
 names where a member by that name is declared, after any imports, and under
 each declaration the lines that read, write or destructure it through a value
 whose type the line writes, such as `props: Props` or `value as Props`. A line
-whose value's type a checker would infer, `const p = getProps(); p.size`, is not
-in that list: `variance ask grep --query '\bsize\b' --to <declaring file>`
+whose value's type a checker would infer, `const p = getProps(); p.size`, or
+a JSX attribute such as `<Box size={2} />`, is not in that list: `variance ask grep --query '\bsize\b' --to <declaring file>`
 finds it as text in the files that import the declaration, along with comments
 and same-named members of other types.
 
