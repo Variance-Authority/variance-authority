@@ -27,7 +27,7 @@
  */
 
 import { extname } from 'node:path';
-import { affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -64,7 +64,10 @@ export function selectedByRelations(
   changed: readonly string[],
   moved: ReadonlyMap<string, readonly string[]> | undefined,
 ): ReadonlyMap<number, readonly ImporterReason[]> {
-  const affected = affectedBy(relations, changed, moved === undefined ? {} : { moved });
+  const affected = affectedBy(relations, changed, {
+    through: RUNTIME_EDGES,
+    ...(moved === undefined ? {} : { moved }),
+  });
   const selected = new Map<number, ImporterReason[]>();
   for (const file of affected.files) {
     const test = findTest(coverage, file);

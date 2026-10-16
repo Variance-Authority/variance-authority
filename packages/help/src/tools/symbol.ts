@@ -65,20 +65,21 @@ export const symbol: Tool<Help> = {
         b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
         byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
 
+    // Declared in a file and exported by none: still the workspace's
+    // own name, and where it is written says who can reach it. Another file's
+    // export of the same name is another thing, so it never stands for this one.
+    const declared = declaredBlocks(invocation?.root, name, wanted);
+
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
-    if (byPath.length > 0) return importedByPath(help, name, byPath);
+    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared].join('\n\n');
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    // Declared at the top of a file and exported by none: still the workspace's
-    // own name, and where it is written says who can reach it.
-    const kept = exported.length > 0
-      ? [exportedOnly(name, exported, invocation?.root)]
-      : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
+    const kept = [...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []), ...(found.length === 0 ? declared : [])];
     // A member of an interface, a type literal or a class is the workspace's
     // own declaration too, which no import names and the scan records.
     const members = found.length === 0 && kept.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
@@ -153,11 +154,11 @@ export const symbol: Tool<Help> = {
         ? []
         : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
-    return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
+    return [[block(first[0], first[1], first[2]), ...also, ...shown].join('\n'), ...declared].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
-  // same three readings `run` answers from in turn; an installed declaration is
+  // same readings `run` answers from; an installed declaration is
   // not a file of the checkout, so a name only a dependency declares is unfound.
   files(help, input, invocation): FileSet {
     const name = stringArg(input, 'name');
@@ -174,7 +175,7 @@ export const symbol: Tool<Help> = {
       const exported = exportsNamed(help, name, wanted);
       for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
     }
-    if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
+    at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
     if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new Error(nowhere(help, name, wanted, invocation?.root, members, undefined));

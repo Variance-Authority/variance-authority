@@ -120,6 +120,23 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(err).toContain('The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/lib/src/huge.ts.');
   });
 
+  it('answers a name one file exports and another keeps with both, and gives `intersection` the one it keeps', async () => {
+    // The export does not stand for the declaration, and neither is a member.
+    checkout({ ...NATIVE, 'packages/lib/src/edges.ts': 'export const edgeKindBetween = 1;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'edgeKindBetween']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('exported, without being published, at packages/lib/src/edges.ts:1');
+    expect(out).toContain('declared, not exported, at packages/lib/src/native.ts:5');
+    expect(out).not.toContain('a member of');
+
+    const both = await run(['ask', 'intersection', 'symbol --name edgeKindBetween', 'discover --from packages/lib/src/native.ts']);
+    expect(both.err).toBe('');
+    expect(both.code).toBe(EXIT_CLEAN);
+    expect(both.out).toContain('packages/lib/src/native.ts — 1: line 5');
+  });
+
   it('gives a member\'s declaring file to `intersection` at the line that declares it', async () => {
     await indexed(true);
     const { code, out, err } = await run(['ask', 'intersection', 'symbol --name resolveThings', 'discover --from packages/lib/src/native.ts']);

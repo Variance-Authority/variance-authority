@@ -153,7 +153,8 @@ function textAt(root: string, held: DeclaredName): string | undefined {
 }
 
 /**
- * The blocks `symbol` answers a name with when no file exports it: one per
+ * The blocks `symbol` answers a name's file-private declarations with — alone
+ * when no file exports it, after the exports when another file does: one per
  * declaration, source first, the first `DECLARED_CAP` of them, a count of the
  * rest, and the files whose declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
@@ -171,7 +172,7 @@ export function declaredBlocks(root: string | undefined, name: string, wanted: s
   ];
 }
 
-/** The declarations of the name when no file exports it, source first; none when the index is not at hand. */
+/** The file-private declarations of the name, source first; none when the index is not at hand. */
 export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
   const read = declarations(root, name);
   if ('refused' in read) return [];
