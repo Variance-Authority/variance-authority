@@ -81,9 +81,9 @@ export { compositionOf, lexiconReportOf, type ComposeInput } from './compose.js'
 export {
   decoderFor,
   historyFor,
-  journeyAgainst,
   recordedJourneys,
   storeFor,
+  suiteJourney,
   writeArtifactToDisk,
 } from './resources.js';
 export { renderCacheRoot } from './renders.js';
