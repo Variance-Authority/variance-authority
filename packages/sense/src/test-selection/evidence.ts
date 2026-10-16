@@ -121,10 +121,10 @@ function moduleOf(coverage: TestCoverageView, block: number): number {
 /**
  * The record's reading at `file-use` with what the import graph adds at `file`
  * or `symbol`: every recorded test the walk from the changed files reaches,
- * with the chain that reached it beside the reasons the reading gave. A changed
- * file is unread only when neither the reading nor the graph holds it.
+ * with the chain that reached it beside the reasons the reading gave. What is
+ * unread the reading already said: it asked the same graph.
  */
-export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because'>>(
+export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | 'because'>>(
   coverage: TestCoverageView,
   reading: Reading,
   changed: readonly string[],
@@ -147,7 +147,6 @@ export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | '
   return {
     ...reading,
     entered: because.map((cause) => cause.test),
-    unread: reading.unread.filter((file) => idOf(relations, 'file', file) === undefined),
     because,
   };
 }

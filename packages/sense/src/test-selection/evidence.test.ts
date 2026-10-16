@@ -179,17 +179,49 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
   it('keeps a test the record holds and the graph does not at file', () => {
     expect(entered('file')).toContain('test/sigma.test.ts');
   });
+
+  it('reads a file the graph holds and the record does not, and walks a file it cannot read whole at symbol', () => {
+    // `src/label.ts` has no row in the record and its recorded text is out of reach;
+    // `notes.md` is not a module, so no export reading is taken for it.
+    const elsewhere = `--- a/src/label.ts
++++ b/src/label.ts
+@@ -1,1 +1,1 @@
+-export const label = 'a';
++export const label = 'b';
+--- a/notes.md
++++ b/notes.md
+@@ -1,1 +1,1 @@
+-old
++new`;
+    const narrowing = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), elsewhere, {
+      relations,
+      evidence: 'symbol',
+      sourceAt: () => undefined,
+    });
+    expect(narrowing.entered).toEqual(['test/omega.test.ts']);
+    expect(narrowing.unread).toEqual(['notes.md']);
+  });
 });
 
 /**
  * Two classes in one module, each with its own `render` on lines 2 to 4 and
- * 7 to 9. `alpha` rendered the first, `beta` the second.
+ * 7 to 9. `alpha` rendered the first, `beta` the second. `src/about.ts`, a
+ * module ahead of it, declares a third `render` that `beta` ran.
  */
 const twins: TestCoverage = {
   version: 3,
   instrumentation: 'fixture-instrumentation',
   tests: ['test/alpha.test.ts', 'test/beta.test.ts'].map((file) => ({ file, complete: true, preconditions: [] })),
   modules: [
+    {
+      file: 'src/about.ts',
+      sourceDigest: 'source:about',
+      instrumented: true,
+      blocks: [
+        { ordinal: 0, kind: 'module', digest: 'block:module', name: '', path: 'module', startLine: 1, endLine: 4, source: true, testFiles: ['test/beta.test.ts'] },
+        { ordinal: 1, kind: 'function', owner: 0, digest: 'block:about', name: 'render', path: 'render', startLine: 2, endLine: 3, source: true, testFiles: ['test/beta.test.ts'] },
+      ],
+    },
     {
       file: 'src/views.ts',
       sourceDigest: 'source:views',
