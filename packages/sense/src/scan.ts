@@ -63,7 +63,7 @@ import {
   type ParseWay,
 } from './files.js';
 import { worldIn, worldOn } from './world.js';
-import { declinedForSize, recordFor, stillTooLarge } from './record.js';
+import { declinedForSize, parsedOnce, recordFor, stillTooLarge } from './record.js';
 import { onlyListed } from './repo-path.js';
 import { withDeclaredTsconfig } from './typescript.js';
 import {
@@ -278,14 +278,15 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
 
   // Every language but JavaScript resolves by asking about the tree rather
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
-  // scan already holds the answer for every path it knows.
-  const world = tree === undefined ? worldOn(root) : worldIn(tree.paths(), root);
+  // scan already holds the answer for every path it knows, and every parse.
+  const largestFile = options.largestFile ?? LARGEST_FILE;
+  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, digest: tree?.getAll([file])[0] });
+  const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
   resolvers.tree = world;
 
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
   const reuse = tree === undefined ? undefined : options.reuse;
-  const largestFile = options.largestFile ?? LARGEST_FILE;
   const shape = tree === undefined ? undefined : await shapeOf({ root, tree, options });
   // FIXME: under a clean or smudge filter — LFS, `core.autocrlf`, `working-tree-encoding` —
   // a blob and its checked-out file differ, both parse under the blob's digest, and an
@@ -444,7 +445,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         graph = held;
         nativeGraphUsed = true;
         answeredFiles = [];
-        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: parseKeys(held) });
+        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: { has: (key) => held.hasParse(key) } });
         reuse?.adopt?.(held);
         for (const file of held.following()) {
           if (!built.has(file) && READABLE.has(extname(file))) queue.push(file);
@@ -474,22 +475,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
 
   const listing = tree?.native;
   return { built, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
-}
-
-/**
- * The closure's parse keys, as the parse cache asks them: held by the addon,
- * less the few JavaScript harvested since and writes itself.
- */
-function parseKeys(graph: NativeIndexGraph): { has(key: string): boolean; delete(key: string): boolean } {
-  const overridden = new Set<string>();
-  return {
-    has: (key) => !overridden.has(key) && graph.hasParse(key),
-    delete: (key) => {
-      const had = !overridden.has(key) && graph.hasParse(key);
-      overridden.add(key);
-      return had;
-    },
-  };
 }
 
 /** Whether a path is there to be opened, without opening it. */

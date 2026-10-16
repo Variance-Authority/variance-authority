@@ -138,6 +138,7 @@ export async function readSource(root: string, options: SourceReadOptions = {}):
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
+    ...(options.current === true ? { refreshAfterMs: 0 } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
   return { help, tree: () => tree };

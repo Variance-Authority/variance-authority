@@ -33,6 +33,13 @@ pub struct HeldRequest {
     bindings: Vec<HeldBinding>,
     #[serde(default)]
     line: u32,
+    #[serde(default)]
+    guessed: bool,
+    #[serde(default)]
+    item: bool,
+    /// `republishes` in `read.rs`; absent is an import, as JavaScript writes none for one.
+    #[serde(default)]
+    republishes: bool,
 }
 
 /// `TextSpan` in `harvest.ts`; an end JavaScript did not write reads as absent.
@@ -177,6 +184,8 @@ impl ParseRow for HeldParse {
                 id(&request.value),
                 id(&request.kind),
                 request.line,
+                crate::parse_columns::request_flags(request.guessed, request.item),
+                request.republishes,
                 request.bindings.iter().map(|binding| {
                     (id(&binding.imported), id(&binding.local), binding.type_only, binding.line)
                 }),

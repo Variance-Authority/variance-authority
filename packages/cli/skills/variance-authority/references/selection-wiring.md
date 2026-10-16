@@ -97,7 +97,10 @@ file, through the graph, and every test `file-use` runs), `symbol` (the same
 walk through only the importers of the exports the change moved, and every test
 `file-use` runs), `file-use` (every test that loaded a changed
 file), `function-use` (every test that entered the function a changed line is
-in), `region-use` (the default: every test that entered the changed region).
+in, with the top level read as at `region-use` and each charged region
+widened to its function: a changed top-level value runs every test that entered
+a function reading it, and a change that runs as the module loads runs every
+test that loaded the file), `region-use` (the default: every test that entered the changed region).
 Recording is the same at every step.
 
 Leave it unset unless the person adopting selection asks to start coarser; the

@@ -205,27 +205,18 @@ pub(crate) fn walk(
     tree_oids: &[Oid],
     listing: Arc<Listing>,
 ) -> Walked {
-    walk_beyond(options, at, tree_oids, listing, &|_| false, /* symbols */ false)
+    walk_beyond(options, at, tree_oids, listing, &|_| false)
 }
 
 /// `walk`, not entering a target `held` names: the seeds are read whatever
 /// they are, and the files the caller already holds a record for are the
 /// boundary of what a warm update has to open (`source_update.rs`).
-///
-/// `symbols` harvests each file's top-level declarations while its tree is
-/// still in the arena. The cold graph walk, which a repository of 10k files or
-/// more takes in place of the batch read, leaves them to whoever asks for a
-/// file (`enrich.ts`), since most of its closure is never asked about. A warm
-/// update reads only the files that changed, which are the ones a question
-/// about the branch names, and a parse it writes unharvested answers `symbol`
-/// and `uses` with "not read" until the file is read again.
 pub(crate) fn walk_beyond(
     options: GraphOptions,
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
     listing: Arc<Listing>,
     held: &dyn Fn(&str) -> bool,
-    symbols: bool,
 ) -> Walked {
     let GraphOptions {
         root,
@@ -265,7 +256,14 @@ pub(crate) fn walk_beyond(
         // The wave's OIDs already name every tracked file's content, so the blobs
         // come out of the pack rather than off the disk. `read_git` falls back to
         // opening the file whenever a blob is missing or unreadable, which is what
-        // answers for the dirty and untracked members of the wave.
+        // answers for the dirty and untracked members of the wave. Declarations
+        // come out of the same parse: `ask symbol` reads them from the rows this
+        // walk publishes, and a walk that left them out answered a checkout of
+        // ten thousand modules as if it declared nothing.
+        // FIXME: every wave's answers, declarations included, are held until the
+        // parse segment is encoded after the walk, so a cold index of 288k paths
+        // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
+        // it is read would bound it.
         let opened = read_git(
             root.clone(),
             wave.clone(),
@@ -273,7 +271,7 @@ pub(crate) fn walk_beyond(
             largest_file,
             Some(true),
             Some(readers.unwrap_or(6).max(1)),
-            symbols,
+            true,
         );
         let resolved = resolve_all(root_path, &wave, &opened, &resolvers, Some(at));
         for target in resolved.iter().flatten() {

@@ -1042,6 +1042,7 @@
     "names": {
       ".": {
         "AnsweringOptions": "interface",
+        "CaughtUp": "interface",
         "FromIndexOptions": "type",
         "NamedTree": "interface",
         "PagesOptions": "interface",
@@ -1050,6 +1051,7 @@
         "SnapshotOptions": "interface",
         "WorkspaceOptions": "interface",
         "Written": "interface",
+        "caughtUp": "function",
         "publishWorkspaceFromIndex": "function",
         "publishedGeneration": "function",
         "readNamedTree": "function",
@@ -1060,6 +1062,7 @@
         "refreshDependencyLexicon": "function",
         "refreshWorkspace": "function",
         "serveWorkspace": "function",
+        "snapshotLine": "function",
         "wordsOf": "function",
         "workspaceGeneration": "function",
         "workspaceSnapshotPath": "function",
@@ -1079,6 +1082,7 @@
         "SearchAnswer": "interface",
         "SearchArea": "interface",
         "SearchQuestion": "interface",
+        "UNCOMPARED_HELP": "const",
         "answerSearch": "function",
         "audience": "function",
         "block": "function",
@@ -1323,6 +1327,7 @@
     },
     "names": {
       ".": {
+        "AskedAgain": "interface",
         "FIELD_WEIGHTS": "const",
         "LocateField": "type",
         "LocateHit": "interface",
@@ -1343,6 +1348,7 @@
       },
       "./tools": {
         "COSTS_TOOLS": "const",
+        "Chains": "interface",
         "ConcernsQuery": "interface",
         "ConcernsSubject": "interface",
         "CostsSubject": "interface",
@@ -1355,6 +1361,7 @@
         "FileRecord": "interface",
         "FileSet": "interface",
         "ImportedName": "interface",
+        "Link": "interface",
         "NO_ARGS": "const",
         "OBSERVABILITY_TOOLS": "const",
         "PRESENTATION_TOOLS": "const",
@@ -1423,7 +1430,8 @@
         "askedTool": "function",
         "createLineReader": "function",
         "handle": "function",
-        "wantsTree": "function"
+        "wantsTree": "function",
+        "wellFormed": "function"
       }
     }
   },
@@ -2625,7 +2633,6 @@
         "ExternalOrientation": "interface",
         "FileSize": "interface",
         "ForksBetween": "interface",
-        "HarvestSubject": "interface",
         "HelpPublish": "interface",
         "HelpReading": "interface",
         "ImportDiff": "interface",
@@ -2749,7 +2756,6 @@
         "dependencyStackNative": "function",
         "describedWordsNative": "function",
         "encodeSearch": "function",
-        "enrichSources": "function",
         "existedAt": "function",
         "exportedDigest": "function",
         "fileCases": "function",
@@ -3088,6 +3094,7 @@
         "followRowsIn": "function",
         "foreignProbes": "function",
         "formatCoveringChange": "function",
+        "functionsUnder": "function",
         "groupByDistance": "function",
         "heldCommitRuns": "function",
         "heldText": "function",
@@ -3115,6 +3122,7 @@
         "layFetchedMainline": "function",
         "layeredCoverage": "function",
         "layeredFiles": "function",
+        "lineGrain": "function",
         "machineOwners": "function",
         "mainlineReadRoot": "function",
         "mib": "function",
