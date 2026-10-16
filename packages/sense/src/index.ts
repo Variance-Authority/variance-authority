@@ -205,6 +205,7 @@ export {
 export { gitDigests } from './tree.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  declaredDescribedOf,
   declaredOf,
   encodeSearch,
   exportedDigest,

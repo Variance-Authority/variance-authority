@@ -89,6 +89,22 @@ export interface MemberSite {
   readonly kind: 'source' | 'story' | 'test';
   /** The container's name, or `a type literal` or `a class` when it has none. */
   readonly on: string;
+  /**
+   * Every line that uses the member through a value whose type is written as
+   * the container, by file in code units, then by line; absent for a
+   * container with no name, which no line can write.
+   */
+  readonly uses?: readonly MemberUseSite[];
+}
+
+/** One line that uses a member, and how. */
+export interface MemberUseSite {
+  readonly at: string;
+  readonly line: number;
+  /** The package of the file, or empty when no package holds it. */
+  readonly by: string;
+  readonly kind: 'source' | 'story' | 'test';
+  readonly how: 'destructure' | 'read' | 'write';
 }
 
 export interface NativeHelp {
@@ -98,6 +114,7 @@ export interface NativeHelp {
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
+  declaredDescribedOf?(root: string, index: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
 }
 
 function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
@@ -186,6 +203,10 @@ export interface DeclaredName {
   readonly docEnd?: number | null;
   /** Who can name it, as the reader of its language recorded; absent when the reader cannot tell. */
   readonly reach?: SourceSymbolReach | null;
+  /** Asked by `declaredDescribedOf`: the positions, ascending, of the asked stems its name or doc holds. */
+  readonly held?: readonly number[] | null;
+  /** Asked by `declaredDescribedOf`: how many of those its name holds. */
+  readonly named?: number | null;
 }
 
 /** What `declaredOf` found, and the files whose declarations it could not read. */
@@ -213,4 +234,23 @@ export function declaredOf(
   const containing = options.containing === true;
   const files = options.files === undefined ? null : [...options.files];
   return entry('declaredOf')(root, index, containing ? query.toLowerCase() : query, containing, files) ?? undefined;
+}
+
+/**
+ * Every top-level declaration the index at `index` holds that no export of its
+ * file binds, whose name and doc comment, cut into stems by the rule
+ * `describedWordsNative` cuts a question by, hold at least `needed` of
+ * `stems`, in any order; only in `files`, repo-relative, when they are named.
+ * Each carries the positions of the stems it holds and how many its name
+ * holds. `undefined` when no index was published; throws when the index does
+ * not read.
+ */
+export function declaredDescribedOf(
+  root: string,
+  stems: readonly string[],
+  needed: number,
+  files?: Iterable<string>,
+  index: string = sourceIndexPath(root),
+): DeclaredNames | undefined {
+  return entry('declaredDescribedOf')(root, index, [...stems], needed, files === undefined ? null : [...files]) ?? undefined;
 }
