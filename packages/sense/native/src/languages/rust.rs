@@ -6,10 +6,11 @@
 //! every `use` is guessed and a written `mod` beats it. Resolution stays in
 //! TypeScript.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tree_sitter::{Node, Tree};
 
+use super::rust_paths::{anchored, qualified, Named, Scope};
 use super::shape::{Binding, Export, Kind, Read, Request, NAMESPACE_NAME};
 use super::{declaration, kind_of, line_of, named_children, text_of, visibility};
 use crate::harvest::SourceSymbol;
@@ -73,6 +74,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
 /// `mod a { … }` is the file `a/b.rs`, so the nesting has to be carried down.
 fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gathering) {
     let children = named_children(node);
+    let scope = scope_of(&children, source, prefix);
     for (at, child) in children.iter().enumerate() {
         if child.kind() == "ERROR" || child.is_missing() {
             held.broken = true;
@@ -93,9 +95,11 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                         // A declaration. `#[path = "…"]` on the statement above
                         // replaces the name with a filename; it is a preceding
                         // sibling, not a child.
-                        let spelled = at
-                            .checked_sub(1)
-                            .and_then(|before| path_attribute(children[before], source));
+                        // FIXME: a `#[path]` inside an inline module is relative to
+                        // that module's directory, and is read from the file's.
+                        let spelled = attributes(&children[..at])
+                            .iter()
+                            .find_map(|attribute| path_attribute(*attribute, source));
                         let value = spelled.unwrap_or_else(|| {
                             let mut path = vec!["self".to_string()];
                             path.extend_from_slice(prefix);
@@ -144,7 +148,12 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                 };
                 let line = line_of(*child);
                 let shared = published(*child, source);
-                for (path, local) in used(argument, source, &[]) {
+                for (path, local, _) in used(argument, source, &[]) {
+                    // `use super::*` in `mod tests` names the file it is written in.
+                    let path = anchored(&path, &scope).unwrap_or(path);
+                    if path == ["self"] {
+                        continue;
+                    }
                     let value = path.join("::");
                     let last = path.last().cloned().unwrap_or_else(|| value.clone());
                     let local = local.unwrap_or_else(|| last.clone());
@@ -182,6 +191,26 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
             }
 
             _ => {
+                let mut found = Vec::new();
+                qualified(*child, source, &scope, &mut found);
+                for Named { path, binding, line } in found {
+                    want(
+                        held,
+                        Request {
+                            value: path.join("::"),
+                            kind: Kind::Imports,
+                            bindings: vec![Binding {
+                                imported: binding.clone(),
+                                local: binding,
+                                type_only: false,
+                                line,
+                            }],
+                            line,
+                            // As a `use`: the module tree says which segment is the item.
+                            guessed: true,
+                        },
+                    );
+                }
                 if !top {
                     continue;
                 }
@@ -199,6 +228,52 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
             }
         }
     }
+}
+
+/// What the block's paths can start with besides `crate`, `self` and `super`:
+/// the modules it declares, and the names its `use` lines bind to a path from
+/// this crate. A glob binds no name a path could start with.
+fn scope_of(children: &[Node], source: &str, prefix: &[String]) -> Scope {
+    let mut scope = Scope {
+        prefix: prefix.to_vec(),
+        mods: children
+            .iter()
+            .filter(|child| child.kind() == "mod_item")
+            .filter_map(|child| child.child_by_field_name("name"))
+            .map(|name| text_of(name, source).to_string())
+            .collect::<HashSet<_>>(),
+        bound: HashMap::new(),
+    };
+    let mut bound = HashMap::new();
+    for child in children.iter().filter(|child| child.kind() == "use_declaration") {
+        let Some(argument) = child.child_by_field_name("argument") else {
+            continue;
+        };
+        for (path, local, glob) in used(argument, source, &[]) {
+            let Some(local) = local.or_else(|| path.last().cloned()) else {
+                continue;
+            };
+            if glob || local == "self" || local == "super" || local == "crate" {
+                continue;
+            }
+            if let Some(full) = anchored(&path, &scope) {
+                bound.insert(local, full);
+            }
+        }
+    }
+    scope.bound = bound;
+    scope
+}
+
+/// The attributes written directly above the item that follows `before`, nearest first.
+fn attributes<'tree>(before: &[Node<'tree>]) -> Vec<Node<'tree>> {
+    before
+        .iter()
+        .rev()
+        .take_while(|node| matches!(node.kind(), "attribute_item" | "line_comment" | "block_comment"))
+        .filter(|node| node.kind() == "attribute_item")
+        .copied()
+        .collect()
 }
 
 fn want(held: &mut Gathering, request: Request) {
@@ -244,7 +319,7 @@ fn published(node: Node, source: &str) -> bool {
         .any(|modifier| !matches!(visibility(modifier, source).as_str(), "pub(self)" | "pub(inself)"))
 }
 
-/// The filename in `#[path = "other.rs"]`, when the node above is that attribute.
+/// The filename in `#[path = "other.rs"]`, when `node` is that attribute.
 fn path_attribute(node: Node, source: &str) -> Option<String> {
     if node.kind() != "attribute_item" {
         return None;
@@ -280,12 +355,13 @@ fn unquoted(text: &str) -> String {
 }
 
 /// One `use` argument flattened into the item paths it names.
-fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>)> {
+/// Each path comes with its alias, and whether it is a glob, which binds no name of its own.
+fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>, bool)> {
     match node.kind() {
         "scoped_identifier" => {
             let mut path = prefix.to_vec();
             path.extend(segments(Some(node), source));
-            vec![(without_self(path), None)]
+            vec![(without_self(path), None, false)]
         }
         "scoped_use_list" => {
             let mut base = prefix.to_vec();
@@ -308,7 +384,7 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
             let alias = node
                 .child_by_field_name("alias")
                 .map(|alias| text_of(alias, source).to_string());
-            vec![(without_self(path), alias)]
+            vec![(without_self(path), alias, false)]
         }
         "use_wildcard" => {
             // `use a::b::*` — the module is the whole path, and the `*` names no item.
@@ -317,7 +393,7 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
                 Some(inner) => {
                     let mut path = prefix.to_vec();
                     path.extend(segments(Some(*inner), source));
-                    vec![(without_self(path), None)]
+                    vec![(without_self(path), None, true)]
                 }
             }
         }
@@ -328,7 +404,7 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
             }
             let mut path = prefix.to_vec();
             path.extend(own);
-            vec![(without_self(path), None)]
+            vec![(without_self(path), None, false)]
         }
     }
 }

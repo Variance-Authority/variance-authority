@@ -73,10 +73,10 @@ export const symbol: Tool<Help> = {
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
     // Declared at the top of a file and exported by none: still the workspace's
-    // own name, and where it is written says who can reach it.
-    const own = exported.length > 0
-      ? [exportedOnly(name, exported, invocation?.root)]
-      : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
+    // own name, and where it is written says who can reach it. Another file's
+    // export of the same name is another thing, so it never stands for this one.
+    const declared = declaredBlocks(invocation?.root, name, wanted);
+    const own = [...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []), ...(found.length === 0 ? declared : [])];
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -132,7 +132,7 @@ export const symbol: Tool<Help> = {
         ? []
         : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
-    return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
+    return [[block(first[0], first[1], first[2]), ...also, ...shown].join('\n'), ...declared].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
@@ -153,7 +153,7 @@ export const symbol: Tool<Help> = {
       const exported = exportsNamed(help, name, wanted);
       for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
     }
-    if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
+    at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new Error(unfound(help, name, wanted));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {

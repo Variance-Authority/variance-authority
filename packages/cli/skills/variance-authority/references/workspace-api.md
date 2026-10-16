@@ -196,10 +196,11 @@ The imports within the name's own package come from the source index: every
 import that resolved to the file declaring it, or to a file that passes it on
 with `export … from`, which is followed under the name it exports and is not
 listed itself, in another package as well. A name an entry publishes under
-another name than its declaration is read from that entry. An import of a renamed re-export ends `(as <name>)`. A read
-through an `export * as` namespace, and a call through a qualified path, such as
-Rust's `crate::order::code_unit(…)`, are not listed, and the answer ends by
-saying so. With `--package` naming one subpath specifier, an import through
+another name than its declaration is read from that entry. An import of a renamed re-export ends `(as <name>)`. A Rust
+path written in a type or an expression, such as `crate::order::code_unit(…)`,
+is listed as a `use` is. A read through an `export * as` namespace, and a call
+through a JavaScript or TypeScript qualified path, are not listed, and the
+answer ends by saying so. With `--package` naming one subpath specifier, an import through
 another specifier of the same package is left to that one. When the source
 index is missing or does not read, the imports from other packages by their
 published path are still listed, and the answer says why the rest are not.

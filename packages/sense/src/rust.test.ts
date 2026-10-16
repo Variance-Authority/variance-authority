@@ -1,8 +1,11 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { native } from './native.js';
 import type { Read } from './read.js';
 import { isRustRelative, resolveRust } from './rust.js';
-import { worldIn } from './world.js';
+import { worldIn, worldOn } from './world.js';
 
 /**
  * The two certainties a Rust file offers, and the one it does not.
@@ -93,6 +96,63 @@ describe('what a Rust file asks for', () => {
     expect(read.unknown).toBeUndefined();
   });
 
+  it('asks for an item a type or an expression names by a path from the crate, `self` or `super`', () => {
+    const read = readRust('src/flows.rs', [
+      'struct Flows {',
+      '    limits: crate::graph::Limits,',
+      '    held: Vec<super::held::Held>,',
+      '}',
+      'fn walk() {',
+      '    crate::harvest::reach_code();',
+      '    let map = crate::map::JourneyMap::new();',
+      '    std::mem::take(&mut 1);',
+      '    Vec::<u8>::new();',
+      '}',
+      '',
+    ].join('\n'));
+    const taken = new Map(read.requests.map((request) => [request.value, request.bindings.map(({ imported }) => imported)]));
+
+    expect(read.requests.every((request) => request.guessed === true)).toBe(true);
+    expect(taken.get('crate::graph::Limits')).toEqual(['Limits']);
+    expect(taken.get('super::held::Held')).toEqual(['Held']);
+    expect(taken.get('crate::harvest::reach_code')).toEqual(['reach_code']);
+    // `JourneyMap::new` is an associated function, and nothing in the path
+    // says which segment is the item: the type is asked for as well.
+    expect(taken.get('crate::map::JourneyMap')).toEqual(['JourneyMap']);
+    expect([...taken.keys()].some((value) => value.startsWith('std') || value.startsWith('Vec'))).toBe(false);
+  });
+
+  it('asks for a path through a module this file declares, or binds with a `use` from its crate', () => {
+    const read = readRust('src/compact.rs', [
+      '#[path = "compact_records.rs"]',
+      'mod records;',
+      'use records::Records;',
+      'use crate::journey_map;',
+      'fn open(file: journey_map::JourneyMapFile) {}',
+      '',
+    ].join('\n'));
+    const values = read.requests.map((request) => request.value);
+
+    expect(values).toContain('self::records::Records');
+    expect(values).toContain('crate::journey_map::JourneyMapFile');
+    expect(values).not.toContain('records::Records');
+  });
+
+  it('reads `super` and `self` inside an inline module from the module the file is', () => {
+    // `mod tests { use super::helper; }` names the file's own `helper`, and
+    // `super::super` past it is the file's parent module.
+    const read = readRust('src/a.rs', 'mod tests {\n    use super::helper;\n    use super::super::Up;\n    use self::inner::Deep;\n}\n');
+    const values = read.requests.map((request) => request.value);
+
+    expect(values).toEqual(['self::helper', 'super::Up', 'self::tests::inner::Deep']);
+  });
+
+  it('takes the `#[path]` above the attributes that sit between it and its `mod`', () => {
+    const read = readRust('src/lib.rs', '#[path = "lib_tests.rs"]\n#[cfg(test)]\nmod tests;\n');
+
+    expect(read.requests[0]?.value).toBe('lib_tests.rs');
+  });
+
   it('answers for a path this repository could own, and not for a foreign crate', () => {
     expect(isRustRelative('self::order')).toBe(true);
     expect(isRustRelative('crate::read::Read')).toBe(true);
@@ -173,8 +233,14 @@ describe('where a Rust path lands', () => {
     // `order` — the directory's own file, not the directory.
     expect(resolveRust({ from: 'src/order/sort.rs', request: 'super', world }))
       .toEqual(['src/order/mod.rs']);
+    expect(resolveRust({ from: 'src/order/sort.rs', request: 'super::super::read::Read', world }))
+      .toEqual(['src/read.rs']);
+  });
+
+  it('names no edge from a file to itself', () => {
+    // An item a file reaches through its own module is declared in it.
     expect(resolveRust({ from: 'src/order/sort.rs', request: 'super::sort::Sort', world }))
-      .toEqual(['src/order/sort.rs']);
+      .toEqual([]);
   });
 
   it('takes a spelled path as a path, relative to the declaring file', () => {
@@ -188,6 +254,52 @@ describe('where a Rust path lands', () => {
   });
 });
 
+describe('where a Rust path lands in the module tree its files declare', () => {
+  // `#[path]` puts a module where its name does not say, so the tree is read
+  // off the `mod` lines, and `super` climbs that tree rather than the disk.
+  const world = worldOn(tree({
+    'Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
+    'src/lib.rs': 'mod lexicon;\nmod compact;\n',
+    'src/lexicon.rs': '#[path = "lexicon_catalogue.rs"]\nmod catalogue;\n#[path = "lexicon_view.rs"]\nmod view;\n',
+    'src/lexicon_catalogue.rs': 'pub(crate) struct Catalogue;\n',
+    'src/lexicon_view.rs': 'use super::catalogue::Catalogue;\n',
+    'src/compact.rs': 'fn flag() {}\nmod inner {\n    mod deep;\n}\n',
+    'src/compact/inner/deep.rs': 'use super::super::flag;\n',
+    'tests/run.rs': 'mod helper;\nuse crate::helper::Help;\n',
+    'tests/helper.rs': 'pub struct Help;\n',
+  }));
+
+  it('finds a file `#[path]` names beside the file that declares it', () => {
+    expect(resolveRust({ from: 'src/lexicon.rs', request: 'lexicon_view.rs', world }))
+      .toEqual(['src/lexicon_view.rs']);
+  });
+
+  it('climbs with `super` to the module that declared the file', () => {
+    expect(resolveRust({ from: 'src/lexicon_view.rs', request: 'super::catalogue::Catalogue', world }))
+      .toEqual(['src/lexicon_catalogue.rs']);
+  });
+
+  it('climbs out of an inline module to the file it is written in', () => {
+    expect(resolveRust({ from: 'src/compact/inner/deep.rs', request: 'super::super::flag', world }))
+      .toEqual(['src/compact.rs']);
+  });
+
+  it('takes `crate` from a file no module declares as that file', () => {
+    // A test target is a crate root of its own.
+    expect(resolveRust({ from: 'tests/run.rs', request: 'crate::helper::Help', world }))
+      .toEqual(['tests/helper.rs']);
+  });
+});
+
+/** A directory holding `files`, for a world that can read them. */
+function tree(files: Readonly<Record<string, string>>): string {
+  const root = mkdtempSync(join(tmpdir(), 'va-rust-tree-'));
+  for (const [path, contents] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), contents);
+  }
+  return root;
+}
 
 /** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
 function spelled(contents: string, read: Read) {
