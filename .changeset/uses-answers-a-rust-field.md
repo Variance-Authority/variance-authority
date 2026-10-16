@@ -51,4 +51,4 @@ In `--format json` they are `members`, each row with `source: "member"` and
 the container it is `on`.
 
 The source index records these with each Rust file's parse, in format version
-24; `variance index` rebuilds an older one.
+28; `variance index` rebuilds an older one.

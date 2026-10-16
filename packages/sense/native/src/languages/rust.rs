@@ -30,7 +30,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         broken: false,
     };
 
-    block(root, source, &[], true, &mut held);
+    block(root, source, &[], &mut held);
     rooted(root, source, &mut held);
 
     Read {
@@ -47,32 +47,56 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
     }
 }
 
-/// Every item the file declares at its top level, `pub` or not, each with the
-/// doc lines above it and past its attributes.
+/// Every item the file declares, `pub` or not, each with the doc lines above
+/// it and past its attributes. One inside an inline module is named on the
+/// path from the file's own module, `tests::fixture`, the way rustdoc names it.
+/// A `pub` one whose inline modules are all `pub` is left out: the file
+/// exports the outermost module, and the item is named through it.
 pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
-    let children = named_children(tree.root_node());
-    (0..children.len())
-        .filter_map(|at| {
-            let node = children[at];
-            let name = match node.kind() {
-                "mod_item" | "macro_definition" => node.child_by_field_name("name").map(|name| text_of(name, source).to_string()),
-                _ => named(node, source),
-            }?;
-            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, &["attribute_item"]);
+    let mut held = Vec::new();
+    declared_in(tree.root_node(), source, &[], true, &mut held);
+    held
+}
+
+/// `open` is whether every inline module of `prefix` is `pub`.
+fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &mut Vec<SourceSymbol>) {
+    let children = named_children(node);
+    for at in 0..children.len() {
+        let node = children[at];
+        let Some(name) = (match node.kind() {
+            "mod_item" | "macro_definition" => node.child_by_field_name("name").map(|name| text_of(name, source).to_string()),
+            _ => named(node, source),
+        }) else {
+            continue;
+        };
+        let Some(kind) = kind_of(node.kind()) else { continue };
+        let path: Vec<String> = prefix.iter().cloned().chain([name]).collect();
+        let shared = published(node, source);
+        if prefix.is_empty() || !(open && shared) {
+            // A `macro_rules!` has no module path: it is named as written.
+            let named = if node.kind() == "macro_definition" { path[path.len() - 1].clone() } else { path.join("::") };
+            let mut symbol = declaration(&children, at, named, kind, source, &["attribute_item"]);
             // A `macro_rules!` is in scope by where it is written, and
             // `#[macro_export]` or `#[macro_use]` carry it further: never by
-            // the module rule an item's visibility follows.
-            if node.kind() != "macro_definition" {
+            // the module rule an item's visibility follows. A `pub` item
+            // inside a private inline module reaches as far as the modules
+            // around it let it, which the item alone does not say.
+            if node.kind() != "macro_definition" && (prefix.is_empty() || !shared) {
                 symbol.reach = Some("module");
             }
-            Some(symbol)
-        })
-        .collect()
+            held.push(symbol);
+        }
+        if let Some(body) = (node.kind() == "mod_item").then(|| node.child_by_field_name("body")).flatten() {
+            declared_in(body, source, &path, open && shared, held);
+        }
+    }
 }
 
 /// `prefix` is the inline-module path this block sits inside. `mod b;` inside
-/// `mod a { … }` is the file `a/b.rs`, so the nesting has to be carried down.
-fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gathering) {
+/// `mod a { … }` is the file `a/b.rs`, so the nesting has to be carried down,
+/// and `self` and `super` in a `use` name that module, not the file.
+fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
+    let top = prefix.is_empty();
     let children = named_children(node);
     for (at, child) in children.iter().enumerate() {
         if child.kind() == "ERROR" || child.is_missing() {
@@ -94,9 +118,15 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                         // A declaration. `#[path = "…"]` on the statement above
                         // replaces the name with a filename; it is a preceding
                         // sibling, not a child.
+                        // Inside an inline module the spelled path starts at
+                        // that module's directory, so it is emitted after the
+                        // module: `mod inline { #[path = "other.rs"] mod
+                        // inner; }` is `self::inline/other.rs`. Which directory
+                        // that is depends on the file, and the resolver owns it.
                         let spelled = at
                             .checked_sub(1)
-                            .and_then(|before| path_attribute(children[before], source));
+                            .and_then(|before| path_attribute(children[before], source))
+                            .map(|spelled| if top { spelled } else { format!("self::{}/{spelled}", prefix.join("::")) });
                         let value = spelled.unwrap_or_else(|| {
                             let mut path = vec!["self".to_string()];
                             path.extend_from_slice(prefix);
@@ -122,9 +152,12 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                         );
                     }
                     Some(body) => {
+                        // FIXME: a `#[path = "foo"]` on this inline module
+                        // makes `foo` the directory of the modules inside it;
+                        // the name is carried instead (`rust.test.ts` todo).
                         let mut inner = prefix.to_vec();
                         inner.push(name.clone());
-                        block(body, source, &inner, false, held);
+                        block(body, source, &inner, held);
                     }
                 }
 
@@ -146,17 +179,17 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                 let line = line_of(*child);
                 let shared = published(*child, source);
                 for (path, local) in used(argument, source, &[]) {
+                    // A path that names the file itself, as `use super::*`
+                    // in a `mod tests` does, asks for nothing.
+                    let Some(path) = folded(path, prefix) else { continue };
                     let value = path.join("::");
                     let last = path.last().cloned().unwrap_or_else(|| value.clone());
                     // `use a::b::*` binds every item `a::b` declares, under its
-                    // own name: the binding is the glob itself. `use super::*`
-                    // that climbs no further than the inline modules this
-                    // block sits in names this very file, which is no import.
-                    let wildcard = local.as_deref() == Some(GLOB);
-                    let glob = wildcard && !within(&path, prefix);
+                    // own name: the binding is the glob itself.
+                    let glob = local.as_deref() == Some(GLOB);
                     let (imported, bound) = match local {
                         _ if glob => (NAMESPACE_NAME.to_string(), NAMESPACE_NAME.to_string()),
-                        Some(local) if !wildcard => (last.clone(), local),
+                        Some(local) => (last.clone(), local),
                         _ => (last.clone(), last.clone()),
                     };
                     // A glob re-export republishes under the module's name, as before.
@@ -181,7 +214,9 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                     );
                     // `pub use` is a re-export, and is the only thing in Rust
                     // that republishes a name this file did not declare.
-                    if shared {
+                    // At the top only: one inside `mod inner` publishes
+                    // `inner::B`, which is no name of the file.
+                    if shared && top {
                         held.exports.push(Export {
                             exported: Some(local),
                             from: Some(value),
@@ -249,6 +284,24 @@ fn rooted(node: Node, source: &str, held: &mut Gathering) {
         }
         rooted(child, source, held);
     }
+}
+
+/// A `use` path written inside the inline modules `prefix`, as a path from the
+/// file's own module: `self` is the innermost of them, and each `super` climbs
+/// one, then past the file to its parent. Nothing when the path is the file.
+fn folded(path: Vec<String>, prefix: &[String]) -> Option<Vec<String>> {
+    let climbs = path.iter().take_while(|segment| *segment == "super").count();
+    let folded = match path.first().map(String::as_str) {
+        Some("self") => ["self".to_string()].into_iter().chain(prefix.iter().cloned()).chain(path[1..].iter().cloned()).collect(),
+        Some("super") if climbs <= prefix.len() => ["self".to_string()]
+            .into_iter()
+            .chain(prefix[..prefix.len() - climbs].iter().cloned())
+            .chain(path[climbs..].iter().cloned())
+            .collect(),
+        Some("super") => std::iter::repeat_n("super".to_string(), climbs - prefix.len()).chain(path[climbs..].iter().cloned()).collect(),
+        _ => path,
+    };
+    (folded != ["self"]).then_some(folded)
 }
 
 fn want(held: &mut Gathering, request: Request) {
@@ -394,12 +447,6 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
 
 /// The local a `use_wildcard` comes back with from [`used`].
 const GLOB: &str = "*";
-
-/// Whether a path of `super`s alone climbs no higher than the inline modules
-/// `prefix` names, so it names a module inside this very file.
-fn within(path: &[String], prefix: &[String]) -> bool {
-    path.iter().all(|name| name == "super" || name == "self") && path.iter().filter(|name| *name == "super").count() <= prefix.len()
-}
 
 /// `self` inside a list names the module the list hangs off, not a thing in it.
 ///

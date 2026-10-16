@@ -160,6 +160,14 @@ export interface Request {
    * real hole into a silent one, which is the failure this package refuses.
    */
   readonly guessed?: boolean;
+
+  /**
+   * Set on an `export … from`: what it binds it passes on, and takes for no
+   * use of its own. Every `reexports` request carries it, and a `type` one
+   * does when `export type` writes it, which `kind` alone cannot tell from
+   * `import type` of the same file.
+   */
+  readonly republishes?: true;
 }
 
 export interface Export {

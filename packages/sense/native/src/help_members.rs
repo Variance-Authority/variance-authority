@@ -31,7 +31,8 @@ use oxc_span::GetSpan;
 use serde::Serialize;
 
 use crate::compact::Layer;
-use crate::help_usage::{importers_from, kind_of, MODULE};
+use crate::help_bulk_bindings::MODULE;
+use crate::help_usage::{importers_from, kind_of};
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
@@ -284,9 +285,6 @@ fn written(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, name: &str,
             names.entry(one.container.clone()).or_default().insert(at);
             if one.file.ends_with(".rs") { names.entry(MODULE.to_owned()).or_default().insert(at); }
         }
-        // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
-        // field used through a type-only barrel is missed here, though the type is
-        // the one declared.
         let (taken, _) = importers_from(root, layers, wanted);
         for one in taken {
             // A name read off a namespace is `ns.Props`, which no member-use row writes.

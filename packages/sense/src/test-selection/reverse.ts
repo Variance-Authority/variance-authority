@@ -1,5 +1,6 @@
 import { affectedBy, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
+import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
 import type { CasePrecondition } from './case-precondition-column.js';
@@ -75,6 +76,7 @@ export interface ExecutionBlock {
   readonly crossings: readonly ExecutionCrossing[];
 }
 
+/** One recorded source file: its path and every region the instrumenter opened in it. */
 export interface ExecutionModule {
   readonly file: string;
   readonly blocks: readonly ExecutionBlock[];
@@ -86,9 +88,7 @@ export interface ExecutionIndex {
   readonly modules: readonly ExecutionModule[];
 }
 
-export type SourceTestTarget =
-  | { readonly file: string; readonly line: number }
-  | { readonly file: string; readonly function: string };
+export type { SourceTestTarget } from './source-target.js';
 
 /** One named test that reached requested source, carrying its nearest observation. */
 export interface CoveringTest extends ExecutionTest {
@@ -133,7 +133,7 @@ export interface SourceTestRange {
   readonly stopped?: readonly ExecutionTest[];
 }
 
-/** Find named tests that reached a source line or function, nearest first. */
+/** Find named tests that reached a source line, lines or scope, nearest first. */
 export function coveringTests(
   index: ExecutionIndex,
   target: SourceTestTarget,
@@ -178,11 +178,7 @@ export function stoppedBefore(
 }
 
 function blocksAt(module: ExecutionModule, target: SourceTestTarget): readonly ExecutionBlock[] {
-  return 'line' in target
-    ? blocksChargedAt(module.blocks, target.line)
-    : module.blocks.filter((block) =>
-      block.source && block.kind === 'function' && block.name === target.function,
-    );
+  return blocksOfTarget(module.blocks, target);
 }
 
 /** Find named tests for every indexed source line, grouped into equal adjacent ranges. */

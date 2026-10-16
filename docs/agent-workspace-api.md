@@ -172,16 +172,32 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-Pass `--just-answer` when the caller owns freshness: no Git status, generation,
-or regeneration is performed, and the answer prints the generation time. If no
-generation has been published, the command refuses instead of silently turning
-the question into production work.
+Without `--just-answer`, a source question other than `search` that a reused
+generation refuses is asked again, whether you ask through `variance ask`,
+`variance serve` or `variance-authority-help` and its server: the name is
+looked for again in a generation made from the checkout as it is, and in what
+your installed packages export, with that list built first when it is missing
+or behind. A function you wrote a minute ago, or a package you just installed,
+is answered rather than reported missing, and that holds when you name changed
+files too. Only a refusal pays for that reading; an answer that found its name
+comes from the generation it was found in. When the checkout cannot be read
+again, the refusal names the generation time, says the checkout was not
+compared with it, and says why. When the list of installed exports cannot be
+built, the refusal says the installed packages were not compared, and why.
 
-`search` always answers as if `--just-answer` were given. It opens the
-published search at any age and never scans, because in CI the step before it
-already brought the index up to date and is the one that owns freshness. The
-flag is accepted and changes nothing. With no published generation, `search`
-refuses and names the command to run.
+Pass `--just-answer` when the caller owns freshness: no Git status, generation,
+or regeneration is performed, and every answer and refusal names the generation
+time and says the checkout was not compared with it; as JSON, `search` carries
+`compared: false` beside `generatedAt`. If no generation has been published,
+the command refuses instead of silently turning the question into production
+work.
+
+When no changed files are named, `search` always answers as if `--just-answer`
+were given. It opens the published search at any age and never scans, because
+in CI the step before it already brought the index up to date and is the one
+that owns freshness. The flag is accepted and changes nothing, and the answer
+says, as one under `--just-answer` does, that the checkout was not compared.
+With no published generation, `search` refuses and names the command to run.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
@@ -290,20 +306,29 @@ passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. A read through an `export * as` namespace and a call through a
 qualified path are not counted.
 
-A name a file declares at its top level and does not export, such as a helper
-only its own file calls, is answered from the source index. Not exported means
-no export of a JavaScript or TypeScript file names it, a Rust item is not `pub`
-or is `pub(self)`, a Swift declaration is `private` or `fileprivate`, a Kotlin
-one is `private`, or a Python name has a leading underscore or is left out of
-`__all__`.
-`docs_symbol` gives its kind, the file and line that declare it, its signature,
+A name a file declares and does not export, such as a helper only its own file
+calls, is answered from the source index. Not exported means no export of a
+JavaScript or TypeScript file names it, a Rust item at the top of the file is
+not `pub` or is `pub(self)`, a Rust item inside an inline module is not `pub`
+or sits in a module that is not, a Swift declaration is `private` or
+`fileprivate`, a Kotlin one is `private`, or a Python name has a leading
+underscore or is left out of `__all__`. A `pub` Rust item whose inline modules
+are all `pub` is not declared on its own: the file exports the outermost of
+them, and you ask for that module by name. `docs_symbol` gives its kind, the file and line that declare it, its signature,
 what is written above it, and who can reach it under the file's language. A name
 in a JavaScript or TypeScript module, a Swift `private` or `fileprivate` one
 and a Kotlin `private` one are that file's alone: no other file can import
-them. A Rust item is named only by its module and the modules inside it.
-Another Python module can still import the name by spelling it. A script or
+them. Another Python module can still import the name by spelling it. A Rust
+item is named only by its module and the modules inside it. A Rust item inside
+an inline module, such as a helper in `mod tests`, is declared on its module
+path inside the file, `tests::helper`, and answers to that path or to its own
+name. A `macro_rules!` inside one keeps its own name, because a macro has no
+module path. If it is not `pub`, the same rule names who can reach it: `tests` and the
+modules inside it. If it is `pub`, the modules around it decide how far it is
+seen, so the answer says who can reach it is not recorded. A script or
 CommonJS file, a module that hands itself out with `export =` and a
-`macro_rules!` hand a name out in ways their readers cannot tell, so the answer says who can reach it is not recorded. `docs_uses`
+`macro_rules!` hand a name out in ways their readers cannot tell, so the answer
+says who can reach it is not recorded. `docs_uses`
 answers with the same file, line and rule in one sentence, before any member
 declared by that name, and lists no import sites; for a Python name it gives the
 `ask grep` that finds the modules spelling it. Each answer names the files whose
@@ -372,7 +397,7 @@ The server reads manifests and source, not `dist`. It parses JavaScript and
 TypeScript with `oxc-parser` and resolves with `oxc-resolver`; no TypeScript
 language service runs behind it. Rust, Python, Swift, Java and Kotlin files are
 read with tree-sitter grammars, for their imports and their top-level
-declarations. A types target under an output directory is mapped back to that
+declarations, and Rust files also for the declarations inside inline modules. A types target under an output directory is mapped back to that
 package's source. A consumer is a workspace package whose source imports the
 symbol; it is not a claim about runtime execution or external adoption. A site
 is an import of the name, or a read of it off a module the file holds whole, not
