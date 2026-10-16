@@ -36,3 +36,18 @@ export function instrumentationId(mode: InstrumentMode = 'presence'): string {
 export function instrumentModeOf(instrumentation: string): InstrumentMode | undefined {
   return (Object.keys(IDS) as InstrumentMode[]).find((mode) => IDS[mode] === instrumentation);
 }
+
+const OURS = 'sense:instrument/';
+
+/**
+ * What this build places instead of the probes `instrumentation` names, when
+ * that is a recipe of ours this build no longer emits: the same mode's current
+ * identity when the old one names its mode, else every current one. Nothing for
+ * a current recipe, and nothing for an identity outside our namespace, which is
+ * not ours to call retired.
+ */
+export function retiredProbes(instrumentation: string): readonly string[] | undefined {
+  if (!instrumentation.startsWith(OURS) || instrumentModeOf(instrumentation) !== undefined) return undefined;
+  const mode = (Object.keys(IDS) as InstrumentMode[]).find((name) => instrumentation.startsWith(`${OURS}${name}-`));
+  return mode === undefined ? Object.values(IDS) : [IDS[mode]];
+}

@@ -36,7 +36,7 @@ function said(block: string): readonly string[] {
 
 function text(answer: Covering): string {
   if (answer.changed !== undefined) return sinceText(answer, answer.changed);
-  if (answer.preconditionOf !== undefined) return preconditionText(answer.file ?? '', answer.preconditionOf);
+  if (answer.preconditionOf !== undefined) return preconditionText(answer.file ?? '', answer.preconditionOf, answer.held, answer.among);
   if (answer.frame === 'stale') return staleText(answer);
   if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
 
@@ -115,14 +115,27 @@ export function staleText(answer: Covering): string {
   }, and that text could not be found, so no recorded line is a place in it. Run the suite to record it again.`;
 }
 
+/**
+ * Every recorded range of a file, each with the cases that called into it.
+ *
+ * A case that reached a range only while its file imported the module is
+ * counted, not named: on a module every test file imports, those are most of
+ * the suite, and a list of them says who imports the file rather than who runs
+ * the range. Asked by line or function, or as JSON, they are named.
+ */
 function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
   const file = answer.file ?? '';
   if (ranges.length === 0) return `No line of ${file} is recorded in ${answer.from}.`;
-  const named = new Set(ranges.flatMap((range) => range.tests.map((test) => test.id)));
+  const called = (range: CoveringRange) => range.tests.filter((test) => test.loaded !== true);
+  const named = new Set(ranges.flatMap((range) => called(range).map((test) => test.id)));
+  const loading = new Set(ranges.flatMap((range) => range.tests.filter((test) => test.loaded === true).map((test) => test.id)));
+  for (const id of named) loading.delete(id);
   const lines = [
     `${file} — ${ranges.length} recorded range${ranges.length === 1 ? '' : 's'}, ${
       named.size
-    } named test${named.size === 1 ? '' : 's'}${framed(answer)}`,
+    } named test${named.size === 1 ? '' : 's'}${
+      loading.size === 0 ? '' : `, and ${loading.size} more that ran it only while their file imported it`
+    }${framed(answer)}`,
   ];
   // Where each list of cases was first printed, so a later range walked by the same cases points at it.
   const printed = new Map<string, string>();
@@ -131,7 +144,9 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     lines.push(`${place}${range.state === undefined ? '' : ` — ${range.state}`}${
       range.moved === true ? ', edited since the recording' : ''
     }`);
-    const key = range.tests.map((test) => `${test.id}\0${test.loaded === true}`).join('\n');
+    const tests = called(range);
+    const carried = range.tests.filter((test) => test.loaded === true);
+    const key = `${tests.map((test) => test.id).join('\n')}\0${carried.map((test) => test.id).join('\n')}`;
     if (range.tests.length === 0) {
       // The header already says `unwalked` or `hole`; the stopped cases are the rest of a hole.
       const said = range.state === 'unwalked' || range.state === 'hole';
@@ -146,13 +161,21 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     } else if (printed.has(key)) {
       lines.push(`  the same ${range.tests.length === 1 ? 'named test' : `${range.tests.length} named tests`} as ${printed.get(key)}`);
     } else {
-      lines.push(...caseLines(range.tests, '  ', [], answer.twins));
+      lines.push(...caseLines(tests, '  ', [], answer.twins), ...loadedOnly(carried, tests.length > 0));
       printed.set(key, place);
     }
   }
-  lines.push(...legend(ranges.flatMap((range) => range.tests)));
   lines.push(...narrowedText(answer));
   return lines.join('\n');
+}
+
+/** The cases that reached a range only while their file imported its module, counted under the ones that called into it. */
+function loadedOnly(carried: readonly CoveringTest[], more: boolean): readonly string[] {
+  if (carried.length === 0) return [];
+  const files = new Set(carried.map((test) => test.file)).size;
+  return [`  ${more ? 'and ' : ''}${carried.length} case${carried.length === 1 ? '' : 's'} in ${files} test file${
+    files === 1 ? '' : 's'
+  } ran it only while their file imported the module`];
 }
 
 /** Which text the line numbers are in, when that was checked. */

@@ -165,3 +165,8 @@ describe('recordPerStand — the record asked once per stand, the answers folded
     expect(answer).toBeUndefined();
   });
 });
+
+describe('a record cut under probes this build no longer places', () => {
+  // `covering` and `review` refuse one through `currentProbes`; the resources read theirs without asking.
+  it.todo('is refused by name rather than served as current — needs `suiteJourney` and `recordAgainst` to pass their record through `currentProbes`');
+});

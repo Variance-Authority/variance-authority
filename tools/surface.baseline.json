@@ -2888,7 +2888,8 @@
         "instrumentModeOf": "function",
         "instrumentationId": "function",
         "probeRecipe": "function",
-        "probeRuntime": "function"
+        "probeRuntime": "function",
+        "retiredProbes": "function"
       },
       "./test-selection": {
         "AxisStep": "interface",
@@ -3092,6 +3093,7 @@
         "encodeExecutionIndex": "function",
         "encodeTestCoverage": "function",
         "finalizeJestJourneys": "function",
+        "findModules": "function",
         "followRows": "function",
         "followRowsIn": "function",
         "foreignProbes": "function",

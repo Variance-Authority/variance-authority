@@ -169,7 +169,7 @@ describe('asking which tests entered a line', () => {
     expect(answer.preconditionOf).toEqual(['total.test.ts']);
     expect(formatCovering(answer, 'text')).toBe(
       'src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
-        'without instrumenting it, or the suite declares it, so no line of it has a recorded case.\n  total.test.ts\n',
+        'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n',
     );
     expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
   });
@@ -185,7 +185,7 @@ describe('asking which tests entered a line', () => {
     expect(formatCovering(other, 'text')).toBe(
       'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
         'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
-        'it, or the suite declares it, so no line of it has a recorded case.\n',
+        'it, so no line of it has a recorded case.\n',
     );
     expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
   });

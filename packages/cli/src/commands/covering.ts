@@ -52,7 +52,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
+import { currentProbes, readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
@@ -138,6 +138,10 @@ export interface Covering {
    * change to it selects whole (`covering-unloaded.ts`).
    */
   readonly preconditionOf?: readonly string[];
+  /** With `preconditionOf`: whether the run loaded the file uninstrumented, or only the suite declares it (a native source no probe reaches). */
+  readonly held?: 'loaded' | 'declared';
+  /** With `preconditionOf`: how many test files the reading holds, so that every one of them is said as that. */
+  readonly among?: number;
   /**
    * Where the line numbers stand, when the file could be framed against the
    * snapshot: `recorded` when the held text is the one the suite ran over,
@@ -232,7 +236,9 @@ async function ask(
   readIndex: IndexReader,
   reach?: (tests: readonly ExecutionTest[]) => void,
 ): Promise<Covering> {
-  const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
+  const from = request.execution === undefined
+    ? await recordedExecutionFile(request.root, request.suite)
+    : currentProbes(request.execution, request.suite);
   const record = await snapshotFor(request);
 
   if (request.since !== undefined) {
@@ -272,7 +278,10 @@ async function ask(
     const asked = request.cases === undefined && request.where === undefined
       ? undefined
       : new Set(index.tests.map((test) => test.file));
-    if (loaded !== undefined) return { file, preconditionOf: asked === undefined ? loaded : loaded.filter((test) => asked.has(test)), from };
+    if (loaded !== undefined) {
+      const preconditionOf = asked === undefined ? loaded : loaded.filter((test) => asked.has(test));
+      return { file, preconditionOf, held: held?.loaded.has(file) === true ? 'loaded' : 'declared', among: asked?.size ?? held?.tests ?? 0, from };
+    }
     // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
     // Git says whether the commit the record was made at held the file: a

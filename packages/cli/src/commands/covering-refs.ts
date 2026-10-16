@@ -54,8 +54,11 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     return lines;
   }
   if (answer.preconditionOf !== undefined) {
-    const of = answer.preconditionOf.length === 0 ? 'no test file of these cases' : answer.preconditionOf.join(', ');
-    return [`${answer.file} precondition of: ${of}; no recorded line`];
+    const every = answer.held === 'declared' && answer.preconditionOf.length > 0 && answer.preconditionOf.length === answer.among;
+    const of = answer.preconditionOf.length === 0
+      ? 'no test file of these cases'
+      : every ? `every test file (${answer.among})` : answer.preconditionOf.join(', ');
+    return [`${answer.file} ${answer.held === 'declared' ? 'declared ' : ''}precondition of: ${of}; no recorded line`];
   }
   if (answer.ranges !== undefined) {
     return [

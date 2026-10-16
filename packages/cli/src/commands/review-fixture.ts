@@ -59,6 +59,8 @@ export async function changed(options: {
   readonly tree?: string;
   readonly lines?: TotalLines;
   readonly indexed?: TotalLines;
+  /** The probes the run's record says cut it, the fixture's own unless given. */
+  readonly instrumentation?: string;
 } = {}): Promise<{ root: string; first: string; against: string }> {
   const tree = options.tree ?? AFTER;
   const lines = options.lines ?? AFTER_LINES;
@@ -88,6 +90,7 @@ export async function changed(options: {
   const extra = options.gone === true ? ['test/round.test.ts'] : [];
 
   await recordTotal(testCoverageFile(root, { suite: options.suites?.[0] }), {
+    ...(options.instrumentation === undefined ? {} : { instrumentation: options.instrumentation }),
     commit: first,
     text: options.text ?? tree,
     lines,
@@ -140,6 +143,7 @@ export async function roundedBy(root: string, first: string, suite: string, text
  * function, and `index` is the case index the run wrote into it.
  */
 export async function recordTotal(coverageFile: string, record: {
+  readonly instrumentation?: string;
   readonly commit: string;
   readonly text?: string;
   readonly lines?: TotalLines;
@@ -151,7 +155,7 @@ export async function recordTotal(coverageFile: string, record: {
   await mkdir(dirname(coverageFile), { recursive: true });
   await writeTestCoverage(coverageFile, {
     version: 3,
-    instrumentation: 'fixture',
+    instrumentation: record.instrumentation ?? 'fixture',
     commit: record.commit,
     tests: record.tests,
     modules: [{

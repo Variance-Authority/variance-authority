@@ -12,3 +12,8 @@ describe('the file `variance journeys --file` reads', () => {
     );
   });
 });
+
+describe('a record cut under probes this build no longer places', () => {
+  // `covering` and `review` refuse one through `currentProbes`; `journeys` reads `suiteRecord`'s without asking.
+  it.todo('is refused by name rather than read as current — needs the record `journeysOutput` resolves passed through `currentProbes`');
+});

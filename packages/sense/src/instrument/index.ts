@@ -137,7 +137,7 @@ import { instrumenter, spliced as splice, type Block, type BlockKind, type Instr
 
 export type { Block, BlockKind, InstrumentMode };
 export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
-export { INSTRUMENTATION_ID, instrumentationId, instrumentModeOf } from './identity.js';
+export { INSTRUMENTATION_ID, instrumentationId, instrumentModeOf, retiredProbes } from './identity.js';
 
 export interface InstrumentOptions {
   /** `presence` records every arrival region; `entries` only modules and functions. */

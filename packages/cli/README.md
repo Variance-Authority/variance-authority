@@ -423,10 +423,35 @@ precondition of every test file that loaded it, and `variance select` selects
 all of them on a change to it, so `covering` names those files and no case:
 
 ```text
-src/format/stabilize.ts is a precondition of 4 test files, and a change to it selects every one: the run loaded it without instrumenting it, or the suite declares it, so no line of it has a recorded case.
+src/format/stabilize.ts is a precondition of 4 test files, and a change to it selects every one: the run loaded it without instrumenting it, so no line of it has a recorded case.
   src/render-cache.test.ts
   …
 ```
+
+A file the suite declares a precondition, such as a native source no probe
+reaches, is said to be one rather than met by each test file:
+
+```text
+native/src/lib.rs is not instrumented: the suite declares it a precondition of every one of the 212 test files these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.
+```
+
+Over a whole module that many test files import, each range names the cases
+that ran it and counts the rest, the ones that ran it only while their file
+imported the module:
+
+```text
+src/format/index.ts — 3 recorded ranges, 4 named tests, and 180 more that ran it only while their file imported it
+lines 1-40
+  src/format/index.test.ts
+    formats a total
+  and 180 cases in 96 test files ran it only while their file imported the module
+…
+```
+
+A record cut under probes this build no longer places is refused, with the
+probes that cut it and `variance share --suite <suite>` to fetch the mainline's:
+its regions are numbered by the old probes, so an answer read from it would
+describe code that is no longer there.
 
 When the root `variance.config.json` declares
 [suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
