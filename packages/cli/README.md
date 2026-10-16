@@ -148,7 +148,7 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
@@ -398,6 +398,11 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 
 Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before is folded into one line.
+
+`--line 40-60` asks a run of lines, and `--function Cart` a class: every case
+that entered one of its recorded methods. A line only the module's own
+top-level region holds is answered at file grain, with the cases that loaded the
+file, and the answer says so.
 
 A module the run loaded without instrumenting it, such as one named in
 `unprobed` or one whose text the run could not parse, has no recorded line. It is a

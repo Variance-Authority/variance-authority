@@ -10,6 +10,7 @@
  */
 
 import type { CoveringTest, ExecutionTest } from '@variance-authority/sense/test-selection';
+import { runsText, targetText } from './covering-at.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { narrowedText, scopeText, staleText } from './covering-text.js';
@@ -64,11 +65,12 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
       ...answer.ranges.map((range) => rangeLine(range, table)),
     ];
   }
-  const target = answer.target ?? { function: '' };
-  const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
-  return [`${answer.file} ${where}${answer.state === undefined ? '' : ` ${answer.state}`}: ${
-    witnesses(answer.tests ?? [], answer.stopped, table)
-  }`];
+  const where = targetText(answer.target ?? { function: '' });
+  return [`${answer.file} ${where}${answer.grain === 'file' ? ' at file grain' : ''}${
+    answer.state === undefined ? '' : ` ${answer.state}`
+  }: ${witnesses(answer.tests ?? [], answer.stopped, table)}${
+    answer.fileGrain === undefined ? '' : `; file grain at ${runsText(answer.fileGrain)}`
+  }${answer.written === undefined ? '' : `; written since ${runsText(answer.written)}`}`];
 }
 
 function rangeLine(range: CoveringRange, table: Table): string {

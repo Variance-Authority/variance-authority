@@ -53,8 +53,11 @@ npx variance covering --file src/cart/total.ts --line 14
 ```
 
 Every answer is a test you can open: the case's name, the file it is written in,
-and the id the record stores for it. `--function <name>` answers the same
-question for a whole function. `--file` on its own answers the whole recorded
+and the id the record stores for it. `--line 10-20` answers it for a run of
+lines, and `--function <name>` for a whole function, or a class's methods by
+the class's name. A line the record holds no finer than the file, such as a
+module-level statement, is answered with the cases that loaded the file, and the
+answer says it is at file grain. `--file` on its own answers the whole recorded
 file at once, as ranges of lines that share the same cases — where a range with
 an empty list is recorded and unreached, and a line outside every recorded
 region produces no range at all, which is a different statement from nobody

@@ -84,4 +84,19 @@ describe('a file answered in the text somebody holds', () => {
     await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1'])))
       .rejects.toThrow(/written since the recording/);
   });
+
+  it('answers a held run of lines from the lines it was, and names the lines the edit wrote', async () => {
+    const held = await edited();
+    const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-7']));
+
+    // Held lines 3-7 are recorded lines 1-5, which every case of `decide` walked into.
+    expect(answer.target).toEqual({ lines: { startLine: 1, endLine: 7 } });
+    expect(answer.written).toEqual([{ startLine: 1, endLine: 2 }]);
+    expect(answer.tests?.map((test) => test.name)).toEqual(
+      (await covering(parse(['--file', source, '--root', repository, ...named, '--line', '1-5']))).tests?.map((test) => test.name),
+    );
+    expect(formatCovering(answer, 'text')).toContain('Lines 1-2 were written since the recording, so no case has run them.');
+    await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2'])))
+      .rejects.toThrow(/lines 1-2 of .* were written since the recording/);
+  });
 });

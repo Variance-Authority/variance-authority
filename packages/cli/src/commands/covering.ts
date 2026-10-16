@@ -45,6 +45,7 @@ import {
   type CoveringRegion,
   type CoveringTest,
   type ExecutionTest,
+  type HeldLines,
   type LineRange,
   type ExecutionIndex,
   type RangeState,
@@ -82,6 +83,12 @@ export interface StatedChange extends Omit<CoveringChange, 'regions'> {
   readonly regions: readonly StatedRegion[];
 }
 
+/** A line, a run of lines, or a recorded function or the scope that holds some. */
+export type CoveringTarget =
+  | { readonly line: number }
+  | { readonly lines: HeldLines }
+  | { readonly function: string };
+
 /** What was asked, and what the record said about it. */
 export interface Covering {
   /** The file the question named, absent when it named a diff. */
@@ -90,8 +97,22 @@ export interface Covering {
   readonly since?: string;
   /** Present when the question named a diff: one entry per changed file. */
   readonly changed?: readonly StatedChange[];
-  /** The line or function the question named, absent when it named neither. */
-  readonly target?: { readonly line: number } | { readonly function: string };
+  /** The line, run of lines or function the question named, in the text as it is now; absent when it named none. */
+  readonly target?: CoveringTarget;
+  /**
+   * `file` when no line the answer read is held by a region narrower than the
+   * module's own: the record says the module was loaded and nothing finer, so
+   * the cases are the ones that loaded the file.
+   */
+  readonly grain?: 'file';
+  /**
+   * Under a run of lines that also holds finer ones: the lines only the
+   * module's own region holds, for which the cases are the ones that loaded
+   * the file. In the text as it is now.
+   */
+  readonly fileGrain?: readonly HeldLines[];
+  /** Under a run of lines: the lines written since the recording, which no case has run. In the text as it is now. */
+  readonly written?: readonly HeldLines[];
   /** Present when the question named a line or a function. */
   readonly tests?: readonly CoveringTest[];
   /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */

@@ -123,10 +123,12 @@ const MEASURED = new WeakMap<CoveringAt, Promise<ReadonlyMap<string, number | un
 async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, number | undefined>> {
   const relations = await relationsFor(request.root, ['.'], [], []);
 
+  // A hop runs from the file to a test file, whichever of the file's regions the
+  // test entered, so a run of lines or a scope, which the point cannot spell,
+  // measures from the file: every test file listed under them entered it.
   const point: SourcePoint = {
     file: request.file,
     ...(request.line === undefined ? {} : { line: request.line }),
-    ...(request.function === undefined ? {} : { function: request.function }),
   };
 
   const snapshot = await snapshotFor(request);
