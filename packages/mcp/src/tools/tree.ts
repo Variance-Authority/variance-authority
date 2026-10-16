@@ -47,10 +47,9 @@ import { namesOf, type FileNames, type SourceNames } from './names.js';
  * subject rendered carries the answer upward — a leaf in scope brings in every
  * subject recorded as having rendered it, which no import arrow could say.
  *
- * Every edge kind is walked, `type` included. The default traversal leaves type
- * imports out because nothing behind one can *run* — but a reader asking where
- * something lives is asking about source, and a type a component imports is a
- * file in its neighbourhood by any reading a person would recognise.
+ * Every edge kind is walked, `type` included: a reader asking where something
+ * lives is asking about source, and a type a component imports is a file in its
+ * neighbourhood by any reading a person would recognise.
  */
 
 /** The scanned tree, and the two questions a start point asks of it. */
