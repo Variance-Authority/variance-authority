@@ -75,6 +75,10 @@ fn prose(source: &[u16], start: u32, end: u32) -> Option<String> {
     Some(doc.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase())
 }
 
+/// One file's matches, each a layer, the file and a symbol row, and the file
+/// itself when its declarations were not read.
+type FileHits<'a> = (Vec<(usize, &'a str, usize)>, Option<&'a str>);
+
 /// Every top-level declaration on the chain whose name `matching` admits for
 /// `query`, or whose doc does when it is `Containing`, in `files` when they are named, less the ones its file exports,
 /// under that name or another, which the export list already answers. A name
@@ -95,7 +99,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     join_parses(layers, &mut crossings);
 
-    let found: Vec<(Vec<(usize, &str, usize)>, Option<&str>)> = crossings
+    let found: Vec<FileHits> = crossings
         .par_iter()
         .map(|crossing| {
             // A file with no parse was declined, by its size or its bytes, or
