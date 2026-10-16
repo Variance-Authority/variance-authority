@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
-import { type Parses, parseFile } from './declare.js';
+import { type Parses, declarationsIn, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
 import { type ImportTargets, landing } from './entry.js';
 import { readImportTargets, requested } from './manifest.js';
@@ -463,15 +463,24 @@ export function readUsage(
     }
 
     const publishes: Exported[] = [];
+    // `export { x }` and `export default x` carry no comment of their own; the
+    // doc is the one above the declaration they bind, in this file.
+    let declared: ReturnType<typeof declarationsIn> | undefined;
+    const boundDoc = (local: string | null): string | undefined => {
+      if (local === null) return undefined;
+      declared ??= declarationsIn(source);
+      return declared.get(local)?.doc;
+    };
 
     for (const statement of source.parsed.module.staticExports) {
       const line = lineAt(source.writing, statement.start);
-      const doc = source.writing.docs.get(statement.start);
+      const above = source.writing.docs.get(statement.start);
       for (const entry of statement.entries) {
         // `export * from './x'` names nothing here: the set is whatever the
         // other file publishes, and inventing a name for it would claim one
         // this file never wrote.
         const exported = nameOf(entry.exportName.kind, entry.exportName.name);
+        const doc = above ?? (entry.moduleRequest === null ? boundDoc(entry.localName.name) : undefined);
         if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType, ...(doc === undefined ? {} : { doc }) });
 
         const specifier = entry.moduleRequest?.value;
