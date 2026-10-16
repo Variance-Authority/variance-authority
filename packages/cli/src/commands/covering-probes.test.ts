@@ -3,11 +3,12 @@ import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { INSTRUMENTATION_ID, instrument } from '@variance-authority/sense/instrument';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   cacheRootFor,
   encodeExecutionIndex,
   mainlineReadRoot,
+  sourceCut,
   testCoverageFile,
   writeFetchedMainline,
   writeTestCoverage,
@@ -35,16 +36,24 @@ const TOTAL = 'export function total() {\n  return 1;\n}\n';
 /** No sentence of a note may send the reader to run or record a suite: a whole run is often impossible where the question is asked. */
 const NO_RUN = /\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i;
 
-type Block = { readonly kind: string; readonly name: string; readonly path: string; readonly startLine: number; readonly endLine: number };
+type Block = {
+  readonly kind: string;
+  readonly name: string;
+  readonly path: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly source?: boolean;
+};
 
-/** The regions this build cuts in {@link TOTAL}, as a record holds them, each run by the first case. */
+/** The regions this build cuts in {@link TOTAL}, at the lines it cuts them, as a record holds them. */
 function cutHere(): Block[] {
-  return instrument(TOTAL, 'src/total.ts')!.blocks.map((block) => ({
-    kind: block.kind,
-    name: block.name,
-    path: block.path,
-    startLine: 1,
-    endLine: 3,
+  return sourceCut(TOTAL, 'src/total.ts', 'presence')!.rows.map((row) => ({
+    kind: row.kind,
+    name: row.name,
+    path: row.path,
+    startLine: row.startLine ?? 1,
+    endLine: row.endLine ?? 1,
+    source: row.source,
   }));
 }
 
@@ -67,7 +76,7 @@ async function recorded(
       tests: TESTS.map((test) => ({ id: `${test} > runs`, file: test, name: 'runs' })),
       modules: [{
         file: 'src/total.ts',
-        blocks: blocks.map((block) => ({ ...block, source: true, crossings: [{ test: 0, distance: 1 }] })),
+        blocks: blocks.map((block) => ({ source: true, ...block, crossings: [{ test: 0, distance: 1 }] })),
       }],
     }),
   });
@@ -126,8 +135,20 @@ describe('a record cut under probes this build does not place', () => {
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--root', root, '--execution', execution]));
 
-    expect(answer.probes?.cut).toEqual({ file: 'src/total.ts', unrecorded: ['function `total`'], uncut: [] });
-    expect(answer.probes?.note).toContain('this build cuts function `total` in src/total.ts, which the record has no region for, so whether it ran is not answered');
+    expect(answer.probes?.cut).toEqual({ file: 'src/total.ts', unrecorded: ['function `total` on lines 1-3'], uncut: [] });
+    expect(answer.probes?.note).toContain('this build cuts function `total` on lines 1-3 in src/total.ts, which the record has no region for, so whether it ran is not answered');
+  });
+
+  it('does not call a region the same when this build cuts it over other lines', async () => {
+    const { root, head } = await checkout();
+    const moved = cutHere().map((block) => (block.kind === 'function' ? { ...block, startLine: block.startLine + 1 } : block));
+    const execution = await recorded(RETIRED, { commit: head, blocks: moved });
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--root', root, '--execution', execution]));
+
+    expect(answer.probes?.cut).not.toHaveProperty('same');
+    expect(answer.probes?.note).toContain('which the record has no region for');
+    expect(answer.probes?.note).toContain('which this build does not cut');
   });
 
   it('reads the suite into a handover, with the note beside it', async () => {

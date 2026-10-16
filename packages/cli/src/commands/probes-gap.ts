@@ -23,7 +23,7 @@
  * is; otherwise it names the gap and stops.
  */
 
-import { INSTRUMENTATION_ID, instrument, instrumentModeOf } from '@variance-authority/sense/instrument';
+import { INSTRUMENTATION_ID, instrumentModeOf } from '@variance-authority/sense/instrument';
 import type { ExecutionBlock } from '@variance-authority/sense/test-selection';
 
 /** A record cut under probes this build does not place. */
@@ -79,19 +79,22 @@ function identityOf(ask: (file: string, question: (view: { readonly instrumentat
  * How `file`'s regions in the record stand against the regions this build
  * cuts in the text at `commit`, the commit the record was made at.
  *
- * Regions are matched by what they are — kind, declaration name and structural
- * path — and counted, because a name can repeat: two `map` callbacks in one
- * function are both `fn/map.arg0`.
+ * The text is cut as a run records it (`sourceCut`), so each region carries
+ * the lines it spans. Regions are matched by what they are — kind, declaration
+ * name and structural path — and by those lines, because a recipe can cut a
+ * region of the same name over other lines, and then the record's lines are
+ * not this build's. They are counted, because a name can repeat: two `map`
+ * callbacks in one function are both `fn/map.arg0`.
  */
 export async function cutGap(root: string, commit: string | undefined, file: string, blocks: readonly ExecutionBlock[]): Promise<CutGap> {
   if (commit === undefined) return { file, unread: 'the record names no commit, so the text it was made over is not known' };
-  const { textAtRecording } = await import('@variance-authority/sense/test-selection');
+  const { sourceCut, textAtRecording } = await import('@variance-authority/sense/test-selection');
   const text = textAtRecording(root, [file])(file, commit);
   if (text === undefined) return { file, unread: `git holds no text of it at ${commit}` };
-  const cut = instrument(text, file);
+  const cut = sourceCut(text, file, 'presence');
   if (cut === undefined) return { file, unread: `this build cannot parse it as it stood at ${commit}` };
   const recorded = counted(blocks);
-  const placed = counted(cut.blocks);
+  const placed = counted(cut.rows);
   const short = (from: Map<string, number>, against: Map<string, number>) =>
     [...from].flatMap(([key, count]) => Array.from({ length: Math.max(0, count - (against.get(key) ?? 0)) }, () => key));
   const unrecorded = short(placed, recorded);
@@ -100,10 +103,26 @@ export async function cutGap(root: string, commit: string | undefined, file: str
   return { file, unrecorded, uncut };
 }
 
-function counted(blocks: readonly { readonly kind: string; readonly name: string; readonly path: string }[]): Map<string, number> {
+/** A region as the record and this build's cut both hold it. */
+interface Cut {
+  readonly kind: string;
+  readonly name: string;
+  readonly path: string;
+  readonly source: boolean;
+  readonly startLine?: number;
+  readonly endLine?: number;
+}
+
+/** Each region said for a person, with the lines it spans when it has source of its own, counted. */
+function counted(blocks: readonly Cut[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const block of blocks) {
-    const key = `${block.kind} \`${block.name}\`${block.path === '' || block.path === 'entry' ? '' : ` at ${block.path}`}`;
+    const lines = !block.source || block.startLine === undefined
+      ? ''
+      : block.endLine === undefined || block.endLine === block.startLine
+        ? ` on line ${block.startLine}`
+        : ` on lines ${block.startLine}-${block.endLine}`;
+    const key = `${block.kind} \`${block.name}\`${block.path === '' || block.path === 'entry' ? '' : ` at ${block.path}`}${lines}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
