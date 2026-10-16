@@ -2,7 +2,13 @@ import type { SourceIndex } from '@variance-authority/core/attribute';
 import { stepClock, type Diagnostic } from '@variance-authority/core/format';
 import { matchesGlob } from '@variance-authority/core/judge';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
-import { ARRIVAL_GLOBAL, acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
+import {
+  ARRIVAL_GLOBAL,
+  UnansweredAssets,
+  acquireFromAgent,
+  unresizable,
+  unwidened,
+} from '@variance-authority/playwright';
 import { suspenseRefusal, type HydrationSettlement } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
 import type { RouteRecorder } from './execution.js';
@@ -25,6 +31,13 @@ import type { RouteWorld } from './world.js';
  */
 
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
+
+/**
+ * The attribute a page carries to leave the run, its value the reason. A page
+ * knows it is prose, or a redirect, or a printout; a list in the config would
+ * have to learn it again for every page added.
+ */
+const EXCLUDE_ATTRIBUTE = 'data-variance-exclude';
 
 export interface RouteReading {
   readonly config: CollectorConfig;
@@ -155,11 +168,34 @@ export async function readRoute(
     };
   }
 
+  // After readiness, so a marker a client render attaches has arrived, and
+  // before anything is read or photographed: a page that leaves the run costs
+  // its navigation and nothing more. Read anywhere in the document, not inside
+  // the roots, because the page decides for the whole page.
+  const exclusion = await page.evaluate(
+    (attribute) => document.querySelector(`[${attribute}]`)?.getAttribute(attribute)?.trim() ?? null,
+    EXCLUDE_ATTRIBUTE,
+  );
+  if (exclusion !== null) {
+    await noted(false);
+    return {
+      ok: false,
+      excluded: true,
+      because: `the page excludes itself (\`${EXCLUDE_ATTRIBUTE}\`)${exclusion === '' ? '' : `: ${exclusion}`}`,
+    };
+  }
+
   // After readiness, before reading. `load` fires when the document is parsed,
   // and an image requested by a script that ran on `load` is still in flight —
   // which the page cannot see (it is not in `document.images` yet) and the wire
   // can.
-  if (network !== undefined) await steps.time('network', async () => network.settle());
+  // One still unanswered at the bound refuses the route, named.
+  const unanswered =
+    network === undefined ? undefined : await steps.time('network', async () => network.settle());
+  if (unanswered !== undefined) {
+    await noted(false);
+    return { ok: false, because: unanswered };
+  }
 
   await steps.time('agent', async () => world.ensureAgent());
 
@@ -212,7 +248,14 @@ export async function readRoute(
   // The assets are its business, not this request's: they are read from the wire
   // and they keep arriving while the page is being held still.
   const after = stepClock(() => performance.now());
-  const raw = await acquireFromAgent(page, network, request, after);
+  let raw: string;
+  try {
+    raw = await acquireFromAgent(page, network, request, after);
+  } catch (error) {
+    if (!(error instanceof UnansweredAssets)) throw error;
+    await noted(false);
+    return { ok: false, because: error.message };
+  }
 
   const parsing = stepClock(() => performance.now());
   const acquired = await parsing.time('parse', () => JSON.parse(raw) as Acquired);

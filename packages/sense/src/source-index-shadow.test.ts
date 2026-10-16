@@ -11,7 +11,11 @@ import { openImmutableLog } from './immutable-log.js';
 import { readPublishedSources } from './published.js';
 import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
 
-/** One generation of `count` files, each parsed and resolved, every string in it its own to `layer`. */
+/**
+ * One generation of `count` files, each parsed and resolved, every string in it its own to `layer`.
+ * A parse is keyed by the content it was read from, so a later layer puts one again only as a
+ * harvested read of what the earlier read without; the `new` layer's parses are harvested.
+ */
 function generation(layer: string, count: number): Uint8Array {
   const parses = new Map<Digest, Parsed>();
   const records = new Map<string, { record: { file: string; digest: Digest; edges: { to: string; kind: 'imports' }[] }; witnesses: string[] }>();
@@ -25,6 +29,7 @@ function generation(layer: string, count: number): Uint8Array {
         line: request + 1,
         bindings: [{ imported: `${layer}${at}`, local: `${layer}${at}`, type: false, line: request + 1 }],
       })),
+      ...(layer === 'new' && { harvested: true as const }),
     });
     records.set(file, {
       record: { file, digest, edges: [{ to: `src/${layer}-${at}.ts`, kind: 'imports' }] },
@@ -80,7 +85,8 @@ describe('a chain whose later layer puts every key again', () => {
 
   it('reads up to a damaged segment as though no layer above it decided anything', async () => {
     // Whole bytes the log reads, under their own digest, that are no source index.
-    const file = await chain([[generation('old', 2), new TextEncoder().encode('not a source index')], [generation('new', 2)]]);
+    // One save onto nothing writes them as they are; a save onto them would refuse its base.
+    const file = await chain([[generation('old', 2), new TextEncoder().encode('not a source index'), generation('new', 2)]]);
     expect((await openImmutableLog(file)).segments).toHaveLength(3);
 
     const read = await readPublishedSources(file);

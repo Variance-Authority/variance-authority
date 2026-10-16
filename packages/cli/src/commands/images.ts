@@ -168,11 +168,15 @@ export async function images(
   await deps.writeArtifact(`${base}.before.png`, decode(before.bytes));
   // The difference and the crops of it come from one alignment, cut where the
   // comparison isolated its regions, so the picture a comment shows is the
-  // change at its own size rather than two pages scaled to a column.
+  // change at its own size rather than two pages scaled to a column. It names
+  // the subject and each side's source itself, since a person who taps it in a
+  // comment sees it without the comment around it.
   const { diff, change } = changeImages(
     decode(before.bytes),
     decode(raster.bytes),
     observation.isolation?.regions ?? [],
+    undefined,
+    { subject: id, before: 'baseline', after: 'this run' },
   );
   await deps.writeArtifact(`${base}.diff.png`, diff);
   if (change !== undefined) await deps.writeArtifact(`${base}.change.png`, change);

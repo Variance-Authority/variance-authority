@@ -14,8 +14,8 @@ name: variance
 # this project's own interface: the review surface's Storybook, its pages and
 # components drawn over builds the project recorded through itself. A redesign
 # of that page once landed without one image moving, because nothing
-# photographed it. `site` observes variance-authority.dev, [`site/`](../../site),
-# every route its sitemap lists.
+# photographed it. `site` observes variance-authority.dev, [`site/`](../../site):
+# its catalog and component pages, since every markdown page excludes itself.
 #
 # ## Where the baselines come from, since nothing here is committed
 #
@@ -416,7 +416,7 @@ jobs:
   # This project's own surfaces, one check each: `tribunal` is the review
   # surface's Storybook (`packages/tribunal/stories`), over builds
   # `stories/record.mjs` pushes through an in-process tribunal on every run, and
-  # `site` is variance-authority.dev, every route its sitemap lists. Checks apart
+  # `site` is variance-authority.dev's catalog and component pages. Checks apart
   # from the one above and from each other, because each verdict is its own
   # decision: a change to the review page or to a docs page is accepted or not on
   # its own terms, not in the same breath as the case's buttons.
@@ -533,13 +533,13 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # About twenty minutes go to photographing the site, and some pull
-      # requests cannot move a pixel of it. `tools/site-reach.mjs` reads the
-      # whole change against the base and says whether it reaches what the site
-      # is built from or what photographs it; a push, a dispatch, the accept
-      # label and a change it cannot read always run. What the site's files
-      # reach is read from the source index, which CI refuses to build on
-      # demand, so `variance index` publishes it first. Nothing after this runs
+      # Photographing the site takes minutes, and some pull requests cannot
+      # move a pixel of it. `tools/site-reach.mjs` reads the whole change
+      # against the base and says whether it reaches what the site is built
+      # from, markdown aside, or what photographs it; a push, a dispatch, the
+      # accept label and a change it cannot read always run. What the site's
+      # files reach is read from the source index, which CI refuses to build
+      # on demand, so `variance index` publishes it first. Nothing after this runs
       # for the site when it says `false`. Any failure here leaves a warning,
       # and the site runs.
       - name: decide whether this change reaches the site

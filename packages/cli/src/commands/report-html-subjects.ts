@@ -100,9 +100,9 @@ function evidenceHtml(side: string, evidence: PresentationEffectEvidence): strin
  * One subject: the comparison, what moved in it, and what to type next.
  *
  * The viewer opens on `change` when the run cut one: the largest regions
- * cropped with the rows around them, before, after and the difference, at one
- * image pixel per screen pixel. A full-page capture fitted to the column is a
- * few pixels per sentence, so the crop is the only picture of a tall page a
+ * cropped with the rows around them, before beside after with the change
+ * marked on both, at one image pixel per screen pixel. A full-page capture
+ * fitted to the column is a few pixels per sentence, so the crop is the only picture of a tall page a
  * reviewer can read without leaving it. Without a crop it opens on `regions`
  * for the reason `tribunal` does — a reviewer arriving at a subject should first
  * be told *which boxes moved and who owns them*, because that is the question a
@@ -217,7 +217,7 @@ function dimensions({ width, height }: Picture): string {
  */
 function picture(side: Side, path: string | undefined, placement: Placement, opens: boolean): string {
   if (path === undefined) return '';
-  return `<img class="${side}" ${placement.attributes(path, opens)} alt="${side === 'change' ? 'before, after and the difference, where they changed' : side}" loading="lazy" decoding="async">`;
+  return `<img class="${side}" ${placement.attributes(path, opens)} alt="${side === 'change' ? 'before beside after, the change marked' : side}" loading="lazy" decoding="async">`;
 }
 
 function modesFor(

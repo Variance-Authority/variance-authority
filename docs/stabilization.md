@@ -722,9 +722,10 @@ requested is in flight. Not a poll over the nodes that existed at one moment: a
 count of what has been asked for and not yet answered, which is the honest
 version of "the images have loaded".
 
-On timeout it does not throw. A page holding a long-poll open is a normal page,
-so the outstanding URLs become a diagnostic and the subject is read anyway —
-recorded, which is what the reader of a surprising diff needs.
+An asset still in flight when the wait runs out refuses the subject, and the
+refusal names its URL. Read without it, the subject records bytes nobody
+hashed. A long-poll or a streaming `fetch` never holds the wait open, because
+only images, fonts and media are counted.
 
 ### What the wire costs
 

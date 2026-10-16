@@ -1,6 +1,9 @@
 /**
- * The site's subjects: every page its sitemap publishes, read from the build
- * `yarn start` serves.
+ * The site's subjects: every page its sitemap publishes that does not exclude
+ * itself, read from the build `yarn start` serves. A markdown page excludes
+ * itself — `MarkdownDocument` carries `data-variance-exclude` — so what is
+ * photographed is the catalog and component pages, and a page added to either
+ * side lands there with no edit here.
  *
  * The sitemap names `https://variance-authority.dev`, because that is where the
  * site is published; the collector visits each page on the server it read the

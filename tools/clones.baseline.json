@@ -582,13 +582,6 @@
   },
   {
     "files": [
-      "packages/storybook/src/show-story.ts",
-      "packages/storybook/src/show-story.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/tribunal/src/history-rows.ts",
       "packages/tribunal/src/review-rows.ts"
     ],

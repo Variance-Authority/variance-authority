@@ -128,6 +128,12 @@ export interface StorybookScope {
   readonly __STORYBOOK_PREVIEW__?: {
     readonly channel?: StoryChannel;
     readonly currentSelection?: { readonly storyId?: string };
+    /**
+     * The render Storybook is running or last ran: the story it is for and the
+     * phase it reached (`rendering`, `playing`, `completed`, `finished`,
+     * `errored` and the rest of `StoryRender.phase`).
+     */
+    readonly currentRender?: { readonly id?: string; readonly phase?: string } | null;
   };
   readonly __STORYBOOK_ADDONS_CHANNEL__?: StoryChannel;
 }
@@ -137,7 +143,7 @@ export interface ShowRequest {
   readonly storyId: string;
   /** Budget for the story to signal that it rendered. */
   readonly timeoutMs: number;
-  /** Interval between markup samples on the fallback path. */
+  /** Interval between readiness-marker checks when a `readySelector` is configured. */
   readonly pollMs: number;
   readonly events: ShowEvents;
   readonly roots: readonly string[];
@@ -145,15 +151,13 @@ export interface ShowRequest {
   /**
    * Selector for the readiness marker the *subject* attaches when it is settled.
    *
-   * Absent means the feature is off and readiness is decided exactly as it was
-   * before this existed. There is deliberately no default: a marker no project
+   * Absent means Storybook's own signal decides. There is deliberately no default: a marker no project
    * agreed to attach would never appear, and inventing one would turn every
    * existing run into a suite of timeouts.
    *
    * Present means the marker decides. Readiness is not reached until this
    * selector matches — `storyRendered` having already fired does not shorten the
-   * wait — and if it never matches, the result is a `timeout` naming it rather
-   * than a capture taken on weaker evidence.
+   * wait — and if it never matches, the result is a `timeout` naming it.
    */
   readonly readySelector?: string;
 }
@@ -182,18 +186,14 @@ export type ShowStatus = 'rendered' | 'errored' | 'missing' | 'timeout' | 'no-ro
  *   about decorators, loaders, and async render phases — and still only a claim
  *   that the story function returned, not that the application settled.
  * - `already-rendered` — the story the URL selected was already in the document
- *   when this ran, so its `storyRendered` had already fired; readiness came from
- *   markup that stopped changing.
- * - `markup-quiescent` — the fallback: the root mounted and its markup was
- *   identical across two samples. Strictly weaker, and blind to anything that
- *   arrives later.
+ *   when this ran, so its `storyRendered` had already fired; Storybook's
+ *   `currentRender` said that render was over.
  * - `none` — nothing was ready; the status says what happened instead.
  */
 export type Readiness =
   | 'declared'
   | 'storyRendered'
   | 'already-rendered'
-  | 'markup-quiescent'
   | 'none';
 
 export interface ShowResult {

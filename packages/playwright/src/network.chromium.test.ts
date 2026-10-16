@@ -181,6 +181,9 @@ let server: Server | undefined;
 let browser: Browser | undefined;
 let base = '';
 const served: string[] = [];
+// Held open and never answered, so "still in flight" is a state the test holds.
+const withheld: import('node:http').ServerResponse[] = [];
+let withheldArrived: () => void = () => {};
 
 beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
@@ -189,6 +192,11 @@ beforeAll(async () => {
     const path = request.url ?? '/';
     served.push(path);
 
+    if (path.startsWith('/withheld.png')) {
+      withheld.push(response);
+      withheldArrived();
+      return;
+    }
     if (path.startsWith('/spinner.gif')) {
       response.writeHead(200, { 'content-type': 'image/gif' }).end(GIF);
       return;
@@ -204,7 +212,15 @@ beforeAll(async () => {
 
     response
       .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-      .end(path.startsWith('/images') ? IMAGES_PAGE : path.startsWith('/speculating') ? SPECULATING_PAGE : PAGE);
+      .end(
+        path.startsWith('/withholding')
+          ? '<!doctype html><html><body><img id="late" src="/withheld.png"></body></html>'
+          : path.startsWith('/images')
+            ? IMAGES_PAGE
+            : path.startsWith('/speculating')
+              ? SPECULATING_PAGE
+              : PAGE,
+      );
   });
 
   const port = await new Promise<number>((resolve) => {
@@ -219,6 +235,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await browser?.close();
+  for (const response of withheld) response.destroy();
   if (server !== undefined) await new Promise<void>((resolve) => server!.close(() => resolve()));
 });
 
@@ -238,6 +255,52 @@ describe.skipIf(!BROWSER_AVAILABLE)('a request the page only speculates on', () 
 
       expect(served).toContain('/shown');
       expect(served.filter((path) => path.startsWith('/guessed'))).toEqual([]);
+      await network.close();
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+});
+
+describe.skipIf(!BROWSER_AVAILABLE)('an image the server never answers', () => {
+  it('refuses the read and names the image, rather than reading without it', async () => {
+    const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
+
+    try {
+      const network = await observeNetwork(page);
+      const arrived = new Promise<void>((resolve) => {
+        withheldArrived = resolve;
+      });
+      await page.goto(`${base}/withholding`, { waitUntil: 'domcontentloaded' });
+      // The server holds the request, so the observer has it in flight.
+      await arrived;
+
+      // The bound is already spent, so the one count decides.
+      const refusal = await network.settle(0);
+
+      expect(refusal).toMatch(/1 image, font or media request.*\/withheld\.png/s);
+      await network.close();
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
+  // One page serves a whole Storybook run and is never reset, so the stalled
+  // request outlives its story. It was named in that story's refusal; the next
+  // story did not start it and is not refused for it.
+  it('refuses only the subject that started it, not the next one on the page', async () => {
+    const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
+
+    try {
+      const network = await observeNetwork(page);
+      const arrived = new Promise<void>((resolve) => {
+        withheldArrived = resolve;
+      });
+      await page.goto(`${base}/withholding`, { waitUntil: 'domcontentloaded' });
+      await arrived;
+
+      expect(await network.settle(0)).toMatch(/\/withheld\.png/);
+      expect(await network.settle(0)).toBeUndefined();
       await network.close();
     } finally {
       await page.close();

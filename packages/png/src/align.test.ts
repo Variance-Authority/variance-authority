@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { differencePixels } from './mask.js';
 import { comparePixels } from './compare.js';
+import { alignRows } from './align.js';
 
 /**
  * A full-page capture is a column of rows, and content in a document flows: a
@@ -78,6 +79,25 @@ describe('content that moved down the page', () => {
       shifted: [{ from: 3, to: 5, by: 1 }],
     });
     expect(comparison.changed.strict).toBe(WIDTH + 1);
+  });
+
+  it('says which inserted rows only repeat the run they grew, and which removed rows a run lost', () => {
+    // The gap under the first line grew by two rows, and the gap under the
+    // second lost one; a new line went in under the third. The grown and lost
+    // rows hold nothing their neighbours do not, so they moved what follows
+    // without adding or taking content, and the new line did add some.
+    const before = column([1, 12, 6, 12, 12, 3, 4]);
+    const after = column([1, 12, 12, 12, 6, 12, 3, 9, 4]);
+
+    const rows = alignRows(before, after)!;
+
+    expect(rows.inserted).toEqual([
+      { from: 2, to: 4 },
+      { from: 7, to: 8 },
+    ]);
+    expect(rows.grown).toEqual([{ from: 2, to: 4 }]);
+    expect(rows.removed).toEqual([{ from: 4, to: 5, at: 6 }]);
+    expect(rows.shrunk).toEqual([{ from: 4, to: 5, at: 6 }]);
   });
 
   it('carries removed rows on the comparison, since no after pixel shows them', () => {

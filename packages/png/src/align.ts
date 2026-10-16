@@ -39,6 +39,13 @@ import { edits, type Edit } from './edit-script.js';
 export interface AlignedRows extends RowAlignment {
   /** For each after row, the before row it is compared against, or `-1` for none. */
   readonly source: Int32Array;
+  /**
+   * The inserted rows that repeat the run of identical rows they grew: a gap or a
+   * padding that got taller. They add no content; they move what follows.
+   */
+  readonly grown: readonly RowSpan[];
+  /** The removed rows a run of identical rows lost, the other way round. */
+  readonly shrunk: readonly (RowSpan & { readonly at: number })[];
 }
 
 /** The rounds, in runs, one Myers search takes before the columns are split at runs each side holds once. */
@@ -263,6 +270,8 @@ function pairing(
   const source = new Int32Array(height).fill(-1);
   const inserted: RowSpan[] = [];
   const removed: { from: number; to: number; at: number }[] = [];
+  const grown: RowSpan[] = [];
+  const shrunk: { from: number; to: number; at: number }[] = [];
   const shifted: { from: number; to: number; by: number }[] = [];
 
   const pair = (beforeFrom: number, afterFrom: number, rows: number): void => {
@@ -282,15 +291,22 @@ function pairing(
   };
 
   // The band being gathered: before rows and after rows, each contiguous, and
-  // the rows a run it opened with grew by, if it did.
+  // the rows a run it opened with grew or lost, if it did.
   let band:
-    | { beforeFrom: number; beforeTo: number; afterFrom: number; afterTo: number; grown: number }
+    | { beforeFrom: number; beforeTo: number; afterFrom: number; afterTo: number; grown: number; shrunk: number }
     | undefined;
   const settle = (): void => {
     if (band === undefined) return;
     const { beforeFrom, beforeTo, afterTo } = band;
-    if (band.grown > 0) insert(band.afterFrom, band.afterFrom + band.grown);
+    if (band.grown > 0) {
+      insert(band.afterFrom, band.afterFrom + band.grown);
+      grown.push({ from: band.afterFrom, to: band.afterFrom + band.grown });
+    }
     const afterFrom = band.afterFrom + band.grown;
+    // A run that only got shorter, with nothing else in the band: the rows it lost.
+    if (band.shrunk > 0 && afterFrom === afterTo && beforeTo - beforeFrom === band.shrunk) {
+      shrunk.push({ from: beforeFrom, to: beforeTo, at: afterTo });
+    }
     const rows = Math.min(beforeTo - beforeFrom, afterTo - afterFrom);
     let bottom = false;
     if (rows > 0 && beforeTo - beforeFrom !== afterTo - afterFrom) {
@@ -333,11 +349,12 @@ function pairing(
           afterFrom: right.start[j]! + kept,
           afterTo: afterAt,
           grown: now - kept,
+          shrunk: was - kept,
         };
       }
       continue;
     }
-    band ??= { beforeFrom: beforeAt, beforeTo: beforeAt, afterFrom: afterAt, afterTo: afterAt, grown: 0 };
+    band ??= { beforeFrom: beforeAt, beforeTo: beforeAt, afterFrom: afterAt, afterTo: afterAt, grown: 0, shrunk: 0 };
     if (edit[0] === '-') {
       band.beforeTo = left.start[edit[1]]! + left.length[edit[1]]!;
       beforeAt = band.beforeTo;
@@ -348,5 +365,5 @@ function pairing(
   }
   settle();
 
-  return { source, inserted, removed, shifted };
+  return { source, inserted, removed, shifted, grown, shrunk };
 }

@@ -173,7 +173,7 @@ rendered by playwright-chromium (chromium@131, darwin/arm64, 1x)
 [changed] story:checkout--empty — Button: 1356 pixel(s) differ across 2 region(s) in Button
 [changed] story:checkout--one-item — Button: 1356 pixel(s) differ across 2 region(s) in Button
 
-not observed: 2 subject(s) — 0 the run could not see, 2 excluded by configuration, 0 not reached by this change
+not observed: 2 subject(s) — 0 the run could not see, 2 excluded on purpose, 0 not reached by this change
   [excluded] story:checkout--docs-only: excluded by tag `no-variance`
 ```
 

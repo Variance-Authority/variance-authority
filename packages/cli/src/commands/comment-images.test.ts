@@ -82,7 +82,7 @@ describe('pictures in the comment, when the operator published the images', () =
     const body = renderComment({ project: PROJECT, report: REPORT, imageRoot: ROOT });
     const fold = body.slice(body.indexOf('<details>'));
 
-    expect(fold).toContain('alt="story:&quot;quoted&quot;: before, after and the difference"');
+    expect(fold).toContain('alt="story:&quot;quoted&quot;: before beside after, the change marked"');
     expect(fold).not.toContain('story%253Atoggle');
   });
 
