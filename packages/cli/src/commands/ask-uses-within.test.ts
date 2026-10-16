@@ -198,4 +198,20 @@ describe('variance ask over the imports of a name within its own package', () =>
     const symbol = await run(['ask', 'symbol', '--name', 'greet']);
     expect(symbol.out).toContain('used by 1 package: @acme/app');
   });
+
+  it('counts a Rust `use` of an item and not the `mod` that declares the module it is in', async () => {
+    // `mod order;` takes the file as a module, as Python's `import m` does; it
+    // imports no item, though the item shares the module's name.
+    checkout({
+      'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
+      'packages/kit/src/lib.rs': 'mod order;\nuse crate::order::order;\n\npub fn run() {\n    order();\n}\n',
+      'packages/kit/src/order.rs': 'pub fn order() {}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'order']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/kit\/src\/lib\.rs:2\b/m);
+    expect(out).not.toMatch(/^packages\/kit\/src\/lib\.rs:1\b/m);
+  });
 });
