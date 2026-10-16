@@ -372,7 +372,7 @@ fn importers_of(
                     .filter_map(|(taken, local)| names.get(&taken.name).map(|origins| (taken, local, origins)));
                 let reexports = text.text(parses.request_kind.at(request)) == "reexports";
                 if reexports {
-                    let every = || names.iter().filter(|(name, _)| *name != "default").flat_map(|(name, origins)| origins.iter().map(|&origin| (crossing.file.to_owned(), name.clone(), origin)));
+                    let every = || names.iter().filter(|(name, _)| *name != "default" && *name != MODULE).flat_map(|(name, origins)| origins.iter().map(|&origin| (crossing.file.to_owned(), name.clone(), origin)));
                     match passed_on(&layers[layer], row, request) {
                         // An export list the parse never recorded reads as the whole module.
                         None => passed.extend(every()),
@@ -399,6 +399,10 @@ fn importers_of(
                         found.push(Taken { origin, taken: taken.clone(), local: local.to_owned() });
                     }
                 }
+                if !reexports {
+                    let module = resolved[request - first].and_then(module_of);
+                    found.extend(wholesale(&layers[layer], request, written, names, module, by, crossing.file, kind));
+                }
             }
             (found, passed)
         })
@@ -409,6 +413,62 @@ fn importers_of(
         passed.extend(passes);
     }
     (found, passed)
+}
+
+/// The name `wanted` asks for a file's module itself by: a request that binds
+/// the whole module answers it, under the local the module is bound to.
+pub(crate) const MODULE: &str = "*";
+
+/// The Rust module a file is, by the name a parent declares it under:
+/// `shapes.rs` and `shapes/mod.rs` are `shapes`; a crate root has none.
+fn module_of(path: &str) -> Option<&str> {
+    let (directory, file) = path.rsplit_once('/').unwrap_or(("", path));
+    let stem = file.strip_suffix(".rs")?;
+    match stem {
+        "lib" | "main" => None,
+        "mod" => directory.rsplit('/').next().filter(|name| !name.is_empty()),
+        _ => Some(stem),
+    }
+}
+
+/// What a request binds in bulk, which `taken` leaves out. A Rust glob
+/// `use a::b::*` binds every item of the file under its own name, so each
+/// wanted name is taken as itself; `mod b;` and `use a::b;` bind the module,
+/// so the module is taken under its local.
+#[allow(clippy::too_many_arguments)]
+fn wholesale(
+    layer: &Layer,
+    request: usize,
+    key: &str,
+    names: &HashMap<String, HashSet<usize>>,
+    module: Option<&str>,
+    by: &str,
+    at: &str,
+    kind: &str,
+) -> Vec<Taken> {
+    let (text, parses) = (&layer.stored, &layer.parses);
+    let mut found = Vec::new();
+    let mut take = |name: &str, local: &str, line: u32, origins: &HashSet<usize>| {
+        let taken = NameUse { key: key.to_owned(), name: name.to_owned(), by: by.to_owned(), at: at.to_owned(), line, r#type: false, kind: kind.to_owned(), through: None, through_line: 0 };
+        found.extend(origins.iter().map(|&origin| Taken { origin, taken: taken.clone(), local: local.to_owned() }));
+    };
+    for binding in parses.request_bindings.range(request) {
+        let imported = text.text(parses.binding_imported.at(binding));
+        let local = text.text(parses.binding_local.at(binding));
+        let line = parses.binding_line.at(binding);
+        if imported == "*" && local == "*" {
+            for (name, origins) in names {
+                if name != MODULE && name != "default" {
+                    take(name, name, line, origins);
+                }
+            }
+        } else if imported == "*" || module == Some(imported) {
+            if let Some(origins) = names.get(MODULE) {
+                take(MODULE, local, line, origins);
+            }
+        }
+    }
+    found
 }
 
 #[cfg(test)]

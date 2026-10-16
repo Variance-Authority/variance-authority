@@ -37,6 +37,7 @@ fn a_field_read_through_a_typed_parameter_a_reference_or_a_pointer_names_its_typ
         one("x", 3, "P", "read"),
         one("x", 4, "P", "read"),
         one("x", 5, "P", "read"),
+        one("x", 6, "P", "read"),
         one("x", 7, "Wrap", "read"),
     ]);
 }
@@ -57,7 +58,8 @@ fn self_and_self_paths_are_the_impl_type_and_a_trait_s_are_none() {
 #[test]
 fn a_method_call_a_tuple_field_and_an_untyped_receiver_are_no_field_use() {
     let source = "fn f(p: P, q: (u8,)) {\n    p.go();\n    q.0;\n    p.0;\n    make().x;\n    p.inner.x;\n}\n";
-    assert_eq!(used(source), vec![one("inner", 6, "P", "read")]);
+    // A chain is read through the field it names, which the join follows by its type.
+    assert_eq!(used(source), vec![one("x", 6, "P.inner", "read"), one("inner", 6, "P", "read")]);
 }
 
 #[test]
@@ -76,6 +78,7 @@ fn a_let_types_its_name_by_its_annotation_or_by_the_struct_literal_of_one_name_i
         // A file cannot tell the module `m` from an enum `m`: the join can.
         one("R", 6, "m", "write"),
         one("z", 6, "m::R", "write"),
+        one("z", 7, "m::R", "read"),
     ]);
 }
 
@@ -103,6 +106,7 @@ fn a_variant_is_built_in_an_expression_and_destructured_in_a_pattern() {
         one("Pair", 7, "E", "destructure"),
         one("Square", 8, "E", "destructure"),
         one("size", 8, "E::Square", "destructure"),
+        one("Dot", 9, "m::E", "destructure"),
     ]);
 }
 
@@ -112,6 +116,7 @@ fn a_macro_s_tokens_read_a_typed_receiver_s_field_and_name_a_variant() {
     assert_eq!(used(source), vec![
         one("x", 2, "P", "read"),
         one("Dot", 4, "E", "read"),
+        one("Dot", 4, "m::E", "read"),
         one("y", 5, "P", "write"),
     ]);
 }
@@ -148,17 +153,51 @@ fn a_for_loop_reads_its_iterable_before_its_pattern_binds() {
     let source = "fn f(p: &P) {\n    for p in p.children.iter() { p.x; }\n}\n";
     assert_eq!(used(source), vec![one("children", 2, "P", "read")]);
 }
-
 #[test]
-fn a_field_through_a_field_names_the_type_the_file_declares_it_as() {
+fn a_field_through_a_field_is_read_on_the_field_it_is_reached_through() {
+    // The file cannot tell what `inner` holds when its struct is declared
+    // elsewhere; the join follows `Outer.inner` by the type the field declares.
     let source = "struct Outer { inner: P, boxed: Box<Q>, n: u32 }\nimpl Outer { fn f(&self) { self.inner.size; self.boxed.deep.x; self.n.x; } }\nfn g(o: &Outer) { o.inner.size = 1; }\n";
     assert_eq!(used(source), vec![
-        one("size", 2, "P", "read"),
+        one("size", 2, "Outer.inner", "read"),
         one("inner", 2, "Outer", "read"),
-        one("deep", 2, "Q", "read"),
+        one("x", 2, "Outer.boxed.deep", "read"),
+        one("deep", 2, "Outer.boxed", "read"),
         one("boxed", 2, "Outer", "read"),
+        one("x", 2, "Outer.n", "read"),
         one("n", 2, "Outer", "read"),
-        one("size", 3, "P", "write"),
+        one("size", 3, "Outer.inner", "write"),
         one("inner", 3, "Outer", "read"),
+    ]);
+}
+
+#[test]
+fn a_type_is_named_by_the_path_the_file_writes_and_self_is_this_module() {
+    let source = "fn f(p: &shapes::Props, q: self::Props, r: Box<crate::m::R>) {\n    p.size;\n    q.size;\n    r.z;\n}\n";
+    assert_eq!(used(source), vec![
+        one("size", 2, "shapes::Props", "read"),
+        one("size", 3, "Props", "read"),
+        one("z", 4, "crate::m::R", "read"),
+    ]);
+}
+
+#[test]
+fn a_struct_field_declares_the_type_it_holds_through_a_reference_or_a_pointer() {
+    let source = "struct Outer<'a> {\n    a: P,\n    b: Box<Q>,\n    c: &'a m::R,\n    d: u32,\n    e: Vec<P>,\n    f: Self,\n}\nenum E { Square { size: P } }\n";
+    let tree = parse(Grammar::Rust, source).expect("parses");
+    let types: Vec<(String, Option<String>)> = member_declarations(&tree, source).into_iter().map(|it| (it.name, it.r#type)).collect();
+    let owned = |name: &str, held: Option<&str>| (name.to_owned(), held.map(str::to_owned));
+    assert_eq!(types, vec![
+        owned("a", Some("P")),
+        owned("b", Some("Q")),
+        owned("c", Some("m::R")),
+        // A primitive holds no field.
+        owned("d", None),
+        // A collection is no field of it to read through.
+        owned("e", Some("Vec")),
+        owned("f", Some("Outer")),
+        // A variant's field is reached by a pattern, never through `.`.
+        owned("Square", None),
+        owned("size", None),
     ]);
 }

@@ -70,6 +70,7 @@ pub(crate) struct Parses<'a> {
     pub member_declaration_line: U32s<'a>,
     pub member_declaration_on: U32s<'a>,
     pub member_declaration_variant: &'a [u8],
+    pub member_declaration_type: U32s<'a>,
     pub member_uses: U32s<'a>,
     pub member_use_name: U32s<'a>,
     pub member_use_line: U32s<'a>,
@@ -144,6 +145,7 @@ impl<'a> Parses<'a> {
             member_declaration_line: u32s("member-declarations.line")?,
             member_declaration_on: u32s("member-declarations.on")?,
             member_declaration_variant: stored.u8s("member-declarations.variant")?,
+            member_declaration_type: u32s("member-declarations.type")?,
             member_declaration_name,
             member_uses: stored.offsets("parses.member-uses", rows, member_use_name.len())?,
             member_use_line: u32s("member-uses.line")?,
@@ -231,6 +233,7 @@ impl<'a> Parses<'a> {
             ("member-declarations.line", self.member_declaration_line.len()),
             ("member-declarations.on", self.member_declaration_on.len()),
             ("member-declarations.variant", self.member_declaration_variant.len()),
+            ("member-declarations.type", self.member_declaration_type.len()),
         ])?;
         same_length(self.member_use_name.len(), &[
             ("member-uses.line", self.member_use_line.len()),
@@ -297,6 +300,9 @@ impl ParseRow for ParseView<'_, '_> {
         for at in self.declares() {
             text(columns.declare_name, at);
         }
+        for at in columns.member_declarations.range(row) {
+            into.extend(stored.optional(columns.member_declaration_type.at(at)));
+        }
         for export in self.exports() {
             for column in [columns.export_exported, columns.export_local, columns.export_from, columns.export_imported] {
                 into.extend(stored.optional(column.at(export)));
@@ -360,6 +366,7 @@ impl ParseRow for ParseView<'_, '_> {
                 columns.member_declaration_line.at(at),
                 id(columns.member_declaration_on, at),
                 columns.member_declaration_variant[at] == 1,
+                strings.optional(stored.optional(columns.member_declaration_type.at(at))),
             );
         }
         for at in columns.member_uses.range(row) {

@@ -96,6 +96,8 @@ pub struct HeldMemberDeclaration {
     on: String,
     #[serde(default)]
     variant: bool,
+    #[serde(default, rename = "type")]
+    r#type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -164,6 +166,7 @@ impl ParseRow for HeldParse {
         for declared in &self.member_declarations {
             values.insert(&declared.name);
             values.insert(&declared.on);
+            values.extend(declared.r#type.as_deref());
         }
         for used in &self.member_uses {
             values.insert(&used.name);
@@ -208,7 +211,7 @@ impl ParseRow for HeldParse {
             into.member(member.request, id(&member.name), member.line);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), declared.variant);
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), declared.variant, strings.optional(declared.r#type.as_deref()));
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how), used.variant);

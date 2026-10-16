@@ -147,15 +147,27 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                 for (path, local) in used(argument, source, &[]) {
                     let value = path.join("::");
                     let last = path.last().cloned().unwrap_or_else(|| value.clone());
-                    let local = local.unwrap_or_else(|| last.clone());
+                    // `use a::b::*` binds every item `a::b` declares, under its
+                    // own name: the binding is the glob itself. `use super::*`
+                    // that climbs no further than the inline modules this
+                    // block sits in names this very file, which is no import.
+                    let wildcard = local.as_deref() == Some(GLOB);
+                    let glob = wildcard && !within(&path, prefix);
+                    let (imported, bound) = match local {
+                        _ if glob => (NAMESPACE_NAME.to_string(), NAMESPACE_NAME.to_string()),
+                        Some(local) if !wildcard => (last.clone(), local),
+                        _ => (last.clone(), last.clone()),
+                    };
+                    // A glob re-export republishes under the module's name, as before.
+                    let local = if glob { last.clone() } else { bound.clone() };
                     want(
                         held,
                         Request {
                             value: value.clone(),
                             kind: Kind::Imports,
                             bindings: vec![Binding {
-                                imported: last.clone(),
-                                local: local.clone(),
+                                imported,
+                                local: bound,
                                 type_only: false,
                                 line,
                             }],
@@ -207,11 +219,20 @@ fn want(held: &mut Gathering, request: Request) {
         held.requests.push(request);
         return;
     };
+    // Each statement still binds what it binds: `use a::b::*` and
+    // `use a::b::C` ask for the file once, with both bindings.
+    let mut bindings = held.requests[index].bindings.clone();
+    for binding in &request.bindings {
+        if !bindings.iter().any(|kept| kept.imported == binding.imported && kept.local == binding.local) {
+            bindings.push(binding.clone());
+        }
+    }
     // Written beats guessed. One `mod order;` and one `use self::order::X` name
     // the same file, and the first is the one that can be a hole.
     if held.requests[index].guessed && !request.guessed {
         held.requests[index] = request;
     }
+    held.requests[index].bindings = bindings;
 }
 
 /// Item kinds whose `name` field is a name this crate can publish.
@@ -317,7 +338,7 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
                 Some(inner) => {
                     let mut path = prefix.to_vec();
                     path.extend(segments(Some(*inner), source));
-                    vec![(without_self(path), None)]
+                    vec![(without_self(path), Some(GLOB.to_string()))]
                 }
             }
         }
@@ -331,6 +352,15 @@ fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option
             vec![(without_self(path), None)]
         }
     }
+}
+
+/// The local a `use_wildcard` comes back with from [`used`].
+const GLOB: &str = "*";
+
+/// Whether a path of `super`s alone climbs no higher than the inline modules
+/// `prefix` names, so it names a module inside this very file.
+fn within(path: &[String], prefix: &[String]) -> bool {
+    path.iter().all(|name| name == "super" || name == "self") && path.iter().filter(|name| *name == "super").count() <= prefix.len()
 }
 
 /// `self` inside a list names the module the list hangs off, not a thing in it.

@@ -33,6 +33,17 @@ describe('what a Rust file asks for', () => {
     expect(taken.get('crate::order::order')).toEqual([{ imported: 'order', local: 'order' }]);
   });
 
+  it('binds a glob as every item, apart from the module it names', () => {
+    // `use crate::shapes::*` takes each item of `shapes` under its own name;
+    // `use crate::shapes;` takes the module. The same request carries both.
+    const read = readRust('src/lib.rs', 'use crate::shapes::*;\nuse crate::shapes;\nmod tests {\n    use super::*;\n}\n');
+    const taken = new Map(read.requests.map((request) => [request.value, request.bindings.map(({ imported, local }) => ({ imported, local }))]));
+
+    expect(taken.get('crate::shapes')).toEqual([{ imported: '*', local: '*' }, { imported: 'shapes', local: 'shapes' }]);
+    // `super` from an inline module is this file: no glob of it is bound.
+    expect(taken.get('super')).toEqual([{ imported: 'super', local: 'super' }]);
+  });
+
   it('carries an inline module down to the files declared inside it', () => {
     // `mod b;` inside `mod a { … }` is the file `a/b.rs`, and the nesting is
     // the only thing that says so.

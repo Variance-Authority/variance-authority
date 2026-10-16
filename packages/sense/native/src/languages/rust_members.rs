@@ -14,10 +14,15 @@
 //! is the type, a reference to it, or a `Box`, `Rc` or `Arc` of it, or a `let`
 //! bound to a struct literal. Every other binding of a name shadows the outer
 //! one, as the language scopes it, so a closure's own `|props| props.size` is
-//! no use. A path of two names, `A::B { .. }`, is written as the variant `B` of
-//! `A`, since a file cannot tell an enum from a module by its spelling: a module
-//! declares no variant, so the join answers none for it. A longer path is read
-//! off a module, as a TypeScript `ns.Props` is, and no row writes it.
+//! no use.
+//!
+//! A type is recorded as the path the line writes, `shapes::Props` as well as
+//! `Props`, and `self::Props` as `Props`. A path `A::B { .. }` is also written
+//! as the variant `B` of `A`, since a file cannot tell an enum from a module by
+//! its spelling: a module declares no variant, so the join answers none for
+//! it. A field reached through a field, `o.inner.size`, is recorded on the
+//! chain `Outer.inner`: the type of `inner` is the annotation its declaration
+//! carries, which may be in another file, so the join follows it.
 //!
 //! A macro's arguments are tokens, not a tree: `recv.f` among them is a read, or
 //! a write before `=`, and `Enum::Variant` is a `read`, since the tokens say
@@ -44,7 +49,8 @@ fn declare(node: Node, source: &str, declared: &mut Vec<MemberDeclaration>) {
     match node.kind() {
         "struct_item" | "union_item" => {
             if let (Some(name), Some(body)) = (node.child_by_field_name("name"), node.child_by_field_name("body")) {
-                fields(body, text_of(name, source), source, declared);
+                let on = text_of(name, source);
+                fields(body, on, Some(on), source, declared);
             }
         }
         "enum_item" => {
@@ -53,9 +59,9 @@ fn declare(node: Node, source: &str, declared: &mut Vec<MemberDeclaration>) {
                 for variant in named_children(body).into_iter().filter(|child| child.kind() == "enum_variant") {
                     let Some(called) = variant.child_by_field_name("name") else { continue };
                     let called = text_of(called, source);
-                    declared.push(MemberDeclaration { name: called.to_owned(), line: line_of(variant), on: on.to_owned(), variant: true });
+                    declared.push(MemberDeclaration { name: called.to_owned(), line: line_of(variant), on: on.to_owned(), variant: true, r#type: None });
                     if let Some(body) = variant.child_by_field_name("body") {
-                        fields(body, &format!("{on}::{called}"), source, declared);
+                        fields(body, &format!("{on}::{called}"), None, source, declared);
                     }
                 }
             }
@@ -69,20 +75,23 @@ fn declare(node: Node, source: &str, declared: &mut Vec<MemberDeclaration>) {
     }
 }
 
-/// The named fields of a `{ … }` body, each on `on`. A tuple body names none.
-fn fields(body: Node, on: &str, source: &str, declared: &mut Vec<MemberDeclaration>) {
+/// The named fields of a `{ … }` body, each on `on`, with the type its
+/// annotation names where the body is a struct's, `own` being what `Self` is
+/// there: a variant's field is reached by a pattern, never through a field.
+/// A tuple body names none.
+fn fields(body: Node, on: &str, own: Option<&str>, source: &str, declared: &mut Vec<MemberDeclaration>) {
     if body.kind() != "field_declaration_list" { return; }
     for field in named_children(body).into_iter().filter(|child| child.kind() == "field_declaration") {
         let Some(name) = field.child_by_field_name("name") else { continue };
-        declared.push(MemberDeclaration { name: text_of(name, source).to_owned(), line: line_of(name), on: on.to_owned(), variant: false });
+        let r#type = own.and_then(|own| annotated(field.child_by_field_name("type")?, source, Some(own)));
+        declared.push(MemberDeclaration { name: text_of(name, source).to_owned(), line: line_of(name), on: on.to_owned(), variant: false, r#type });
     }
 }
 
 /// Every use `tree` writes of a field or a variant through a type it names,
 /// once per name, line, type and kind, in source order.
 pub fn member_uses(tree: &Tree, source: &str) -> Vec<MemberUse> {
-    let mut walker = Walker { source, scopes: vec![HashMap::new()], selves: Vec::new(), fields: HashMap::new(), seen: HashSet::new(), found: Vec::new() };
-    walker.fields = walker.field_types(tree.root_node());
+    let mut walker = Walker { source, scopes: vec![HashMap::new()], selves: Vec::new(), seen: HashSet::new(), found: Vec::new() };
     walker.visit(tree.root_node(), false);
     walker.found
 }
@@ -90,6 +99,60 @@ pub fn member_uses(tree: &Tree, source: &str) -> Vec<MemberUse> {
 /// The pointers whose fields a field expression reaches through auto-deref,
 /// as the standard library names them.
 const POINTERS: [&str; 3] = ["Box", "Rc", "Arc"];
+
+/// The type a type annotation names, as the path it is written by: a name
+/// or a path to one, a reference to it, one of [`POINTERS`] of it, or a
+/// generic type's own path; `own` is what `Self` is.
+fn annotated(node: Node, source: &str, own: Option<&str>) -> Option<String> {
+    match node.kind() {
+        "type_identifier" | "scoped_type_identifier" => written(node, source, own),
+        "reference_type" => annotated(node.child_by_field_name("type")?, source, own),
+        "generic_type" => {
+            let base = node.child_by_field_name("type")?;
+            let named = match base.kind() {
+                "type_identifier" => Some(base),
+                "scoped_type_identifier" => base.child_by_field_name("name"),
+                _ => None,
+            }?;
+            if !POINTERS.contains(&text_of(named, source)) { return written(base, source, own); }
+            let arguments = node.child_by_field_name("type_arguments")?;
+            annotated(*named_children(arguments).first()?, source, own)
+        }
+        _ => None,
+    }
+}
+
+/// A name or a path as the file writes it, `Self` as `own` and a leading
+/// `self::`, the module the line is in, dropped; `None` for a path with
+/// anything but names in it, or a `Self` outside an `impl`.
+fn written(node: Node, source: &str, own: Option<&str>) -> Option<String> {
+    let mut names = Vec::new();
+    let mut at = node;
+    loop {
+        match at.kind() {
+            "identifier" | "type_identifier" | "crate" | "super" | "self" => {
+                names.push(text_of(at, source));
+                break;
+            }
+            "scoped_identifier" | "scoped_type_identifier" => {
+                names.push(text_of(at.child_by_field_name("name")?, source));
+                at = at.child_by_field_name("path")?;
+            }
+            _ => return None,
+        }
+    }
+    names.reverse();
+    spelled_path(&names, own)
+}
+
+/// The names of a path joined as written, `Self` at its head as `own`, and a
+/// leading `self` dropped.
+fn spelled_path(names: &[&str], own: Option<&str>) -> Option<String> {
+    let names = if names.len() > 1 && names[0] == "self" { &names[1..] } else { names };
+    let (&head, rest) = names.split_first()?;
+    let head = if head == "Self" { own? } else { head };
+    Some(std::iter::once(head).chain(rest.iter().copied()).collect::<Vec<_>>().join("::"))
+}
 
 struct Walker<'s> {
     source: &'s str,
@@ -99,10 +162,6 @@ struct Walker<'s> {
     /// The type each `impl` around the walk is for, innermost last; `None` for
     /// a trait, whose `Self` is no type this file names.
     selves: Vec<Option<String>>,
-    /// The type each named field of a struct this file declares is
-    /// annotated with, by the struct and the field, as [`Walker::typed`]
-    /// reads an annotation.
-    fields: HashMap<(String, String), String>,
     seen: HashSet<MemberUse>,
     found: Vec<MemberUse>,
 }
@@ -112,29 +171,6 @@ impl Walker<'_> {
         text_of(node, self.source)
     }
 
-    /// The type every named field of every struct under `node` is annotated
-    /// with, where [`Walker::typed`] reads one, `Self` as the struct.
-    fn field_types(&mut self, node: Node) -> HashMap<(String, String), String> {
-        let mut types = HashMap::new();
-        let mut stack = vec![node];
-        while let Some(node) = stack.pop() {
-            if node.kind() == "macro_definition" { continue; }
-            if node.kind() == "struct_item" {
-                if let (Some(name), Some(body)) = (node.child_by_field_name("name"), node.child_by_field_name("body")) {
-                    let on = self.text(name).to_owned();
-                    self.selves.push(Some(on.clone()));
-                    for field in named_children(body).into_iter().filter(|child| child.kind() == "field_declaration") {
-                        let (Some(called), Some(annotation)) = (field.child_by_field_name("name"), field.child_by_field_name("type")) else { continue };
-                        if let Some(of) = self.typed(annotation) { types.insert((on.clone(), self.text(called).to_owned()), of); }
-                    }
-                    self.selves.pop();
-                }
-            }
-            stack.extend(named_children(node));
-        }
-        types
-    }
-
     fn add(&mut self, name: &str, line: u32, of: &str, how: &str, variant: bool) {
         let found = MemberUse { name: name.to_owned(), line, of: of.to_owned(), how: how.to_owned(), variant };
         if self.seen.insert(found.clone()) { self.found.push(found); }
@@ -142,11 +178,6 @@ impl Walker<'_> {
 
     fn own(&self) -> Option<String> {
         self.selves.last().cloned().flatten()
-    }
-
-    /// `Self` as the `impl`'s type, any other name as written.
-    fn spelled(&self, name: &str) -> Option<String> {
-        if name == "Self" { self.own() } else { Some(name.to_owned()) }
     }
 
     fn bound(&self, name: &str) -> Option<String> {
@@ -164,43 +195,24 @@ impl Walker<'_> {
         self.scopes.pop();
     }
 
-    /// The type a type annotation names: a plain name, a reference to one,
-    /// one of [`POINTERS`] of one, or a generic type's own name.
+    /// The type a type annotation names, as [`annotated`] reads it.
     fn typed(&self, node: Node) -> Option<String> {
-        match node.kind() {
-            "type_identifier" => self.spelled(self.text(node)),
-            "reference_type" => self.typed(node.child_by_field_name("type")?),
-            "generic_type" => {
-                let base = node.child_by_field_name("type").filter(|base| base.kind() == "type_identifier")?;
-                let base = self.text(base);
-                if !POINTERS.contains(&base) { return self.spelled(base); }
-                let arguments = node.child_by_field_name("type_arguments")?;
-                self.typed(*named_children(arguments).first()?)
-            }
-            _ => None,
-        }
+        annotated(node, self.source, self.own().as_deref())
     }
 
-    /// The type a struct literal's or a struct pattern's path names: a type
-    /// by one name, or `Enum::Variant` with the enum by one name.
+    /// The type a struct literal's or a struct pattern's path names, as the
+    /// path is written: a type, or `Enum::Variant`.
     fn path(&self, node: Node) -> Option<String> {
         match node.kind() {
-            "type_identifier" | "identifier" => self.spelled(self.text(node)),
-            "scoped_type_identifier" | "scoped_identifier" => {
-                let (head, name) = (node.child_by_field_name("path")?, node.child_by_field_name("name")?);
-                if head.kind() != "identifier" { return None; }
-                Some(format!("{}::{}", self.spelled(self.text(head))?, self.text(name)))
-            }
             "generic_type_with_turbofish" => self.path(node.child_by_field_name("type")?),
-            _ => None,
+            _ => written(node, self.source, self.own().as_deref()),
         }
     }
 
-    /// `Enum::Variant` by a path whose enum is one name, `how` the line uses it.
+    /// `Enum::Variant` by the path before the variant, `how` the line uses it.
     fn variant(&mut self, node: Node, how: &str) {
         let (Some(head), Some(name)) = (node.child_by_field_name("path"), node.child_by_field_name("name")) else { return };
-        if head.kind() != "identifier" { return; }
-        let Some(of) = self.spelled(self.text(head)) else { return };
+        let Some(of) = written(head, self.source, self.own().as_deref()) else { return };
         let called = self.text(name).to_owned();
         self.add(&called, line_of(name), &of, how, true);
     }
@@ -308,7 +320,7 @@ impl Walker<'_> {
                 let of = node.child_by_field_name("type").and_then(|it| self.typed(it)).or_else(|| {
                     let value = node.child_by_field_name("value")?;
                     if value.kind() != "struct_expression" { return None; }
-                    self.path(value.child_by_field_name("name")?).filter(|of| !of.contains("::"))
+                    self.path(value.child_by_field_name("name")?)
                 });
                 self.bind(bound, of);
             }
@@ -393,23 +405,23 @@ impl Walker<'_> {
         self.add(&called, line_of(name), &of, how, false);
     }
 
-    /// The type a field expression's receiver is: a binding's, or the type the
-    /// file declares the field it reaches through as, `self.inner` of `inner:
-    /// P` on the `impl`'s type being a `P`.
+    /// The type a field expression's receiver is: a binding's, or the chain
+    /// of fields it reaches through after one, `self.inner` in an `impl
+    /// Outer` being `Outer.inner`, whose type is the declaration's to say.
     fn receiver(&self, value: Node) -> Option<String> {
         match value.kind() {
             "identifier" | "self" => self.bound(self.text(value)),
             "field_expression" => {
                 let name = value.child_by_field_name("field").filter(|name| name.kind() == "field_identifier")?;
                 let on = self.receiver(value.child_by_field_name("value")?)?;
-                self.fields.get(&(on, self.text(name).to_owned())).cloned()
+                Some(format!("{on}.{}", self.text(name)))
             }
             _ => None,
         }
     }
 
     /// A macro's arguments, flattened to their tokens: `recv.f` not called,
-    /// and `Enum::Variant` by one name.
+    /// and `Enum::Variant` by the path before the variant.
     fn tokens(&mut self, tree: Node) {
         let mut tokens = Vec::new();
         flatten(tree, &mut tokens);
@@ -424,10 +436,13 @@ impl Walker<'_> {
                 let called = self.text(tokens[at + 2]).to_owned();
                 self.add(&called, line_of(tokens[at + 2]), &of, how, false);
             }
-            if kind(at + 1) == "::" && kind(at + 2) == "identifier" && kind(at + 3) != "::" {
-                let Some(of) = self.spelled(&receiver) else { continue };
-                let called = self.text(tokens[at + 2]).to_owned();
-                self.add(&called, line_of(tokens[at + 2]), &of, READ, true);
+            let mut last = at;
+            while kind(last + 1) == "::" && kind(last + 2) == "identifier" { last += 2; }
+            if last > at {
+                let names: Vec<&str> = (at..last).step_by(2).map(|name| text_of(tokens[name], self.source)).collect();
+                let Some(of) = spelled_path(&names, self.own().as_deref()) else { continue };
+                let called = self.text(tokens[last]).to_owned();
+                self.add(&called, line_of(tokens[last]), &of, READ, true);
             }
         }
     }

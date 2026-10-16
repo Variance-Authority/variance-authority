@@ -85,6 +85,7 @@ pub struct ParseColumns {
     member_declaration_line: Vec<u32>,
     member_declaration_on: Vec<u32>,
     member_declaration_variant: Vec<u8>,
+    member_declaration_type: Vec<u32>,
     member_uses: Vec<u32>,
     member_use_name: Vec<u32>,
     member_use_line: Vec<u32>,
@@ -192,11 +193,13 @@ impl ParseColumns {
         self.member_line.push(line);
     }
 
-    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, variant: bool) {
+    /// One member declaration; `type` is an id or `NONE`.
+    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, variant: bool, r#type: u32) {
         self.member_declaration_name.push(name);
         self.member_declaration_line.push(line);
         self.member_declaration_on.push(on);
         self.member_declaration_variant.push(u8::from(variant));
+        self.member_declaration_type.push(r#type);
     }
 
     pub fn member_use(&mut self, name: u32, line: u32, of: u32, how: u32, variant: bool) {
@@ -271,6 +274,7 @@ impl ParseColumns {
             u32s("member-declarations.line", self.member_declaration_line),
             u32s("member-declarations.on", self.member_declaration_on),
             u8s("member-declarations.variant", self.member_declaration_variant),
+            u32s("member-declarations.type", self.member_declaration_type),
             u32s("parses.member-uses", self.member_uses),
             u32s("member-uses.name", self.member_use_name),
             u32s("member-uses.line", self.member_use_line),

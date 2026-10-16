@@ -129,6 +129,76 @@ const CRATE = {
   ].join('\n'),
 };
 
+/**
+ * The crate again, with the files that reach `Props` past one `use` of its
+ * name: a glob, a module path, and a field of a struct another file declares.
+ */
+const NESTED = {
+  ...CRATE,
+  'packages/kit/src/lib.rs': [
+    'mod draw;',
+    'mod glob;',
+    'mod nest;',
+    'mod outer;',
+    'mod qualified;',
+    'mod shapes;',
+    '',
+    'pub fn other(o: &shapes::Other) -> i64 {',
+    '    o.size',
+    '}',
+    '',
+  ].join('\n'),
+  'packages/kit/src/glob.rs': ['use crate::shapes::*;', '', 'pub fn wide(p: &Props) -> u32 {', '    p.size', '}', ''].join('\n'),
+  'packages/kit/src/outer.rs': [
+    'use crate::shapes::Props;',
+    '',
+    'pub struct Outer {',
+    '    pub inner: Props,',
+    '}',
+    '',
+    'pub struct Deep {',
+    '    pub outer: Box<Outer>,',
+    '}',
+    '',
+  ].join('\n'),
+  'packages/kit/src/nest.rs': [
+    'use crate::outer::{Deep, Outer as Wrap};',
+    '',
+    'pub fn near(o: &Wrap) -> u32 {',
+    '    o.inner.size',
+    '}',
+    '',
+    'pub fn far(d: Deep) -> u32 {',
+    '    d.outer.inner.size',
+    '}',
+    '',
+  ].join('\n'),
+  'packages/kit/src/qualified.rs': [
+    'use crate::shapes;',
+    '',
+    'pub fn tall(p: &shapes::Props) -> u32 {',
+    '    p.size',
+    '}',
+    '',
+    'pub fn build() -> shapes::Props {',
+    '    shapes::Props { size: 1, label: String::new() }',
+    '}',
+    '',
+    'pub fn fresh() -> u32 {',
+    '    let p = shapes::Props { size: 2, label: String::new() };',
+    '    p.size',
+    '}',
+    '',
+    'pub fn edge(s: &shapes::Shape) -> u32 {',
+    '    match s {',
+    '        shapes::Shape::Square { size } => *size,',
+    '        _ => 0,',
+    '    }',
+    '}',
+    '',
+  ].join('\n'),
+};
+
 /** The lines of `out` from the one that opens with `heading` to the next blank line after its list. */
 function section(out: string, heading: string): readonly string[] {
   const lines = out.split('\n');
@@ -207,18 +277,66 @@ describe('variance ask over a field or a variant of a Rust type', () => {
     });
   });
 
-  it.todo(
-    'answers a field read through a chain, `o.inner.size`, where the struct that declares `inner` is in another file — ' +
-      'needs the declaration row to carry the type its field is annotated with, and the join to follow that type through the `use` that binds it',
-  );
+  it('answers a field read through a chain whose struct another file declares, `o.inner.size`, by the type that file annotates the field with', async () => {
+    checkout(NESTED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-  it.todo(
-    'answers a field used through a type a glob import brings in, `use crate::shapes::*;` then `p: &Props` and `p.size` — ' +
-      'needs the join to look up an unbound head in the modules a file glob-imports, and to pick the one that declares it',
-  );
+    const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/nest.rs']);
+    expect(code).toBe(EXIT_CLEAN);
+    const props = section(out, '`Props::size`, declared at packages/kit/src/shapes.rs:2, is used in 16 places:');
+    expect(props.filter((line) => line.startsWith('packages/kit/src/nest.rs'))).toEqual([
+      'packages/kit/src/nest.rs:4 — @acme/kit, read',
+      'packages/kit/src/nest.rs:8 — @acme/kit, read',
+    ]);
 
-  it.todo(
-    'answers a field used through a module-qualified type, `p: &shapes::Props` or `shapes::Props { size: 1 }` — ' +
-      'needs the reader to keep the path before the type name as the head, and the join to resolve that module path to its file',
-  );
+    const inner = await run(['ask', 'uses', '--name', 'inner']);
+    expect(section(inner.out, '`Outer::inner`, declared at packages/kit/src/outer.rs:4, is used in 2 places:')).toEqual([
+      'packages/kit/src/nest.rs:4 — @acme/kit, read',
+      'packages/kit/src/nest.rs:8 — @acme/kit, read',
+    ]);
+  });
+
+  it('answers a field used through a type a glob import brings in, `use crate::shapes::*;` then `p.size`', async () => {
+    checkout(NESTED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/glob.rs']);
+    expect(code).toBe(EXIT_CLEAN);
+    const props = section(out, '`Props::size`, declared at packages/kit/src/shapes.rs:2, is used in 16 places:');
+    expect(props.filter((line) => line.startsWith('packages/kit/src/glob.rs'))).toEqual(['packages/kit/src/glob.rs:4 — @acme/kit, read']);
+  });
+
+  it('answers a field used through a module-qualified type, `p: &shapes::Props` and `shapes::Props { size: 1 }`', async () => {
+    checkout(NESTED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/qualified.rs']);
+    expect(code).toBe(EXIT_CLEAN);
+    const props = section(out, '`Props::size`, declared at packages/kit/src/shapes.rs:2, is used in 16 places:');
+    expect(props.filter((line) => line.startsWith('packages/kit/src/qualified.rs'))).toEqual([
+      'packages/kit/src/qualified.rs:4 — @acme/kit, read',
+      'packages/kit/src/qualified.rs:8 — @acme/kit, write',
+      'packages/kit/src/qualified.rs:12 — @acme/kit, write',
+      'packages/kit/src/qualified.rs:13 — @acme/kit, read',
+    ]);
+    // `mod shapes;` binds the module in the crate root, as `use crate::shapes;` does in a file.
+    expect(section(out, '`Other::size`, declared at packages/kit/src/shapes.rs:7, is used in 2 places:')).toEqual([
+      'packages/kit/src/draw.rs:8 — @acme/kit, read',
+      'packages/kit/src/lib.rs:9 — @acme/kit, read',
+    ]);
+    expect(section(out, '`Shape::Square::size`, declared at packages/kit/src/shapes.rs:12, is used in 2 places:')).toEqual([
+      // Nearest `--from` first.
+      'packages/kit/src/qualified.rs:18 — @acme/kit, destructure',
+      'packages/kit/src/draw.rs:28 — @acme/kit, destructure',
+    ]);
+
+    const square = await run(['ask', 'uses', '--name', 'Square']);
+    expect(section(square.out, '`Shape::Square`, declared at packages/kit/src/shapes.rs:12, is used in 2 places:')).toEqual([
+      'packages/kit/src/draw.rs:28 — @acme/kit, destructure',
+      'packages/kit/src/qualified.rs:18 — @acme/kit, destructure',
+    ]);
+  });
+
+  it.todo('answers a field used through a type spelled from the crate root, `p: &crate::shapes::Props` — needs the path resolved against the crate, as a `use` is');
+  it.todo('answers a field read through a chain inside a macro\'s tokens, `assert!(o.inner.size > 0)` — needs the token run to carry the fields it passes');
 });

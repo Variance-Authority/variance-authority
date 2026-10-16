@@ -261,12 +261,15 @@ inside the `impl` of a type, a parameter or `let` annotated as the type, a
 reference to it or a `Box`, `Rc` or `Arc` of it, and a `let` bound to a struct
 expression. The name is followed through the `use` that binds it, renamed or
 not, to the module that declares it, and through `use super::*` in an inline
-module. A field reached through another field, `self.inner.size`, is the type
-the same file declares `inner` as. A path, `Shape::Dot`, names only a variant,
-so `Props::size` naming a method is no use of the field. Not read, and left to
-the `grep` route: a chain through a field declared in another file, a value
-returned by a call, a type a glob `use crate::shapes::*` brings in, and a
-module-qualified type, `shapes::Props`.
+module. A glob, `use crate::shapes::*`, binds every item of the module under its
+own name, and a module bound by `mod shapes;` or `use crate::shapes;` is
+followed into `shapes::Props` and `shapes::Shape::Square`. A field reached
+through another field, `o.inner.size`, is a use on the type `inner` is declared
+as, wherever its struct is declared and however deep the chain. A path,
+`Shape::Dot`, names only a variant, so `Props::size` naming a method is no use
+of the field. Not read, and left to the `grep` route: a value returned by a
+call, a type spelled from the crate root, `crate::shapes::Props`, and a chain
+inside a macro's tokens.
 
 What a type checker infers is not read: a value returned by a call, a generic
 or a mapped type, a value narrowed or copied without an annotation, and a type

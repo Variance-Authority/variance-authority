@@ -14,7 +14,11 @@
 //! declaring file under its own name and in every file that imports it,
 //! through each `export … from` that passes it on, under the name the import
 //! binds; so `Props.size` and `Other.size` are told apart, and a same-named
-//! type of another file is neither. A container with no name has no uses.
+//! type of another file is neither. A Rust glob binds every item of its
+//! module, a bound module is written before the container, `shapes::Props`,
+//! and a struct field whose type is the container reaches it through the
+//! field, `Outer.inner`, in every file that writes the field's struct. A
+//! container with no name has no uses.
 
 // compass: variance-authority.reach.relations
 
@@ -27,9 +31,9 @@ use oxc_span::GetSpan;
 use serde::Serialize;
 
 use crate::compact::Layer;
-use crate::help_usage::{importers_from, kind_of};
+use crate::help_usage::{importers_from, kind_of, MODULE};
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{fold, join_parses, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::read::Lines;
 
@@ -46,6 +50,11 @@ pub struct MemberDeclaration {
     /// field is reached by `.` or named in a struct literal or pattern.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) variant: bool,
+    /// The type a Rust struct's field is annotated with, as the file writes
+    /// it, which a field read through the field, `o.inner.size`, is a use
+    /// of; absent where no annotation names one, and for every other member.
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub(crate) r#type: Option<String>,
 }
 
 /// Every member `program` declares, in source order.
@@ -181,24 +190,9 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
         of.push(Some(origin));
     }
     if origins.is_empty() { return; }
-    // Where each origin is written, by file and by the name the file writes it
-    // as. A Rust variant's field is on `Enum::Variant`: the enum is what a `use`
-    // binds and renames, and the variant is written after it as declared.
-    let (heads, tails): (Vec<&str>, Vec<&str>) = origins.iter().map(|(_, on, _)| split(on)).unzip();
-    let mut written: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
-    for (origin, (at, _, _)) in origins.iter().enumerate() {
-        written.entry(at.clone()).or_default().entry(heads[origin].to_owned()).or_default().insert(origin);
-    }
-    // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
-    // field used through a type-only barrel is missed here, though the type is
-    // the one declared.
-    let (taken, _) = importers_from(root, layers, written.clone());
-    for one in taken {
-        // A name read off a namespace is `ns.Props`, which no member-use row writes.
-        if one.taken.through.is_some() || one.local.is_empty() { continue; }
-        written.entry(one.taken.at).or_default().entry(one.local).or_default().insert(one.origin);
-    }
-    let mut crossings: Vec<Crossing> = fold(layers)
+    let folded = fold(layers);
+    let written = written(root, layers, &folded, name, &origins);
+    let mut crossings: Vec<Crossing> = folded
         .into_iter()
         .filter(|(file, _)| written.contains_key(*file))
         .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
@@ -213,12 +207,11 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
         let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
         for at in parses.member_uses.range(row) {
             if stored.text(parses.member_use_name.at(at)) != name { continue; }
-            let (head, tail) = split(stored.text(parses.member_use_of.at(at)));
-            let Some(names) = names.get(head) else { continue };
+            let Some(names) = names.get(stored.text(parses.member_use_of.at(at))) else { continue };
             // A path names a variant, `.` and a literal a field: `Props::size`
             // is an associated function where `Props` has a field `size`.
             let variant = parses.member_use_variant[at] == 1;
-            for &origin in names.iter().filter(|&&origin| tails[origin] == tail && origins[origin].2 == variant) {
+            for &origin in names.iter().filter(|&&origin| origins[origin].2 == variant) {
                 uses[origin].push(MemberUseSite {
                     at: crossing.file.to_owned(),
                     line: parses.member_use_line.at(at),
@@ -244,6 +237,132 @@ fn split(on: &str) -> (&str, &str) {
     on.find("::").map_or((on, ""), |at| on.split_at(at))
 }
 
+/// A container reached in `file` as `container`, which an import binds and
+/// renames, with `suffix` written after it as declared: an origin's own
+/// variant, `::Square`, or the fields a chain reads through, `.inner`.
+struct Reached {
+    file: String,
+    container: String,
+    suffix: String,
+    origins: HashSet<usize>,
+}
+
+/// Where each origin is written, by file and by the whole `of` a member-use
+/// row writes for it. In the declaring file it is the container as declared;
+/// in a file that imports the container, the name the import binds; in one
+/// that binds its module, `module::Container`; in one that globs its module,
+/// the container itself. A struct field whose type is one of these is a
+/// container reached in turn: `inner: Props` on `Outer` makes `Outer.inner`
+/// a writing of `Props`, followed as far as the deepest chain a row writes.
+fn written(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, name: &str, origins: &[(String, String, bool)]) -> HashMap<String, HashMap<String, HashSet<usize>>> {
+    let mut reached: Vec<Reached> = origins
+        .iter()
+        .enumerate()
+        .map(|(origin, (at, on, _))| {
+            let (container, suffix) = split(on);
+            Reached { file: at.clone(), container: container.to_owned(), suffix: suffix.to_owned(), origins: HashSet::from([origin]) }
+        })
+        .collect();
+    let mut known: HashMap<(String, String, String), usize> =
+        reached.iter().enumerate().map(|(at, one)| ((one.file.clone(), one.container.clone(), one.suffix.clone()), at)).collect();
+    let mut fresh: Vec<usize> = (0..reached.len()).collect();
+    let mut written: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
+    let deepest = deepest(layers, name);
+    for round in 0.. {
+        let mut added: HashSet<(String, String)> = HashSet::new();
+        let mut add = |file: &str, key: String, origins: &HashSet<usize>| {
+            let held = written.entry(file.to_owned()).or_default().entry(key.clone()).or_default();
+            let before = held.len();
+            held.extend(origins);
+            if held.len() > before { added.insert((file.to_owned(), key)); }
+        };
+        let mut wanted: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
+        for &at in &fresh {
+            let one = &reached[at];
+            add(&one.file, format!("{}{}", one.container, one.suffix), &one.origins);
+            let names = wanted.entry(one.file.clone()).or_default();
+            names.entry(one.container.clone()).or_default().insert(at);
+            if one.file.ends_with(".rs") { names.entry(MODULE.to_owned()).or_default().insert(at); }
+        }
+        // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
+        // field used through a type-only barrel is missed here, though the type is
+        // the one declared.
+        let (taken, _) = importers_from(root, layers, wanted);
+        for one in taken {
+            // A name read off a namespace is `ns.Props`, which no member-use row writes.
+            if one.taken.through.is_some() || one.local.is_empty() { continue; }
+            let at = &reached[one.origin];
+            let key = if one.taken.name == MODULE { format!("{}::{}{}", one.local, at.container, at.suffix) } else { format!("{}{}", one.local, at.suffix) };
+            add(&one.taken.at, key, &at.origins);
+        }
+        if round == deepest || added.is_empty() { break; }
+        fresh = Vec::new();
+        for (file, on, suffix, origins) in through_fields(layers, folded, &added, &written, origins) {
+            let key = (file.clone(), on.clone(), suffix.clone());
+            let at = *known.entry(key).or_insert_with(|| {
+                reached.push(Reached { file, container: on, suffix, origins: HashSet::new() });
+                reached.len() - 1
+            });
+            let before = reached[at].origins.len();
+            reached[at].origins.extend(origins);
+            if reached[at].origins.len() > before && !fresh.contains(&at) { fresh.push(at); }
+        }
+        if fresh.is_empty() { break; }
+    }
+    written
+}
+
+/// The most fields any member-use row of `name` reads through, `o.a.b.name`
+/// being two: how far a field's type is worth following.
+fn deepest(layers: &[Layer], name: &str) -> usize {
+    let mut deepest = 0;
+    for layer in layers {
+        let (stored, parses) = (&layer.stored, &layer.parses);
+        for at in 0..parses.member_use_name.len() {
+            if stored.text(parses.member_use_name.at(at)) != name { continue; }
+            deepest = deepest.max(stored.text(parses.member_use_of.at(at)).matches('.').count());
+        }
+    }
+    deepest
+}
+
+/// Each struct field, in a file a writing was `added` to, whose type is
+/// written as that writing's container: the field's struct is reached with
+/// the field before what followed. Only a field leads on, never a variant.
+fn through_fields(
+    layers: &[Layer],
+    folded: &HashMap<&str, At>,
+    added: &HashSet<(String, String)>,
+    written: &HashMap<String, HashMap<String, HashSet<usize>>>,
+    origins: &[(String, String, bool)],
+) -> Vec<(String, String, String, HashSet<usize>)> {
+    let files: HashSet<&str> = added.iter().map(|(file, _)| file.as_str()).collect();
+    let mut crossings: Vec<Crossing> = files
+        .iter()
+        .filter_map(|file| folded.get_key_value(file).map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }))
+        .collect();
+    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    join_parses(layers, &mut crossings);
+    let mut found = Vec::new();
+    for crossing in &crossings {
+        let Some((layer, row)) = crossing.parse else { continue };
+        let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+        for (file, key) in added.iter().filter(|(file, _)| file == crossing.file) {
+            let fields: HashSet<usize> = written[file][key].iter().copied().filter(|&origin| !origins[origin].2).collect();
+            if fields.is_empty() { continue; }
+            let (head, rest) = key.find('.').map_or((key.as_str(), ""), |at| key.split_at(at));
+            for at in parses.member_declarations.range(row) {
+                if stored.optional(parses.member_declaration_type.at(at)) != Some(head) { continue; }
+                let on = stored.text(parses.member_declaration_on.at(at));
+                if on.contains("::") { continue; }
+                let suffix = format!(".{}{}", stored.text(parses.member_declaration_name.at(at)), rest);
+                found.push((file.clone(), on.to_owned(), suffix, fields.clone()));
+            }
+        }
+    }
+    found
+}
+
 struct Walker<'n> {
     lines: &'n Lines,
     /// The containers the walk is inside, innermost last.
@@ -257,7 +376,7 @@ impl Walker<'_> {
     fn declare(&mut self, key: Option<std::borrow::Cow<'_, str>>, at: u32) {
         let Some(key) = key else { return };
         let on = self.containers.last().cloned().unwrap_or_default();
-        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, variant: false });
+        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, variant: false, r#type: None });
     }
 
     fn within(&mut self, container: String, walk: impl FnOnce(&mut Self)) {

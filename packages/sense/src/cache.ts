@@ -128,6 +128,8 @@ export interface MemberDeclaration {
   readonly on: string;
   /** A Rust enum's variant, which only a path `Enum::Variant` uses; absent for a field or any other member. */
   readonly variant?: true;
+  /** A Rust struct field's type as the file writes it, through `&`, `Box`, `Rc` and `Arc`; absent for any other member. */
+  readonly type?: string;
 }
 
 /** One line that uses a member through a value whose type the file writes. */

@@ -24,9 +24,11 @@ No type checker runs. A use is tied to its type where the line or its scope
 names the type: a struct expression or pattern, `self` and `Self` in an
 `impl`, a parameter or `let` annotated as the type or a reference, `Box`,
 `Rc` or `Arc` of it. That name is followed through the `use` that binds it,
-renamed or not, so `Props::size` and `Other::size` are listed apart. A field
-reached through a field, `self.shown.size`, is the type the same file declares
-`shown` as. Each heading spells the member as a Rust path, `Shape::Square::size`.
+renamed or not, so `Props::size` and `Other::size` are listed apart; through
+a glob, `use crate::shapes::*`; and through a module bound by `mod shapes;` or
+`use crate::shapes;`, so `shapes::Props` and `shapes::Shape::Square` are read.
+A field reached through a field, `o.inner.size`, is a use on the type the
+field `inner` is declared as, in whichever file declares it. Each heading spells the member as a Rust path, `Shape::Square::size`.
 
 `variance ask search` now lists the members whose names hold the query, of
 any language the index records them for, under its own heading:
