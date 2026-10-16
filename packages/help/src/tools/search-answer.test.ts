@@ -93,6 +93,13 @@ describe('searchNames', () => {
     expect(sum).not.toHaveProperty('summary');
   });
 
+  it('shows the file whose doc holds the words, not another file exporting the same name', () => {
+    // Only beta's `sum` says "beta counted"; alpha's would be shown first by kind and order.
+    const doc = { name: 'sum', at: 'packages/beta/src/inner/deeper.ts', summary: 'Adds up what beta counted.' };
+    expect(searchNames(INDEX, { query: 'beta counted' }).exported?.shown).toContainEqual(expect.objectContaining(doc));
+    expect(searchNames(INDEX, { query: 'counted beta' }).described?.shown).toContainEqual(expect.objectContaining(doc));
+  });
+
   it('finds a name no manifest publishes when its documentation holds the description', () => {
     const answer = searchNames(INDEX, { query: 'ledgers beta writes' });
     expect(answer.described?.shown.map((match) => match.name)).toContain('tally');

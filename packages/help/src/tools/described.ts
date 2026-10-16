@@ -45,6 +45,8 @@ export interface DescribedKey {
 /** One name of the search index the description reached. */
 export interface DescribedName extends DescribedKey {
   readonly name: number;
+  /** The exported row whose doc held words its name did not: the row to show. */
+  readonly through?: number;
 }
 
 /** One declaration no export binds that the description reached: in no row, and ranked after every name that is. */
@@ -78,6 +80,9 @@ export function describedNames(
   // Per name, the positions of the asked stems it holds anywhere, and in its name.
   const held = new Map<number, Set<number>>();
   const named = new Map<number, Set<number>>();
+  // Per name, per exported row, the stems that row's doc holds: one file's doc
+  // counts for a name, never two files' docs added up.
+  const docs = new Map<number, Map<number, Set<number>>>();
   const mark = (into: Map<number, Set<number>>, name: number, position: number): void => {
     const positions = into.get(name) ?? new Set<number>();
     positions.add(position);
@@ -100,17 +105,34 @@ export function describedNames(
       for (const row of index.termExported(term)) {
         const name = index.exportedName(row);
         if (already.has(name) || (within !== undefined && !within.has(index.exportedFile(row)))) continue;
-        mark(held, name, position);
+        const rows = docs.get(name) ?? new Map<number, Set<number>>();
+        docs.set(name, rows);
+        mark(rows, row, position);
       }
     }
   });
+
+  const through = new Map<number, number>();
+  for (const [name, rows] of docs) {
+    const own = held.get(name) ?? new Set<number>();
+    let best = own;
+    for (const [row, positions] of rows) {
+      const union = new Set([...own, ...positions]);
+      if (union.size <= best.size) continue;
+      best = union;
+      through.set(name, row);
+    }
+    held.set(name, best);
+  }
 
   const needed = Math.ceil(asked.length / 2);
   const found: DescribedName[] = [];
   for (const [name, positions] of held) {
     if (positions.size < needed) continue;
+    const row = through.get(name);
     found.push({
       name,
+      ...(row === undefined ? {} : { through: row }),
       words: asked.filter((_, position) => positions.has(position)).map(([, word]) => word),
       named: named.get(name)?.size ?? 0,
       rows: index.publishedOf(name).length + index.exportedOf(name).length,

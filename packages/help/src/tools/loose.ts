@@ -40,6 +40,9 @@ export function editsAllowed(term: string, fuzzy: number): number {
  * `already` names are never reached: the substring answered them. `within`,
  * file ids when given, admits a name through a row whose file is in it, and a doc
  * through the published or exported row that carries it.
+ *
+ * `through`, when given, receives the exported rows whose doc reached a name its
+ * own words never did: the rows to show it through.
  */
 export function looseNames(
   index: SearchIndex,
@@ -47,17 +50,23 @@ export function looseNames(
   fuzzy: number,
   within: ReadonlySet<number> | undefined,
   already: ReadonlySet<number>,
+  through?: Map<number, Set<number>>,
 ): ReadonlySet<number> {
   const terms = tokensOf(query);
   if (terms.length === 0) return new Set();
 
   const held = admittedBy(index, within, already);
+  const byName = new Set<number>();
 
   let answer: Set<number> | undefined;
   for (const term of terms) {
     const reached = new Set<number>();
     for (const id of matchingTerms(index, term, editsAllowed(term, fuzzy))) {
-      for (const name of index.termNames(id)) if (held(name)) reached.add(name);
+      for (const name of index.termNames(id)) {
+        if (!held(name)) continue;
+        reached.add(name);
+        byName.add(name);
+      }
       for (const row of index.termPublished(id)) {
         const name = index.publishedName(row);
         if (already.has(name) || reached.has(name)) continue;
@@ -65,13 +74,15 @@ export function looseNames(
       }
       for (const row of index.termExported(id)) {
         const name = index.exportedName(row);
-        if (already.has(name) || reached.has(name)) continue;
-        if (within === undefined || within.has(index.exportedFile(row))) reached.add(name);
+        if (already.has(name) || (within !== undefined && !within.has(index.exportedFile(row)))) continue;
+        reached.add(name);
+        through?.set(name, (through.get(name) ?? new Set()).add(row));
       }
     }
     answer = answer === undefined ? reached : new Set([...answer].filter((name) => reached.has(name)));
     if (answer.size === 0) break;
   }
+  for (const name of byName) through?.delete(name);
   return answer ?? new Set();
 }
 
