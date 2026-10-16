@@ -107,4 +107,22 @@ describe('variance ask uses over the paths a Rust file names an item by', () => 
     const map = await run(['ask', 'uses', '--name', 'JourneyMap']);
     expect(map.out).toMatch(/^packages\/kit\/src\/journey\.rs:2\b/m);
   });
+
+  it('counts no use of a name an inline module shares, when a path passes through the module', async () => {
+    checkout({
+      ...KIT,
+      'packages/kit/src/lib.rs': 'mod graph;\nmod flows;\nmod lexicon;\nmod shapes;\nmod draw;\n',
+      'packages/kit/src/shapes.rs': 'fn inner() {}\n\nmod inner {\n    pub(crate) struct Thing;\n}\n',
+      'packages/kit/src/draw.rs': 'fn draw(thing: crate::shapes::inner::Thing) {}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    // `inner` is the module the path passes through, not the private `fn inner`.
+    const inner = await run(['ask', 'uses', '--name', 'inner']);
+    expect(inner.out).not.toMatch(/^packages\/kit\/src\/draw\.rs:/m);
+  });
+
+  // The path lands on `Thing` in `shapes.rs` (`rust.test.ts` pins it), but the
+  // reader records a file's top-level items only, so no declaration of `Thing` is there to answer from.
+  it.todo('lists a use of an item an inline module declares — needs the Rust reader to record the items inside an inline `mod` as declarations of its file');
 });

@@ -286,11 +286,12 @@ describe('where a Rust path lands in the module tree its files declare', () => {
   // off the `mod` lines, and `super` climbs that tree rather than the disk.
   const world = worldOn(tree({
     'Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
-    'src/lib.rs': 'mod lexicon;\nmod compact;\n',
+    'src/lib.rs': 'mod lexicon;\nmod compact;\nmod shapes;\n',
+    'src/shapes.rs': 'fn inner() {}\n\nmod inner {\n    pub(crate) struct Thing;\n}\n',
     'src/lexicon.rs': '#[path = "lexicon_catalogue.rs"]\nmod catalogue;\n#[path = "lexicon_view.rs"]\nmod view;\n',
     'src/lexicon_catalogue.rs': 'pub(crate) struct Catalogue;\n',
     'src/lexicon_view.rs': 'use super::catalogue::Catalogue;\n',
-    'src/compact.rs': 'fn flag() {}\nmod inner {\n    mod deep;\n}\n',
+    'src/compact.rs': 'fn flag() {}\nmod inner {\n    pub(crate) struct Thing;\n    mod deep;\n}\n',
     'src/compact/inner/deep.rs': 'use super::super::flag;\n',
     'tests/run.rs': 'mod helper;\nuse crate::helper::Help;\n',
     'tests/helper.rs': 'pub struct Help;\n',
@@ -309,6 +310,19 @@ describe('where a Rust path lands in the module tree its files declare', () => {
   it('climbs out of an inline module to the file it is written in', () => {
     expect(resolveRust({ from: 'src/compact/inner/deep.rs', request: 'super::super::flag', world }))
       .toEqual(['src/compact.rs']);
+  });
+
+  it('lands an item of an inline module on the file it is written in, and the module itself on nothing', () => {
+    const asked = (request: string) => resolveRust({ from: 'src/lib.rs', request, item: true, world });
+    // `inner` is a module written inside `compact.rs`, so `Thing` is the one
+    // segment past the modules, and `inner` is no item of `compact.rs`.
+    expect(asked('crate::compact::inner::Thing')).toEqual(['src/compact.rs']);
+    expect(asked('crate::compact::inner')).toEqual([]);
+    // An inline module no file is declared inside, beside a `fn` of its name.
+    expect(asked('crate::shapes::inner::Thing')).toEqual(['src/shapes.rs']);
+    expect(asked('crate::shapes::inner')).toEqual([]);
+    // The one segment past the modules lands only where the file declares it.
+    expect(asked('crate::shapes::Missing')).toEqual([]);
   });
 
   it('takes `crate` from a file no module declares as that file', () => {

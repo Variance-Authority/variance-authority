@@ -28,7 +28,10 @@
  * one more doubt: `crate::map::JourneyMap::new()` may be a function of the type
  * as well as of a module. So every prefix of it is asked for as an
  * {@link Request.item}, and only the one that leaves a single segment past the
- * modules lands. A single name is not: which item it means is a matter of scope, and the `use`
+ * modules lands, and only where the file the walk stands in declares that
+ * segment as an item: `crate::shapes::inner::Thing` passes through the inline
+ * `mod inner` of `shapes.rs`, and its prefix `crate::shapes::inner` names no
+ * item there, whatever else `shapes.rs` calls `inner`. A single name is not: which item it means is a matter of scope, and the `use`
  * that brought it in is already counted.
  *
  * That split is what keeps the two from poisoning each other. Inline modules
@@ -155,7 +158,7 @@ export function resolveRust(input: {
     else break;
     walked += 1;
   }
-  if (item === true && rest.length - walked !== 1) return [];
+  if (item === true && (rest.length - walked !== 1 || !declaresItem(at, rest[walked]!, modules))) return [];
   return at.file === from ? [] : [at.file];
 }
 
@@ -180,6 +183,18 @@ interface ModuleTree {
   readonly children: ReadonlyMap<string, ReadonlyMap<string, string>>;
   /** The files a `#[path]` loads, which hold their own children beside them, as a `mod.rs` does. */
   readonly spelled: ReadonlySet<string>;
+  /**
+   * What each file declares at its top level, by name: the kinds of item, and
+   * whether a `mod` of that name is written inline. Only for a file whose
+   * declarations the scan read; absent, a file's items are not known.
+   */
+  readonly items: ReadonlyMap<string, Items>;
+}
+
+/** A file's top-level names: those it declares as an item, and those it declares as an inline `mod`. */
+interface Items {
+  readonly declared: ReadonlySet<string>;
+  readonly inline: ReadonlySet<string>;
 }
 
 function moduleTree(world: TreeWorld): ModuleTree {
@@ -187,6 +202,7 @@ function moduleTree(world: TreeWorld): ModuleTree {
     const parent = new Map<string, Place>();
     const children = new Map<string, Map<string, string>>();
     const spelled = new Set<string>();
+    const items = new Map<string, Items>();
     const declared: (readonly [string, string, string])[] = [];
 
     for (const file of tree.below('')) {
@@ -195,11 +211,21 @@ function moduleTree(world: TreeWorld): ModuleTree {
       const read = tree.parsed(file);
       if (read === undefined) continue;
       children.set(file, new Map());
+      const files = new Set<string>();
       for (const request of read.requests) {
         const [binding] = request.bindings;
         // A `mod` line: written, and the file taken whole under its name.
         if (request.guessed === true || binding?.imported !== NAMESPACE_NAME) continue;
         declared.push([file, request.value, binding.local]);
+        if (request.value === `self::${binding.local}` || spelledPath(request.value)) files.add(binding.local);
+      }
+      if (read.harvested === true) {
+        const symbols = read.symbols ?? [];
+        items.set(file, {
+          declared: new Set(symbols.filter(({ kind }) => kind !== 'module').map(({ name }) => name)),
+          // A `mod` that is no `mod name;` line is written inline.
+          inline: new Set(symbols.filter(({ kind, name }) => kind === 'module' && !files.has(name)).map(({ name }) => name)),
+        });
       }
     }
 
@@ -226,7 +252,7 @@ function moduleTree(world: TreeWorld): ModuleTree {
       const child = declaredFile(file, inline, name, tree, spelled);
       if (child !== undefined) place(file, path.join('::'), child, inline);
     }
-    return { parent, children, spelled };
+    return { parent, children, spelled, items };
   });
 }
 
@@ -260,12 +286,23 @@ function childOf(at: Place, segment: string, world: TreeWorld, modules: ModuleTr
   return child === at.file ? undefined : child;
 }
 
-/** Whether `segment` is an inline module in `at`'s file that a file is declared inside. */
+/** Whether `segment` is an inline module in `at`'s file: one it declares at its top level, or one a file is declared inside. */
 function holdsInline(at: Place, segment: string, world: TreeWorld, modules: ModuleTree): boolean {
+  if (at.inline.length === 0 && modules.items.get(at.file)?.inline.has(segment) === true) return true;
   const key = [...at.inline, segment, ''].join('::');
   const declared = modules.children.get(at.file);
   if (declared !== undefined) return [...declared.keys()].some((name) => name.startsWith(key));
   return childDirectories(at.file, modules.spelled).some((directory) => world.below([directory, ...at.inline, segment].join('/')).length > 0);
+}
+
+/**
+ * Whether the module at `at` declares `name` as an item. Known for a file's
+ * top level when the scan read its declarations; inside an inline module, or
+ * for a file whose declarations were not read, the walk's answer stands.
+ */
+function declaresItem(at: Place, name: string, modules: ModuleTree): boolean {
+  const items = modules.items.get(at.file);
+  return at.inline.length > 0 || items === undefined || items.declared.has(name);
 }
 
 /**
