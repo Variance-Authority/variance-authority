@@ -26,7 +26,7 @@ const SHAPES = {
   'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport type { Card } from './card.js';\n",
   'packages/lib/src/card.ts': '/** A card on the board. */\nexport interface Card {\n  /** What it says. */\n  title: string;\n  flip(): Card;\n}\n',
   'packages/lib/src/shapes.ts':
-    'export interface Shape {\n  /** How wide. */\n  readonly width: number;\n  area(): number;\n  nested: { inner: number };\n}\n' +
+    'export interface Shape {\n  /** How wide. */\n  readonly width: number;\n  area(): number;\n  nested: { inner: number };\n  deep: {\n    hidden: number;\n  };\n}\n' +
     'export type Pair = {\n  left: number;\n  right: number;\n};\nexport type Id = string;\nexport type Flat = { one: 1; two: 2 };\n' +
     'export class Box {\n  size = 1;\n  open(): void {}\n}\n',
   'packages/lib/src/inner.ts': "import type { Shape, Pair, Id, Flat } from './shapes.js';\nimport { Box } from './shapes.js';\nexport const box = new Box();\n",
@@ -53,6 +53,7 @@ describe('variance ask symbol over a container', () => {
       'packages/lib/src/shapes.ts:3 — readonly width: number;',
       'packages/lib/src/shapes.ts:4 — area(): number;',
       'packages/lib/src/shapes.ts:5 — nested: { inner: number };',
+      'packages/lib/src/shapes.ts:6 — deep: {',
     ]);
   });
 
@@ -71,10 +72,10 @@ describe('variance ask symbol over a container', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const pair = await run(['ask', 'symbol', '--name', 'Pair']);
-    expect(members(pair.out)).toEqual(['packages/lib/src/shapes.ts:8 — left: number;', 'packages/lib/src/shapes.ts:9 — right: number;']);
+    expect(members(pair.out)).toEqual(['packages/lib/src/shapes.ts:11 — left: number;', 'packages/lib/src/shapes.ts:12 — right: number;']);
 
     const box = await run(['ask', 'symbol', '--name', 'Box']);
-    expect(members(box.out)).toEqual(['packages/lib/src/shapes.ts:14 — size = 1;', 'packages/lib/src/shapes.ts:15 — open(): void {}']);
+    expect(members(box.out)).toEqual(['packages/lib/src/shapes.ts:17 — size = 1;', 'packages/lib/src/shapes.ts:18 — open(): void {}']);
 
     const flat = await run(['ask', 'symbol', '--name', 'Flat']);
     expect(flat.out).toContain('export type Flat = { one: 1; two: 2 };');

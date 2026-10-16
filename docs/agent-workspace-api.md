@@ -288,9 +288,14 @@ file beside it, is answered too. `docs_symbol` gives the file and line that
 export it and how many imports reach that file, directly or through a file that
 passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. When that file only passes on another file's declaration with
-`export … from`, renamed or not, both name the declaration it reaches, through
-every file between, and `docs_symbol` shows its line as well. A read through an `export * as` namespace and a call through a
+`export … from`, renamed, type-only or through `export *`, both name the
+declaration it reaches, through every file between, and `docs_symbol` shows its
+line as well. A read through an `export * as` namespace and a call through a
 qualified path are not counted.
+
+`docs_symbol` on an interface, a type alias or a class lists its members after
+the signature, one line each as the checkout holds it, so you see what a value
+of it holds without opening the file.
 
 A name a file declares at its top level and does not export, such as a helper
 only its own file calls, is answered from the source index. Not exported means

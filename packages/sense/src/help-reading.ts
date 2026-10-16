@@ -103,10 +103,11 @@ export interface ContainerMember {
   readonly line: number;
 }
 
-/** One file a name is passed on from with `export … from`, and the name it has there. */
-export interface PassedFrom {
+/** The declaration an export passes on: the file that declares it, the name it has there, and its line. */
+export interface PassedOnDeclaration {
   readonly at: string;
   readonly name: string;
+  readonly line: number;
 }
 
 /** One line that uses a member, and how. */
@@ -126,7 +127,7 @@ export interface NativeHelp {
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
-  passedFromOf?(index: string, file: string, name: string): PassedFrom[] | null;
+  declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
 }
@@ -211,15 +212,17 @@ export function membersOn(root: string, file: string, on: string, index: string 
 }
 
 /**
- * Each file and name the export `name` of `file`, repo-relative, is passed on
- * from with `export … from`, renamed or not, nearest first: the last is the
- * file that declares it. Empty when `file` passes no export by that name on;
- * a namespace, a bare `export *` and a type-only export end the walk where
- * they stand. `undefined` when no index was published; throws when the index
- * does not read.
+ * The declaration the export `name` of `file`, repo-relative, passes on,
+ * through every `export … from` between them, renamed or not and type-only or
+ * not, and through an `export *` when no named export passes the name. `null`
+ * when the file declares the name itself, and when the walk ends short of a
+ * declaration: at a namespace, at a request that resolved to no file of the
+ * checkout, or back at a file it passed through. `undefined` when no index was
+ * published; throws when the index does not read.
  */
-export function passedFrom(root: string, file: string, name: string, index: string = sourceIndexPath(root)): readonly PassedFrom[] | undefined {
-  return entry('passedFromOf')(index, file, name) ?? undefined;
+export function declarationPassedOn(root: string, file: string, name: string, index: string = sourceIndexPath(root)): PassedOnDeclaration | null | undefined {
+  const read = entry('declarationPassedOnOf')(index, file, name);
+  return read === null ? undefined : (read.declaration ?? null);
 }
 
 /** One top-level declaration no export of its file binds. */

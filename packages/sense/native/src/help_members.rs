@@ -147,7 +147,7 @@ pub struct ContainerMember {
 /// Every member the interface, type alias or class named `on` declares in
 /// `file`, by line, as the file's newest parse on the chain records them; a
 /// member of a type literal inside it is the literal's, not the container's.
-/// None when the chain holds no parse of the file.
+/// Empty when the chain holds no parse of the file.
 pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<ContainerMember> {
     let folded = fold(layers);
     let Some((&file, &at)) = folded.get_key_value(file) else { return Vec::new() };

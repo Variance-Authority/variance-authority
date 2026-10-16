@@ -42,6 +42,6 @@ describe('variance ask uses --limit', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`greet` is imported in 5 places');
     expect(sites(out)).toEqual(sites(all.out).slice(0, 2));
-    expect(out).toContain('… and 3 more; a higher `limit` shows them.');
+    expect(out).toContain('… 3 more not shown; a higher `limit` shows them.');
   });
 });

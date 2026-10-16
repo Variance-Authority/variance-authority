@@ -12,12 +12,16 @@ file and line. A nested type literal's members are not listed, and an alias that
 fits on its line lists nothing more.
 
 `ask uses --limit <n>` shows that many sites of each kind. Without it the answer
-shows twelve and counts the rest, as before.
+shows twelve and counts the rest, as before. A `limit` that is not a whole
+number of at least 1 is now refused by `uses`, `grep`, `discover`,
+`intersection` and `slowest-tests` alike, rather than read as the default.
 
 A name a file only passes on, as in `export { taxOf as levy } from './tax.js'`,
-is now followed to the declaration it reaches, through every file between them
-and every rename. `ask uses` names that declaration after the export line, and
-`ask symbol` shows its line too.
+is now followed to the declaration it reaches, through every file between them,
+every rename, a type-only `export type { … } from` and a bare `export *`.
+`ask uses` names that declaration after the export line, and `ask symbol` shows
+its line and its members too. Files that only pass a name to each other name no
+declaration.
 
 Yarn 2 and later have no `-s` flag, so `yarn -s variance` fails before the CLI
 starts. The skill now says that `yarn variance` already prints only the CLI's

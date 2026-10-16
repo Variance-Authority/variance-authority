@@ -79,7 +79,7 @@ export const symbol: Tool<Help> = {
     // Declared at the top of a file and exported by none: still the workspace's
     // own name, and where it is written says who can reach it.
     const own = exported.length > 0
-      ? [exportedOnly(help, name, exported, invocation?.root)]
+      ? [exportedOnly(name, exported, invocation?.root)]
       : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
 
     if (found.length === 0 && invocation?.root !== undefined) {
@@ -158,8 +158,8 @@ export const symbol: Tool<Help> = {
       const exported = exportsNamed(help, name, wanted);
       for (const [held] of declaringExports(name, exported, invocation?.root)) {
         at.push([held.at, held.line]);
-        const origin = originOf(help, invocation?.root, held);
-        if (origin?.line !== undefined) at.push([origin.at, origin.line]);
+        const origin = originOf(invocation?.root, held);
+        if (origin !== undefined) at.push([origin.at, origin.line]);
       }
     }
     if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
@@ -240,17 +240,16 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
  * passes on a declaration of another file is followed to it, and that line is
  * shown too. The members of an interface, a type alias or a class come last.
  */
-function exportedOnly(help: Help, name: string, exported: readonly Named[], root: string | undefined): string {
+function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
   return declaringExports(name, exported, root)
     .map(([held, within]) => {
-      const origin = originOf(help, root, held);
-      const declared: Named = origin?.line === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
+      const origin = originOf(root, held);
+      const declared: Named = origin === undefined ? held : { ...held, ...origin };
       return [
         name,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
         ...(root === undefined ? [] : lineOf(root, held)),
-        ...(origin === undefined ? [] : [`It ${passesOn(origin)}${declared === held ? '.' : ':'}`]),
-        ...(root === undefined || declared === held ? [] : lineOf(root, declared)),
+        ...(origin === undefined || root === undefined ? [] : [`It ${passesOn(origin)}:`, ...lineOf(root, declared)]),
         ...('uses' in within ? [importedIn(within.uses.length)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
         ...memberRows(root, declared.at, declared.name, declared.line),
       ].join('\n');

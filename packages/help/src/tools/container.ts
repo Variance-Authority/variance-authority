@@ -37,9 +37,9 @@ export function memberRows(root: string | undefined, at: string, on: string, lin
   for (const member of found) {
     if (shown.has(member.line)) continue;
     shown.add(member.line);
-    // The index read an older text when the line no longer holds the member.
+    // A file that is gone, or shorter than the parse, has no line to show.
     const written = text[member.line - 1]?.trim();
-    rows.push(`${at}:${member.line} — ${written !== undefined && written.includes(member.name) ? written : member.name}`);
+    rows.push(`${at}:${member.line} — ${written === undefined || written === '' ? member.name : written}`);
   }
   return rows.length === 0 ? [] : ['', 'Members:', ...rows];
 }

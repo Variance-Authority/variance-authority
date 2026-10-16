@@ -5,9 +5,9 @@ import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
-import { limitOf } from './limit.js';
+import { limitOf, notShown } from './limit.js';
 import { type Members, membersOf, places, routes } from './members.js';
-import { type Origin, originOf, passesOn } from './passed-on.js';
+import { originOf, passesOn } from './passed-on.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
 /**
@@ -124,7 +124,7 @@ function listed(sites: readonly Site[], heading: string, name: string, limit: nu
     heading,
     '',
     ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}`),
-    ...(rest > 0 ? [`… and ${rest} more; a higher \`limit\` shows them.`] : []),
+    ...(rest > 0 ? [`… ${notShown(rest)}`] : []),
   ];
 }
 
@@ -372,6 +372,7 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
 
   const sites = sitesOf(found, byPath, within ?? [], read);
   const [only] = exported;
-  const origin: Origin | undefined = only === undefined || exported.length > 1 ? undefined : originOf(help, root, only);
+  // The answer names one export's place, so only a name exported once is followed.
+  const origin = only === undefined || exported.length > 1 ? undefined : originOf(root, only);
   return { name, found, exported, byPath, sites, unread, within, members, kept: [] as readonly DeclaredName[], undeclared: [] as readonly string[], origin };
 }

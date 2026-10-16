@@ -205,6 +205,7 @@ export {
 export { gitDigests } from './tree.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  declarationPassedOn,
   declaredDescribedOf,
   declaredOf,
   encodeSearch,
@@ -212,7 +213,6 @@ export {
   importersOf,
   memberDeclarationsOf,
   membersOn,
-  passedFrom,
   readHelp,
   type ContainerMember,
   type DeclaredName,
@@ -221,7 +221,7 @@ export {
   type HelpPublish,
   type HelpReading,
   type MemberSite,
-  type PassedFrom,
+  type PassedOnDeclaration,
   type PublishedRows,
   type SearchGeneration,
 } from './help-reading.js';

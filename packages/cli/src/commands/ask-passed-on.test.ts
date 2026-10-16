@@ -62,6 +62,42 @@ describe('a name only passed on', () => {
     );
   });
 
+  it('follows a bare `export *` on the way', async () => {
+    checkout({
+      'packages/kit/src/money/all.ts': "export * from './tax.js';\n",
+      'packages/kit/src/money/charge.ts': "export { taxOf as charge } from './all.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', 'charge']);
+    expect(out).toContain(`at packages/kit/src/money/charge.ts:1, ${DECLARED}, `);
+  });
+
+  it('follows a type-only export to the declaration and its members', async () => {
+    checkout({
+      'packages/kit/src/money/types.ts': 'export interface Rate {\n  percent: number;\n}\n',
+      'packages/kit/src/money/fee.ts': "export type { Rate as Fee } from './types.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'symbol', '--name', 'Fee']);
+    expect(out).toContain('It passes on `Rate`, declared at packages/kit/src/money/types.ts:1:');
+    expect(out).toContain('Members:\npackages/kit/src/money/types.ts:2 — percent: number;');
+  });
+
+  it('names no declaration when the files only pass the name to each other', async () => {
+    checkout({
+      'packages/kit/src/money/left.ts': "export { loop } from './right.js';\n",
+      'packages/kit/src/money/right.ts': "export { loop } from './left.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const verb of ['uses', 'symbol']) {
+      const { out } = await run(['ask', verb, '--name', 'loop']);
+      expect(out).not.toContain('passes on');
+    }
+  });
+
   it('says nothing more for a name its file declares', async () => {
     checkout(RATES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

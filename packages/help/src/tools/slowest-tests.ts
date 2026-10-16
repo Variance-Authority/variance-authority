@@ -22,6 +22,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedDurations, type DurationScope } from '@variance-authority/sense';
+import { limitOf } from './limit.js';
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
@@ -29,17 +30,6 @@ export { formatSlowest, spent } from './slowest-format.js';
 
 /** Files, and cases, listed per suite when the question names no limit. */
 export const SLOWEST = 10;
-
-/** The limit as asked: a whole number of at least one, or the default when none was given. */
-export function limitOf(input: Readonly<Record<string, unknown>>): number {
-  const said = input['limit'];
-  if (said === undefined) return SLOWEST;
-  const limit = typeof said === 'string' && said.trim() !== '' ? Number(said) : said;
-  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
-    throw new Error(`\`--limit\` takes a whole number of rows, at least 1; it was given \`${String(said)}\`.`);
-  }
-  return limit;
-}
 
 /** `from` and `to` as asked: each a list of paths, a lone string read as a list of one. */
 export function scopeOf(input: Readonly<Record<string, unknown>>): DurationScope {
@@ -105,7 +95,7 @@ export const slowestTests: Tool<unknown> = {
   },
 
   run: (_subject, input, invocation) => {
-    const limit = limitOf(input);
+    const limit = limitOf(input, SLOWEST);
     const scope = scopeOf(input);
     const root = invocation?.root;
     if (root === undefined) {
