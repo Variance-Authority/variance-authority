@@ -6,7 +6,7 @@ package-grain selector already has a useful answer: change
 answer to the question a graph answers, and it is 168 of the 188 test files. Run
 the suite once through [Variance Authority](README.md) and the record answers
 the question you wanted asked — which tests covered the lines you changed —
-with 10.
+with 9.
 
 > **TLDR**
 >
@@ -16,8 +16,10 @@ with 10.
 > - The walk from what the edit changed selects **441**, and the file graph
 >   1,470. The record selects more than the walk on commits that change a
 >   manifest the Vite configuration reads, and one file more on every commit.
-> - Change one line in `query-core` and the record selects **10 files, 4.4s
->   instead of 12.7s**, a **65%** shorter run.
+> - Change one line in `query-core` and the record selects **9 test files**,
+>   where `nx affected` selects 168. Declare a coarser
+>   [precision](selecting.md#how-precisely-a-suite-selects) and the same line
+>   runs 149, then 83.
 > - One commit of setup, and recording costs **1.08×** a suite run.
 
 Nothing in the repository was written with this in mind and no test was changed
@@ -66,18 +68,17 @@ Inside `Query.fetch` in `packages/query-core/src/query.ts`:
 +      if (observer !== undefined) {
 ```
 
-Ten test files across five packages, 780 tests, 2.8s against the suite's
-11.4s — 4.4s of wall clock against 12.7s. The graph runs 168, because every
-test in an affected project counts as affected; the repository's own `test:pr`
-is `nx affected`, so that is not a hypothetical selector. Both answers are
-defensible; one of them is 16.8 times the other.
+Nine test files across five packages, 758 of the suite's 4,523 tests. The graph
+runs 168, because every test in an affected project counts as affected; the
+repository's own `test:pr` is `nx affected`, so that is not a hypothetical
+selector. Both answers are defensible; one of them is 18.7 times the other.
 
 ```mermaid
 xychart-beta horizontal
   accTitle: Test files selected for a one-line change in query-core
   x-axis ["the record", "nx affected", "every test file"]
   y-axis "test files" 0 --> 190
-  bar [10, 0, 0]
+  bar [9, 0, 0]
   bar [0, 168, 0]
   bar [0, 0, 188]
   bar [0, 0, 0]
@@ -93,6 +94,50 @@ by a handful, and which handful is different for every branch.
 
 Two orders of magnitude separate the two, and only something present while the
 tests ran can distinguish them.
+
+## The same line, at each precision
+
+A suite declares how precisely it selects with its
+[`precision`](selecting.md#how-precisely-a-suite-selects): a skipped test is a
+cost you cannot see, so you start coarse and move finer as the runs earn it.
+Every step reads the same record, so nothing is recorded again. Asked about the
+one-line change above, each step runs:
+
+| `precision` | A test runs when | test files run, of 188 |
+| --- | --- | --- |
+| `file` | it imports a changed file, or it loaded one | 149 |
+| `symbol` | it imports an export the change altered, or it loaded a changed file | 149 |
+| `file-use` | it loaded a changed file | 149 |
+| `function-use` | it entered the function a changed line is in | 83 |
+| `region-use` | it entered the region a changed line is in — the default | **9** |
+
+Each step runs every test the next finer step runs. The three coarse steps tie
+here: every test that imports `query.ts`, through any chain, also loaded it, so
+the imports add nothing to what the record already holds. The cut comes from
+the two steps that read inside the file: 83 test files entered `Query.fetch`,
+and 9 entered the branch the edit changed.
+
+To ask it yourself, record once on the
+[fork](https://github.com/Variance-Authority/tanstack-query-example):
+
+```bash
+git clone https://github.com/Variance-Authority/tanstack-query-example
+cd tanstack-query-example && pnpm install
+pnpm vitest run                        # records
+```
+
+Make the one-line edit, then ask once per step. The fork's
+`variance.config.json` declares only this suite, so each write replaces nothing
+else:
+
+```bash
+for precision in file symbol file-use function-use region-use; do
+  echo "{ \"suites\": { \"unit\": { \"kind\": \"unit\", \"precision\": \"$precision\" } } }" > variance.config.json
+  pnpm variance select --suite unit --since HEAD
+done
+```
+
+Each answer opens with how many of the recorded test files it skips; the rest run.
 
 ## Sixty commits, each against its own parent
 
