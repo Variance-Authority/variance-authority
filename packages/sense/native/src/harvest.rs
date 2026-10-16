@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use oxc_ast::ast::Program;
+use oxc_ast::ast::{Program, Statement};
 use oxc_span::Span;
 use serde::Serialize;
 
@@ -90,6 +90,11 @@ pub struct Harvest {
     docs: HashMap<u32, TextSpan>,
     /// The role tags a doc declares, by where its subject starts; only docs that declare one.
     pub tagged: HashMap<u32, u8>,
+    /// The module's own doc comment, inside its marks: the first `/**` that
+    /// ends before the first statement that is not an import and documents no
+    /// such statement, as TypeDoc reads a module comment. A doc above an import
+    /// is the module's, since an import is not documented.
+    pub module_doc: Option<TextSpan>,
     offsets: Offsets,
 }
 
@@ -98,6 +103,12 @@ impl Harvest {
         let offsets = Offsets::new(source);
         let mut docs = HashMap::new();
         let mut tagged = HashMap::new();
+        let first = program
+            .body
+            .iter()
+            .find(|statement| !matches!(statement, Statement::ImportDeclaration(_)))
+            .map(|statement| oxc_span::GetSpan::span(statement).start);
+        let mut module_doc = None;
         for comment in &program.comments {
             let start = comment.span.start as usize;
             if !comment.is_block()
@@ -121,16 +132,18 @@ impl Harvest {
             if tags != 0 {
                 tagged.insert(subject as u32, tags);
             }
-            docs.insert(
-                subject as u32,
-                offsets.span(Span::new(comment.span.start + 2, comment.span.end - 2)),
-            );
+            let doc = offsets.span(Span::new(comment.span.start + 2, comment.span.end - 2));
+            if module_doc.is_none() && first.is_none_or(|first| comment.span.end <= first && subject as u32 != first) {
+                module_doc = Some(doc);
+            }
+            docs.insert(subject as u32, doc);
         }
 
         let mut harvest = Self {
             symbols: Vec::new(),
             docs,
             tagged,
+            module_doc,
             offsets,
         };
         if symbols {

@@ -32,6 +32,7 @@ pub(crate) struct Parses<'a> {
     bytes: U32s<'a>,
     lines: U32s<'a>,
     blocks: U32s<'a>,
+    doc: Ends<'a>,
     pub request_value: U32s<'a>,
     pub request_kind: U32s<'a>,
     pub request_line: U32s<'a>,
@@ -106,6 +107,7 @@ impl<'a> Parses<'a> {
             bytes: u32s("parses.bytes")?,
             lines: u32s("parses.lines")?,
             blocks: u32s("parses.blocks")?,
+            doc: ends("parses.doc-start", "parses.doc-end")?,
             request_kind: u32s("requests.kind")?,
             request_line: u32s("requests.line")?,
             request_bindings: stored.offsets("requests.bindings", request_value.len(), binding_imported.len())?,
@@ -160,6 +162,12 @@ impl<'a> Parses<'a> {
         (bytes != crate::segment::NONE && lines != crate::segment::NONE).then_some(lines)
     }
 
+    /// The module's own doc comment span, in UTF-16 units of its file;
+    /// absent when it writes none.
+    pub fn doc_of_module(&self, row: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.doc[0], self.doc[1], row).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
     /// The doc comment span of one export, in UTF-16 units of its file;
     /// absent when the reader found none.
     pub fn doc_of_export(&self, export: usize) -> Option<crate::harvest::TextSpan> {
@@ -183,6 +191,8 @@ impl<'a> Parses<'a> {
             ("parses.bytes", self.bytes.len()),
             ("parses.lines", self.lines.len()),
             ("parses.blocks", self.blocks.len()),
+            ("parses.doc-start", self.doc[0].len()),
+            ("parses.doc-end", self.doc[1].len()),
         ])?;
         same_length(self.deleted.len(), &[("parses.deleted-way", self.deleted_way.len())])?;
         same_length(self.request_value.len(), &[
@@ -387,5 +397,9 @@ impl ParseRow for ParseView<'_, '_> {
             (self.columns.bytes.at(self.row), self.columns.lines.at(self.row), self.columns.blocks.at(self.row));
         (bytes != NONE && lines != NONE)
             .then(|| crate::source_size::Size { bytes, lines, blocks: (blocks != NONE).then_some(blocks) })
+    }
+
+    fn doc(&self) -> crate::parse_columns::Span {
+        span(self.columns.doc[0], self.columns.doc[1], self.row)
     }
 }

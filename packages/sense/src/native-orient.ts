@@ -365,6 +365,8 @@ export interface NativeDependencyLexicon {
   dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
   /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
   describedWords(query: string): [string, string][];
+  /** Per text, how many of the adjacent word pairs of `query` it writes adjacent. */
+  nearOf(query: string, texts: string[]): number[];
   /** Each word's stem, in order. */
   wordStems(words: string[]): string[];
 }

@@ -13,7 +13,7 @@ import { declaredAt, declaredBlocks, unreadNote } from './declared.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 
 /**
- * `docs_symbol` — one name, in full.
+ * `docs_symbol` — what a name is and where it is declared, in full.
  *
  * Answered for every specifier that publishes it rather than for the first,
  * because a declaration reachable from a barrel and from a subpath is one thing

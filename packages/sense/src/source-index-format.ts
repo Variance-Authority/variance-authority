@@ -35,7 +35,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 23;
+export const SOURCE_INDEX_VERSION = 24;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -218,6 +218,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       };
     });
     const symbols = harvest.symbols(row);
+    const moduleDoc = harvest.moduleDoc(row);
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
     const mocks = mocksOf(row);
@@ -234,6 +235,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       ...memberUsesOf(row),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),
+      ...(moduleDoc === undefined ? {} : { doc: moduleDoc }),
     });
   }
   const deletedParses = new Set<ParseKey>();

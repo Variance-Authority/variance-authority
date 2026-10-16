@@ -1,15 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { declaredDescribedOf, describedWordsNative, wordStemsNative } from '@variance-authority/sense';
+import { opening } from '@variance-authority/package/help';
+import { declaredDescribedOf, describedWordsNative, nearOfNative, wordStemsNative, type DescribedFile } from '@variance-authority/sense';
+import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
 import { declaredMatch } from './declared.js';
-import type { DeclaredMatch } from './search-answer.js';
+import type { DeclaredMatch, FileMatch } from './search-answer.js';
 import { admittedBy, matchingTerms } from './loose.js';
 
 // compass: variance-authority.report.agent-surface
 
 /**
- * The repository's own names a description reaches, asked by the words the
- * dependency lexicon asks a package by.
+ * The repository's own names and files a description reaches, asked by the
+ * words the dependency lexicon asks a package by.
  *
  * A description is not a name: `tsconfig custom conditions` is three words an
  * agent would say about `customConditionsFor`, and neither the phrase nor every
@@ -20,21 +24,30 @@ import { admittedBy, matchingTerms } from './loose.js';
  * stands for a stem when it reduces to it, so `files` stands for `file` and
  * `filter` does not. A name its file declares and does not export is in no
  * row, so the source index answers for it by the same rule, its name and its
- * doc comment read in the sense addon.
+ * doc comment read in the sense addon. A file is described the same way, by
+ * the words of its own name and of the doc it opens with — what it is for,
+ * which no one declaration in it says. Only `package`, `module` and `use` are
+ * asked of code that a package is not asked by: every package says them about
+ * itself, and code is named in them.
  *
  * Ordered by counts, never a score: the question's words it holds at all, then
- * the ones its name holds, then how many rows publish or export it, then the
+ * how many of the question's adjacent word pairs its doc writes adjacent, then
+ * the words its name holds, then how many rows publish or export it, then the
  * name's own rank. How much of the question is held comes first, the way a
  * search engine's coordination factor puts a document holding every term above
  * one holding half: a doc that says all of what was asked describes it better
- * than a name that says half. Between two that hold as much, the name decides,
- * since a name was chosen for what it does.
+ * than a name that says half. Between two that hold as much, a doc that writes
+ * the question's phrase — term proximity, counted as the pairs it shares —
+ * describes it better than words scattered across a name; then the name
+ * decides, since a name was chosen for what it does.
  */
 
 /** What a reached name is ordered on. */
 export interface DescribedKey {
   /** The question's words it holds, as the question wrote them, in stem order. */
   readonly words: readonly string[];
+  /** How many of the question's adjacent word pairs its doc writes adjacent. */
+  readonly near: number;
   /** How many of them its name holds. */
   readonly named: number;
   /** Rows that publish or export it. */
@@ -53,6 +66,14 @@ export interface DescribedName extends DescribedKey {
 export interface DescribedDeclaration extends DescribedKey {
   readonly match: DeclaredMatch;
 }
+
+/** One file the description reached by its own name and the doc it opens with. */
+export interface DescribedFileHit extends DescribedKey {
+  readonly file: DescribedFile;
+}
+
+/** What a description reached, of any kind. */
+export type Described = DescribedName | DescribedDeclaration | DescribedFileHit;
 
 /**
  * Names holding at least half of the description's distinct stems, unordered;
@@ -126,65 +147,99 @@ export function describedNames(
   }
 
   const needed = Math.ceil(asked.length / 2);
-  const found: DescribedName[] = [];
-  for (const [name, positions] of held) {
-    if (positions.size < needed) continue;
+  const reached = [...held].filter(([, positions]) => positions.size >= needed);
+  // One word has no pair to write adjacent, so no doc is decoded for it.
+  const phrased = query.split(/[^\p{L}\p{N}]+/u).filter((word) => word !== '').length > 1;
+  const near = phrased ? nearOfNative(query, reached.map(([name]) => docAbout(index, name, through.get(name)) ?? '')) : [];
+  return reached.map(([name, positions], at): DescribedName => {
     const row = through.get(name);
-    found.push({
+    return {
       name,
       ...(row === undefined ? {} : { through: row }),
       words: asked.filter((_, position) => positions.has(position)).map(([, word]) => word),
+      near: near[at] ?? 0,
       named: named.get(name)?.size ?? 0,
       rows: index.publishedOf(name).length + index.exportedOf(name).length,
       rank: index.rank(name),
-    });
-  }
-  return found;
+    };
+  });
+}
+
+/** The doc a reached name is shown with: the row it was reached through, else its first published or exported row's. */
+function docAbout(index: SearchIndex, name: number, through: number | undefined): string | undefined {
+  if (through !== undefined) return index.exported(through).doc;
+  const published = index.publishedOf(name)[0];
+  if (published !== undefined) return index.published(published).doc;
+  const exported = index.exportedOf(name)[0];
+  return exported === undefined ? undefined : index.exported(exported).doc;
 }
 
 /**
- * The declarations no export binds, in `files` when they are named, whose name
- * and doc hold at least half of the description's distinct stems; `undefined`
- * when the question has no word to describe or no checkout was named, and when
- * its source index is absent or does not read, which the `declared` section
- * already says.
+ * The declarations no export binds, and the files, in `files` when they are
+ * named, whose name and doc hold at least half of the description's distinct
+ * stems; `undefined` when the question has no word to describe or no checkout
+ * was named, and when its source index is absent or does not read, which the
+ * `declared` section already says.
  */
 export function describedDeclarations(
   root: string | undefined,
   query: string,
   files: Iterable<string> | undefined,
-): readonly DescribedDeclaration[] | undefined {
+): readonly (DescribedDeclaration | DescribedFileHit)[] | undefined {
   const asked = describedWordsNative(query);
   if (root === undefined || asked.length === 0) return undefined;
   let read: ReturnType<typeof declaredDescribedOf>;
   try {
-    read = declaredDescribedOf(root, asked.map(([stem]) => stem as string), Math.ceil(asked.length / 2), files);
+    read = declaredDescribedOf(root, query, asked.map(([stem]) => stem as string), Math.ceil(asked.length / 2), files);
   } catch {
     return undefined;
   }
-  return read?.names.map((one): DescribedDeclaration => {
-    const held = new Set(one.held ?? []);
-    return {
-      match: declaredMatch(one),
-      words: asked.filter((_, position) => held.has(position)).map(([, word]) => word as string),
-      named: one.named ?? 0,
-      rows: 0,
-      rank: Number.MAX_SAFE_INTEGER,
-    };
-  });
+  if (read === undefined) return undefined;
+  const words = (positions: readonly number[] | null | undefined): readonly string[] => {
+    const held = new Set(positions ?? []);
+    return asked.filter((_, position) => held.has(position)).map(([, word]) => word as string);
+  };
+  const unranked = { rows: 0, rank: Number.MAX_SAFE_INTEGER } as const;
+  return [
+    ...read.names.map((one): DescribedDeclaration => ({
+      match: declaredMatch(one), words: words(one.held), near: one.near ?? 0, named: one.named ?? 0, ...unranked,
+    })),
+    ...read.files.map((file): DescribedFileHit => ({ file, words: words(file.held), near: file.near, named: file.named, ...unranked })),
+  ];
 }
 
+/** A described file as a `search` section holds it, its doc's opening read from the checkout. */
+export function fileMatch(root: string | undefined, file: DescribedFile): FileMatch {
+  let summary: string | undefined;
+  if (root !== undefined && file.docStart != null && file.docEnd != null) {
+    try {
+      const doc = docOf(readFileSync(join(root, file.at), 'utf8'), { start: file.docStart, end: file.docEnd });
+      summary = doc === undefined ? undefined : opening(doc);
+    } catch {
+      summary = undefined;
+    }
+  }
+  return { source: 'file', at: file.at, ...(file.by === '' ? {} : { package: file.by }), ...(summary === undefined ? {} : { summary }) };
+}
+
+/** Where a reached thing sorts at a full tie: a name of the index, then a declaration, then a file. */
+const kindOrder = (one: Described): number => ('match' in one ? 1 : 'file' in one ? 2 : 0);
+
 /**
- * Best first: words held, then words in the name, then rows, then rank; a name
- * of the index before a declaration, and declarations by file, then line.
+ * Best first: words held, then the phrase its doc shares, then words in the
+ * name, then rows, then rank; a name of the index before a declaration before
+ * a file, declarations by file, then line, and files by path.
  */
-export const describedOrder = (a: DescribedName | DescribedDeclaration, b: DescribedName | DescribedDeclaration): number =>
+export const describedOrder = (a: Described, b: Described): number =>
   b.words.length - a.words.length ||
+  b.near - a.near ||
   b.named - a.named ||
   b.rows - a.rows ||
   a.rank - b.rank ||
-  ('match' in a ? 1 : 0) - ('match' in b ? 1 : 0) ||
+  kindOrder(a) - kindOrder(b) ||
   // `const a = 1, b = 2` declares two names on one line; the name settles them.
   ('match' in a && 'match' in b
     ? codeUnitOrder(a.match.at, b.match.at) || a.match.line - b.match.line || codeUnitOrder(a.match.name, b.match.name)
-    : 0);
+    : 'file' in a && 'file' in b
+      ? codeUnitOrder(a.file.at, b.file.at)
+      : 0);

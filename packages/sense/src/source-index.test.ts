@@ -86,6 +86,7 @@ const PARSED: Parsed = {
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.
   size: { bytes: 4127, lines: 93, blocks: 11 },
+  doc: { start: 5113, end: 5170 },
 };
 const RECORD: FileRecord = {
   file: 'src/card.tsx',
