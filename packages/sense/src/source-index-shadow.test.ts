@@ -102,7 +102,7 @@ describe('a chain whose later layer puts every key again', () => {
   it('answers from the later layer, and holds no more of the heap than that layer alone', async () => {
     setFlagsFromString('--expose-gc');
     const gc = runInNewContext('gc') as () => void;
-    // Enough rows that a reader decoding the shadowed layer holds about twice the heap.
+    // Enough rows that decoding the shadowed layer stands above what one read leaves on the heap anyway.
     const count = 5_000;
     const later = generation('new', count);
     const alone = await chain([[later]]);
