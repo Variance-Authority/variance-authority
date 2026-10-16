@@ -110,13 +110,20 @@ function order(sites: readonly Site[], from: string | undefined): readonly Site[
   );
 }
 
-/** The sites of `name` under `heading`, each marked with the name it takes when a re-export renamed it. */
+/**
+ * The sites of `name` under `heading`, each marked with the name its file
+ * knows it by when that is another: the one its import binds it to with `as`,
+ * or else the one a re-export renamed it to.
+ */
 function listed(sites: readonly Site[], heading: string, name: string): readonly string[] {
   if (sites.length === 0) return [];
 
   const shown = sites.slice(0, CAP);
   const rest = sites.length - shown.length;
-  const renamed = (use: Site): string => (use.name === undefined || use.name === name ? '' : ` (as ${use.name})`);
+  const renamed = (use: Site): string => {
+    const known = use.local ?? use.name;
+    return known === undefined || known === name ? '' : ` (as ${known})`;
+  };
   return [
     '',
     heading,
@@ -180,8 +187,9 @@ export const uses: Tool<Help> = {
     'Every file:line in the workspace that imports one exported name, including reads through ' +
     '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
     'name the file by path, marked as such. Imports within the exporting package are read from the ' +
-    'source index, through each `export … from` that passes the name on, marked `(as x)` where one renames it, so a ' +
-    'name exported and not published is answered too. A member of an interface, a type literal or a class by that ' +
+    'source index, through each `export … from` that passes the name on, so a ' +
+    'name exported and not published is answered too. A site is marked `(as x)` where its import or a re-export ' +
+    'renames the name. A member of an interface, a type literal or a class by that ' +
     'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
     'it through a value whose type is written as its container, and the docs_grep that finds the uses no line types. A top-level ' +
     'name a file declares and does not export is answered with where it is declared and who can reach it there. Stories ' +
