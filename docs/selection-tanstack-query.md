@@ -20,6 +20,9 @@ with 9.
 >   where `nx affected` selects 168. A coarser
 >   [precision](selecting.md#how-precisely-a-suite-selects) runs 83, then 149:
 >   the import graph adds nothing to what coverage already says.
+> - What limits `file-use` here is `query-core`'s index, which loads every
+>   module it re-exports: an edit to `hydration.ts` runs 149 test files, and
+>   21 of them call a function in it.
 > - One commit of setup, and recording costs **1.08×** a suite run.
 
 Nothing in the repository was written with this in mind and no test was changed

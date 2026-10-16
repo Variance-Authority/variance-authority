@@ -286,9 +286,15 @@ and an install that could not be compared.
 
 By default a test is skipped unless it entered the code a changed line is in.
 You may not trust that on the first day: a skipped test is a cost you cannot
-see. So a suite declares its `precision`. Start at `file`,
-which runs every test that imports a changed file, and move one step finer when
-the runs have earned it:
+see. So a suite declares its `precision`, and each step trusts the record a
+little more. The coarse steps read what a test imports, through the file graph;
+the fine steps read what it loaded and entered, from the record. On TanStack
+Query, a one-line edit runs 149 test files at `file` and 9 at `region-use`.
+
+If your suite comes from a graph selector such as `nx affected`, start at
+`file`, which runs every test that imports a changed file. Move to `file-use`
+once your modules load where they are used, and to `region-use` once every
+project the suite runs loads the instrumentation:
 
 ```json
 { "suites": { "unit": { "kind": "unit", "precision": "file" } } }
@@ -302,28 +308,6 @@ the runs have earned it:
 | `function-use` | it entered the function a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes, with each region it charges widened to the function that holds it: a changed value runs every test that entered a function reading it, at any line of that function, and a change that runs as the module loads runs every test that loaded the file |
 | `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes: a changed value runs the tests that entered the region reading it. A suite that declares nothing reads this |
 
-Every step reads the same record and the same file graph; nothing is recorded
-differently. The graph and the record miss different tests: the graph takes loading a module to
-declare its exports and nothing more, which the `sideEffects` field overrides,
-and a runner config can load a file that no import names. So `file` and
-`symbol` add what the graph reaches to what `file-use` runs, rather than
-replace it, and each step runs every test a finer step runs: moving finer only
-drops tests, and moving coarser never skips one the finer step would run. At
-`file`, `symbol` and `file-use` a changed file counts whatever the edit was, a
-comment included.
-
-A suite that declares [`"relations":
-false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
-declines the graph, so it cannot declare `file` or `symbol`, and the config is
-refused. To see what each step would select for your change, run `variance
-select` once per step, as [TanStack
-Query](selection-tanstack-query.md#two-lines-at-each-precision) does for two
-lines.
-
-A [journey](journeys.md) file you hand to `variance select --execution` is read
-by its regions, whatever the suite declares: naming the file asks for that
-reading.
-
 ### From `file` to `file-use`: load a module where it is used
 
 `file` is the step for a suite that comes from a graph selector such as `nx
@@ -333,7 +317,9 @@ where a test imports a file without loading it, and a runner such as Vitest or
 Jest loads every static import. On most codebases the two steps run the same
 tests, and the size of both answers depends on your imports, not on the
 selector. A module that an index file re-exports is loaded by every test that
-imports the index, and `file-use` counts each of those tests as a user of it.
+imports the index, and `file-use` counts each of those tests as a user of it. `symbol` narrows `file`
+to the exports a change altered, but a test that loaded the file still runs,
+so it ties with `file` wherever imports load.
 
 Load the module at its first use instead. Under Jest, a lazy `require` does it:
 a `require` inside the function that needs the module, or Babel's CommonJS
@@ -356,6 +342,44 @@ On [TanStack Query](selection-tanstack-query.md#what-the-index-costs-file-use),
 them come through one index file. Atlassian reports the same effect from
 removing barrel files in Jira: unit tests selected per change fell from about
 1,600 to 200 (*How We Achieved 75% Faster Builds by Removing Barrel Files*).
+
+### From `file-use` to `region-use`: read inside the file
+
+`function-use` and `region-use` read inside a changed file, so they pay from
+the first run wherever a module is loaded widely and used narrowly, without the
+import work above. That work is still what makes `file-use` sharp, and
+`file-use` is the step that rests on the least: it needs only to know which
+test loaded which file. On TanStack
+Query, a one-line edit inside `Query.fetch` runs 149 test files at `file-use`,
+83 at `function-use` and 9 at `region-use`. They read the regions the
+instrumentation recorded, so they are as exact as that instrumentation: every
+project the suite runs has to load it, as
+[TanStack Query's setup](selection-tanstack-query.md#what-it-took-to-fit)
+shows.
+
+### What every step reads
+
+Every step reads the same record and the same file graph; nothing is recorded
+differently. The graph and the record miss different tests: the graph takes loading a module to
+declare its exports and nothing more, which the `sideEffects` field overrides,
+and a runner config can load a file that no import names. So `file` and
+`symbol` add what the graph reaches to what `file-use` runs, rather than
+replace it, and each step runs every test a finer step runs: moving finer only
+drops tests, and moving coarser never skips one the finer step would run. At
+`file`, `symbol` and `file-use` a changed file counts whatever the edit was, a
+comment included.
+
+A suite that declares [`"relations":
+false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
+declines the graph, so it cannot declare `file` or `symbol`, and the config is
+refused. To see what each step would select for your change, run `variance
+select` once per step, as [TanStack
+Query](selection-tanstack-query.md#two-lines-at-each-precision) does for two
+lines.
+
+A [journey](journeys.md) file you hand to `variance select --execution` is read
+by its regions, whatever the suite declares: naming the file asks for that
+reading.
 
 ## What a skipped subject looks like
 
