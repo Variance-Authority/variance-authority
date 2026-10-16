@@ -16,5 +16,5 @@ keeps. The lines follow the language's scope: a parameter, a local or an inner
 item of the same name is another name, and the declaration is not a use. A
 Python, Swift, Java or Kotlin file is still answered by its imports alone.
 
-The source index format moves to version 24, so the first scan after the
+The source index format moves to version 29, so the first scan after the
 upgrade reads every file again.

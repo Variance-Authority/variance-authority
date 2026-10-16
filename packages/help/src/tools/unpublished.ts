@@ -20,7 +20,7 @@ import { useOf } from '../refresh-native.js';
 import { importsByPath } from './by-path.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
-export const UNCOUNTED = 'a read through an `export * as` namespace and a call through a qualified path are not counted';
+export const UNCOUNTED = 'a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted';
 
 /** Every export of `name` from ordinary source, in `within` when one is named. */
 export function exportsNamed(help: Help, name: string, within: string | undefined): readonly Named[] {

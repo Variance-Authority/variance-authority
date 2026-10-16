@@ -59,9 +59,8 @@ describe('the native warm update', () => {
   async function held(index: string) {
     const file = await openSourceIndexFile(index);
     const sorted = (map: ReadonlyMap<string, unknown>) => JSON.stringify([...map].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
-    // A parse the addon read carries no harvest yet, as a cold build's does; JavaScript adds it when something asks.
-    const unharvested = new Map([...file.stored.parses].map(([key, { symbols: _symbols, harvested: _harvested, ...rest }]) => [key, rest]));
-    return { records: sorted(file.stored.records), parses: sorted(unharvested), directories: sorted(file.stored.directories) };
+    // Declarations included: `ask symbol` reads them from whichever update wrote the parse.
+    return { records: sorted(file.stored.records), parses: sorted(file.stored.parses), directories: sorted(file.stored.directories) };
   }
 
   async function agree(change: () => Promise<void>): Promise<void> {
@@ -147,7 +146,7 @@ describe('the native warm update', () => {
     expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
     const working = decodeSourceIndex((await openImmutableLog(start)).segments.at(-1)!);
     expect([...working.records.keys()]).toEqual([]);
-    // Its parse too: the base holds that content's parse, harvested, which the addon's read is not.
+    // Its parse too: the base already holds the same harvested parse under that key.
     expect([...working.parses.keys()]).toEqual([]);
   });
 

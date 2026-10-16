@@ -1,4 +1,4 @@
-import { affectedBy, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
 /**
@@ -20,7 +20,7 @@ export function stoppedIn(
 ): ReadonlySet<number> | undefined {
   if (index.tests.every((test) => test.stopped === false)) return new Set();
   if (relations === undefined) return undefined;
-  const affected = affectedBy(relations, [module.file]);
+  const affected = affectedBy(relations, [module.file], { through: RUNTIME_EDGES });
   if (affected.missing.length > 0) return undefined;
   const files = new Set(affected.files);
   const reach = new Set<number>();

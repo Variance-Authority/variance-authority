@@ -49,6 +49,7 @@
  */
 
 import {
+  RUNTIME_EDGES,
   explain,
   changedBefore,
   affectedBy,
@@ -213,7 +214,10 @@ function seedsOf(
   const affected = affectedBy(
     relations,
     [...files, ...expanded],
-    narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) },
+    {
+      through: RUNTIME_EDGES,
+      ...(narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) }),
+    },
   );
   // Only the diff's own seeds can be missing; an expanded one came out of the
   // graph, so it is in it by construction. A path is counted once, however

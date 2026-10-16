@@ -35,7 +35,6 @@ import { relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
-  enrichSources,
   openSourceIndex,
   placesOf,
   scanRelations,
@@ -336,22 +335,14 @@ async function scanWorkspace(root: string, options: ReadingOptions, read?: Works
 
 async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): Promise<Help> {
   const { root, offerings, scanned } = read;
-  const byFile = new Map(scanned.records.map((record) => [record.file, record]));
   const help = await stepped(options.progress, 'reading the signatures and comments of the exported names', async () => {
-    const names = await indexedNames(root, offerings, scanned.sources, async (files) => {
-      const subjects = files.flatMap((file) => {
-        const digest = byFile.get(file)?.digest;
-        return digest === undefined ? [] : [{ file, digest }];
-      });
-      return enrichSources(root, subjects, scanned.cache);
-    });
+    const names = await indexedNames(root, offerings, scanned.sources);
     return assembleHelp(root, offerings, scanned.usage, names);
   });
   // `assembleHelp` has consumed the lazy name reader. Keeping every transient
   // parse alive while two large artifacts are encoded turns a cold publication
   // into garbage-collection work proportional to the repository.
   scanned.sources.clear();
-  byFile.clear();
   if (options.save !== false) {
     await stepped(options.progress, 'publishing the questions', async () => {
       if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();

@@ -224,15 +224,14 @@ export const uses: Tool<Help> = {
     // A name no file exports may be declared in a file whose declarations
     // were not read, so the answer names those files after what it found.
     const unread = unreadLine(answer.undeclared);
-    const own = ownLines(answer.inFile, name);
-    if (kept.length > 0) {
-      if (declared === 0) return [keptLine(name, kept), ...own, ...unread].join('\n');
-      return [keptLine(name, kept), ...own, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, name), ...unread].join('\n');
-    }
+    const keeping = keptLines(name, kept, answer.keptSites, answer.keptInFile, from);
     if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
+      if (kept.length > 0 && declared === 0) return [...keeping, ...unread].join('\n');
+      if (kept.length > 0) return [...keeping, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, name), ...unread].join('\n');
       return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, name), ...unread].join('\n');
     }
-    const imports = imported(answer, from, own);
+    // A file that keeps a name of its own is another thing than the export of that name.
+    const imports = [imported(answer, from, ownLines(answer.inFile, name)), ...(kept.length === 0 ? [] : ['', ...keeping])].join('\n');
     // An index the imports already said did not read is not said twice.
     if (declared === 0 && members.unread !== undefined && answer.unread === undefined) {
       return `${imports}\n\nMembers by this name were not read: ${members.unread}.`;
@@ -247,9 +246,9 @@ export const uses: Tool<Help> = {
   // declaring it as a member, read as `run` reads them; an index that did not
   // read leaves the imports within the package unread.
   files(help, input, invocation): FileSet {
-    const { sites, unread, members, kept, inFile } = usesOf(help, input, invocation?.root);
+    const { sites, unread, members, kept, keptSites, inFile, keptInFile } = usesOf(help, input, invocation?.root);
     const files = new Map<string, number[]>();
-    for (const site of [...sites, ...inFile, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept]) {
+    for (const site of [...sites, ...inFile, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept, ...keptSites, ...keptInFile]) {
       files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
     }
     return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
@@ -263,14 +262,29 @@ function ownLines(inFile: readonly Use[], name: string): readonly string[] {
 
 /** A name its files keep to themselves: where each declares it, and who can reach it from there. */
 function keptLine(name: string, kept: readonly DeclaredName[]): string {
+  // A Rust item inside an inline module answers to its own name, and is
+  // declared on its module path: the path is said where it is not the name.
+  const named = (one: DeclaredName): string => (one.name === name ? '' : ` as \`${one.name}\``);
   if (kept.length === 1) {
     const one = kept[0]!;
-    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${reachSentences(one).clause}.`;
+    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}.`;
   }
+  const files = new Set(kept.map((one) => one.at)).size;
   return [
-    `\`${name}\` is declared, not exported, in ${kept.length} files:`,
-    ...kept.map((one) => `  ${one.at}:${one.line}${reachSentences(one).clause}`),
+    `\`${name}\` is declared, not exported, in ${files === kept.length ? `${files} files` : places(kept.length)}:`,
+    ...kept.map((one) => `  ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}`),
   ].join('\n');
+}
+
+/**
+ * A name its files keep to themselves, the modules inside their reach that
+ * import it, as a Rust child module takes its parent's private item with
+ * `use super::`, and the lines of the declaring files that use it there.
+ */
+function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly Site[], inFile: readonly Use[], from: string | undefined): readonly string[] {
+  if (kept.length === 0) return [];
+  const taken = sites.length === 0 ? [] : ['', `Imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}.`, ...kinds(sites, from, name)];
+  return [keptLine(name, kept), ...taken, ...ownLines(inFile, name)];
 }
 
 /**
@@ -304,11 +318,6 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
     return [`\`${name}\` is published and nothing in this workspace imports it; ${UNCOUNTED}. docs_symbol has its signature and what is written above it.`, ...own].join('\n');
   }
 
-  const sorted = order(sites, from);
-  const stories = sorted.filter((use) => use.kind === 'story');
-  const tests = sorted.filter((use) => use.kind === 'test');
-  const source = sorted.filter((use) => use.kind === 'source');
-
   const nearest =
     from === undefined
       ? 'Path order; `from` sorts nearest first.'
@@ -321,14 +330,22 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
   return [
     `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
     nearest,
-    ...listed(stories, 'Stories:', name),
-    ...listed(tests, 'Tests:', name),
-    ...listed(source, 'Source:', name),
+    ...kinds(sites, from, name),
     ...own,
     // The imports by package path are in the Help value; the rest are not.
     ...(unread === undefined ? [] : [`\nImports that do not name a package path are not listed: ${unread}.`]),
     ...(within === undefined ? [] : [`\n${UNCOUNTED.charAt(0).toUpperCase()}${UNCOUNTED.slice(1)}.`]),
   ].join('\n');
+}
+
+/** The sites of a name, nearest first when `from` is said, stories and tests apart. */
+function kinds(sites: readonly Site[], from: string | undefined, name: string): readonly string[] {
+  const sorted = order(sites, from);
+  return [
+    ...listed(sorted.filter((use) => use.kind === 'story'), 'Stories:', name),
+    ...listed(sorted.filter((use) => use.kind === 'test'), 'Tests:', name),
+    ...listed(sorted.filter((use) => use.kind === 'source'), 'Source:', name),
+  ];
 }
 
 /**
@@ -357,16 +374,12 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   // The scan records every member declaration, so reading the ones by this
   // name is a lookup in the source index, made whether or not an export has it.
   const members: Members = membersOf(root, name, wanted);
+  // A name may be one a file declares and keeps to itself, which the source
+  // index holds with the file's parse, beside an export of it elsewhere.
+  const { kept, keptSites, keptInFile, undeclared } = keptOf(root, name, wanted);
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
-    // A name no file exports may be one a file declares and keeps to itself,
-    // which the source index holds with the file's parse, as well as a member.
-    const read = declarations(root, name);
-    const kept = 'refused' in read ? [] : read.names.filter((one) => wanted === undefined || one.by === wanted);
-    const undeclared = 'refused' in read ? [] : read.unread;
     if (kept.length > 0 || members.declared.length > 0) {
-      const own = kept.length === 0 ? undefined : importsOf(root, [...new Set(kept.map((one) => one.at))], name);
-      const inFile = own !== undefined && 'inFile' in own ? own.inFile : [];
-      return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, inFile, members, kept, undeclared };
+      return { name, found, exported, byPath, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], members, kept, keptSites, keptInFile, undeclared };
     }
     const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
     throw new Error([`${unfound(help, name, wanted)}${unreadMembers}`, ...unreadLine(undeclared)].join(' '));
@@ -384,6 +397,20 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   const sites = sitesOf(found, byPath, within ?? [], read);
-  const inFile = read !== undefined && 'inFile' in read ? read.inFile : [];
-  return { name, found, exported, byPath, sites, unread, within, inFile, members, kept: [] as readonly DeclaredName[], undeclared: [] as readonly string[] };
+  const inFile: readonly Use[] = read !== undefined && 'inFile' in read ? read.inFile : [];
+  return { name, found, exported, byPath, sites, unread, within, inFile, members, kept, keptSites, keptInFile, undeclared: [] as readonly string[] };
+}
+
+/**
+ * The top-level declarations of a name no export binds, the imports the source
+ * index resolved to them, and the lines of their own files that use them.
+ */
+function keptOf(root: string | undefined, name: string, wanted: string | undefined) {
+  const read = declarations(root, name);
+  const kept: readonly DeclaredName[] = 'refused' in read ? [] : read.names.filter((one) => wanted === undefined || one.by === wanted);
+  const undeclared: readonly string[] = 'refused' in read ? [] : read.unread;
+  const taken = kept.length === 0 ? undefined : importsOf(root, [...new Set(kept.map((one) => one.at))], name);
+  const keptSites: readonly Site[] = taken !== undefined && 'uses' in taken ? taken.uses : [];
+  const keptInFile: readonly Use[] = taken !== undefined && 'inFile' in taken ? taken.inFile : [];
+  return { kept, keptSites, keptInFile, undeclared };
 }

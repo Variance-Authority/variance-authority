@@ -113,6 +113,41 @@ describe('variance ask uses over the file that declares the name', () => {
     ]);
   });
 
+  it('lists a kept Rust item once: a child file that takes it is an import, a line of its own file is not', async () => {
+    checkout({
+      'packages/kit/src/lib.rs': ['mod graph;', 'pub fn run() -> u32 {', '    0', '}', ''].join('\n'),
+      'packages/kit/src/graph.rs': [
+        'mod child;',
+        'fn helper() -> u32 {',
+        '    1',
+        '}',
+        'pub(crate) fn fold() -> u32 {',
+        '    helper()',
+        '}',
+        '#[cfg(test)]',
+        'mod tests {',
+        '    use super::helper;',
+        '    #[test]',
+        '    fn helps() { assert_eq!(helper(), 1); }',
+        '}',
+        '',
+      ].join('\n'),
+      'packages/kit/src/graph/child.rs': ['use super::helper;', 'pub(crate) fn again() -> u32 {', '    helper()', '}', ''].join('\n'),
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'helper']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`helper` is declared, not exported, at packages/kit/src/graph.rs:2');
+    expect(out).toMatch(/^packages\/kit\/src\/graph\/child\.rs:1 — @acme\/kit$/m);
+    expect(section(out, OWN)).toEqual([
+      'packages/kit/src/graph.rs:6 — @acme/kit',
+      'packages/kit/src/graph.rs:10 — @acme/kit',
+      'packages/kit/src/graph.rs:12 — @acme/kit',
+    ]);
+    expect(out.match(/^packages\/kit\/src\/graph\.rs:\d+ — /gm)).toHaveLength(3);
+  });
+
   // FIXME: the Python, Swift and JVM readers record no lines of a file that
   // use what it declares, so `ask uses` answers them by imports alone.
   it.todo('lists the lines of a Python, Swift, Java or Kotlin file that use a name it declares — needs a scope walk in each of those readers');

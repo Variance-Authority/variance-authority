@@ -46,6 +46,7 @@ export {
   type SourceTestRange,
 } from './reverse.js';
 export { anyStopped } from './stopped.js';
+export { functionsUnder, lineGrain } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
 export { caseTwins, heldText, heldValues, outsideVocabulary, type CaseTwin, type OutsideVocabulary } from './case-axes.js';

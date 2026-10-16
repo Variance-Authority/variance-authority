@@ -159,9 +159,6 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     for (origin, (at, on)) in origins.iter().enumerate() {
         written.entry(at.clone()).or_default().entry(on.clone()).or_default().insert(origin);
     }
-    // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
-    // field used through a type-only barrel is missed here, though the type is
-    // the one declared.
     let (taken, _) = importers_from(root, layers, written.clone());
     for one in taken {
         // A name read off a namespace is `ns.Props`, which no member-use row writes.

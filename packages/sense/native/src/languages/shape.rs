@@ -56,6 +56,11 @@ pub struct Request {
     pub line: u32,
     #[serde(skip_serializing_if = "is_false")]
     pub guessed: bool,
+    /// The reader asked for the whole path as an item, one of several prefixes
+    /// of a path nothing says the modules of: it names something only where
+    /// one segment is left past the modules. `Request.item` in `read.ts`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub item: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -159,6 +164,7 @@ impl Requests {
             bindings,
             line,
             guessed,
+            item: false,
         });
     }
 

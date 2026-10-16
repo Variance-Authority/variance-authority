@@ -51,7 +51,9 @@ pub struct ParseColumns {
     request_value: Vec<u32>,
     request_kind: Vec<u32>,
     request_line: Vec<u32>,
+    request_flags: Vec<u8>,
     request_bindings: Vec<u32>,
+    request_republishes: Vec<u8>,
     binding_imported: Vec<u32>,
     binding_local: Vec<u32>,
     binding_type: Vec<u8>,
@@ -141,10 +143,14 @@ impl ParseColumns {
         self.own_uses.push(self.own_use_name.len() as u32);
     }
 
-    pub fn request(&mut self, value: u32, kind: u32, line: u32, bindings: impl IntoIterator<Item = (u32, u32, bool, u32)>) {
+    /// One request; `flags` is [`request_flags`] of what its reader said about
+    /// it, and `republishes` marks an `export … from`.
+    pub fn request(&mut self, value: u32, kind: u32, line: u32, flags: u8, republishes: bool, bindings: impl IntoIterator<Item = (u32, u32, bool, u32)>) {
         self.request_value.push(value);
         self.request_kind.push(kind);
         self.request_line.push(line);
+        self.request_flags.push(flags);
+        self.request_republishes.push(u8::from(republishes));
         for (imported, local, type_only, line) in bindings {
             self.binding_imported.push(imported);
             self.binding_local.push(local);
@@ -238,7 +244,9 @@ impl ParseColumns {
             u32s("requests.value", self.request_value),
             u32s("requests.kind", self.request_kind),
             u32s("requests.line", self.request_line),
+            u8s("requests.flags", self.request_flags),
             u32s("requests.bindings", self.request_bindings),
+            u8s("requests.republishes", self.request_republishes),
             u32s("bindings.imported", self.binding_imported),
             u32s("bindings.local", self.binding_local),
             u8s("bindings.type", self.binding_type),
@@ -286,4 +294,10 @@ impl ParseColumns {
             u32s("declares.name", self.declare_name),
         ]
     }
+}
+
+/// A guessed request sets the low bit and an item asked for by its whole path
+/// the next, as `guessed` and `item` on `Request` in `read.ts` say them.
+pub fn request_flags(guessed: bool, item: bool) -> u8 {
+    u8::from(guessed) | (u8::from(item) << 1)
 }

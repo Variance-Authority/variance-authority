@@ -59,6 +59,7 @@ mod graph_index;
 mod harvest;
 mod held;
 mod help_declared;
+mod help_in_file;
 mod help_member_uses;
 mod help_members;
 mod help_own_uses;
