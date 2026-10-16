@@ -4,10 +4,10 @@ import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { narrowByExecutionFromView } from './select.js';
-import type { Evidence } from './evidence.js';
+import type { Precision } from './precision.js';
 
 /**
- * One diff read at each step of evidence a suite may trust.
+ * One diff read at each precision a suite may declare.
  *
  * `src/decide.ts` declares `decide` on lines 2 to 7 and a branch inside it on
  * lines 3 to 5. `alpha` took the branch, `beta` called `decide` without taking
@@ -106,14 +106,14 @@ const atOther = `--- a/src/decide.ts
 -export const other = 1;
 +export const other = 2;`;
 
-const entered = (evidence: Evidence | undefined, extra: object = {}) =>
+const entered = (precision: Precision | undefined, extra: object = {}) =>
   narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), inBranch, {
     relations,
-    ...(evidence === undefined ? {} : { evidence }),
+    ...(precision === undefined ? {} : { precision }),
     ...extra,
   }).entered;
 
-describe('the evidence a suite trusts, from coarsest to finest', () => {
+describe('the precision a suite declares, from coarsest to finest', () => {
   it('reads regions when the suite declares nothing', () => {
     expect(entered(undefined)).toEqual(['test/alpha.test.ts']);
     expect(entered('region-use')).toEqual(['test/alpha.test.ts']);
@@ -130,7 +130,7 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
   it('adds the importers of the exports that moved to file use at symbol', () => {
     const symbol = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), inBranch, {
       relations,
-      evidence: 'symbol',
+      precision: 'symbol',
       moved: new Map([['src/decide.ts', ['other']]]),
     });
     expect(symbol.entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts', 'test/omega.test.ts', 'test/sigma.test.ts']);
@@ -143,7 +143,7 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
     expect(entered('symbol', { sourceAt })).toEqual(entered('file-use'));
     const onOther = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), atOther, {
       relations,
-      evidence: 'symbol',
+      precision: 'symbol',
       sourceAt,
     });
     expect(onOther.entered).toContain('test/omega.test.ts');
@@ -160,7 +160,7 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
   it('says why a relation step selected a test: the chain from the changed file', () => {
     const narrowing = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), inBranch, {
       relations,
-      evidence: 'file',
+      precision: 'file',
     });
     expect(narrowing.because.find((cause) => cause.test === 'test/omega.test.ts')).toEqual({
       test: 'test/omega.test.ts',
@@ -195,7 +195,7 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
 +new`;
     const narrowing = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), elsewhere, {
       relations,
-      evidence: 'symbol',
+      precision: 'symbol',
       sourceAt: () => undefined,
     });
     expect(narrowing.entered).toEqual(['test/omega.test.ts']);
@@ -243,7 +243,7 @@ describe('the declaration a changed line is in, at function use', () => {
 @@ -3,1 +3,1 @@
 -      return 'a';
 +      return 'b';`;
-    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(twins)), inFirst, { evidence: 'function-use' }).entered).toEqual([
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(twins)), inFirst, { precision: 'function-use' }).entered).toEqual([
       'test/alpha.test.ts',
     ]);
   });

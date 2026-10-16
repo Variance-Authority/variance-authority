@@ -12,7 +12,7 @@ that selection inside the runner you already call.
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any
 uncertainty widens the run, and the report explains why. A suite you do not yet
-trust that far [declares coarser evidence](#how-much-of-the-record-a-suite-trusts).
+trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
 evidence inside one test, looking for work its promise does not need.
@@ -282,19 +282,19 @@ record, because it never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
 
-## How much of the record a suite trusts
+## How precisely a suite selects
 
 By default a test is skipped unless it entered the code a changed line is in.
 You may not trust that on the first day: a skipped test is a cost you cannot
-see. So a suite declares the evidence it trusts as `evidence`. Start at `file`,
+see. So a suite declares its `precision`. Start at `file`,
 which runs every test that imports a changed file, and move one step finer when
 the runs have earned it:
 
 ```json
-{ "suites": { "unit": { "kind": "unit", "evidence": "file" } } }
+{ "suites": { "unit": { "kind": "unit", "precision": "file" } } }
 ```
 
-| `evidence` | A test runs when |
+| `precision` | A test runs when |
 |---|---|
 | `file` | it imports a changed file, directly or through other files, or it loaded one |
 | `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file |

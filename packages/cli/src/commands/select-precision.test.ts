@@ -11,17 +11,17 @@ import { suiteJourney } from './resources.js';
 import { indexOutput } from './index-command.js';
 
 /**
- * `variance select` in a suite that declares the evidence it trusts.
+ * `variance select` in a suite that declares its precision.
  *
  * `src/pad.ts` is imported by three tests. `alpha` loaded it, `beta` called
  * `pad`, and `gamma` imports only `width` and ran nothing of the file. A line
  * inside `pad` changes, and the plain output names the tests the run skips.
  */
-describe('the evidence a suite declares, read by `variance select`', () => {
+describe('the precision a suite declares, read by `variance select`', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-evidence-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-precision-cache-'));
   });
 
   afterEach(() => {
@@ -46,11 +46,11 @@ describe('the evidence a suite declares, read by `variance select`', () => {
   });
 });
 
-describe('the evidence a suite declares, read by `run --since`', () => {
+describe('the precision a suite declares, read by `run --since`', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-since-evidence-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-since-precision-cache-'));
   });
 
   afterEach(() => {
@@ -59,7 +59,7 @@ describe('the evidence a suite declares, read by `run --since`', () => {
   });
 
   it('builds the import graph a suite at file reads when the run had none', async () => {
-    const root = await recorded({ suites: { unit: { kind: 'unit', evidence: 'file' } } });
+    const root = await recorded({ suites: { unit: { kind: 'unit', precision: 'file' } } });
     let scanned = 0;
     const graph = relationsOfFiles([
       { file: 'src/pad.ts' },
@@ -89,8 +89,8 @@ const INSIDE_PAD = `--- a/src/pad.ts
 -  return text.padStart(4, ' ');
 +  return text.padStart(5, ' ');`;
 
-async function skipped(evidence: string | undefined): Promise<string> {
-  const root = await recorded({ suites: { unit: { kind: 'unit', ...(evidence === undefined ? {} : { evidence }) } } });
+async function skipped(precision: string | undefined): Promise<string> {
+  const root = await recorded({ suites: { unit: { kind: 'unit', ...(precision === undefined ? {} : { precision }) } } });
   write(root, 'src/pad.ts', PAD.replace('padStart(4', 'padStart(5'));
   return (await selectOutput({ cwd: root, format: 'plain', suite: 'unit' })).out;
 }
@@ -109,7 +109,7 @@ const FILES: Readonly<Record<string, string>> = {
 
 /** A checkout with `config` at its root, its index built, and a record of three tests at its head. */
 async function recorded(config: unknown): Promise<string> {
-  const root = mkdtempSync(join(tmpdir(), 'va-select-evidence-'));
+  const root = mkdtempSync(join(tmpdir(), 'va-select-precision-'));
   const git = (args: readonly string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git(['init', '--quiet', '--initial-branch', 'main']);
   git(['config', 'user.email', 'fixture@example.test']);

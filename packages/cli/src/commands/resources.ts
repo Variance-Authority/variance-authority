@@ -9,7 +9,7 @@ import {
   type Stand,
   type StandQuestion,
   type TestDistance,
-  type Evidence,
+  type Precision,
   type Unmeasured,
 } from '@variance-authority/sense/test-selection';
 import type { RasterStore } from '@variance-authority/raster';
@@ -151,17 +151,17 @@ export async function journeyAgainst(
   checkout: string = root,
   /**
    * What the suite declares: `unmeasured: 'nothing'` for one that declines
-   * relations, so a file its record did not measure selects nobody, and the
-   * evidence it trusts.
+   * relations, so a file its record did not measure selects nobody, and its
+   * precision.
    */
-  suite: { readonly unmeasured?: Unmeasured | undefined; readonly evidence?: Evidence | undefined } = {},
+  suite: { readonly unmeasured?: Unmeasured | undefined; readonly precision?: Precision | undefined } = {},
 ): Promise<ExecutionNarrowing | undefined> {
   return (await recordAgainst(root, diff, { relations, at, checkout, ...suite }))?.narrowing;
 }
 
 /**
  * {@link journeyAgainst} over the record `suite` selects from, with what it
- * declares. A suite that trusts `file` or `symbol` evidence reads the import
+ * declares. A suite at `file` or `symbol` precision reads the import
  * graph, so `scan` builds one when the caller had none to hand over.
  */
 export async function suiteJourney(
@@ -173,7 +173,7 @@ export async function suiteJourney(
 ): Promise<ExecutionNarrowing | undefined> {
   const { file, ...declared } = await selectingRecord(root, suite);
   const { byRelations } = await import('@variance-authority/sense/test-selection');
-  const graph = relations ?? (byRelations(declared.evidence) ? await scan() : undefined);
+  const graph = relations ?? (byRelations(declared.precision) ? await scan() : undefined);
   return journeyAgainst(root, diff, graph, file, root, declared);
 }
 
@@ -189,8 +189,8 @@ export async function recordAgainst(
     readonly at?: string | undefined;
     readonly checkout?: string | undefined;
     readonly unmeasured?: Unmeasured | undefined;
-    /** The evidence the suite trusts; absent reads regions. */
-    readonly evidence?: Evidence | undefined;
+    /** The suite's precision; absent reads regions. */
+    readonly precision?: Precision | undefined;
     readonly distances?: boolean;
     /**
      * `false` for a diff whose new side is not the text the landing kept a
@@ -206,7 +206,7 @@ export async function recordAgainst(
     readonly undone?: false;
   },
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
-  const { relations, at, checkout = root, unmeasured, evidence } = options;
+  const { relations, at, checkout = root, unmeasured, precision } = options;
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
@@ -221,7 +221,7 @@ export async function recordAgainst(
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),
-    ...(evidence === undefined ? {} : { evidence }),
+    ...(precision === undefined ? {} : { precision }),
   };
 
   try {

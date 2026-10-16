@@ -1,11 +1,11 @@
 // compass: variance-authority.reach
 /**
- * How much evidence a suite trusts before it skips a test.
+ * How precisely a suite's selection decides which tests to skip.
  *
  * Selection reads one record, the regions each test entered, and the import
  * graph beside it. A team that adopts it rarely trusts the finest reading on
  * the first day: a skipped test is a cost they cannot see. So a suite declares
- * the step it trusts, as `suites.<name>.evidence`, and moves down when it is
+ * the step it trusts as `suites.<name>.precision`, and moves down when it is
  * ready. Nothing is recorded differently at any step; each is a reading of the
  * same record and the same graph.
  *
@@ -39,15 +39,15 @@ import { applied, type Hunk } from './patch.js';
 import { textAtRecording } from './recorded-text.js';
 import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './select.js';
 
-/** The steps of evidence, coarsest first. */
-export const EVIDENCE_STEPS = ['file', 'symbol', 'file-use', 'function-use', 'region-use'] as const;
+/** The steps of precision, coarsest first. */
+export const PRECISION_STEPS = ['file', 'symbol', 'file-use', 'function-use', 'region-use'] as const;
 
-/** One of {@link EVIDENCE_STEPS}. */
-export type Evidence = (typeof EVIDENCE_STEPS)[number];
+/** One of {@link PRECISION_STEPS}. */
+export type Precision = (typeof PRECISION_STEPS)[number];
 
-/** Whether `evidence` adds what the import graph reaches to the `file-use` reading. */
-export function byRelations(evidence: Evidence | undefined): evidence is 'file' | 'symbol' {
-  return evidence === 'file' || evidence === 'symbol';
+/** Whether `precision` adds what the import graph reaches to the `file-use` reading. */
+export function byRelations(precision: Precision | undefined): precision is 'file' | 'symbol' {
+  return precision === 'file' || precision === 'symbol';
 }
 
 /**
@@ -133,9 +133,9 @@ export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | '
 ): Reading {
   const { relations } = options;
   if (relations === undefined) {
-    throw new Error(`the suite trusts "${options.evidence}" evidence, which is read from the import graph, and no graph was handed over`);
+    throw new Error(`the suite selects at "${options.precision}" precision, which is read from the import graph, and no graph was handed over`);
   }
-  const moved = options.evidence === 'symbol' ? (options.moved ?? movedBy(coverage.commit, changed, hunks, options)) : undefined;
+  const moved = options.precision === 'symbol' ? (options.moved ?? movedBy(coverage.commit, changed, hunks, options)) : undefined;
   const via = new Map<string, SelectionReason[]>(reading.because.map((cause) => [cause.test, [...cause.via]]));
   for (const [test, reasons] of selectedByRelations(coverage, relations, changed, moved)) {
     const path = testPathOf(coverage, test);

@@ -1,6 +1,6 @@
 # Selection wiring: what the run rests on, and what it costs
 
-Read this before you write a suite's `before`, `relations` or `evidence` in
+Read this before you write a suite's `before`, `relations` or `precision` in
 `variance.config.json`, when a selection came back whole, when a config file you
 changed selected nothing, or when a recorded run times out.
 
@@ -89,10 +89,10 @@ normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
 scan has no reader for.
 
-## Declare the evidence a suite trusts
+## Declare a suite's precision
 
-A suite's `evidence` says how much of the record selection trusts before it
-skips a test, coarsest first: `file` (every recorded test that imports a changed
+A suite's `precision` says how precisely selection decides which tests to
+skip, coarsest first: `file` (every recorded test that imports a changed
 file, through the graph, and every test `file-use` runs), `symbol` (the same
 walk through only the importers of the exports the change moved, and every test
 `file-use` runs), `file-use` (every test that loaded a changed
