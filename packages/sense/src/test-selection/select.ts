@@ -227,7 +227,7 @@ function readDiff(
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // A graph step adds what the import walk reaches to what `file-use` reads, so
   // it runs every test any finer step runs.
-  if (byRelations(options.evidence)) return withGraph(coverage, readDiff(coverage, diff, { ...asked, evidence: 'file-use' }), [...changed.keys()], options);
+  if (byRelations(options.evidence)) return withGraph(coverage, readDiff(coverage, diff, { ...asked, evidence: 'file-use' }), [...changed.keys()], hunksOf(diff), options);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
     const reasons = selected.get(test) ?? [];
@@ -248,8 +248,8 @@ function readDiff(
       if (disowned?.(file, test, block) !== true) select(test, reason);
     }
   };
-  // At function use a region stands for the declaration it is in: every block
-  // that shares its name, each charged once.
+  // At function use a region stands for the declaration it is in, found up its
+  // owner chain: every block that declaration holds, each charged once.
   const widened = new Set<number>();
   const charge =
     options.evidence !== 'function-use'

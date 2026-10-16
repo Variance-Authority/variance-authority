@@ -26,13 +26,17 @@
  * reads rather than replace it.
  */
 
+import { extname } from 'node:path';
 import { affectedBy, idOf, trailOf, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { native } from '../addon.js';
+import { MODULE_EXTENSIONS } from '../read.js';
 import { kindId, NO_OWNER } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import type { ExecutionNarrowingOptions, ImporterReason } from './importers.js';
 import { findTest, testPathOf } from './lookup.js';
-import { runsAsBefore } from './runs-as-before.js';
+import { applied, type Hunk } from './patch.js';
+import { textAtRecording } from './recorded-text.js';
 import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './select.js';
 
 /** The steps of evidence, coarsest first. */
@@ -41,7 +45,7 @@ export const EVIDENCE_STEPS = ['file', 'symbol', 'file-use', 'function-use', 're
 /** One of {@link EVIDENCE_STEPS}. */
 export type Evidence = (typeof EVIDENCE_STEPS)[number];
 
-/** Whether `evidence` is answered by the import graph alone, with no region read. */
+/** Whether `evidence` adds what the import graph reaches to the `file-use` reading. */
 export function byRelations(evidence: Evidence | undefined): evidence is 'file' | 'symbol' {
   return evidence === 'file' || evidence === 'symbol';
 }
@@ -124,13 +128,14 @@ export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | '
   coverage: TestCoverageView,
   reading: Reading,
   changed: readonly string[],
+  hunks: ReadonlyMap<string, readonly Hunk[]>,
   options: ExecutionNarrowingOptions,
 ): Reading {
   const { relations } = options;
   if (relations === undefined) {
     throw new Error(`the suite trusts "${options.evidence}" evidence, which is read from the import graph, and no graph was handed over`);
   }
-  const moved = options.evidence === 'symbol' ? (options.moved ?? movedSince(coverage.commit, changed, options.root)) : undefined;
+  const moved = options.evidence === 'symbol' ? (options.moved ?? movedBy(coverage.commit, changed, hunks, options)) : undefined;
   const via = new Map<string, SelectionReason[]>(reading.because.map((cause) => [cause.test, [...cause.via]]));
   for (const [test, reasons] of selectedByRelations(coverage, relations, changed, moved)) {
     const path = testPathOf(coverage, test);
@@ -148,18 +153,30 @@ export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | '
 }
 
 /**
- * The exports each changed file moved since the commit the record names, read
- * from its text there and in the tree. Undefined when either is out of reach,
- * which walks every file whole.
+ * The exports each changed file's diff moved, read from the text the record
+ * holds and that text with the diff's hunks applied: the diff's own two sides,
+ * whatever the tree holds. A file with no hunk, whose text is out of reach,
+ * whose hunks do not apply, or that is not a module is left out and walked
+ * whole; so is every file
+ * when nothing can read a module.
  */
-function movedSince(
+function movedBy(
   commit: string | undefined,
   changed: readonly string[],
-  root: string | undefined,
+  hunks: ReadonlyMap<string, readonly Hunk[]>,
+  options: ExecutionNarrowingOptions,
 ): ReadonlyMap<string, readonly string[]> | undefined {
-  if (commit === undefined || root === undefined) return undefined;
-  // FIXME: the new side is the tree, so a diff between two commits — a stand's
-  // — is narrowed by what the tree moved.
-  const read = runsAsBefore(root, commit, changed);
-  return 'moved' in read ? read.moved : undefined;
+  const verdict = native()?.moduleVerdict;
+  const before = options.sourceAt ?? (options.root === undefined ? undefined : textAtRecording(options.root, changed));
+  if (verdict === undefined || before === undefined) return undefined;
+  const moved = new Map<string, readonly string[]>();
+  for (const file of changed) {
+    const its = hunks.get(file);
+    if (its === undefined || its.length === 0 || !MODULE_EXTENSIONS.includes(extname(file))) continue;
+    const old = before(file, commit);
+    const patched = old === undefined ? undefined : applied(old, its);
+    const exports = patched === undefined ? undefined : verdict(file, old!, patched.after)?.moved;
+    if (exports !== undefined) moved.set(file, exports);
+  }
+  return moved;
 }

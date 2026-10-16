@@ -91,6 +91,8 @@ export async function dispatch(
       const effective: Config =
         parsed.profile === undefined ? config : { ...config, profile: parsed.profile };
       const plan = await planFor(effective);
+      const scanRelations = async (dirs: readonly string[]) =>
+        relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before);
 
       const collector = await loadCollector(collectorPath(effective.subjects), {
         config: withLiveIgnores(effective, new Date().toISOString()),
@@ -145,12 +147,10 @@ export async function dispatch(
             writeReport: writeCliRunReport,
             writeSuitePart,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
-            scanRelations: async (dirs) =>
-              relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before),
+            scanRelations,
+            // A suite with no `source` is read over the checkout, as `variance select` reads it.
             readJourney: async (diff, relations) =>
-              suiteJourney(process.cwd(), diff, relations, parsed.suite, async () =>
-                relationsFor(process.cwd(), effective.source?.dirs ?? [], effective.source?.taints, effective.before),
-              ),
+              suiteJourney(process.cwd(), diff, relations, parsed.suite, async () => scanRelations(effective.source?.dirs ?? ['.'])),
             readJourneys: async (subjects) => {
               const at = await refiningRecord(process.cwd(), parsed.suite);
               return at === undefined ? undefined : recordedJourneys(process.cwd(), subjects, at);

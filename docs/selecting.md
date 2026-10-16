@@ -299,7 +299,7 @@ the runs have earned it:
 | `file` | it imports a changed file, directly or through other files, or it loaded one |
 | `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file |
 | `file-use` | it loaded a changed file |
-| `function-use` | it entered the function a changed line is in; a line outside every function reads as `region-use` |
+| `function-use` | it entered the function a changed line is in; a line outside every function runs every test that loaded the file |
 | `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes. A suite that declares nothing reads this |
 
 Every step reads the same record and the same file graph; nothing is recorded

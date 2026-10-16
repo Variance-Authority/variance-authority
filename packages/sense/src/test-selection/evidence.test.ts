@@ -89,6 +89,23 @@ const inBranch = `--- a/src/decide.ts
 -    return 'A';
 +    return 'Alpha';`;
 
+/** The text of `src/decide.ts` at the record's commit. */
+const RECORDED = `export const other = 1;
+export function decide(flag: boolean): string {
+  if (flag) {
+    return 'A';
+  }
+  return 'B';
+}
+`;
+
+/** A one-line edit to the value of `other`. */
+const atOther = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -1,1 +1,1 @@
+-export const other = 1;
++export const other = 2;`;
+
 const entered = (evidence: Evidence | undefined, extra: object = {}) =>
   narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), inBranch, {
     relations,
@@ -118,6 +135,18 @@ describe('the evidence a suite trusts, from coarsest to finest', () => {
     });
     expect(symbol.entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts', 'test/omega.test.ts', 'test/sigma.test.ts']);
     expect(entered('symbol', { moved: new Map([['src/decide.ts', ['decide']]]) })).toEqual(entered('file-use'));
+  });
+
+  it('reads the exports that moved at symbol from the diff, applied to the text it was written against', () => {
+    // The text the record holds, which the tree no longer is: the diff alone is the new side.
+    const sourceAt = (file: string) => (file === 'src/decide.ts' ? RECORDED : undefined);
+    expect(entered('symbol', { sourceAt })).toEqual(entered('file-use'));
+    const onOther = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), atOther, {
+      relations,
+      evidence: 'symbol',
+      sourceAt,
+    });
+    expect(onOther.entered).toContain('test/omega.test.ts');
   });
 
   it('walks the file whole at symbol when no export reading was taken', () => {
