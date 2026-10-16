@@ -246,13 +246,17 @@ export const uses: Tool<Help> = {
 
 /** A name its files keep to themselves: where each declares it, and who can reach it from there. */
 function keptLine(name: string, kept: readonly DeclaredName[]): string {
+  // A Rust item inside an inline module answers to its own name, and is
+  // declared on its module path: the path is said where it is not the name.
+  const named = (one: DeclaredName): string => (one.name === name ? '' : ` as \`${one.name}\``);
   if (kept.length === 1) {
     const one = kept[0]!;
-    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${reachSentences(one).clause}.`;
+    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}.`;
   }
+  const files = new Set(kept.map((one) => one.at)).size;
   return [
-    `\`${name}\` is declared, not exported, in ${kept.length} files:`,
-    ...kept.map((one) => `  ${one.at}:${one.line}${reachSentences(one).clause}`),
+    `\`${name}\` is declared, not exported, in ${files === kept.length ? `${files} files` : places(kept.length)}:`,
+    ...kept.map((one) => `  ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}`),
   ].join('\n');
 }
 

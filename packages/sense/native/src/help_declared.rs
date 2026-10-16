@@ -61,7 +61,10 @@ pub struct Declared {
 
 /// How a name is matched against `query`.
 pub(crate) enum Matching {
-    /// The name is `query`.
+    /// The name is `query`, or ends in it after `::`: an item inside a Rust
+    /// inline module is declared on its module path, `tests::fixture`, and is
+    /// asked for by its own name as often as by the path. Only Rust names
+    /// hold `::`, so no other language's match changes.
     Exact,
     /// The name, lowercased, contains `query`, which the caller lowercased, or
     /// the doc comment above it does, read as prose.
@@ -98,9 +101,11 @@ type FileHits<'a> = (Vec<Hit<'a>>, Option<&'a str>);
 /// positions of the stems held and how many of them the name holds.
 type Hit<'a> = (usize, &'a str, usize, Option<(Vec<u32>, u32)>);
 
-/// Every top-level declaration on the chain whose name `matching` admits for
-/// `query`, or whose doc does when it is `Containing` or `Described`, in `files` when they are named, less the ones its file exports,
-/// under that name or another, which the export list already answers. A name
+/// Every top-level declaration on the chain, and every one in a Rust inline
+/// module, whose name `matching` admits for `query`, or whose doc does when it
+/// is `Containing` or `Described`, in `files` when they are named, less the
+/// ones its file exports, under that name or another, which the export list
+/// already answers. A name
 /// declared twice in one file, as an interface and a const, is one entry: the
 /// first.
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
@@ -146,7 +151,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     source.as_deref().and_then(|source| prose(source, start, end))
                 };
                 let described = match &matching {
-                    Matching::Exact if name == query => None,
+                    Matching::Exact if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
                     Matching::Containing if name.to_lowercase().contains(query) || doc().is_some_and(|doc| doc.contains(query)) => None,
                     Matching::Described { stems, needed } => {
                         let in_name = held_in(stems, name);
