@@ -59,12 +59,15 @@ impl<'l> Loads<'l> {
         index
     }
 
-    pub(crate) fn call(&mut self, it: &CallExpression) {
+    // Forwarding a factory's own target cancels its replacement; it does not
+    // request that module. Other targets remain ordinary written requests.
+    pub(crate) fn call(&mut self, it: &CallExpression, factory: Option<&str>) {
         if !requires(&it.callee) {
             return;
         }
         match it.arguments.first().and_then(Argument::as_expression).and_then(constant) {
-            Some(value) => self.required.push(self.request(value, Kind::Imports, it.span.start)),
+            Some(value) if factory != Some(value) => self.required.push(self.request(value, Kind::Imports, it.span.start)),
+            Some(_) => {},
             None => self.unread_required += 1,
         }
     }
