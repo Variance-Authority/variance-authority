@@ -189,6 +189,7 @@ describe('variance ask uses over a field reached through another type', () => {
   // A checker infers these; the source writes no `Props` at the site.
   it.todo('answers a use through a component wrapped in `memo` or `forwardRef` — needs the walker to read the props type off the wrapper\'s type argument or the wrapped function\'s first parameter, as it does for `FC<Props>`');
   it.todo('answers a use through a utility type over the field\'s type, `Partial<Props>` or `Pick<Props, "size">` — needs a carry for each of TypeScript\'s homomorphic utility types, with `Pick` and `Omit` carrying only the keys they keep');
+  it.todo('answers `this.props.size` in a class component, `class Panel extends React.Component<Props>` — needs the class heritage to read a qualified base and carry its type argument as the type `this.props` is');
 });
 
 /** The answer's order: by path in code units, then by line. */

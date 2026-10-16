@@ -90,9 +90,9 @@ fn a_return_type_types_the_literal_returned() {
 }
 
 #[test]
-fn this_inside_a_class_is_the_class_and_every_type_it_carries() {
-    let found = uses("class Box extends Base implements Props, ns.Skip {\n  grow() {\n    const f = () => this.size;\n    return function () { return this.size; };\n  }\n}\nfunction free(this: Props) {\n  return this.label;\n}\n");
-    assert_eq!(found, vec![one("size", 3, "Box", "read"), one("size", 3, "Base", "read"), one("size", 3, "Props", "read"), one("label", 8, "Props", "read")]);
+fn this_inside_a_class_is_the_class_or_what_an_anonymous_one_carries() {
+    let found = uses("class Box extends Base implements Props, ns.Skip {\n  grow() {\n    const f = () => this.size;\n    return function () { return this.size; };\n  }\n}\nfunction free(this: Props) {\n  return this.label;\n}\nconst Anon = class implements Props {\n  read() { return this.size; }\n};\n");
+    assert_eq!(found, vec![one("size", 3, "Box", "read"), one("label", 8, "Props", "read"), one("size", 11, "Props", "read")]);
 }
 
 #[test]

@@ -255,7 +255,10 @@ A container that carries the type is followed too: an interface that extends
 it, an alias that is it or intersects it (`Props & { … }`), a class that
 extends or implements it, and a component whose first parameter is it, so
 `w.size` with `w: Wide` and `<Button size={2} />` with `Button: FC<Props>` are
-uses of `Props.size`. Each name is followed through the import that binds it,
+uses of `Props.size`. A function carries its first parameter's type whether
+or not JSX renders it, so beside a same-named interface (`function Config(o:
+Options)` and `interface Config`) a use written as `Config` counts for
+`Options` too. Each name is followed through the import that binds it,
 renamed or passed on by `export *` or `export { … } from`, to the file that
 declares it, the declaring file included, so `Props.size` and `Other.size` are
 listed apart and a same-named type of another file is neither. A binding that

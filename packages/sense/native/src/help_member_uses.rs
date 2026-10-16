@@ -4,8 +4,9 @@
 //! No type checker runs, so a member read is tied to a type only where the
 //! source spells that type: the receiver is a binding whose annotation names it
 //! (`props: Props`), an expression cast to it (`value as Props`), or `this`
-//! inside a class, which is the class and every type it extends or implements,
-//! or inside a function whose `this` parameter names one. An object literal
+//! inside a class, which is the class (an anonymous class: every type it
+//! extends or implements), or inside a function whose `this` parameter names
+//! one. An object literal
 //! written as one (`const fixed: Props = { … }`, `{ … } satisfies Props`, the
 //! value a function annotated `(): Props` returns) writes each of its keys, and
 //! an annotated pattern (`({ size }: Props) =>`) destructures them. A React
@@ -23,6 +24,13 @@
 //! JSX attributes are its props' members. The query walks carries from the
 //! declaring type outwards, so a use written as `Wide`, `Box` or `<Button>`
 //! counts for `Props`.
+//!
+//! A function carries its first parameter's type whether or not it is a
+//! component, since which functions JSX renders is known only where they are
+//! rendered. Carries share one name space for values and types, so a function
+//! merged with a same-named interface (`function Config(o: Options)` beside
+//! `interface Config`) makes a use written as `Config` count for `Options` as
+//! well.
 //!
 //! Bindings are scoped as oxc's walk enters and leaves scopes, so a parameter
 //! that shadows an annotated one, `(props) => props.size`, is no use. What a
@@ -362,10 +370,17 @@ impl<'a> Visit<'a> for Walker<'_> {
         let mut carried: Vec<String> = Vec::new();
         if let Some(Expression::Identifier(base)) = it.heritage.as_ref().map(|base| base.expression.without_parentheses()) { carried.push(base.name.to_string()); }
         carried.extend(it.implements.iter().filter_map(|one| plain(&one.expression)));
-        if let Some(id) = &it.id {
-            for of in &carried { self.carry(&id.name, Some(of.clone())); }
-        }
-        self.this.push(it.id.iter().map(|id| id.name.to_string()).chain(carried).collect());
+        // A named class is `this`, and its carries reach what it extends or
+        // implements; an anonymous one has no name to carry from, so `this` is
+        // those types themselves.
+        let this = match &it.id {
+            Some(id) => {
+                for of in &carried { self.carry(&id.name, Some(of.clone())); }
+                vec![id.name.to_string()]
+            }
+            None => carried,
+        };
+        self.this.push(this);
         walk::walk_class(self, it);
         self.this.pop();
     }
