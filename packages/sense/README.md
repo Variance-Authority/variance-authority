@@ -1081,8 +1081,8 @@ the source, on the source's lines: `ui/dist/Button.js` counts as
 `ui/src/Button.ts`. Its regions are the ones the source's own text cuts into,
 whether a run loaded the build, the source or both, so two shards that loaded
 different ones record the file alike. Anything else is recorded under its own
-name, if `include` accepts that: an inline map, a bundle's map of many sources, a map or source
-that cannot be read. A Vite dev server and `vite build` decide alike, and so do
+name, if `include` accepts that: an inline map, a bundle's map of many
+sources, a map or source that cannot be read. A Vite dev server and `vite build` decide alike, and so do
 the Vitest, Jest and Rstest seams. Under a dev server, Vitest and Rstest, a
 module that names its own map is probed before your transforms: they compose
 that map, so what they hand back maps to its sources rather than to the file. A
