@@ -142,6 +142,21 @@ describe('what a Rust file asks for', () => {
     expect(values).not.toContain('records::Records');
   });
 
+  it('keeps the `use` when a path in a body passes through the module it imports, written before it or after', () => {
+    for (const lines of [
+      ['fn walk() { crate::graph::reach(); }', 'use crate::graph;'],
+      ['use crate::graph;', 'fn walk() { crate::graph::reach(); }'],
+    ]) {
+      const read = readRust('src/flows.rs', [...lines, ''].join('\n'));
+      const asked = read.requests.filter((request) => request.value === 'crate::graph');
+
+      // The `use` imports the module, and the path's guess that `graph` is an
+      // item is the request it replaces.
+      expect(asked).toHaveLength(1);
+      expect(asked[0]?.item).toBeUndefined();
+    }
+  });
+
   it('reads `super` and `self` inside an inline module from the module the file is', () => {
     // `mod tests { use super::helper; }` names the file's own `helper`, and
     // `super::super` past it is the file's parent module.
