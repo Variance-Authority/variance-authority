@@ -271,42 +271,70 @@ pub struct Importers {
 /// package graph reads: that is no use, and the file that writes it is
 /// followed instead under the name it exports, so an import through a barrel
 /// is listed and the barrel is not. A bare `export *` passes on every name but
-/// `default`. A type-only re-export passes nothing on and is listed where it
-/// is written. Each file is followed once per name, so a cycle of re-exports
-/// ends.
+/// `default`. The question is about source, so a type-only re-export passes
+/// its names on too, and every use that came through one is a type use,
+/// whatever its importer wrote. Each file is followed once per name, and once
+/// more when a value path reaches a name a type-only one reached first, so a
+/// cycle of re-exports ends.
 pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
     let folded = fold(layers);
-    let mut seen: HashSet<(String, String)> = files.iter().map(|file| (file.clone(), name.to_owned())).collect();
-    let mut wanted: HashMap<String, HashSet<String>> = HashMap::new();
+    // Each `(file, name)` followed, and whether only a type-only path reached it.
+    let mut seen: HashMap<(String, String), bool> = files.iter().map(|file| ((file.clone(), name.to_owned()), false)).collect();
+    let mut wanted: Wanted = HashMap::new();
     for file in files {
-        wanted.entry(file.clone()).or_default().insert(name.to_owned());
+        wanted.entry(file.clone()).or_default().insert(name.to_owned(), false);
     }
-    let (mut found, mut through) = (Vec::new(), HashSet::new());
+    let (mut found, mut through): (HashMap<(String, u32, String, String), NameUse>, HashSet<String>) = (HashMap::new(), HashSet::new());
     while !wanted.is_empty() {
         let (uses, passed) = importers_of(root, layers, &folded, &wanted);
-        found.extend(uses);
+        for one in uses {
+            // One site reached by a value path and a type-only one is a value use.
+            match found.entry((one.at.clone(), one.line, one.name.clone(), one.key.clone())) {
+                std::collections::hash_map::Entry::Occupied(mut held) => held.get_mut().r#type &= one.r#type,
+                std::collections::hash_map::Entry::Vacant(free) => {
+                    free.insert(one);
+                }
+            }
+        }
         wanted = HashMap::new();
-        for (file, exported) in passed {
-            if seen.insert((file.clone(), exported.clone())) {
+        for (file, exported, typed) in passed {
+            let key = (file.clone(), exported.clone());
+            let follow = match seen.get(&key) {
+                None => true,
+                Some(&held) => held && !typed,
+            };
+            if follow {
+                seen.insert(key, typed);
                 through.insert(file.clone());
-                wanted.entry(file).or_default().insert(exported);
+                let names = wanted.entry(file).or_default();
+                let held = names.entry(exported).or_insert(typed);
+                *held &= typed;
             }
         }
     }
-    found.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
+    let mut found: Vec<NameUse> = found.into_values().collect();
+    found.sort_by(|a, b| {
+        crate::order::code_unit(&a.at, &b.at)
+            .then(a.line.cmp(&b.line))
+            .then_with(|| crate::order::code_unit(&a.name, &b.name))
+            .then_with(|| crate::order::code_unit(&a.key, &b.key))
+    });
     let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
     through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
     Importers { uses: found, through }
 }
 
+/// Per file, each name wanted out of it, and whether only a type-only path reached it.
+type Wanted = HashMap<String, HashMap<String, bool>>;
+
 /// One step of `importers`: the uses of each wanted name out of its file, and
-/// each `(file, name)` a re-export passes one of them on as.
+/// each `(file, name, type_only)` a re-export passes one of them on as.
 fn importers_of(
     root: &str,
     layers: &[Layer],
     folded: &HashMap<&str, At>,
-    wanted: &HashMap<String, HashSet<String>>,
-) -> (Vec<NameUse>, Vec<(String, String)>) {
+    wanted: &Wanted,
+) -> (Vec<NameUse>, Vec<(String, String, bool)>) {
     let lands = |at: At| {
         let (stored, records) = (&layers[at.0].stored, &layers[at.0].records);
         records.targets_present[at.1] == 1
@@ -321,7 +349,7 @@ fn importers_of(
     join_parses(layers, &mut crossings);
     let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
     let owners = owners(root, &paths);
-    let parts: Vec<(Vec<NameUse>, Vec<(String, String)>)> = crossings
+    let parts: Vec<(Vec<NameUse>, Vec<(String, String, bool)>)> = crossings
         .par_iter()
         .map(|crossing| {
             let (mut found, mut passed) = (Vec::new(), Vec::new());
@@ -337,29 +365,33 @@ fn importers_of(
             let kind = kind_of(crossing.file);
             for request in parses.requests.range(row) {
                 let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
-                let written = text.text(parses.request_value.at(request));
-                let uses = taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter(|taken| names.contains(&taken.name));
-                if text.text(parses.request_kind.at(request)) != "reexports" {
-                    found.extend(uses);
+                if parses.request_republishes[request] != 1 {
+                    let written = text.text(parses.request_value.at(request));
+                    found.extend(taken(&layers[layer], row, request, written, by, crossing.file, kind).into_iter().filter_map(|mut taken| {
+                        taken.r#type |= *names.get(&taken.name)?;
+                        Some(taken)
+                    }));
                     continue;
                 }
-                let every = || names.iter().filter(|name| *name != "default").map(|name| (crossing.file.to_owned(), name.clone()));
+                let every = |type_only: bool| {
+                    names.iter().filter(|(name, _)| *name != "default").map(move |(name, &typed)| (crossing.file.to_owned(), name.clone(), typed || type_only))
+                };
                 match passed_on(&layers[layer], row, request) {
-                    // An export list the parse never recorded reads as the whole module.
-                    None => passed.extend(every()),
+                    // An export list the parse never recorded reads as the whole
+                    // module, and as types when the whole statement says `export type`.
+                    None => passed.extend(every(text.text(parses.request_kind.at(request)) == "type")),
                     Some(listed) => {
-                        for (imported, exported) in listed {
-                            match exported {
-                                None if imported == "*" => passed.extend(every()),
+                        for one in listed {
+                            match (one.exported, names.get(one.imported)) {
+                                (None, _) if one.imported == "*" => passed.extend(every(one.type_only)),
                                 // `export * as ns` passes a namespace: the name is a member read off it.
-                                Some(_) if imported == "*" => {}
-                                Some(exported) if names.contains(imported) => passed.push((crossing.file.to_owned(), exported.to_owned())),
+                                (Some(_), _) if one.imported == "*" => {}
+                                (Some(exported), Some(&typed)) => passed.push((crossing.file.to_owned(), exported.to_owned(), typed || one.type_only)),
                                 _ => {}
                             }
                         }
                     }
                 }
-                found.extend(uses.filter(|taken| taken.r#type));
             }
             (found, passed)
         })

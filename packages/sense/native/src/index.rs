@@ -84,6 +84,7 @@ impl ParseRow for Read {
                 id(&request.value),
                 id(request.kind.as_str()),
                 request.line,
+                request.republishes,
                 request.bindings.iter().map(|binding| {
                     (id(&binding.imported), id(&binding.local), binding.type_only, binding.line)
                 }),

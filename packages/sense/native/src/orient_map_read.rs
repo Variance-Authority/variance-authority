@@ -80,6 +80,8 @@ const STORIES_INSIDE: &str = r"(?i)(^|/)storybook/";
 struct Request<'a> {
     to: Option<&'a str>,
     kind: &'a str,
+    /// An `export … from`, `export type` included: it passes names on and takes none.
+    republishes: bool,
     value: Option<&'a str>,
     /// The names it takes, by the rule in `names`.
     names: Vec<&'a str>,
@@ -238,7 +240,7 @@ pub(crate) fn read(
             // What a package is taken for is read from shipped code taking
             // shipped code, through a request that takes rather than republishes.
             let Some(&provider) = request.to.and_then(|to| counted.get(to)) else { continue };
-            if !code(file.path) || provider == at || test[provider] || request.kind == "reexports" || files[provider].owner != b {
+            if !code(file.path) || provider == at || test[provider] || request.republishes || files[provider].owner != b {
                 continue;
             }
             for &name in &request.names {
@@ -386,7 +388,7 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
     };
     let file = |requests, parsed, lines| File { path: crossing.file, owner: crossing.owner, requests, parsed, lines };
     let unparsed = |targets: Vec<Option<&'a str>>| {
-        file(targets.into_iter().map(|to| Request { to, kind: "", value: None, names: Vec::new() }).collect(), false, None)
+        file(targets.into_iter().map(|to| Request { to, kind: "", republishes: false, value: None, names: Vec::new() }).collect(), false, None)
     };
     let Some((parse_layer, parse_row)) = crossing.parse else { return unparsed(targets) };
     let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
@@ -415,7 +417,8 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
                 }
             }
             let kind = text.text(parses.request_kind.at(request));
-            Request { to, kind, value: Some(text.text(parses.request_value.at(request))), names }
+            let republishes = parses.request_republishes[request] == 1;
+            Request { to, kind, republishes, value: Some(text.text(parses.request_value.at(request))), names }
         })
         .collect();
     file(requests, true, parses.code_lines(parse_row))

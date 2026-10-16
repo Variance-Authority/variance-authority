@@ -195,7 +195,9 @@ A published name that nothing imports is a different answer, not an empty list:
 The imports within the name's own package come from the source index: every
 import that resolved to the file declaring it, or to a file that passes it on
 with `export … from`, which is followed under the name it exports and is not
-listed itself, in another package as well. A name an entry publishes under
+listed itself, in another package as well. `export type … from` passes a name
+on the same way, and every import that comes through it is marked `(type only)`.
+A name an entry publishes under
 another name than its declaration is read from that entry. An import of a renamed re-export ends `(as <name>)`. A read
 through an `export * as` namespace, and a call through a qualified path, such as
 Rust's `crate::order::code_unit(…)`, are not listed, and the answer ends by
