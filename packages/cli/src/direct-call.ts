@@ -20,9 +20,13 @@ import { said } from './here.js';
  * - not from a package script, which sets `npm_lifecycle_event` to the script's
  *   name: there the script's author chose the call. `npm exec` and `bunx` set it
  *   too, to `npx` and `bunx`, and are launches like any other;
+ * - it runs where it was typed: a launcher that moved it, as `INIT_CWD` says,
+ *   read its arguments from another directory, so the same words typed where
+ *   the caller stands would be another command;
  * - the nearest `node_modules/.bin/variance` above the working directory is this
- *   file. Under Plug'n'Play there is no such directory, and a binary that is
- *   another install's would answer another version's way.
+ *   file. Under Plug'n'Play there is no such directory. pnpm and Windows write a
+ *   wrapper script there, which is not this file. A binary that is another
+ *   install's would answer in that version's way.
  */
 
 /** The `npm_lifecycle_event` of a package manager's exec, which is a launch and not a script. */
@@ -44,10 +48,12 @@ export function directCallLine(
   if (launcher === undefined || launcher === '') return '';
   const event = env['npm_lifecycle_event'];
   if (event !== undefined && !EXEC_EVENTS.has(event)) return '';
+  const typedIn = env['INIT_CWD'];
+  if (typedIn !== undefined && typedIn !== cwd) return '';
   const binary = nearestBinary(cwd);
   if (binary === undefined || !sameFile(binary, self)) return '';
-  const command = [said(binary, cwd), ...argv.map(quoted)].join(' ');
-  return `\nThe same command answers faster without ${launcher}: ${command}\n`;
+  const command = [said(binary, cwd), ...argv].map(quoted).join(' ');
+  return `\nvariance: the same command answers faster without ${launcher}: ${command}\n`;
 }
 
 /** The first `node_modules/.bin/variance` from `cwd` upward, as Node resolves a package. */

@@ -129,8 +129,9 @@ if (entry !== undefined && isProgram(entry)) {
     // nothing is left running: the step is the log, and the log is whole.
     ...(isCI ? {} : { detach: relaunch }),
   });
-  // After the answer and on stderr, so neither the answer nor the exit code changes.
-  process.stderr.write(directCallLine(process.argv.slice(2), process.env, process.cwd(), fileURLToPath(import.meta.url)));
+  // After the answer and on stderr, so neither the answer nor the exit code changes;
+  // not in CI, where nobody reads it and nobody would call the program another way.
+  if (!isCI) process.stderr.write(directCallLine(process.argv.slice(2), process.env, process.cwd(), fileURLToPath(import.meta.url)));
 }
 
 /**
@@ -141,8 +142,12 @@ if (entry !== undefined && isProgram(entry)) {
 function relaunch(argv: readonly string[], log: string): number | undefined {
   const out = openSync(log, 'w');
   try {
+    // Without the launcher's mark: nobody typed the child's command, so its log names no faster call.
+    const env = { ...process.env };
+    delete env['npm_config_user_agent'];
     const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), ...argv], {
       detached: true,
+      env,
       stdio: ['ignore', out, out],
     });
     // A refused spawn has no id and reports it as an event: unheard, that event
