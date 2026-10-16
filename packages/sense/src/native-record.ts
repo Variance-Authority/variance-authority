@@ -1,4 +1,4 @@
-import type { NativeReconciledRegions, NativeRegion } from './native-journey.js';
+import type { NativeRegion } from './native-journey.js';
 
 /** One shard a combine read, in the order the shards were named. */
 export interface NativeCombinedShard {
@@ -57,6 +57,9 @@ export interface NativeRecords {
       readonly readings?: Readonly<Record<string, 'none' | 'bodies' | 'load'>>;
     },
   ): Buffer | null;
-  /** Several inventories of one source text, read at the regions they all hold. */
-  reconcileRegions?(inventories: NativeRegion[][]): NativeReconciledRegions;
+  /**
+   * Where each region of `inventories` lands among `table`'s, one file's own cut, by position:
+   * at the region of its shape, else at the innermost source region enclosing it; `null` where none does.
+   */
+  landRegions?(table: NativeRegion[], inventories: NativeRegion[][]): (number | null)[][];
 }

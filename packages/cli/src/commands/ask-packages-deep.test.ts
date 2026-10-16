@@ -252,6 +252,17 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(out).toMatch(/^ {2}apps\/app\/src\/total\.ts:1 — @acme\/app, deep import of @acme\/lib\/src\/internal\/math$/m);
   });
 
+  it('marks a deep import that renames the name with the name its file binds', async () => {
+    checkout({ 'apps/app/src/taxed.ts': "import { addTax as withTax } from '@acme/lib/src/internal/math';\nexport const taxed = withTax(1);\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'addTax']);
+
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^ {2}apps\/app\/src\/taxed\.ts:1 — @acme\/app, deep import of @acme\/lib\/src\/internal\/math \(as withTax\)$/m);
+    expect(out).toMatch(/^ {2}apps\/app\/src\/total\.ts:1 — @acme\/app, deep import of @acme\/lib\/src\/internal\/math$/m);
+  });
+
   it('lists a package that declares no entry by what other packages import from it, public or private, and none of it as deep', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

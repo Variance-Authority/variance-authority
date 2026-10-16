@@ -162,6 +162,12 @@ impl<'a> Stored<'a> {
     pub fn optional(&self, id: u32) -> Option<&'a str> {
         (id != NONE).then(|| self.text(id))
     }
+
+    /// The ids the dictionary holds `value` under, so a column is asked by id
+    /// rather than read string by string; none when the segment never names it.
+    pub fn ids_of(&self, value: &str) -> Vec<u32> {
+        self.strings.iter().enumerate().filter(|(_, text)| **text == value).map(|(at, _)| at as u32).collect()
+    }
 }
 
 /// Every column in `columns` holds `length` entries.

@@ -148,6 +148,20 @@ describe('variance ask uses over the file that declares the name', () => {
     expect(out.match(/^packages\/kit\/src\/graph\.rs:\d+ — /gm)).toHaveLength(3);
   });
 
+  it('marks a child that takes a kept Rust item under another name, and lists the lines of its own file unmarked', async () => {
+    checkout({
+      'packages/kit/src/lib.rs': ['mod graph;', 'pub fn run() -> u32 {', '    0', '}', ''].join('\n'),
+      'packages/kit/src/graph.rs': ['mod child;', 'fn helper() -> u32 {', '    1', '}', 'pub(crate) fn fold() -> u32 {', '    helper()', '}', ''].join('\n'),
+      'packages/kit/src/graph/child.rs': ['use super::helper as aid;', 'pub(crate) fn again() -> u32 {', '    aid()', '}', ''].join('\n'),
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'helper']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/kit\/src\/graph\/child\.rs:1 — @acme\/kit \(as aid\)$/m);
+    expect(section(out, OWN)).toEqual(['packages/kit/src/graph.rs:6 — @acme/kit']);
+  });
+
   // FIXME: the Python, Swift and JVM readers record no lines of a file that
   // use what it declares, so `ask uses` answers them by imports alone.
   it.todo('lists the lines of a Python, Swift, Java or Kotlin file that use a name it declares — needs a scope walk in each of those readers');
