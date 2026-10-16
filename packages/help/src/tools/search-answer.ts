@@ -432,8 +432,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // The empty answer read as a description: names holding half of its words,
   // stemmed by the rule packages are. It prints first, so it claims its names
   // first, and the loose pass offers none of them a second time.
-  // A name its file keeps to itself is in no row of the index, so the source
-  // index answers for it by the same words, and it is ordered among the rest.
+  // A name its file keeps to itself is in no row: the source index answers for it.
   const reached = describedNames(index, query, within, new Set([...named, ...answered]));
   const described = reached === undefined ? undefined : [...reached, ...(describedDeclarations(root, query, area?.files) ?? [])];
   const told = described === undefined ? undefined : first(described, DESCRIBED_CAP, describedOrder)

@@ -2741,6 +2741,7 @@
         "checkoutListing": "function",
         "checkoutPath": "function",
         "codeMapPage": "function",
+        "declaredDescribedOf": "function",
         "declaredOf": "function",
         "declaredRoles": "function",
         "declaredTiers": "function",

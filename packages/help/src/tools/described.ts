@@ -1,5 +1,7 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { declaredDescribedOf, describedWordsNative, wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
+import { declaredMatch } from './declared.js';
 import type { DeclaredMatch } from './search-answer.js';
 import { admittedBy, matchingTerms } from './loose.js';
 
@@ -141,14 +143,7 @@ export function describedDeclarations(
   return read?.names.map((one): DescribedDeclaration => {
     const held = new Set(one.held ?? []);
     return {
-      match: {
-        source: 'declared',
-        name: one.name,
-        kind: one.kind,
-        ...(one.by === '' ? {} : { package: one.by }),
-        at: one.at,
-        line: one.line,
-      },
+      match: declaredMatch(one),
       words: asked.filter((_, position) => held.has(position)).map(([, word]) => word as string),
       named: one.named ?? 0,
       rows: 0,
@@ -156,9 +151,6 @@ export function describedDeclarations(
     };
   });
 }
-
-/** Code-unit order, which a string comparison in JavaScript is. */
-const codeUnits = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * Best first: words held, then words in the name, then rows, then rank; a name
@@ -170,4 +162,4 @@ export const describedOrder = (a: DescribedName | DescribedDeclaration, b: Descr
   b.rows - a.rows ||
   a.rank - b.rank ||
   ('match' in a ? 1 : 0) - ('match' in b ? 1 : 0) ||
-  ('match' in a && 'match' in b ? codeUnits(a.match.at, b.match.at) || a.match.line - b.match.line : 0);
+  ('match' in a && 'match' in b ? codeUnitOrder(a.match.at, b.match.at) || a.match.line - b.match.line : 0);
