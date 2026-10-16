@@ -205,6 +205,37 @@ async function write(root: string, path: string, contents: string): Promise<void
   await writeFile(file, contents);
 }
 
+describe('what a Python file declares', () => {
+  it('records every top-level definition and assignment, private ones too, with its docstring', () => {
+    const contents = [
+      '@cache',
+      'def _relaunch(argv):',
+      '    """Start again, in a process of its own."""',
+      '    return 0',
+      '',
+      'class Lens:',
+      '    def inner(self):',
+      '        pass',
+      '',
+      'LIMIT = 5',
+      '',
+    ].join('\n');
+    const read = readPython('pkg/mod.py', contents);
+
+    expect(spelled(contents, read)).toEqual([
+      { name: '_relaunch', kind: 'function', line: 2, signature: 'def _relaunch(argv)', doc: 'Start again, in a process of its own.' },
+      { name: 'Lens', kind: 'class', line: 6, signature: 'class Lens', doc: undefined },
+      { name: 'LIMIT', kind: 'variable', line: 10, signature: 'LIMIT', doc: undefined },
+    ]);
+  });
+});
+
+/** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
+function spelled(contents: string, read: Read) {
+  const cut = (span: { readonly start: number; readonly end: number } | undefined) => span && contents.slice(span.start, span.end);
+  return (read.symbols ?? []).map(({ name, kind, line, signature, doc }) => ({ name, kind, line, signature: cut(signature), doc: cut(doc) }));
+}
+
 /** What the addon's Python reader answers, which is the only reader there is. */
 function readPython(file: string, contents: string): Read {
   const answer = native()?.readLanguage('python', file, contents);

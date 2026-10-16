@@ -21,6 +21,7 @@ pub mod swift;
 use tree_sitter::Node;
 
 use crate::grammar::{self, Grammar};
+use crate::harvest::{SourceSymbol, TextSpan};
 use shape::Read;
 
 /// The 1-based line a node starts on.
@@ -32,6 +33,95 @@ pub fn line_of(node: Node) -> u32 {
 /// tree-sitter does not produce over valid UTF-8 and which must not panic if it does.
 pub fn text_of<'source>(node: Node, source: &'source str) -> &'source str {
     source.get(node.byte_range()).unwrap_or("")
+}
+
+/// One top-level declaration, `children[at]`, as the TypeScript reader
+/// records one: its name and kind, its line, its head and the doc above it.
+pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static str, source: &str, attributes: &[&str]) -> SourceSymbol {
+    let node = children[at];
+    SourceSymbol {
+        name,
+        kind,
+        line: line_of(node),
+        signature: Some(head(node, source)),
+        doc: doc_above(children, at, source, attributes),
+    }
+}
+
+/// What a declaration's node kind is called in a symbol, the same word across
+/// the grammars that spell it differently.
+pub fn kind_of(node: &str) -> &'static str {
+    match node {
+        "function_item" | "function_definition" | "function_declaration" => "function",
+        "struct_item" => "struct",
+        "enum_item" | "enum_declaration" => "enum",
+        "union_item" => "union",
+        "trait_item" => "trait",
+        "type_item" | "type_alias" | "typealias_declaration" => "type",
+        "const_item" => "const",
+        "static_item" => "static",
+        "mod_item" => "module",
+        "macro_definition" => "macro",
+        "class_definition" | "class_declaration" => "class",
+        "interface_declaration" => "interface",
+        "record_declaration" => "record",
+        "annotation_type_declaration" => "annotation",
+        "object_declaration" => "object",
+        "protocol_declaration" => "protocol",
+        "property_declaration" => "property",
+        _ => "declaration",
+    }
+}
+
+/// A declaration's head: from where it starts to where its body or its value
+/// does, less the `=`, `:` or `{` that opens them; the whole node when it has
+/// neither.
+pub fn head(node: Node, source: &str) -> TextSpan {
+    let opens = node
+        .child_by_field_name("body")
+        .or_else(|| node.child_by_field_name("value"))
+        .or_else(|| node.child_by_field_name("right"))
+        .or_else(|| named_children(node).into_iter().find(|child| child.kind().ends_with("body") || child.kind() == "block"));
+    let end = opens.map_or(node.end_byte(), |body| body.start_byte());
+    let text = source.get(node.start_byte()..end).unwrap_or("");
+    let kept = text.trim_end().trim_end_matches(['=', ':', '{']).trim_end();
+    span_of(source, node.start_byte(), node.start_byte() + kept.len())
+}
+
+/// The doc comment written above `children[at]`, past the siblings of the
+/// kinds in `attributes`: the `///` lines directly before it, or the one
+/// `/** … */` block. A comment is told by what it is written as, since each
+/// grammar names its comments differently. A block is spanned inside its `/*`
+/// and `*/`, as the TypeScript reader spans a JSDoc block; lines are spanned
+/// whole, from the first `///` to the end of the last.
+pub fn doc_above(children: &[Node], at: usize, source: &str, attributes: &[&str]) -> Option<TextSpan> {
+    let mut lines: Option<(usize, usize)> = None;
+    for sibling in children[..at].iter().rev() {
+        let text = text_of(*sibling, source);
+        let comment = sibling.kind().contains("comment");
+        if lines.is_none() && attributes.contains(&sibling.kind()) {
+            continue;
+        }
+        if comment && text.starts_with("///") && !text.starts_with("////") {
+            let end = sibling.start_byte() + text.trim_end().len();
+            lines = Some((sibling.start_byte(), lines.map_or(end, |(_, end)| end)));
+            continue;
+        }
+        if comment && lines.is_none() && text.starts_with("/**") && !text.starts_with("/***") && text.len() > 4 {
+            return Some(span_of(source, sibling.start_byte() + 2, sibling.end_byte() - 2));
+        }
+        break;
+    }
+    lines.map(|(start, end)| span_of(source, start, end))
+}
+
+/// Byte offsets of `source` as the UTF-16 span every reader writes.
+pub fn span_of(source: &str, start: usize, end: usize) -> TextSpan {
+    let units = |byte: usize| source.get(..byte).map_or(0, |before| before.encode_utf16().count()) as u32;
+    if source.is_ascii() {
+        return TextSpan { start: start as u32, end: end as u32 };
+    }
+    TextSpan { start: units(start), end: units(end) }
 }
 
 /// Every named child of a node, in order.
@@ -61,14 +151,14 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
         }));
     };
 
-    let read = match grammar {
-        Grammar::Python => python::read(file, source, &tree),
-        Grammar::Rust => rust::read(file, source, &tree),
-        Grammar::Swift => swift::read(file, source, &tree),
-        Grammar::Java => jvm::read(file, source, &tree, "java"),
-        Grammar::Kotlin => jvm::read(file, source, &tree, "kotlin"),
+    let (read, symbols) = match grammar {
+        Grammar::Python => (python::read(file, source, &tree), python::declarations(&tree, source)),
+        Grammar::Rust => (rust::read(file, source, &tree), rust::declarations(&tree, source)),
+        Grammar::Swift => (swift::read(file, source, &tree), swift::declarations(&tree, source)),
+        Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source)),
+        Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source)),
     };
-    Some(Read { size: Some(size::size_of(source, &tree, grammar)), ..read })
+    Some(Read { size: Some(size::size_of(source, &tree, grammar)), symbols, harvested: true, ..read })
 }
 
 /// The targets a `Package.swift` declares, or nothing when it does not parse.

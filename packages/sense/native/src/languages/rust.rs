@@ -11,7 +11,8 @@ use std::collections::HashMap;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{declaration, kind_of, line_of, named_children, text_of};
+use crate::harvest::SourceSymbol;
 
 struct Gathering {
     requests: Vec<Request>,
@@ -43,6 +44,22 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         }),
         ..Read::default()
     }
+}
+
+/// Every item the file declares at its top level, `pub` or not, each with the
+/// doc lines above it and past its attributes.
+pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+    let children = named_children(tree.root_node());
+    (0..children.len())
+        .filter_map(|at| {
+            let node = children[at];
+            let name = match node.kind() {
+                "mod_item" | "macro_definition" => node.child_by_field_name("name").map(|name| text_of(name, source).to_string()),
+                _ => named(node, source),
+            }?;
+            Some(declaration(&children, at, name, kind_of(node.kind()), source, &["attribute_item"]))
+        })
+        .collect()
 }
 
 /// `prefix` is the inline-module path this block sits inside. `mod b;` inside

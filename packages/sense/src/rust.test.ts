@@ -82,6 +82,41 @@ describe('what a Rust file asks for', () => {
   });
 });
 
+describe('what a Rust file declares', () => {
+  it('records every top-level item, `pub` or not, with its signature and the doc above it, past its attributes', () => {
+    const contents = [
+      '/// Start again.',
+      '/// In a process of its own.',
+      '#[inline]',
+      'fn relaunch(argv: &[String]) -> i32 {',
+      '    0',
+      '}',
+      '',
+      'pub struct Lens;',
+      '',
+      'const LIMIT: u32 = 5;',
+      '',
+      'mod inner {',
+      '    fn hidden() {}',
+      '}',
+      '',
+    ].join('\n');
+    const read = readRust('src/lib.rs', contents);
+
+    expect(spelled(contents, read)).toEqual([
+      { name: 'relaunch', kind: 'function', line: 4, signature: 'fn relaunch(argv: &[String]) -> i32', doc: '/// Start again.\n/// In a process of its own.' },
+      { name: 'Lens', kind: 'struct', line: 8, signature: 'pub struct Lens;', doc: undefined },
+      { name: 'LIMIT', kind: 'const', line: 10, signature: 'const LIMIT: u32', doc: undefined },
+      { name: 'inner', kind: 'module', line: 12, signature: 'mod inner', doc: undefined },
+    ]);
+  });
+
+  it('says a file that declares nothing was read for declarations, which a file it could not read was not', () => {
+    const { symbols, harvested } = readRust('src/lib.rs', 'use crate::a::B;\n');
+    expect({ symbols, harvested }).toEqual({ symbols: undefined, harvested: true });
+  });
+});
+
 describe('where a Rust path lands', () => {
   const world = worldIn([
     'Cargo.toml',
@@ -125,6 +160,13 @@ describe('where a Rust path lands', () => {
       .toEqual([]);
   });
 });
+
+
+/** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
+function spelled(contents: string, read: Read) {
+  const cut = (span: { readonly start: number; readonly end: number } | undefined) => span && contents.slice(span.start, span.end);
+  return (read.symbols ?? []).map(({ name, kind, line, signature, doc }) => ({ name, kind, line, signature: cut(signature), doc: cut(doc) }));
+}
 
 /** What the addon's Rust reader answers, which is the only reader there is. */
 function readRust(file: string, contents: string): Read {

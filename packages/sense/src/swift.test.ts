@@ -140,6 +140,34 @@ async function write(root: string, path: string, contents: string): Promise<void
   await writeFile(absolute, contents, 'utf8');
 }
 
+describe('what a Swift file declares', () => {
+  it('records each top-level declaration with its signature and the doc above it', () => {
+    const contents = [
+      'import Foundation',
+      '',
+      '/// Start again.',
+      'func relaunch(argv: [String]) -> Int {',
+      '    return 0',
+      '}',
+      '',
+      'struct Lens {}',
+      '',
+    ].join('\n');
+    const read = readSwift('Sources/App/main.swift', contents);
+
+    expect(spelled(contents, read)).toEqual([
+      { name: 'relaunch', kind: 'function', line: 4, signature: 'func relaunch(argv: [String]) -> Int', doc: '/// Start again.' },
+      { name: 'Lens', kind: 'struct', line: 8, signature: 'struct Lens', doc: undefined },
+    ]);
+  });
+});
+
+/** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
+function spelled(contents: string, read: Read) {
+  const cut = (span: { readonly start: number; readonly end: number } | undefined) => span && contents.slice(span.start, span.end);
+  return (read.symbols ?? []).map(({ name, kind, line, signature, doc }) => ({ name, kind, line, signature: cut(signature), doc: cut(doc) }));
+}
+
 /** What the addon's Swift reader answers, which is the only reader there is. */
 function readSwift(file: string, contents: string): Read {
   const answer = native()?.readLanguage('swift', file, contents);

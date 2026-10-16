@@ -14,7 +14,8 @@ use serde::Serialize;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{declaration, kind_of, line_of, named_children, text_of};
+use crate::harvest::SourceSymbol;
 
 /// The request a file makes for its own target: the files it sees without asking.
 const OWN_TARGET: &str = "*";
@@ -63,6 +64,43 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
             format!("{file} did not parse cleanly as Swift, so what it imports may be incomplete.")
         }),
         ..Read::default()
+    }
+}
+
+/// Every top-level declaration, each with the `///` lines or `/** */` block
+/// above it. An extension adds to a type declared elsewhere and names nothing
+/// of its own.
+pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+    let children = named_children(tree.root_node());
+    (0..children.len())
+        .filter_map(|at| {
+            let node = children[at];
+            let name = declared(node, source)?;
+            let kind = match node.kind() {
+                "class_declaration" => nominal(node)?,
+                other => kind_of(other),
+            };
+            Some(declaration(&children, at, name, kind, source, &[]))
+        })
+        .collect()
+}
+
+/// The keyword a `class_declaration` is written with, which is an anonymous
+/// child; `None` for an extension.
+fn nominal(node: Node) -> Option<&'static str> {
+    let mut cursor = node.walk();
+    let keyword = node.children(&mut cursor).find_map(|child| match child.kind() {
+        "struct" => Some("struct"),
+        "class" => Some("class"),
+        "enum" => Some("enum"),
+        "actor" => Some("actor"),
+        "extension" => Some("extension"),
+        _ => None,
+    });
+    match keyword {
+        Some("extension") => None,
+        Some(keyword) => Some(keyword),
+        None => Some("class"),
     }
 }
 

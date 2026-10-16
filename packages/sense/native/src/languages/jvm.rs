@@ -10,7 +10,8 @@ use std::collections::HashSet;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
-use super::{line_of, named_children, text_of};
+use super::{declaration, kind_of, line_of, named_children, text_of};
+use crate::harvest::SourceSymbol;
 
 /// The suffix that makes a request name a package directory rather than a file.
 const WHOLE_PACKAGE: &str = ".*";
@@ -109,6 +110,18 @@ fn walk(node: Node, source: &str, held: &mut Gathering) {
             }
         }
     }
+}
+
+/// Every top-level declaration, each with the `/** */` block above it.
+pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+    let children = named_children(tree.root_node());
+    (0..children.len())
+        .filter_map(|at| {
+            let node = children[at];
+            let name = declared(node, source)?;
+            Some(declaration(&children, at, name, kind_of(node.kind()), source, &[]))
+        })
+        .collect()
 }
 
 fn want(held: &mut Gathering, value: &str, local: &str, line: u32) {

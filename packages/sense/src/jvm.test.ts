@@ -134,6 +134,30 @@ async function write(root: string, path: string, contents: string): Promise<void
   await writeFile(absolute, contents, 'utf8');
 }
 
+describe('what a Java or Kotlin file declares', () => {
+  it('records a Java class with its signature and the doc block above it', () => {
+    const contents = ['package a;', '', '/** Start again. */', 'class Relaunch {', '}', ''].join('\n');
+
+    expect(spelled(contents, readJava('src/a/Relaunch.java', contents))).toEqual([
+      { name: 'Relaunch', kind: 'class', line: 4, signature: 'class Relaunch', doc: '* Start again. ' },
+    ]);
+  });
+
+  it('records a Kotlin function with its signature and the doc block above it', () => {
+    const contents = ['package a', '', '/** Start again. */', 'fun relaunch(argv: List<String>): Int {', '    return 0', '}', ''].join('\n');
+
+    expect(spelled(contents, readKotlin('src/a/Relaunch.kt', contents))).toEqual([
+      { name: 'relaunch', kind: 'function', line: 4, signature: 'fun relaunch(argv: List<String>): Int', doc: '* Start again. ' },
+    ]);
+  });
+});
+
+/** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
+function spelled(contents: string, read: Read) {
+  const cut = (span: { readonly start: number; readonly end: number } | undefined) => span && contents.slice(span.start, span.end);
+  return (read.symbols ?? []).map(({ name, kind, line, signature, doc }) => ({ name, kind, line, signature: cut(signature), doc: cut(doc) }));
+}
+
 /** What the addon's Java reader answers, which is the only reader there is. */
 function readJava(file: string, contents: string): Read {
   const answer = native()?.readLanguage('java', file, contents);

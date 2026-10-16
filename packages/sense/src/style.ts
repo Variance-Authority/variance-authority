@@ -48,7 +48,8 @@ export function readStyle(_file: string, contents: string): Read {
     }
   }
 
-  return { requests };
+  // A stylesheet declares no names, and that is read, not unknown.
+  return { requests, harvested: true };
 }
 
 /** `@import "x"`, `@import url("x")`, `@use "x"`, `@forward "x"`. */
