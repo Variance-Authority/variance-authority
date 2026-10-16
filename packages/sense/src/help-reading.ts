@@ -219,7 +219,7 @@ export function membersOn(root: string, file: string, on: string, index: string 
  * `export … from`, then its stars. `null` when the file's own export list
  * binds the name, and when the walk ends short of a declaration: at a
  * namespace, at an import a file exports again, at a request that resolved to
- * no file of the checkout, at a file with no export list in the index, back at
+ * no file of the checkout, at a file with no export list in the index that does not declare the name, back at
  * a file it passed through, or at stars that reach different declarations.
  * `undefined` when no index was
  * published; throws when the index does not read.
