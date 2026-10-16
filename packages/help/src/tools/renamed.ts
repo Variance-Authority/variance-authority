@@ -11,6 +11,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Help, Use } from '@variance-authority/package/help';
 import { aliasesOf, type Alias } from '@variance-authority/sense';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
@@ -29,13 +30,14 @@ const CAP = 12;
 export function renamedSites(name: string, sites: readonly (Use & { readonly name?: string })[]): readonly string[] {
   const seen = new Set<string>();
   const renamed: string[] = [];
-  const ordered = [...sites].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0) || a.line - b.line);
+  const ordered = [...sites].sort((a, b) => codeUnitOrder(a.at, b.at) || a.line - b.line);
   for (const site of ordered) {
     const known = site.local ?? site.name;
-    const key = `${site.at}:${site.line}`;
-    if (known === undefined || known === name || seen.has(key)) continue;
-    seen.add(key);
-    renamed.push(`${key} as \`${known}\``);
+    if (known === undefined || known === name) continue;
+    const said = `${site.at}:${site.line} as \`${known}\``;
+    if (seen.has(said)) continue;
+    seen.add(said);
+    renamed.push(said);
   }
   if (renamed.length === 0) return [];
   return [`Imported under another name: ${renamed.slice(0, CAP).join(', ')}${more(renamed.length)}.`];
