@@ -227,6 +227,21 @@ describe('variance ask about a name declared and not exported', () => {
     );
   });
 
+  it('answers `symbol` for a Swift `fileprivate` and a Kotlin `private` as declared and kept to their files', async () => {
+    checkout({
+      'packages/kit/Sources/Kit/Restart.swift': 'public func restart() -> Int { relaunch() }\n\nfileprivate func relaunch() -> Int { 0 }\n',
+      'packages/kit/src/main/kotlin/kit/Restart.kt': 'package kit\n\nfun restart(): Int = rerun()\n\nprivate fun rerun(): Int = 0\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const [name, at] of [['relaunch', 'packages/kit/Sources/Kit/Restart.swift:3'], ['rerun', 'packages/kit/src/main/kotlin/kit/Restart.kt:5']] as const) {
+      const { out } = await run(['ask', 'symbol', '--name', name]);
+      const block = paragraph(out, new RegExp(`^${name} \\[function\\]\\n`));
+      expect(block).toContain(`declared, not exported, at ${at}`);
+      expect(block).toContain(`Nothing outside ${at.slice(0, at.lastIndexOf(':'))} can import it`);
+    }
+  });
+
   it('answers `symbol` for an underscored Python name with its docstring, and says another module can still import it', async () => {
     checkout(PRIVATE_PYTHON);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

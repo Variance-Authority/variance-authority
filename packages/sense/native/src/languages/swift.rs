@@ -46,7 +46,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
             }
             continue;
         }
-        if let Some(name) = declared(child, source) {
+        if let Some(name) = declared(child, source).filter(|_| !file_private(child, source)) {
             exports.push(Export {
                 exported: Some(name.clone()),
                 local: Some(name),
@@ -80,9 +80,24 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
                 "class_declaration" => nominal(node)?,
                 other => kind_of(other)?,
             };
-            Some(declaration(&children, at, name, kind, source, &[]))
+            let mut symbol = declaration(&children, at, name, kind, source, &[]);
+            if file_private(node, source) {
+                symbol.reach = Some("file");
+            }
+            Some(symbol)
         })
         .collect()
+}
+
+/// Whether `private` or `fileprivate` keeps a top-level declaration to its
+/// file, where the two mean the same. `private(set)` narrows the setter alone,
+/// so the name is still the target's.
+fn file_private(node: Node, source: &str) -> bool {
+    named_children(node)
+        .into_iter()
+        .filter(|child| child.kind() == "modifiers")
+        .flat_map(named_children)
+        .any(|modifier| modifier.kind() == "visibility_modifier" && matches!(text_of(modifier, source), "private" | "fileprivate"))
 }
 
 /// The keyword a `class_declaration` is written with, which is an anonymous
@@ -141,7 +156,7 @@ fn want(requests: &mut Vec<Request>, seen: &mut HashSet<String>, value: &str, lo
     });
 }
 
-/// Top-level declarations this file publishes.
+/// Top-level declarations this file publishes, unless [`file_private`] keeps one.
 ///
 /// `class_declaration` is every nominal type in this grammar — `struct`, `class`,
 /// `enum` and `actor` all reach it — and the keyword that separates them is an

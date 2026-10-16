@@ -98,7 +98,7 @@ fn walk(node: Node, source: &str, held: &mut Gathering) {
             }
 
             _ => {
-                if let Some(name) = declared(child, source) {
+                if let Some(name) = declared(child, source).filter(|_| !file_private(child, source)) {
                     held.exports.push(Export {
                         exported: Some(name.clone()),
                         local: Some(name),
@@ -119,9 +119,24 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
         .filter_map(|at| {
             let node = children[at];
             let name = declared(node, source)?;
-            Some(declaration(&children, at, name, kind_of(node.kind())?, source, &[]))
+            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, &[]);
+            if file_private(node, source) {
+                symbol.reach = Some("file");
+            }
+            Some(symbol)
         })
         .collect()
+}
+
+/// Whether a top-level Kotlin `private` keeps the declaration to its file.
+/// Java has no such thing: a top-level `private` does not compile, and its
+/// grammar writes the keyword as an anonymous node this never matches.
+fn file_private(node: Node, source: &str) -> bool {
+    named_children(node)
+        .into_iter()
+        .filter(|child| child.kind() == "modifiers")
+        .flat_map(named_children)
+        .any(|modifier| modifier.kind() == "visibility_modifier" && text_of(modifier, source) == "private")
 }
 
 fn want(held: &mut Gathering, value: &str, local: &str, line: u32) {
@@ -153,7 +168,8 @@ fn ends_wide(text: &str) -> bool {
     rest.ends_with('*')
 }
 
-/// Declarations a file publishes to its package and to anything importing it.
+/// Declarations a file publishes to its package and to anything importing it,
+/// unless [`file_private`] keeps one.
 pub(super) const DECLARATIONS: [&str; 9] = [
     "class_declaration",
     "interface_declaration",

@@ -43,6 +43,21 @@ describe('what a Swift file asks for', () => {
       .toEqual(['Lens', 'Seen', 'read', 'version']);
   });
 
+  it('keeps a `private` or `fileprivate` declaration to its file, and publishes one whose setter alone is private', () => {
+    const read = readSwift(
+      'a.swift',
+      'private func helper() {}\nfileprivate struct Cache {}\nprivate(set) var count = 0\npublic let version = 1\n',
+    );
+
+    expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['count', 'version']);
+    expect(read.symbols?.map(({ name, reach }) => ({ name, reach }))).toEqual([
+      { name: 'helper', reach: 'file' },
+      { name: 'Cache', reach: 'file' },
+      { name: 'count', reach: undefined },
+      { name: 'version', reach: undefined },
+    ]);
+  });
+
   it('says so when the parser stopped where an import could have been', () => {
     expect(readSwift('a.swift', 'import Core\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });

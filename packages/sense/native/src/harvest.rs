@@ -33,9 +33,10 @@ pub struct SourceSymbol {
 }
 
 /// Every reach a symbol records, in the order the index stores them, from 1:
-/// its file alone (an ES module), its module and the modules inside it (a Rust
-/// item that is not `pub`), and any module that imports it by name, kept out of
-/// `from … import *` by a leading underscore or by `__all__` (Python).
+/// its file alone (an ES module, a Swift or Kotlin `private`), its module and
+/// the modules inside it (a Rust item that is not `pub`), and any module that
+/// imports it by name, kept out of `from … import *` by a leading underscore or
+/// by `__all__` (Python).
 pub const REACHES: [&str; 4] = ["file", "module", "underscore", "all"];
 
 /// A reach as the index stores it; 0 is none.

@@ -59,6 +59,17 @@ describe('what a JVM file asks for', () => {
       .toEqual(['Thing', 'parse', 'Registry', 'Name', 'version']);
   });
 
+  it('keeps a top-level Kotlin `private` to its file, and publishes an `internal` one to its module', () => {
+    const read = readKotlin('t.kt', 'package a\n\nprivate fun helper() {}\nprivate val cache = 1\ninternal class Thing\n');
+
+    expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['Thing']);
+    expect(read.symbols?.map(({ name, reach }) => ({ name, reach }))).toEqual([
+      { name: 'helper', reach: 'file' },
+      { name: 'cache', reach: 'file' },
+      { name: 'Thing', reach: undefined },
+    ]);
+  });
+
   it('says so when the parser stopped where an import could have been', () => {
     expect(readJava('Thing.java', 'import a.B;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });
