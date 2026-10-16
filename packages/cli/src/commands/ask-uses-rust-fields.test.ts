@@ -239,6 +239,10 @@ const ROOTED = {
     '    }',
     '}',
     '',
+    'pub fn deep(p: &crate::inline::a::Props) -> u8 {',
+    '    p.size',
+    '}',
+    '',
   ].join('\n'),
   'packages/kit/src/checked.rs': [
     'use crate::outer::Outer;',
@@ -261,7 +265,7 @@ const ROOTED = {
     '',
   ].join('\n'),
   'packages/kit/src/inline.rs': [
-    'mod a {',
+    'pub mod a {',
     '    pub struct Props {',
     '        pub size: u8,',
     '    }',
@@ -433,13 +437,17 @@ describe('variance ask over a field or a variant of a Rust type', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/rooted.rs']);
     expect(code).toBe(EXIT_CLEAN);
     const props = lines(out).filter((line) => line.startsWith('packages/kit/src/rooted.rs'));
+    // `a::Props` is declared in inline.rs, which sorts before shapes.rs.
     expect(props).toEqual([
+      'packages/kit/src/rooted.rs:17 — @acme/kit, read',
       'packages/kit/src/rooted.rs:2 — @acme/kit, read',
       'packages/kit/src/rooted.rs:6 — @acme/kit, write',
       'packages/kit/src/rooted.rs:11 — @acme/kit, destructure',
     ]);
     expect(headed(out, 'packages/kit/src/rooted.rs:2')).toMatch(/^`Props::size`, declared at packages\/kit\/src\/shapes.rs:2/);
     expect(headed(out, 'packages/kit/src/rooted.rs:11')).toMatch(/^`Shape::Square::size`, declared at packages\/kit\/src\/shapes.rs:12/);
+    // A path through an inline module of another file reaches the struct inside it.
+    expect(headed(out, 'packages/kit/src/rooted.rs:17')).toMatch(/^`a::Props::size`, declared at packages\/kit\/src\/inline.rs:3/);
   });
 
   it('answers a field read through a chain inside a macro\'s tokens, `assert!(o.inner.size > 0)`', async () => {
@@ -472,9 +480,10 @@ describe('variance ask over a field or a variant of a Rust type', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/inline.rs']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(section(out, '`a::Props::size`, declared at packages/kit/src/inline.rs:3, is used in 2 places:')).toEqual([
+    expect(section(out, '`a::Props::size`, declared at packages/kit/src/inline.rs:3, is used in 3 places:')).toEqual([
       'packages/kit/src/inline.rs:7 — @acme/kit, read',
       'packages/kit/src/inline.rs:22 — @acme/kit, read',
+      'packages/kit/src/rooted.rs:17 — @acme/kit, read',
     ]);
     expect(section(out, '`b::Props::size`, declared at packages/kit/src/inline.rs:13, is used in 1 place:')).toEqual([
       'packages/kit/src/inline.rs:17 — @acme/kit, read',

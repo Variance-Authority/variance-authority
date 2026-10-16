@@ -38,7 +38,7 @@
  *   unknown can only cost a wider one.
  */
 
-import { EDGE_KINDS, RUNTIME_EDGES, type Adjacency, type EdgeKind, type NodeId } from './graph.js';
+import { EDGE_KINDS, type Adjacency, type EdgeKind, type NodeId } from './graph.js';
 
 /** The whole file: every name it exposes, and what it does as it loads. */
 export const WHOLE: unique symbol = Symbol('whole');
@@ -81,7 +81,7 @@ export interface CarriedStep<T> {
 }
 
 export interface CarriedOptions {
-  /** Edge kinds to walk. `RUNTIME_EDGES` when absent: every kind but `type`. */
+  /** Edge kinds to walk. Every kind when absent; `RUNTIME_EDGES` for what a run loads. */
   readonly through?: Iterable<EdgeKind>;
   /** Nodes the walk never enters, seeds included. */
   readonly avoid?: Iterable<NodeId>;
@@ -127,7 +127,7 @@ export function carried<T>(
   const nodes = offset.length - 1;
   const mask = options.mask ?? new Uint8Array(nodes);
   const { via } = options;
-  const allowed = options.through === undefined ? RUNTIME : allowedKinds(options.through);
+  const allowed = options.through === undefined ? EVERY : allowedKinds(options.through);
   let avoided: Uint8Array | undefined;
   if (options.avoid !== undefined) {
     // A typed array ignores a write out of its range, so an id the graph does
@@ -340,8 +340,8 @@ export function inIdOrder(mask: Uint8Array): NodeId[] {
   return visited;
 }
 
-/** The default filter, built once: selection walks once per changed file. */
-const RUNTIME = allowedKinds(undefined);
+/** The default filter, built once: a walk runs once per changed file. */
+const EVERY = allowedKinds(undefined);
 
 /**
  * A kind filter as a byte lookup, so the inner loop tests a byte; `fallback`
@@ -349,7 +349,7 @@ const RUNTIME = allowedKinds(undefined);
  */
 export function allowedKinds(
   through: Iterable<EdgeKind> | undefined,
-  fallback: readonly EdgeKind[] = RUNTIME_EDGES,
+  fallback: readonly EdgeKind[] = EDGE_KINDS,
 ): Uint8Array {
   const allowed = new Uint8Array(EDGE_KINDS.length);
   for (const name of through ?? fallback) {

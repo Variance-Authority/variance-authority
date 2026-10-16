@@ -1,142 +1,226 @@
-//! How a Rust file spells a type: the path a line writes, placed in the
-//! inline module the line sits in.
+//! The paths a Rust module names an item by, anchored where the module tree
+//! can follow them.
 //!
-//! A path is kept as written, `shapes::Props` as well as `Props`, since which
-//! declaration it names is the join's to answer through the `use` that binds
-//! its head. Inside `mod a { … }`, a name `a` declares is `a::Props`, as a
-//! line outside the module writes it, `self::` is the module itself and each
-//! `super::` climbs one module out; a name the module does not declare came in
-//! by a `use`, and is kept as written.
-
-// compass: variance-authority.reach.relations
+//! A `use` is one such path and a type or an expression written as
+//! `crate::a::Name` is another. Each is told where it starts — the crate root,
+//! the file's own module, its parent — and nothing more: which segments are
+//! modules and which is the item is the module tree's answer, and
+//! [`rust.ts`](../../../src/rust.ts) reads it from the `mod` lines.
 
 use std::collections::{HashMap, HashSet};
 
-use tree_sitter::{Node, Tree};
+use tree_sitter::Node;
 
-use super::{named_children, text_of};
+use super::{line_of, named_children, text_of};
 
-/// The pointers whose fields a field expression reaches through auto-deref,
-/// as the standard library names them.
-const POINTERS: [&str; 3] = ["Box", "Rc", "Arc"];
-
-/// Item kinds a module declares a type by.
-const TYPES: [&str; 4] = ["struct_item", "enum_item", "union_item", "type_item"];
-
-/// The type names each inline module of a file declares, by the module's path
-/// inside the file.
-pub type Inline = HashMap<Vec<String>, HashSet<String>>;
-
-/// Every inline module `tree` declares, nested ones by their whole path.
-pub fn inline_modules(tree: &Tree, source: &str) -> Inline {
-    let mut found = Inline::new();
-    gather(tree.root_node(), source, &mut Vec::new(), &mut found);
-    found
+/// What a block of items can start a path with: the inline modules it sits
+/// inside, the modules it declares, and the names its `use` lines bind to a
+/// path from this crate.
+pub(super) struct Scope {
+    pub(super) prefix: Vec<String>,
+    pub(super) mods: HashSet<String>,
+    pub(super) bound: HashMap<String, Vec<String>>,
 }
 
-fn gather(node: Node, source: &str, module: &mut Vec<String>, found: &mut Inline) {
-    for child in named_children(node) {
-        match child.kind() {
-            "mod_item" => {
-                let (Some(name), Some(body)) = (child.child_by_field_name("name"), child.child_by_field_name("body")) else { continue };
-                module.push(text_of(name, source).to_owned());
-                found.entry(module.clone()).or_default();
-                gather(body, source, module, found);
-                module.pop();
-            }
-            kind if TYPES.contains(&kind) && !module.is_empty() => {
-                if let Some(name) = child.child_by_field_name("name") {
-                    found.entry(module.clone()).or_default().insert(text_of(name, source).to_owned());
-                }
-            }
-            _ => {}
+/// One path an item is named by: the path from its anchor, the name it takes,
+/// the path as the line spells it, and the line it is written on.
+pub(super) struct Named {
+    pub(super) path: Vec<String>,
+    pub(super) binding: String,
+    pub(super) written: String,
+    pub(super) line: u32,
+}
+
+/// `path` as the file's own module reads it: `crate` as written, `self` and
+/// `super` from the file rather than from the inline module the path sits in,
+/// and a module or a name this block declares or binds spelled out from the
+/// file; nothing for a path that starts anywhere else, as an external crate's
+/// does.
+pub(super) fn anchored(path: &[String], scope: &Scope) -> Option<Vec<String>> {
+    let first = path.first()?;
+    match first.as_str() {
+        "crate" => Some(path.to_vec()),
+        "self" | "super" => Some(folded(path, &scope.prefix)),
+        name if scope.mods.contains(name) => {
+            let mut full = vec!["self".to_string()];
+            full.extend_from_slice(&scope.prefix);
+            full.extend_from_slice(path);
+            Some(full)
         }
+        name => scope.bound.get(name).map(|bound| {
+            let mut full = bound.clone();
+            full.extend_from_slice(&path[1..]);
+            full
+        }),
     }
 }
 
-/// Where a line is: the type `Self` is there, if any, and the inline module.
-#[derive(Clone, Copy)]
-pub struct Here<'a> {
-    pub own: Option<&'a str>,
-    pub module: &'a [String],
-    pub inline: &'a Inline,
+/// `self` and `super` inside `mod a { mod b { … } }` read from the file:
+/// `super` in `b` is `self::a`, and a `super` past the file's own inline
+/// modules is the file's parent.
+fn folded(path: &[String], prefix: &[String]) -> Vec<String> {
+    let climbs = path.iter().take_while(|segment| *segment == "super").count();
+    let (kept, rest) = if climbs == 0 {
+        (prefix.len(), &path[1..])
+    } else if climbs <= prefix.len() {
+        (prefix.len() - climbs, &path[climbs..])
+    } else {
+        let mut full = vec!["super".to_string(); climbs - prefix.len()];
+        full.extend_from_slice(&path[climbs..]);
+        return full;
+    };
+    let mut full = vec!["self".to_string()];
+    full.extend_from_slice(&prefix[..kept]);
+    full.extend_from_slice(rest);
+    full
 }
 
-impl Here<'_> {
-    /// A type declared here by `name`, as a line outside the module names it.
-    pub fn declared(&self, name: &str) -> String {
-        if self.module.is_empty() { return name.to_owned(); }
-        format!("{}::{name}", self.module.join("::"))
-    }
-}
-
-/// The type a type annotation names, as the path it is written by: a name
-/// or a path to one, a reference to it, one of [`POINTERS`] of it, or a
-/// generic type's own path.
-pub fn annotated(node: Node, source: &str, here: Here) -> Option<String> {
+/// Every path under `node` that names an item from an anchor, outermost
+/// first. A `use`, a `mod`, an attribute and a visibility are read elsewhere
+/// or name no item.
+pub(super) fn qualified(node: Node, source: &str, scope: &Scope, found: &mut Vec<Named>) {
     match node.kind() {
-        "type_identifier" | "scoped_type_identifier" => written(node, source, here),
-        "reference_type" => annotated(node.child_by_field_name("type")?, source, here),
-        "generic_type" => {
-            let base = node.child_by_field_name("type")?;
-            let named = match base.kind() {
-                "type_identifier" => Some(base),
-                "scoped_type_identifier" => base.child_by_field_name("name"),
-                _ => None,
-            }?;
-            if !POINTERS.contains(&text_of(named, source)) { return written(base, source, here); }
-            let arguments = node.child_by_field_name("type_arguments")?;
-            annotated(*named_children(arguments).first()?, source, here)
+        "use_declaration" | "mod_item" | "attribute_item" | "inner_attribute_item" | "visibility_modifier"
+        | "macro_definition" | "extern_crate_declaration" => return,
+        "scoped_identifier" | "scoped_type_identifier" => {
+            if let Some(path) = simple(node, source) {
+                if let Some(full) = anchored(&path, scope) {
+                    named(full, &path, line_of(node), found);
+                }
+                return;
+            }
         }
+        _ => {}
+    }
+    for child in named_children(node) {
+        qualified(child, source, scope, found);
+    }
+}
+
+/// Every prefix of a path past its anchor, each as the item it would name:
+/// nothing in `crate::map::JourneyMap::new()` says whether `map` is a module,
+/// or whether `new` is a function of the module or of the type. The module
+/// tree answers, by landing only the prefix that leaves one segment past the
+/// modules ([`rust.ts`](../../../src/rust.ts)). Each prefix keeps the
+/// segments of `spelled` it covers, at least the first, as the name the line
+/// reaches it by: `crate::shapes::Props` is reached as written, a
+/// `shapes::Props` under `mod shapes;` as `shapes::Props`.
+fn named(full: Vec<String>, spelled: &[String], line: u32, found: &mut Vec<Named>) {
+    let anchor = full.iter().take_while(|segment| matches!(segment.as_str(), "crate" | "self" | "super")).count();
+    // Anchoring can lengthen a path, `shapes::X` to `self::shapes::X`, or
+    // shorten it, `super::super::X` inside `mod a { … }` to `super::X`.
+    let expanded = full.len() as isize - spelled.len() as isize;
+    for end in anchor + 1..=full.len() {
+        let path = full[..end].to_vec();
+        let binding = path.last().cloned().unwrap_or_default();
+        let covered = (end as isize - expanded).clamp(1, spelled.len() as isize) as usize;
+        let written = spelled[..covered].join("::");
+        found.push(Named { path, binding, written, line });
+    }
+}
+
+/// The segments of a path made only of names, `crate`, `self` and `super`;
+/// nothing for one that carries generic arguments, a leading `::`, a
+/// qualified `<T as Trait>` or a macro variable, which name no module.
+fn simple(node: Node, source: &str) -> Option<Vec<String>> {
+    match node.kind() {
+        "scoped_identifier" | "scoped_type_identifier" => {
+            let mut held = simple(node.child_by_field_name("path")?, source)?;
+            let name = node.child_by_field_name("name")?;
+            if !matches!(name.kind(), "identifier" | "type_identifier" | "super" | "self") {
+                return None;
+            }
+            held.push(text_of(name, source).to_string());
+            Some(held)
+        }
+        "identifier" | "type_identifier" | "crate" | "self" | "super" => Some(vec![text_of(node, source).to_string()]),
         _ => None,
     }
 }
 
-/// A name or a path as the file writes it, placed by [`spelled_path`];
-/// `None` for a path with anything but names in it.
-pub fn written(node: Node, source: &str, here: Here) -> Option<String> {
-    let mut names = Vec::new();
-    let mut at = node;
-    loop {
-        match at.kind() {
-            "identifier" | "type_identifier" | "crate" | "super" | "self" => {
-                names.push(text_of(at, source));
-                break;
+/// One `use` argument flattened into the item paths it names.
+/// Each path comes with its alias, and whether it is a glob, which binds no name of its own.
+pub(super) fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>, bool)> {
+    match node.kind() {
+        "scoped_identifier" => {
+            let mut path = prefix.to_vec();
+            path.extend(segments(Some(node), source));
+            vec![(without_self(path), None, false)]
+        }
+        "scoped_use_list" => {
+            let mut base = prefix.to_vec();
+            base.extend(segments(node.child_by_field_name("path"), source));
+            match node.child_by_field_name("list") {
+                None => Vec::new(),
+                Some(list) => named_children(list)
+                    .into_iter()
+                    .flat_map(|child| used(child, source, &base))
+                    .collect(),
             }
-            "scoped_identifier" | "scoped_type_identifier" => {
-                names.push(text_of(at.child_by_field_name("name")?, source));
-                at = at.child_by_field_name("path")?;
+        }
+        "use_list" => named_children(node)
+            .into_iter()
+            .flat_map(|child| used(child, source, prefix))
+            .collect(),
+        "use_as_clause" => {
+            let mut path = prefix.to_vec();
+            path.extend(segments(node.child_by_field_name("path"), source));
+            let alias = node
+                .child_by_field_name("alias")
+                .map(|alias| text_of(alias, source).to_string());
+            vec![(without_self(path), alias, false)]
+        }
+        "use_wildcard" => {
+            // `use a::b::*` — the module is the whole path, and the `*` names no item.
+            match named_children(node).first() {
+                None => Vec::new(),
+                Some(inner) => {
+                    let mut path = prefix.to_vec();
+                    path.extend(segments(Some(*inner), source));
+                    vec![(without_self(path), None, true)]
+                }
             }
-            _ => return None,
+        }
+        _ => {
+            let own = segments(Some(node), source);
+            if own.is_empty() {
+                return Vec::new();
+            }
+            let mut path = prefix.to_vec();
+            path.extend(own);
+            vec![(without_self(path), None, false)]
         }
     }
-    names.reverse();
-    spelled_path(&names, here)
 }
 
-/// The names of a path joined as written, with its head placed: `Self` as
-/// the `impl`'s type, `self::` as the module the line is in, each `super::`
-/// one module out of it, and a name the inline module declares under the
-/// module. `None` for a `Self` outside an `impl`. A `super::` that leaves the
-/// file is kept as written.
-pub fn spelled_path(names: &[&str], here: Here) -> Option<String> {
-    let (&head, mut rest) = names.split_first()?;
-    let mut path: Vec<String> = Vec::new();
-    match head {
-        "Self" => path.push(here.own?.to_owned()),
-        "self" if !rest.is_empty() => path.extend(here.module.iter().cloned()),
-        "super" => {
-            let mut up = 1;
-            while rest.first() == Some(&"super") {
-                up += 1;
-                rest = &rest[1..];
-            }
-            if up > here.module.len() || rest.is_empty() { return Some(names.join("::")); }
-            path.extend(here.module[..here.module.len() - up].iter().cloned());
-        }
-        _ if here.inline.get(here.module).is_some_and(|names| names.contains(head)) => path.push(here.declared(head)),
-        _ => path.push(head.to_owned()),
+/// `self` inside a list names the module the list hangs off, not a thing in it.
+///
+/// `use crate::git::{self, Oid}` asks for `crate::git` twice over — once as the
+/// module and once as a name in it — and only the first spelling is a module
+/// path. Left in, the same file is asked for under two keys and the request the
+/// dedupe keeps is the one nobody wrote.
+fn without_self(path: Vec<String>) -> Vec<String> {
+    if path.len() > 1 && path.last().is_some_and(|last| last == "self") {
+        return path[..path.len() - 1].to_vec();
     }
-    path.extend(rest.iter().map(|&name| name.to_owned()));
-    Some(path.join("::"))
+    path
+}
+
+fn segments(node: Option<Node>, source: &str) -> Vec<String> {
+    let Some(node) = node else {
+        return Vec::new();
+    };
+    if node.kind() == "scoped_identifier" {
+        let mut held = segments(node.child_by_field_name("path"), source);
+        if let Some(name) = node.child_by_field_name("name") {
+            held.push(text_of(name, source).to_string());
+        }
+        return held;
+    }
+    // `crate`, `super`, `self` are their own node types, and their text is the word.
+    let text = text_of(node, source);
+    if text.is_empty() || text.contains('\n') {
+        return Vec::new();
+    }
+    vec![text.to_string()]
 }

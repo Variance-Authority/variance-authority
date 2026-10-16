@@ -30,7 +30,8 @@ itself; through a module bound by `mod shapes;` or `use crate::shapes;`, so
 `shapes::Props` and `shapes::Shape::Square` are read; and through a path from
 the crate root, `crate::shapes::Props`. A type an inline module declares is on
 the module's path, so `a::Props::size` and `b::Props::size` in one file are
-listed apart. A field reached through a field, `o.inner.size`, is a use on the
+listed apart, and another file reaches it through the module,
+`crate::inline::a::Props`. A field reached through a field, `o.inner.size`, is a use on the
 type the field `inner` is declared as, in whichever file declares it, inside a
 macro's tokens too. Each heading spells the member as a Rust path,
 `Shape::Square::size`.

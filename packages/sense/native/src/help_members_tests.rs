@@ -4,7 +4,7 @@ use oxc_allocator::Allocator;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 
-use super::member_declarations_in;
+use super::{member_declarations_in, past};
 use crate::read::Lines;
 
 fn on(text: &str, name: &str) -> Vec<(u32, String)> {
@@ -91,4 +91,15 @@ fn reads_each_file_as_the_newest_layer_holds_it() {
         "src/a.ts:10 Later @t/w source",
         "src/b.ts:2 Held @t/w source",
     ]);
+}
+
+#[test]
+fn a_type_inside_an_inline_module_is_taken_only_through_the_module() {
+    // `a::Props` on `a`, and `a::Shape::Square` on `a`, as `split` leaves them.
+    assert_eq!(past("a", "::Props", "Props", "crate::inline::a::Props").as_deref(), Some(""));
+    assert_eq!(past("a", "::Props.inner", "Props", "crate::inline::a::Props").as_deref(), Some(".inner"));
+    assert_eq!(past("a", "::Shape::Square", "Shape", "crate::inline::a::Shape").as_deref(), Some("::Square"));
+    // A top-level `Props` of the same file is another struct.
+    assert_eq!(past("a", "::Props", "Props", "crate::inline::Props"), None);
+    assert_eq!(past("a", "::Props", "Props", "crate::inline::ba::Props"), None);
 }

@@ -238,6 +238,28 @@ fn split(on: &str) -> (&str, &str) {
     on.find("::").map_or((on, ""), |at| on.split_at(at))
 }
 
+/// The segments of a type path a suffix writes past its container: `Props`
+/// of `::Props.inner` on `a`, which is `a::Props` reached through `inner`.
+fn inside(suffix: &str) -> impl Iterator<Item = &str> {
+    suffix.find('.').map_or(suffix, |at| &suffix[..at]).split("::").skip(1)
+}
+
+/// What follows `name` in the path a container and its suffix spell, when the
+/// request that took `name` was written through the segments before it:
+/// `crate::inline::a::Props` takes `Props` of `a::Props`, and a top-level
+/// `crate::inline::Props` does not.
+fn past(container: &str, suffix: &str, name: &str, request: &str) -> Option<String> {
+    let full = format!("{container}{suffix}");
+    let mut end = container.len();
+    for segment in inside(suffix) {
+        end += 2 + segment.len();
+        if segment != name { continue; }
+        let through = &full[..end];
+        return (request == through || request.ends_with(&format!("::{through}"))).then(|| full[end..].to_owned());
+    }
+    None
+}
+
 /// A container reached in `file` as `container`, which an import binds and
 /// renames, with `suffix` written after it as declared: an origin's own
 /// variant, `::Square`, or the fields a chain reads through, `.inner`.
@@ -283,14 +305,26 @@ fn written(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, name: &str,
             add(&one.file, format!("{}{}", one.container, one.suffix), &one.origins);
             let names = wanted.entry(one.file.clone()).or_default();
             names.entry(one.container.clone()).or_default().insert(at);
-            if one.file.ends_with(".rs") { names.entry(MODULE.to_owned()).or_default().insert(at); }
+            if !one.file.ends_with(".rs") { continue; }
+            names.entry(MODULE.to_owned()).or_default().insert(at);
+            // A type inside an inline module, `a::Props`, is an item another
+            // file names through the module: `crate::inline::a::Props`.
+            for segment in inside(&one.suffix) { names.entry(segment.to_owned()).or_default().insert(at); }
         }
         let (taken, _) = importers_from(root, layers, wanted);
         for one in taken {
             // A name read off a namespace is `ns.Props`, which no member-use row writes.
             if one.taken.through.is_some() || one.local.is_empty() { continue; }
             let at = &reached[one.origin];
-            let key = if one.taken.name == MODULE { format!("{}::{}{}", one.local, at.container, at.suffix) } else { format!("{}{}", one.local, at.suffix) };
+            let key = if one.taken.name == MODULE {
+                format!("{}::{}{}", one.local, at.container, at.suffix)
+            } else if one.taken.name == at.container {
+                format!("{}{}", one.local, at.suffix)
+            } else {
+                // Taken past the inline modules, by a path that runs through them.
+                let Some(rest) = past(&at.container, &at.suffix, &one.taken.name, &one.taken.key) else { continue };
+                format!("{}{rest}", one.local)
+            };
             add(&one.taken.at, key, &at.origins);
         }
         if round == deepest || added.is_empty() { break; }

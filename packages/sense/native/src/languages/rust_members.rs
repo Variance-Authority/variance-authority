@@ -17,7 +17,7 @@
 //! no use.
 //!
 //! A type is recorded as the path the line writes, placed in the inline module
-//! the line is in as [`rust_paths.rs`](rust_paths.rs) reads it, and a type an
+//! the line is in as [`rust_type_paths.rs`](rust_type_paths.rs) reads it, and a type an
 //! inline module declares is on its path, `a::Props`. A path `A::B { .. }` is also written
 //! as the variant `B` of `A`, since a file cannot tell an enum from a module by
 //! its spelling: a module declares no variant, so the join answers none for
@@ -36,7 +36,7 @@ use std::collections::{HashMap, HashSet};
 
 use tree_sitter::{Node, Tree};
 
-use super::rust_paths::{annotated, inline_modules, spelled_path, written, Here, Inline};
+use super::rust_type_paths::{annotated, inline_modules, spelled_path, written, Here, Inline};
 use super::{line_of, named_children, text_of};
 use crate::help_member_uses::{MemberUse, DESTRUCTURE, READ, WRITE};
 use crate::help_members::MemberDeclaration;

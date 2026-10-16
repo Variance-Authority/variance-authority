@@ -6,10 +6,11 @@
 //! every `use` is guessed and a written `mod` beats it. Resolution stays in
 //! TypeScript.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tree_sitter::{Node, Tree};
 
+use super::rust_paths::{anchored, qualified, used, Named, Scope};
 use super::shape::{Binding, Export, Kind, Read, Request, NAMESPACE_NAME};
 use super::{declaration, kind_of, line_of, named_children, text_of, visibility};
 use crate::harvest::SourceSymbol;
@@ -31,7 +32,6 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
     };
 
     block(root, source, &[], &mut held);
-    rooted(root, source, &mut held);
 
     Read {
         requests: held.requests,
@@ -98,6 +98,7 @@ fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &m
 fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
     let top = prefix.is_empty();
     let children = named_children(node);
+    let scope = scope_of(&children, source, prefix);
     for (at, child) in children.iter().enumerate() {
         if child.kind() == "ERROR" || child.is_missing() {
             held.broken = true;
@@ -123,9 +124,9 @@ fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
                         // module: `mod inline { #[path = "other.rs"] mod
                         // inner; }` is `self::inline/other.rs`. Which directory
                         // that is depends on the file, and the resolver owns it.
-                        let spelled = at
-                            .checked_sub(1)
-                            .and_then(|before| path_attribute(children[before], source))
+                        let spelled = attributes(&children[..at])
+                            .iter()
+                            .find_map(|attribute| path_attribute(*attribute, source))
                             .map(|spelled| if top { spelled } else { format!("self::{}/{spelled}", prefix.join("::")) });
                         let value = spelled.unwrap_or_else(|| {
                             let mut path = vec!["self".to_string()];
@@ -148,6 +149,7 @@ fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
                                 }],
                                 line,
                                 guessed: false,
+                                item: false,
                             },
                         );
                     }
@@ -178,15 +180,17 @@ fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
                 };
                 let line = line_of(*child);
                 let shared = published(*child, source);
-                for (path, local) in used(argument, source, &[]) {
+                for (path, local, glob) in used(argument, source, &[]) {
                     // A path that names the file itself, as `use super::*`
                     // in a `mod tests` does, asks for nothing.
-                    let Some(path) = folded(path, prefix) else { continue };
+                    let path = anchored(&path, &scope).unwrap_or(path);
+                    if path == ["self"] {
+                        continue;
+                    }
                     let value = path.join("::");
                     let last = path.last().cloned().unwrap_or_else(|| value.clone());
                     // `use a::b::*` binds every item `a::b` declares, under its
                     // own name: the binding is the glob itself.
-                    let glob = local.as_deref() == Some(GLOB);
                     let (imported, bound) = match local {
                         _ if glob => (NAMESPACE_NAME.to_string(), NAMESPACE_NAME.to_string()),
                         Some(local) => (last.clone(), local),
@@ -210,6 +214,8 @@ fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
                             // `use` is a module is a fact about the disk, not
                             // about the statement.
                             guessed: true,
+                            // A `use` may name a module, and is counted as it always was.
+                            item: false,
                         },
                     );
                     // `pub use` is a re-export, and is the only thing in Rust
@@ -230,6 +236,27 @@ fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
             }
 
             _ => {
+                let mut found = Vec::new();
+                qualified(*child, source, &scope, &mut found);
+                for Named { path, binding, written, line } in found {
+                    want(
+                        held,
+                        Request {
+                            value: path.join("::"),
+                            kind: Kind::Imports,
+                            bindings: vec![Binding {
+                                imported: binding,
+                                local: written,
+                                type_only: false,
+                                line,
+                            }],
+                            line,
+                            // As a `use`: the module tree says which segment is the item.
+                            guessed: true,
+                            item: true,
+                        },
+                    );
+                }
                 if !top {
                     continue;
                 }
@@ -249,59 +276,50 @@ fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
     }
 }
 
-/// Every path outside a `use` that names an item from the crate root,
-/// `crate::shapes::Props`, asks for what its prefix names, as a `use` of the
-/// prefix would: `crate::shapes` binds the module under its whole spelling,
-/// and `crate::shapes::Shape` in `crate::shapes::Shape::Square` the item.
-fn rooted(node: Node, source: &str, held: &mut Gathering) {
-    for child in named_children(node) {
-        match child.kind() {
-            // A `use` is read by `block`, an attribute is no code, and a
-            // macro's own body is a pattern of tokens.
-            "use_declaration" | "attribute_item" | "inner_attribute_item" | "macro_definition" | "token_tree" => continue,
-            "scoped_identifier" | "scoped_type_identifier" => {
-                let names = segments(child.child_by_field_name("path"), source);
-                if names.len() >= 2 && names[0] == "crate" {
-                    let line = line_of(child);
-                    want(
-                        held,
-                        Request {
-                            value: names.join("::"),
-                            kind: Kind::Imports,
-                            bindings: vec![Binding {
-                                imported: names[names.len() - 1].clone(),
-                                local: names.join("::"),
-                                type_only: false,
-                                line,
-                            }],
-                            line,
-                            guessed: true,
-                        },
-                    );
-                }
+/// What the block's paths can start with besides `crate`, `self` and `super`:
+/// the modules it declares, and the names its `use` lines bind to a path from
+/// this crate. A glob binds no name a path could start with.
+fn scope_of(children: &[Node], source: &str, prefix: &[String]) -> Scope {
+    let mut scope = Scope {
+        prefix: prefix.to_vec(),
+        mods: children
+            .iter()
+            .filter(|child| child.kind() == "mod_item")
+            .filter_map(|child| child.child_by_field_name("name"))
+            .map(|name| text_of(name, source).to_string())
+            .collect::<HashSet<_>>(),
+        bound: HashMap::new(),
+    };
+    let mut bound = HashMap::new();
+    for child in children.iter().filter(|child| child.kind() == "use_declaration") {
+        let Some(argument) = child.child_by_field_name("argument") else {
+            continue;
+        };
+        for (path, local, glob) in used(argument, source, &[]) {
+            let Some(local) = local.or_else(|| path.last().cloned()) else {
+                continue;
+            };
+            if glob || local == "self" || local == "super" || local == "crate" {
+                continue;
             }
-            _ => {}
+            if let Some(full) = anchored(&path, &scope) {
+                bound.insert(local, full);
+            }
         }
-        rooted(child, source, held);
     }
+    scope.bound = bound;
+    scope
 }
 
-/// A `use` path written inside the inline modules `prefix`, as a path from the
-/// file's own module: `self` is the innermost of them, and each `super` climbs
-/// one, then past the file to its parent. Nothing when the path is the file.
-fn folded(path: Vec<String>, prefix: &[String]) -> Option<Vec<String>> {
-    let climbs = path.iter().take_while(|segment| *segment == "super").count();
-    let folded = match path.first().map(String::as_str) {
-        Some("self") => ["self".to_string()].into_iter().chain(prefix.iter().cloned()).chain(path[1..].iter().cloned()).collect(),
-        Some("super") if climbs <= prefix.len() => ["self".to_string()]
-            .into_iter()
-            .chain(prefix[..prefix.len() - climbs].iter().cloned())
-            .chain(path[climbs..].iter().cloned())
-            .collect(),
-        Some("super") => std::iter::repeat_n("super".to_string(), climbs - prefix.len()).chain(path[climbs..].iter().cloned()).collect(),
-        _ => path,
-    };
-    (folded != ["self"]).then_some(folded)
+/// The attributes written directly above the item that follows `before`, nearest first.
+fn attributes<'tree>(before: &[Node<'tree>]) -> Vec<Node<'tree>> {
+    before
+        .iter()
+        .rev()
+        .take_while(|node| matches!(node.kind(), "attribute_item" | "line_comment" | "block_comment"))
+        .filter(|node| node.kind() == "attribute_item")
+        .copied()
+        .collect()
 }
 
 fn want(held: &mut Gathering, request: Request) {
@@ -310,9 +328,19 @@ fn want(held: &mut Gathering, request: Request) {
         held.requests.push(request);
         return;
     };
+    // A `use` beats an item asked for by the same path, binding and all:
+    // `use crate::graph;` imports the module a `crate::graph::reach()` also
+    // passes through, and the path's guess that `graph` is an item binds nothing.
+    let held_request = &held.requests[index];
+    if held_request.item != request.item {
+        if held_request.item {
+            held.requests[index] = request;
+        }
+        return;
+    }
     // Each statement still binds what it binds: `use a::b::*` and
     // `use a::b::C` ask for the file once, with both bindings.
-    let mut bindings = held.requests[index].bindings.clone();
+    let mut bindings = held_request.bindings.clone();
     for binding in &request.bindings {
         if !bindings.iter().any(|kept| kept.imported == binding.imported && kept.local == binding.local) {
             bindings.push(binding.clone());
@@ -320,7 +348,7 @@ fn want(held: &mut Gathering, request: Request) {
     }
     // Written beats guessed. One `mod order;` and one `use self::order::X` name
     // the same file, and the first is the one that can be a hole.
-    if held.requests[index].guessed && !request.guessed {
+    if held_request.guessed && !request.guessed {
         held.requests[index] = request;
     }
     held.requests[index].bindings = bindings;
@@ -356,7 +384,7 @@ fn published(node: Node, source: &str) -> bool {
         .any(|modifier| !matches!(visibility(modifier, source).as_str(), "pub(self)" | "pub(inself)"))
 }
 
-/// The filename in `#[path = "other.rs"]`, when the node above is that attribute.
+/// The filename in `#[path = "other.rs"]`, when `node` is that attribute.
 fn path_attribute(node: Node, source: &str) -> Option<String> {
     if node.kind() != "attribute_item" {
         return None;
@@ -389,93 +417,4 @@ fn unquoted(text: &str) -> String {
         text
     };
     rest.strip_suffix('"').unwrap_or(rest).to_string()
-}
-
-/// One `use` argument flattened into the item paths it names.
-fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>)> {
-    match node.kind() {
-        "scoped_identifier" => {
-            let mut path = prefix.to_vec();
-            path.extend(segments(Some(node), source));
-            vec![(without_self(path), None)]
-        }
-        "scoped_use_list" => {
-            let mut base = prefix.to_vec();
-            base.extend(segments(node.child_by_field_name("path"), source));
-            match node.child_by_field_name("list") {
-                None => Vec::new(),
-                Some(list) => named_children(list)
-                    .into_iter()
-                    .flat_map(|child| used(child, source, &base))
-                    .collect(),
-            }
-        }
-        "use_list" => named_children(node)
-            .into_iter()
-            .flat_map(|child| used(child, source, prefix))
-            .collect(),
-        "use_as_clause" => {
-            let mut path = prefix.to_vec();
-            path.extend(segments(node.child_by_field_name("path"), source));
-            let alias = node
-                .child_by_field_name("alias")
-                .map(|alias| text_of(alias, source).to_string());
-            vec![(without_self(path), alias)]
-        }
-        "use_wildcard" => {
-            // `use a::b::*` — the module is the whole path, and the `*` names no item.
-            match named_children(node).first() {
-                None => Vec::new(),
-                Some(inner) => {
-                    let mut path = prefix.to_vec();
-                    path.extend(segments(Some(*inner), source));
-                    vec![(without_self(path), Some(GLOB.to_string()))]
-                }
-            }
-        }
-        _ => {
-            let own = segments(Some(node), source);
-            if own.is_empty() {
-                return Vec::new();
-            }
-            let mut path = prefix.to_vec();
-            path.extend(own);
-            vec![(without_self(path), None)]
-        }
-    }
-}
-
-/// The local a `use_wildcard` comes back with from [`used`].
-const GLOB: &str = "*";
-
-/// `self` inside a list names the module the list hangs off, not a thing in it.
-///
-/// `use crate::git::{self, Oid}` asks for `crate::git` twice over — once as the
-/// module and once as a name in it — and only the first spelling is a module
-/// path. Left in, the same file is asked for under two keys and the request the
-/// dedupe keeps is the one nobody wrote.
-fn without_self(path: Vec<String>) -> Vec<String> {
-    if path.len() > 1 && path.last().is_some_and(|last| last == "self") {
-        return path[..path.len() - 1].to_vec();
-    }
-    path
-}
-
-fn segments(node: Option<Node>, source: &str) -> Vec<String> {
-    let Some(node) = node else {
-        return Vec::new();
-    };
-    if node.kind() == "scoped_identifier" {
-        let mut held = segments(node.child_by_field_name("path"), source);
-        if let Some(name) = node.child_by_field_name("name") {
-            held.push(text_of(name, source).to_string());
-        }
-        return held;
-    }
-    // `crate`, `super`, `self` are their own node types, and their text is the word.
-    let text = text_of(node, source);
-    if text.is_empty() || text.contains('\n') {
-        return Vec::new();
-    }
-    vec![text.to_string()]
 }

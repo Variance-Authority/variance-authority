@@ -152,6 +152,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const requestValue = opened.u32('requests.value');
   const requestKind = opened.u32('requests.kind');
   const requestLine = opened.u32('requests.line');
+  const requestFlags = opened.u8('requests.flags');
   const requestBindings = opened.u32('requests.bindings');
   const requestRepublishes = opened.u8('requests.republishes');
   const bindingImported = opened.u32('bindings.imported');
@@ -177,7 +178,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   validateOffset(parseDeclares, declareName.length, parseKey.length);
   sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown, parseHarvested, parseWay]);
   if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
-  sameLength(requestValue.length, [requestKind, requestLine, requestRepublishes]);
+  sameLength(requestValue.length, [requestKind, requestLine, requestFlags, requestRepublishes]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
   sameLength(bindingImported.length, [bindingLocal, bindingType, bindingLine]);
   sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags]);
@@ -197,6 +198,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
         type: flag(bindingType[binding]),
         line: bindingLine[binding]!,
       })),
+      ...requestFlagsOf(requestFlags[request]!),
       ...(flag(requestRepublishes[request]) ? { republishes: true as const } : {}),
     }));
     const published = range(parseExports, row).map((entry): Export => {
@@ -393,3 +395,11 @@ function joinedKey(digest: string, way: string): ParseKey {
 }
 
 function invalid(): Error { return new Error(`not a variance-authority ${WHAT}`); }
+
+/** `request_flags` in `native/src/parse_columns.rs`: guessed is the low bit, item the next. */
+function requestFlagsOf(flags: number): { readonly guessed?: true; readonly item?: true } {
+  return {
+    ...((flags & 1) === 0 ? {} : { guessed: true }),
+    ...((flags & 2) === 0 ? {} : { item: true }),
+  };
+}
