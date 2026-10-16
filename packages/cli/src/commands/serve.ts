@@ -229,11 +229,8 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
       again: async (asked: string | undefined, refused: Bench, started: number) => {
         const at = refused.help === undefined ? undefined : workspaceGeneration(refused.help);
         if (asked === undefined || !SOURCE_QUESTIONS.has(asked)) return undefined;
-        return caughtUp(at, started, root, async (current) => {
-          if (!current) return refused;
-          const read = await readHelp(0).catch(() => undefined);
-          return read === undefined ? undefined : { ...refused, help: read };
-        });
+        const caught = await caughtUp(at, started, root, async (current) => (current ? { ...refused, help: await readHelp(0) } : refused));
+        return caught === undefined ? undefined : { ...(caught.again === undefined ? {} : { subject: caught.again }), ...(caught.footer === undefined ? {} : { footer: caught.footer }) };
       },
     }),
     // Only the report, and the line it came from. `previous` serves the one

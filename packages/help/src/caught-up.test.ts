@@ -29,10 +29,32 @@ async function served(root: string, justAnswer: boolean): Promise<{ text: string
   }
 }
 
+/** The date line of a refusal whose checkout could not be compared with its generation, and why. */
+const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout \((.+)\): run `variance index` if files changed since\./u;
+
 describe('caughtUp', () => {
   it('asks again, of a current generation, a refusal from one made before the question', async () => {
     const started = Date.now();
-    expect(await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => current)).toBe(true);
+    expect(await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => current)).toEqual({ again: true });
+  });
+
+  it('says the checkout was not compared, and why, when reading it again fails', async () => {
+    const started = Date.now();
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => {
+      throw new Error('a manifest is half-written');
+    });
+    expect(caught?.again).toBeUndefined();
+    expect(caught?.footer).toMatch(UNREAD);
+    expect(caught?.footer).toContain('a manifest is half-written');
+  });
+
+  it('says the checkout was not compared, and why, when its dependency lexicon cannot be refreshed', async () => {
+    const started = Date.now();
+    // A directory git does not hold has no installed packages to list.
+    const caught = await caughtUp(new Date(started + 1).toISOString(), started, fixture.cache(), async () => 'asked again');
+    expect(caught?.again).toBeUndefined();
+    expect(caught?.footer).toMatch(UNREAD);
+    expect(caught?.footer).toContain('dependency lexicon');
   });
 
   it('lets a refusal stand from a generation made during the question, or from none', async () => {
@@ -44,9 +66,10 @@ describe('caughtUp', () => {
 });
 
 describe('snapshotLine', () => {
-  it('names the generation time, and says when the checkout was not compared with it', () => {
+  it('names the generation time, and says when the checkout was not compared with it, and why when it was asked to be', () => {
     expect(snapshotLine('2026-01-02T03:04:05.000Z', false)).toBe('Snapshot 2026-01-02T03:04:05.000Z.');
     expect(snapshotLine('2026-01-02T03:04:05.000Z', true)).toMatch(UNCOMPARED);
+    expect(snapshotLine('2026-01-02T03:04:05.000Z', 'it could not be read')).toMatch(UNREAD);
   });
 });
 

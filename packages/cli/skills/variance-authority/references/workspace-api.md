@@ -37,7 +37,8 @@ the first argument is positional.
   published generation for up to one hour. On either binary and either
   server, a question that generation refuses is asked again of one made from
   the checkout now, with the dependency lexicon built when it is missing or
-  behind, so a refusal is about the checkout as it is. `--just-answer` uses the
+  behind, so a refusal is about the checkout as it is; one that could not be
+  read again says the checkout was not compared, and why. `--just-answer` uses the
   last generation without inspecting the checkout and refuses when none exists;
   its answers and refusals say the checkout was not compared, and JSON carries
   `compared: false`. When no changed files are named, `search` always reads

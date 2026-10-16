@@ -244,6 +244,20 @@ export function wantsTree<Subject>(
   return tool?.wants?.((params['arguments'] ?? {}) as Record<string, unknown>) === true;
 }
 
+/**
+ * Whether a call names a tool the server has, with every argument its schema
+ * requires. A refusal of any other call is about the call, and no subject read
+ * again could answer it.
+ */
+export function wellFormed<Subject>(request: JsonRpcRequest, served: Served<Subject>): boolean {
+  const name = askedTool(request);
+  const tool = name === undefined ? undefined : served.tools.find((candidate) => candidate.name === name);
+  if (tool === undefined) return false;
+  const given = askedInput(request) ?? {};
+  const required = (tool.inputSchema as { readonly required?: readonly string[] }).required ?? [];
+  return required.every((key) => given[key] !== undefined && given[key] !== null && given[key] !== '');
+}
+
 function callTool<Subject>(
   id: string | number,
   params: Readonly<Record<string, unknown>>,

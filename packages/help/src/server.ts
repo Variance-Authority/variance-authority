@@ -96,8 +96,10 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     root,
     // `justAnswer` reads nothing but what was published, so its refusal stands.
     ...(justAnswer ? {} : {
-      again: (_asked: string | undefined, refused: Help, started: number) =>
-        caughtUp(workspaceGeneration(refused), started, root, async (current) => (current ? readNow(0).catch(() => undefined) : refused)),
+      again: async (_asked: string | undefined, refused: Help, started: number) => {
+        const caught = await caughtUp(workspaceGeneration(refused), started, root, async (current) => (current ? readNow(0) : refused));
+        return caught === undefined ? undefined : { ...(caught.again === undefined ? {} : { subject: caught.again }), ...(caught.footer === undefined ? {} : { footer: caught.footer }) };
+      },
     }),
     subject: async () => {
       try {

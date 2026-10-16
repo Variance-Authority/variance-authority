@@ -18,30 +18,59 @@ import { refreshDependencyLexicon } from './dependency-lexicon.js';
  * `lexiconRoot` is the checkout whose lexicon this process may refresh, absent
  * for a host whose checkout is its own. `again` reads and asks once more,
  * `current` saying a generation made now is wanted rather than the one in hand.
- * Returns undefined when nothing it read can have lagged the checkout.
+ *
+ * Returns undefined when nothing it read can have lagged the checkout, so the
+ * refusal stands as it is. Otherwise `again` is what was asked again, and
+ * `footer` is the line every refusal of the question ends with when the
+ * checkout could not be compared: the lexicon could not be refreshed, or the
+ * second reading failed. A refusal from a reading that lagged and could not be
+ * brought up to date is not a fact about the checkout, and says so.
  */
 export async function caughtUp<Answer>(
   refusedAt: string | undefined,
   started: number,
   lexiconRoot: string | undefined,
   again: (current: boolean) => Promise<Answer>,
-): Promise<Answer | undefined> {
+): Promise<CaughtUp<Answer> | undefined> {
   if (refusedAt === undefined) return undefined;
   const reused = Date.parse(refusedAt) < started;
-  const lexicon = lexiconRoot !== undefined && !(await refreshDependencyLexicon(lexiconRoot).then(
-    ({ unchanged }) => unchanged,
-    // Unprepared, the lexicon stays what it was, and the refusal that names
-    // `variance index` stands: that command says why it was not prepared.
-    () => true,
-  ));
-  if (!reused && !lexicon) return undefined;
-  return again(reused);
+  let unread: string | undefined;
+  let refreshed = false;
+  if (lexiconRoot !== undefined) {
+    try {
+      refreshed = !(await refreshDependencyLexicon(lexiconRoot)).unchanged;
+    } catch (failure) {
+      unread = `its dependency lexicon could not be refreshed: ${messageOf(failure)}`;
+    }
+  }
+  const footer = (why: string): string => snapshotLine(refusedAt, why);
+  if (!reused && !refreshed) return unread === undefined ? undefined : { footer: footer(unread) };
+  try {
+    return { again: await again(reused), ...(unread === undefined ? {} : { footer: footer(unread) }) };
+  } catch (failure) {
+    return { footer: footer(`it could not be read again: ${messageOf(failure)}`) };
+  }
+}
+
+/** What {@link caughtUp} asked again, and what a refusal that still stands says. */
+export interface CaughtUp<Answer> {
+  /** The question asked again of a reading brought up to date; absent when none could be made. */
+  readonly again?: Answer;
+  /** The line a refusal ends with when the checkout could not be compared, and why. */
+  readonly footer?: string;
+}
+
+function messageOf(failure: unknown): string {
+  return failure instanceof Error ? failure.message : String(failure);
 }
 
 /**
  * The line that dates a source answer. A generation read without comparing it
- * with the checkout says so, since a name missing from it may only be newer.
+ * with the checkout says so, since a name missing from it may only be newer;
+ * `unseen` as a sentence is why a comparison that was asked for was not made.
  */
-export function snapshotLine(at: string, unseen: boolean): string {
-  return unseen ? `Snapshot ${at}, not compared with the checkout: run \`variance index\` if files changed since.` : `Snapshot ${at}.`;
+export function snapshotLine(at: string, unseen: boolean | string): string {
+  if (unseen === false) return `Snapshot ${at}.`;
+  const why = unseen === true ? '' : ` (${unseen})`;
+  return `Snapshot ${at}, not compared with the checkout${why}: run \`variance index\` if files changed since.`;
 }

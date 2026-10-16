@@ -76,6 +76,21 @@ describe('variance ask about a name written after the source index', () => {
     expect(out).toContain('state-kit');
   });
 
+  it('builds the dependency lexicon for a reading of named changed files too', async () => {
+    const root = checkout();
+    write(root, {
+      'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'apps/*'], dependencies: { 'state-kit': '0.3.1' } }),
+      ...STATE_KIT,
+      ...KEPT,
+      'changed.txt': 'packages/kit/src/kept.ts\n',
+    });
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'makeStore', '--changed-file', join(root, 'changed.txt')]);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('state-kit');
+  });
+
   it('refuses under `--just-answer` with when the index was published and that the checkout was not compared with it', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

@@ -501,8 +501,9 @@ UTC production time attached to a recorded value.
 to this process's own; override them when the host owns the transport. It uses
 the same one-hour policy and asks a refused call again of a generation made
 now, or serves only the recorded generation when `justAnswer` is true. A host
-of its own asks `caughtUp` whether a refusal is worth asking again, and dates
-an answer with `snapshotLine`.
+of its own asks `caughtUp` whether a refusal is worth asking again, and is
+handed what to ask again and, when the checkout could not be compared, the line
+its refusal ends with; `snapshotLine` dates an answer.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';

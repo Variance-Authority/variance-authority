@@ -71,22 +71,26 @@ describe('a refused call', () => {
     tools: [{
       name: 'named',
       description: 'answers only from a fresh subject',
-      inputSchema: { type: 'object', properties: {} },
-      run: (state) => {
+      inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      run: (state, input) => {
+        if (typeof input['name'] !== 'string') throw new Error('`name` is required');
         if (state.value !== 'fresh') throw new Error(`not in ${state.value}`);
         return 'found';
       },
     }],
   };
 
-  async function asked(again?: (asked: string | undefined, refused: State, started: number) => Promise<State | undefined>) {
+  type Again = (asked: string | undefined, refused: State, started: number) => Promise<{ subject?: State; footer?: string } | undefined>;
+
+  async function asked(again?: Again, params: Readonly<Record<string, unknown>> = { name: 'named', arguments: { name: 'kept' } }) {
     const input = new PassThrough();
     const output = new PassThrough();
     const lines = readLines(output);
     const stop = serve({ input, output, served: named, subject: () => ({ value: 'reused' }), ...(again === undefined ? {} : { again }) });
     try {
-      input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'named' } })}\n`);
-      return (JSON.parse(await lines()) as { result: { content: { text: string }[]; isError?: boolean } }).result;
+      input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params })}\n`);
+      const response = JSON.parse(await lines()) as { result?: { content: { text: string }[]; isError?: boolean }; error?: { message: string } };
+      return response.result ?? { content: [{ text: response.error!.message }], isError: true };
     } finally {
       stop();
     }
@@ -97,7 +101,7 @@ describe('a refused call', () => {
     const before = Date.now();
     const result = await asked(async (tool, refused, started) => {
       handed.push([tool, refused.value, started]);
-      return { value: 'fresh' };
+      return { subject: { value: 'fresh' } };
     });
     expect(result.content[0]!.text).toBe('found');
     expect(handed).toHaveLength(1);
@@ -109,6 +113,24 @@ describe('a refused call', () => {
     const result = await asked(async () => undefined);
     expect(result.isError).toBe(true);
     expect(result.content[0]!.text).toContain('not in reused');
+  });
+
+  it('carries what the host says about a subject it could not read again', async () => {
+    const result = await asked(async () => ({ footer: 'not compared: the reading failed' }));
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toBe('not in reused\n\nnot compared: the reading failed');
+  });
+
+  it('is not asked again for a tool the server does not have, or a call missing an argument', async () => {
+    const handed: (string | undefined)[] = [];
+    const again: Again = async (tool) => {
+      handed.push(tool);
+      return { subject: { value: 'fresh' } };
+    };
+    expect((await asked(again, { name: 'unnamed' })).content[0]!.text).toContain('unknown tool');
+    expect((await asked(again, { name: 'named' })).content[0]!.text).toContain('`name` is required');
+    expect((await asked(again, { name: 'named', arguments: { name: '' } })).content[0]!.text).toContain('not in reused');
+    expect(handed).toEqual([]);
   });
 });
 

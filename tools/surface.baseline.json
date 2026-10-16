@@ -1042,6 +1042,7 @@
     "names": {
       ".": {
         "AnsweringOptions": "interface",
+        "CaughtUp": "interface",
         "FromIndexOptions": "type",
         "NamedTree": "interface",
         "PagesOptions": "interface",
@@ -1326,6 +1327,7 @@
     },
     "names": {
       ".": {
+        "AskedAgain": "interface",
         "FIELD_WEIGHTS": "const",
         "LocateField": "type",
         "LocateHit": "interface",
@@ -1426,7 +1428,8 @@
         "askedTool": "function",
         "createLineReader": "function",
         "handle": "function",
-        "wantsTree": "function"
+        "wantsTree": "function",
+        "wellFormed": "function"
       }
     }
   },

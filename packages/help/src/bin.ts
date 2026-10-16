@@ -178,12 +178,16 @@ if (asking(verb) && verb !== undefined) {
     } catch (refusal) {
       // A refusal from a reused generation is asked again of one read now;
       // `--just-answer` and `search` read only what was published, so theirs stands.
-      const again = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering);
-      if (again === undefined) {
-        if (justAnswer && first.at !== undefined && refusal instanceof Error) refusal.message += `\n\n${snapshotLine(first.at, true)}`;
-        throw refusal;
+      // A refusal whose checkout could not be compared says why.
+      const caught = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering);
+      const footer = caught?.footer ?? (justAnswer && first.at !== undefined ? snapshotLine(first.at, true) : undefined);
+      try {
+        if (caught?.again === undefined) throw refusal;
+        answer = caught.again.answer();
+      } catch (still) {
+        if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
+        throw still;
       }
-      answer = again.answer();
     }
 
     process.stdout.write(`${answer}\n`);

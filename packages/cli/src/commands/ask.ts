@@ -281,13 +281,16 @@ export async function askSource(request: SourceRequest): Promise<string> {
     // A refusal read from what the checkout was before the question is not
     // yet a fact about the checkout: it is read again, brought up to date,
     // and that answer stands.
-    // A reading nothing compared with the checkout says so under its refusal.
-    const again = unseen || named ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
-    if (again === undefined) throw refused(refusal, unseen && answering.at !== undefined ? `\n\n${snapshotLine(answering.at, true)}` : '');
+    // A reading nothing compared with the checkout says so under its refusal,
+    // and one that could not be compared says why.
+    const caught = unseen ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
+    const footer = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
+    const said = footer === undefined ? '' : `\n\n${footer}`;
+    if (caught?.again === undefined) throw refused(refusal, said);
     try {
-      return rendered(request, again, false);
+      return rendered(request, caught.again, false);
     } catch (still) {
-      throw refused(still, '');
+      throw refused(still, said);
     }
   }
 }

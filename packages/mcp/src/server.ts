@@ -12,6 +12,7 @@ import {
   askedInput,
   askedTool,
   wantsTree,
+  wellFormed,
   type JsonRpcRequest,
 } from './protocol.js';
 import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
@@ -84,12 +85,21 @@ export interface ServerOptions<Subject = RunReport> {
    *
    * A host whose subject is a reading it reuses — a workspace generation kept
    * for an hour — can refuse a name only because the reading is older than the
-   * file that declares it. So a call that came back `isError` is handed here
-   * with the subject that refused it and when the request started, and a
-   * subject read since is asked the same call; the tree is asked for again with
-   * it. Only a refusal pays for the second reading.
+   * file that declares it. So a call to a tool the server has, with every
+   * argument it requires, that came back `isError` is handed here with the
+   * subject that refused it and when the request started. A `subject` read
+   * since is asked the same call, and the tree is asked for again with it; a
+   * `footer` ends the refusal that still stands, for a host that could not
+   * bring its reading up to date and says why. Only a refusal pays for the
+   * second reading.
    */
-  readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<Subject | undefined>;
+  readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<AskedAgain<Subject> | undefined>;
+}
+
+/** What a host answers a refused call with: a fresher subject, and what a refusal that still stands says. */
+export interface AskedAgain<Subject> {
+  readonly subject?: Subject;
+  readonly footer?: string;
 }
 
 export function serve<Subject>(options: ServerOptions<Subject>): () => void {
@@ -125,14 +135,15 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
           ...(options.root === undefined ? {} : { root: options.root }),
         });
       };
-      let subject = await options.subject(asked, askedInput(request));
+      let subject: Subject = await options.subject(asked, askedInput(request));
       let response = await answer(subject);
-      if (request.method === 'tools/call' && !succeeded(response) && options.again !== undefined) {
+      if (options.again !== undefined && !succeeded(response) && wellFormed(request, options.served)) {
         const fresher = await options.again(asked, subject, started);
-        if (fresher !== undefined) {
-          subject = fresher;
+        if (fresher?.subject !== undefined) {
+          subject = fresher.subject;
           response = await answer(subject);
         }
+        if (fresher?.footer !== undefined) response = footed(response, fresher.footer);
       }
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);
@@ -145,6 +156,14 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
   options.input.on('data', onData);
 
   return () => options.input.off('data', onData);
+}
+
+/** A refused call's result, ending with what the host said about the subject it was refused from. */
+function footed(response: ReturnType<typeof handle>, footer: string): ReturnType<typeof handle> {
+  if (response === null || response.error !== undefined || succeeded(response)) return response;
+  const result = response.result as { readonly content: readonly { readonly type: string; readonly text: string }[]; readonly isError: true };
+  const said = result.content.map((part) => part.text).join('\n');
+  return { ...response, result: { ...result, content: [{ type: 'text', text: `${said}\n\n${footer}` }] } };
 }
 
 function succeeded(response: ReturnType<typeof handle>): boolean {
