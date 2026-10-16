@@ -9,7 +9,8 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
-import { declaredAt, declaredBlocks, unreadNote } from './declared.js';
+import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
+import { type Members, membersOf } from './members.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 
 /**
@@ -27,7 +28,8 @@ export const symbol: Tool<Help> = {
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — and which packages import it. Names are ' +
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
-    'name a file declares at its top level and does not export, answered with where it is written, and ' +
+    'name a file declares at its top level and does not export, answered with where it is written, a ' +
+    'member of an interface, a type literal or a class, answered with its container and where it is declared, and ' +
     'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
     'when the exact name is not known, docs_uses for local import sites.',
@@ -74,13 +76,17 @@ export const symbol: Tool<Help> = {
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
     // Declared at the top of a file and exported by none: still the workspace's
     // own name, and where it is written says who can reach it.
-    const own = exported.length > 0
+    const kept = exported.length > 0
       ? [exportedOnly(name, exported, invocation?.root)]
       : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
+    // A member of an interface, a type literal or a class is the workspace's
+    // own declaration too, which no import names and the scan records.
+    const members = found.length === 0 && kept.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
+    const own = members === undefined || members.declared.length === 0 ? kept : memberBlocks(invocation?.root, name, members);
     // Nothing in the workspace answered, so the name may be declared in a file
-    // whose declarations were not read: every answer and refusal below says so.
-    const notRead = found.length === 0 && own.length === 0 ? unreadNote(invocation?.root, name) : '';
-    const unread = notRead === '' ? [] : [notRead.trimStart()];
+    // whose declarations were not read: the installed answers below say so.
+    const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
+    const unread = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -88,7 +94,11 @@ export const symbol: Tool<Help> = {
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
       // No lexicon of installed names says nothing against the workspace's own export.
       if (everywhere === undefined && own.length > 0) return own.join('\n\n');
-      if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\`${notRead === '' ? '' : `.${notRead}`}`);
+      // Without it, what the workspace holds is still an answer: the
+      // dependencies are the part of it not checked.
+      if (everywhere === undefined) {
+        throw new Error(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.'));
+      }
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
       // A door that declares nothing is a fallback for a package silent about
@@ -118,7 +128,13 @@ export const symbol: Tool<Help> = {
       if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent, ...unread].join('\n\n');
     }
     if (own.length > 0) return own.join('\n\n');
-    if (found.length === 0) throw new Error(`${unfound(help, name, wanted)}${notRead}`);
+    if (found.length === 0) {
+      // The lexicon was asked of the package named, when one was, and of no other.
+      const checked = invocation?.root === undefined
+        ? undefined
+        : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
+      throw new Error(nowhere(help, name, wanted, invocation?.root, members, checked));
+    }
 
     const [first] = found;
     if (first === undefined) throw new Error(`\`${name}\` was found and then was not`);
@@ -159,7 +175,9 @@ export const symbol: Tool<Help> = {
       for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
     }
     if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
-    if (at.length === 0) throw new Error(unfound(help, name, wanted));
+    const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
+    if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
+    if (at.length === 0) throw new Error(nowhere(help, name, wanted, invocation?.root, members, undefined));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {
       const lines = files.get(file) ?? [];
@@ -169,6 +187,50 @@ export const symbol: Tool<Help> = {
     return { files };
   },
 };
+
+/**
+ * A name the workspace declares only as a member: one block per declaration,
+ * on the container that holds it, then the files whose declarations were not
+ * read, since one of them may declare it at its top level.
+ */
+function memberBlocks(root: string | undefined, name: string, members: Members): readonly string[] {
+  const read = declarations(root, name);
+  return [
+    ...members.declared.map((site) =>
+      [
+        name,
+        `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
+        'docs_uses names the lines that use it through a value written as its container, and the search that finds the rest.',
+      ].join('\n'),
+    ),
+    ...('refused' in read ? [] : unreadLine(read.unread)),
+  ];
+}
+
+/**
+ * The refusal of a name nothing in the workspace declares: that no file
+ * declares it, then, given `dependencies`, what is known of the installed
+ * ones, then the files the source index holds no declarations of. Where the
+ * index could not be read, that is said in place of a claim about the files.
+ */
+function nowhere(
+  help: Help,
+  name: string,
+  wanted: string | undefined,
+  root: string | undefined,
+  members: Members | undefined,
+  dependencies: string | undefined,
+): string {
+  const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
+  const read = declarations(root, name);
+  const why = 'refused' in read ? read.refused : members?.unread;
+  const unread = 'refused' in read ? [] : unreadLine(read.unread);
+  // What was read and found nothing comes first, as only what was read; what was not read, last.
+  const files = why === undefined
+    ? `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\`, at its top level or as a member.`
+    : `Which files declare \`${name}\` is not known: ${why}.`;
+  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...unread].join(' ');
+}
 
 /** Every published entry of the name, from the package asked for when one was. */
 function publishing(help: Help, name: string, wanted: string | undefined) {

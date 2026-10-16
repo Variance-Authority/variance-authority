@@ -1,0 +1,117 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { checkout, run } from './ask-packages-fixture.js';
+
+/**
+ * `variance ask symbol` says one of three facts about a name: where the
+ * workspace declares it, the container it is a member of, or that nothing
+ * declares it. The dependency lexicon is named only where it could change
+ * that answer — a name the workspace does not declare — and then as what was
+ * not checked, never as the whole answer.
+ */
+
+const cwd = process.cwd();
+
+beforeEach(() => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-symbol-truth-cache-'));
+});
+
+afterEach(() => {
+  process.chdir(cwd);
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+});
+
+const NATIVE = {
+  'packages/lib/src/native.ts':
+    'export interface Scanner {\n  resolveThings?(root: string): string[];\n}\n\nfunction edgeKindBetween(left: string, right: string): string {\n  return left + right;\n}\n\nexport const scanner = (): Scanner => ({ edge: edgeKindBetween });\n',
+};
+
+/** The checkout, indexed, with its dependency lexicon removed when `lexicon` is false. */
+async function indexed(lexicon: boolean): Promise<string> {
+  const root = checkout(NATIVE);
+  expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+  if (!lexicon) rmSync(join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin'), { force: true });
+  return root;
+}
+
+describe('variance ask symbol says what is true of a name', () => {
+  for (const lexicon of [true, false]) {
+    const state = lexicon ? 'published' : 'not published';
+
+    it(`answers a member with its container, the lexicon ${state}`, async () => {
+      await indexed(lexicon);
+      const { code, out } = await run(['ask', 'symbol', '--name', 'resolveThings']);
+      expect(code).toBe(EXIT_CLEAN);
+      expect(out).toContain('a member of `Scanner`, declared at packages/lib/src/native.ts:2');
+      expect(out).not.toContain('lexicon');
+    });
+
+    it(`answers a function its file keeps with where it is written, the lexicon ${state}`, async () => {
+      await indexed(lexicon);
+      const { code, out } = await run(['ask', 'symbol', '--name', 'edgeKindBetween']);
+      expect(code).toBe(EXIT_CLEAN);
+      expect(out).toContain('declared, not exported, at packages/lib/src/native.ts:5');
+      expect(out).not.toContain('lexicon');
+    });
+  }
+
+  it('says nothing in the workspace declares an absent name, and that its dependencies were not checked', async () => {
+    await indexed(false);
+    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).not.toMatch(/^variance: the dependency lexicon is not published/m);
+    expect(err).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
+    expect(err).toContain(
+      'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.',
+    );
+  });
+
+  it('says nothing in the workspace or its installed dependencies declares an absent name', async () => {
+    await indexed(true);
+    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
+    expect(err).toContain('No installed dependency publishes it either.');
+    expect(err).not.toContain('not known');
+  });
+
+  it('names only the installed package it checked, when asked about one package', async () => {
+    await indexed(true);
+    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten', '--package', '@acme/lib']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('No installed dependency named `@acme/lib` publishes it either.');
+    expect(err).not.toContain('No installed dependency publishes it either.');
+  });
+
+  it('says only the files the source index read declare nothing, when it declined one', async () => {
+    checkout({
+      ...NATIVE,
+      // Past the largest file a read opens, so the index holds no parse of it.
+      'packages/lib/src/huge.ts': `export const huge = 1;\n${'// filler line\n'.repeat(80_000)}`,
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('No file in this workspace that the source index read declares `nowhereWritten`, at its top level or as a member.');
+    expect(err).toContain('The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/lib/src/huge.ts.');
+  });
+
+  it('gives a member\'s declaring file to `intersection` at the line that declares it', async () => {
+    await indexed(true);
+    const { code, out, err } = await run(['ask', 'intersection', 'symbol --name resolveThings', 'discover --from packages/lib/src/native.ts']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('packages/lib/src/native.ts — 1: line 2');
+  });
+
+  // FIXME: a file the chain holds no parse of — written after the source index — is not named among the unread.
+  it.todo('names a file written after the source index as one whose declarations were not read — needs the unread list to compare the checkout against what the chain parsed');
+  // FIXME: a Rust struct field is no member until the scan records Rust fields and variants as members.
+  it.todo('answers a Rust struct field with the struct it is a member of — needs the scan to record Rust fields and variants as members (#424)');
+  // FIXME: members are looked up only when nothing else declares the name, so a name that is also exported or declared at a file's top level loses its members; `ask uses` says "is a member too".
+  it.todo('answers the members of a name that a file also declares at its top level — needs members looked up beside the other declarations, not only when they find nothing');
+});
