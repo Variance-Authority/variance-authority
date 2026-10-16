@@ -119,14 +119,14 @@ describe('a record cut under probes this build does not place', () => {
     expect(answer.probes).toBeUndefined();
   });
 
-  it('says the difference leaves nothing open in a file this build cuts as the record does', async () => {
+  it('says this build cuts a file as the record does, and that what a hit means is not compared', async () => {
     const { root, head } = await checkout();
     const execution = await recorded(RETIRED, { commit: head, blocks: cutHere() });
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--root', root, '--execution', execution]));
 
     expect(answer.probes?.cut).toEqual({ file: 'src/total.ts', same: 2 });
-    expect(answer.probes?.note).toContain('in src/total.ts this build cuts the same 2 regions the record holds, so the difference leaves nothing in this answer open');
+    expect(answer.probes?.note).toContain('in src/total.ts this build\'s presence walk cuts the same 2 regions, at the same lines, that the record holds; whether a hit means the same under both probes is not compared');
   });
 
   it('names the region this build cuts in a file that the record has none for', async () => {
@@ -136,7 +136,7 @@ describe('a record cut under probes this build does not place', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--root', root, '--execution', execution]));
 
     expect(answer.probes?.cut).toEqual({ file: 'src/total.ts', unrecorded: ['function `total` on lines 1-3'], uncut: [] });
-    expect(answer.probes?.note).toContain('this build cuts function `total` on lines 1-3 in src/total.ts, which the record has no region for, so whether it ran is not answered');
+    expect(answer.probes?.note).toContain('this build\'s presence walk cuts function `total` on lines 1-3 in src/total.ts, which the record has no region for, so whether it ran is not answered');
   });
 
   it('does not call a region the same when this build cuts it over other lines', async () => {
@@ -189,7 +189,7 @@ describe('a record cut under probes this build does not place', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--root', root, '--suite', 'unit']));
 
     expect(answer.probes?.current).toBeUndefined();
-    expect(answer.probes?.note).toMatch(/regions the record holds, so the difference leaves nothing in this answer open\.$|is not answered[^.]*\.$/);
+    expect(answer.probes?.note).toMatch(/is not (answered|compared)[^.]*\.$/);
     expect(answer.probes?.note).not.toContain('mainline');
     expect(answer.probes?.note).not.toMatch(NO_RUN);
   });

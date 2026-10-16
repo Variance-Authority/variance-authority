@@ -84,7 +84,9 @@ function identityOf(ask: (file: string, question: (view: { readonly instrumentat
  * name and structural path — and by those lines, because a recipe can cut a
  * region of the same name over other lines, and then the record's lines are
  * not this build's. They are counted, because a name can repeat: two `map`
- * callbacks in one function are both `fn/map.arg0`.
+ * callbacks in one function are both `fn/map.arg0`. The walk is presence's,
+ * the default, because a recipe this build does not emit does not say which
+ * mode cut it, and the note says which walk it compared against.
  */
 export async function cutGap(root: string, commit: string | undefined, file: string, blocks: readonly ExecutionBlock[]): Promise<CutGap> {
   if (commit === undefined) return { file, unread: 'the record names no commit, so the text it was made over is not known' };
@@ -152,11 +154,15 @@ export function probesNote(gap: ProbesGap, cut?: CutGap, reads?: string): string
 }
 
 function cutText(cut: CutGap): string {
-  if ('same' in cut) return `; in ${cut.file} this build cuts the same ${cut.same} regions the record holds, so the difference leaves nothing in this answer open`;
+  // A recipe also changes when what a hit means changes, and an equal cut does not show that it did not.
+  if ('same' in cut) {
+    return `; in ${cut.file} this build's presence walk cuts the same ${cut.same} regions, at the same lines, that the record holds; ` +
+      'whether a hit means the same under both probes is not compared';
+  }
   if ('unread' in cut) return `; whether this build cuts ${cut.file} as the record does is not answered: ${cut.unread}`;
   const parts: string[] = [];
   if (cut.unrecorded.length > 0) {
-    parts.push(`this build cuts ${listed(cut.unrecorded)} in ${cut.file}, which the record has no region for, so whether ${cut.unrecorded.length === 1 ? 'it' : 'they'} ran is not answered`);
+    parts.push(`this build's presence walk cuts ${listed(cut.unrecorded)} in ${cut.file}, which the record has no region for, so whether ${cut.unrecorded.length === 1 ? 'it' : 'they'} ran is not answered`);
   }
   if (cut.uncut.length > 0) {
     parts.push(`the record holds ${listed(cut.uncut)}, which this build does not cut, so the lines of ${cut.uncut.length === 1 ? 'that region' : 'those regions'} belong in this build to the region around them`);

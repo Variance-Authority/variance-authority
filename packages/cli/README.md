@@ -452,9 +452,10 @@ A record cut under probes this build does not place still answers: what ran,
 and which cases ran it, is read from the record as it holds it, at its own
 commit. The answer opens with both probes and the question the difference leaves
 open, which is whether a region this build cuts and those probes did not ran.
-For the file asked about, `covering` counts the regions the record holds against
-the ones this build cuts in the text the record was made over, and names any
-that differ. When this machine holds the mainline's record cut under this
+For the file asked about, `covering` compares the regions the record holds, and
+their lines, with the ones this build's presence walk cuts in the text the
+record was made over, and names any that differ. An equal cut does not show that
+a hit means the same under both probes, and the note says so. When this machine holds the mainline's record cut under this
 build's probes beneath the one read, the note names its path, which
 `--execution` reads.
 
