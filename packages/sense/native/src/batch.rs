@@ -205,18 +205,26 @@ pub(crate) fn walk(
     tree_oids: &[Oid],
     listing: Arc<Listing>,
 ) -> Walked {
-    walk_beyond(options, at, tree_oids, listing, &|_| false)
+    walk_beyond(options, at, tree_oids, listing, &|_| false, false)
 }
 
 /// `walk`, not entering a target `held` names: the seeds are read whatever
 /// they are, and the files the caller already holds a record for are the
 /// boundary of what a warm update has to open (`source_update.rs`).
+///
+/// `symbols` harvests each file's top-level declarations while its tree is
+/// still in the arena. A cold closure leaves them to whoever asks for a file
+/// (`enrich.ts`), since most of it is never asked about; a warm update reads
+/// only the files that changed, which are the ones a question about the branch
+/// names, and a parse it writes unharvested answers `symbol` and `uses` with
+/// "not read" until the file is read again.
 pub(crate) fn walk_beyond(
     options: GraphOptions,
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
     listing: Arc<Listing>,
     held: &dyn Fn(&str) -> bool,
+    symbols: bool,
 ) -> Walked {
     let GraphOptions {
         root,
@@ -264,7 +272,7 @@ pub(crate) fn walk_beyond(
             largest_file,
             Some(true),
             Some(readers.unwrap_or(6).max(1)),
-            false,
+            symbols,
         );
         let resolved = resolve_all(root_path, &wave, &opened, &resolvers, Some(at));
         for target in resolved.iter().flatten() {

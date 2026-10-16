@@ -273,6 +273,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             tree.oids,
             Arc::clone(&tree.listing),
             &|file| valid.contains_key(file) || walked.contains_key(file),
+            true,
         );
         let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
         let before = walked.len();

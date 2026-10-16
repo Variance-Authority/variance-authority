@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -311,6 +311,30 @@ describe('variance ask about a name declared and not exported', () => {
       const { out, err } = await run(['ask', ...question]);
       expect(`${out}${err}`).toContain(unread);
     }
+  });
+
+  it('answers `symbol` and `uses` for a name declared in a file changed since the last index', async () => {
+    checkout(RELAUNCH);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    // The branch edits the file: the update reads it again, and must read its declarations too.
+    writeFileSync(
+      'packages/kit/src/money/restart.ts',
+      `${RELAUNCH['packages/kit/src/money/restart.ts']}\n/** Pick the program up where it stopped. */\nfunction resume(argv: readonly string[]): number {\n  return relaunch(argv);\n}\n`,
+    );
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const symbol = await run(['ask', 'symbol', '--name', 'resume']);
+    expect(symbol.code).toBe(EXIT_CLEAN);
+    const block = paragraph(symbol.out, /^resume \[function\]\n/);
+    expect(block).toContain('declared, not exported, at packages/kit/src/money/restart.ts:9 by @acme/kit');
+    expect(block).toContain('Pick the program up where it stopped.');
+    expect(symbol.out).not.toContain('were not read into the source index');
+
+    const uses = await run(['ask', 'uses', '--name', 'resume']);
+    expect(uses.code).toBe(EXIT_CLEAN);
+    expect(uses.out).toContain(
+      '`resume` is declared, not exported, at packages/kit/src/money/restart.ts:9, so nothing outside that file can import it.',
+    );
   });
 
   it('writes out five declarations of one name and counts the rest', async () => {
