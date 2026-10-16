@@ -347,8 +347,8 @@ removing barrel files in Jira: unit tests selected per change fell from about
 
 ### From `file-use` to `region-use`: read inside the file
 
-`function-use` and `region-use` read inside a changed file, so they pay from
-the first run wherever a module is loaded widely and used narrowly, without the
+`function-use` and `region-use` read inside a changed file, so they run fewer
+tests from the first run wherever a module is loaded widely and used narrowly, without the
 import work above. That work is still what makes `file-use`, the step that
 rests on the least, run fewer tests. On TanStack Query, a one-line edit inside `Query.fetch` runs 149 test files at `file-use`,
 83 at `function-use` and 9 at `region-use`. They read the regions the
