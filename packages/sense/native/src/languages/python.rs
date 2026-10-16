@@ -9,7 +9,8 @@
 use tree_sitter::Node;
 
 use super::shape::{Binding, Export, Exports, Kind, Read, Requests, NAMESPACE_NAME};
-use super::{children_for_field, line_of, named_children, text_of};
+use super::{children_for_field, head, kind_of, line_of, named_children, span_of, text_of};
+use crate::harvest::{SourceSymbol, TextSpan};
 
 /// Everything a Python file's bytes say, without touching a disk.
 pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
@@ -49,6 +50,76 @@ pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
         },
         ..Read::default()
     }
+}
+
+/// Every definition and simple assignment at the top of the module, the
+/// underscored ones too: a leading underscore keeps a name out of
+/// `from x import *`, not out of the module. A definition's doc is its
+/// docstring, spanned inside the quotes.
+pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol> {
+    let mut found = Vec::new();
+    let mut narrowed = false;
+    for child in named_children(tree.root_node()) {
+        let node = match child.kind() {
+            "decorated_definition" => match child.child_by_field_name("definition") {
+                Some(definition) => definition,
+                None => continue,
+            },
+            _ => child,
+        };
+        match node.kind() {
+            "function_definition" | "class_definition" => {
+                let (Some(name), Some(kind)) = (node.child_by_field_name("name"), kind_of(node.kind())) else { continue };
+                found.push(SourceSymbol {
+                    name: text_of(name, source).to_string(),
+                    kind,
+                    line: line_of(node),
+                    signature: Some(head(node, source)),
+                    doc: docstring(node, source),
+                    reach: None,
+                });
+            }
+            "expression_statement" => {
+                for assignment in named_children(node).into_iter().filter(|part| part.kind() == "assignment") {
+                    let Some(left) = assignment.child_by_field_name("left") else { continue };
+                    if left.kind() != "identifier" {
+                        continue;
+                    }
+                    if text_of(left, source) == "__all__" {
+                        // Read as `read_assignment` reads it: a computed one narrows nothing.
+                        narrowed = assignment.child_by_field_name("right").is_some_and(|right| !strings_in(right, source).is_empty());
+                        continue;
+                    }
+                    found.push(SourceSymbol {
+                        name: text_of(left, source).to_string(),
+                        kind: "variable",
+                        line: line_of(assignment),
+                        signature: Some(head(assignment, source)),
+                        doc: None,
+                        reach: None,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    // Any module can import a name by spelling it; what keeps one out of
+    // `from … import *` is `__all__` when it is written, else the underscore.
+    for symbol in &mut found {
+        symbol.reach = if narrowed { Some("all") } else if symbol.name.starts_with('_') { Some("underscore") } else { None };
+    }
+    found
+}
+
+/// The string a definition's body opens with, inside its quotes.
+fn docstring(node: Node, source: &str) -> Option<TextSpan> {
+    let first = named_children(node.child_by_field_name("body")?).into_iter().next()?;
+    if first.kind() != "expression_statement" {
+        return None;
+    }
+    let string = named_children(first).into_iter().next().filter(|part| part.kind() == "string")?;
+    let content = named_children(string).into_iter().find(|part| part.kind() == "string_content")?;
+    Some(span_of(source, content.start_byte(), content.end_byte()))
 }
 
 #[derive(Default)]
@@ -100,7 +171,7 @@ fn walk(at: &mut Gathering, node: Node, src: &str, typing: bool, top: bool) {
         }
         "function_definition" | "class_definition" => {
             if top {
-                publish(at, node.child_by_field_name("name"), src, line_of(node), docstring(node, src));
+                publish(at, node.child_by_field_name("name"), src, line_of(node));
             }
             // A body binds nothing at module scope, but it may import.
             if let Some(body) = node.child_by_field_name("body") {
@@ -275,7 +346,7 @@ fn read_assignment(at: &mut Gathering, node: Node, src: &str) {
         }
 
         if left.kind() == "identifier" {
-            publish(at, Some(left), src, line_of(child), None);
+            publish(at, Some(left), src, line_of(child));
         }
     }
 }
@@ -294,26 +365,12 @@ fn strings_in(node: Node, src: &str) -> Vec<String> {
         .collect()
 }
 
-/// The docstring a class or a function opens with, spanned between its quotes:
-/// the first statement of the body, when it is a string and nothing else.
-fn docstring(node: Node, src: &str) -> Option<crate::harvest::TextSpan> {
-    let first = *named_children(node.child_by_field_name("body")?).first()?;
-    let only = match named_children(first).as_slice() {
-        [only] if first.kind() == "expression_statement" && only.kind() == "string" => *only,
-        _ => return None,
-    };
-    let parts = named_children(only);
-    let open = parts.iter().find(|part| part.kind() == "string_start")?;
-    let close = parts.iter().rev().find(|part| part.kind() == "string_end")?;
-    Some(super::span_of(src, open.end_byte(), close.start_byte()))
-}
-
 /// Record a name this module binds at top level.
 ///
 /// Leading-underscore names are left out, which is the convention
 /// `from x import *` itself obeys and the only published-set rule the language
 /// has in the absence of `__all__`.
-fn publish(at: &mut Gathering, name: Option<Node>, src: &str, line: u32, doc: Option<crate::harvest::TextSpan>) {
+fn publish(at: &mut Gathering, name: Option<Node>, src: &str, line: u32) {
     let Some(name) = name else { return };
     let text = text_of(name, src);
     if text.starts_with('_') {
@@ -326,7 +383,6 @@ fn publish(at: &mut Gathering, name: Option<Node>, src: &str, line: u32, doc: Op
             local: Some(text.to_string()),
             type_only: false,
             line,
-            doc,
             ..Export::default()
         },
     );

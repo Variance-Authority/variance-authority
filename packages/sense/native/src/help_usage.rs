@@ -164,7 +164,14 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
             let Some(name) = text.optional(id) else { continue };
-            let doc = parses.doc_of_export(export).and_then(|span| {
+            // The TypeScript reader spans an export's doc on the export; the
+            // others span it on the declaration the export binds, by its name.
+            let declared = || {
+                let local = text.optional(parses.export_local.at(export))?;
+                if text.optional(parses.export_from.at(export)).is_some() { return None }
+                parses.symbols.range(row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == local).and_then(|symbol| parses.doc_of_symbol(symbol))
+            };
+            let doc = parses.doc_of_export(export).or_else(declared).and_then(|span| {
                 let utf16 = source.get_or_insert_with(|| {
                     std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
                 });
@@ -326,10 +333,7 @@ fn importers_of(
             // A record whose targets do not line up with the parse's requests answers none of them.
             if resolved.len() != parses.requests.range(row).len() { return (found, passed); }
             let first = parses.requests.at(row) as usize;
-            let by = match owners.files.get(crossing.file) {
-                Some(&(owner, _)) if owner != NO_OWNER => owners.packages[owner as usize].name.as_str(),
-                _ => "",
-            };
+            let by = owners.package_of(crossing.file);
             let kind = kind_of(crossing.file);
             for request in parses.requests.range(row) {
                 let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };

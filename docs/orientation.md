@@ -194,9 +194,12 @@ APIs. It reads every direct dependency available to a workspace, including a
 package that workspace has not imported. The source index adds observed
 external requests; the manifest alone cannot prove use. The resolver selects
 the installed runtime and declaration provider for each public entrypoint.
-The catalogue keeps names, signatures and JSDoc in `dependency-lexicon.json`
-beside the source index. A refresh retains unchanged declaration readings and
-reads changed declarations without rescanning repository source. `ask search`
+The catalogue keeps names, signatures and JSDoc in `dependency-lexicon.bin`
+beside the source index, and the import requests each source file writes in
+`dependency-lexicon.sites.bin`. An edit adds the requests of the files it changed
+to the second file. The catalogue is written again only when a manifest, an
+installed package or a specifier no source file imported before changes, and
+then it keeps the declaration readings whose files are unchanged. `ask search`
 uses this catalogue alongside local names; `--from` and `--to` constrain which
 workspace's available packages it shows. `orient --files` keeps the dependency
 graph concise. Ask for a name when its third-party API detail matters.

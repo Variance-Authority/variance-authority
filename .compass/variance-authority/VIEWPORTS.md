@@ -309,7 +309,7 @@ sequenceDiagram
 
   Note over AGA,ALO: only now, and in this order
   CMP->>AGA: the verdict, and what this subject is asserted on
-  AGA->>COL: collect it again — same world, seconds later
+  AGA->>COL: collect it again — same world, right after
   COL-->>AGA: a second document
   alt the two documents disagree
     AGA->>INS: two snapshots that should have agreed

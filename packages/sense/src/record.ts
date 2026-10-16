@@ -236,7 +236,7 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
     ...(read.exports === undefined ? {} : { exports: read.exports }),
     ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
     ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
-    harvested: true,
+    ...(read.harvested === true ? { harvested: true } : {}),
     ...(declares.length === 0 ? {} : { declares }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
     ...(read.size === undefined ? {} : { size: read.size }),

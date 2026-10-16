@@ -165,7 +165,9 @@ publishes is answered too: the file and line that export it, the line as the
 checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
-that passes it on exports without declaring, is said after it. A name nothing exports is refused.
+that passes it on exports without declaring, is said after it. A name a file
+declares and nothing exports is answered from the source index, as below; a
+name nothing declares is refused.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
@@ -256,12 +258,21 @@ specifier before it is the import line you will write, and it goes to
 unpublished line has a `path:line` instead of a specifier, and the first paragraph
 of its doc comment when it has one: open the file, or pass its name to
 `symbol` and `uses`, which answer it from the source index.
+A line under *declared … without being exported* is a name its file does not
+export, matched by its name or its documentation: `symbol` gives its signature
+and who can reach it, which is only that file in a JavaScript or TypeScript
+module, its module in Rust, and any module that spells it in Python; `uses` says
+the same in one line. A script or CommonJS file, a module that hands itself out
+with `export =` and a `macro_rules!` are said to have no recorded reach: their readers cannot tell how the file hands the name out.
+A file whose declarations were not read, such as one over the size a read
+opens, is named under the answer, since the name may be declared there.
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a
 third-party section, and prints a line when nothing in it matched. `symbol`
-matches installed third-party declarations from the same lexicon. The full
-signatures and JSDoc are in `dependency-lexicon.json` beside the source index.
+matches installed third-party declarations from the same lexicon, which is
+`dependency-lexicon.bin` beside the source index. It is a binary file: ask
+`search` and `symbol` for what it holds.
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that

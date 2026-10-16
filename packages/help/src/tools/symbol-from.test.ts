@@ -61,7 +61,7 @@ it('resolves the version and signature from the owning workspace, and says where
   expect(beta).toContain('imported 1× (first packages/beta/src/x.ts:1)');
   for (const from of ['packages/gamma/src/x.ts', 'packages/gamma']) {
     const gamma = ask(from);
-    expect(gamma).toContain(`is not usable from ${from}: package.json does not declare or import it. It is offered under:`);
+    expect(gamma).toContain(`is not usable from ${from}: packages/gamma/package.json does not declare or import it. It is offered under:`);
     expect(gamma).toContain('shared-kit@1.0.0');
     expect(gamma).toContain('shared-kit@2.0.0');
   }

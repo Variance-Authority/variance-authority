@@ -49,7 +49,10 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`resolveThings` is no exported name; it is a member, declared in 1 place:');
+    // `references.ts` binds the name at its top level, by destructuring, and
+    // that declaration is answered before the member's.
+    expect(out).toContain('`resolveThings` is declared, not exported, at packages/lib/src/references.ts:3, so nothing outside that file can import it.');
+    expect(out).toContain('`resolveThings` is a member too, declared in 1 place:');
     expect(out).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
     expect(out).toContain(ROUTE);
     expect(out).not.toContain('elsewhere.ts');
@@ -89,7 +92,7 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`resolveThings` is no exported name; it is a member, declared in 3 places:');
+    expect(out).toContain('`resolveThings` is a member too, declared in 3 places:');
     const listed = out.split('\n').filter((line) => / — /.test(line) && /\.ts:\d+/.test(line));
     expect(listed).toEqual([
       'packages/kit/src/held.ts:2 — Held',

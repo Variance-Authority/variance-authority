@@ -412,4 +412,33 @@ describe('the binary source index', () => {
       records: materializeLayers(layers.map((layer) => ({ puts: layer.records, deletes: layer.deletedRecords ?? new Set() }))),
     });
   });
+
+  it('writes a save that puts again what the base holds as a working layer of what changed', async () => {
+    const held = { record: RECORD, witnesses: WITNESSES };
+    const base = encodeSourceIndex({
+      config: CONFIG,
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map([['src', CONFIG]]),
+      records: new Map([[RECORD.file, held]]),
+    });
+    // Every row again, as an update that read every file hands it over, and one file more.
+    const added = { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] };
+    const again = encodeSourceIndex({
+      config: CONFIG,
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map([['src', CONFIG]]),
+      records: new Map([[RECORD.file, held], ['src/button.tsx', added]]),
+    });
+    const file = await path();
+    expect(native()!.appendSourceIndex(file, [], false, [base])).toBeNull();
+    expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [again])).toBeNull();
+
+    const [, working] = (await openImmutableLog(file)).segments;
+    const layer = decodeSourceIndex(working!);
+    expect(layer.config).toBe(CONFIG);
+    expect([...layer.parses.keys()]).toEqual([]);
+    expect([...layer.directories.keys()]).toEqual([]);
+    expect([...layer.records.keys()]).toEqual(['src/button.tsx']);
+    expect((await readPublishedSources(file)).records.map((record) => record.file)).toEqual(['src/button.tsx', RECORD.file]);
+  });
 });

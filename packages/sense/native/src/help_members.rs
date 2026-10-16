@@ -86,10 +86,7 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
     for crossing in &crossings {
         let Some((layer, row)) = crossing.parse else { continue };
         let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
-        let by = match owners.files.get(crossing.file) {
-            Some(&(owner, _)) if owner != NO_OWNER => owners.packages[owner as usize].name.as_str(),
-            _ => "",
-        };
+        let by = owners.package_of(crossing.file);
         let mut sites: Vec<MemberSite> = parses
             .member_declarations
             .range(row)

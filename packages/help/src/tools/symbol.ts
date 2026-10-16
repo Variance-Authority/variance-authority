@@ -9,6 +9,7 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
+import { declaredAt, declaredBlocks, unreadNote } from './declared.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 
 /**
@@ -22,17 +23,18 @@ import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 export const symbol: Tool<Help> = {
   name: 'docs_symbol',
   description:
-    'Everything known about one exported name: what it is, the import line that reaches it, the ' +
+    'Everything known about one name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — and which packages import it. Names are ' +
-    'matched exactly, including a name exported and not published, answered with where it is declared, and ' +
+    'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
+    'name a file declares at its top level and does not export, answered with where it is written, and ' +
     'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
     'when the exact name is not known, docs_uses for local import sites.',
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The exported name, matched exactly.' },
+      name: { type: 'string', description: 'The name, matched exactly.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         ...START_POINT_SCHEMA.from,
@@ -70,7 +72,11 @@ export const symbol: Tool<Help> = {
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    const own = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : [];
+    // Declared at the top of a file and exported by none: still the workspace's
+    // own name, and where it is written says who can reach it.
+    const own = exported.length > 0
+      ? [exportedOnly(name, exported, invocation?.root)]
+      : found.length === 0 ? declaredBlocks(invocation?.root, name, wanted) : [];
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -107,7 +113,7 @@ export const symbol: Tool<Help> = {
       if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
     }
     if (own.length > 0) return own.join('\n\n');
-    if (found.length === 0) throw new Error(unfound(help, name, wanted));
+    if (found.length === 0) throw new Error(`${unfound(help, name, wanted)}${unreadNote(invocation?.root, name)}`);
 
     const [first] = found;
     if (first === undefined) throw new Error(`\`${name}\` was found and then was not`);
@@ -147,6 +153,7 @@ export const symbol: Tool<Help> = {
       const exported = exportsNamed(help, name, wanted);
       for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
     }
+    if (at.length === 0) at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new Error(unfound(help, name, wanted));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {

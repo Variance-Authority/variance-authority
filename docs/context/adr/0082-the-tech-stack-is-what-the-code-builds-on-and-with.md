@@ -26,7 +26,7 @@ project.
 The pieces of an answer are on main. The code map folds the package graph into
 areas and dependency layers. `orient --files` names the external packages the
 local imports request, with sites. `variance index` publishes
-`dependency-lexicon.json`, the installed API of every declared package,
+`dependency-lexicon.bin`, the installed API of every declared package,
 resolved from the manifest that declares it. None of them answers *what is this
 project's tech stack*, and the manifests cannot. A manifest lists what was
 installed, which is more than what is used. It says nothing of a package the

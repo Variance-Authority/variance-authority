@@ -24,6 +24,15 @@ describe('what a Rust file asks for', () => {
     expect(asked.get('crate::read::Read')?.guessed).toBe(true);
   });
 
+  it('takes a declared module whole, as a namespace, and an item a `use` names by its name', () => {
+    // `mod order;` imports no item `order`, though `order.rs` may declare one.
+    const read = readRust('src/lib.rs', 'mod order;\nuse crate::order::order;\n');
+    const taken = new Map(read.requests.map((request) => [request.value, request.bindings.map(({ imported, local }) => ({ imported, local }))]));
+
+    expect(taken.get('self::order')).toEqual([{ imported: '*', local: 'order' }]);
+    expect(taken.get('crate::order::order')).toEqual([{ imported: 'order', local: 'order' }]);
+  });
+
   it('carries an inline module down to the files declared inside it', () => {
     // `mod b;` inside `mod a { … }` is the file `a/b.rs`, and the nesting is
     // the only thing that says so.
@@ -63,29 +72,14 @@ describe('what a Rust file asks for', () => {
     expect(exported.get('Read')?.from).toBe('crate::read::Read');
   });
 
-  it('carries the doc written above a published item, past its attributes', () => {
-    // The span is in UTF-16 units, as every reader's is: `é` is two bytes and one unit.
-    const source = [
-      '// é, which is not documentation',
-      "/// Any path's package,",
-      '/// tracked or not.',
-      '#[inline]',
-      'pub(crate) fn owner_of() {}',
-      '// A plain comment documents nothing.',
-      'pub struct Bare;',
-      '/** The block form. */',
-      'pub enum Block {}',
-      '',
-    ].join('\n');
-    const read = readRust('src/a.rs', source);
-    const doc = (name: string): string | undefined => {
-      const span = read.exports?.find((entry) => entry.exported === name)?.doc;
-      return span === undefined ? undefined : source.slice(span.start, span.end);
-    };
+  it('publishes an item another file of its crate can name, and not one `pub(self)` keeps to its module', () => {
+    const read = readRust(
+      'src/lib.rs',
+      'pub(crate) fn shared() {}\npub(super) struct Up;\npub(in crate::a) const A: u8 = 1;\npub(self) fn kept() {}\npub(in self) fn held() {}\npub(self) use crate::b::C;\n',
+    );
 
-    expect(doc('owner_of')).toBe("/// Any path's package,\n/// tracked or not.");
-    expect(doc('Bare')).toBeUndefined();
-    expect(doc('Block')).toBe('* The block form. ');
+    expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['shared', 'Up', 'A']);
+    expect(read.symbols?.filter(({ name }) => name === 'kept' || name === 'held').map(({ reach }) => reach)).toEqual(['module', 'module']);
   });
 
   it('says so when the parser stopped where a `use` could have been', () => {
@@ -104,6 +98,49 @@ describe('what a Rust file asks for', () => {
     expect(isRustRelative('crate::read::Read')).toBe(true);
     expect(isRustRelative('other/place.rs')).toBe(true);
     expect(isRustRelative('std::fmt::Display')).toBe(false);
+  });
+});
+
+describe('what a Rust file declares', () => {
+  it('records every top-level item, `pub` or not, with its signature and the doc above it, past its attributes', () => {
+    const contents = [
+      '/// Start again.',
+      '/// In a process of its own.',
+      '#[inline]',
+      'fn relaunch(argv: &[String]) -> i32 {',
+      '    0',
+      '}',
+      '',
+      'pub struct Lens;',
+      '',
+      'const LIMIT: u32 = 5;',
+      '',
+      'mod inner {',
+      '    fn hidden() {}',
+      '}',
+      '',
+    ].join('\n');
+    const read = readRust('src/lib.rs', contents);
+
+    expect(spelled(contents, read)).toEqual([
+      { name: 'relaunch', kind: 'function', line: 4, signature: 'fn relaunch(argv: &[String]) -> i32', doc: '/// Start again.\n/// In a process of its own.' },
+      { name: 'Lens', kind: 'struct', line: 8, signature: 'pub struct Lens;', doc: undefined },
+      { name: 'LIMIT', kind: 'const', line: 10, signature: 'const LIMIT: u32', doc: undefined },
+      { name: 'inner', kind: 'module', line: 12, signature: 'mod inner', doc: undefined },
+    ]);
+  });
+
+  it('says an item is its module\'s, and records no reach for a `macro_rules!`, which no visibility governs', () => {
+    const read = readRust('src/lib.rs', 'fn relaunch() {}\n\n#[macro_export]\nmacro_rules! again {\n    () => {};\n}\n');
+    expect(read.symbols?.map(({ name, kind, reach }) => ({ name, kind, reach }))).toEqual([
+      { name: 'relaunch', kind: 'function', reach: 'module' },
+      { name: 'again', kind: 'macro', reach: undefined },
+    ]);
+  });
+
+  it('says a file that declares nothing was read for declarations, which a file it could not read was not', () => {
+    const { symbols, harvested } = readRust('src/lib.rs', 'use crate::a::B;\n');
+    expect({ symbols, harvested }).toEqual({ symbols: undefined, harvested: true });
   });
 });
 
@@ -150,6 +187,13 @@ describe('where a Rust path lands', () => {
       .toEqual([]);
   });
 });
+
+
+/** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
+function spelled(contents: string, read: Read) {
+  const cut = (span: { readonly start: number; readonly end: number } | undefined) => span && contents.slice(span.start, span.end);
+  return (read.symbols ?? []).map(({ name, kind, line, signature, doc }) => ({ name, kind, line, signature: cut(signature), doc: cut(doc) }));
+}
 
 /** What the addon's Rust reader answers, which is the only reader there is. */
 function readRust(file: string, contents: string): Read {

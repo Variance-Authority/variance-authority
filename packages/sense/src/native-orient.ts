@@ -352,15 +352,17 @@ export interface NativeOrientMaps {
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
 export interface NativeDependencyLexicon {
   /** Refresh all installed third-party public declarations on the Rust side, resolving under `tsconfig` as the scan did. */
-  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string, tsconfig?: string | false): Promise<{
-    readonly path: string; readonly packages: number; readonly entrypoints: number;
+  refreshDependencyLexicon(root: string, index: string, path: string, sites: string, tsconfig?: string | false): Promise<{
+    readonly path: string; readonly sites: string; readonly packages: number; readonly entrypoints: number;
     readonly reused: number; readonly unavailable: number; readonly unresolved?: number; readonly unchanged: boolean;
-    /** The last refresh's record carried, and of the source only what the index wrote since read. */
-    readonly merged: boolean;
+    /** The source files whose requests this refresh recorded. */
+    readonly appended: number;
+    /** The requests file was written whole, because its base or the names a request is internal to moved. */
+    readonly rebuilt: boolean;
   }>;
-  queryDependencyLexicon(path: string, query: string, files: string[] | null,
+  queryDependencyLexicon(path: string, sites: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
-  dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
+  dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
   /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
   describedWords(query: string): [string, string][];
   /** Each word's stem, in order. */

@@ -102,7 +102,7 @@ impl ParseRow for Read {
             );
         }
         for symbol in &self.symbols {
-            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc));
+            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc), crate::harvest::reach_code(symbol.reach));
         }
         for name in &self.declares {
             into.declare(id(name));

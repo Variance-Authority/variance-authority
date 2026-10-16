@@ -58,6 +58,7 @@ mod graph_dominators;
 mod graph_index;
 mod harvest;
 mod held;
+mod help_declared;
 mod help_members;
 mod help_publish;
 mod help_search;

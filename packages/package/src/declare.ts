@@ -40,7 +40,20 @@ export type DeclarationKind =
   | 'await using'
   | 'object'
   | 'namespace-object'
-  | 'foreign';
+  | 'foreign'
+  // What the Rust, Python, Swift, Java and Kotlin readers call a declaration.
+  | 'struct'
+  | 'union'
+  | 'trait'
+  | 'static'
+  | 'module'
+  | 'macro'
+  | 'record'
+  | 'annotation'
+  | 'protocol'
+  | 'actor'
+  | 'property'
+  | 'variable';
 
 /** One name, as the file that publishes it declares it. */
 export interface Declaration {

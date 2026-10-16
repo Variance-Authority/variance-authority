@@ -71,10 +71,6 @@ pub struct Export {
     #[serde(rename = "type")]
     pub type_only: bool,
     pub line: u32,
-    /// The doc comment written above what is exported, in UTF-16 units of the
-    /// file, as every reader's spans are: `Export.doc` in `read.ts`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub doc: Option<crate::harvest::TextSpan>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -84,6 +80,14 @@ pub struct Read {
     pub exports: Option<Vec<Export>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
+    /// Every top-level declaration, exported or not. Absent when there are
+    /// none, which `harvested` tells from a file never read for them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<crate::harvest::SourceSymbol>,
+    /// The declarations were read, including when there were none; false for
+    /// a file the reader could not parse, whose declarations are unknown.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub harvested: bool,
     /// Bytes and lines, counted off the tree by [`size.rs`](./size.rs); absent
     /// for a file the grammar could not parse at all.
     // TODO: no region count, because no recorder cuts a Python, Rust, Swift or
@@ -99,6 +103,8 @@ impl Read {
             requests: Vec::new(),
             exports: None,
             unknown: Some(reason),
+            symbols: Vec::new(),
+            harvested: false,
             size: None,
         }
     }
