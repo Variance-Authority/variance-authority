@@ -80,6 +80,12 @@ export interface Parsed {
    * Absent when it declares none, and absent from any reader but the native one.
    */
   readonly memberDeclarations?: readonly MemberDeclaration[];
+  /**
+   * Every line that reads, writes or destructures a member through a value
+   * whose type the line writes. Absent when there are none, and absent from any
+   * reader but the native one.
+   */
+  readonly memberUses?: readonly MemberUse[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
@@ -115,6 +121,15 @@ export interface MemberDeclaration {
   readonly line: number;
   /** The container's name, or `a type literal` or `a class` when it has none. */
   readonly on: string;
+}
+
+/** One line that uses a member through a value whose type the file writes. */
+export interface MemberUse {
+  readonly name: string;
+  readonly line: number;
+  /** The type's name as the file writes it: its own declaration's, or the local name of an import. */
+  readonly of: string;
+  readonly how: 'destructure' | 'read' | 'write';
 }
 
 /** Content-addressed parses used by a scan and by consumers sharing its work. */

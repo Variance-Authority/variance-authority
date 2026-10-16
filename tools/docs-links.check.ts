@@ -36,6 +36,9 @@ const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docke
  */
 const FOREIGN: Readonly<Record<string, string>> = {
   'tests/home.spec.ts': "an incumbent's spec file, quoted from its output",
+  'src/shapes/props.ts': "a reader's own module, quoted from a sample answer of uses",
+  'src/shapes/use.ts': "a reader's own module, quoted from a sample answer of uses",
+  'src/shapes/fit.ts': "a reader's own module, quoted from a sample answer of uses",
   'announcement.spec.mjs': "Playwright's list reporter naming a spec relative to its testDir, quoted from a run",
   'cart.spec.ts': "a reader's own spec file, quoted from a transcript about it",
   'tests/checkout.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
