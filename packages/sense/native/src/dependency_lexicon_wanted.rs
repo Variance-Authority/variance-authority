@@ -2,7 +2,7 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::{fs, path::Path};
 
 use regex::Regex;
@@ -45,9 +45,12 @@ pub(super) fn of(owners: &[Owner], sites: &BTreeMap<String, Vec<merge::Site>>) -
             wanted.insert((owner.manifest.clone(), package.clone()), Wanted { declared: true, ..Wanted::default() });
         }
     }
-    let mut owning = merge::Owning::new(owners);
+    let by_directory: HashMap<&str, u32> = owners.iter().enumerate().map(|(at, owner)| (owner.directory.as_str(), at as u32)).collect();
+    let mut directories = HashMap::new();
     for (file, requests) in sites {
-        let Some(owner) = owning.of(file) else { continue };
+        let at = crate::package_owners::directory_owner(crate::package_owners::parent(file), &by_directory, &mut directories);
+        if at == crate::package_owners::NO_OWNER { continue; }
+        let owner = &owners[at as usize];
         for site in requests {
             if internal.contains(site.package.as_str()) { continue; }
             let held = wanted.entry((owner.manifest.clone(), site.package.clone())).or_default();
