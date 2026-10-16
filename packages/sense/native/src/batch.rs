@@ -260,6 +260,10 @@ pub(crate) fn walk_beyond(
         // come out of the same parse: `ask symbol` reads them from the rows this
         // walk publishes, and a walk that left them out answered a checkout of
         // ten thousand modules as if it declared nothing.
+        // FIXME: every wave's answers, declarations included, are held until the
+        // parse segment is encoded after the walk, so a cold index of 288k paths
+        // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
+        // it is read would bound it.
         let opened = read_git(
             root.clone(),
             wave.clone(),
