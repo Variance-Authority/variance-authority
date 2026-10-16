@@ -54,10 +54,10 @@ export function presentationImpact(observations: readonly ObservationRecord[]): 
   const entries = observations.flatMap((entry) => {
     const signal = entry.signals?.presentation;
     if (signal === undefined || signal.verdict === 'unchanged') return [];
-    if (signal.verdict === 'incomparable') {
+    if ('because' in signal) {
       return [
         `<li><code>${text(entry.subject)}</code> ` +
-          `<span class="mark warn">incomparable</span>${text(signal.because)}</li>`,
+          `<span class="mark warn">changed</span>${text(signal.because)}</li>`,
       ];
     }
     const information = signal.information.contentPreserved
