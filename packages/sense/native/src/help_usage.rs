@@ -47,6 +47,9 @@ pub struct DeepRequest {
 pub struct NameUse {
     pub key: String,
     pub name: String,
+    /// The name the importing file binds it to, or passes it on as, when the
+    /// binding renames it with `as`; `None` when it keeps `name`.
+    pub local: Option<String>,
     pub by: String,
     pub at: String,
     pub line: u32,
@@ -133,12 +136,14 @@ fn taken(layer: &Layer, row: usize, request: usize, key: &str, by: &str, at: &st
     for binding in parses.request_bindings.range(request) {
         let imported = text.text(parses.binding_imported.at(binding));
         if imported == "*" { continue; }
-        names.push(NameUse { key: key.to_owned(), name: imported.to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0 });
+        let local = text.text(parses.binding_local.at(binding));
+        let local = (local != imported).then(|| local.to_owned());
+        names.push(NameUse { key: key.to_owned(), name: imported.to_owned(), local, by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0 });
     }
     let through = if text.text(parses.request_kind.at(request)) == "dynamic" { "dynamic" } else { "namespace" };
     for member in parses.members.range(row) {
         if parses.member_request.at(member) as usize != request - first { continue; }
-        names.push(NameUse { key: key.to_owned(), name: text.text(parses.member_name.at(member)).to_owned(), by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line });
+        names.push(NameUse { key: key.to_owned(), name: text.text(parses.member_name.at(member)).to_owned(), local: None, by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line });
     }
     names
 }

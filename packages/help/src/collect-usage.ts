@@ -70,7 +70,7 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
         }
 
         for (const binding of asked.bindings) {
-          if (binding.imported !== NAMESPACE_NAME) usage.take(key, binding.imported, { by, at, line: binding.line, type: binding.type, kind });
+          if (binding.imported !== NAMESPACE_NAME) usage.take(key, binding.imported, { ...renamed(binding), by, at, line: binding.line, type: binding.type, kind });
         }
         const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
         for (const member of parsed.members ?? []) {
@@ -100,11 +100,16 @@ function takenBy(
   const taken: Taken[] = [];
   for (const binding of asked.bindings) {
     if (binding.imported === NAMESPACE_NAME) continue;
-    taken.push({ name: binding.imported, by, at, line: binding.line, type: binding.type, kind });
+    taken.push({ name: binding.imported, ...renamed(binding), by, at, line: binding.line, type: binding.type, kind });
   }
   const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
   for (const member of parsed.members ?? []) {
     if (member.request === index) taken.push({ name: member.name, by, at, line: member.line, type: false, kind, through });
   }
   return taken;
+}
+
+/** The `local` of a use of `binding`, when its statement renames it with `as`. */
+function renamed(binding: Parsed['requests'][number]['bindings'][number]): { readonly local?: string } {
+  return binding.local === binding.imported ? {} : { local: binding.local };
 }

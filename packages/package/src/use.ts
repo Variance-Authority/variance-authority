@@ -73,6 +73,12 @@ export interface Use {
   /** Whether the importing file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
   /**
+   * The name the importing file binds it to, or passes it on as, when the
+   * import renames it with `as`: `openStrings` for
+   * `import { stringReader as openStrings }`. Absent when it keeps its name.
+   */
+  readonly local?: string;
+  /**
    * The request this name is read through when no import names it: `ns.x` off
    * `import * as ns`, or `m.x` off `import()`. `line` is where that request is
    * written, so `line` above is the read and this is the load. Absent for a
@@ -190,6 +196,8 @@ export interface UsageOptions {
  */
 export interface Bound {
   readonly imported: string;
+  /** The name the statement binds it to, or exports it as, when that is not `imported`. */
+  readonly local?: string;
   /** `import type { x }` and `import { type x }` alike. */
   readonly type: boolean;
   /** The 1-based line the statement binding it is written on. */
@@ -288,16 +296,21 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
       if (lands === undefined) continue;
 
       if (lands !== 'opened') {
-        const taken = asked.names.map((bound) => ({ name: bound.imported, by, at, line: bound.line, type: bound.type, kind }));
+        const taken = asked.names.map((bound) => ({ name: bound.imported, ...renamed(bound), by, at, line: bound.line, type: bound.type, kind }));
         usage.past(lands, { specifier: asked.specifier, by, at, line: asked.line, names: taken });
         continue;
       }
 
-      for (const bound of asked.names) usage.take(key, bound.imported, { by, at, line: bound.line, type: bound.type, kind });
+      for (const bound of asked.names) usage.take(key, bound.imported, { ...renamed(bound), by, at, line: bound.line, type: bound.type, kind });
     }
   }
 
   return usage.read();
+}
+
+/** The `local` of a use of `bound`, when its statement renames it. */
+function renamed(bound: Bound): { readonly local?: string } {
+  return bound.local === undefined ? {} : { local: bound.local };
 }
 
 /**
@@ -446,7 +459,8 @@ export function readUsage(
       const held = requestAt(statement.moduleRequest.value, statement.start);
       for (const entry of statement.entries) {
         const imported = nameOf(entry.importName.kind, entry.importName.name);
-        if (imported !== undefined) held.names.push({ imported, type: entry.isType, line: held.line });
+        const local = entry.localName.value;
+        if (imported !== undefined) held.names.push({ imported, ...(local === imported ? {} : { local }), type: entry.isType, line: held.line });
       }
     }
 
@@ -465,7 +479,7 @@ export function readUsage(
         if (specifier === undefined) continue;
         const held = requestAt(specifier, statement.start);
         const imported = nameOf(entry.importName.kind, entry.importName.name);
-        if (imported !== undefined) held.names.push({ imported, type: entry.isType, line: held.line });
+        if (imported !== undefined) held.names.push({ imported, ...(exported === undefined || exported === imported ? {} : { local: exported }), type: entry.isType, line: held.line });
       }
     }
 

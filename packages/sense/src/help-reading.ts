@@ -91,12 +91,30 @@ export interface MemberSite {
   readonly on: string;
 }
 
+/** One import that binds a local name to an export of another name. */
+export interface Alias {
+  /** The importing file, and the line of its import statement. */
+  readonly at: string;
+  readonly line: number;
+  /** The package of the importing file, or empty when no package holds it. */
+  readonly by: string;
+  readonly kind: 'source' | 'story' | 'test';
+  /** The export name the binding takes, `default` for a default import. */
+  readonly imported: string;
+  /** The specifier as the importing file wrote it. */
+  readonly specifier: string;
+  /** The file the index resolved the specifier to, when it resolved. */
+  readonly to?: string | null;
+  readonly type: boolean;
+}
+
 export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
+  aliasesOf?(root: string, index: string, local: string): Alias[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
 }
 
@@ -165,6 +183,18 @@ export function importersOf(
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+}
+
+/**
+ * Every import the index at `index` holds that binds `local` to an export of
+ * another name — `import { stringReader as openStrings }` for `openStrings` —
+ * ordered by the importing file in code units, then by line; `undefined` when
+ * no index was published. The binding the parse recorded is what ties the two
+ * names. A namespace import and a binding an `export … from` writes are left
+ * out. Throws when the index does not read.
+ */
+export function aliasesOf(root: string, local: string, index: string = sourceIndexPath(root)): readonly Alias[] | undefined {
+  return entry('aliasesOf')(root, index, local) ?? undefined;
 }
 
 /** One top-level declaration no export of its file binds. */

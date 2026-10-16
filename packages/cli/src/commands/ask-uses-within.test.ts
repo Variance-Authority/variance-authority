@@ -82,7 +82,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
     expect(out).toMatch(/^apps\/app\/src\/relayed\.ts:1 — @acme\/app$/m);
-    expect(out).toMatch(/^apps\/app\/src\/typed\.ts:1 — @acme\/app \(type only\)$/m);
+    expect(out).toMatch(/^apps\/app\/src\/typed\.ts:1 — @acme\/app \(as Greet\) \(type only\)$/m);
     expect(out).not.toMatch(/relay\.ts|star\.ts/);
   });
 
