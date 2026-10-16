@@ -64,7 +64,10 @@ export function selectedByRelations(
   changed: readonly string[],
   moved: ReadonlyMap<string, readonly string[]> | undefined,
 ): ReadonlyMap<number, readonly ImporterReason[]> {
-  const affected = affectedBy(relations, changed, moved === undefined ? { through: RUNTIME_EDGES } : { through: RUNTIME_EDGES, moved });
+  const affected = affectedBy(relations, changed, {
+    through: RUNTIME_EDGES,
+    ...(moved === undefined ? {} : { moved }),
+  });
   const selected = new Map<number, ImporterReason[]>();
   for (const file of affected.files) {
     const test = findTest(coverage, file);
