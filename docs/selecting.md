@@ -324,6 +324,39 @@ A [journey](journeys.md) file you hand to `variance select --execution` is read
 by its regions, whatever the suite declares: naming the file asks for that
 reading.
 
+### From `file` to `file-use`: load a module where it is used
+
+`file` is the step for a suite that comes from a graph selector such as `nx
+affected`: it runs what the graph runs, and adds what the record saw load.
+`file-use` drops the graph and keeps what coverage says. The two differ only
+where a test imports a file without loading it, and a runner such as Vitest or
+Jest loads every static import. On most codebases the two steps run the same
+tests, and the size of both answers depends on your imports, not on the
+selector. A module that an index file re-exports is loaded by every test that
+imports the index, and `file-use` counts each of those tests as a user of it.
+
+Load the module at its first use instead. Under Jest, a lazy `require` does it:
+a `require` inside the function that needs the module, or Babel's CommonJS
+transform with its `lazy` option, evaluates the module when the code first
+reads it. A test that loaded the module is then a test that used it, and an
+edit to the module runs those tests and no others. The change saves twice: a
+test that does not use the module stops paying to evaluate it, and an edit to
+the module stops selecting that test.
+
+Under Vitest, Vite's module runner evaluates every module asynchronously, so a
+load at first use returns a Promise and a synchronous export cannot keep its
+signature. The runner also compiles TC39's `import defer` to an ordinary
+import, which evaluates at load. There, import past the index instead: from the
+module itself inside its own package, or from an entry the package declares.
+
+[Distill](distill.md) lists where to start. For every test file, it names each
+module the file loaded and no case of it ran, under the import that loaded it.
+On [TanStack Query](selection-tanstack-query.md#what-the-index-costs-file-use),
+47% of the lines its unit tests load are in such modules, and the heaviest of
+them come through one index file. Atlassian reports the same effect from
+removing barrel files in Jira: unit tests selected per change fell from about
+1,600 to 200 (*How We Achieved 75% Faster Builds by Removing Barrel Files*).
+
 ## What a skipped subject looks like
 
 It is in the report, with the sentence that skipped it:

@@ -127,9 +127,8 @@ the file. `file` and `symbol` add only the tests that import a file without
 loading it, and Vitest loads what a test imports, so on `query.ts` every
 importer is a loader and the three tie at 149. The devtools open their panel
 through a lazy `import()`, so four tests import `PiPContext.tsx` and never load
-it: `file` runs them and `file-use` does not. `symbol` keeps them too, because
-they import the package's index, which re-exports the component that renders
-`PiPProvider`. Either way the graph runs more than coverage, never less.
+it: `file` and `symbol` run them, and `file-use` does not. The graph runs more
+than coverage, never less.
 
 The relief starts inside the file. 83 test files entered `Query.fetch`, and 9
 the branch the edit changed; 4 entered `PiPProvider`, and nothing in it splits
@@ -157,6 +156,42 @@ done
 
 Each answer lists the test files it skips, and says on stderr how many of the
 recorded test files that is; the rest run.
+
+## What the index costs `file-use`
+
+Almost every test here imports `query-core` through its index,
+`packages/query-core/src/index.ts`, and the index loads every module it
+re-exports. A test that loaded a module counts at `file-use` as a test that
+used it. So an edit to the top level of `hydration.ts` runs 149 test files at
+`file-use`, the same as at `file`, and 121 of those 149 never ran a line of it.
+
+[Distill](distill.md) measures this for the whole suite, from the same record:
+
+```bash
+pnpm variance distill --suite unit
+```
+
+Of the lines the unit tests load, 47% are in modules that no case of the
+loading test file ran: 704,221 of 1,502,799, across 2,715 of 5,700 module
+loads. The heaviest come through the index:
+
+| Module | Test files that load it | Load it and run none of it |
+| --- | --- | --- |
+| `queriesObserver.ts` | 149 | 120 |
+| `hydration.ts` | 149 | 121 |
+| `mutationObserver.ts` | 149 | 108 |
+| `infiniteQueryObserver.ts` | 149 | 122 |
+| `streamedQuery.ts` | 149 | 138 |
+
+The index is the cause, not the selector. Of the 149 test files that load
+`hydration.ts`, 21 call a function in it, and `variance covering --file
+packages/query-core/src/hydration.ts` lists them. If the module loaded at its
+first call, an edit to its top level would run those 21. Under Vitest it
+cannot load that way without making `hydrate` return a Promise, so for this
+repository the change is in the imports: the tests and packages that need
+hydration would import it from an entry `query-core` declares for it, as
+[running less of the suite](selecting.md#from-file-to-file-use-load-a-module-where-it-is-used)
+describes.
 
 ## Sixty commits, each against its own parent
 
