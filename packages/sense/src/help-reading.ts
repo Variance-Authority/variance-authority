@@ -214,10 +214,11 @@ export function membersOn(root: string, file: string, on: string, index: string 
 /**
  * The declaration the export `name` of `file`, repo-relative, passes on,
  * through every `export … from` between them, renamed or not and type-only or
- * not, and through an `export *` when no named export passes the name. `null`
- * when the file declares the name itself, and when the walk ends short of a
- * declaration: at a namespace, at a request that resolved to no file of the
- * checkout, or back at a file it passed through. `undefined` when no index was
+ * not, and through an `export *` when no named export passes the name, as
+ * ECMAScript resolves an export. `null` when the file declares the name
+ * itself, and when the walk ends short of a declaration: at a namespace, at a
+ * request that resolved to no file of the checkout, back at a file it passed
+ * through, or at stars that reach different declarations. `undefined` when no index was
  * published; throws when the index does not read.
  */
 export function declarationPassedOn(root: string, file: string, name: string, index: string = sourceIndexPath(root)): PassedOnDeclaration | null | undefined {

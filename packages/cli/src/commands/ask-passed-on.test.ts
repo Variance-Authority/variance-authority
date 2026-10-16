@@ -106,6 +106,27 @@ describe('a name only passed on', () => {
     expect(clash.out).not.toContain('passes on');
   });
 
+  it('lets a named export decide even when it reaches nothing, and carries an ambiguous star upward', async () => {
+    checkout({
+      'packages/kit/src/money/empty.ts': 'export const nothing = 1;\n',
+      'packages/kit/src/money/decides.ts': "export * from './tax.js';\nexport { taxOf } from './empty.js';\n",
+      'packages/kit/src/money/other.ts': 'export function taxOf(): number {\n  return 0;\n}\n',
+      'packages/kit/src/money/third.ts': 'export function taxOf(): number {\n  return 3;\n}\n',
+      'packages/kit/src/money/both.ts': "export * from './tax.js';\nexport * from './other.js';\n",
+      'packages/kit/src/money/upper.ts': "export * from './both.js';\nexport * from './third.js';\n",
+      'packages/kit/src/money/decided.ts': "export { taxOf as decided } from './decides.js';\n",
+      'packages/kit/src/money/carried.ts': "export { taxOf as carried } from './upper.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const name of ['decided', 'carried']) {
+      const { code, out } = await run(['ask', 'uses', '--name', name]);
+      expect(code).toBe(EXIT_CLEAN);
+      expect(out).toContain(`packages/kit/src/money/${name}.ts:1`);
+      expect(out).not.toContain('passes on');
+    }
+  });
+
   it('names no declaration when the files only pass the name to each other', async () => {
     checkout({
       'packages/kit/src/money/left.ts': "export { loop } from './right.js';\n",
