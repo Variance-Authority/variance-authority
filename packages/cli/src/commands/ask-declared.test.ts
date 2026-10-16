@@ -313,6 +313,16 @@ describe('variance ask about a name declared and not exported', () => {
     }
   });
 
+  it('names the files whose declarations were not read when `symbol` finds nothing before `variance index` ran', async () => {
+    checkout({
+      ...RELAUNCH,
+      'packages/kit/src/money/huge.ts': `export const huge = 1;\n${'// filler line\n'.repeat(80_000)}`,
+    });
+
+    const { out, err } = await run(['ask', 'symbol', '--name', 'nowhere']);
+    expect(`${out}${err}`).toContain('The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/kit/src/money/huge.ts.');
+  });
+
   it('writes out five declarations of one name and counts the rest', async () => {
     const files = Object.fromEntries(
       ['a', 'b', 'c', 'd', 'e', 'f'].map((part) => [
