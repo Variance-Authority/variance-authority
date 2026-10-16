@@ -153,6 +153,11 @@ describe('the graph', () => {
       .toEqual(['b.ts', 'types.ts']);
     expect(affectedBy(relations, ['types.ts']).files).toEqual(['a.ts', 'b.ts', 'types.ts']);
     expect(affectedBy(relations, ['types.ts'], { through: RUNTIME_EDGES }).files).toEqual(['b.ts', 'types.ts']);
+    // The same edge, walked the other way: what `a.ts` depends on.
+    const a = idOf(relations, 'file', 'a.ts')!;
+    expect(dependenciesOf(relations, [a]).nodes.map((id) => relations.names[id])).toEqual(['a.ts', 'types.ts']);
+    expect(dependenciesOf(relations, [a], { through: RUNTIME_EDGES }).nodes.map((id) => relations.names[id]))
+      .toEqual(['a.ts']);
   });
 });
 
