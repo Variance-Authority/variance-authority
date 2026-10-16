@@ -3,6 +3,8 @@ import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { openImmutableLog } from './immutable-log.js';
+import { decodeSourceIndex } from './source-index-format.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
@@ -133,6 +135,20 @@ describe('the native warm update', () => {
     expect(await held(start)).toEqual(await held(twin));
     expect(await readySourceIndex(start)).toBe(false);
     git('checkout', '--', 'lib/alone.ts', 'lib/unit.ts');
+  });
+
+  it('leaves a file put back as the base holds it out of the working layer', async () => {
+    const start = await both();
+    const base = (await chain(start)).segments;
+    await write('lib/unit.ts', 'export const unit = 6;\n');
+    await updateNatively(root, start);
+    git('checkout', '--', 'lib/unit.ts');
+    await updateNatively(root, start);
+    expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
+    const working = decodeSourceIndex((await openImmutableLog(start)).segments.at(-1)!);
+    expect([...working.records.keys()]).toEqual([]);
+    // Its parse too: the base holds that content's parse, harvested, which the addon's read is not.
+    expect([...working.parses.keys()]).toEqual([]);
   });
 
   it('writes nothing when nothing changed', async () => {

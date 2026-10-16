@@ -2,12 +2,11 @@
 //! the generation the fold's result would have been encoded as. That the
 //! encoder's bytes mean what JavaScript meant is `source-index.test.ts`'s.
 
-use super::compacted;
+use super::{compacted, merged};
 use crate::generation::Delta;
-use crate::graph_index::merged;
 
 fn encoded(document: &str) -> Vec<u8> {
-    merged(&[], &Delta::of(vec![document.to_owned()]).unwrap())
+    crate::graph_index::merged(&[], &Delta::of(vec![document.to_owned()]).unwrap())
 }
 
 /// Every column a row can fill, and each list both present-and-empty and absent.
@@ -85,4 +84,55 @@ fn a_layer_that_is_not_a_generation_is_refused_with_its_place() {
     let good = encoded(FULL);
     let error = compacted(&[&good, b"not a segment"]).unwrap_err();
     assert!(error.starts_with("layer 1:"), "{error}");
+}
+
+#[test]
+fn a_working_layer_writes_no_row_the_base_already_holds() {
+    let base = encoded(FULL);
+    // Everything again, as an update that read every file writes it: one record
+    // changed, and one parse read again without its harvest. A parse is keyed by
+    // the bytes it was read from, so the base's row under its key is that parse.
+    let mut again: serde_json::Value = serde_json::from_str(FULL).unwrap();
+    again["records"][1][1] = serde_json::json!({"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]});
+    again["parses"][0][1] = serde_json::json!({"requests": []});
+    let expected = encoded(r#"{
+      "config": "v1:c",
+      "records": [["src/b.ts", {"record": {"file": "src/b.ts", "digest": "git:b2"}, "witnesses": ["src"]}]]
+    }"#);
+    assert_eq!(merged(&[&base], &[&encoded(&again.to_string())]).unwrap(), expected);
+}
+
+#[test]
+fn a_harvested_parse_is_written_over_the_one_the_base_holds_without_it() {
+    let base = encoded(r#"{"parses": [["git:a", {"requests": []}]]}"#);
+    let harvested = encoded(r#"{"parses": [["git:a", {"requests": [], "harvested": true, "declares": ["A"]}]]}"#);
+    assert_eq!(merged(&[&base], &[&harvested]).unwrap(), harvested);
+}
+
+#[test]
+fn a_row_put_back_as_the_base_holds_it_leaves_neither_the_row_nor_its_delete() {
+    let base = encoded(FULL);
+    let under = encoded(r#"{"config": "v1:c", "deletedRecords": ["src/a.ts"], "deletedDirectories": ["lib"]}"#);
+    assert_eq!(merged(&[&base], &[&under, &encoded(FULL)]).unwrap(), encoded(r#"{"config": "v1:c"}"#));
+}
+
+#[test]
+fn a_row_the_base_deleted_after_holding_it_is_written_again() {
+    // The base is two segments, oldest first; the later one deletes a row of each kind the earlier holds.
+    let deletes = encoded(r#"{"config": "v1:c", "deletedRecords": ["src/a.ts"], "deletedParses": ["git:c"], "deletedDirectories": ["lib"]}"#);
+    let full: serde_json::Value = serde_json::from_str(FULL).unwrap();
+    let expected = serde_json::json!({
+      "config": "v1:c",
+      "directories": [full["directories"][1]],
+      "records": [full["records"][0]],
+      "parses": [full["parses"][2]],
+    });
+    assert_eq!(merged(&[&encoded(FULL), &deletes], &[&encoded(FULL)]).unwrap(), encoded(&expected.to_string()));
+}
+
+#[test]
+fn a_base_segment_that_is_not_a_generation_is_refused_with_its_place() {
+    let layer = encoded(FULL);
+    let error = merged(&[&layer, b"not a segment"], &[&layer]).unwrap_err();
+    assert!(error.starts_with("base segment 1:"), "{error}");
 }
