@@ -137,9 +137,13 @@ describe('a cold closure held by the addon', () => {
       directories: shape.directories,
     })!;
     const read = graphRecords(held).find((record) => record.file === seeds[0])!;
-    const parsed = decodeSourceIndex(held.parseSegment()).parses.get(keyFor(read.digest!, parseWay(read.file)));
+    const { parses } = decodeSourceIndex(held.parseSegment());
+    const parsed = parses.get(keyFor(read.digest!, parseWay(read.file)));
     expect(parsed?.harvested).toBe(true);
     expect(parsed?.symbols?.map((symbol) => symbol.name)).toContain('nativeParses');
+    // Every wave, not only the seeds': the closure reaches past the first file.
+    expect(parses.size).toBeGreaterThan(seeds.length);
+    expect([...parses.values()].filter((each) => each.harvested !== true)).toEqual([]);
   });
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {

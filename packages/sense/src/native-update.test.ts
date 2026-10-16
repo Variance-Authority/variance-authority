@@ -146,7 +146,7 @@ describe('the native warm update', () => {
     expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
     const working = decodeSourceIndex((await openImmutableLog(start)).segments.at(-1)!);
     expect([...working.records.keys()]).toEqual([]);
-    // Its parse too: the base holds that content's parse, as the addon read it again.
+    // Its parse too: the base already holds the same harvested parse under that key.
     expect([...working.parses.keys()]).toEqual([]);
   });
 
