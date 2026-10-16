@@ -73,6 +73,13 @@ describe('the record `run --since` selects from', () => {
     expect(selecting.file.endsWith('/suites/e2e/coverage.bin')).toBe(true);
     expect(selecting.unmeasured).toBe('nothing');
   });
+
+  test('carries the evidence a suite declares it trusts', async () => {
+    const root = await repository({ suites: { unit: { kind: 'unit', evidence: 'file-use' }, e2e: { kind: 'e2e' } } });
+
+    expect((await selectingRecord(root, 'unit')).evidence).toBe('file-use');
+    expect(await selectingRecord(root, 'e2e')).not.toHaveProperty('evidence');
+  });
 });
 
 describe('the record a read the command runs without asks for', () => {

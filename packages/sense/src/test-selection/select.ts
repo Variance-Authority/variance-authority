@@ -12,6 +12,7 @@ import { readChange, readRowless, rowlessNames, type FileReading } from './readi
 import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
 import { routeOf } from './route.js';
+import { byRelations, declarationOf, readByRelations } from './evidence.js';
 
 export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
 
@@ -224,6 +225,7 @@ function readDiff(
   const options: ExecutionNarrowingOptions =
     sourceAt === undefined ? known : { ...known, sourceAt: (file, commit) => sourceAt(file, commit, asking) };
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
+  if (byRelations(options.evidence)) return readByRelations(coverage, [...changed.keys()].sort(codeUnitOrder), options);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
     const reasons = selected.get(test) ?? [];
@@ -239,11 +241,24 @@ function readDiff(
   const hunks = hunksOf(diff);
   const readings: FileReading[] = [];
   const seen = new Set<string>();
-  const charge = (file: string, block: number, reason: SelectionReason): void => {
+  const enter = (file: string, block: number, reason: SelectionReason): void => {
     for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
       if (disowned?.(file, test, block) !== true) select(test, reason);
     }
   };
+  // At function use a region stands for the declaration it is in: every block
+  // that shares its name, each charged once.
+  const widened = new Set<number>();
+  const charge =
+    options.evidence !== 'function-use'
+      ? enter
+      : (file: string, block: number, reason: SelectionReason): void => {
+          for (const one of declarationOf(coverage, block)) {
+            if (widened.has(one)) continue;
+            widened.add(one);
+            enter(file, one, reason.kind === 'region' ? regionOf(coverage, reason.file, one) : reason);
+          }
+        };
   // An importer a reading could not read and holds no row for is answered by
   // the graph's walk over its importers, with the reasons the reading gave.
   const wholes = new Map<string, Array<Extract<SelectionReason, { readonly kind: 'reader' }>>>();
@@ -326,6 +341,13 @@ function readDiff(
     const held = [...rowsOf.keys()].sort(codeUnitOrder).join('\n');
     if (seen.has(held)) continue;
     seen.add(held);
+    // At file use a measured file is every test that loaded it, whatever its lines say.
+    if (options.evidence === 'file-use') {
+      for (const [name, rows] of rowsOf) {
+        for (const module of rows) chargeAll(coverage, module, (block) => charge(file, block, regionOf(coverage, name, block)));
+      }
+      continue;
+    }
 
     // Everything below reads line numbers, and a line number is only a place
     // in the text it was cut from. The recorder wrote a digest of that text,

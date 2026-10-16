@@ -53,9 +53,11 @@ describe('the suites a repository declares', () => {
     [{}, '"suites" declares no suite'],
     [{ '../up': { kind: 'unit' } }, '"suites.../up" is not a suite name'],
     [{ '.work': { kind: 'unit' } }, '"suites..work" is not a suite name'],
-    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share", "before"?: [paths], "relations"?: boolean }, not {"kind":"smoke"}'],
+    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share", "before"?: [paths], "relations"?: boolean, "evidence"?: "file" | "symbol" | "file-use" | "function-use" | "region-use" }, not {"kind":"smoke"}'],
     [{ e2e: { kind: 'e2e', relations: 'no' } }, '"suites.e2e" must be { "kind"'],
     [{ unit: { kind: 'unit', carry: 'artifact' } }, '"suites.unit" must be { "kind"'],
+    [{ unit: { kind: 'unit', evidence: 'package' } }, '"suites.unit" must be { "kind"'],
+    [{ e2e: { kind: 'e2e', relations: false, evidence: 'symbol' } }, '"suites.e2e.evidence" is "symbol", read from the import graph, and the suite declines the graph with "relations": false'],
     [{ unit: { kind: 'unit', runner: 'jest' } }, '"suites.unit" must be { "kind"'],
     [{ unit: 'unit' }, '"suites.unit" must be { "kind"'],
     [{ unit: { kind: 'unit', before: [] } }, '"suites.unit.before" must be a non-empty list of paths, not []'],
@@ -72,6 +74,15 @@ describe('whether a suite asks the graph about a file its record did not measure
       parseSuites({ e2e: { kind: 'e2e', relations: false, before: ['apps/web'] }, unit: { kind: 'unit' } }, 'here.json'),
     ).toEqual([
       { name: 'e2e', kind: 'e2e', before: ['apps/web'], relations: false },
+      { name: 'unit', kind: 'unit' },
+    ]);
+  });
+});
+
+describe('how much evidence a suite trusts before it skips a test', () => {
+  test('is declared on the suite, and absent when it says nothing', () => {
+    expect(parseSuites({ e2e: { kind: 'e2e', evidence: 'file-use' }, unit: { kind: 'unit' } }, 'here.json')).toEqual([
+      { name: 'e2e', kind: 'e2e', evidence: 'file-use' },
       { name: 'unit', kind: 'unit' },
     ]);
   });

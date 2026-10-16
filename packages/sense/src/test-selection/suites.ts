@@ -32,6 +32,7 @@
 // compass: variance-authority.reach
 
 import { rootConfig } from './cache-layers.js';
+import { EVIDENCE_STEPS, byRelations, type Evidence } from './evidence.js';
 
 /**
  * What a suite is for. A closed list, because a reader that groups by kind, or a
@@ -80,6 +81,13 @@ export interface DeclaredSuite {
    * or a neighbour by accident; such a suite names the app in its `before`.
    */
   readonly relations?: boolean;
+  /**
+   * How much evidence selection trusts before it skips one of this suite's
+   * tests, coarsest first: `file`, `symbol`, `file-use`, `function-use`,
+   * `region-use` (`evidence.ts`). Absent is `region-use`. A suite that is new
+   * to selection starts where it feels safe and moves down.
+   */
+  readonly evidence?: Evidence;
 }
 
 /**
@@ -90,7 +98,7 @@ export interface DeclaredSuite {
 const SUITE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
 /** The keys one suite's declaration may hold. */
-const SUITE_KEYS: readonly string[] = ['before', 'carry', 'kind', 'relations'];
+const SUITE_KEYS: readonly string[] = ['before', 'carry', 'evidence', 'kind', 'relations'];
 
 /**
  * A `suites` value the declaration's rules refuse.
@@ -143,18 +151,29 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
     const carry = keys === undefined ? undefined : (declared as Record<string, unknown>)['carry'];
     const before = keys === undefined ? undefined : (declared as Record<string, unknown>)['before'];
     const relations = keys === undefined ? undefined : (declared as Record<string, unknown>)['relations'];
+    const evidence = keys === undefined ? undefined : (declared as Record<string, unknown>)['evidence'];
     if (
       keys === undefined ||
       keys.some((key) => !SUITE_KEYS.includes(key)) ||
       !SUITE_KINDS.includes(kind as SuiteKind) ||
       (carry !== undefined && !CARRIERS.includes(carry as Carrier)) ||
-      (relations !== undefined && typeof relations !== 'boolean')
+      (relations !== undefined && typeof relations !== 'boolean') ||
+      (evidence !== undefined && !EVIDENCE_STEPS.includes(evidence as Evidence))
     ) {
       throw new SuitesError(
         where,
         `suites.${name}`,
-        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths], "relations"?: boolean }, ` +
+        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths], "relations"?: boolean, ` +
+          `"evidence"?: ${quoted(EVIDENCE_STEPS)} }, ` +
           `not ${JSON.stringify(declared)}`,
+      );
+    }
+
+    if (relations === false && byRelations(evidence as Evidence | undefined)) {
+      throw new SuitesError(
+        where,
+        `suites.${name}.evidence`,
+        `is "${evidence as string}", read from the import graph, and the suite declines the graph with "relations": false`,
       );
     }
 
@@ -164,6 +183,7 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
       ...(carry === undefined ? {} : { carry: carry as Carrier }),
       ...(before === undefined ? {} : { before: parseBefore(before, `suites.${name}.before`, where) }),
       ...(relations === undefined ? {} : { relations: relations as boolean }),
+      ...(evidence === undefined ? {} : { evidence: evidence as Evidence }),
     };
   });
 }

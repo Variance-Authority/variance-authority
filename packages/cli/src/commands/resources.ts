@@ -9,6 +9,7 @@ import {
   type Stand,
   type StandQuestion,
   type TestDistance,
+  type Evidence,
   type Unmeasured,
 } from '@variance-authority/sense/test-selection';
 import type { RasterStore } from '@variance-authority/raster';
@@ -148,10 +149,14 @@ export async function journeyAgainst(
   /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
   at?: string,
   checkout: string = root,
-  /** `nothing` for a suite that declines relations: a file its record did not measure selects nobody. */
-  unmeasured?: Unmeasured,
+  /**
+   * What the suite declares: `unmeasured: 'nothing'` for one that declines
+   * relations, so a file its record did not measure selects nobody, and the
+   * evidence it trusts.
+   */
+  suite: { readonly unmeasured?: Unmeasured | undefined; readonly evidence?: Evidence | undefined } = {},
 ): Promise<ExecutionNarrowing | undefined> {
-  return (await recordAgainst(root, diff, { relations, at, checkout, unmeasured }))?.narrowing;
+  return (await recordAgainst(root, diff, { relations, at, checkout, ...suite }))?.narrowing;
 }
 
 /**
@@ -166,6 +171,8 @@ export async function recordAgainst(
     readonly at?: string | undefined;
     readonly checkout?: string | undefined;
     readonly unmeasured?: Unmeasured | undefined;
+    /** The evidence the suite trusts; absent reads regions. */
+    readonly evidence?: Evidence | undefined;
     readonly distances?: boolean;
     /**
      * `false` for a diff whose new side is not the text the landing kept a
@@ -181,7 +188,7 @@ export async function recordAgainst(
     readonly undone?: false;
   },
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
-  const { relations, at, checkout = root, unmeasured } = options;
+  const { relations, at, checkout = root, unmeasured, evidence } = options;
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
@@ -196,6 +203,7 @@ export async function recordAgainst(
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),
+    ...(evidence === undefined ? {} : { evidence }),
   };
 
   try {

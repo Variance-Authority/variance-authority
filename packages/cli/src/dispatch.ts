@@ -148,8 +148,8 @@ export async function dispatch(
             scanRelations: async (dirs) =>
               relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before),
             readJourney: async (diff, relations) => {
-              const { file, unmeasured } = await selectingRecord(process.cwd(), parsed.suite);
-              return journeyAgainst(process.cwd(), diff, relations, file, process.cwd(), unmeasured);
+              const { file, ...suite } = await selectingRecord(process.cwd(), parsed.suite);
+              return journeyAgainst(process.cwd(), diff, relations, file, process.cwd(), suite);
             },
             readJourneys: async (subjects) => {
               const at = await refiningRecord(process.cwd(), parsed.suite);

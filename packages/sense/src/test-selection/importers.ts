@@ -12,6 +12,7 @@ import {
 } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
+import type { Evidence } from './evidence.js';
 import type { Unmeasured } from './route.js';
 import type { Disowned } from './shadowed.js';
 
@@ -89,6 +90,18 @@ export interface ExecutionNarrowingOptions {
    * speaking and not the graph.
    */
   readonly unmeasured?: Unmeasured;
+  /**
+   * How much evidence the suite trusts (`evidence.ts`): the import graph alone
+   * (`file`, `symbol`), the files, functions or regions a test entered. Absent
+   * is `region-use`.
+   */
+  readonly evidence?: Evidence;
+  /**
+   * Per changed file, the exports its change moved, which narrows the walk at
+   * `symbol`. Absent reads them from the file's two texts where `root` names
+   * the repository; a file it does not name is walked whole.
+   */
+  readonly moved?: ReadonlyMap<string, readonly string[]>;
   /**
    * Every name the snapshot may hold a graph file under. When absent, the
    * record's own names that the `tsconfig` under `root` builds from the file,

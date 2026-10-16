@@ -283,7 +283,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // the two commits, read from both texts like the tree's. Its new side is the
   // stand, never the tree, so a module the landing kept a text for is charged
   // whole there: the kept text is not what the tree holds.
-  const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), distances: request.atDistance !== undefined };
+  const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), evidence: declared?.evidence, distances: request.atDistance !== undefined };
   const ask = (question: StandQuestion) =>
     question.read === 'stand'
       ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), { ...options, keptTexts: false })
