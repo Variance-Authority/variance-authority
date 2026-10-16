@@ -89,6 +89,22 @@ export interface MemberSite {
   readonly kind: 'source' | 'story' | 'test';
   /** The container's name, or `a type literal` or `a class` when it has none. */
   readonly on: string;
+  /**
+   * Every line that uses the member through a value whose type is written as
+   * the container, by file in code units, then by line; absent for a
+   * container with no name, which no line can write.
+   */
+  readonly uses?: readonly MemberUseSite[];
+}
+
+/** One line that uses a member, and how. */
+export interface MemberUseSite {
+  readonly at: string;
+  readonly line: number;
+  /** The package of the file, or empty when no package holds it. */
+  readonly by: string;
+  readonly kind: 'source' | 'story' | 'test';
+  readonly how: 'destructure' | 'read' | 'write';
 }
 
 export interface NativeHelp {

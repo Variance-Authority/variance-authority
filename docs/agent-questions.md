@@ -39,8 +39,10 @@ For [source orientation](orientation.md), ask three questions in this order:
 
 Those relations are resolved module imports, not runtime function calls. A
 member of an interface, a type literal or a class is never imported: `uses`
-names where a member by that name is declared, after any imports, and `grep
---to` the declaring file finds its callers.
+names where a member by that name is declared, after any imports, and under
+each declaration the lines that read, write or destructure it through a value
+whose type the line writes, such as `props: Props` or `value as Props`. `grep
+--to` the declaring file finds the uses whose type no line writes.
 
 `variance ask` with no question lists every report, watcher and source question
 and its arguments. The source questions read the checkout under the working

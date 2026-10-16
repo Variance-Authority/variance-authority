@@ -75,6 +75,13 @@ const PARSED: Parsed = {
     { name: 'resolveThings', line: 21, on: 'NativeScanner' },
     { name: 'Card', line: 24, on: 'a type literal' },
   ],
+  // A member, a type and lines no other column holds, and every kind of use,
+  // so a column dropped or read in place of another fails here.
+  memberUses: [
+    { name: 'hydrateLater', line: 31, of: 'LazyShell', how: 'read' },
+    { name: 'hydrateLater', line: 33, of: 'LazyShell', how: 'write' },
+    { name: 'paintOnce', line: 35, of: 'Renamed', how: 'destructure' },
+  ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.
@@ -324,6 +331,25 @@ describe('the binary source index', () => {
     // One parse, so two offsets: the start of its range and its end.
     const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
     offsets[1] = PARSED.memberDeclarations!.length + 1;
+
+    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+  });
+
+  it('rejects member uses whose offsets run past their columns', () => {
+    const encoded = encodeSourceIndex({
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map(),
+      records: new Map(),
+    });
+    const headerLength = encoded.readUInt32LE(0);
+    const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
+      sections: { name: string; offset: number }[];
+    };
+    const section = header.sections.find((value) => value.name === 'parses.member-uses');
+    expect(section).toBeDefined();
+    // One parse, so two offsets: the start of its range and its end.
+    const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
+    offsets[1] = PARSED.memberUses!.length + 1;
 
     expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
   });

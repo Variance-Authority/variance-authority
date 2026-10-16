@@ -212,31 +212,52 @@ alone, the same way. The first line names where it is exported:
 ```
 
 A method or property of an interface, a type literal or a class is never
-imported: code reaches it through a value, `scanner.resolveSources(…)`. `uses`
-lists where each member by that name is declared, each line ending with the
-container it is on, and names the search that finds its callers. For a name no
-export has, that is the whole answer:
+imported: code reaches it through a value, `props.size`. `uses` lists where
+each member by that name is declared, each line ending with the container it is
+on, then, under each declaration on a named container, the lines that use it.
+For a name no export has, that is the whole answer:
 
 ```
-`resolveSources` is no exported name; it is a member, declared in 1 place:
+`size` is no exported name; it is a member, declared in 2 places:
 Path order; `from` sorts nearest first.
 
 Member declarations:
 
-packages/sense/src/native.ts:234 — NativeScanner
+packages/lib/src/shapes/props.ts:2 — Props
+packages/lib/src/shapes/props.ts:7 — Other
 
-Its callers are text in the files that import a declaration: docs_grep with `query` `\bresolveSources\b` and `to` `packages/sense/src/native.ts`.
+`Props.size`, declared at packages/lib/src/shapes/props.ts:2, is used in 3 places:
+
+apps/app/src/fit.ts:2 — @acme/app, read
+packages/lib/src/shapes/use.ts:6 — @acme/lib, write
+packages/lib/src/shapes/use.ts:8 — @acme/lib, destructure
+
+No line uses `size` through a value whose type is written as `Other` at packages/lib/src/shapes/props.ts:7.
+
+A use through a value whose type is not written, or is written as no named container, is text in the files that import a declaration: docs_grep with `query` `\bsize\b` and `to` the file that declares the container you mean (`package` narrows the declarations to one package).
 That search matches text, as no type checker runs: it lists comments, strings, a call by key such as `entry('name')` and same-named members of other types in those files, and misses a value whose type comes in through a file that does not import the declaration.
 ```
 
-Run it as `variance ask grep --query '\bresolveSources\b' --to
-packages/sense/src/native.ts`. A value of the member's type comes from a file
-that imports the declaration, at any depth, so that is where the search looks.
-When several files declare the name, pass the one whose container you mean.
-A name that an export has as well, such as a wrapper function named like the
-member, lists the wrapper's imports first, then `` `prepareJourneys` is a member
-too, declared in 2 places: `` and the declarations with their route. Ask a
-language server when you need the callers proven against one type.
+A use is a line that reads the member (`props.size`, `props['size']`,
+`props?.size`), writes it (`props.size = 1`, `+=`, `++`, a key of an object
+literal written as the type), or destructures it (`({ size }: Props) =>`,
+`const { size } = props`). It is tied to a declaration only where the line
+writes the value's type: a parameter's or a variable's annotation, alone or
+with `| undefined`, or an `as`, a `satisfies` or a `<Props>` cast. That name is
+followed through the import that binds it, renamed or passed on by `export *`
+or `export { … } from`, to the file that declares it, so `Props.size` and
+`Other.size` are listed apart and a same-named type of another file is neither.
+A binding that shadows an annotated one is no use.
+
+What a type checker infers is not read: a value returned by a call, a generic
+or a mapped type, a value narrowed or copied without an annotation, and a type
+named through a namespace (`ns.Props`). Those are the `grep` route's: `variance ask grep --query '\bsize\b'
+--to packages/lib/src/shapes/props.ts` searches the files that import the
+declaration, at any depth. A name that an export has as well, such as a wrapper
+function named like the member, lists the wrapper's imports first, then
+`` `prepareJourneys` is a member too, declared in 2 places: `` and the
+declarations with their uses and route. Ask a language server when you need
+every use proven against one type.
 
 **`uses --from` sorts; `search --from` narrows.** On `uses`, `--from` is the
 file you are editing, and every site still comes back, ordered by the leading
