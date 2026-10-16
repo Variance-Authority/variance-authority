@@ -15,7 +15,10 @@
  *   change moved, and every test that loaded a changed file.
  * - `file-use` — a test runs when it loaded a changed file.
  * - `function-use` — a test runs when it entered the declaration a changed line
- *   is in. A line at the top level of a module is every test that loaded it.
+ *   is in. The top level is read as at `region-use`, and each region that
+ *   reading charges is widened to its function: a changed value is every test
+ *   that entered a function reading it, and a change that runs as the module
+ *   loads is every test that loaded the file.
  * - `region-use` — a test runs when it entered the region a changed line is in.
  *   This is what a suite that declares nothing reads.
  *
