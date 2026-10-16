@@ -271,7 +271,7 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/package/src/use.ts",
+    "at": "packages/package/src/read-usage.ts",
     "count": 1
   },
   {

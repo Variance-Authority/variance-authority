@@ -52,8 +52,10 @@ pub(crate) fn wholesale(
     let mut found = Vec::new();
     // A name a type-only re-export passed on is a type use, as `taken`'s are.
     let mut take = |name: &str, local: &str, line: u32, origins: &HashMap<usize, bool>| {
+        // A glob binds each name as itself; only a module bound under another local renames.
+        let renamed = (local != name).then(|| local.to_owned());
         for (&origin, &typed) in origins {
-            let taken = NameUse { key: key.to_owned(), name: name.to_owned(), by: by.to_owned(), at: at.to_owned(), line, r#type: typed, kind: kind.to_owned(), through: None, through_line: 0 };
+            let taken = NameUse { key: key.to_owned(), name: name.to_owned(), local: renamed.clone(), by: by.to_owned(), at: at.to_owned(), line, r#type: typed, kind: kind.to_owned(), through: None, through_line: 0 };
             found.push(Taken { origin, taken, local: local.to_owned() });
         }
     };

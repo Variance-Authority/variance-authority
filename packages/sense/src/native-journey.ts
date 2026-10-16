@@ -62,18 +62,6 @@ export interface NativeJourneyProjection {
 /** One region of a module, as the transform that placed its probes cut it. */
 export type NativeRegion = NativeJourneyModule['blocks'][number];
 
-/** One file's inventories read at the regions they all hold, by place in the base inventory. */
-export interface NativeReconciledRegions {
-  /** The inventory the shared regions are read from. */
-  readonly base: number;
-  /** The position in the base inventory of each shared region, in order. */
-  readonly kept: readonly number[];
-  /** The region spanning the file, after the shared ones, where a region lands on nothing shared. */
-  readonly whole?: NativeRegion | null;
-  /** `lands[inventory][region]`: the region it reads as, among the shared regions and then the whole file. */
-  readonly lands: readonly (readonly number[])[];
-}
-
 /** One module a run's cases named, cut again from the checkout, as the fold reads it. */
 export interface NativeJourneyModule {
   readonly id: string;

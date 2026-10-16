@@ -6,11 +6,12 @@ import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
-import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
-import { provenance } from './third-party.js';
+import { thirdBlock } from './third-party.js';
 import { declaredAt, declaredBlocks, unreadNote } from './declared.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
+import { localNames, renamedSites } from './renamed.js';
 
 /**
  * `docs_symbol` — one name, in full.
@@ -25,9 +26,11 @@ export const symbol: Tool<Help> = {
   description:
     'Everything known about one name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
-    'written above it, the README passage that names it — and which packages import it. Names are ' +
+    'written above it, the README passage that names it — which packages import it, and where an ' +
+    'import renames it. Names are ' +
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
-    'name a file declares at its top level and does not export, answered with where it is written, and ' +
+    'name a file declares at its top level and does not export, answered with where it is written, a ' +
+    'name an import binds with `as`, answered with that import and the original it names, and ' +
     'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
     'when the exact name is not known, docs_uses for local import sites.',
@@ -71,13 +74,18 @@ export const symbol: Tool<Help> = {
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
-    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared].join('\n\n');
+    // A name an import binds to an export of another name: the import, and the export it names.
+    const aliased = localNames(help, invocation?.root, name, wanted).blocks;
+    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared, ...aliased].join('\n\n');
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    const own = [...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []), ...(found.length === 0 ? declared : [])];
+    const own = [
+      ...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []),
+      ...(found.length === 0 ? [...declared, ...aliased] : []),
+    ];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: every answer and refusal below says so.
     const notRead = found.length === 0 && own.length === 0 ? unreadNote(invocation?.root, name) : '';
@@ -98,10 +106,6 @@ export const symbol: Tool<Help> = {
       const answered = (one: SilentPackage): boolean =>
         one.installed !== undefined && shown.shown.some((match) => match.installed === one.installed);
       const silent = silentBlocks(invocation.root, name, (shown.silent ?? []).filter((one) => !answered(one)), wanted !== undefined);
-      const described = (entry: ThirdPartyMatch): string =>
-        `${entry.specifier} · ${entry.name} [${entry.kind}] · ${entry.package}${entry.version === undefined ? '' : `@${entry.version}`}` +
-        `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
-        `\n${provenance(entry)}\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`;
       const cut = (matches: LexiconMatches): readonly string[] =>
         matches.total > matches.shown.length ? [`${matches.total - matches.shown.length} more matches not shown.`] : [];
       if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
@@ -111,12 +115,12 @@ export const symbol: Tool<Help> = {
         return [
           ...own,
           `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
-          ...everywhere.shown.map(described),
+          ...everywhere.shown.map(thirdBlock),
           ...cut(everywhere),
           ...unread,
         ].join('\n\n');
       }
-      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent, ...unread].join('\n\n');
+      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(thirdBlock), ...cut(shown), ...silent, ...unread].join('\n\n');
     }
     if (own.length > 0) return own.join('\n\n');
     if (found.length === 0) throw new Error(`${unfound(help, name, wanted)}${notRead}`);
@@ -138,7 +142,12 @@ export const symbol: Tool<Help> = {
         ? []
         : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
-    return [[block(first[0], first[1], first[2]), ...also, ...shown].join('\n'), ...declared].join('\n\n');
+    // The imports within a package are the source index's, which the Help value does not record.
+    const declaring = [...new Set(found.map(([, , entry]) => entry.at))];
+    const within = importsOf(invocation?.root, declaring, name);
+    const renamed = renamedSites(name, [...found.flatMap(([, , entry]) => entry.sites), ...('uses' in within ? within.uses : [])]);
+
+    return [[block(first[0], first[1], first[2]), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'), ...declared, ...aliased].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
@@ -160,6 +169,7 @@ export const symbol: Tool<Help> = {
       for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
     }
     at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
+    at.push(...localNames(help, invocation?.root, name, wanted).files);
     if (at.length === 0) throw new Error(unfound(help, name, wanted));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {
@@ -208,7 +218,7 @@ function importedByPath(help: Help, name: string, sites: readonly PathSite[]): s
       why,
       '',
       `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
-      ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.type ? ' (type only)' : ''}`),
+      ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.local === undefined ? '' : ` (as ${site.taken.local})`}${site.taken.type ? ' (type only)' : ''}`),
     ].join('\n');
   });
   return blocks.join('\n\n');
@@ -242,7 +252,7 @@ function exportedOnly(name: string, exported: readonly Named[], root: string | u
         name,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
         ...(root === undefined ? [] : lineOf(root, held)),
-        ...('uses' in within ? [importedIn(within.uses.length)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
+        ...('uses' in within ? [importedIn(within.uses.length), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
       ].join('\n'),
     )
     .join('\n\n');

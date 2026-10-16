@@ -35,7 +35,8 @@ fn file(path: &str, targets: &[&str], requests: &[String], exports: &[String]) -
         r#"["{path}", {{"record": {{"file": "{path}", "digest": "{digest}"}}, "witnesses": [], "targets": [{}]}}]"#,
         targets.join(", "),
     );
-    let parse = format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}], "exports": [{}]}}]"#, requests.join(", "), exports.join(", "));
+    let extension = &path[path.rfind('.').unwrap()..];
+    let parse = format!(r#"["{digest}\u0000{extension}\u0000+", {{"requests": [{}], "exports": [{}]}}]"#, requests.join(", "), exports.join(", "));
     (record, parse)
 }
 
@@ -236,4 +237,30 @@ fn a_rust_use_names_a_module_by_its_whole_path_and_not_by_a_namesake_item() {
     assert!(!names_module("crate::shapes::Props", "src/shapes.rs"));
     assert!(!names_module("crate", "src/lib.rs"));
     assert!(!names_module("./shapes", "src/shapes.ts"));
+}
+
+#[test]
+fn orders_two_bindings_of_one_name_on_one_line_by_what_they_bind_it_to() {
+    let root = fixture("two-locals");
+    // `import { greet as quiet, greet as loud } from './greet'`
+    let both = r#"{"value": "./greet", "kind": "imports", "line": 1, "bindings": [{"imported": "greet", "local": "quiet", "type": false, "line": 1}, {"imported": "greet", "local": "loud", "type": false, "line": 1}]}"#;
+    let bytes = chain(&[file("src/greet.ts", &[], &[], &[]), file("src/both.ts", &["src/greet.ts"], &[both.to_owned()], &[])]);
+
+    let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
+
+    let locals: Vec<Option<&str>> = read.uses.iter().map(|one| one.local.as_deref()).collect();
+    assert_eq!(locals, [Some("loud"), Some("quiet")]);
+}
+
+#[test]
+fn a_glob_takes_each_name_as_itself_and_marks_no_rename() {
+    let root = fixture("glob-local");
+    // `use crate::greet::*;` then `greet()`
+    let glob = r#"{"value": "crate::greet::*", "kind": "imports", "line": 1, "bindings": [{"imported": "*", "local": "*", "type": false, "line": 1}]}"#;
+    let bytes = chain(&[file("src/greet.rs", &[], &[], &[]), file("src/glob.rs", &["src/greet.rs"], &[glob.to_owned()], &[])]);
+
+    let read = read(&root.0, &bytes, &["src/greet.rs"], "greet");
+
+    let locals: Vec<(&str, Option<&str>)> = read.uses.iter().map(|one| (one.at.as_str(), one.local.as_deref())).collect();
+    assert_eq!(locals, [("src/glob.rs", None)]);
 }

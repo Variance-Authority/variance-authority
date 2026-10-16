@@ -1,7 +1,8 @@
 import { execFileSync, spawn } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { changedBy, siteReach } from './site-reach.mjs';
 
@@ -21,13 +22,70 @@ const ROOT = resolve(import.meta.dirname, '..');
 const SCRIPT = join(ROOT, 'tools/site-reach.mjs');
 const RUNNER = 'packages/cli/dist/bin.js';
 
-const git = (...args: string[]): string =>
-  execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+// CI checks this repository out with every commit and no trees, and git
+// fetches a tree it lacks from GitHub the moment a command reads one. A check
+// that read an old commit's trees would wait on the network halfway through,
+// so none does: a commit is made here, and git is told never to fetch.
+const OFFLINE = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
+
+const git = (cwd: string, args: string[], env: NodeJS.ProcessEnv = OFFLINE, input?: string): string =>
+  execFileSync('git', args, { cwd, encoding: 'utf8', env, input, stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+
+const IDENTITY = ['-c', 'user.name=site-reach', '-c', 'user.email=site-reach@localhost', '-c', 'commit.gpgsign=false'];
+
+/** A repository of its own, and a commit in it that writes `files`. */
+async function repository(): Promise<{ dir: string; commit: (files: Record<string, string | null>) => string }> {
+  const dir = await mkdtemp(join(tmpdir(), 'site-reach-'));
+  git(dir, ['init', '--quiet', '--initial-branch=main']);
+  const commit = (files: Record<string, string | null>): string => {
+    for (const [file, text] of Object.entries(files)) {
+      if (text === null) git(dir, ['rm', '--quiet', file]);
+      else {
+        mkdirSync(dirname(join(dir, file)), { recursive: true });
+        writeFileSync(join(dir, file), text);
+        git(dir, ['add', file]);
+      }
+    }
+    git(dir, [...IDENTITY, 'commit', '--quiet', '--no-verify', '--allow-empty', '-m', 'change']);
+    return git(dir, ['rev-parse', 'HEAD']);
+  };
+  return { dir, commit };
+}
+
+/**
+ * A pull request's merge commit on this checkout's `HEAD`, as GitHub checks
+ * one out: its first parent is the base, here `HEAD`, its second the branch,
+ * and its tree is `HEAD`'s with each of `files` edited. The objects go to a
+ * directory of their own, which `env` lends git as an alternate, so nothing is
+ * written into the checkout.
+ */
+async function pullRequest(files: string[]): Promise<{ merge: string; env: NodeJS.ProcessEnv }> {
+  const dir = await mkdtemp(join(tmpdir(), 'site-reach-'));
+  const common = git(ROOT, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  const env = {
+    ...OFFLINE,
+    GIT_INDEX_FILE: join(dir, 'index'),
+    GIT_OBJECT_DIRECTORY: join(dir, 'objects'),
+    GIT_ALTERNATE_OBJECT_DIRECTORIES: join(common, 'objects'),
+  };
+  mkdirSync(env.GIT_OBJECT_DIRECTORY);
+  git(ROOT, ['read-tree', 'HEAD'], env);
+  for (const file of files) {
+    const [mode] = git(ROOT, ['ls-tree', 'HEAD', '--', file], env).split(' ');
+    const text = `${git(ROOT, ['cat-file', 'blob', `HEAD:${file}`], env)}\n// edited\n`;
+    const blob = git(ROOT, ['hash-object', '-w', '--stdin'], env, text);
+    git(ROOT, ['update-index', '--cacheinfo', `${mode},${blob},${file}`], env);
+  }
+  const tree = git(ROOT, ['write-tree'], env);
+  const branch = git(ROOT, [...IDENTITY, 'commit-tree', tree, '-p', 'HEAD', '-m', 'branch'], env);
+  const merge = git(ROOT, [...IDENTITY, 'commit-tree', tree, '-p', 'HEAD', '-p', branch, '-m', 'merge'], env);
+  return { merge, env: { GIT_NO_LAZY_FETCH: '1', GIT_ALTERNATE_OBJECT_DIRECTORIES: env.GIT_OBJECT_DIRECTORY } };
+}
 
 // The site's reach is read from the published source index, as the job reads
 // it, so the index is published first, as the job publishes it.
 beforeAll(() => {
-  execFileSync('node', [join(ROOT, RUNNER), 'index'], { cwd: ROOT, stdio: 'ignore' });
+  execFileSync('node', [join(ROOT, RUNNER), 'index'], { cwd: ROOT, env: OFFLINE, stdio: 'ignore' });
 }, 120_000);
 
 describe('what reaches the site', () => {
@@ -80,30 +138,37 @@ describe('what reaches the site', () => {
 });
 
 describe('the change a commit makes', () => {
-  // #347's branch added a changeset and dropped it again: merging it changed
-  // the example and nothing else.
-  it('is what merging brought in, not what each commit of the branch did', () => {
-    expect(changedBy(ROOT, '39ffac1a44b46a97de23324b902bd126ccadd0d9')).toEqual([
-      'examples/readme-case/README.md',
-      'examples/readme-case/src/readme.chromium.test.ts',
-    ]);
+  // As #347's did: the branch added a changeset and dropped it again, while
+  // its base moved on. Merging it changed the example and nothing else.
+  it('is what merging brought in, not what each commit of the branch did', async () => {
+    const { dir, commit } = await repository();
+    commit({ 'examples/readme-case/README.md': 'a case\n', 'docs/index.md': 'docs\n' });
+    git(dir, ['switch', '--quiet', '--create', 'branch']);
+    commit({ '.changeset/a-change.md': '---\n---\n' });
+    commit({ '.changeset/a-change.md': null, 'examples/readme-case/README.md': 'the case\n' });
+    git(dir, ['switch', '--quiet', 'main']);
+    commit({ 'docs/index.md': 'the docs\n' });
+    git(dir, [...IDENTITY, 'merge', '--quiet', '--no-ff', '--no-verify', '-m', 'merge', 'branch']);
+
+    expect(changedBy(dir, 'HEAD')).toEqual(['examples/readme-case/README.md']);
   });
 
   // A move out of a package the run loads changes that package, and only the
   // path it left says so.
-  it('names both sides of a move', () => {
-    const moved = git('log', '--diff-filter=R', '--no-merges', '--max-count=1', '--format=%H', 'HEAD');
-    const [, from, to] = git('diff', '--name-status', '-M', '--diff-filter=R', `${moved}^1`, moved)
-      .split('\n')[0]!
-      .split('\t');
+  it('names both sides of a move', async () => {
+    const { dir, commit } = await repository();
+    const text = Array.from({ length: 20 }, (_, line) => `export const line${line} = ${line};\n`).join('');
+    commit({ 'packages/core/src/moved.ts': text });
+    const moved = commit({ 'packages/core/src/moved.ts': null, 'examples/kitchen-sink/src/moved.ts': text });
 
-    expect(changedBy(ROOT, moved)).toEqual(expect.arrayContaining([from, to]));
+    expect(git(dir, ['diff', '--name-status', '-M', `${moved}^1`, moved])).toMatch(/^R100\t/);
+    expect(changedBy(dir, moved)).toEqual(['examples/kitchen-sink/src/moved.ts', 'packages/core/src/moved.ts']);
   });
 
-  it('is unknown for a commit with nothing to compare against', () => {
-    const first = git('rev-list', '--max-parents=0', 'HEAD').split('\n')[0]!;
+  it('is unknown for a commit with nothing to compare against', async () => {
+    const { dir, commit } = await repository();
 
-    expect(changedBy(ROOT, first)).toBeUndefined();
+    expect(changedBy(dir, commit({ 'README.md': 'first\n' }))).toBeUndefined();
   });
 
   // In CI's container the checkout belongs to another user, and git refuses
@@ -120,6 +185,7 @@ async function decide(
   event: string,
   action: string,
   commit: string,
+  objects: NodeJS.ProcessEnv = { GIT_NO_LAZY_FETCH: '1' },
 ): Promise<{ code: number | null; out: string; outputs: Record<string, string> }> {
   const dir = await mkdtemp(join(tmpdir(), 'site-reach-'));
   const output = join(dir, 'output');
@@ -136,6 +202,7 @@ async function decide(
       GITHUB_OUTPUT: output,
       VARIANCE_EVENT_ACTION: action,
       VARIANCE_RUNNER: RUNNER,
+      ...objects,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -160,7 +227,7 @@ async function decide(
 }
 
 describe('whether the run observes the site', () => {
-  const first = git('rev-list', '--max-parents=0', 'HEAD').split('\n')[0]!;
+  const first = git(ROOT, ['rev-list', '--max-parents=0', 'HEAD']).split('\n')[0]!;
 
   // `main` is what every pull request is compared against, so it always runs.
   it.each([
@@ -176,15 +243,22 @@ describe('whether the run observes the site', () => {
     expect(outputs['because']).not.toBe('');
   });
 
-  // Two merges from this repository's own history: #347 changed an example's
-  // README and its test, #339 the site's styling.
+  // A merge like #347's, which changed an example's README and its test, and
+  // one like #339's, which changed the site's navigation, each made on `HEAD`.
   it.each([
-    ['an example', '39ffac1a44b46a97de23324b902bd126ccadd0d9', 'false'],
-    ['the site', 'b823fd3038dfc012f2552c000b6a2f7966c14073', 'true'],
-  ])('on a pull request that changes %s, by what it changes', async (_, commit, observe) => {
-    const { code, out, outputs } = await decide('pull_request', 'synchronize', commit);
+    [
+      'an example',
+      ['examples/readme-case/README.md', 'examples/readme-case/src/readme.chromium.test.ts'],
+      'false',
+      'none of its 2 changed files is',
+    ],
+    ['the site', ['site/app/components/DocsPage.tsx', 'site/app/navigation.ts'], 'true', '`site/app/components/DocsPage.tsx`'],
+  ])('on a pull request that changes %s, by what it changes', async (_, files, observe, because) => {
+    const { merge, env } = await pullRequest(files);
+    const { code, out, outputs } = await decide('pull_request', 'synchronize', merge, env);
 
     expect(code, out).toBe(0);
     expect(outputs['observe'], outputs['because']).toBe(observe);
+    expect(outputs['because']).toContain(because);
   });
 });
