@@ -71,7 +71,8 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  * rules, so a parameter, a local or an inner item of the same name is another
  * name and its lines are not listed, and neither is the declaration. They are
  * listed after the imports, under the file, for an exported name and for one
- * the file keeps to itself. The TypeScript and Rust readers record them.
+ * the file keeps to itself. The TypeScript, JavaScript and Rust readers record
+ * them.
  *
  * ## A member is declared, not imported
  *

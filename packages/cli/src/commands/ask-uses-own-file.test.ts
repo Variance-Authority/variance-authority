@@ -115,5 +115,5 @@ describe('variance ask uses over the file that declares the name', () => {
 
   // FIXME: the Python, Swift and JVM readers record no lines of a file that
   // use what it declares, so `ask uses` answers them by imports alone.
-  it.todo('lists the lines of a Python, Swift, Java or Kotlin file that use a name it declares');
+  it.todo('lists the lines of a Python, Swift, Java or Kotlin file that use a name it declares — needs a scope walk in each of those readers');
 });
