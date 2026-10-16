@@ -6,6 +6,7 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
+import { caughtUp, snapshotLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -15,7 +16,7 @@ import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { type Answering, caughtUp, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, snapshotLine, testCompositionSource, wholeSource } from './ask-source.js';
+import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -281,7 +282,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
     // yet a fact about the checkout: it is read again, brought up to date,
     // and that answer stands.
     // A reading nothing compared with the checkout says so under its refusal.
-    const again = unseen || named ? undefined : await caughtUp(answering, started, request.source === undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...current }));
+    const again = unseen || named ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
     if (again === undefined) throw refused(refusal, unseen && answering.at !== undefined ? `\n\n${snapshotLine(answering.at, true)}` : '');
     try {
       return rendered(request, again, false);
@@ -318,7 +319,7 @@ function rendered(request: SourceRequest, answering: Answering, unseen: boolean)
     // The generation is carried as a field rather than a footer line, and is
     // absent when the reading could not say when it was made.
     const data = answering.data?.();
-    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2)}\n`;
+    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }) }, undefined, 2)}\n`;
   }
   const answer = answering.answer();
   return `${at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`}\n`;

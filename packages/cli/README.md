@@ -211,20 +211,23 @@ re-running anything and without a second server.
 For source questions, `justAnswer` and its `--just-answer` spelling read the
 last published workspace generation regardless of age. They perform no Git
 status or refresh, refuse when no generation exists, and print when the value
-was produced; on `ask`, that line says the checkout was not compared with it,
-under an answer or a refusal. Without the flag a generation is reused for
-one hour before the next source question refreshes it. A question `ask` is
-refused from a reused generation is asked again of one made now, with the
-dependency lexicon brought up to date, before the refusal is given; an injected
-`AskRequest.source` is read again with `current` set. `search` is the exception: it
-always reads the published generation, whatever its age, never scans, and says
-so on the same line. It refuses when nothing is published. `--changed-file` and `--taint-file` still ask it for a new
-generation by name.
+was produced, saying under an answer or a refusal that the checkout was not
+compared with it; `search --format json` carries `compared: false` instead.
+Without the flag a generation is reused for one hour before the next source
+question refreshes it. A question refused from a reused generation, on `ask`
+or `serve`, is asked again of one made now, with the dependency lexicon built
+when it is missing or behind, before the refusal is given; an injected
+`AskRequest.source` is read again with `current` set. When no changed files are
+named, `search` is the exception: it always reads the published generation,
+whatever its age, never scans, and says so on the same line. It refuses when
+nothing is published. `--changed-file` and `--taint-file` still ask it for a
+new generation by name.
 
 A library host that injects `AskRequest.source` receives `SourceReadOptions`.
-Its `current` field is true when a question was refused from a generation older
-than the question, and asks for one made from the checkout now. Its `tree` field is true only when the selected source tool names a `from` or
-`to` path, so the injected reader can avoid loading the graph for every other
+Its `current` field is true when a question was refused from a generation
+older than the question, and asks for one made from the checkout now. Its
+`tree` field is true only when the selected source tool names a `from` or `to`
+path, so the injected reader can avoid loading the graph for every other
 question and return it through `Sourced.tree` only then.
 
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an

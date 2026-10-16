@@ -78,6 +78,18 @@ export interface ServerOptions<Subject = RunReport> {
 
   /** The checkout this server answers about, handed to every call as `invocation.root`. */
   readonly root?: string;
+
+  /**
+   * A subject to ask a refused call of once more, or none to let the refusal stand.
+   *
+   * A host whose subject is a reading it reuses — a workspace generation kept
+   * for an hour — can refuse a name only because the reading is older than the
+   * file that declares it. So a call that came back `isError` is handed here
+   * with the subject that refused it and when the request started, and a
+   * subject read since is asked the same call; the tree is asked for again with
+   * it. Only a refusal pays for the second reading.
+   */
+  readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<Subject | undefined>;
 }
 
 export function serve<Subject>(options: ServerOptions<Subject>): () => void {
@@ -103,13 +115,25 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
     }
 
     queue = queue.then(async () => {
-      const subject = await options.subject(askedTool(request), askedInput(request));
-      const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
-      const response = handle(request, () => subject, options.served, {
-        ...(previous === undefined ? {} : { previous }),
-        ...(tree === undefined ? {} : { tree }),
-        ...(options.root === undefined ? {} : { root: options.root }),
-      });
+      const started = Date.now();
+      const asked = askedTool(request);
+      const answer = async (subject: Subject) => {
+        const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
+        return handle(request, () => subject, options.served, {
+          ...(previous === undefined ? {} : { previous }),
+          ...(tree === undefined ? {} : { tree }),
+          ...(options.root === undefined ? {} : { root: options.root }),
+        });
+      };
+      let subject = await options.subject(asked, askedInput(request));
+      let response = await answer(subject);
+      if (request.method === 'tools/call' && !succeeded(response) && options.again !== undefined) {
+        const fresher = await options.again(asked, subject, started);
+        if (fresher !== undefined) {
+          subject = fresher;
+          response = await answer(subject);
+        }
+      }
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);
       }

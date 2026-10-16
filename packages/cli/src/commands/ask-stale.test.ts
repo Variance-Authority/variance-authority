@@ -57,9 +57,10 @@ describe('variance ask about a name written after the source index', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     write(root, KEPT);
 
-    const { code, err } = await run(['ask', 'uses', '--name', 'keptOf']);
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'keptOf']);
     expect(err).not.toContain('keptOf` is not');
     expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('packages/kit/src/kept.ts');
   });
 
   it('builds the dependency lexicon rather than refusing `symbol` because it is not published', async () => {
@@ -95,5 +96,15 @@ describe('variance ask about a name written after the source index', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('Nothing in this repository is named or documented with `keptof`');
     expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+  });
+
+  it('says in `search --format json` that the index was not compared with the checkout', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    write(root, KEPT);
+
+    const { code, out } = await run(['ask', 'search', '--query', 'keptOf', '--format', 'json']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(JSON.parse(out)).toMatchObject({ compared: false });
   });
 });

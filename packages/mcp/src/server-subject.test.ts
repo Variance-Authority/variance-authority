@@ -63,6 +63,55 @@ describe('what the server tells its host', () => {
   });
 });
 
+describe('a refused call', () => {
+  /** A tool that knows a name only once the subject has been read again. */
+  const named: Served<State> = {
+    name: 'state',
+    version: '1',
+    tools: [{
+      name: 'named',
+      description: 'answers only from a fresh subject',
+      inputSchema: { type: 'object', properties: {} },
+      run: (state) => {
+        if (state.value !== 'fresh') throw new Error(`not in ${state.value}`);
+        return 'found';
+      },
+    }],
+  };
+
+  async function asked(again?: (asked: string | undefined, refused: State, started: number) => Promise<State | undefined>) {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const lines = readLines(output);
+    const stop = serve({ input, output, served: named, subject: () => ({ value: 'reused' }), ...(again === undefined ? {} : { again }) });
+    try {
+      input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'named' } })}\n`);
+      return (JSON.parse(await lines()) as { result: { content: { text: string }[]; isError?: boolean } }).result;
+    } finally {
+      stop();
+    }
+  }
+
+  it('is asked again of the subject the host reads after it, with the refused one and when it started', async () => {
+    const handed: [string | undefined, string, number][] = [];
+    const before = Date.now();
+    const result = await asked(async (tool, refused, started) => {
+      handed.push([tool, refused.value, started]);
+      return { value: 'fresh' };
+    });
+    expect(result.content[0]!.text).toBe('found');
+    expect(handed).toHaveLength(1);
+    expect(handed[0]!.slice(0, 2)).toEqual(['named', 'reused']);
+    expect(handed[0]![2]).toBeGreaterThanOrEqual(before);
+  });
+
+  it('stands when the host reads nothing newer', async () => {
+    const result = await asked(async () => undefined);
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain('not in reused');
+  });
+});
+
 function start(
   subject: (asked?: string) => State,
   asked: (string | undefined)[] = [],
