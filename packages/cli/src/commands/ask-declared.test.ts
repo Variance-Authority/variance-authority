@@ -182,6 +182,16 @@ describe('variance ask about a name declared and not exported', () => {
     expect(block).toContain('Another module can still import it by name: a leading underscore keeps it out of `from … import *` only.');
   });
 
+  it('answers `uses` for an underscored Python name with the grep that finds the modules spelling it', async () => {
+    checkout(PRIVATE_PYTHON);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'uses', '--name', '_relaunch']);
+    expect(out).toContain(
+      "`_relaunch` is declared, not exported, at packages/kit/kit/restart.py:4; another module can still import it by name, which `ask grep --query '\\b_relaunch\\b' --to packages/kit/kit/restart.py` finds.",
+    );
+  });
+
   it('writes out five declarations of one name and counts the rest', async () => {
     const files = Object.fromEntries(
       ['a', 'b', 'c', 'd', 'e', 'f'].map((part) => [
