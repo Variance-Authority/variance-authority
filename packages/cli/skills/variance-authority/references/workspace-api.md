@@ -344,7 +344,12 @@ is a set of files, read whole with no cap, and the answer is the files in all
 of them:
 
 - `--from <path>[,...]`: what each path reaches along the imports; `--to`, what
-  reaches each path. Two paths are two sets, crossed, not joined.
+  reaches each path. Two paths are two sets, crossed, not joined. Every import
+  kind is walked, type-only ones included.
+- `--to <file#name>`: what rests on one name out of a repo-relative file. The
+  walk starts at the files that import that name, as `uses` lists them, through
+  every barrel that passes it on, so a file importing another name through the
+  same barrel is not reached; past them it walks by file.
 - `--imports <module#name>[,...]`: who imports that name from that module, by
   the name the module publishes, so an aliased import still counts. The module
   is the specifier as written, where a package also covers its subpaths and a
@@ -365,11 +370,18 @@ of them:
 ```bash
 variance ask discover --from src/TopNav.tsx --imports react#createContext --declares 'theme|user|account'
 variance ask discover --from src/Wallet.tsx --declares '^selectBalance$'
+variance ask discover --to src/store/selectors.ts#selectBalance
 ```
 
 The answer counts each set first, then lists the files in all of them, nearest
 the `--from` or `--to` paths first, each with the line that put it in each
-set; `--path` puts it in by its name, with no line. It shows 50; `--limit`
+set; `--path` puts it in by its name, with no line. A file two or more imports
+away from a `--to` path carries one shortest chain of imports to it, a step
+that is not a plain import marked — `src/Page.ts → src/Model.ts (type import) →
+src/store/selectors.ts` — and for `file#name` the chain ends at the line that
+imports the name. The `--to` header names the files it did not reach that
+import something the scan could not resolve, since they may reach the path
+through it. It shows 50; `--limit`
 shows more, and the count is always of all of them. A source file whose names
 the scan did not hand over is counted in the `--imports` and `--declares`
 headers, since it is unknown rather than a file with no names; a README or a
