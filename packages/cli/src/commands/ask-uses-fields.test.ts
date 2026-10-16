@@ -106,5 +106,18 @@ describe('variance ask uses over a field of an interface or a type', () => {
     expect(out).not.toContain('written as `a type literal`');
   });
 
-  it.todo('answers a field used through a barrel that passes its type on with `export type { … } from` — needs `passed_on` to pass a type-only re-export on for a type\'s uses, while the package graph keeps it no runtime edge');
+  it('answers a field used through a barrel that passes its type on with `export type { … } from`', async () => {
+    checkout({
+      'packages/lib/src/shapes/props.ts': 'export interface Props {\n  size: number;\n}\n',
+      'packages/lib/src/shapes/types.ts': "export type { Props } from './props.js';\n",
+      'packages/lib/src/shapes/far.ts': "import type { Props } from './types.js';\nexport const read = (p: Props) => p.size;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(section(out, '`Props.size`, declared at packages/lib/src/shapes/props.ts:2, is used in 1 place:')).toEqual([
+      'packages/lib/src/shapes/far.ts:2 — @acme/lib, read',
+    ]);
+  });
 });

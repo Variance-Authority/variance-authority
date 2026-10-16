@@ -6,16 +6,17 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
+import { caughtUp, snapshotLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
-import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tree } from '@variance-authority/mcp/tools';
+import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -171,6 +172,12 @@ export interface SourceReadOptions {
   readonly taints?: readonly Taint[];
   readonly justAnswer?: boolean;
   readonly tree?: boolean;
+  /**
+   * Read a generation made now rather than reuse a recent one. Set when a
+   * question was refused from a generation older than it, so the refusal is
+   * given only once the checkout as it is has been read.
+   */
+  readonly current?: boolean;
 }
 
 /** A workspace, read once, and the tree its scan drew — folded only if a question names a path. */
@@ -256,38 +263,69 @@ export async function askSource(request: SourceRequest): Promise<string> {
     ...(request.justAnswer === true ? { justAnswer: true } : {}),
     ...(tool.wants?.(input) === true ? { tree: true } : {}),
   };
-  // `search` opens its own published file in place rather than the whole
-  // value, which is most of what a large repository's question costs. The
-  // answer is the tool's, over the same generation.
-  const answering =
-    request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
-    : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
-    : tool.name === grep.name ? await grepSource(process.cwd(), input)
-    : tool.name === discover.name ? await discoverSource(process.cwd(), input)
-    : crossing ? await intersectionSource(process.cwd(), input, reading)
-    : tool.name === orient.name ? orientSource(process.cwd(), input)
-    : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
-    : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
-    : tool.name === testCompositionTool.name ? testCompositionSource(process.cwd(), input)
-    : await wholeSource(readSource, tool, input, reading);
+  // A reading that names its generation, or that `search` makes, is not
+  // compared with the checkout, and every answer from it says so. Every other
+  // one is the checkout's as it is by the time it refuses.
+  const named = changed !== undefined || taints !== undefined;
+  const unseen = request.justAnswer === true || (tool.name === search.name && !named);
+  const started = Date.now();
+  const answering = await sourceAnswering(request, tool, input, reading);
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
   // the protocol layer turns it into `isError`. Printed as a defect with a stack
   // under it, the one useful line is the one a reader cannot find.
   try {
-    const at = answering.at;
-    if (request.format === 'json') {
-      // The generation is carried as a field rather than a footer line, and is
-      // absent when the reading could not say when it was made.
-      const data = answering.data?.();
-      return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2)}\n`;
-    }
-    const answer = answering.answer();
-    return `${at === undefined ? answer : `${answer}\nSnapshot ${at}.`}\n`;
+    return rendered(request, answering, unseen);
   } catch (refusal) {
-    throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
+    // A refusal read from what the checkout was before the question is not
+    // yet a fact about the checkout: it is read again, brought up to date,
+    // and that answer stands.
+    // A reading nothing compared with the checkout says so under its refusal,
+    // and one that could not be compared says why.
+    const caught = unseen ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
+    const footer = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
+    const said = footer === undefined ? '' : `\n\n${footer}`;
+    if (caught?.subject === undefined) throw refused(refusal, said);
+    try {
+      return rendered(request, caught.subject, false);
+    } catch (still) {
+      throw refused(still, said);
+    }
   }
+}
+
+function refused(refusal: unknown, footer: string): OperatorError {
+  return new OperatorError(`${refusal instanceof Error ? refusal.message : String(refusal)}${footer}`, { cause: refusal });
+}
+
+/** The reader each source question is answered from. */
+async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>, reading: SourceReadOptions): Promise<Answering> {
+  // `search` opens its own published file in place rather than the whole
+  // value, which is most of what a large repository's question costs. The
+  // answer is the tool's, over the same generation.
+  return request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
+    : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
+    : tool.name === grep.name ? await grepSource(process.cwd(), input)
+    : tool.name === discover.name ? await discoverSource(process.cwd(), input)
+    : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
+    : tool.name === orient.name ? orientSource(process.cwd(), input)
+    : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
+    : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
+    : tool.name === testCompositionTool.name ? testCompositionSource(process.cwd(), input)
+    : await wholeSource(readSource, tool, input, reading);
+}
+
+function rendered(request: SourceRequest, answering: Answering, unseen: boolean): string {
+  const at = answering.at;
+  if (request.format === 'json') {
+    // The generation is carried as a field rather than a footer line, and is
+    // absent when the reading could not say when it was made.
+    const data = answering.data?.();
+    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }) }, undefined, 2)}\n`;
+  }
+  const answer = answering.answer();
+  return `${at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`}\n`;
 }
 
 /**

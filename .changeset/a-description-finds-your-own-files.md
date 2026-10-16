@@ -32,5 +32,5 @@ file declares and does not export, after every exported one.
 
 `@variance-authority/sense` exports `declaredTermsOf`, `declaredLooseOf` and
 `nearOfNative`, and `declaredDescribedOf` takes the query and answers with
-`files`. The source index format moves to version 24; an older index is
+`files`. The source index format moves to version 26; an older index is
 rebuilt.

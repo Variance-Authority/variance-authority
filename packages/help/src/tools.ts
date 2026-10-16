@@ -1,5 +1,7 @@
 import type { Served, Tool } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { snapshotLine } from './caught-up.js';
+import { operatorError } from './operator.js';
 import { workspaceGeneration } from './read.js';
 import { discover } from './tools/discover.js';
 import { entrypoint } from './tools/entrypoint.js';
@@ -74,13 +76,23 @@ import { uses } from './tools/uses.js';
  * reading that ranks it is the same reading, and an agent that has just been
  * told a name is undocumented is the agent best placed to write the paragraph.
  */
-function dated(tool: Tool<Help>): Tool<Help> {
+function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
   return {
     ...tool,
     run(subject, input, invocation) {
-      const answer = tool.run(subject, input, invocation);
       const at = workspaceGeneration(subject);
-      return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
+      let answer: string;
+      try {
+        answer = tool.run(subject, input, invocation);
+      } catch (refusal) {
+        // A name refused by a generation nothing compared with the checkout
+        // may only be newer than it, and the refusal says so.
+        if (!unseen || at === undefined) throw refusal;
+        const said = `${refusal instanceof Error ? refusal.message : String(refusal)}\n\n${snapshotLine(at, true)}`;
+        const operator = (refusal as { readonly varianceOperatorError?: unknown } | undefined)?.varianceOperatorError === true;
+        throw operator ? operatorError(said, { cause: refusal }) : new Error(said, { cause: refusal });
+      }
+      return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
     },
   };
 }
@@ -95,7 +107,6 @@ const intersection = intersectionOf<Help>(ALONE);
 export const HELP_TOOLS: readonly Tool<Help>[] =
   [packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
 
-const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
 export const SERVER_NAME = 'variance-authority-help';
 export const SERVER_VERSION = '0.0.0';
@@ -104,8 +115,14 @@ export const SERVER_VERSION = '0.0.0';
 export const HELP: Served<Help> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
-  tools: DATED_HELP_TOOLS,
+  tools: HELP_TOOLS.map((tool) => dated(tool, false)),
 };
+
+/**
+ * The same, for a server that answers from the published generation without
+ * comparing it with the checkout: every answer's date says so.
+ */
+export const UNCOMPARED_HELP: Served<Help> = { ...HELP, tools: HELP_TOOLS.map((tool) => dated(tool, true)) };
 
 export { discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
 export { namesWanted } from './tools/intersection.js';

@@ -44,10 +44,13 @@ The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
-commands reuse a generation for one hour before refreshing it. `--just-answer`
-uses the last published generation regardless of age and prints when it was
-produced. It performs no Git status or refresh, and refuses if there is no
-generation to read. `search` always behaves this way: it is a lookup, and
+commands reuse a generation for one hour before refreshing it, and a name a
+reused generation refuses is looked for again in one made from the checkout
+now, so a function you just wrote is answered rather than reported missing.
+`--just-answer` uses the last published generation regardless of age, and every
+answer and refusal says when it was produced and that the checkout was not
+compared with it. It performs no Git status or refresh, and refuses if there is
+no generation to read. `search` always behaves this way: it is a lookup, and
 producing the generation is the job of the step before it. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
 index](https://variance-authority.dev/docs/agent-workspace-api#choose-the-cheapest-entrance).
@@ -497,8 +500,11 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy, or serves only the recorded generation when
-`justAnswer` is true.
+the same one-hour policy and asks a refused call again of a generation made
+now, or serves only the recorded generation when `justAnswer` is true. A host
+of its own asks `caughtUp` whether a refusal is worth asking again, and is
+handed what to ask again and, when the checkout could not be compared, the line
+its refusal ends with; `snapshotLine` dates an answer.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';
