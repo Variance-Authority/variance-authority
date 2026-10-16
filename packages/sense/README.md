@@ -1078,8 +1078,10 @@ recorded under its source. When a module ends in a `//# sourceMappingURL=`
 comment naming a sibling map, that map names exactly one source outside
 `node_modules`, and `include` accepts that source, the module is recorded as
 the source, on the source's lines: `ui/dist/Button.js` counts as
-`ui/src/Button.ts`. Anything else is recorded under its own name, if `include`
-accepts that: an inline map, a bundle's map of many sources, a map or source
+`ui/src/Button.ts`. Its regions are the ones the source's own text cuts into,
+whether a run loaded the build, the source or both, so two shards that loaded
+different ones record the file alike. Anything else is recorded under its own
+name, if `include` accepts that: an inline map, a bundle's map of many sources, a map or source
 that cannot be read. A Vite dev server and `vite build` decide alike, and so do
 the Vitest, Jest and Rstest seams. Under a dev server, Vitest and Rstest, a
 module that names its own map is probed before your transforms: they compose
