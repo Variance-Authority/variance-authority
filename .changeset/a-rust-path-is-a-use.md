@@ -21,7 +21,7 @@ export of the same name in another file: the kept declaration, and for a Rust
 item the modules inside its own that import it, follow the export's answer
 instead of being dropped.
 
-The source index format is version 24. It keeps whether a reader guessed a
+The source index format is version 25. It keeps whether a reader guessed a
 request and whether it asked for an item, so a parse read back from the index
 is the parse the reader made. An index written by an earlier version is rebuilt
 on the next read.

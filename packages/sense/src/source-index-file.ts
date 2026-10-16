@@ -47,14 +47,10 @@ export interface SourceIndexFile {
   ): Promise<string | undefined>;
 }
 
-/**
- * A parse layer already encoded by the native cold scanner, and the keys it
- * still answers for: a parse JavaScript harvested since is deleted from them,
- * and written with the rest of JavaScript's parses.
- */
+/** A parse layer already encoded by the native cold scanner, and the keys it answers for. */
 export interface EncodedParseLayer {
   readonly bytes: Uint8Array;
-  readonly keys: { has(key: ParseKey): boolean; delete(key: ParseKey): unknown };
+  readonly keys: { has(key: ParseKey): boolean };
 }
 
 interface Opened {

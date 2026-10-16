@@ -445,7 +445,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         graph = held;
         nativeGraphUsed = true;
         answeredFiles = [];
-        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: parseKeys(held) });
+        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: { has: (key) => held.hasParse(key) } });
         reuse?.adopt?.(held);
         for (const file of held.following()) {
           if (!built.has(file) && READABLE.has(extname(file))) queue.push(file);
@@ -475,22 +475,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
 
   const listing = tree?.native;
   return { built, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
-}
-
-/**
- * The closure's parse keys, as the parse cache asks them: held by the addon,
- * less the few JavaScript harvested since and writes itself.
- */
-function parseKeys(graph: NativeIndexGraph): { has(key: string): boolean; delete(key: string): boolean } {
-  const overridden = new Set<string>();
-  return {
-    has: (key) => !overridden.has(key) && graph.hasParse(key),
-    delete: (key) => {
-      const had = !overridden.has(key) && graph.hasParse(key);
-      overridden.add(key);
-      return had;
-    },
-  };
 }
 
 /** Whether a path is there to be opened, without opening it. */

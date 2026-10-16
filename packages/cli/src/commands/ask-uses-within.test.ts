@@ -69,11 +69,12 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1 — @acme\/lib$/m);
   });
 
-  it('does not list a re-export in another package as a use, and keeps a type-only one as a type use', async () => {
+  it('does not list a re-export in another package as a use, and follows a type-only one as a type', async () => {
     checkout({
       'apps/app/src/relay.ts': "export { greet } from '@acme/lib';\n",
       'apps/app/src/relayed.ts': "import { greet } from './relay.js';\nexport const relayed = greet('relay');\n",
       'apps/app/src/typed.ts': "export { type greet as Greet } from '@acme/lib';\n",
+      'apps/app/src/greeted.ts': "import type { Greet } from './typed.js';\nexport type Greeted = typeof Greet;\n",
       'apps/app/src/star.ts': "export * from '@acme/lib';\n",
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -82,22 +83,27 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
     expect(out).toMatch(/^apps\/app\/src\/relayed\.ts:1 — @acme\/app$/m);
-    expect(out).toMatch(/^apps\/app\/src\/typed\.ts:1 — @acme\/app \(type only\)$/m);
-    expect(out).not.toMatch(/relay\.ts|star\.ts/);
+    expect(out).toMatch(/^apps\/app\/src\/greeted\.ts:1 — @acme\/app \(as Greet\) \(type only\)$/m);
+    expect(out).not.toMatch(/relay\.ts|typed\.ts|star\.ts/);
   });
 
-  it('does not follow a type-only re-export, and lists the type it takes where it is written', async () => {
+  it('follows a type-only re-export in each spelling, and marks what comes through it a type', async () => {
     checkout({
       'packages/lib/src/greet.ts': "export const other = 1;\nexport function greet(name: string): string {\n  return name;\n}\n",
       'packages/lib/src/typed.ts': "export { type greet, other } from './greet.js';\n",
       'packages/lib/src/typeuse.ts': "import { other, greet } from './typed.js';\nexport type Typeuse = typeof greet | typeof other;\n",
+      'packages/lib/src/types.ts': "import type { greet } from './greet.js';\nexport type { greet as Hi } from './greet.js';\nexport type Own = typeof greet;\n",
+      'packages/lib/src/all.ts': "export type * from './types.js';\n",
+      'packages/lib/src/hi.ts': "import { Hi } from './all.js';\nexport type Hello = typeof Hi;\n",
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/typed\.ts:1 — @acme\/lib \(type only\)$/m);
-    expect(out).not.toContain('typeuse.ts');
+    expect(out).toMatch(/^packages\/lib\/src\/typeuse\.ts:1 — @acme\/lib \(type only\)$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/types\.ts:1 — @acme\/lib \(type only\)$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/hi\.ts:1 — @acme\/lib \(as Hi\) \(type only\)$/m);
+    expect(out).not.toMatch(/typed\.ts|types\.ts:2|all\.ts/);
   });
 
   it('leaves an import through another specifier of the package to that specifier when `--package` names one', async () => {

@@ -91,6 +91,7 @@ impl ParseRow for Read {
                 request.line,
                 // An oxc read derives nothing: every request is written.
                 0,
+                request.republishes,
                 request.bindings.iter().map(|binding| {
                     (id(&binding.imported), id(&binding.local), binding.type_only, binding.line)
                 }),

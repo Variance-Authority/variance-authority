@@ -40,12 +40,24 @@
  *
  * ## `#[path]` names a file directly
  *
- * The one place Rust does spell a path. It is emitted as written, and the two
+ * The one place Rust does spell a path. At the top of a file it is relative to
+ * the directory the file is in, and the reader emits it as written. Inside an
+ * inline module it starts at that module's directory, so the reader emits the
+ * module first, `self::inline/other.rs`, and the directory is decided here,
+ * where `lib.rs`, `main.rs`, `mod.rs` and a file a `#[path]` loads are known to
+ * own theirs. The two
  * encodings are told apart by a character a Rust path cannot hold: a module path
- * is `::`-joined identifiers, so anything carrying `.` or `/` is a filename. It
- * is read from the declaring file's directory, and the file it loads keeps its
- * own children beside it, as a `mod.rs` does, which is why `super` is read from
- * the `mod` lines and never from where a file sits.
+ * is `::`-joined identifiers, so anything carrying `.` or `/` is a filename.
+ * The file a `#[path]` loads keeps its own children beside it, as a `mod.rs`
+ * does, which is why `super` is read from the `mod` lines and never from where a
+ * file sits.
+ *
+ * ## Inline modules
+ *
+ * `self` and `super` in a `use` inside `mod tests { … }` name that module and
+ * the file around it, so the reader folds them into a path from the file's own
+ * module before it gets here: `use super::helper` in `tests` of `foo.rs` arrives
+ * as `self::helper`, an item of `foo.rs`, and lands on nothing.
  *
  * ## What is unknown
  *
@@ -63,6 +75,7 @@
  * here, and are the reason the Rust answer is a floor rather than a total.
  */
 
+import type { SourceSymbol } from './harvest.js';
 import { NAMESPACE_NAME } from './read.js';
 import type { TreeWorld } from './world.js';
 
@@ -103,9 +116,8 @@ export function resolveRust(input: {
 }): readonly string[] {
   const { from, request, world, item } = input;
 
-  // `#[path]` on a file's own `mod` is relative to the file's directory, whatever the file is.
   if (spelledPath(request)) {
-    const at = normalize(`${directoryOf(from)}/${request}`);
+    const at = spelledFile(from, request, moduleTree(world).spelled);
     return at !== undefined && at !== from && world.has(at) ? [at] : [];
   }
 
@@ -192,7 +204,7 @@ interface ModuleTree {
 }
 
 /** A file's top-level names: those it declares as an item, and those it declares as an inline `mod`. */
-interface Items {
+export interface Items {
   readonly declared: ReadonlySet<string>;
   readonly inline: ReadonlySet<string>;
 }
@@ -217,16 +229,9 @@ function moduleTree(world: TreeWorld): ModuleTree {
         // A `mod` line: written, and the file taken whole under its name.
         if (request.guessed === true || binding?.imported !== NAMESPACE_NAME) continue;
         declared.push([file, request.value, binding.local]);
-        if (request.value === `self::${binding.local}` || spelledPath(request.value)) files.add(binding.local);
+        if (request.value === `self::${binding.local}` || (spelledPath(request.value) && !inlineSpelled(request.value))) files.add(binding.local);
       }
-      if (read.harvested === true) {
-        const symbols = read.symbols ?? [];
-        items.set(file, {
-          declared: new Set(symbols.filter(({ kind }) => kind !== 'module').map(({ name }) => name)),
-          // A `mod` that is no `mod name;` line is written inline.
-          inline: new Set(symbols.filter(({ kind, name }) => kind === 'module' && !files.has(name)).map(({ name }) => name)),
-        });
-      }
+      if (read.harvested === true) items.set(file, topLevelItems(read.symbols ?? [], files));
     }
 
     const place = (file: string, key: string, child: string, inline: readonly string[]): void => {
@@ -234,14 +239,16 @@ function moduleTree(world: TreeWorld): ModuleTree {
       parent.set(child, { file, inline });
       children.get(file)?.set(key, child);
     };
-    // Spelled first: they say which files keep their children beside them.
-    for (const [file, value, name] of declared) {
-      if (!spelledPath(value)) continue;
-      const child = normalize(`${directoryOf(file)}/${value}`);
+    // Spelled first: they say which files keep their children beside them. A
+    // top-level one is placed before one inside an inline module, whose
+    // directory depends on whether its own file is one of them.
+    const spelledOnes = declared.filter(([, value]) => spelledPath(value));
+    for (const [file, value, name] of [...spelledOnes.filter(([, value]) => !inlineSpelled(value)), ...spelledOnes.filter(([, value]) => inlineSpelled(value))]) {
+      const child = spelledFile(file, value, spelled);
       if (child === undefined || !tree.has(child)) continue;
       spelled.add(child);
-      // FIXME: a `#[path]` inside an inline module arrives without the inline path, so it is keyed by its name alone.
-      place(file, name, child, []);
+      const inline = inlineOf(value);
+      place(file, [...inline, name].join('::'), child, inline);
     }
     for (const [file, value] of declared) {
       if (spelledPath(value)) continue;
@@ -254,6 +261,45 @@ function moduleTree(world: TreeWorld): ModuleTree {
     }
     return { parent, children, spelled, items };
   });
+}
+
+/**
+ * What a file declares at its top level, from the declarations the reader
+ * recorded for it; `files` are the names its `mod name;` lines take.
+ */
+export function topLevelItems(symbols: readonly SourceSymbol[], files: ReadonlySet<string>): Items {
+  // The reader names a declaration inside an inline module on its path,
+  // `tests::fixture`, and that is an item of the module, not of the file.
+  const top = symbols.filter(({ name }) => !name.includes('::'));
+  return {
+    declared: new Set(top.filter(({ kind }) => kind !== 'module').map(({ name }) => name)),
+    // A `mod` that is no `mod name;` line is written inline.
+    inline: new Set(top.filter(({ kind, name }) => kind === 'module' && !files.has(name)).map(({ name }) => name)),
+  };
+}
+
+/**
+ * Whether the reader wrote a `#[path]` after the inline modules it sits inside,
+ * `self::a::b/other.rs`: the one form of a spelled path that starts `self::`.
+ */
+function inlineSpelled(request: string): boolean {
+  return request.startsWith('self::') && request.includes('/');
+}
+
+/** The inline modules a `#[path]` sits inside, `a::b` of `self::a::b/other.rs`; none at the top of a file. */
+function inlineOf(request: string): readonly string[] {
+  return inlineSpelled(request) ? request.slice('self::'.length, request.indexOf('/')).split('::') : [];
+}
+
+/**
+ * The file a `#[path]` in `file` names. At the top of the file it is relative
+ * to the file's own directory, as the Rust Reference has it; inside inline
+ * modules it starts at the directory the file keeps its children in, with a
+ * directory for each of those modules.
+ */
+function spelledFile(file: string, request: string, spelled: ReadonlySet<string>): string | undefined {
+  if (!inlineSpelled(request)) return normalize(`${directoryOf(file)}/${request}`);
+  return normalize([childDirectories(file, spelled)[0]!, ...inlineOf(request), request.slice(request.indexOf('/') + 1)].join('/'));
 }
 
 /** The file `mod name;` inside `inline` of `file` declares, as Cargo lays one out. */

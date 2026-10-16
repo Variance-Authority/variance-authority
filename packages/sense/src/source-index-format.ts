@@ -35,7 +35,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 24;
+export const SOURCE_INDEX_VERSION = 25;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -154,6 +154,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const requestLine = opened.u32('requests.line');
   const requestFlags = opened.u8('requests.flags');
   const requestBindings = opened.u32('requests.bindings');
+  const requestRepublishes = opened.u8('requests.republishes');
   const bindingImported = opened.u32('bindings.imported');
   const bindingLocal = opened.u32('bindings.local');
   const bindingType = opened.u8('bindings.type');
@@ -177,7 +178,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   validateOffset(parseDeclares, declareName.length, parseKey.length);
   sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown, parseHarvested, parseWay]);
   if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
-  sameLength(requestValue.length, [requestKind, requestLine, requestFlags]);
+  sameLength(requestValue.length, [requestKind, requestLine, requestFlags, requestRepublishes]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
   sameLength(bindingImported.length, [bindingLocal, bindingType, bindingLine]);
   sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags]);
@@ -198,6 +199,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
         line: bindingLine[binding]!,
       })),
       ...requestFlagsOf(requestFlags[request]!),
+      ...(flag(requestRepublishes[request]) ? { republishes: true as const } : {}),
     }));
     const published = range(parseExports, row).map((entry): Export => {
       const exported = optional(exportExported[entry]!);

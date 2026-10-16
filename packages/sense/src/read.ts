@@ -172,6 +172,14 @@ export interface Request {
    * is silent the way a guess is ([`rust.ts`](./rust.ts)).
    */
   readonly item?: boolean;
+
+  /**
+   * Set on an `export … from`: what it binds it passes on, and takes for no
+   * use of its own. Every `reexports` request carries it, and a `type` one
+   * does when `export type` writes it, which `kind` alone cannot tell from
+   * `import type` of the same file.
+   */
+  readonly republishes?: true;
 }
 
 export interface Export {

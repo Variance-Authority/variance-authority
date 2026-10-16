@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { native } from './native.js';
 import type { Read } from './read.js';
-import { isRustRelative, resolveRust } from './rust.js';
+import { isRustRelative, resolveRust, topLevelItems } from './rust.js';
 import { worldIn, worldOn } from './world.js';
 
 /**
@@ -51,6 +51,47 @@ describe('what a Rust file asks for', () => {
 
     expect(read.requests[0]?.value).toBe('other/place.rs');
     expect(read.requests[0]?.guessed).toBeUndefined();
+  });
+
+  it('reads `self` and `super` inside an inline module from that module, not from the file', () => {
+    // In `foo.rs`, `super` inside `mod tests` is `foo` itself, and a glob of it
+    // names the file it is written in, which is no edge.
+    const read = readRust('src/foo.rs', 'mod tests {\n    use super::*;\n    use super::helper;\n    use self::fixture::Fixture;\n    use crate::bar::Bar;\n}\n');
+
+    expect(read.requests.map((request) => request.value))
+      .toEqual(['self::helper', 'self::tests::fixture::Fixture', 'crate::bar::Bar']);
+  });
+
+  it('climbs nested inline modules one `super` at a time, and past them to the file\'s parent', () => {
+    const read = readRust(
+      'src/foo.rs',
+      'mod a {\n    mod b {\n        use super::c::C;\n        use super::super::d::D;\n        use super::super::super::sibling::S;\n    }\n}\n',
+    );
+
+    expect(read.requests.map((request) => request.value))
+      .toEqual(['self::a::c::C', 'self::d::D', 'super::sibling::S']);
+  });
+
+  it('reads a `#[path]` inside an inline module as a file of that module', () => {
+    // The Rust Reference: inside `mod inline { … }` the path starts at the
+    // inline module's directory. The reader names the module, and leaves which
+    // directory it has to the resolver.
+    const inside = '#[path = "elsewhere.rs"]\nmod beside;\nmod inline {\n    #[path = "other.rs"]\n    mod inner;\n    mod deeper {\n        #[path = "../up.rs"]\n        mod up;\n    }\n}\n';
+
+    expect(readRust('src/a/b.rs', inside).requests.map((request) => request.value))
+      .toEqual(['elsewhere.rs', 'self::inline/other.rs', 'self::inline::deeper/../up.rs']);
+  });
+
+  // The Reference's table: `#[path = "foo"] mod inline { mod inner; }` in
+  // `a/b.rs` puts `inner` at `a/b/foo/inner.rs`. The reader carries the inline
+  // module's name as the directory, so it asks for `a/b/inline/inner.rs`.
+  it.todo('reads the directory a `#[path]` on an inline module gives the modules declared inside it — needs the reader to carry a directory path beside the module path');
+
+  it('re-exports only what a `pub use` at the top of the file publishes', () => {
+    // `pub use` inside `mod inner` publishes `inner::B`, not a `B` of the file.
+    const read = readRust('src/lib.rs', 'pub use crate::a::A;\nmod inner {\n    pub use crate::b::B;\n}\n');
+
+    expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['A']);
   });
 
   it('keeps the written request when a guess names the same module', () => {
@@ -181,7 +222,7 @@ describe('what a Rust file asks for', () => {
 });
 
 describe('what a Rust file declares', () => {
-  it('records every top-level item, `pub` or not, with its signature and the doc above it, past its attributes', () => {
+  it('records every item, `pub` or not, with its signature and the doc above it, past its attributes, and one in an inline module on its module path', () => {
     const contents = [
       '/// Start again.',
       '/// In a process of its own.',
@@ -206,7 +247,28 @@ describe('what a Rust file declares', () => {
       { name: 'Lens', kind: 'struct', line: 8, signature: 'pub struct Lens;', doc: undefined },
       { name: 'LIMIT', kind: 'const', line: 10, signature: 'const LIMIT: u32', doc: undefined },
       { name: 'inner', kind: 'module', line: 12, signature: 'mod inner', doc: undefined },
+      { name: 'inner::hidden', kind: 'function', line: 13, signature: 'fn hidden()', doc: undefined },
     ]);
+  });
+
+  it('declares what nested inline modules hold on the path through them, and says who can name it only when it is not `pub`', () => {
+    const contents = 'pub mod a {\n    pub struct Open;\n    mod b {\n        /// Shown.\n        pub fn deep() {}\n        fn deeper() {}\n    }\n}\nmod tests {\n    use super::*;\n    fn fixture() {}\n    macro_rules! check {\n        () => {};\n    }\n}\n';
+    const read = readRust('src/foo.rs', contents);
+
+    // `pub` inside a private inline module reaches as far as the modules
+    // around it let it, which the item alone does not say. `a::Open` is `pub`
+    // all the way up: the file exports `a`, and it is named through that. A
+    // `macro_rules!` has no module path: it is in scope by where it is written.
+    expect(read.symbols?.map(({ name, kind, line, reach }) => ({ name, kind, line, reach }))).toEqual([
+      { name: 'a', kind: 'module', line: 1, reach: 'module' },
+      { name: 'a::b', kind: 'module', line: 3, reach: 'module' },
+      { name: 'a::b::deep', kind: 'function', line: 5, reach: undefined },
+      { name: 'a::b::deeper', kind: 'function', line: 6, reach: 'module' },
+      { name: 'tests', kind: 'module', line: 9, reach: 'module' },
+      { name: 'tests::fixture', kind: 'function', line: 11, reach: 'module' },
+      { name: 'check', kind: 'macro', line: 12, reach: undefined },
+    ]);
+    expect(spelled(contents, read)[2]?.doc).toBe('/// Shown.');
   });
 
   it('says an item is its module\'s, and records no reach for a `macro_rules!`, which no visibility governs', () => {
@@ -247,7 +309,7 @@ describe('where a Rust path lands', () => {
       .toEqual(['src/order/sort.rs']);
   });
 
-  it('climbs with `super` to the module a file sits in, and reaches its siblings', () => {
+  it('climbs with `super` to the module a file sits in', () => {
     // `src/order/sort.rs` is the module `order::sort`, so its parent is
     // `order` — the directory's own file, not the directory.
     expect(resolveRust({ from: 'src/order/sort.rs', request: 'super', world }))
@@ -256,10 +318,42 @@ describe('where a Rust path lands', () => {
       .toEqual(['src/read.rs']);
   });
 
-  it('names no edge from a file to itself', () => {
-    // An item a file reaches through its own module is declared in it.
+  it('never lands on the file that asks, which is no edge', () => {
+    // `use super::helper` in a `mod tests` of `lib.rs` names an item of
+    // `lib.rs` itself, and `super::sort::Sort` from `sort.rs` names `sort.rs`.
+    expect(resolveRust({ from: 'src/lib.rs', request: 'self::helper', world })).toEqual([]);
     expect(resolveRust({ from: 'src/order/sort.rs', request: 'super::sort::Sort', world }))
       .toEqual([]);
+  });
+
+  it('lands an inline module\'s `super` on the file that holds the module, never on the crate root', () => {
+    const tree = worldIn(['Cargo.toml', 'src/lib.rs', 'src/foo.rs', 'src/bar.rs']);
+    const read = readRust('src/foo.rs', 'mod tests {\n    use super::*;\n    use super::helper;\n    use super::super::bar::Bar;\n}\n');
+
+    expect(read.requests.flatMap(({ value }) => resolveRust({ from: 'src/foo.rs', request: value, world: tree })))
+      .toEqual(['src/bar.rs']);
+  });
+
+  it('lands a `#[path]` inside an inline module under that module\'s directory', () => {
+    const tree = worldIn(['Cargo.toml', 'src/lib.rs', 'src/a.rs', 'src/a/b.rs', 'src/a/b/inline/other.rs', 'src/a/elsewhere.rs']);
+    const read = readRust('src/a/b.rs', '#[path = "elsewhere.rs"]\nmod beside;\nmod inline {\n    #[path = "other.rs"]\n    mod inner;\n}\n');
+
+    expect(read.requests.flatMap(({ value }) => resolveRust({ from: 'src/a/b.rs', request: value, world: tree })))
+      .toEqual(['src/a/elsewhere.rs', 'src/a/b/inline/other.rs']);
+    // A `mod.rs` owns the directory it is in, so its inline modules sit there.
+    const owned = worldIn(['Cargo.toml', 'src/lib.rs', 'src/a/mod.rs', 'src/a/inline/other.rs', 'src/a/elsewhere.rs']);
+    const inMod = readRust('src/a/mod.rs', '#[path = "elsewhere.rs"]\nmod beside;\nmod inline {\n    #[path = "other.rs"]\n    mod inner;\n}\n');
+
+    expect(inMod.requests.flatMap(({ value }) => resolveRust({ from: 'src/a/mod.rs', request: value, world: owned })))
+      .toEqual(['src/a/elsewhere.rs', 'src/a/inline/other.rs']);
+  });
+
+  it('takes as a file\'s top-level items none of the items its inline modules declare', () => {
+    // An item inside `mod tests` is declared on its path, `tests::fixture`, and
+    // is no item of the file: `crate::shapes::fixture` names nothing.
+    const { symbols } = readRust('src/shapes.rs', 'fn top() {}\nmod tests {\n    fn fixture() {}\n    mod deep {}\n}\n');
+
+    expect(topLevelItems(symbols ?? [], new Set())).toEqual({ declared: new Set(['top']), inline: new Set(['tests']) });
   });
 
   it('takes a spelled path as a path, relative to the declaring file', () => {
