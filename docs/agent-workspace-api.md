@@ -295,8 +295,17 @@ the sites arrive ordered by how many leading path segments they share with it.
 that resolved to the file declaring it, or to a file that passes it on with
 `export … from`. That file is followed under the name it exports and is not
 listed itself, in another package as well, so an import through a barrel is
-counted once. An import of a renamed re-export is marked with the name it
-takes, `(as salute)`.
+counted once. A site that knows the name by another one is marked with it,
+`(as salute)`: an import that renames it with `as`, or an import of a re-export
+that renamed it.
+
+A renamed import is followed in both directions by the binding the parser read,
+never by how the two names are spelled. `docs_symbol` for the original names
+every file and line that imports it under another name. `docs_symbol` for the
+local name, `hail` in `import { greet as hail } from './greet.js'`, answers
+with that import and then with `greet`: its declaration and import line when an
+entry publishes it, the file and line that export it when none does, or the
+installed declaration when the specifier names a dependency.
 
 A name a file exports and no entry publishes, such as a helper exported for the
 file beside it, is answered too. `docs_symbol` gives the file and line that

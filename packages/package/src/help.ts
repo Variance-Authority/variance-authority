@@ -3,7 +3,8 @@ import type { Declaration } from './declare.js';
 import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
 import { createReader, namesReachedBy, type Names } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
-import { type Deep, type Named, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
+import { type Deep, type Named, type Usage, type UsageOptions, type Use } from './use.js';
+import { readUsage } from './read-usage.js';
 
 /**
  * What a workspace publishes, what it says about it, and what uses it.
@@ -295,7 +296,8 @@ export function undocumented(help: Help): readonly Entry[] {
  */
 export { opening, writeGaps, writeIndex, writeLlms } from './write.js';
 export type { Page } from './write.js';
-export { gatheringUsage, kindOf, readUsage, usageFrom } from './use.js';
+export { gatheringUsage, kindOf, usageFrom } from './use.js';
+export { readUsage } from './read-usage.js';
 export type {
   Bound,
   Named,

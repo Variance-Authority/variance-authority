@@ -223,3 +223,16 @@ fn ends_a_cycle_of_re_exports_and_follows_each_file_once() {
     assert_eq!(uses(&read), ["src/use_c2.ts:1 greet via ./c2"]);
     assert_eq!(read.through, ["src/c1.ts", "src/c2.ts"]);
 }
+
+#[test]
+fn orders_two_bindings_of_one_name_on_one_line_by_what_they_bind_it_to() {
+    let root = fixture("two-locals");
+    // `import { greet as quiet, greet as loud } from './greet'`
+    let both = r#"{"value": "./greet", "kind": "imports", "line": 1, "bindings": [{"imported": "greet", "local": "quiet", "type": false, "line": 1}, {"imported": "greet", "local": "loud", "type": false, "line": 1}]}"#;
+    let bytes = chain(&[file("src/greet.ts", &[], &[], &[]), file("src/both.ts", &["src/greet.ts"], &[both.to_owned()], &[])]);
+
+    let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
+
+    let locals: Vec<Option<&str>> = read.uses.iter().map(|one| one.local.as_deref()).collect();
+    assert_eq!(locals, [Some("loud"), Some("quiet")]);
+}
