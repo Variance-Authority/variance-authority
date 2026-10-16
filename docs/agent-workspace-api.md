@@ -171,11 +171,12 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-No refusal comes from a reused generation, whether you ask through `variance
-ask`, `variance serve` or `variance-authority-help` and its server: a name the
-generation does not hold is looked for again in one made from the checkout as
-it is, and in what your installed packages export, with that list built first
-when it is missing or behind. A function you wrote a minute ago, or a package
+When you name no changed files, no source question but `search` is refused
+from a reused generation, whether you ask through `variance ask`, `variance
+serve` or `variance-authority-help` and its server: a name the generation does
+not hold is looked for again in one made from the checkout as it is, and in
+what your installed packages export, with that list built first when it is
+missing or behind. A function you wrote a minute ago, or a package
 you just installed, is answered rather than reported missing. Only a refusal
 pays for that reading; an answer that found its name comes from the generation
 it was found in.

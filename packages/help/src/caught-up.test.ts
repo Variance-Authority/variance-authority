@@ -1,6 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
+import { caughtUp, snapshotLine } from './caught-up.js';
 import { serveWorkspace } from './server.js';
 
 /**
@@ -27,6 +28,27 @@ async function served(root: string, justAnswer: boolean): Promise<{ text: string
     stop();
   }
 }
+
+describe('caughtUp', () => {
+  it('asks again, of a current generation, a refusal from one made before the question', async () => {
+    const started = Date.now();
+    expect(await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => current)).toBe(true);
+  });
+
+  it('lets a refusal stand from a generation made during the question, or from none', async () => {
+    const started = Date.now();
+    const again = async (): Promise<string> => 'asked again';
+    expect(await caughtUp(new Date(started + 1).toISOString(), started, undefined, again)).toBeUndefined();
+    expect(await caughtUp(undefined, started, undefined, again)).toBeUndefined();
+  });
+});
+
+describe('snapshotLine', () => {
+  it('names the generation time, and says when the checkout was not compared with it', () => {
+    expect(snapshotLine('2026-01-02T03:04:05.000Z', false)).toBe('Snapshot 2026-01-02T03:04:05.000Z.');
+    expect(snapshotLine('2026-01-02T03:04:05.000Z', true)).toMatch(UNCOMPARED);
+  });
+});
 
 describe('the help server about a name written after the published generation', () => {
   it('reads the checkout again before refusing `docs_symbol`', async () => {

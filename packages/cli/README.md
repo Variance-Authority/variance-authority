@@ -216,8 +216,8 @@ compared with it; `search --format json` carries `compared: false` instead.
 Without the flag a generation is reused for one hour before the next source
 question refreshes it. A question refused from a reused generation, on `ask`
 or `serve`, is asked again of one made now, with the dependency lexicon built
-when it is missing or behind, before the refusal is given; an injected
-`AskRequest.source` is read again with `current` set. When no changed files are
+when it is missing or behind, before the refusal is given. An injected
+`AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
 named, `search` is the exception: it always reads the published generation,
 whatever its age, never scans, and says so on the same line. It refuses when
 nothing is published. `--changed-file` and `--taint-file` still ask it for a
