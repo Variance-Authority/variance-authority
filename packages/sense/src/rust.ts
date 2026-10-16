@@ -27,9 +27,20 @@
  *
  * ## `#[path]` names a file directly
  *
- * The one place Rust does spell a path. It is emitted as written, and the two
+ * The one place Rust does spell a path. At the top of a file it is relative to
+ * the directory the file is in, and the reader emits it as written. Inside an
+ * inline module it starts at that module's directory, so the reader emits the
+ * module first, `self::inline/other.rs`, and the directory is decided here,
+ * where `lib.rs`, `main.rs` and `mod.rs` are known to own theirs. The two
  * encodings are told apart by a character a Rust path cannot hold: a module path
  * is `::`-joined identifiers, so anything carrying `.` or `/` is a filename.
+ *
+ * ## Inline modules
+ *
+ * `self` and `super` in a `use` inside `mod tests { … }` name that module and
+ * the file around it, so the reader folds them into a path from the file's own
+ * module before it gets here: `use super::helper` in `tests` of `foo.rs` arrives
+ * as `self::helper`, an item of `foo.rs`, and lands on nothing.
  *
  * ## What is unknown
  *
@@ -77,11 +88,28 @@ export function resolveRust(input: {
   readonly request: string;
   readonly world: TreeWorld;
 }): readonly string[] {
-  const { from, request, world } = input;
+  const { from } = input;
+  // A path to the asking file is no edge: `use super::helper` in a `mod tests`
+  // of `lib.rs` names an item of `lib.rs`.
+  return landed(input).filter((at) => at !== from);
+}
 
+function landed({ from, request, world }: {
+  readonly from: string;
+  readonly request: string;
+  readonly world: TreeWorld;
+}): readonly string[] {
   const directory = moduleDirectory(from);
   if (spelledPath(request)) {
-    const at = normalize(`${directory}/${request}`);
+    // At the top of the file, relative to the directory the file is in, as the
+    // Rust Reference has it. Inside `mod a { mod b { … } }` the reader writes
+    // `self::a::b/` before it, and it starts at the directory of those modules.
+    const after = request.indexOf('/');
+    const inline = request.startsWith('self::') && after !== -1;
+    const cut = from.lastIndexOf('/');
+    const at = inline
+      ? normalize(`${directory}/${request.slice('self::'.length, after).split('::').join('/')}/${request.slice(after + 1)}`)
+      : normalize(`${cut === -1 ? '' : from.slice(0, cut)}/${request}`);
     return at !== undefined && world.has(at) ? [at] : [];
   }
 
