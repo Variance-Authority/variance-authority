@@ -14,7 +14,12 @@
 //! declaring file under its own name and in every file that imports it,
 //! through each `export … from` that passes it on, under the name the import
 //! binds; so `Props.size` and `Other.size` are told apart, and a same-named
-//! type of another file is neither. A container with no name has no uses.
+//! type of another file is neither. A container that carries the declaring
+//! one — an interface that extends it, an alias that intersects it, a class
+//! that implements it, a component that takes it as props — is joined the same
+//! way, so `wide.size` through `Wide extends Props` and `<Button size />`
+//! through `Button: FC<Props>` are uses of `Props.size`. A container with no
+//! name has no uses.
 
 // compass: variance-authority.reach.relations
 
@@ -29,7 +34,7 @@ use serde::Serialize;
 use crate::compact::Layer;
 use crate::help_usage::{importers_from, kind_of};
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{fold, join_parses, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::read::Lines;
 
@@ -137,10 +142,22 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
     found
 }
 
+/// Where each origin is written: by file, by the name the file writes it as.
+type Written = HashMap<String, HashMap<String, HashSet<usize>>>;
+
+fn write(into: &mut Written, file: &str, name: &str, origin: usize) -> bool {
+    into.entry(file.to_owned()).or_default().entry(name.to_owned()).or_default().insert(origin)
+}
+
 /// Each declaration of `name` on a named container given its uses: the
-/// member-use rows of member `name` whose type is written as the container, in
-/// the declaring file, or as the name an import of it binds, in a file that
-/// imports it.
+/// member-use rows of member `name` whose type is written as the container, or
+/// as a container that carries it, in the file that declares that one, or as
+/// the name an import of it binds, in a file that imports it.
+///
+/// The names are reached as a closure: each name reached is followed through
+/// its imports, and each container a reached file declares carrying a reached
+/// name (`interface Wide extends Props`, a component taking `Props`) is reached
+/// in turn, until a round reaches nothing new.
 fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     // One origin per declaring file and container, which several declarations can share.
     let mut origins: Vec<(String, String)> = Vec::new();
@@ -154,42 +171,59 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
         of.push(Some(origin));
     }
     if origins.is_empty() { return; }
-    // Where each origin is written, by file and by the name the file writes it as.
-    let mut written: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
+    let folded = fold(layers);
+    let mut parses: HashMap<String, Option<(usize, usize)>> = HashMap::new();
+    let mut written = Written::new();
+    let mut frontier = Written::new();
     for (origin, (at, on)) in origins.iter().enumerate() {
-        written.entry(at.clone()).or_default().entry(on.clone()).or_default().insert(origin);
+        write(&mut written, at, on, origin);
+        write(&mut frontier, at, on, origin);
     }
     // FIXME: `passed_on` passes nothing on through `export type { … } from`, so a
     // field used through a type-only barrel is missed here, though the type is
     // the one declared.
-    let (taken, _) = importers_from(root, layers, written.clone());
-    for one in taken {
-        // A name read off a namespace is `ns.Props`, which no member-use row writes.
-        if one.taken.through.is_some() || one.local.is_empty() { continue; }
-        written.entry(one.taken.at).or_default().entry(one.local).or_default().insert(one.origin);
+    while !frontier.is_empty() {
+        let mut reached = frontier.clone();
+        let (taken, _) = importers_from(root, layers, frontier);
+        for one in taken {
+            // A name read off a namespace is `ns.Props`, which no member-use row writes.
+            if one.taken.through.is_some() || one.local.is_empty() { continue; }
+            if write(&mut written, &one.taken.at, &one.local, one.origin) { write(&mut reached, &one.taken.at, &one.local, one.origin); }
+        }
+        let unread: Vec<&str> = reached.keys().filter(|file| !parses.contains_key(*file)).map(String::as_str).collect();
+        parses.extend(parses_of(layers, &folded, &unread));
+        frontier = Written::new();
+        for (file, names) in &reached {
+            let Some(Some((layer, row))) = parses.get(file).copied() else { continue };
+            let (stored, columns) = (&layers[layer].stored, &layers[layer].parses);
+            for at in columns.carries.range(row) {
+                let Some(carried) = names.get(stored.text(columns.carry_of.at(at))) else { continue };
+                let on = stored.text(columns.carry_on.at(at));
+                for &origin in carried {
+                    if write(&mut written, file, on, origin) { write(&mut frontier, file, on, origin); }
+                }
+            }
+        }
     }
-    let mut crossings: Vec<Crossing> = fold(layers)
-        .into_iter()
-        .filter(|(file, _)| written.contains_key(*file))
-        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
-        .collect();
-    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
-    join_parses(layers, &mut crossings);
-    let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
+    let files: Vec<&str> = written.keys().filter(|file| !parses.contains_key(*file)).map(String::as_str).collect();
+    parses.extend(parses_of(layers, &folded, &files));
+    let mut files: Vec<&str> = written.keys().map(String::as_str).collect();
+    files.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+    let paths = beside(root, files.iter().copied());
     let owners = owners(root, &paths);
     let mut uses: Vec<Vec<MemberUseSite>> = vec![Vec::new(); origins.len()];
-    for crossing in &crossings {
-        let (Some((layer, row)), Some(names)) = (crossing.parse, written.get(crossing.file)) else { continue };
+    for file in files {
+        let (Some(Some((layer, row))), Some(names)) = (parses.get(file).copied(), written.get(file)) else { continue };
         let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
         for at in parses.member_uses.range(row) {
             if stored.text(parses.member_use_name.at(at)) != name { continue; }
             let Some(origins) = names.get(stored.text(parses.member_use_of.at(at))) else { continue };
             for &origin in origins {
                 uses[origin].push(MemberUseSite {
-                    at: crossing.file.to_owned(),
+                    at: file.to_owned(),
                     line: parses.member_use_line.at(at),
-                    by: owners.package_of(crossing.file).to_owned(),
-                    kind: kind_of(crossing.file).to_owned(),
+                    by: owners.package_of(file).to_owned(),
+                    kind: kind_of(file).to_owned(),
                     how: stored.text(parses.member_use_how.at(at)).to_owned(),
                 });
             }
@@ -202,6 +236,18 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     for (site, origin) in found.iter_mut().zip(of) {
         if let Some(origin) = origin { site.uses = Some(uses[origin].clone()); }
     }
+}
+
+/// The newest parse of each of `files` on the chain, as `(layer, row)`; absent
+/// for a file the chain holds no parse of.
+fn parses_of(layers: &[Layer], folded: &HashMap<&str, At>, files: &[&str]) -> Vec<(String, Option<(usize, usize)>)> {
+    let mut crossings: Vec<Crossing> = files
+        .iter()
+        .filter_map(|file| folded.get_key_value(file))
+        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .collect();
+    join_parses(layers, &mut crossings);
+    crossings.into_iter().map(|crossing| (crossing.file.to_owned(), crossing.parse)).collect()
 }
 
 struct Walker<'n> {

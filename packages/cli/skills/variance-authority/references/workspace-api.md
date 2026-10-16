@@ -240,23 +240,35 @@ That search matches text, as no type checker runs: it lists comments, strings, a
 ```
 
 A use is a line that reads the member (`props.size`, `props['size']`,
-`props?.size`), writes it (`props.size = 1`, `+=`, `++`, a key of an object
-literal written as the type), or destructures it (`({ size }: Props) =>`,
-`const { size } = props`). It is tied to a declaration only where the line
-writes the value's type: a parameter's or a variable's annotation, alone or
-with `| undefined`, or an `as`, a `satisfies` or a `<Props>` cast. That name is
-followed through the import that binds it, renamed or passed on by `export *`
-or `export { … } from`, to the file that declares it, so `Props.size` and
-`Other.size` are listed apart and a same-named type of another file is neither.
-A binding that shadows an annotated one is no use.
+`props?.size`, `Props['size']` in a type), writes it (`props.size = 1`, `+=`,
+`++`, a key of an object literal written as the type, a JSX attribute), or
+destructures it (`({ size }: Props) =>`, `const { size } = props`). It is tied
+to a declaration only where the source writes the value's type: a parameter's
+or a variable's annotation, alone or with `| undefined`, an `as`, a `satisfies`
+or a `<Props>` cast, the return type of the function a literal is returned from
+(`(): Props => ({ size: 1 })`), the class `this` is inside, or a `this: Props`
+parameter. A component annotated with a component type `react` exports,
+`FC<Props>` or `React.FunctionComponent<Props>`, takes its first parameter as
+`Props`.
 
-What a type checker infers is not read: a value returned by a call, a generic
-or a mapped type, a value narrowed or copied without an annotation, and a type
+A container that carries the type is followed too: an interface that extends
+it, an alias that is it or intersects it (`Props & { … }`), a class that
+extends or implements it, and a component whose first parameter is it, so
+`w.size` with `w: Wide` and `<Button size={2} />` with `Button: FC<Props>` are
+uses of `Props.size`. Each name is followed through the import that binds it,
+renamed or passed on by `export *` or `export { … } from`, to the file that
+declares it, the declaring file included, so `Props.size` and `Other.size` are
+listed apart and a same-named type of another file is neither. A binding that
+shadows an annotated one is no use, and a `function` inside a class binds a
+`this` of its own.
+
+What a type checker infers is not read: a value returned by a call, a generic,
+a mapped or utility type (`Partial<Props>`), a component wrapped in `memo` or
+`forwardRef`, a value narrowed or copied without an annotation, and a type
 named through a namespace (`ns.Props`). Nor is what the line does not write as
-a value of the type: a JSX attribute (`<Box size={2} />`), an object literal
-passed to an annotated parameter, `this.size`, a field inherited through
-`extends` or `&`, and a type imported by another name than its declaration's,
-as a default export or one renamed where it is declared. Those are the `grep` route's: `variance ask grep --query '\bsize\b'
+a value of the type: an object literal passed to an annotated parameter, and a
+type imported by another name than its declaration's, as a default export or
+one renamed where it is declared. Those are the `grep` route's: `variance ask grep --query '\bsize\b'
 --to src/shapes/props.ts` searches the files that import the
 declaration, at any depth. A name that an export has as well, such as a wrapper
 function named like the member, lists the wrapper's imports first, then

@@ -82,6 +82,11 @@ const PARSED: Parsed = {
     { name: 'hydrateLater', line: 33, of: 'LazyShell', how: 'write' },
     { name: 'paintOnce', line: 35, of: 'Renamed', how: 'destructure' },
   ],
+  // Names no other column holds, so a carry read the wrong way round fails here.
+  carries: [
+    { on: 'WideShell', of: 'NarrowShell' },
+    { on: 'PanelButton', of: 'PanelProps' },
+  ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.

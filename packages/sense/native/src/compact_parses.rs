@@ -74,6 +74,9 @@ pub(crate) struct Parses<'a> {
     pub member_use_line: U32s<'a>,
     pub member_use_of: U32s<'a>,
     pub member_use_how: U32s<'a>,
+    pub carries: U32s<'a>,
+    pub carry_on: U32s<'a>,
+    pub carry_of: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -91,6 +94,7 @@ impl<'a> Parses<'a> {
         let (member_name, declare_name) = (u32s("members.name")?, u32s("declares.name")?);
         let member_declaration_name = u32s("member-declarations.name")?;
         let member_use_name = u32s("member-uses.name")?;
+        let carry_on = u32s("carries.on")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -147,6 +151,9 @@ impl<'a> Parses<'a> {
             member_use_of: u32s("member-uses.of")?,
             member_use_how: u32s("member-uses.how")?,
             member_use_name,
+            carries: stored.offsets("parses.carries", rows, carry_on.len())?,
+            carry_of: u32s("carries.of")?,
+            carry_on,
             declare_name,
         };
         parses.lengths()?;
@@ -231,7 +238,8 @@ impl<'a> Parses<'a> {
             ("member-uses.line", self.member_use_line.len()),
             ("member-uses.of", self.member_use_of.len()),
             ("member-uses.how", self.member_use_how.len()),
-        ])
+        ])?;
+        same_length(self.carry_on.len(), &[("carries.of", self.carry_of.len())])
     }
 }
 
@@ -287,6 +295,10 @@ impl ParseRow for ParseView<'_, '_> {
             text(columns.member_use_name, at);
             text(columns.member_use_of, at);
             text(columns.member_use_how, at);
+        }
+        for at in columns.carries.range(row) {
+            text(columns.carry_on, at);
+            text(columns.carry_of, at);
         }
         for at in self.declares() {
             text(columns.declare_name, at);
@@ -362,6 +374,9 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.member_use_of, at),
                 id(columns.member_use_how, at),
             );
+        }
+        for at in columns.carries.range(row) {
+            into.carry(id(columns.carry_on, at), id(columns.carry_of, at));
         }
     }
 

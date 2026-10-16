@@ -12,7 +12,7 @@ use serde::Serialize;
 use crate::declarations::declarations;
 use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
-use crate::help_member_uses::{member_uses_in, MemberUse};
+use crate::help_member_uses::{typed_in, Carry, MemberUse};
 use crate::help_members::{member_declarations_in, MemberDeclaration};
 use crate::members::{members_and_loads_in, Member};
 use crate::mocks::{mocks_in, Mocks};
@@ -104,6 +104,9 @@ pub struct Read {
     /// Every use of a member through a value whose type the module writes.
     #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
     pub(crate) member_uses: Vec<MemberUse>,
+    /// Every container the module declares that carries the members of a type it writes.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) carries: Vec<Carry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -316,6 +319,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
 
     let clean = !parsed.panicked && parsed.diagnostics.is_empty();
     let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
+    let typed = typed_in(&parsed.program, &lines);
     let read = Read {
         requests,
         exports,
@@ -325,7 +329,8 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         mocks: mocks_in(source, &parsed.program),
         members,
         member_declarations: member_declarations_in(&parsed.program, &lines),
-        member_uses: member_uses_in(&parsed.program, &lines),
+        member_uses: typed.uses,
+        carries: typed.carries,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
     };
