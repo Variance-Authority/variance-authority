@@ -24,6 +24,15 @@ describe('what a Rust file asks for', () => {
     expect(asked.get('crate::read::Read')?.guessed).toBe(true);
   });
 
+  it('takes a declared module whole, as a namespace, and an item a `use` names by its name', () => {
+    // `mod order;` imports no item `order`, though `order.rs` may declare one.
+    const read = readRust('src/lib.rs', 'mod order;\nuse crate::order::order;\n');
+    const taken = new Map(read.requests.map((request) => [request.value, request.bindings.map(({ imported, local }) => ({ imported, local }))]));
+
+    expect(taken.get('self::order')).toEqual([{ imported: '*', local: 'order' }]);
+    expect(taken.get('crate::order::order')).toEqual([{ imported: 'order', local: 'order' }]);
+  });
+
   it('carries an inline module down to the files declared inside it', () => {
     // `mod b;` inside `mod a { … }` is the file `a/b.rs`, and the nesting is
     // the only thing that says so.
