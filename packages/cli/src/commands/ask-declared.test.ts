@@ -194,6 +194,14 @@ describe('variance ask about a name declared and not exported', () => {
     expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4$/m);
   });
 
+  it('answers `search` with a Rust item whose `///` lines hold the words across a line break', async () => {
+    checkout(PRIVATE_RUST);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'search', '--query', 'again, in a process']);
+    expect(out).toMatch(/^relaunch \[function\] — .* · packages\/kit\/src\/lib\.rs:7$/m);
+  });
+
   it('answers `symbol` for a Rust item that is not `pub`, with its doc lines and who can name it', async () => {
     checkout(PRIVATE_RUST);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
