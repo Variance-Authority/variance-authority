@@ -5,7 +5,7 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms } from './loose.js';
-import { describedNames, describedOrder } from './described.js';
+import { describedDeclarations, describedNames, describedOrder } from './described.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches } from './declared.js';
 
@@ -116,7 +116,7 @@ export interface DeclaredMatch {
 }
 
 /** A name of this repository a description reached, and which of its words it holds. */
-export type DescribedMatch = (PublishedMatch | ExportedMatch) & {
+export type DescribedMatch = (PublishedMatch | ExportedMatch | DeclaredMatch) & {
   /** The question's words the name or its documentation holds, as the question wrote them. */
   readonly words: readonly string[];
 };
@@ -432,12 +432,16 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // The empty answer read as a description: names holding half of its words,
   // stemmed by the rule packages are. It prints first, so it claims its names
   // first, and the loose pass offers none of them a second time.
-  const described = describedNames(index, query, within, new Set([...named, ...answered]));
+  // A name its file keeps to itself is in no row of the index, so the source
+  // index answers for it by the same words, and it is ordered among the rest.
+  const reached = describedNames(index, query, within, new Set([...named, ...answered]));
+  const described = reached === undefined ? undefined : [...reached, ...(describedDeclarations(root, query, area?.files) ?? [])];
   const told = described === undefined ? undefined : first(described, DESCRIBED_CAP, describedOrder)
-    .flatMap(({ name, words }): DescribedMatch[] => {
-      const row = published(index, surface(index, index.publishedOf(name), area, within), 1).shown[0] ??
-        exported(index, [name], new Set(), within).head(1)[0];
-      return row === undefined ? [] : [{ ...row, words }];
+    .flatMap((held): DescribedMatch[] => {
+      if ('match' in held) return [{ ...held.match, words: held.words }];
+      const row = published(index, surface(index, index.publishedOf(held.name), area, within), 1).shown[0] ??
+        exported(index, [held.name], new Set(), within).head(1)[0];
+      return row === undefined ? [] : [{ ...row, words: held.words }];
     });
 
   // The loose pass — names the words reach when they are allowed apart and
@@ -445,7 +449,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // substring answered are kept out: a name the caller can already see must
   // not be offered back to them as something else. Whether a name is in the
   // answer is the dictionary's to say; where it sits is not.
-  const claimed = new Set([...named, ...answered, ...(described ?? []).map(({ name }) => name)]);
+  const claimed = new Set([...named, ...answered, ...(reached ?? []).map(({ name }) => name)]);
   const loose = looseNames(index, query, FUZZY, within, claimed);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
   const alsoFound = published(index, alsoHits, LOOSE_CAP);

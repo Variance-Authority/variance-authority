@@ -27,7 +27,5 @@ The unpublished line shows the first paragraph of the doc:
 `owner_of — @variance-authority/sense · packages/sense/native/src/package_owners.rs:190 — Any path's package, tracked or not: …`.
 In `--format json`, an `exported` row carries it as `summary`.
 
-The Rust, Java, Kotlin, Swift and Python readers now record a declaration's
-doc, so the source index format moves to version 20. The first `variance index`
-after upgrading reads every file again. The search file `variance index`
-publishes moves to version 3.
+The search file `variance index` publishes moves to version 3, so the first
+`variance index` after upgrading writes it again.

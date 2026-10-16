@@ -276,8 +276,10 @@ matches installed third-party declarations from the same lexicon, which is
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names holding at least half of your words by stem, then
-names your words reach loosely — are suggestions, printed before the installed
+follow an empty answer — names holding at least half of your words by stem, in
+any order, in the name or its doc, whether published, exported or declared and
+not exported, the ones holding the most of your words first; then names your
+words reach loosely — are suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.

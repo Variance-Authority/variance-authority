@@ -531,9 +531,11 @@ than as it was when the reading was taken.
 It does not rank on prose. `search` is a case-insensitive substring match over
 names and docs, so a match is a fact about the text rather than an opinion about
 the query. When it matches nothing, the names holding at least half of the
-query's words, stemmed as installed packages are, follow under their own
-heading, each with the words it holds, ordered by how many of them the name
-holds and then how many it holds at all: counts, never a score.
+query's words, stemmed as installed packages are, in any order across the name
+and its doc, follow under their own heading, each with the words it holds. A
+name its file declares and does not export is among them. They are ordered by
+how many of the words each holds and then how many its name holds: counts,
+never a score.
 
 It does not stop at what a manifest publishes. Most code in any checkout was
 never meant to be published — 1,826 names are published in this repository and
