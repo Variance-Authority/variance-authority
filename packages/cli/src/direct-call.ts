@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 /**
  * The same command, called without the package manager that launched it.
@@ -21,14 +21,15 @@ import { dirname, join } from 'node:path';
  *   chose the call. A launch leaves the event unset, or sets it to a name no
  *   script declares, and which name differs from one package manager to the
  *   next, so none is read;
+ * - it runs in the directory the command was typed in, which a package manager
+ *   records as `INIT_CWD`. One that runs the binary elsewhere would have the
+ *   same arguments name other files when typed where the caller stands;
  * - the nearest `node_modules/.bin/variance` above the working directory is this
  *   file. Under Plug'n'Play there is no such directory. Some package managers,
  *   and every one on Windows, write a wrapper script there, which is not this
  *   file. A binary that is another install's would answer in that version's way.
  *
- * The binary is named by its full path, which runs from wherever the caller
- * stands: a launcher may run the program in another directory than the one the
- * command was typed in.
+ * The binary is named by its full path, so the line holds no directory change.
  */
 
 /**
@@ -47,6 +48,8 @@ export function directCallLine(
   if (launcher === undefined || launcher === '') return '';
   const event = env['npm_lifecycle_event'];
   if (event !== undefined && declaresScript(cwd, event)) return '';
+  const typedIn = env['INIT_CWD'];
+  if (typedIn !== undefined && typedIn !== '' && resolve(typedIn) !== resolve(cwd)) return '';
   const binary = nearest(cwd, join('node_modules', '.bin', 'variance'));
   if (binary === undefined || !sameFile(binary, self)) return '';
   const command = [binary, ...argv].map(quoted).join(' ');

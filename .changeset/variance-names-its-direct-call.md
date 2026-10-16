@@ -14,6 +14,7 @@ variance: the same command answers faster: /path/to/checkout/node_modules/.bin/v
 ```
 
 The answer on stdout and the exit code are unchanged. The line is not printed
-for a direct call, inside a package script, in CI, or when the nearest
+for a direct call, inside a package script, in CI, when the program runs in
+another directory than the command was typed in, or when the nearest
 `node_modules/.bin/variance` is not this program's file — missing, as under
 Plug'n'Play, a wrapper script, or another install's.

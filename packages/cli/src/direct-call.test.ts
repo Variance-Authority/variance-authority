@@ -67,11 +67,15 @@ describe('the faster direct call', () => {
     expect(directCallLine(['index'], { ...LAUNCHED, INIT_CWD: inside }, inside, self)).toContain(`faster: ${binary} index`);
   });
 
-  it('names the full path, which runs from wherever the command was typed', () => {
-    // A package manager may run a binary from the project root, not from the directory it was typed in.
+  it('says nothing when it runs in another directory than the command was typed in', () => {
+    // Typed there, the same arguments would name other files: `src/a.ts` from `packages/app` is not the root's.
     const typedIn = join(root, 'packages', 'app');
     mkdirSync(typedIn, { recursive: true });
-    expect(directCallLine(['covering', '--file', 'src/a.ts'], { ...UNDECLARED, INIT_CWD: typedIn }, root, self)).toBe(
+    expect(directCallLine(['covering', '--file', 'src/a.ts'], { ...UNDECLARED, INIT_CWD: typedIn }, root, self)).toBe('');
+  });
+
+  it('names the full path when it runs where the command was typed', () => {
+    expect(directCallLine(['covering', '--file', 'src/a.ts'], { ...UNDECLARED, INIT_CWD: root }, root, self)).toBe(
       `\nvariance: the same command answers faster: ${binary} covering --file src/a.ts\n`,
     );
   });
