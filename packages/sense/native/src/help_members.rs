@@ -155,6 +155,10 @@ pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<Containe
     join_parses(layers, &mut crossings);
     let Some((layer, row)) = crossings[0].parse else { return Vec::new() };
     let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+    // FIXME: `member-declarations.on` is the container's name alone, so a
+    // container nested in a function shares its members with a top-level one of
+    // the same name in the file; telling them apart needs the container's place
+    // in the index (`ask-symbol-members.test.ts`, the `it.todo`).
     let mut members: Vec<ContainerMember> = parses
         .member_declarations
         .range(row)

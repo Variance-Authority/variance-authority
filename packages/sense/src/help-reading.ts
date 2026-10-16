@@ -213,16 +213,17 @@ export function membersOn(root: string, file: string, on: string, index: string 
 
 /**
  * The declaration the export `name` of `file`, repo-relative, passes on,
- * through every `export … from` between them, renamed or not and type-only or
- * not, and through an `export *` when no named export passes the name, as
- * ECMAScript resolves an export: a file's own export list first, then a named
- * `export … from`, then its stars. `null` when the file's own export list
- * binds the name, and when the walk ends short of a declaration: at a
- * namespace, at an import a file exports again, at a request that resolved to
- * no file of the checkout, at a file with no export list in the index that does not declare the name, back at
- * a file it passed through, or at stars that reach different declarations.
- * `undefined` when no index was
- * published; throws when the index does not read.
+ * through every `export … from` and every import a file exports again between
+ * them, renamed or not and type-only or not, and through an `export *` when no
+ * named export passes the name, as ECMAScript resolves an export: a file's own
+ * export list first, then a named `export … from`, then its stars, none of
+ * which passes `default`. `null` when `file` declares the name itself, and
+ * when the walk ends short of a declaration: at a namespace (`export * as`,
+ * `import * as`), at a request that resolved to no file of the checkout, at a
+ * file with no export list in the index that does not declare the name, back
+ * at a file it passed through, or at stars that reach different declarations.
+ * `undefined` when no index was published; throws when the index does not
+ * read.
  */
 export function declarationPassedOn(root: string, file: string, name: string, index: string = sourceIndexPath(root)): PassedOnDeclaration | null | undefined {
   const read = entry('declarationPassedOnOf')(index, file, name);

@@ -84,4 +84,10 @@ describe('variance ask symbol over a container', () => {
     const id = await run(['ask', 'symbol', '--name', 'Id']);
     expect(members(id.out)).toEqual([]);
   });
+
+  // The source index records the container a member is on by its name alone,
+  // so a container nested in a function and a top-level one of the same name
+  // in one file share their members. Declarations TypeScript merges, two
+  // `interface`s of one name, are one type and list together rightly.
+  it.todo('lists only its own members for a container whose name a nested container in its file shares — needs `member-declarations` to record the container a member is on by its place, not its name alone');
 });

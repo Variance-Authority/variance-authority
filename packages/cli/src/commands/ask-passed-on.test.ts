@@ -162,6 +162,41 @@ describe('a name only passed on', () => {
     expect(spacing.out).not.toContain('passes on');
   });
 
+  it('follows an import the file exports again, and names none for a namespace it exports', async () => {
+    checkout({
+      'packages/kit/src/money/imported.ts': "import { taxOf } from './tax.js';\nexport { taxOf as imported };\n",
+      'packages/kit/src/money/further.ts': "export { imported as further } from './imported.js';\n",
+      'packages/kit/src/money/wholly.ts': "import * as tax from './tax.js';\nexport { tax as wholly };\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const imported = (await run(['ask', 'uses', '--name', 'imported'])).out;
+    expect(imported).toContain('at packages/kit/src/money/imported.ts:');
+    expect(imported).toContain(`, ${DECLARED}, `);
+    expect((await run(['ask', 'uses', '--name', 'further'])).out).toContain(`at packages/kit/src/money/further.ts:1, ${DECLARED}, `);
+    const wholly = await run(['ask', 'uses', '--name', 'wholly']);
+    expect(wholly.code).toBe(EXIT_CLEAN);
+    expect(wholly.out).toContain('packages/kit/src/money/wholly.ts:');
+    expect(wholly.out).not.toContain('passes on');
+  });
+
+  it('follows `default` passed on by name, and never through a star', async () => {
+    checkout({
+      'packages/kit/src/money/defaulted.ts': 'export default function rated(amount: number): number {\n  return amount;\n}\n',
+      'packages/kit/src/money/named.ts': "export { default as named } from './defaulted.js';\n",
+      'packages/kit/src/money/starred.ts': "export * from './defaulted.js';\n",
+      'packages/kit/src/money/unstarred.ts': "export { default as unstarred } from './starred.js';\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'uses', '--name', 'named'])).out)
+      .toContain('at packages/kit/src/money/named.ts:1, which passes on `rated`, declared at packages/kit/src/money/defaulted.ts:1, ');
+    const unstarred = await run(['ask', 'uses', '--name', 'unstarred']);
+    expect(unstarred.code).toBe(EXIT_CLEAN);
+    expect(unstarred.out).toContain('packages/kit/src/money/unstarred.ts:1');
+    expect(unstarred.out).not.toContain('passes on');
+  });
+
   it('names no declaration when the files only pass the name to each other', async () => {
     checkout({
       'packages/kit/src/money/left.ts': "export { loop } from './right.js';\n",
