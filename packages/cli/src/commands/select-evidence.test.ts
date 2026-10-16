@@ -12,8 +12,8 @@ import { indexOutput } from './index-command.js';
  * `variance select` in a suite that declares the evidence it trusts.
  *
  * `src/pad.ts` is imported by three tests. `alpha` loaded it, `beta` called
- * `pad`, and `gamma` ran nothing of it. A line inside `pad` changes, and the
- * plain output names the tests the run skips.
+ * `pad`, and `gamma` imports only `width` and ran nothing of the file. A line
+ * inside `pad` changes, and the plain output names the tests the run skips.
  */
 describe('the evidence a suite declares, read by `variance select`', () => {
   const cwd = process.cwd();
@@ -35,6 +35,10 @@ describe('the evidence a suite declares, read by `variance select`', () => {
     expect(await skipped('file-use')).toBe('test/gamma.test.ts\n');
   });
 
+  it('runs every test that imports the export the change moved at symbol, read from git', async () => {
+    expect(await skipped('symbol')).toBe('test/gamma.test.ts\n');
+  });
+
   it('runs every test that imports the changed file at file, whatever it ran', async () => {
     expect(await skipped('file')).toBe('');
   });
@@ -46,15 +50,15 @@ async function skipped(evidence: string | undefined): Promise<string> {
   return (await selectOutput({ cwd: root, format: 'plain', suite: 'unit' })).out;
 }
 
-const PAD = ['export function pad(text: string): string {', "  return text.padStart(4, ' ');", '}', ''].join('\n');
-const TEST = (name: string, body: string) =>
-  `import { expect, it } from 'vitest';\nimport { pad } from '../src/pad';\nit('${name}', () => ${body});\n`;
+const PAD = ['export const width = 4;', 'export function pad(text: string): string {', "  return text.padStart(4, ' ');", '}', ''].join('\n');
+const TEST = (name: string, body: string, imported = 'pad') =>
+  `import { expect, it } from 'vitest';\nimport { ${imported} } from '../src/pad';\nit('${name}', () => ${body});\n`;
 
 const FILES: Readonly<Record<string, string>> = {
   'src/pad.ts': PAD,
   'test/alpha.test.ts': TEST('loads', 'expect(typeof pad).toBe("function")'),
   'test/beta.test.ts': TEST('pads', "expect(pad('x')).toBe('   x')"),
-  'test/gamma.test.ts': TEST('names', 'expect(pad.name).toBe("pad")'),
+  'test/gamma.test.ts': TEST('measures', 'expect(width).toBe(4)', 'width'),
   'package.json': JSON.stringify({ name: 'fixture' }),
 };
 
@@ -100,7 +104,7 @@ function snapshot(commit: string): TestCoverage {
             name: 'pad.ts',
             path: 'module',
             startLine: 1,
-            endLine: 4,
+            endLine: 5,
             source: true,
             testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'],
           },
@@ -111,8 +115,8 @@ function snapshot(commit: string): TestCoverage {
             digest: digestString('pad'),
             name: 'pad',
             path: 'pad',
-            startLine: 1,
-            endLine: 3,
+            startLine: 2,
+            endLine: 4,
             source: true,
             testFiles: ['test/beta.test.ts'],
           },

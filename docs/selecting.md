@@ -291,7 +291,7 @@ which runs every test that imports a changed file, and move one step finer when
 the runs have earned it:
 
 ```json
-{ "suites": { "unit": { "kind": "unit", "evidence": "file-use" } } }
+{ "suites": { "unit": { "kind": "unit", "evidence": "file" } } }
 ```
 
 | `evidence` | A test runs when |
@@ -312,8 +312,11 @@ declines that graph, so it cannot declare either, and the config is refused.
 The steps trust different evidence, so a finer step is not always a subset of a
 coarser one. A test that only loaded a module runs at `file-use` and not at
 `symbol`, because `symbol` takes loading a module to declare its exports and
-nothing more: the `sideEffects` field is how you say otherwise. To see what each
-step would select for your change, run `variance select` once per step.
+nothing more: the `sideEffects` field is how you say otherwise. A test that
+loaded a changed file through no import the graph holds, such as one a runner
+config names, runs at `file-use` and not at `file`, because `file` reads only
+the graph. To see what each step would select for your
+change, run `variance select` once per step.
 
 A [journey](journeys.md) file you hand to `variance select --execution` is read
 by its regions, whatever the suite declares: naming the file asks for that
