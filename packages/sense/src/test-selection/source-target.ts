@@ -9,12 +9,12 @@
  *
  * A line lands where selection charges an edit to it ({@link blocksChargedAt}),
  * so the answer names every case a selection over that edit would run. A line
- * only the module's own region holds is held at file grain: the record says
- * the module was loaded and nothing narrower, so its answer is every case that
- * loaded the file. A run of lines lands on every region one of its lines is
- * charged to, which is what a selection over an edit to those lines runs: a
- * range that crosses a function's first or last line already charges the
- * region around it.
+ * whose edit charges the module's own region is read at file grain: the record
+ * says the module was loaded and nothing narrower, so its answer is every case
+ * that loaded the file. That is a line only the module holds, and also the
+ * first or last line of a function the module region encloses directly. A run
+ * of lines lands on every region one of its lines is charged to, which is what
+ * a selection over an edit to those lines runs.
  *
  * A scope is a name the instrumenter wrote at the recorded commit, so it needs
  * no parse of any text: a function's own name, a method's `Class/method`. The
@@ -38,14 +38,16 @@ interface NamedRegion extends RegionLines {
 }
 
 /**
- * The finest grain the record holds a line at: `region` when a region
- * narrower than the module's charges it, `file` when only the module's own
- * region does, absent when no region with source holds it.
+ * The grain an answer about a line is read at: `file` when an edit to it
+ * charges the module's own region — a line only the module holds, and a line
+ * that opens or closes a function the module region encloses directly — so the
+ * answer names every case that loaded the file; `region` when it charges only regions
+ * narrower than that; absent when no region with source holds it.
  */
 export function lineGrain(blocks: readonly RegionLines[], line: number): 'region' | 'file' | undefined {
   const charged = blocksChargedAt(blocks, line).filter((block) => block.source);
   if (charged.length === 0) return undefined;
-  return charged.every((block) => block.kind === 'module') ? 'file' : 'region';
+  return charged.some((block) => block.kind === 'module') ? 'file' : 'region';
 }
 
 /** The recorded functions a scope owns: the one of its name, and every one written inside it. */

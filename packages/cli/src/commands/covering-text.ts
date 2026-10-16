@@ -69,11 +69,15 @@ function text(answer: Covering): string {
 function grainText(answer: Covering, where: string): readonly string[] {
   const lines: string[] = [];
   if (answer.grain === 'file') {
-    lines.push(`At file grain: no recorded region narrower than the module's own holds ${where}, so the record names the cases that loaded the file.`);
+    lines.push(`At file grain: an edit to ${where} charges the module's own region, so the record names the cases that loaded the file.`);
   }
   if (answer.fileGrain !== undefined) {
-    const [one, verb] = single(answer.fileGrain) ? ['Line', 'is'] : ['Lines', 'are'];
-    lines.push(`${one} ${runsText(answer.fileGrain)} ${verb} held only by the module's own region: for them the record names the cases that loaded the file.`);
+    const [one, verb] = single(answer.fileGrain) ? ['Line', 'charges'] : ['Lines', 'charge'];
+    lines.push(`${one} ${runsText(answer.fileGrain)} ${verb} the module's own region: for them the record names the cases that loaded the file.`);
+  }
+  if (answer.outside !== undefined) {
+    const [one, verb] = single(answer.outside) ? ['Line', 'is'] : ['Lines', 'are'];
+    lines.push(`${one} ${runsText(answer.outside)} ${verb} outside every recorded region, so no case can be said to have run ${single(answer.outside) ? 'it' : 'them'}.`);
   }
   if (answer.written !== undefined) {
     const [one, verb] = single(answer.written) ? ['Line', 'was'] : ['Lines', 'were'];

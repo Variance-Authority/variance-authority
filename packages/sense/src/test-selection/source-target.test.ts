@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { coveringTests, stoppedBefore, type ExecutionIndex } from './reverse.js';
 import { functionsUnder, lineGrain } from './source-target.js';
 
@@ -35,6 +36,13 @@ describe('the grain the record holds a line at', () => {
     expect(lineGrain(module.blocks, 20)).toBe('file');
     expect(lineGrain(module.blocks, 41)).toBeUndefined();
   });
+
+  it('is the file on a line that opens or closes a function, since an edit there charges the module as well', () => {
+    expect(lineGrain(module.blocks, 5)).toBe('file');
+    expect(lineGrain(module.blocks, 9)).toBe('file');
+    // The callback on line 13 opens inside a method, so it charges the method and not the module.
+    expect(lineGrain(module.blocks, 13)).toBe('region');
+  });
 });
 
 describe('asking a range of lines', () => {
@@ -49,9 +57,21 @@ describe('asking a range of lines', () => {
   });
 
   it('reads the stopped cases over the same regions it answers from', () => {
-    expect(stoppedBefore(index, { file: 'src/ledger.ts', lines: [7, 20] })).toEqual(
-      stoppedBefore(index, { file: 'src/ledger.ts', line: 7 }),
-    );
+    // `finds` entered `Ledger/first` and then threw: it stopped before `Ledger/record`.
+    const settled: ExecutionIndex = {
+      ...index,
+      tests: index.tests.map((test) => ({ ...test, stopped: test.id === 'finds' })),
+      modules: [{ ...module, blocks: module.blocks.filter((block) => block.kind !== 'module') }],
+    };
+    const relations = relationsOfFiles([
+      { file: 'src/ledger.ts' },
+      ...['test/load.test.ts', 'test/ledger.test.ts', 'test/book.test.ts'].map((file) => ({ file, edges: [{ to: 'src/ledger.ts', kind: 'imports' as const }] })),
+    ]);
+    const stopped = (target: Parameters<typeof stoppedBefore>[1]) => stoppedBefore(settled, target, { relations })?.map((test) => test.id);
+
+    expect(stopped({ file: 'src/ledger.ts', lines: [7, 8] })).toEqual(['finds']);
+    expect(stopped({ file: 'src/ledger.ts', lines: [7, 14] })).toEqual([]);
+    expect(stopped({ file: 'src/ledger.ts', function: 'Ledger' })).toEqual([]);
   });
 });
 

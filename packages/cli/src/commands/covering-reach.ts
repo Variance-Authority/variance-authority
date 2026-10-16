@@ -124,8 +124,9 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
   const relations = await relationsFor(request.root, ['.'], [], []);
 
   // A hop runs from the file to a test file, whichever of the file's regions the
-  // test entered, so a run of lines or a scope, which the point cannot spell,
-  // measures from the file: every test file listed under them entered it.
+  // test entered, so a run of lines and every `--function`, exact name or scope,
+  // measure from the file: the point cannot spell a run or a scope, and the
+  // listed test files come from the answer, not from the point.
   const point: SourcePoint = {
     file: request.file,
     ...(request.line === undefined ? {} : { line: request.line }),

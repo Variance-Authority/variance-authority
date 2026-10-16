@@ -66,7 +66,7 @@ export async function coveringAt(
   const file = request.file;
   let target: SourceTestTarget;
   let asked: CoveringTarget;
-  let grain: Pick<Covering, 'grain' | 'fileGrain' | 'written'> = {};
+  let grain: Pick<Covering, 'grain' | 'fileGrain' | 'outside' | 'written'> = {};
   if (request.line !== undefined || request.lines !== undefined) {
     const held = request.lines ?? { startLine: request.line!, endLine: request.line! };
     const lines = recordedLines(held, module, placement);
@@ -77,6 +77,7 @@ export async function coveringAt(
     grain = {
       ...(whole ? { grain: 'file' as const } : {}),
       ...(whole || lines.fileGrain.length === 0 ? {} : { fileGrain: runsOf(lines.fileGrain) }),
+      ...(lines.outside.length === 0 ? {} : { outside: runsOf(lines.outside) }),
       ...(lines.written.length === 0 ? {} : { written: runsOf(lines.written) }),
     };
   } else if (request.function !== undefined) {
@@ -123,8 +124,10 @@ export function runsText(runs: readonly HeldLines[]): string {
 interface ReadLines {
   /** In the record's coordinates: every asked line a recorded region holds. */
   readonly lines: readonly number[];
-  /** In the held text: the lines of {@link ReadLines.lines} only the module's own region holds. */
+  /** In the held text: the lines of {@link ReadLines.lines} whose edit charges the module's own region. */
   readonly fileGrain: readonly number[];
+  /** In the held text: the recorded lines no region holds. */
+  readonly outside: readonly number[];
   /** In the held text: the lines written since the recording. */
   readonly written: readonly number[];
 }
@@ -137,6 +140,7 @@ interface ReadLines {
 function recordedLines(held: HeldLines, module: ExecutionModule, placement: Placement | undefined): ReadLines {
   const lines: number[] = [];
   const fileGrain: number[] = [];
+  const outside: number[] = [];
   const written: number[] = [];
   for (let at = held.startLine; at <= held.endLine; at += 1) {
     const line = placement === undefined ? at : placement.recordedLine(at);
@@ -145,11 +149,14 @@ function recordedLines(held: HeldLines, module: ExecutionModule, placement: Plac
       continue;
     }
     const grain = lineGrain(module.blocks, line);
-    if (grain === undefined) continue;
+    if (grain === undefined) {
+      outside.push(at);
+      continue;
+    }
     lines.push(line);
     if (grain === 'file') fileGrain.push(at);
   }
-  return { lines, fileGrain, written };
+  return { lines, fileGrain, outside, written };
 }
 
 /** Why no asked line has an answer: every one was written since, or none is in a recorded region. */

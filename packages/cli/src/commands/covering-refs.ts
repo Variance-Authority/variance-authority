@@ -70,7 +70,9 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     answer.state === undefined ? '' : ` ${answer.state}`
   }: ${witnesses(answer.tests ?? [], answer.stopped, table)}${
     answer.fileGrain === undefined ? '' : `; file grain at ${runsText(answer.fileGrain)}`
-  }${answer.written === undefined ? '' : `; written since ${runsText(answer.written)}`}`];
+  }${answer.outside === undefined ? '' : `; outside every region at ${runsText(answer.outside)}`}${
+    answer.written === undefined ? '' : `; written since ${runsText(answer.written)}`
+  }`];
 }
 
 function rangeLine(range: CoveringRange, table: Table): string {

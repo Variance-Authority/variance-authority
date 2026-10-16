@@ -400,8 +400,9 @@ Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before is folded into one line.
 
 `--line 40-60` asks a run of lines, and `--function Cart` a class: every case
-that entered one of its recorded methods. A line only the module's own
-top-level region holds is answered at file grain, with the cases that loaded the
+that entered one of its recorded methods. A line whose edit charges the
+module's own region, such as a module-level statement or the first line of a
+top-level function, is answered at file grain, with the cases that loaded the
 file, and the answer says so.
 
 A module the run loaded without instrumenting it, such as one named in

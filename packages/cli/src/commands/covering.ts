@@ -100,17 +100,20 @@ export interface Covering {
   /** The line, run of lines or function the question named, in the text as it is now; absent when it named none. */
   readonly target?: CoveringTarget;
   /**
-   * `file` when no line the answer read is held by a region narrower than the
-   * module's own: the record says the module was loaded and nothing finer, so
-   * the cases are the ones that loaded the file.
+   * `file` when an edit to every line the answer read charges the module's own
+   * region — a line only the module holds, or one that opens or closes a
+   * function the module encloses: the record says the module was loaded and
+   * nothing finer, so the cases are the ones that loaded the file.
    */
   readonly grain?: 'file';
   /**
-   * Under a run of lines that also holds finer ones: the lines only the
-   * module's own region holds, for which the cases are the ones that loaded
-   * the file. In the text as it is now.
+   * Under a run of lines that also holds finer ones: the lines whose edit
+   * charges the module's own region, for which the cases are the ones that
+   * loaded the file. In the text as it is now.
    */
   readonly fileGrain?: readonly HeldLines[];
+  /** Under a run of lines: the lines no recorded region holds, which no case can be said to have run. In the text as it is now. */
+  readonly outside?: readonly HeldLines[];
   /** Under a run of lines: the lines written since the recording, which no case has run. In the text as it is now. */
   readonly written?: readonly HeldLines[];
   /** Present when the question named a line or a function. */

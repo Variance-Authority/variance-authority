@@ -96,7 +96,35 @@ describe('a file answered in the text somebody holds', () => {
       (await covering(parse(['--file', source, '--root', repository, ...named, '--line', '1-5']))).tests?.map((test) => test.name),
     );
     expect(formatCovering(answer, 'text')).toContain('Lines 1-2 were written since the recording, so no case has run them.');
+    expect(formatCovering(answer, 'refs')).toContain('; written since 1-2');
     await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2'])))
       .rejects.toThrow(/lines 1-2 of .* were written since the recording/);
   });
+});
+
+describe('import hops beside a run of lines or a scope', () => {
+  // Every case of `decide` entered its first line, so measuring from that line
+  // and measuring from the file give each test file the same hops.
+  const hopsOf = async (...argv: string[]) =>
+    (await covering(parse(['--file', source, '--root', repository, ...named, ...argv, '--hops']))).files?.map((file) => [file.file, file.hops]);
+
+  it('measures a run of lines from the file', async () => {
+    const hops = await hopsOf('--line', '1-5');
+
+    expect(hops?.length).toBeGreaterThan(0);
+    expect(hops?.every(([, distance]) => typeof distance === 'number')).toBe(true);
+    expect(hops).toEqual(await hopsOf('--line', '1'));
+  }, 60_000);
+
+  it('measures a scope from the file', async () => {
+    // Line 1 opens `decide`, so it also lists the file's loaders: the scope lists fewer files, at the same hops.
+    const scoped = await hopsOf('--function', 'decide');
+    const fromLine = new Map(await hopsOf('--line', '1'));
+
+    expect(scoped?.length).toBeGreaterThan(0);
+    for (const [file, distance] of scoped ?? []) {
+      expect(typeof distance).toBe('number');
+      expect(distance).toBe(fromLine.get(file));
+    }
+  }, 60_000);
 });
