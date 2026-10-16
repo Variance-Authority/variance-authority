@@ -121,6 +121,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                                 }],
                                 line,
                                 guessed: false,
+                                item: false,
                             },
                         );
                     }
@@ -173,6 +174,8 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                             // `use` is a module is a fact about the disk, not
                             // about the statement.
                             guessed: true,
+                            // A `use` may name a module, and is counted as it always was.
+                            item: false,
                         },
                     );
                     // `pub use` is a re-export, and is the only thing in Rust
@@ -208,6 +211,7 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                             line,
                             // As a `use`: the module tree says which segment is the item.
                             guessed: true,
+                            item: true,
                         },
                     );
                 }
@@ -283,8 +287,11 @@ fn want(held: &mut Gathering, request: Request) {
         return;
     };
     // Written beats guessed. One `mod order;` and one `use self::order::X` name
-    // the same file, and the first is the one that can be a hole.
-    if held.requests[index].guessed && !request.guessed {
+    // the same file, and the first is the one that can be a hole. A `use` beats
+    // an item asked for by the same path: `use crate::graph;` imports the module
+    // a `crate::graph::reach()` also passes through.
+    let held_request = &held.requests[index];
+    if (held_request.guessed && !request.guessed) || (held_request.item && !request.item) {
         held.requests[index] = request;
     }
 }

@@ -190,7 +190,7 @@ no members is left out rather than shown empty.
 A published name that nothing imports is a different answer, not an empty list:
 
 ```
-`PagesOptions` is published and nothing in this workspace imports it; a read through an `export * as` namespace and a call through a JavaScript or TypeScript qualified path are not counted. docs_symbol has its signature and what is written above it.
+`PagesOptions` is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
 ```
 
 The imports within the name's own package come from the source index: every
@@ -199,8 +199,8 @@ with `export … from`, which is followed under the name it exports and is not
 listed itself, in another package as well. A name an entry publishes under
 another name than its declaration is read from that entry. An import of a renamed re-export ends `(as <name>)`. A Rust
 path written in a type or an expression, such as `crate::order::code_unit(…)`,
-is listed as a `use` is. A read through an `export * as` namespace, and a call
-through a JavaScript or TypeScript qualified path, are not listed, and the
+is listed as a `use` is. A read through an `export * as` namespace, and outside Rust a call
+through a qualified path, are not listed, and the
 answer ends by saying so. With `--package` naming one subpath specifier, an import through
 another specifier of the same package is left to that one. When the source
 index is missing or does not read, the imports from other packages by their

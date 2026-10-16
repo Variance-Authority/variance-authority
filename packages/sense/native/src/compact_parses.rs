@@ -35,6 +35,7 @@ pub(crate) struct Parses<'a> {
     pub request_value: U32s<'a>,
     pub request_kind: U32s<'a>,
     pub request_line: U32s<'a>,
+    pub request_flags: &'a [u8],
     pub request_bindings: U32s<'a>,
     pub binding_imported: U32s<'a>,
     pub binding_local: U32s<'a>,
@@ -108,6 +109,7 @@ impl<'a> Parses<'a> {
             blocks: u32s("parses.blocks")?,
             request_kind: u32s("requests.kind")?,
             request_line: u32s("requests.line")?,
+            request_flags: stored.u8s("requests.flags")?,
             request_bindings: stored.offsets("requests.bindings", request_value.len(), binding_imported.len())?,
             request_value,
             binding_local: u32s("bindings.local")?,
@@ -188,6 +190,7 @@ impl<'a> Parses<'a> {
         same_length(self.request_value.len(), &[
             ("requests.kind", self.request_kind.len()),
             ("requests.line", self.request_line.len()),
+            ("requests.flags", self.request_flags.len()),
         ])?;
         same_length(self.binding_imported.len(), &[
             ("bindings.local", self.binding_local.len()),
@@ -307,6 +310,7 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.request_value, request),
                 id(columns.request_kind, request),
                 columns.request_line.at(request),
+                columns.request_flags[request],
                 columns.request_bindings.range(request).map(|binding| {
                     (
                         id(columns.binding_imported, binding),

@@ -25,6 +25,8 @@ describe('what a Rust file asks for', () => {
 
     expect(asked.get('self::order')?.guessed).toBeUndefined();
     expect(asked.get('crate::read::Read')?.guessed).toBe(true);
+    // A `use` may import a module, so no segment of it has to be an item.
+    expect(asked.get('crate::read::Read')?.item).toBeUndefined();
   });
 
   it('takes a declared module whole, as a namespace, and an item a `use` names by its name', () => {
@@ -112,13 +114,15 @@ describe('what a Rust file asks for', () => {
     ].join('\n'));
     const taken = new Map(read.requests.map((request) => [request.value, request.bindings.map(({ imported }) => imported)]));
 
-    expect(read.requests.every((request) => request.guessed === true)).toBe(true);
+    expect(read.requests.every((request) => request.guessed === true && request.item === true)).toBe(true);
     expect(taken.get('crate::graph::Limits')).toEqual(['Limits']);
     expect(taken.get('super::held::Held')).toEqual(['Held']);
     expect(taken.get('crate::harvest::reach_code')).toEqual(['reach_code']);
-    // `JourneyMap::new` is an associated function, and nothing in the path
-    // says which segment is the item: the type is asked for as well.
+    // Nothing in a path says which segment is the item, `JourneyMap` or its
+    // `new`, so every prefix is asked for, each as the item it would name.
+    expect(taken.get('crate::map')).toEqual(['map']);
     expect(taken.get('crate::map::JourneyMap')).toEqual(['JourneyMap']);
+    expect(taken.get('crate::map::JourneyMap::new')).toEqual(['new']);
     expect([...taken.keys()].some((value) => value.startsWith('std') || value.startsWith('Vec'))).toBe(false);
   });
 
@@ -246,6 +250,14 @@ describe('where a Rust path lands', () => {
   it('takes a spelled path as a path, relative to the declaring file', () => {
     expect(resolveRust({ from: 'src/lib.rs', request: 'other/place.rs', world }))
       .toEqual([]);
+  });
+
+  it('lands a path asked for as an item only where one segment is left past its modules', () => {
+    const asked = (request: string) => resolveRust({ from: 'src/lib.rs', request, item: true, world });
+    expect(asked('crate::order::sort::Sort')).toEqual(['src/order/sort.rs']);
+    // The module itself, and a function of the type rather than of the module.
+    expect(asked('crate::order::sort')).toEqual([]);
+    expect(asked('crate::order::sort::Sort::new')).toEqual([]);
   });
 
   it('is silent about a crate this tree does not hold', () => {

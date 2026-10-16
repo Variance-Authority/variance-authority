@@ -286,8 +286,8 @@ A name a file exports and no entry publishes, such as a helper exported for the
 file beside it, is answered too. `docs_symbol` gives the file and line that
 export it and how many imports reach that file, directly or through a file that
 passes it on; `docs_uses` lists those imports, from its own package as well as
-from others. A read through an `export * as` namespace and a call through a
-JavaScript or TypeScript qualified path are not counted.
+from others. A read through an `export * as` namespace and, outside Rust, a call
+through a qualified path are not counted.
 
 A name a file declares at its top level and does not export, such as a helper
 only its own file calls, is answered from the source index. Not exported means
@@ -306,10 +306,11 @@ CommonJS file, a module that hands itself out with `export =` and a
 `macro_rules!` hand a name out in ways their readers cannot tell, so the answer says who can reach it is not recorded. `docs_uses`
 answers with the same file, line and rule in one sentence, before any member
 declared by that name, and after the imports of an export of that name elsewhere.
-For a Rust item it lists the modules inside its own that name it, by a `use`
-or by a path written in a type or an expression, such as `super::flag()`; for
-any other language it lists no import sites, and for a Python name it gives the
-`ask grep` that finds the modules spelling it. Each answer names the files whose
+It lists the imports the source index resolved to the declaring file: for a
+Rust item the modules inside its own that name it, by a `use` or by a path
+written in a type or an expression, such as `super::flag()`, and for a Python
+name the modules that import it, with the `ask grep` that finds the ones
+spelling it some other way. Each answer names the files whose
 declarations were not read, such as one over the size a read opens, since the
 name may be declared there. `docs_search` lists the name after the exported ones, under a heading that
 says it is not exported, when the name or its documentation holds the query, and

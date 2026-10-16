@@ -160,6 +160,18 @@ export interface Request {
    * real hole into a silent one, which is the failure this package refuses.
    */
   readonly guessed?: boolean;
+
+  /**
+   * Whether the reader asked for the whole specifier as the item it names.
+   *
+   * Rust needs it: `crate::map::JourneyMap::new()` does not say whether `map`
+   * is a module, or whether `new` is a function of the module or of the type,
+   * so the reader asks for every prefix of the path, each bound to its last
+   * segment. A prefix names that item only where the module tree leaves
+   * exactly one segment past the modules; any other prefix names nothing, and
+   * is silent the way a guess is ([`rust.ts`](./rust.ts)).
+   */
+  readonly item?: boolean;
 }
 
 export interface Export {

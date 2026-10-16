@@ -87,4 +87,24 @@ describe('variance ask uses over the paths a Rust file names an item by', () => 
     expect(out).toContain('`flag` is declared, not exported, at packages/kit/src/lexicon.rs:6');
     expect(out).toMatch(/^packages\/kit\/src\/lexicon_view\.rs:2\b/m);
   });
+
+  it('counts the segment past a path\'s modules as its item, and no other segment that spells a name', async () => {
+    checkout({
+      ...KIT,
+      'packages/kit/src/lib.rs': 'mod graph;\nmod flows;\nmod lexicon;\nmod map;\nmod journey;\n',
+      'packages/kit/src/graph.rs': 'pub(crate) struct Limits;\n\npub(crate) fn reach() {}\n\nfn graph() {}\n',
+      'packages/kit/src/map.rs': 'pub(crate) struct JourneyMap;\n\nfn new() {}\n',
+      'packages/kit/src/journey.rs': 'fn open() {\n    let map = crate::map::JourneyMap::new();\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    // `graph` is the module in `crate::graph::reach()`, not the private `fn graph`.
+    const graph = await run(['ask', 'uses', '--name', 'graph']);
+    expect(graph.out).not.toMatch(/^packages\/kit\/src\/flows\.rs:/m);
+    // `new` in `crate::map::JourneyMap::new()` is the type's, not the module's `fn new`.
+    const made = await run(['ask', 'uses', '--name', 'new']);
+    expect(made.out).not.toMatch(/^packages\/kit\/src\/journey\.rs:/m);
+    const map = await run(['ask', 'uses', '--name', 'JourneyMap']);
+    expect(map.out).toMatch(/^packages\/kit\/src\/journey\.rs:2\b/m);
+  });
 });

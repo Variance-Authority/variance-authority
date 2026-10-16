@@ -126,7 +126,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     // whole package or a whole target. `targets` stays one entry per request —
     // the source index is keyed by that alignment — and carries the first,
     // while every one of them becomes an edge.
-    const reached = resolveAll({ resolvers, root, from: absolute, request, language });
+    const reached = resolveAll({ resolvers, root, from: absolute, request, language, item: asked.item === true });
     const target = reached[0];
     targets.push(target);
     if (target === undefined) {

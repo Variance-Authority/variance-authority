@@ -84,7 +84,7 @@ pub(super) fn qualified(node: Node, source: &str, scope: &Scope, found: &mut Vec
         "scoped_identifier" | "scoped_type_identifier" => {
             if let Some(path) = simple(node, source) {
                 if let Some(full) = anchored(&path, scope) {
-                    named(full, node.kind() == "scoped_identifier", line_of(node), found);
+                    named(full, line_of(node), found);
                 }
                 return;
             }
@@ -96,21 +96,18 @@ pub(super) fn qualified(node: Node, source: &str, scope: &Scope, found: &mut Vec
     }
 }
 
-/// The item a path names, and, for an expression, the item its parent path
-/// names: nothing in `crate::map::JourneyMap::new()` says whether `new` is a
-/// function of the module or of the type, so both are asked for.
-fn named(full: Vec<String>, expression: bool, line: u32, found: &mut Vec<Named>) {
-    let after = full.iter().skip_while(|segment| matches!(segment.as_str(), "crate" | "self" | "super")).count();
-    if after == 0 {
-        return;
+/// Every prefix of a path past its anchor, each as the item it would name:
+/// nothing in `crate::map::JourneyMap::new()` says whether `map` is a module,
+/// or whether `new` is a function of the module or of the type. The module
+/// tree answers, by landing only the prefix that leaves one segment past the
+/// modules ([`rust.ts`](../../../src/rust.ts)).
+fn named(full: Vec<String>, line: u32, found: &mut Vec<Named>) {
+    let anchor = full.iter().take_while(|segment| matches!(segment.as_str(), "crate" | "self" | "super")).count();
+    for end in anchor + 1..=full.len() {
+        let path = full[..end].to_vec();
+        let binding = path.last().cloned().unwrap_or_default();
+        found.push(Named { path, binding, line });
     }
-    if expression && after >= 2 {
-        let parent = full[..full.len() - 1].to_vec();
-        let binding = parent.last().cloned().unwrap_or_default();
-        found.push(Named { path: parent, binding, line });
-    }
-    let binding = full.last().cloned().unwrap_or_default();
-    found.push(Named { path: full, binding, line });
 }
 
 /// The segments of a path made only of names, `crate`, `self` and `super`;

@@ -24,8 +24,11 @@
  * and silence is the honest answer.
  *
  * A path written in a type or an expression, `crate::graph::Limits` or
- * `super::reach()`, names an item the same way and is read the same way. A
- * single name is not: which item it means is a matter of scope, and the `use`
+ * `super::reach()`, names an item the same way and is read the same way, with
+ * one more doubt: `crate::map::JourneyMap::new()` may be a function of the type
+ * as well as of a module. So every prefix of it is asked for as an
+ * {@link Request.item}, and only the one that leaves a single segment past the
+ * modules lands. A single name is not: which item it means is a matter of scope, and the `use`
  * that brought it in is already counted.
  *
  * That split is what keeps the two from poisoning each other. Inline modules
@@ -92,8 +95,10 @@ export function resolveRust(input: {
   readonly from: string;
   readonly request: string;
   readonly world: TreeWorld;
+  /** The whole path is the item, so it lands only with one segment left past the modules. */
+  readonly item?: boolean | undefined;
 }): readonly string[] {
-  const { from, request, world } = input;
+  const { from, request, world, item } = input;
 
   // `#[path]` on a file's own `mod` is relative to the file's directory, whatever the file is.
   if (spelledPath(request)) {
@@ -142,12 +147,15 @@ export function resolveRust(input: {
   // Down the tree while a segment is a module: a file one declares, or an
   // inline module a file is declared in. The first segment that is neither is
   // the item, and the file the walk stands in declares it.
+  let walked = 0;
   for (const segment of rest) {
     const child = childOf(at, segment, world, modules);
     if (child !== undefined) at = { file: child, inline: [] };
     else if (holdsInline(at, segment, world, modules)) at = { file: at.file, inline: [...at.inline, segment] };
     else break;
+    walked += 1;
   }
+  if (item === true && rest.length - walked !== 1) return [];
   return at.file === from ? [] : [at.file];
 }
 
