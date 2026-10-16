@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use super::{importers, Importers};
+use super::{importers, names_module, Importers};
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
@@ -160,4 +160,17 @@ fn ends_a_cycle_of_re_exports_and_follows_each_file_once() {
 
     assert_eq!(uses(&read), ["src/use_c2.ts:1 greet via ./c2"]);
     assert_eq!(read.through, ["src/c1.ts", "src/c2.ts"]);
+}
+
+#[test]
+fn a_rust_use_names_a_module_by_its_whole_path_and_not_by_a_namesake_item() {
+    assert!(names_module("crate::shapes", "packages/kit/src/shapes.rs"));
+    assert!(names_module("super::shapes", "src/shapes/mod.rs"));
+    assert!(names_module("kit::shapes", "src/shapes.rs"));
+    assert!(names_module("crate::a::b", "src/a/b.rs"));
+    // An item that shares its file's name is the item, not the file.
+    assert!(!names_module("crate::config::config", "src/config.rs"));
+    assert!(!names_module("crate::shapes::Props", "src/shapes.rs"));
+    assert!(!names_module("crate", "src/lib.rs"));
+    assert!(!names_module("./shapes", "src/shapes.ts"));
 }

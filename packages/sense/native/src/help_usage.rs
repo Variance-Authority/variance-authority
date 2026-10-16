@@ -400,8 +400,8 @@ fn importers_of(
                     }
                 }
                 if !reexports {
-                    let module = resolved[request - first].and_then(module_of);
-                    found.extend(wholesale(&layers[layer], request, written, names, module, by, crossing.file, kind));
+                    let module = resolved[request - first].is_some_and(|target| names_module(written, target));
+                    found.extend(wholesale(&layers[layer], row, request, written, names, module, by, crossing.file, kind));
                 }
             }
             (found, passed)
@@ -419,29 +419,35 @@ fn importers_of(
 /// the whole module answers it, under the local the module is bound to.
 pub(crate) const MODULE: &str = "*";
 
-/// The Rust module a file is, by the name a parent declares it under:
-/// `shapes.rs` and `shapes/mod.rs` are `shapes`; a crate root has none.
-fn module_of(path: &str) -> Option<&str> {
-    let (directory, file) = path.rsplit_once('/').unwrap_or(("", path));
-    let stem = file.strip_suffix(".rs")?;
-    match stem {
-        "lib" | "main" => None,
-        "mod" => directory.rsplit('/').next().filter(|name| !name.is_empty()),
-        _ => Some(stem),
-    }
+/// Whether a Rust `use` path names the module `target` is, by the whole path
+/// past its head: `crate::shapes` is `…/shapes.rs` or `…/shapes/mod.rs`, and
+/// `crate::config::config` is an item of `config.rs`, not the file. The head
+/// is `crate`, `self` or a run of `super`, or else the crate's name.
+pub(crate) fn names_module(value: &str, target: &str) -> bool {
+    let names: Vec<&str> = value.split("::").collect();
+    let skip = match names.first() {
+        Some(&"crate") | Some(&"self") => 1,
+        Some(&"super") => names.iter().take_while(|&&name| name == "super").count(),
+        _ => 1,
+    };
+    let rest = names[skip.min(names.len())..].join("/");
+    if rest.is_empty() { return false; }
+    target.ends_with(&format!("/{rest}.rs")) || target.ends_with(&format!("/{rest}/mod.rs")) || target == format!("{rest}.rs")
 }
 
 /// What a request binds in bulk, which `taken` leaves out. A Rust glob
 /// `use a::b::*` binds every item of the file under its own name, so each
-/// wanted name is taken as itself; `mod b;` and `use a::b;` bind the module,
-/// so the module is taken under its local.
+/// wanted name is taken as itself, unless the file declares the name or binds
+/// it by name, which shadows the glob; `mod b;` and `use a::b;` bind the
+/// module, so the module is taken under its local.
 #[allow(clippy::too_many_arguments)]
 fn wholesale(
     layer: &Layer,
+    row: usize,
     request: usize,
     key: &str,
     names: &HashMap<String, HashSet<usize>>,
-    module: Option<&str>,
+    module: bool,
     by: &str,
     at: &str,
     kind: &str,
@@ -457,12 +463,18 @@ fn wholesale(
         let local = text.text(parses.binding_local.at(binding));
         let line = parses.binding_line.at(binding);
         if imported == "*" && local == "*" {
+            let shadowed = |name: &str| {
+                parses.symbols.range(row).any(|symbol| text.text(parses.symbol_name.at(symbol)) == name)
+                    || parses.requests.range(row).flat_map(|other| parses.request_bindings.range(other)).any(|other| {
+                        text.text(parses.binding_imported.at(other)) != "*" && text.text(parses.binding_local.at(other)) == name
+                    })
+            };
             for (name, origins) in names {
-                if name != MODULE && name != "default" {
+                if name != MODULE && name != "default" && !shadowed(name) {
                     take(name, name, line, origins);
                 }
             }
-        } else if imported == "*" || module == Some(imported) {
+        } else if imported == "*" || module {
             if let Some(origins) = names.get(MODULE) {
                 take(MODULE, local, line, origins);
             }

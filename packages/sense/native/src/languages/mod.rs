@@ -15,6 +15,7 @@ pub mod jvm;
 pub mod python;
 pub mod rust;
 pub mod rust_members;
+pub mod rust_paths;
 pub mod shape;
 pub mod size;
 pub mod swift;

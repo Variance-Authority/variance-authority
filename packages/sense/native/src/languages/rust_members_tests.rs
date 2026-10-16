@@ -201,3 +201,29 @@ fn a_struct_field_declares_the_type_it_holds_through_a_reference_or_a_pointer() 
         owned("size", None),
     ]);
 }
+
+#[test]
+fn a_type_an_inline_module_declares_is_on_the_module_s_path() {
+    let source = "mod a {\n    pub struct P { size: u8 }\n    fn f(p: &P, q: &self::P, r: &super::Q) { p.size; q.size; r.size; }\n    mod b { fn g(p: &super::P) { p.size; } }\n}\nfn h(p: &a::P, q: &super::Q) { p.size; q.size; }\n";
+    assert_eq!(declared(source), vec![("size".to_owned(), 2, "a::P".to_owned())]);
+    assert_eq!(used(source), vec![
+        one("size", 3, "a::P", "read"),
+        one("size", 3, "Q", "read"),
+        one("size", 4, "a::P", "read"),
+        one("size", 6, "a::P", "read"),
+        // A `super` that leaves the file is kept as written.
+        one("size", 6, "super::Q", "read"),
+    ]);
+}
+
+#[test]
+fn a_chain_in_a_macro_s_tokens_reads_each_field_on_the_one_before_it() {
+    let source = "fn f(o: &Outer) {\n    assert!(o.inner.size > 0);\n    set!(o.inner.size = 1);\n    log!(o.inner.go());\n}\n";
+    assert_eq!(used(source), vec![
+        one("inner", 2, "Outer", "read"),
+        one("size", 2, "Outer.inner", "read"),
+        one("inner", 3, "Outer", "read"),
+        one("size", 3, "Outer.inner", "write"),
+        one("inner", 4, "Outer", "read"),
+    ]);
+}

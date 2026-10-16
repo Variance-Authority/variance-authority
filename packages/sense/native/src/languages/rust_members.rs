@@ -16,8 +16,9 @@
 //! one, as the language scopes it, so a closure's own `|props| props.size` is
 //! no use.
 //!
-//! A type is recorded as the path the line writes, `shapes::Props` as well as
-//! `Props`, and `self::Props` as `Props`. A path `A::B { .. }` is also written
+//! A type is recorded as the path the line writes, placed in the inline module
+//! the line is in as [`rust_paths.rs`](rust_paths.rs) reads it, and a type an
+//! inline module declares is on its path, `a::Props`. A path `A::B { .. }` is also written
 //! as the variant `B` of `A`, since a file cannot tell an enum from a module by
 //! its spelling: a module declares no variant, so the join answers none for
 //! it. A field reached through a field, `o.inner.size`, is recorded on the
@@ -25,7 +26,8 @@
 //! carries, which may be in another file, so the join follows it.
 //!
 //! A macro's arguments are tokens, not a tree: `recv.f` among them is a read, or
-//! a write before `=`, and `Enum::Variant` is a `read`, since the tokens say
+//! a write before `=`, a chain `o.inner.size` reads each field on the one
+//! before it, and `Enum::Variant` is a `read`, since the tokens say
 //! the name and not whether the macro builds it or matches it.
 
 // compass: variance-authority.reach.relations
@@ -34,56 +36,67 @@ use std::collections::{HashMap, HashSet};
 
 use tree_sitter::{Node, Tree};
 
+use super::rust_paths::{annotated, inline_modules, spelled_path, written, Here, Inline};
 use super::{line_of, named_children, text_of};
 use crate::help_member_uses::{MemberUse, DESTRUCTURE, READ, WRITE};
 use crate::help_members::MemberDeclaration;
 
 /// Every field and variant `tree` declares, in source order.
 pub fn member_declarations(tree: &Tree, source: &str) -> Vec<MemberDeclaration> {
+    let inline = inline_modules(tree, source);
     let mut declared = Vec::new();
-    declare(tree.root_node(), source, &mut declared);
+    declare(tree.root_node(), source, &mut Vec::new(), &inline, &mut declared);
     declared
 }
 
-fn declare(node: Node, source: &str, declared: &mut Vec<MemberDeclaration>) {
+fn declare(node: Node, source: &str, module: &mut Vec<String>, inline: &Inline, declared: &mut Vec<MemberDeclaration>) {
+    let here = Here { own: None, module: &module[..], inline };
     match node.kind() {
         "struct_item" | "union_item" => {
             if let (Some(name), Some(body)) = (node.child_by_field_name("name"), node.child_by_field_name("body")) {
-                let on = text_of(name, source);
-                fields(body, on, Some(on), source, declared);
+                let on = here.declared(text_of(name, source));
+                fields(body, &on, Some(Here { own: Some(&on), ..here }), source, declared);
             }
         }
         "enum_item" => {
             if let (Some(name), Some(body)) = (node.child_by_field_name("name"), node.child_by_field_name("body")) {
-                let on = text_of(name, source);
+                let on = here.declared(text_of(name, source));
                 for variant in named_children(body).into_iter().filter(|child| child.kind() == "enum_variant") {
                     let Some(called) = variant.child_by_field_name("name") else { continue };
                     let called = text_of(called, source);
-                    declared.push(MemberDeclaration { name: called.to_owned(), line: line_of(variant), on: on.to_owned(), variant: true, r#type: None });
+                    declared.push(MemberDeclaration { name: called.to_owned(), line: line_of(variant), on: on.clone(), variant: true, r#type: None });
                     if let Some(body) = variant.child_by_field_name("body") {
                         fields(body, &format!("{on}::{called}"), None, source, declared);
                     }
                 }
             }
         }
+        "mod_item" => {
+            if let (Some(name), Some(body)) = (node.child_by_field_name("name"), node.child_by_field_name("body")) {
+                module.push(text_of(name, source).to_owned());
+                declare(body, source, module, inline, declared);
+                module.pop();
+            }
+            return;
+        }
         // A macro's own body is a pattern of tokens, no declaration.
         "macro_definition" => return,
         _ => {}
     }
     for child in named_children(node) {
-        declare(child, source, declared);
+        declare(child, source, module, inline, declared);
     }
 }
 
 /// The named fields of a `{ … }` body, each on `on`, with the type its
-/// annotation names where the body is a struct's, `own` being what `Self` is
-/// there: a variant's field is reached by a pattern, never through a field.
-/// A tuple body names none.
-fn fields(body: Node, on: &str, own: Option<&str>, source: &str, declared: &mut Vec<MemberDeclaration>) {
+/// annotation names where the body is a struct's, `typed` being where it is:
+/// a variant's field is reached by a pattern, never through a field. A tuple
+/// body names none.
+fn fields(body: Node, on: &str, typed: Option<Here>, source: &str, declared: &mut Vec<MemberDeclaration>) {
     if body.kind() != "field_declaration_list" { return; }
     for field in named_children(body).into_iter().filter(|child| child.kind() == "field_declaration") {
         let Some(name) = field.child_by_field_name("name") else { continue };
-        let r#type = own.and_then(|own| annotated(field.child_by_field_name("type")?, source, Some(own)));
+        let r#type = typed.and_then(|here| annotated(field.child_by_field_name("type")?, source, here));
         declared.push(MemberDeclaration { name: text_of(name, source).to_owned(), line: line_of(name), on: on.to_owned(), variant: false, r#type });
     }
 }
@@ -91,67 +104,10 @@ fn fields(body: Node, on: &str, own: Option<&str>, source: &str, declared: &mut 
 /// Every use `tree` writes of a field or a variant through a type it names,
 /// once per name, line, type and kind, in source order.
 pub fn member_uses(tree: &Tree, source: &str) -> Vec<MemberUse> {
-    let mut walker = Walker { source, scopes: vec![HashMap::new()], selves: Vec::new(), seen: HashSet::new(), found: Vec::new() };
+    let inline = inline_modules(tree, source);
+    let mut walker = Walker { source, scopes: vec![HashMap::new()], selves: Vec::new(), module: Vec::new(), inline, seen: HashSet::new(), found: Vec::new() };
     walker.visit(tree.root_node(), false);
     walker.found
-}
-
-/// The pointers whose fields a field expression reaches through auto-deref,
-/// as the standard library names them.
-const POINTERS: [&str; 3] = ["Box", "Rc", "Arc"];
-
-/// The type a type annotation names, as the path it is written by: a name
-/// or a path to one, a reference to it, one of [`POINTERS`] of it, or a
-/// generic type's own path; `own` is what `Self` is.
-fn annotated(node: Node, source: &str, own: Option<&str>) -> Option<String> {
-    match node.kind() {
-        "type_identifier" | "scoped_type_identifier" => written(node, source, own),
-        "reference_type" => annotated(node.child_by_field_name("type")?, source, own),
-        "generic_type" => {
-            let base = node.child_by_field_name("type")?;
-            let named = match base.kind() {
-                "type_identifier" => Some(base),
-                "scoped_type_identifier" => base.child_by_field_name("name"),
-                _ => None,
-            }?;
-            if !POINTERS.contains(&text_of(named, source)) { return written(base, source, own); }
-            let arguments = node.child_by_field_name("type_arguments")?;
-            annotated(*named_children(arguments).first()?, source, own)
-        }
-        _ => None,
-    }
-}
-
-/// A name or a path as the file writes it, `Self` as `own` and a leading
-/// `self::`, the module the line is in, dropped; `None` for a path with
-/// anything but names in it, or a `Self` outside an `impl`.
-fn written(node: Node, source: &str, own: Option<&str>) -> Option<String> {
-    let mut names = Vec::new();
-    let mut at = node;
-    loop {
-        match at.kind() {
-            "identifier" | "type_identifier" | "crate" | "super" | "self" => {
-                names.push(text_of(at, source));
-                break;
-            }
-            "scoped_identifier" | "scoped_type_identifier" => {
-                names.push(text_of(at.child_by_field_name("name")?, source));
-                at = at.child_by_field_name("path")?;
-            }
-            _ => return None,
-        }
-    }
-    names.reverse();
-    spelled_path(&names, own)
-}
-
-/// The names of a path joined as written, `Self` at its head as `own`, and a
-/// leading `self` dropped.
-fn spelled_path(names: &[&str], own: Option<&str>) -> Option<String> {
-    let names = if names.len() > 1 && names[0] == "self" { &names[1..] } else { names };
-    let (&head, rest) = names.split_first()?;
-    let head = if head == "Self" { own? } else { head };
-    Some(std::iter::once(head).chain(rest.iter().copied()).collect::<Vec<_>>().join("::"))
 }
 
 struct Walker<'s> {
@@ -162,6 +118,9 @@ struct Walker<'s> {
     /// The type each `impl` around the walk is for, innermost last; `None` for
     /// a trait, whose `Self` is no type this file names.
     selves: Vec<Option<String>>,
+    /// The inline module the walk is in, outermost first.
+    module: Vec<String>,
+    inline: Inline,
     seen: HashSet<MemberUse>,
     found: Vec<MemberUse>,
 }
@@ -176,12 +135,16 @@ impl Walker<'_> {
         if self.seen.insert(found.clone()) { self.found.push(found); }
     }
 
-    fn own(&self) -> Option<String> {
-        self.selves.last().cloned().flatten()
+    fn own(&self) -> Option<&str> {
+        self.selves.last().and_then(|own| own.as_deref())
+    }
+
+    fn here(&self) -> Here<'_> {
+        Here { own: self.own(), module: &self.module, inline: &self.inline }
     }
 
     fn bound(&self, name: &str) -> Option<String> {
-        if name == "self" { return self.own(); }
+        if name == "self" { return self.own().map(str::to_owned); }
         self.scopes.iter().rev().find_map(|scope| scope.get(name)).cloned().flatten()
     }
 
@@ -197,7 +160,7 @@ impl Walker<'_> {
 
     /// The type a type annotation names, as [`annotated`] reads it.
     fn typed(&self, node: Node) -> Option<String> {
-        annotated(node, self.source, self.own().as_deref())
+        annotated(node, self.source, self.here())
     }
 
     /// The type a struct literal's or a struct pattern's path names, as the
@@ -205,14 +168,14 @@ impl Walker<'_> {
     fn path(&self, node: Node) -> Option<String> {
         match node.kind() {
             "generic_type_with_turbofish" => self.path(node.child_by_field_name("type")?),
-            _ => written(node, self.source, self.own().as_deref()),
+            _ => written(node, self.source, self.here()),
         }
     }
 
     /// `Enum::Variant` by the path before the variant, `how` the line uses it.
     fn variant(&mut self, node: Node, how: &str) {
         let (Some(head), Some(name)) = (node.child_by_field_name("path"), node.child_by_field_name("name")) else { return };
-        let Some(of) = written(head, self.source, self.own().as_deref()) else { return };
+        let Some(of) = written(head, self.source, self.here()) else { return };
         let called = self.text(name).to_owned();
         self.add(&called, line_of(name), &of, how, true);
     }
@@ -267,6 +230,13 @@ impl Walker<'_> {
                 self.selves.push(own);
                 if let Some(body) = node.child_by_field_name("body") { self.visit(body, false); }
                 self.selves.pop();
+            }
+            "mod_item" => {
+                let (Some(name), Some(body)) = (node.child_by_field_name("name"), node.child_by_field_name("body")) else { return };
+                let name = self.text(name).to_owned();
+                self.module.push(name);
+                self.scoped(|walker| walker.visit(body, false));
+                self.module.pop();
             }
             "trait_item" => {
                 self.selves.push(None);
@@ -421,7 +391,8 @@ impl Walker<'_> {
     }
 
     /// A macro's arguments, flattened to their tokens: `recv.f` not called,
-    /// and `Enum::Variant` by the path before the variant.
+    /// each field of a chain `recv.f.g` on the one before it, and
+    /// `Enum::Variant` by the path before the variant.
     fn tokens(&mut self, tree: Node) {
         let mut tokens = Vec::new();
         flatten(tree, &mut tokens);
@@ -430,17 +401,23 @@ impl Walker<'_> {
             let after_path = at > 0 && matches!(kind(at - 1), "." | "::");
             if after_path || !matches!(kind(at), "identifier" | "self") { continue; }
             let receiver = self.text(tokens[at]).to_owned();
-            if kind(at + 1) == "." && kind(at + 2) == "identifier" && !matches!(kind(at + 3), "(" | "." | "::") {
-                let Some(of) = self.bound(&receiver) else { continue };
-                let how = if is_assignment(kind(at + 3)) { WRITE } else { READ };
-                let called = self.text(tokens[at + 2]).to_owned();
-                self.add(&called, line_of(tokens[at + 2]), &of, how, false);
+            if let Some(mut of) = self.bound(&receiver).filter(|_| kind(at + 1) == "." && kind(at + 2) == "identifier") {
+                let mut step = at + 2;
+                while !matches!(kind(step + 1), "(" | "::") {
+                    let called = self.text(tokens[step]).to_owned();
+                    let more = kind(step + 1) == "." && kind(step + 2) == "identifier";
+                    let how = if !more && is_assignment(kind(step + 1)) { WRITE } else { READ };
+                    self.add(&called, line_of(tokens[step]), &of, how, false);
+                    if !more { break; }
+                    of = format!("{of}.{called}");
+                    step += 2;
+                }
             }
             let mut last = at;
             while kind(last + 1) == "::" && kind(last + 2) == "identifier" { last += 2; }
             if last > at {
                 let names: Vec<&str> = (at..last).step_by(2).map(|name| text_of(tokens[name], self.source)).collect();
-                let Some(of) = spelled_path(&names, self.own().as_deref()) else { continue };
+                let Some(of) = spelled_path(&names, self.here()) else { continue };
                 let called = self.text(tokens[last]).to_owned();
                 self.add(&called, line_of(tokens[last]), &of, READ, true);
             }

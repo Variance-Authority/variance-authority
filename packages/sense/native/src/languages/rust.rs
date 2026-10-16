@@ -31,6 +31,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
     };
 
     block(root, source, &[], true, &mut held);
+    rooted(root, source, &mut held);
 
     Read {
         requests: held.requests,
@@ -210,6 +211,43 @@ fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gath
                 }
             }
         }
+    }
+}
+
+/// Every path outside a `use` that names an item from the crate root,
+/// `crate::shapes::Props`, asks for what its prefix names, as a `use` of the
+/// prefix would: `crate::shapes` binds the module under its whole spelling,
+/// and `crate::shapes::Shape` in `crate::shapes::Shape::Square` the item.
+fn rooted(node: Node, source: &str, held: &mut Gathering) {
+    for child in named_children(node) {
+        match child.kind() {
+            // A `use` is read by `block`, an attribute is no code, and a
+            // macro's own body is a pattern of tokens.
+            "use_declaration" | "attribute_item" | "inner_attribute_item" | "macro_definition" | "token_tree" => continue,
+            "scoped_identifier" | "scoped_type_identifier" => {
+                let names = segments(child.child_by_field_name("path"), source);
+                if names.len() >= 2 && names[0] == "crate" {
+                    let line = line_of(child);
+                    want(
+                        held,
+                        Request {
+                            value: names.join("::"),
+                            kind: Kind::Imports,
+                            bindings: vec![Binding {
+                                imported: names[names.len() - 1].clone(),
+                                local: names.join("::"),
+                                type_only: false,
+                                line,
+                            }],
+                            line,
+                            guessed: true,
+                        },
+                    );
+                }
+            }
+            _ => {}
+        }
+        rooted(child, source, held);
     }
 }
 

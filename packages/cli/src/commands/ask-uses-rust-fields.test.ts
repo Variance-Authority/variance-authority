@@ -129,6 +129,21 @@ const CRATE = {
   ].join('\n'),
 };
 
+/** Every line of an answer. */
+function lines(out: string): string[] {
+  return out.split('\n');
+}
+
+/** The heading of the section a line is listed under. */
+function headed(out: string, at: string): string | undefined {
+  let heading: string | undefined;
+  for (const line of lines(out)) {
+    if (line.startsWith('`')) heading = line;
+    if (line.startsWith(`${at} `)) return heading;
+  }
+  return undefined;
+}
+
 /**
  * The crate again, with the files that reach `Props` past one `use` of its
  * name: a glob, a module path, and a field of a struct another file declares.
@@ -194,6 +209,80 @@ const NESTED = {
     '        shapes::Shape::Square { size } => *size,',
     '        _ => 0,',
     '    }',
+    '}',
+    '',
+  ].join('\n'),
+};
+
+/**
+ * The nested crate, with a file that spells each type from the crate root, a
+ * file that reads a chain inside a macro, a file whose own `Props` shadows the
+ * one its glob brings in, and a file with two inline modules that each declare
+ * a `Props`.
+ */
+const ROOTED = {
+  ...NESTED,
+  'packages/kit/src/lib.rs': NESTED['packages/kit/src/lib.rs'].replace('mod qualified;', 'mod checked;\nmod inline;\nmod own;\nmod qualified;\nmod rooted;'),
+  'packages/kit/src/rooted.rs': [
+    'pub fn tall(p: &crate::shapes::Props) -> u32 {',
+    '    p.size',
+    '}',
+    '',
+    'pub fn build() -> crate::shapes::Props {',
+    '    crate::shapes::Props { size: 1, label: String::new() }',
+    '}',
+    '',
+    'pub fn edge(s: &crate::shapes::Shape) -> u32 {',
+    '    match s {',
+    '        crate::shapes::Shape::Square { size } => *size,',
+    '        _ => 0,',
+    '    }',
+    '}',
+    '',
+  ].join('\n'),
+  'packages/kit/src/checked.rs': [
+    'use crate::outer::Outer;',
+    '',
+    'pub fn checked(o: &Outer) {',
+    '    assert!(o.inner.size > 0);',
+    '}',
+    '',
+  ].join('\n'),
+  'packages/kit/src/own.rs': [
+    'use crate::shapes::*;',
+    '',
+    'pub struct Props {',
+    '    pub size: u8,',
+    '}',
+    '',
+    'pub fn mine(p: &Props) -> u8 {',
+    '    p.size',
+    '}',
+    '',
+  ].join('\n'),
+  'packages/kit/src/inline.rs': [
+    'mod a {',
+    '    pub struct Props {',
+    '        pub size: u8,',
+    '    }',
+    '',
+    '    pub fn near(p: &Props) -> u8 {',
+    '        p.size',
+    '    }',
+    '}',
+    '',
+    'mod b {',
+    '    pub struct Props {',
+    '        pub size: u16,',
+    '    }',
+    '',
+    '    pub fn near(p: &Props) -> u16 {',
+    '        p.size',
+    '    }',
+    '}',
+    '',
+    'pub fn far(p: &a::Props) -> u8 {',
+    '    p.size',
     '}',
     '',
   ].join('\n'),
@@ -337,6 +426,58 @@ describe('variance ask over a field or a variant of a Rust type', () => {
     ]);
   });
 
-  it.todo('answers a field used through a type spelled from the crate root, `p: &crate::shapes::Props` — needs the path resolved against the crate, as a `use` is');
-  it.todo('answers a field read through a chain inside a macro\'s tokens, `assert!(o.inner.size > 0)` — needs the token run to carry the fields it passes');
+  it('answers a field used through a type spelled from the crate root, `p: &crate::shapes::Props`', async () => {
+    checkout(ROOTED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/rooted.rs']);
+    expect(code).toBe(EXIT_CLEAN);
+    const props = lines(out).filter((line) => line.startsWith('packages/kit/src/rooted.rs'));
+    expect(props).toEqual([
+      'packages/kit/src/rooted.rs:2 — @acme/kit, read',
+      'packages/kit/src/rooted.rs:6 — @acme/kit, write',
+      'packages/kit/src/rooted.rs:11 — @acme/kit, destructure',
+    ]);
+    expect(headed(out, 'packages/kit/src/rooted.rs:2')).toMatch(/^`Props::size`, declared at packages\/kit\/src\/shapes.rs:2/);
+    expect(headed(out, 'packages/kit/src/rooted.rs:11')).toMatch(/^`Shape::Square::size`, declared at packages\/kit\/src\/shapes.rs:12/);
+  });
+
+  it('answers a field read through a chain inside a macro\'s tokens, `assert!(o.inner.size > 0)`', async () => {
+    checkout(ROOTED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/checked.rs']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(lines(out).filter((line) => line.startsWith('packages/kit/src/checked.rs'))).toEqual(['packages/kit/src/checked.rs:4 — @acme/kit, read']);
+    expect(headed(out, 'packages/kit/src/checked.rs:4')).toMatch(/^`Props::size`, declared at packages\/kit\/src\/shapes.rs:2/);
+
+    const inner = await run(['ask', 'uses', '--name', 'inner', '--from', 'packages/kit/src/checked.rs']);
+    expect(headed(inner.out, 'packages/kit/src/checked.rs:4')).toMatch(/^`Outer::inner`, declared at packages\/kit\/src\/outer.rs:4/);
+  });
+
+  it('answers a field of a struct the file declares itself on that struct alone, past a glob that brings in a namesake', async () => {
+    checkout(ROOTED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/own.rs']);
+    expect(code).toBe(EXIT_CLEAN);
+    // The declaration list names own.rs:4 too; a use carries its package.
+    expect(lines(out).filter((line) => line.startsWith('packages/kit/src/own.rs:') && line.includes(' — @acme/kit, '))).toEqual(['packages/kit/src/own.rs:8 — @acme/kit, read']);
+    expect(headed(out, 'packages/kit/src/own.rs:8')).toMatch(/^`Props::size`, declared at packages\/kit\/src\/own.rs:4/);
+  });
+
+  it('answers each of two same-named structs in two inline modules apart', async () => {
+    checkout(ROOTED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'size', '--from', 'packages/kit/src/inline.rs']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(section(out, '`a::Props::size`, declared at packages/kit/src/inline.rs:3, is used in 2 places:')).toEqual([
+      'packages/kit/src/inline.rs:7 — @acme/kit, read',
+      'packages/kit/src/inline.rs:22 — @acme/kit, read',
+    ]);
+    expect(section(out, '`b::Props::size`, declared at packages/kit/src/inline.rs:13, is used in 1 place:')).toEqual([
+      'packages/kit/src/inline.rs:17 — @acme/kit, read',
+    ]);
+  });
 });

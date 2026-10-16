@@ -44,6 +44,18 @@ describe('what a Rust file asks for', () => {
     expect(taken.get('super')).toEqual([{ imported: 'super', local: 'super' }]);
   });
 
+  it('asks for what a path from the crate root names outside a `use`, as a `use` of its prefix would', () => {
+    // `crate::shapes::Props` needs `crate::shapes`; `crate::shapes::Shape::Square`
+    // needs the item `Shape` too. A path inside a `use` or a macro is not read here.
+    const read = readRust('src/draw.rs', 'fn f(p: &crate::shapes::Props) {\n    let crate::shapes::Shape::Square { size } = s;\n    m!(crate::other::X);\n}\n');
+    const taken = new Map(read.requests.map((request) => [request.value, request]));
+
+    expect([...taken.keys()]).toEqual(['crate::shapes', 'crate::shapes::Shape']);
+    expect(taken.get('crate::shapes')?.bindings.map(({ imported, local }) => ({ imported, local }))).toEqual([{ imported: 'shapes', local: 'crate::shapes' }]);
+    expect(taken.get('crate::shapes::Shape')?.bindings.map(({ imported, local }) => ({ imported, local }))).toEqual([{ imported: 'Shape', local: 'crate::shapes::Shape' }]);
+    expect(taken.get('crate::shapes')?.guessed).toBe(true);
+  });
+
   it('carries an inline module down to the files declared inside it', () => {
     // `mod b;` inside `mod a { … }` is the file `a/b.rs`, and the nesting is
     // the only thing that says so.

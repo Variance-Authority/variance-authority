@@ -25,10 +25,18 @@ names the type: a struct expression or pattern, `self` and `Self` in an
 `impl`, a parameter or `let` annotated as the type or a reference, `Box`,
 `Rc` or `Arc` of it. That name is followed through the `use` that binds it,
 renamed or not, so `Props::size` and `Other::size` are listed apart; through
-a glob, `use crate::shapes::*`; and through a module bound by `mod shapes;` or
-`use crate::shapes;`, so `shapes::Props` and `shapes::Shape::Square` are read.
-A field reached through a field, `o.inner.size`, is a use on the type the
-field `inner` is declared as, in whichever file declares it. Each heading spells the member as a Rust path, `Shape::Square::size`.
+a glob, `use crate::shapes::*`, unless the file declares or imports that name
+itself; through a module bound by `mod shapes;` or `use crate::shapes;`, so
+`shapes::Props` and `shapes::Shape::Square` are read; and through a path from
+the crate root, `crate::shapes::Props`. A type an inline module declares is on
+the module's path, so `a::Props::size` and `b::Props::size` in one file are
+listed apart. A field reached through a field, `o.inner.size`, is a use on the
+type the field `inner` is declared as, in whichever file declares it, inside a
+macro's tokens too. Each heading spells the member as a Rust path,
+`Shape::Square::size`.
+
+A Rust `use` binds a module only when its whole path names the module's file:
+`use crate::config::config` imports the function `config`, not `config.rs`.
 
 `variance ask search` now lists the members whose names hold the query, of
 any language the index records them for, under its own heading:

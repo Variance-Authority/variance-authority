@@ -353,9 +353,9 @@ fn through_fields(
             let (head, rest) = key.find('.').map_or((key.as_str(), ""), |at| key.split_at(at));
             for at in parses.member_declarations.range(row) {
                 if stored.optional(parses.member_declaration_type.at(at)) != Some(head) { continue; }
-                let on = stored.text(parses.member_declaration_on.at(at));
-                if on.contains("::") { continue; }
-                let suffix = format!(".{}{}", stored.text(parses.member_declaration_name.at(at)), rest);
+                // An inline module's `a::Outer` is reached as `a`, as a variant's container is.
+                let (on, inside) = split(stored.text(parses.member_declaration_on.at(at)));
+                let suffix = format!("{inside}.{}{}", stored.text(parses.member_declaration_name.at(at)), rest);
                 found.push((file.clone(), on.to_owned(), suffix, fields.clone()));
             }
         }

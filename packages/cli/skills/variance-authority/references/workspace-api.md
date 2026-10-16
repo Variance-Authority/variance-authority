@@ -262,14 +262,18 @@ reference to it or a `Box`, `Rc` or `Arc` of it, and a `let` bound to a struct
 expression. The name is followed through the `use` that binds it, renamed or
 not, to the module that declares it, and through `use super::*` in an inline
 module. A glob, `use crate::shapes::*`, binds every item of the module under its
-own name, and a module bound by `mod shapes;` or `use crate::shapes;` is
-followed into `shapes::Props` and `shapes::Shape::Square`. A field reached
-through another field, `o.inner.size`, is a use on the type `inner` is declared
-as, wherever its struct is declared and however deep the chain. A path,
-`Shape::Dot`, names only a variant, so `Props::size` naming a method is no use
-of the field. Not read, and left to the `grep` route: a value returned by a
-call, a type spelled from the crate root, `crate::shapes::Props`, and a chain
-inside a macro's tokens.
+own name, except a name the file declares or imports by name itself, and a
+module bound by `mod shapes;` or `use crate::shapes;` is followed into
+`shapes::Props` and `shapes::Shape::Square`; a `use` binds the module only when
+its whole path names the module's file, so `use crate::config::config` binds
+the item. A type spelled from the crate root, `crate::shapes::Props`, is
+followed the same way. A type an inline module declares is on the module's
+path, `a::Props`, so two inline modules' `Props` are listed apart. A field
+reached through another field, `o.inner.size`, is a use on the type `inner` is
+declared as, wherever its struct is declared and however deep the chain, in a
+macro's tokens as well. A path, `Shape::Dot`, names only a variant, so
+`Props::size` naming a method is no use of the field. Not read, and left to the
+`grep` route: a value returned by a call.
 
 What a type checker infers is not read: a value returned by a call, a generic
 or a mapped type, a value narrowed or copied without an annotation, and a type
