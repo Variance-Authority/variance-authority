@@ -301,33 +301,18 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
 
   const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
   const names = options.names === undefined ? undefined : new Map<string, FileNames>();
-  // A parse the addon's graph read, or an index row it wrote, holds no
-  // declarations; such a file is read again for them once the scan is done.
-  const unharvested = new Map<string, readonly (string | undefined)[]>();
   const records = await scanner.scanRelations({
     root: options.root,
     dirs: options.dirs ?? ['.'],
     ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
     ...(names === undefined ? {} : {
+      // A parse that holds no declarations is left out of the names, which
+      // counts its file as unread rather than declaring nothing.
       indexed: (file, parsed, targets) => {
         if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
-        else unharvested.set(file, targets);
       },
     }),
   });
-  if (names !== undefined && unharvested.size > 0) {
-    const subjects = records.flatMap((record) =>
-      record.digest !== undefined && unharvested.has(record.file) ? [{ file: record.file, digest: record.digest }] : [],
-    );
-    // A file read again into the index is saved with its declarations, so the
-    // next question is served them. One that could not be read again is left
-    // out of the names, which counts it as unread rather than declaring nothing.
-    // FIXME: the first question on a checkout the graph read parses every file a
-    // second time, though only the files the other sets kept need declarations;
-    // unmeasured past ten thousand files.
-    const harvested = await scanner.enrichSources(options.root, subjects, source?.cache ?? scanner.memoryParseCache());
-    for (const [file, parsed] of harvested) names.set(file, namesOf(parsed, unharvested.get(file)!));
-  }
   await source?.save();
   if (names !== undefined) options.names?.(names);
 
