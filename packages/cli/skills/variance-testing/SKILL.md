@@ -81,8 +81,10 @@ the question is a value, or the comparison says *nothing separates the sides*:
 
 The log is a probe on one run, not a change to what the test checks. A story
 covers the test's own process under Vitest, Jest and Rstest. A Playwright test
-writes none: stop it where it stands with `variance.snapshot()` or
-`await variance.observe()` in the spec, and read it from a watcher.
+writes none: its probe is a line in the spec that asserts nothing,
+`variance.snapshot()` to send what the page holds and go on, or
+`await variance.observe()` to stop there, read from a watcher. Remove it the
+same way.
 [live run](../variance-authority/references/live-run.md)
 
 ## Write tests for a change

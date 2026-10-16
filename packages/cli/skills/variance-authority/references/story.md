@@ -48,8 +48,8 @@ Never record:
   run already keeps.
 - **For a value the code does not print.** A story shows only what the code
   emitted: `console` lines, Eyes queries and events, `vae` announcements. Add a
-  `console.log` of the value and record again, or use a debugger at the line it
-  names.
+  `console.log` of the value in the code under test, not in the test, and record
+  again, or use a debugger at the line it names.
 - **When a stack trace already names the line.** Open that line.
 
 ```bash
@@ -181,7 +181,8 @@ compare  src/checkout.test.ts > saves the total it charges
   conclude.
 - *nothing separates the sides* means the difference is in a value no line
   prints, or in code that is not instrumented. Add a `console.log` of the value
-  you suspect, record both sides again, and compare again.
+  you suspect in the code under test, not in the test, record both sides again,
+  and compare again.
 
 The step before another is where the test came from, not always its caller.
 The recording keeps which code ran, not calls and returns, so no step names a
