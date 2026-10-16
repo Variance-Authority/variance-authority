@@ -171,16 +171,25 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
+`variance ask` gives no refusal from a reused generation: a name the generation
+does not hold is looked for again in one made from the checkout as it is, and
+in what your installed packages export, read again first, so a function you
+wrote a minute ago, or a package you just installed, is answered rather than
+reported missing. Only a refusal pays for that reading; an answer that found
+its name comes from the generation it was found in.
+
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
-or regeneration is performed, and the answer prints the generation time. If no
-generation has been published, the command refuses instead of silently turning
-the question into production work.
+or regeneration is performed, and the answer prints the generation time. On
+`variance ask`, every answer and refusal under it names that time and says the
+checkout was not compared with it. If no generation has been published, the command refuses
+instead of silently turning the question into production work.
 
 `search` always answers as if `--just-answer` were given. It opens the
 published search at any age and never scans, because in CI the step before it
 already brought the index up to date and is the one that owns freshness. The
-flag is accepted and changes nothing. With no published generation, `search`
-refuses and names the command to run.
+flag is accepted and changes nothing, and its answer says, as one under
+`--just-answer` does, that the checkout was not compared. With no published generation, `search` refuses and
+names the command to run.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited

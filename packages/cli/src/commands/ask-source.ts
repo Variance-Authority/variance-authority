@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, refreshDependencyLexicon, workspaceGeneration } from '@variance-authority/help';
 import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -138,9 +138,50 @@ export async function readSource(root: string, options: SourceReadOptions = {}):
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
+    ...(options.current === true ? { refreshAfterMs: 0 } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
   return { help, tree: () => tree };
+}
+
+/**
+ * The reading a refused question is asked again from, or none when nothing it
+ * was read from can have lagged the checkout.
+ *
+ * A generation is reused for an hour, so one published before the question
+ * may not hold a file written since: the question is asked of one made now.
+ * The dependency lexicon is built by `variance index` alone, so a checkout
+ * that never ran it, or installed a package since, would refuse a name an
+ * installed package declares: it is brought up to date, which costs a stat of
+ * each installed manifest when nothing moved. Only a refusal pays for either;
+ * an answer that found its name is given from the generation it was found in.
+ *
+ * A host's own reader is asked for a current generation and nothing else:
+ * what its checkout is, and where, is the host's.
+ */
+export async function caughtUp(
+  refused: Answering,
+  started: number,
+  ownReader: boolean,
+  again: (reading: SourceReadOptions) => Promise<Answering>,
+): Promise<Answering | undefined> {
+  const reused = refused.at !== undefined && Date.parse(refused.at) < started;
+  const lexicon = ownReader && !(await refreshDependencyLexicon(process.cwd()).then(
+    ({ unchanged }) => unchanged,
+    // Unprepared, the lexicon stays what it was, and the refusal that names
+    // `variance index` stands: that command says why it was not prepared.
+    () => true,
+  ));
+  if (!reused && !lexicon) return undefined;
+  return again(reused ? { current: true } : {});
+}
+
+/**
+ * The line that dates a source answer. A generation read without comparing it
+ * with the checkout says so, since a name missing from it may only be newer.
+ */
+export function snapshotLine(at: string, unseen: boolean): string {
+  return unseen ? `Snapshot ${at}, not compared with the checkout: run \`variance index\` if files changed since.` : `Snapshot ${at}.`;
 }
 
 export async function readTaint(path: string): Promise<Taint> {
