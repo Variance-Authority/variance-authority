@@ -75,8 +75,9 @@ member of an interface, a type literal or a class is never imported: `uses`
 names where a member by that name is declared, after any imports, and under
 each declaration the lines that read, write or destructure it through a value
 whose type the line writes, joined to that declaration through the import that
-binds the type's name. `grep --to` the declaring file finds the uses whose type
-no line writes, as text in the files that import it. The graph
+binds the type's name. A line whose value's type a checker would infer is not in
+that list; `variance ask grep --query '\b<name>\b' --to <declaring file>` finds
+it as text in the files that import the declaration. The graph
 does not record that one function called another at runtime; open the named
 file or use a language server for that question.
 
