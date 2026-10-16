@@ -112,7 +112,7 @@ describe('ask intersection refuses what it cannot cross', () => {
   });
 
   it('refuses a question whose answer is not a set of files', async () => {
-    await expect(ask('packages', 'symbol --name selectBalance')).rejects.toThrow(/`packages` answers no set of files; the questions that do: symbol, uses, search, grep, discover$/);
+    await expect(ask('packages', 'symbol --name selectBalance')).rejects.toThrow(/`packages` answers no set of files; the questions that do: symbol, uses, dependents, search, grep, discover$/);
   });
 
   it('refuses a flag the question does not take, saying which question', async () => {

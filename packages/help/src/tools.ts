@@ -4,6 +4,7 @@ import { workspaceGeneration } from './read.js';
 import { discover } from './tools/discover.js';
 import { entrypoint } from './tools/entrypoint.js';
 import { gaps } from './tools/gaps.js';
+import { dependents } from './tools/dependents.js';
 import { grep } from './tools/grep.js';
 import { intersectionOf } from './tools/intersection.js';
 import { journeyMapTool } from './tools/journey-map.js';
@@ -32,6 +33,11 @@ import { uses } from './tools/uses.js';
  * the two are separate tools rather than one long answer because a reader who
  * knows the API and wants the local convention should not have to buy the
  * signature again to get it.
+ *
+ * `docs_dependents` follows `docs_uses` because it walks on from it: the files
+ * that import a name, or a file, and then every file that reaches those through
+ * imports, each with the chain that does. It is one direction, against the
+ * imports, because a change travels by use and stops where nothing uses it.
  *
  * `docs_grep` is the one that is not about names. Text belongs to ripgrep, and
  * the only thing added is the fact ripgrep cannot hold: which files a start
@@ -86,14 +92,14 @@ function dated(tool: Tool<Help>): Tool<Help> {
 }
 
 const ALONE: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
+  [packages, entrypoint, symbol, uses, dependents, search, grep, discover, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
 
 /** Every question above, crossed; built over the list so a question that joins it can be an operand. */
 const intersection = intersectionOf<Help>(ALONE);
 
 /** The source-orientation tools shared by shell dispatch and the server. */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
+  [packages, entrypoint, symbol, uses, dependents, search, grep, discover, intersection, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
 
 const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
@@ -107,7 +113,7 @@ export const HELP: Served<Help> = {
   tools: DATED_HELP_TOOLS,
 };
 
-export { discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
+export { dependents, discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf } from './tools/search.js';

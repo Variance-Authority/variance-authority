@@ -244,6 +244,22 @@ export const uses: Tool<Help> = {
   },
 };
 
+/**
+ * The lines that import one exported name, as `run` lists them, for a question
+ * that starts where they are: `docs_dependents` walks on from these files.
+ * `declared` holds the files that declare the name without exporting it, or as
+ * a member, which no import names; `unread` says what the source index did not.
+ */
+export function importsOfName(
+  help: Help,
+  input: Readonly<Record<string, unknown>>,
+  root: string | undefined,
+): { readonly name: string; readonly sites: readonly Use[]; readonly declared: readonly string[]; readonly unread: string | undefined } {
+  const { name, sites, unread, members, kept } = usesOf(help, input, root);
+  const declared = [...new Set([...kept, ...members.declared].map((one) => one.at))].sort();
+  return { name, sites, declared, unread };
+}
+
 /** A name its files keep to themselves: where each declares it, and who can reach it from there. */
 function keptLine(name: string, kept: readonly DeclaredName[]): string {
   if (kept.length === 1) {

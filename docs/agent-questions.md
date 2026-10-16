@@ -22,6 +22,7 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | What is each package imported for, and which packages are imported past their entry? | `variance ask packages` | `docs_packages` on the workspace API server |
 | current workspace source | What does this package publish, and what do other packages import from it? | `variance ask entrypoint --package <name>` | `docs_entrypoint` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
+| current workspace source | What rests on this file or name through imports, at any depth, and through which chain? | `variance ask dependents --file <path>` or `--name <name>` | `docs_dependents` on the workspace API server |
 | current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |
 | current workspace source | What are the parts of this repository, and which packages does each one put in front? | `variance ask orient [--area <id>]` | `docs_orient` with no `files` on the workspace API server |
 | current workspace source | Which packages are these files in, what crosses their edges, which tests ran them, and what calls into them? | `variance ask orient --files <path>[:<line>][,...]` | `docs_orient` on the workspace API server |

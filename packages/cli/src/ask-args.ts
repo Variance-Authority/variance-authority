@@ -100,9 +100,9 @@ export interface ParsedAsk extends Crossing {
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints, as its id (`4.1`). */
   readonly area?: string;
-  /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`; a test's name or a word of it, for `test-composition`. */
+  /** `--name <name>`: an exported name, matched exactly, for `symbol`, `uses` and `dependents`; a test's name or a word of it, for `test-composition`. */
   readonly name?: string;
-  /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol` and `uses`. */
+  /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol`, `uses` and `dependents`. */
   readonly package?: string;
   /** `--subpath <subpath>`: one import specifier a package's `exports` map opens, for `entrypoint`. */
   readonly subpath?: string;

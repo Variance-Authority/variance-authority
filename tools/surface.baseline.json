@@ -1082,6 +1082,7 @@
         "answerSearch": "function",
         "audience": "function",
         "block": "function",
+        "dependents": "const",
         "discover": "const",
         "doorOf": "function",
         "entriesNamed": "function",
@@ -1343,6 +1344,7 @@
       },
       "./tools": {
         "COSTS_TOOLS": "const",
+        "Chains": "interface",
         "ConcernsQuery": "interface",
         "ConcernsSubject": "interface",
         "CostsSubject": "interface",
@@ -1355,6 +1357,7 @@
         "FileRecord": "interface",
         "FileSet": "interface",
         "ImportedName": "interface",
+        "Link": "interface",
         "NO_ARGS": "const",
         "OBSERVABILITY_TOOLS": "const",
         "PRESENTATION_TOOLS": "const",
