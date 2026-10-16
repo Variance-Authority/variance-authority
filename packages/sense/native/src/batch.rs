@@ -205,7 +205,7 @@ pub(crate) fn walk(
     tree_oids: &[Oid],
     listing: Arc<Listing>,
 ) -> Walked {
-    walk_beyond(options, at, tree_oids, listing, &|_| false, false)
+    walk_beyond(options, at, tree_oids, listing, &|_| false, /* symbols */ false)
 }
 
 /// `walk`, not entering a target `held` names: the seeds are read whatever
@@ -213,11 +213,12 @@ pub(crate) fn walk(
 /// boundary of what a warm update has to open (`source_update.rs`).
 ///
 /// `symbols` harvests each file's top-level declarations while its tree is
-/// still in the arena. A cold closure leaves them to whoever asks for a file
-/// (`enrich.ts`), since most of it is never asked about; a warm update reads
-/// only the files that changed, which are the ones a question about the branch
-/// names, and a parse it writes unharvested answers `symbol` and `uses` with
-/// "not read" until the file is read again.
+/// still in the arena. The cold graph walk, which a repository of 10k files or
+/// more takes in place of the batch read, leaves them to whoever asks for a
+/// file (`enrich.ts`), since most of its closure is never asked about. A warm
+/// update reads only the files that changed, which are the ones a question
+/// about the branch names, and a parse it writes unharvested answers `symbol`
+/// and `uses` with "not read" until the file is read again.
 pub(crate) fn walk_beyond(
     options: GraphOptions,
     at: &HashMap<String, u32>,

@@ -335,6 +335,7 @@ describe('variance ask about a name declared and not exported', () => {
     expect(uses.out).toContain(
       '`resume` is declared, not exported, at packages/kit/src/money/restart.ts:9, so nothing outside that file can import it.',
     );
+    expect(uses.out).not.toContain('were not read into the source index');
   });
 
   it('writes out five declarations of one name and counts the rest', async () => {
