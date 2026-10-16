@@ -23,7 +23,7 @@ import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
-export const DECLARED_CAP = 5;
+const DECLARED_CAP = 5;
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =
@@ -63,7 +63,7 @@ export function declarations(
  * documentation are left out when the file no longer holds the name where the
  * index read it.
  */
-export function declaredBlock(root: string, held: DeclaredName): string {
+function declaredBlock(root: string, held: DeclaredName): string {
   const text = textAt(root, held);
   const signature = text === undefined ? undefined : headOf(text, spanOf(held.signatureStart, held.signatureEnd));
   const doc = text === undefined ? undefined : docOf(text, spanOf(held.docStart, held.docEnd));
@@ -72,7 +72,7 @@ export function declaredBlock(root: string, held: DeclaredName): string {
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
     ...(signature === undefined ? [] : [signature]),
     ...(doc === undefined ? [] : [doc]),
-    reachOf(held).block,
+    reachSentences(held).block,
   ].join('\n');
 }
 
@@ -81,7 +81,7 @@ export function declaredBlock(root: string, held: DeclaredName): string {
  * recorded: the sentence `symbol` ends a declaration with, and the clause `uses`
  * ends its line with.
  */
-export function reachOf(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>): { readonly block: string; readonly clause: string } {
+export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>): { readonly block: string; readonly clause: string } {
   const { at, name } = held;
   switch (held.reach) {
     case 'file':

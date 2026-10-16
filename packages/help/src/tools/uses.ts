@@ -4,7 +4,7 @@ import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/
 import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
-import { declaredAt, reachOf, unreadNote } from './declared.js';
+import { declarations, reachSentences, unreadLine } from './declared.js';
 import { type Members, membersOf, places, routes } from './members.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
@@ -202,12 +202,15 @@ export const uses: Tool<Help> = {
     const answer = usesOf(help, input, invocation?.root);
     const { name, members, exported, found, byPath, kept } = answer;
     const declared = members.declared.length;
+    // A name no file exports may be declared in a file whose declarations
+    // were not read, so the answer names those files after what it found.
+    const unread = unreadLine(answer.undeclared);
     if (kept.length > 0) {
-      if (declared === 0) return keptLine(name, kept);
-      return [keptLine(name, kept), '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, name)].join('\n');
+      if (declared === 0) return [keptLine(name, kept), ...unread].join('\n');
+      return [keptLine(name, kept), '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, name), ...unread].join('\n');
     }
     if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
-      return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, name)].join('\n');
+      return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, name), ...unread].join('\n');
     }
     const imports = imported(answer, from);
     // An index the imports already said did not read is not said twice.
@@ -237,11 +240,11 @@ export const uses: Tool<Help> = {
 function keptLine(name: string, kept: readonly DeclaredName[]): string {
   if (kept.length === 1) {
     const one = kept[0]!;
-    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${reachOf(one).clause}.`;
+    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${reachSentences(one).clause}.`;
   }
   return [
     `\`${name}\` is declared, not exported, in ${kept.length} files:`,
-    ...kept.map((one) => `  ${one.at}:${one.line}${reachOf(one).clause}`),
+    ...kept.map((one) => `  ${one.at}:${one.line}${reachSentences(one).clause}`),
   ].join('\n');
 }
 
@@ -319,12 +322,14 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
     // A name no file exports may be one a file declares and keeps to itself,
     // which the source index holds with the file's parse, as well as a member.
-    const kept = declaredAt(root, name, wanted);
+    const read = declarations(root, name);
+    const kept = 'refused' in read ? [] : read.names.filter((one) => wanted === undefined || one.by === wanted);
+    const undeclared = 'refused' in read ? [] : read.unread;
     if (kept.length > 0 || members.declared.length > 0) {
-      return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members, kept };
+      return { name, found, exported, byPath, sites: [], unread: undefined, within: undefined, members, kept, undeclared };
     }
     const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
-    throw new Error(`${unfound(help, name, wanted)}${unreadMembers}${unreadNote(root, name)}`);
+    throw new Error([`${unfound(help, name, wanted)}${unreadMembers}`, ...unreadLine(undeclared)].join(' '));
   }
   // A published name is read from its entry file as well as its declaration:
   // an entry that renames it, `export { greet as salute }`, passes on a name
@@ -339,5 +344,5 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
 
   const sites = sitesOf(found, byPath, within ?? [], read);
-  return { name, found, exported, byPath, sites, unread, within, members, kept: [] as readonly DeclaredName[] };
+  return { name, found, exported, byPath, sites, unread, within, members, kept: [] as readonly DeclaredName[], undeclared: [] as readonly string[] };
 }

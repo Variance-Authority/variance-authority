@@ -270,7 +270,7 @@ describe('variance ask about a name declared and not exported', () => {
     }
   });
 
-  it('refuses a name found nowhere with the files whose declarations were not read', async () => {
+  it('names the files whose declarations were not read, in an answer and in a refusal', async () => {
     checkout({
       ...RELAUNCH,
       // Past the largest file a read opens, so the index holds no parse of it.
@@ -279,7 +279,10 @@ describe('variance ask about a name declared and not exported', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const unread = 'The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/kit/src/money/huge.ts.';
-    for (const question of [['symbol', '--name', 'nowhere'], ['uses', '--name', 'nowhere'], ['search', '--query', 'nowhere']]) {
+    for (const question of [
+      ['symbol', '--name', 'nowhere'], ['uses', '--name', 'nowhere'], ['search', '--query', 'nowhere'],
+      ['symbol', '--name', 'relaunch'], ['uses', '--name', 'relaunch'], ['search', '--query', 'relaunch'],
+    ]) {
       const { out, err } = await run(['ask', ...question]);
       expect(`${out}${err}`).toContain(unread);
     }
