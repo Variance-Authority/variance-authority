@@ -37,10 +37,11 @@ const MACHINE: RenderIdentity = {
 
 const VIEWPORT: Viewport = { width: 60, height: 60, deviceScaleFactor: 2, colorScheme: 'light' };
 
-/** 120×120 device pixels: white, with an optional black square. */
-function image(square: { x: number; y: number; size: number } | null): string {
+/** 120×120 device pixels: white unless tinted, with an optional black square. */
+function image(square: { x: number; y: number; size: number } | null, background = 0xff): string {
   const png = new PNG({ width: 120, height: 120 });
-  png.data.fill(0xff);
+  png.data.fill(background);
+  for (let index = 3; index < png.data.length; index += 4) png.data[index] = 0xff;
 
   if (square !== null) {
     for (let y = square.y; y < square.y + square.size; y += 1) {
@@ -168,6 +169,20 @@ describe('a change entirely inside an excluded subtree', () => {
     expect(observation.ignored?.pixels).toBe(64);
   });
 
+  it('names what the default policy forgave outside the excluded box', async () => {
+    // A background one level darker is under the default tolerance, so the
+    // strict policy counts it and the default does not. "nothing outside them
+    // moved" is then a claim about a tolerance, and the sentence says which.
+    const observation = await compare(blank, image({ x: 24, y: 24, size: 8 }, 0xfe), snapshotWith(CLOCK_SITE));
+
+    expect(observation.verdict).toBe('ignored');
+    expect(observation.because).toBe(
+      '64 pixels differ and all of them fall inside 1 excluded region; nothing outside them moved ' +
+        'beyond the tolerance of the default policy, which forgave 14,336 pixels as antialiasing ' +
+        'or as a colour change of at most 1%',
+    );
+  });
+
   it('is `changed` when the same run has no ignore declared', async () => {
     // The control. Without this the test above would pass for a comparison that
     // silently found nothing at all.
@@ -272,6 +287,19 @@ describe('absorbing by shape rather than by place', () => {
 
     expect(observation.verdict).toBe('ignored');
     expect(observation.ignored?.byRule).toEqual({ toast: 64 });
+  });
+
+  it('names what the default policy forgave beside an absorbed shape', async () => {
+    const print = await fingerprintOf({ x: 80, y: 80, size: 8 });
+
+    const observation = await observePairWith(image({ x: 20, y: 100, size: 8 }, 0xfe), { [print]: 'toast' });
+
+    expect(observation.verdict).toBe('ignored');
+    expect(observation.because).toBe(
+      '64 pixels differ and every one of them was absorbed by an ignore; nothing else moved ' +
+        'beyond the tolerance of the default policy, which forgave 14,336 pixels as antialiasing ' +
+        'or as a colour change of at most 1%',
+    );
   });
 
   it('does not absorb a different shape in the same place', async () => {

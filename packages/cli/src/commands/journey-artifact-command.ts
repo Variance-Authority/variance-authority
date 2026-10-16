@@ -1,21 +1,61 @@
+import { randomUUID } from 'node:crypto';
+import { linkSync, rmSync } from 'node:fs';
 import {
+  combineRecords,
   finalizeJestJourneys,
   stitchJourneyArtifacts,
+  type CombinedRecord,
   type JourneyArtifactResult,
 } from '@variance-authority/sense/test-selection';
-import { EXIT_CLEAN, type ExitCode } from '../exit.js';
+import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
+import { uncheckedReads } from './journeys.js';
+import { messageOf } from './resources.js';
 
 type JourneyArtifactCommand = Extract<
   Parsed,
-  { command: 'journeys'; operation: 'finalize' | 'stitch' }
+  { command: 'journeys'; operation: 'finalize' | 'stitch' | 'combine' }
 >;
 
-/** Finalize one runner's journals or stitch the artifacts from several CI shards. */
+/** Finalize journals, stitch journey artifacts, or combine shard records. */
 export async function runJourneyArtifactCommand(
   parsed: JourneyArtifactCommand,
   streams: { out(text: string): void },
 ): Promise<ExitCode> {
+  if (parsed.operation === 'combine') {
+    // A combine writes a record of its own shards and nothing else. Over a
+    // record that is there it would discard that record, and over a shard the
+    // shard: landing over a record is the reading's job. The record is written
+    // beside `--into` and linked to it, which fails when anything is there by
+    // then, so nothing made after the command started is written over.
+    const staged = `${parsed.into}.${process.pid}-${randomUUID()}.tmp`;
+    let result: CombinedRecord;
+    try {
+      try {
+        result = combineRecords(parsed.shards, staged, process.cwd());
+      } catch (error) {
+        throw new OperatorError(messageOf(error), { cause: error });
+      }
+      try {
+        linkSync(staged, parsed.into);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        throw new OperatorError(
+          `${parsed.into} is already there, and \`journeys combine\` writes a new record. ` +
+            'To land the shards over it, run `variance journeys <shards> --into <record>`; ' +
+            'to combine, name a path nothing is at yet.',
+          { cause: error },
+        );
+      }
+    } finally {
+      rmSync(staged, { force: true });
+    }
+    streams.out(`${combinedLine(result, parsed.into)}\n`);
+    if (result.unchecked.length > 0) streams.out(`journeys: ${uncheckedReads(result.unchecked)}\n`);
+    streams.out(renumbered(result));
+    return EXIT_CLEAN;
+  }
+
   if (parsed.operation === 'finalize') {
     const result = await finalizeJestJourneys(parsed.journeyFile);
     streams.out(
@@ -35,6 +75,16 @@ export async function runJourneyArtifactCommand(
   return EXIT_CLEAN;
 }
 
+/** What `journeys combine` wrote, in one line. */
+function combinedLine(result: CombinedRecord, into: string): string {
+  const cases = result.cases == null ? '' : `, ${result.cases} cases`;
+  const commit = result.commit == null ? '' : `, recorded at ${result.commit.slice(0, 12)}`;
+  return (
+    `journeys: combined ${result.shards.length} records into ${into} ` +
+    `(${result.tests} tests, ${result.modules} modules, ${result.crossings} crossings${cases}${commit})`
+  );
+}
+
 /**
  * The files whose regions are coarser than recorded, by name.
  *
@@ -43,7 +93,7 @@ export async function runJourneyArtifactCommand(
  * credited to the regions both transforms share. A reader who sees a function
  * select more tests than it should needs to find out why here.
  */
-function renumbered(result: JourneyArtifactResult): string {
+function renumbered(result: Pick<JourneyArtifactResult, 'renumbered'>): string {
   const files = result.renumbered ?? [];
   if (files.length === 0) return '';
   const count = files.length === 1 ? '1 file was' : `${files.length} files were`;

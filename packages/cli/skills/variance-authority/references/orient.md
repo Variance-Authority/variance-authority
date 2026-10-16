@@ -89,8 +89,7 @@ before you write code against the package; nothing is installed or copied for
 you. Only `skills/<name>/SKILL.md` beside the package's `package.json` is read,
 the layout [TanStack Intent](https://tanstack.com/intent/latest) set for npm. A
 skill a package keeps elsewhere and installs with its own command, as
-Playwright does for its CLI skills, is not listed. `search` does not list skills. A lexicon written before skills were read says so
-in the answer; `variance index` reads them.
+Playwright does for its CLI skills, is not listed. `search` does not list skills.
 
 ## `slowest-tests`
 

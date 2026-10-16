@@ -117,8 +117,27 @@ describe('naming the shape of a tree', () => {
 
     expect((await shapeOf(files, { conditionNames: ['import'] })).config).not.toBe(before.config);
     expect((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config).not.toBe(before.config);
+    expect((await shapeOf(files, { tsconfig: false })).config).not.toBe(before.config);
+    // Named from the checkout, so a worktree laid out alike keeps the digest.
+    expect((await shapeOf(files, { tsconfig: `${root}/tsconfig.build.json` })).config)
+      .toBe((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config);
     // A declined record names its bytes, so a raised limit has to let it go.
     expect((await shapeOf(files, { largestFile: 8 })).config).not.toBe(before.config);
+  });
+
+  it('moves when the config the caller names is edited, though the listing does not hold it', async () => {
+    const at = await mkdtemp(join(tmpdir(), 'variance-reuse-named-'));
+    made.push(at);
+    await mkdir(join(at, 'config'));
+    const held = tree([['package.json', A], ['src/Button.tsx', A]]);
+    const named = async (): Promise<Digest> =>
+      (await treeShapeOf({ root: at, digests: held, options: { tsconfig: join(at, 'config/aliases.json') } })).shape.config;
+
+    await writeFile(join(at, 'config/aliases.json'), '{ "compilerOptions": { "paths": { "@/*": ["src/*"] } } }');
+    const before = await named();
+    await writeFile(join(at, 'config/aliases.json'), '{ "compilerOptions": { "paths": { "@/*": ["lib/*"] } } }');
+
+    expect(await named()).not.toBe(before);
   });
 
   it('falls back to the whole path set when no configuration bounds an alias', async () => {

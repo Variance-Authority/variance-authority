@@ -15,9 +15,9 @@ import { shardFilterBecause, shardOwnedBecause, type NotObserved } from './run-r
  * - **Where each group goes is `place` in `@variance-authority/core/shard`**,
  *   the rule a test runner's seam places test files by: the recorded time
  *   when a previous report carries `costMs`, longest first on the
- *   least-loaded shard, and a checksum otherwise. A placement by time is a
- *   function of the *whole* plan, so shards must plan the same suite — when
- *   they do not, `merge` sees the overlap or the gap and refuses, rather than
+ *   least-loaded shard, and by count otherwise — every file weighing the
+ *   same under the same rule. Either placement is a function of the *whole*
+ *   plan, so shards must plan the same suite — when they do not, `merge` sees the overlap or the gap and refuses, rather than
  *   a subject going unwatched.
  */
 
@@ -45,7 +45,7 @@ export interface Assignment {
   readonly queue: readonly (readonly number[])[];
   /** Plan index to the shard that owns it, for every subject this shard does not. */
   readonly elsewhere: ReadonlyMap<number, number>;
-  readonly by: 'checksum' | 'recorded cost';
+  readonly by: 'count' | 'recorded cost';
 }
 
 /**
@@ -74,7 +74,7 @@ export function assign(
   const mine = (order: readonly number[]) => order.filter((at) => placement.owner[at] === here).map((at) => groups[at]!.members);
   const inPlan = groups.map((_, at) => at);
   return {
-    queue: mine(placement.cost === undefined ? inPlan : longestFirst(groups.map((group) => group.key), placement.cost)),
+    queue: mine(placement.by === 'count' ? inPlan : longestFirst(groups.map((group) => group.key), placement.cost)),
     elsewhere,
     by: placement.by,
   };
@@ -82,7 +82,7 @@ export function assign(
 
 /**
  * The exclusion every subject another shard owns is reported under. It names
- * the shard and what placed it there — a checksum, or the costs of one commit —
+ * the shard and what placed it there — the count, or the costs of one commit —
  * so two shards that placed by different costs are visible in their reports.
  */
 export function placedElsewhere(
@@ -91,8 +91,8 @@ export function placedElsewhere(
   options: { readonly shard?: Shard; readonly costs?: { readonly commit: string } },
 ): ReadonlyMap<number, NotObserved> {
   const by =
-    assignment.by === 'checksum' || options.costs === undefined
-      ? 'checksum'
+    assignment.by === 'count' || options.costs === undefined
+      ? 'count'
       : `the costs recorded at ${options.costs.commit.slice(0, 12)}`;
   const entries = new Map<number, NotObserved>();
   for (const [index, owner] of assignment.elsewhere) {

@@ -38,13 +38,21 @@ export function assemble(document: RenderDocument, options: AssembleOptions = {}
       : [`<base href="${escapeAttribute(document.baseUrl)}">`]),
     `<style>${sheet(document, options)}</style>`,
     '</head>',
-    `<body${attributes(document.frame.body)}>`,
+    // The container's content width is reproduced inline on the subject's
+    // parent, the innermost ancestor or else the body, because that is the box a
+    // percentage width resolves against. Without it a subject declaring
+    // `width: 100%` renders at viewport width regardless of the panel it lived
+    // in. The width is the parent's own, in its own box sizing, which the
+    // document's rules give it again. Inline and important, so no page rule on
+    // that box overrides it: a width written on the body in the sheet lost to
+    // Storybook's rule for its padded body.
+    `<body${
+      document.frame.ancestors.length === 0
+        ? withWidth(document.frame.body, document.frame.containerWidth)
+        : attributes(document.frame.body)
+    }>`,
     ...document.frame.ancestors.map((ancestor, index) =>
-      // The container's used width is reproduced inline on the innermost
-      // ancestor, because that is the box a percentage width resolves against.
-      // Without it a subject declaring `width: 100%` renders at viewport width
-      // regardless of the panel it actually lived in.
-      index === document.frame.ancestors.length - 1 && document.frame.containerWidth !== undefined
+      index === document.frame.ancestors.length - 1
         ? `<${ancestor.tag}${withWidth(ancestor.attributes, document.frame.containerWidth)}>`
         : `<${ancestor.tag}${attributes(ancestor.attributes)}>`,
     ),
@@ -62,6 +70,16 @@ export function assemble(document: RenderDocument, options: AssembleOptions = {}
  * reaching the subject only by inheritance — inheritance loses to every
  * declaration on the element itself, so this cannot override the subject no
  * matter what its specificity looks like.
+ *
+ * The root itself is not the subject, and the document carries the rules that
+ * styled it, so the floor must lose to those too. It holds computed values:
+ * Tailwind's `html { line-height: 1.5 }` computes to `24px`, and a floor that
+ * won on the root overrode the number with it, so every line below the root
+ * that set only a font size was laid out 24px tall. Specificity cannot place it
+ * under a rule in a cascade layer — an unlayered declaration beats every
+ * layered one, and Tailwind's preflight is layered — so the floor sits in an
+ * anonymous layer of its own, written first, which makes it the lowest layer
+ * there is.
  */
 function sheet(document: RenderDocument, options: AssembleOptions): string {
   const inherited = Object.entries(document.inherited)
@@ -72,12 +90,9 @@ function sheet(document: RenderDocument, options: AssembleOptions): string {
     // The page's own margin, not the subject's. Reproducing the browser default
     // would offset the clip box by 8px and change nothing else, so it is removed
     // rather than carried; the subject's position on the page is not what is
-    // being compared.
-    'html,body{margin:0;padding:0}',
-    ...(document.frame.containerWidth !== undefined
-      ? [`body{width:${document.frame.containerWidth}px}`]
-      : []),
-    ...(inherited !== '' ? [`:root{${inherited}}`] : []),
+    // being compared. It sits in the floor's layer, so it beats the browser's
+    // default and loses to a page rule on `html` or `body`, layered or not.
+    `@layer{html,body{margin:0;padding:0}${inherited !== '' ? `:root{${inherited}}` : ''}}`,
     ...document.css,
     ...(options.extraCss !== undefined ? [options.extraCss] : []),
   ].join('\n');
@@ -89,11 +104,12 @@ function attributes(record: Readonly<Record<string, string>>): string {
     .join('');
 }
 
-function withWidth(record: Readonly<Record<string, string>>, width: number): string {
+function withWidth(record: Readonly<Record<string, string>>, width: number | undefined): string {
+  if (width === undefined) return attributes(record);
   const existing = record['style'];
   return attributes({
     ...record,
-    style: `${existing !== undefined ? `${existing};` : ''}width:${width}px`,
+    style: `${existing !== undefined ? `${existing};` : ''}width:${width}px !important`,
   });
 }
 

@@ -9,6 +9,7 @@ import {
   varints,
 } from './column-codec.js';
 import { fail } from './format-validation.js';
+import { LAYOUT } from './record-layout.js';
 
 /**
  * The run coding a snapshot's columns are stored in.
@@ -42,7 +43,7 @@ import { fail } from './format-validation.js';
  */
 
 /** Rows in one run of a column. */
-export const RUN = 4096;
+export const RUN = LAYOUT.run;
 
 /**
  * Strings in one run of the blob.
@@ -51,7 +52,7 @@ export const RUN = 4096;
  * and the calls that matter — a binary search over module paths — land in a
  * different run every time.
  */
-export const BLOB_RUN = 512;
+export const BLOB_RUN = LAYOUT.blobRun;
 
 /**
  * Runs kept decompressed however large they are.

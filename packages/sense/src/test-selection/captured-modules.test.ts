@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EVALUATING } from '../instrument/index.js';
-import { captureModule, deriveModules, markModule, pathOf, planModule } from './captured-modules.js';
+import { captureAfter, captureModule, deriveModules, markModule, pathOf, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 
 /** The most reads the derivation had in flight at once. */
@@ -47,6 +47,157 @@ describe('the module the probes name', () => {
 
     expect(captured.module.id).toMatch(/^src-cart\.js@[0-9a-f]{32}$/);
     expect(pathOf(captured.module.id)).toBe('src-cart.js');
+  });
+});
+
+describe('a module with no file on disk', () => {
+  // A bundler's virtual entry — Storybook's `storybook-stories.js` — is handed
+  // over under a path in the checkout that `include` accepts, and no diff is
+  // ever written against it.
+  it('is not probed, as a bundler hands over its virtual entry', async () => {
+    const { root } = await checkout(SOURCE);
+    const virtual = resolve(root, 'storybook-stories.js');
+
+    expect(captureModule(root, virtual, SOURCE, defaultInclude, undefined)).toBeUndefined();
+  });
+
+  it('is not probed after the transforms either, whatever map arrives with it', async () => {
+    const { root } = await checkout(SOURCE);
+    const virtual = resolve(root, 'storybook-config-entry.js');
+    const map = () => ({ sources: ['storybook-config-entry.js'], mappings: 'AAAA;AACA;AACA' });
+
+    expect(captureAfter(root, virtual, SOURCE, defaultInclude, undefined, map)).toBeUndefined();
+  });
+
+  it('is not probed under node_modules where `include` accepts it', async () => {
+    const { root } = await checkout(SOURCE);
+    const virtual = resolve(root, 'node_modules', '.cache', 'storybook', 'entry.js');
+
+    expect(captureModule(root, virtual, SOURCE, () => true, undefined)).toBeUndefined();
+  });
+
+  it('is probed under node_modules where `include` accepts it and the file is there', async () => {
+    const { root } = await checkout(SOURCE);
+    const vendored = resolve(root, 'node_modules', 'cart', 'index.js');
+    await mkdir(resolve(root, 'node_modules', 'cart'), { recursive: true });
+    await writeFile(vendored, SOURCE, 'utf8');
+
+    expect(captureModule(root, vendored, SOURCE, () => true, undefined)).toBeDefined();
+  });
+});
+
+describe('a module whose file is there and cannot be read', () => {
+  it('fails after the transforms, naming the file and why: only a file that is not there is no file', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+    // A directory where the file was: unreadable to every user, root included.
+    await rm(file);
+    await mkdir(file);
+    expect(() => captureAfter(root, file, SOURCE, defaultInclude, undefined, map)).toThrow(/src-cart\.js.*EISDIR/s);
+  });
+});
+
+describe('a module whose probes go in after the transforms', () => {
+  it('reports the id and the regions the file on disk is cut into', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const transformed = `${SOURCE}\n`;
+    // Every line to itself, from its first column.
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+    const after = captureAfter(root, file, transformed, defaultInclude, undefined, map)!;
+    const before = captureModule(root, file, SOURCE, defaultInclude, undefined)!;
+
+    expect(after.module).toEqual(before.module);
+    expect(after.code.endsWith('\n\n')).toBe(true);
+  });
+
+  it('is refused where a map with no mappings carries code written from a file with more than module code', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const map = () => ({ sources: ['src-cart.js'], mappings: '' });
+
+    expect(() => captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: the transforms ahead of the probes rewrote the file and handed on a map with no mappings/,
+    );
+  });
+
+  it('is refused where the map carries a text for the file that is not the file, though it names the file', async () => {
+    const { root, file } = await checkout(SOURCE);
+    // A `load` hook moved every line down one and returned no map: the map
+    // that follows starts from its text, and names the file by its name.
+    const loaded = `/* banner */\n${SOURCE}`;
+    const map = () => ({ sources: ['src-cart.js'], sourcesContent: [loaded], mappings: 'AAAA;AACA;AACA;AACA' });
+
+    expect(() => captureAfter(root, file, loaded, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: the map back to the file carries a text for it that is not the file on disk/,
+    );
+    const own = () => ({ sources: ['src-cart.js'], sourcesContent: [SOURCE], mappings: 'AAAA;AACA;AACA' });
+    expect(captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, own)!.module.instrumented).toBe(true);
+  });
+
+  it('is refused where the map names no source that resolves to the file', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const map = () => ({ sources: ['elsewhere.js'], mappings: 'AAAA;AACA;AACA' });
+
+    expect(() => captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: the transforms ahead of the probes rewrote the file and left no map back to it/,
+    );
+  });
+
+  it('is refused where the transforms wrote text that cannot be parsed from a file that can', async () => {
+    const { root, file } = await checkout(SOURCE);
+    // A transform that left a syntax the instrumenter does not read, mapped line for line.
+    const unparsed = 'export function total(items) {\n  return items.length > 0 ? items.length : 0;\n}}\n';
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+
+    expect(() => captureAfter(root, file, unparsed, defaultInclude, undefined, map)).toThrow(
+      /`src-cart\.js`: the transforms ahead of the probes wrote text the instrumenter cannot parse/,
+    );
+  });
+
+  it('holds the probe of loading a file the instrumenter cannot parse, as the probes going in first do', async () => {
+    const UNPARSED = 'export function total(items) {\n  return items.length >;\n}\n';
+    const { root, file } = await checkout(UNPARSED);
+    const map = () => ({ sources: ['src-cart.js'], mappings: 'AAAA;AACA;AACA' });
+    const after = captureAfter(root, file, `${UNPARSED}\n`, defaultInclude, undefined, map)!;
+
+    expect(after.module).toEqual(captureModule(root, file, UNPARSED, defaultInclude, undefined)!.module);
+  });
+
+  it('is marked as loaded where the import asked for a variant of the file no map leads back from', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const raw = `export default ${JSON.stringify(SOURCE)};\n`;
+    const after = captureAfter(root, file, raw, defaultInclude, undefined, () => ({ sources: ['src-cart.js'], sourcesContent: [raw], mappings: 'AAAA' }), {
+      variant: true,
+      unmapped: [{ plugin: 'vite:asset', loaded: raw }],
+    })!;
+
+    expect(after.module).toEqual(markModule(root, file, SOURCE, defaultInclude)!.module);
+    expect(after.code.startsWith(raw)).toBe(true);
+  });
+
+  it('is marked as loaded on what the transforms wrote where `unprobed` names it, its map carried on', async () => {
+    const { root, file } = await checkout(SOURCE);
+    const compiled = `"use strict";\n${SOURCE}`;
+    const mappings = ';AAAA;AACA;AACA';
+    const after = captureAfter(root, file, compiled, defaultInclude, undefined, () => ({ sources: ['src-cart.js'], mappings }), {
+      unprobed: (path) => path === file,
+      carry: true,
+    })!;
+
+    expect(after.module).toEqual(markModule(root, file, SOURCE, defaultInclude)!.module);
+    // The text runs as the transforms wrote it, and a runner no bundler composes maps for reads its lines through the map they wrote.
+    expect(after.code.startsWith(compiled)).toBe(true);
+    expect(after.carried).toBe(mappings);
+  });
+
+  it('holds the probe of loading a module of types, which compiles to code that maps to nothing', async () => {
+    const TYPES = 'export interface Cart {\n  readonly total: number;\n}\n';
+    const { root, file } = await checkout(TYPES);
+    // What `@swc/jest` writes for it: the CommonJS prologue, and a map with no source.
+    const compiled = '"use strict";\nObject.defineProperty(exports, "__esModule", {\n    value: true\n});\n';
+    const after = captureAfter(root, file, compiled, defaultInclude, undefined, () => ({ sources: [], mappings: '' }))!;
+
+    expect(after.module).toEqual(captureModule(root, file, TYPES, defaultInclude, undefined)!.module);
+    expect(after.code).toContain('__va(');
   });
 });
 

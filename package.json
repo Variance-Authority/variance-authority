@@ -57,13 +57,21 @@
     "ci-info": "^4.4.0",
     "esbuild": "^0.25.0",
     "jsdom": "^30.0.1",
+    "mdast-util-to-string": "^4.0.0",
     "oxc-parser": "^0.144.0",
     "oxlint": "^1.77.0",
+    "picomatch": "^4.0.7",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "react": "^19",
     "react-dom": "^19",
+    "react-focus-on": "^3.10.2",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
     "typescript": "^7.0.2",
+    "unified": "^11.0.0",
     "vitest": "^2.1.8"
   }
 }

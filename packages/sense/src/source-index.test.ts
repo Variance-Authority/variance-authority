@@ -68,6 +68,13 @@ const PARSED: Parsed = {
   // `./api.js` is named nowhere else, so a dictionary that never collected the
   // mock columns writes some other string here.
   mocks: { minus: ['./api.js'], plus: ['./button.js'] },
+  // Containers and a member name no other column holds, and lines no other
+  // column holds, so a cache, a fold or a decoder that dropped one of the four
+  // columns, or read one in place of another, fails here.
+  memberDeclarations: [
+    { name: 'resolveThings', line: 21, on: 'NativeScanner' },
+    { name: 'Card', line: 24, on: 'a type literal' },
+  ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.
@@ -302,6 +309,25 @@ describe('the binary source index', () => {
     expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
   });
 
+  it('rejects member declarations whose offsets run past their columns', () => {
+    const encoded = encodeSourceIndex({
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map(),
+      records: new Map(),
+    });
+    const headerLength = encoded.readUInt32LE(0);
+    const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
+      sections: { name: string; offset: number }[];
+    };
+    const section = header.sections.find((value) => value.name === 'parses.member-declarations');
+    expect(section).toBeDefined();
+    // One parse, so two offsets: the start of its range and its end.
+    const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
+    offsets[1] = PARSED.memberDeclarations!.length + 1;
+
+    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+  });
+
   it('keeps a package name that nothing else in the segment names', () => {
     // Only a subpath import reaches `@scope/only-here`, so the bare name is in no
     // other column. A dictionary that missed it wrote row 0 — whatever sorted
@@ -369,7 +395,7 @@ describe('the binary source index', () => {
       deletedDirectories: new Set(['lib']),
       records: new Map([['src/button.tsx', { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] }]]),
     });
-    const layers = [first, second].map(decodeSourceIndex);
+    const layers = [first, second].map((bytes) => decodeSourceIndex(bytes));
     const file = await path();
     expect(native()!.appendSourceIndex(file, [], false, [first])).toBeNull();
     expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [second])).toBeNull();
@@ -385,5 +411,34 @@ describe('the binary source index', () => {
       }))),
       records: materializeLayers(layers.map((layer) => ({ puts: layer.records, deletes: layer.deletedRecords ?? new Set() }))),
     });
+  });
+
+  it('writes a save that puts again what the base holds as a working layer of what changed', async () => {
+    const held = { record: RECORD, witnesses: WITNESSES };
+    const base = encodeSourceIndex({
+      config: CONFIG,
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map([['src', CONFIG]]),
+      records: new Map([[RECORD.file, held]]),
+    });
+    // Every row again, as an update that read every file hands it over, and one file more.
+    const added = { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] };
+    const again = encodeSourceIndex({
+      config: CONFIG,
+      parses: new Map([[DIGEST, PARSED]]),
+      directories: new Map([['src', CONFIG]]),
+      records: new Map([[RECORD.file, held], ['src/button.tsx', added]]),
+    });
+    const file = await path();
+    expect(native()!.appendSourceIndex(file, [], false, [base])).toBeNull();
+    expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [again])).toBeNull();
+
+    const [, working] = (await openImmutableLog(file)).segments;
+    const layer = decodeSourceIndex(working!);
+    expect(layer.config).toBe(CONFIG);
+    expect([...layer.parses.keys()]).toEqual([]);
+    expect([...layer.directories.keys()]).toEqual([]);
+    expect([...layer.records.keys()]).toEqual(['src/button.tsx']);
+    expect((await readPublishedSources(file)).records.map((record) => record.file)).toEqual(['src/button.tsx', RECORD.file]);
   });
 });

@@ -31,7 +31,7 @@ export interface NativeIndexGraphOptions {
   readonly seeds: string[];
   readonly largestFile?: number;
   readonly readers?: number;
-  readonly tsconfig?: string;
+  readonly tsconfig?: string | false;
   readonly conditionNames?: string[];
   readonly remembering: boolean;
   /** `Aliases.table` as JSON. */
@@ -68,7 +68,7 @@ export interface IndexGraphRequest {
   readonly root: string;
   readonly seeds: readonly string[];
   readonly largestFile: number;
-  readonly tsconfig?: string;
+  readonly tsconfig?: string | false;
   readonly conditionNames?: readonly string[];
   readonly remembering: boolean;
   readonly aliases: Aliases | undefined;

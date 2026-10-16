@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RegionRecord } from '@variance-authority/report';
 import type { SubjectView } from '../review-types.js';
-import { createReviewClient } from './client.js';
+import { createReviewClient, type ReviewClient } from './client.js';
 import type { Appearance } from './grouping.js';
 import { Look, frameOf, sightings } from './look.js';
 
@@ -155,10 +155,10 @@ afterEach(() => {
   host.remove();
 });
 
-function show(appearances: readonly Appearance[]): void {
+function show(appearances: readonly Appearance[], client: ReviewClient = CLIENT): void {
   act(() => {
     root.render(
-      <Look client={CLIENT} build="6" component="LinkComponent" appearances={appearances} />,
+      <Look client={client} build="6" component="LinkComponent" appearances={appearances} />,
     );
   });
 }
@@ -177,7 +177,7 @@ function press(label: string): void {
  * jsdom implements none, which is the branch that draws outright — real, and the
  * one a static render takes. The stub is what proves the other branch exists.
  */
-function observed(): { readonly reach: () => void } {
+function observed(): { readonly reach: () => void; readonly pass: () => void } {
   const callbacks: ((entries: readonly { isIntersecting: boolean }[]) => void)[] = [];
 
   class Stub {
@@ -190,12 +190,12 @@ function observed(): { readonly reach: () => void } {
 
   (globalThis as unknown as Record<string, unknown>)['IntersectionObserver'] = Stub;
 
-  return {
-    reach: () =>
-      act(() => {
-        for (const callback of callbacks) callback([{ isIntersecting: true }]);
-      }),
-  };
+  const answer = (isIntersecting: boolean): void =>
+    act(() => {
+      for (const callback of callbacks) callback([{ isIntersecting }]);
+    });
+
+  return { reach: () => answer(true), pass: () => answer(false) };
 }
 
 afterEach(() => {
@@ -255,6 +255,17 @@ describe('every shape is drawn, and the difference is what is drawn first', () =
     expect([...host.querySelectorAll('img')][1]?.style.width).toBe('50%');
   });
 
+  it('opens on the difference when the two captures can make one the build did not keep', () => {
+    // A mask is computable from a baseline and a candidate, and the crop below
+    // already draws one from them. Choosing the layers from the stored mask
+    // alone opened such a strip on *this build*, which is the picture of the
+    // component the strip exists not to lead with.
+    show([appearance({ subject: subject({ has: { before: true, after: true, diff: false } }) })]);
+
+    const pressed = host.querySelector('.va-mode[aria-pressed="true"]');
+    expect(pressed?.textContent).toBe('difference');
+  });
+
   it('offers only the readings the run kept', () => {
     show([appearance({ subject: subject({ has: { before: false, after: true, diff: false } }) })]);
 
@@ -278,6 +289,38 @@ describe('every shape is drawn, and the difference is what is drawn first', () =
     expect(host.textContent).toContain('No baseline was kept for this render');
     expect(host.querySelectorAll('.va-crop-unplaced')).toHaveLength(1);
   });
+
+  it('says the mask could not be computed rather than drawing a ring over nothing', async () => {
+    // A render whose build kept no mask has it computed from the two captures
+    // when the card shows the difference, and a capture the service will not
+    // serve leaves nothing to draw. The ring over that empty plate claims a
+    // difference the reviewer cannot see.
+    const refusing = createReviewClient({
+      endpoint: '/api',
+      fetch: (async () => new Response('gone', { status: 404 })) as typeof globalThis.fetch,
+    });
+
+    await act(async () => {
+      root.render(
+        <Look
+          client={refusing}
+          build="6"
+          component="LinkComponent"
+          appearances={[
+            appearance({ subject: subject({ subject: 'kept' }) }),
+            appearance({
+              subject: subject({ subject: 'computed', has: { before: true, after: true, diff: false } }),
+              shape: 'v1:b',
+            }),
+          ]}
+        />,
+      );
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+
+    expect(host.textContent).toContain('The difference could not be computed for this render');
+    expect(host.querySelectorAll('.va-crop-unplaced')).toHaveLength(1);
+  });
 });
 
 describe('the raster is deferred by the window, not by a button', () => {
@@ -293,6 +336,28 @@ describe('the raster is deferred by the window, not by a button', () => {
     seen.reach();
 
     expect(host.querySelectorAll('img')).toHaveLength(1);
+  });
+
+  it('computes no mask until the crop\u2019s own window comes near the viewport', () => {
+    // Opening on the difference a build did not keep means working one out from
+    // both captures, two full-page decodes, and a strip of six shapes nobody has
+    // scrolled to asks for none of them.
+    const asked: string[] = [];
+    const client: ReviewClient = {
+      ...CLIENT,
+      imageBlob: (_build, name, kind) => {
+        asked.push(`${name}/${kind}`);
+        return new Promise<Blob>(() => {});
+      },
+    };
+    const seen = observed();
+    show([appearance({ subject: subject({ has: { before: true, after: true, diff: false } }) })], client);
+
+    expect(asked).toEqual([]);
+
+    seen.reach();
+
+    expect(asked).toEqual(['route/cart@1280/before', 'route/cart@1280/after']);
   });
 
   it('draws outright where nothing can ever tell it the window arrived', () => {
@@ -313,5 +378,67 @@ describe('the raster is deferred by the window, not by a button', () => {
     expect([...host.querySelectorAll('img')].map((each) => each.getAttribute('loading'))).toEqual([
       null,
     ]);
+  });
+});
+
+describe('a crop says it is still arriving, so a reading can wait for it', () => {
+  // A capture of the strip is a reading of whatever the crop holds at that
+  // instant. The mask is made in the page, out of two fetches, a decode and an
+  // encode, and drawn from an object URL: nothing on the wire and no image node
+  // says it is coming. `aria-busy` is the crop saying so itself.
+  const busy = (): (string | null)[] =>
+    [...host.querySelectorAll('.va-crop')].map((each) => each.getAttribute('aria-busy'));
+  const computed = subject({ has: { before: true, after: true, diff: false } });
+  const never: ReviewClient = { ...CLIENT, imageBlob: () => new Promise<Blob>(() => {}) };
+
+  it('is busy until the observer has said whether its window is near', () => {
+    // Between the first frame and the observer's first answer nothing has been
+    // asked for yet, so a wait that counts requests reads the strip as settled.
+    observed();
+    show([appearance({ subject: computed })], never);
+
+    expect(busy()).toEqual(['true']);
+  });
+
+  it('stays busy while the mask it opened on is being made', () => {
+    const seen = observed();
+    show([appearance({ subject: computed })], never);
+
+    seen.reach();
+
+    expect(host.querySelectorAll('img')).toHaveLength(0);
+    expect(busy()).toEqual(['true']);
+  });
+
+  it('is settled once its window is out of reach, because nothing is coming', () => {
+    const seen = observed();
+    show([appearance({ subject: computed })], never);
+
+    seen.pass();
+
+    expect(busy()).toEqual([null]);
+  });
+
+  it('is settled once the mask could not be made, because nothing more is coming', async () => {
+    const seen = observed();
+    const refusing: ReviewClient = { ...CLIENT, imageBlob: async () => Promise.reject(new Error('gone')) };
+    show([appearance({ subject: computed })], refusing);
+
+    seen.reach();
+    await act(async () => {
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+
+    expect(busy()).toEqual([null]);
+  });
+
+  it('is settled once the mask it shows is a URL', () => {
+    const seen = observed();
+    show([appearance()]);
+
+    seen.reach();
+
+    expect(host.querySelectorAll('img')).toHaveLength(1);
+    expect(busy()).toEqual([null]);
   });
 });

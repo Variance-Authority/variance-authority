@@ -89,6 +89,8 @@ export interface Spliced {
   /** Identity of the source the offsets are into. */
   readonly sourceDigest: string;
   readonly blocks: readonly Block[];
+  /** Whether `code` imports or exports: `false` is a script, which takes nothing by `import`. */
+  readonly module: boolean;
 }
 
 /** The addon, which is the only instrumenter: no addon is an error, never an uninstrumented run. */
@@ -114,6 +116,7 @@ export interface NativeInstrumented {
   readonly names: readonly string[];
   readonly paths: readonly string[];
   readonly digests: readonly string[];
+  readonly module: boolean;
 }
 
 /** The addon numbers kinds in this order; `walk.rs` declares the same. */
@@ -127,6 +130,13 @@ const KINDS: readonly BlockKind[] = [
   'case',
   'handler',
 ];
+
+/** The addon's answer for a transformed text: `native/instrument/src/place.rs`. */
+export interface NativePlaced {
+  readonly instrumented: NativeInstrumented;
+  readonly mappings: string;
+  readonly carried: string | null;
+}
 
 const NONE = 0xffffffff;
 
@@ -164,6 +174,52 @@ export function spliced(source: string, file: string, mode: InstrumentMode, modu
   }
   if (answer === null) return undefined;
 
+  return columns(answer);
+}
+
+/** A text some other transform wrote, with the probes of the regions it came from. */
+export interface Placed extends Spliced {
+  /** The map from `code` back to the transformed text. */
+  readonly mappings: string;
+  /**
+   * With `carry`, the composed map's `mappings` moved onto `code`: its sources
+   * and names as they were, each column past the probes in front of it.
+   */
+  readonly carried?: string;
+}
+
+/**
+ * The regions of `authored`, numbered, named and digested as {@link spliced}
+ * cuts them, with their probes in `transformed` where `mappings` — the composed
+ * map from it to its sources, `authored` being number `source` — carries them.
+ * With `carry`, the answer holds that map moved onto the probed text, for a
+ * runner no bundler composes maps for.
+ */
+export function placed(
+  authored: string,
+  transformed: string,
+  map: { readonly file: string; readonly mappings: string; readonly source: number },
+  mode: InstrumentMode,
+  module: string,
+  carry = false,
+): Placed | undefined {
+  const addon = instrumenter();
+  if (!(authored as WellFormed).isWellFormed() || !(transformed as WellFormed).isWellFormed()) return undefined;
+  let answer: NativePlaced | null;
+  try {
+    answer = addon.place(authored, transformed, map.file, map.mappings, map.source, mode === 'entries', module, carry);
+  } catch (error) {
+    throw new Error(`instrument: the native walk failed on ${map.file}: ${(error as Error).message}`, { cause: error });
+  }
+  if (answer === null) return undefined;
+  return {
+    ...columns(answer.instrumented),
+    mappings: answer.mappings,
+    ...(answer.carried === null ? {} : { carried: answer.carried }),
+  };
+}
+
+function columns(answer: NativeInstrumented): Spliced {
   const blocks: Block[] = [];
   for (let ordinal = 0; ordinal < answer.starts.length; ordinal++) {
     const owner = answer.owners[ordinal]!;
@@ -184,5 +240,6 @@ export function spliced(source: string, file: string, mode: InstrumentMode, modu
     headerAt: answer.headerAt,
     sourceDigest: answer.sourceDigest,
     blocks,
+    module: answer.module,
   };
 }

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -200,12 +201,21 @@ describe('slowest where', () => {
 });
 
 describe('the times a shard places its files by', () => {
-  it('holds every timed file and the commit it was recorded at, and leaves an untimed one out', () => {
+  it('holds every timed file, the commit it was recorded at and the record it read, and leaves an untimed one out', () => {
     const at = record({ ...coverage([['test/a.test.ts', 40], ['test/b.test.ts', undefined], ['test/c.test.ts', 0]]), commit: 'c'.repeat(40) });
 
     const times = recordedTimes(at);
 
-    expect(times).toEqual({ recording: at, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]) });
+    const read = `sha256:${createHash('sha256').update(readFileSync(at)).digest('hex')}`;
+    expect(times).toEqual({ recording: at, read, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]) });
+  });
+
+  it('throws when what is recorded there does not read, because a shard placed without it may disagree with one that read it', () => {
+    const at = testCoverageFile(root);
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, 'not a record');
+
+    expect(() => recordedTimes(at)).toThrow();
   });
 
   it('says why when nothing is recorded there, rather than handing an empty map', () => {

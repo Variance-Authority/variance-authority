@@ -53,7 +53,9 @@ and running it is cheaper than the paragraph explaining why it is not.
   only, and writes one line to stderr saying it did. A job whose browser never
   launched observed nothing, and `|| true` would post a green tick over it.
 - **`accept --all` does not belong in an unattended job** until
-  [spec 0023](0023-accept-tells-new-from-changed.md) lands.
+  [spec 0023](0023-accept-tells-new-from-changed.md) lands. A schedule is
+  unattended. A label, a dispatch and a push to `main` are not: each is
+  somebody's act, made where the report could be read first.
 
 ## Leaves behind
 

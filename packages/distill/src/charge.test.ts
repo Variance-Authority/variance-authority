@@ -2,6 +2,7 @@ import type { ExecutionIndex, FileReferences, TestCoverage } from '@variance-aut
 import { describe, expect, it } from 'vitest';
 import { distillFile, formatFileDistillation, type ImportCharge } from './index.js';
 import { reachLine } from './charge.js';
+import { graphOf, recordOf } from './record.fixture.js';
 
 const FILE = 'test/report.test.ts';
 const OTHER = 'test/export.test.ts';
@@ -58,9 +59,8 @@ function read(
   const imports = { [FILE]: [UTILS], [UTILS]: [PDF], ...edges };
   return distillFile({
     file: FILE,
-    coverage,
-    execution,
-    imports: (file) => imports[file] ?? [],
+    record: recordOf(coverage, execution),
+    relations: graphOf(imports),
     references: (file) => (file === UTILS ? references : file === FILE ? own : file === PDF ? pdf : undefined),
   });
 }
@@ -121,13 +121,9 @@ describe('an import a used file writes, charged to the code that reads it', () =
     const result = read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }]), {}, [0, 1]);
 
     expect(chargeOf(result)).toEqual({ kind: 'load', line: 25, name: 'PdfViewer' });
-    // Another test file's crossing made while loading is not a call either.
-    expect(chargeOf(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }]), {}, [1]))).toEqual({
-      kind: 'functions',
-      functions: [{ name: 'setup', line: 24, ran: 0 }],
-      ran: 0,
-      loading: 3,
-    });
+    // The case index keeps a run at load as a flag that names no case, so another test file's run reads as this one's.
+    expect(chargeOf(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }]), {}, [1])))
+      .toEqual({ kind: 'load', line: 25, name: 'PdfViewer' });
     // A re-export does not hide it: the file still pays for the module when it loads.
     expect(chargeOf(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }], { passed: [PDF] }), {}, [0])))
       .toEqual({ kind: 'load', line: 25, name: 'PdfViewer' });

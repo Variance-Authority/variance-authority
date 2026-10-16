@@ -116,6 +116,7 @@ for a region to name a component and a line.
 | option | default | what it decides |
 |---|---|---|
 | `baselines` | `.variance/baselines` | the directory baselines are stored in |
+| `baselinePath` | `{title}/{name}-{engine}` | where each baseline goes under `baselines`: `{title}` is the `describe` titles, `{name}` the test's title, `{file}` and `{dir}` the test file. `{dir}/__baselines__/{file}/{title}/{name}-{engine}` with `baselines: '.'` keeps each image beside its test |
 | `store` | a durable store on `baselines` | an existing store, when baselines do not live in a directory |
 | `renderer` | a Playwright renderer opened on first use | an existing renderer, whose lifetime then stays yours |
 | `accept` | Vitest's own `--update` | whether this run may promote a candidate to a baseline |
@@ -259,7 +260,7 @@ There are four verdicts, and `assertUnchanged` throws on all three that are not
 
 | verdict | what it means |
 |---|---|
-| `unchanged` | the two images were compared and no pixels differ |
+| `unchanged` | the two images were compared and no pixels differ beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. The reason counts any pixels it forgave |
 | `changed` | pixels differ; `regions` names what drew them, and the reason names a moved identity first |
 | `new` | no baseline exists for this subject. Not a pass and not a failure |
 | `ignored` | pixels differ and every one of them fell inside something you excluded, or within a sensitivity you set |

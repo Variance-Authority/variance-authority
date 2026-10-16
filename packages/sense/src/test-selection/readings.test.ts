@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { native } from '../addon.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { joinedJournals, joinReadings } from './readings.js';
 import type { CapturedModule } from './instrumented-modules.js';
@@ -101,5 +102,86 @@ describe('one file read twice', () => {
     expect(joined.readings.get('dist/cart.js')).toEqual({ id: 'src/cart.ts', lands: [0, undefined, 1, 1] });
     expect(joined.readings.get('src/cart.ts')).toEqual({ id: 'src/cart.ts', lands: [0, 1, 1] });
     expect(decodeTestCoverage(encodeTestCoverage(record)).modules[0]!.blocks).toHaveLength(2);
+  });
+});
+
+describe('one file\'s inventories, read at the regions they share', () => {
+  type Region = { kind: string; name: string; path: string; startLine: number; endLine: number; source: boolean };
+  const module = { kind: 'module', name: '', path: '', startLine: 1, endLine: 20, source: true };
+  const outer = { kind: 'function', name: 'outer', path: 'outer', startLine: 2, endLine: 10, source: true };
+  const inner = { kind: 'function', name: 'inner', path: 'inner', startLine: 12, endLine: 15, source: true };
+  const branch = { kind: 'branch', name: '', path: 'outer', startLine: 4, endLine: 6, source: true };
+
+  /** The shared regions as the base inventory holds them, then the whole file where one was cut. */
+  const reconciled = (inventories: Region[][]) => {
+    const { base, kept, whole, lands } = native()!.reconcileRegions!(inventories);
+    return { blocks: [...kept.map((at) => inventories[base]![at]!), ...whole == null ? [] : [{ ...whole }]], lands };
+  };
+
+  it('keeps one inventory as it is', () => {
+    expect(reconciled([[module, outer]])).toEqual({ blocks: [module, outer], lands: [[0, 1]] });
+  });
+
+  it('reads a file two builds cut apart at the regions both hold, whatever order they come in', () => {
+    const plain = [module, outer, inner];
+    const split = [module, outer, branch, inner];
+    expect(reconciled([plain, split])).toEqual({ blocks: [module, outer, inner], lands: [[0, 1, 2], [0, 1, 1, 2]] });
+    expect(reconciled([split, plain])).toEqual({ blocks: [module, outer, inner], lands: [[0, 1, 1, 2], [0, 1, 2]] });
+  });
+
+  it('hands back the base inventory\'s own regions, so a caller finds what they carry beyond a shape', () => {
+    const plain = [module, outer, inner];
+    const { blocks } = reconciled([[module, outer, branch, inner], plain]);
+    expect(blocks[1]).toBe(plain[1]);
+  });
+
+  it('reads a region no shared region encloses at one region spanning the file', () => {
+    const short = [{ ...module, endLine: 20 }, outer];
+    const long = [{ ...module, endLine: 22 }, outer];
+    expect(reconciled([short, long])).toEqual({ blocks: [outer, { ...module, endLine: 22 }], lands: [[1, 0], [1, 0]] });
+  });
+
+  it('reads two cuts that agree as the one cut they are', () => {
+    expect(reconciled([[module, outer], [module, outer]])).toEqual({ blocks: [module, outer], lands: [[0, 1], [0, 1]] });
+  });
+
+  it('keeps the same base whatever order two cuts that differ only by a name come in', () => {
+    const first = [module, { ...outer, name: 'a' }];
+    const second = [module, { ...outer, name: 'b' }];
+    expect(reconciled([first, second])).toEqual({ blocks: [module], lands: [[0, 0], [0, 0]] });
+    expect(reconciled([second, first])).toEqual({ blocks: [module], lands: [[0, 0], [0, 0]] });
+  });
+
+  it('spans no source lines with a file whose only source regions run backwards', () => {
+    const one = [{ ...module, startLine: 5, endLine: 3 }];
+    const two = [{ ...module, startLine: 6, endLine: 3 }];
+    expect(reconciled([one, two]).blocks).toEqual([{ ...module, startLine: 5, endLine: 3, source: false }]);
+  });
+});
+
+describe('without the addon', () => {
+  // Cut at the addon: what is under test is the refusal, and the loader's own reasons are `native.test.ts`'s.
+  afterEach(() => {
+    vi.doUnmock('../addon.js');
+    vi.resetModules();
+  });
+
+  const absent = async () => {
+    vi.resetModules();
+    vi.doMock('../addon.js', () => ({ native: () => undefined, nativeRefusal: () => '@variance-authority/sense-linux-x64-gnu is not installed' }));
+    return import('./readings.js');
+  };
+
+  it('refuses to join one file read twice, naming why the addon did not load', async () => {
+    const { joinReadings: join } = await absent();
+
+    expect(() => join(new Map([['dist/cart.js', build], ['src/cart.ts', source]])))
+      .toThrow("joining one file's readings requires the Sense native addon: @variance-authority/sense-linux-x64-gnu is not installed");
+  });
+
+  it('joins a file read once without it', async () => {
+    const { joinReadings: join } = await absent();
+
+    expect([...join(new Map([['src/cart.ts', source]])).modules.keys()]).toEqual(['src/cart.ts']);
   });
 });

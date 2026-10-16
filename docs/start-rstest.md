@@ -208,7 +208,7 @@ be launched with them, and the run has to declare that it was, because renderer
 identity is what decides whether a difference between two images is the code's.
 
 `colorScheme` and `deviceScaleFactor` are read off this config by the adapter
-and become part of the partition a baseline is stored under. Changing either
+and become part of the renderer identity a baseline records. Changing either
 compares every subject with the old image and names the moved value as the
 cause, until you accept.
 

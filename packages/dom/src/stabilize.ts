@@ -13,6 +13,7 @@ import {
   type ObservationProfile,
   type Recipe,
   type SettleTarget,
+  type StepClock,
   type Tier,
 } from '@variance-authority/core/format';
 import { detectProfile } from './profile.js';
@@ -142,6 +143,12 @@ export interface StabilizeOptions {
    * the host drove nothing.
    */
   readonly driven?: readonly string[];
+
+  /**
+   * Where each wait is taken as a step: the recipe's settles by id, and
+   * `frames` for the two frames after a new sheet. Absent takes nothing.
+   */
+  readonly steps?: StepClock;
 }
 
 /** What a host asks of {@link stabilizeAsRequested}, in the shape it crosses into the page. */
@@ -164,8 +171,10 @@ export interface StabilizeRequest {
 export async function stabilizeAsRequested(
   document: Document,
   request: StabilizeRequest,
+  steps?: StepClock,
 ): Promise<Stabilized> {
   return stabilizeForObservation(document, {
+    ...(steps === undefined ? {} : { steps }),
     ...(request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) }),
     ...(request.tier === undefined ? {} : { tier: request.tier }),
     ...(request.driven === undefined ? {} : { driven: request.driven }),
@@ -221,7 +230,7 @@ export async function stabilizeForObservation(
 
   // Applied before the settle steps, so a font that arrives late lands into a
   // page whose animations are already pinned rather than starting one.
-  await settleRecipe(recipe, localTarget());
+  await settleRecipe(recipe, localTarget(), options.steps);
 
   // Two frames, because one is not enough to be sure. The first flushes the
   // style change; the second is when a compositor-driven animation that was
@@ -244,7 +253,9 @@ export async function stabilizeForObservation(
   // The condition is *the CSS is unchanged* rather than a counter somebody has
   // to keep correct, so the saving is a property of the sheet being idempotent
   // and not of anybody remembering to reset something.
-  if (!already) await settleFrames(view);
+  if (!already) {
+    await (options.steps === undefined ? settleFrames(view) : options.steps.time('frames', async () => settleFrames(view)));
+  }
 
   const features = featuresOf(recipe);
   return {

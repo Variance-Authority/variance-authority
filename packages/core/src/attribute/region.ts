@@ -1,5 +1,6 @@
 import { intersectionArea, type Rect } from '../format/capture.js';
 import { locate } from './locate.js';
+import { matchTrees } from '../compare/diff/match.js';
 import type { DiffRegion } from './mask.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import type { SourceLocation } from '../format/provenance.js';
@@ -141,6 +142,46 @@ export interface AttributionOptions {
    * is named rather than buried.
    */
   readonly containment?: number;
+
+  /**
+   * The snapshot of the render the pixels are compared against.
+   *
+   * Required, and `undefined` is an answer: it says the other render is not
+   * known. A changed region is the union of what left and what arrived, so each
+   * node is joined against its box in this render and the box of the node the
+   * differ's matcher pairs it with in that one. Without it a control replaced
+   * by a larger element changes pixels outside either box alone, and the join
+   * names the row it sits in.
+   *
+   * Its boxes are placed by where they were in its own image, whose corner is
+   * {@link beforeOrigin}. A shot clipped to the subject starts at its root, so
+   * a root the page moved between the two shots moves none of the pixels, and
+   * each box that left is shifted by it.
+   */
+  readonly before: SemanticSnapshot | undefined;
+
+  /**
+   * Page-space CSS origin of the before image's top-left corner.
+   *
+   * Defaults to `before`'s own root rect, as `origin` defaults to this
+   * render's. Required when `origin` is stated and `before` is a snapshot: two
+   * shots clipped to anything but the root share a corner only by the page's
+   * layout, and a corner guessed from the other image gives a plausible report
+   * about the wrong components. A full-page pair passes `{x: 0, y: 0}` for both.
+   */
+  readonly beforeOrigin?: { readonly x: number; readonly y: number };
+
+  /**
+   * The rows of this image that have no partner in the before image, as
+   * half-open runs of raster rows.
+   *
+   * Such a row is marked edge to edge, because nothing says where its content
+   * begins, so a region inside one is as wide as the image and only the root
+   * contains it by area. It is joined by its rows instead: to the tightest box
+   * whose rows span it, which is the box that grew. Absent when the rows were
+   * compared by position.
+   */
+  readonly inserted?: readonly { readonly from: number; readonly to: number }[];
 }
 
 const DEFAULT_CONTAINMENT = 0.9;
@@ -157,8 +198,21 @@ export function attributeRegions(
   snapshot: SemanticSnapshot,
   options: AttributionOptions,
 ): readonly AttributedRegion[] {
-  const boxed = collectBoxes(snapshot.root);
+  if (options.origin !== undefined && options.before !== undefined && options.beforeOrigin === undefined) {
+    throw new Error(
+      '`origin` is stated and `beforeOrigin` is not: state the corner of the before image too, ' +
+        'since two shots share one only when the page did not move between them',
+    );
+  }
   const origin = options.origin ?? snapshot.root.rect ?? { x: 0, y: 0 };
+  // A box that left is placed by where it was in its image, not on the page.
+  const was = options.beforeOrigin ?? options.before?.root.rect ?? origin;
+  const left = keptBoxes(options.before, snapshot, { x: origin.x - was.x, y: origin.y - was.y });
+  const boxed = collectBoxes(snapshot.root).map((node) => {
+    const before = left.get(node);
+    const rects = before === undefined ? [node.rect!] : [node.rect!, before];
+    return { node, rects, area: extent(rects) };
+  });
   const containment = options.containment ?? DEFAULT_CONTAINMENT;
 
   return regions.map((region) => {
@@ -169,16 +223,18 @@ export function attributeRegions(
       height: region.height / options.scale,
     };
     const area = css.width * css.height;
+    // Rows the after image added are joined by the rows they span, and only to
+    // this render's box: the before side never painted them.
+    const added = options.inserted?.some((run) => run.from <= region.y && region.y + region.height <= run.to) ?? false;
 
-    let inside: SemanticNode | undefined;
-    let overlapping: SemanticNode | undefined;
+    let inside: (typeof boxed)[number] | undefined;
+    let overlapping: (typeof boxed)[number] | undefined;
 
-    for (const node of boxed) {
-      const rect = node.rect!;
-      const shared = intersectionArea(css, rect);
+    for (const box of boxed) {
+      const shared = covered(css, box.rects);
       if (shared <= 0) continue;
 
-      const nodeArea = rect.width * rect.height;
+      const nodeArea = box.area;
 
       // `<=`, not `<`, and the difference is one component name in every report
       // over a design system. A wrapper that shrink-wraps its only child carries
@@ -189,21 +245,24 @@ export function attributeRegions(
       // one: the run then names the wrapper nothing edited and sends a reviewer
       // to its file. Ties go to the last box seen, which is the innermost, and is
       // also the one the browser painted on top.
-      if (area > 0 && shared / area >= containment) {
-        if (inside === undefined || nodeArea <= inside.rect!.width * inside.rect!.height) inside = node;
+      const contained = added
+        ? spans(box.node.rect!, css) && box.node.rect!.width * box.node.rect!.height > 0
+        : area > 0 && shared / area >= containment;
+      if (contained) {
+        if (inside === undefined || nodeArea <= inside.area) inside = box;
       }
       // The same rule for `nearest`. It is orientation rather than attribution,
       // and a hint should point at the same node the join would have picked.
-      if (overlapping === undefined || nodeArea <= overlapping.rect!.width * overlapping.rect!.height) {
-        overlapping = node;
+      if (overlapping === undefined || nodeArea <= overlapping.area) {
+        overlapping = box;
       }
     }
 
     if (inside !== undefined) {
       return {
         region,
-        path: inside.path,
-        ...describe(snapshot, inside),
+        path: inside.node.path,
+        ...describe(snapshot, inside.node),
         unattributed: false,
       };
     }
@@ -212,7 +271,7 @@ export function attributeRegions(
       region,
       unattributed: true,
       ...(overlapping !== undefined
-        ? { nearest: { path: overlapping.path, ...describe(snapshot, overlapping) } }
+        ? { nearest: { path: overlapping.node.path, ...describe(snapshot, overlapping.node) } }
         : {}),
     };
   });
@@ -231,13 +290,13 @@ export interface RankedRegion extends AttributedRegion {
  *
  * This function exists because of a measurement, and the measurement is the most
  * useful thing the raster tier has produced. Replacing a checkbox with a styled
- * div on the todomvc corpus changes 1530 pixels in 5 regions, which attribute
+ * div on the todomvc corpus changes 1853 pixels in 5 regions, which attribute
  * geometrically and rank by area as:
  *
  * ```
- *   933px  Text      <- changed, and reflowed
- *   511px  Stack     <- only reflowed
- *    86px  Toggle    <- the edit
+ *  1055px  Text      <- changed, and reflowed
+ *   614px  Stack     <- only reflowed
+ *   184px  Toggle    <- the edit
  * ```
  *
  * Every one of those attributions is correct. The pixels really are inside those
@@ -296,6 +355,68 @@ function describe(
     ...(where !== '' ? { where } : {}),
     ...(node.provenance?.source ? { source: node.provenance.source } : {}),
   };
+}
+
+/**
+ * The box each node in `after` had in `before`, by the node.
+ *
+ * Paired by `matchTrees`, the matcher the semantic diff reads, so a region and
+ * a delta never disagree about which element a node was. A path is not the key
+ * across renders because it is a position, and a sibling inserted ahead
+ * renumbers the node. A box with no area paints nothing, so it widens nothing.
+ */
+function keptBoxes(
+  before: SemanticSnapshot | undefined,
+  after: SemanticSnapshot,
+  shift: { readonly x: number; readonly y: number },
+): ReadonlyMap<SemanticNode, Rect> {
+  const kept = new Map<SemanticNode, Rect>();
+  if (before === undefined) return kept;
+  for (const [left, arrived] of matchTrees(before.root, after.root).pairs) {
+    const rect = left.rect;
+    if (rect !== undefined && rect.width * rect.height > 0) {
+      kept.set(arrived, { ...rect, x: rect.x + shift.x, y: rect.y + shift.y });
+    }
+  }
+  return kept;
+}
+
+/**
+ * How much of `rect` the boxes cover, counting what two of them share once.
+ *
+ * A node's two boxes are two places, not the rectangle that holds both: a node
+ * that moved across a row was never in the space between, and a change there is
+ * not its.
+ */
+function covered(rect: Rect, [first, second]: readonly Rect[]): number {
+  const one = intersectionArea(rect, first!);
+  if (second === undefined) return one;
+  const both = overlap(first!, second);
+  return one + intersectionArea(rect, second) - (both === undefined ? 0 : intersectionArea(rect, both));
+}
+
+/** Whether `box`'s rows cover every row of `rect`, wherever their columns are. */
+function spans(box: Rect, rect: Rect): boolean {
+  return box.y <= rect.y && rect.y + rect.height <= box.y + box.height;
+}
+
+/** The area the boxes cover together, counting what two of them share once. */
+function extent(rects: readonly Rect[]): number {
+  const [first, second] = rects;
+  if (second === undefined) return first!.width * first!.height;
+  const x = Math.min(first!.x, second.x);
+  const y = Math.min(first!.y, second.y);
+  const width = Math.max(first!.x + first!.width, second.x + second.width) - x;
+  const height = Math.max(first!.y + first!.height, second.y + second.height) - y;
+  return covered({ x, y, width, height }, rects);
+}
+
+function overlap(a: Rect, b: Rect): Rect | undefined {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const width = Math.min(a.x + a.width, b.x + b.width) - x;
+  const height = Math.min(a.y + a.height, b.y + b.height) - y;
+  return width > 0 && height > 0 ? { x, y, width, height } : undefined;
 }
 
 /** Every node carrying a rect, in document order. Zero-area boxes are skipped. */

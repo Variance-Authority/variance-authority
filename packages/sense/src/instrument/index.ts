@@ -132,33 +132,12 @@
  * here, and the module that wrote it stays uninstrumented.
  */
 
+import { instrumentationId } from './identity.js';
 import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
 
 export type { Block, BlockKind, InstrumentMode };
 export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
-
-/** Changes whenever two instrumented block universes must not share observations. */
-export const INSTRUMENTATION_ID = 'sense:instrument/presence-v6';
-
-/**
- * The recipe each mode emits under. One identity per mode, because the two
- * walks number regions differently: ordinal 3 under `entries` is a function,
- * and under `presence` it may be the `else` of the module's first `if`. A
- * record, journal or snapshot cut under one is not evidence about the other.
- */
-const IDS: Readonly<Record<InstrumentMode, string>> = {
-  presence: INSTRUMENTATION_ID,
-  entries: 'sense:instrument/entries-v3',
-};
-
-export function instrumentationId(mode: InstrumentMode = 'presence'): string {
-  return IDS[mode];
-}
-
-/** The mode an identity names, or nothing for a recipe this build does not emit. */
-export function instrumentModeOf(instrumentation: string): InstrumentMode | undefined {
-  return (Object.keys(IDS) as InstrumentMode[]).find((mode) => IDS[mode] === instrumentation);
-}
+export { INSTRUMENTATION_ID, instrumentationId, instrumentModeOf } from './identity.js';
 
 export interface InstrumentOptions {
   /** `presence` records every arrival region; `entries` only modules and functions. */
@@ -199,6 +178,18 @@ export interface Instrumented {
   readonly code: string;
   /** Every region, in ordinal order. `blocks[0]` is always the module itself. */
   readonly blocks: readonly Block[];
+  /**
+   * Whether `code` imports or exports. `false` is a script, as CommonJS is: a
+   * caller that opens it with an `import` turns it into a module, and its
+   * `module.exports` stops being read.
+   */
+  readonly module: boolean;
+  /**
+   * Where the header starts in `code`, in UTF-16 code units: after the
+   * directive prologue, so a statement that must run ahead of the module's own
+   * code goes here and leaves `"use strict"` in force.
+   */
+  readonly headerAt: number;
 }
 
 /**
@@ -221,8 +212,8 @@ export function instrument(
   const spliced = splice(source, file, mode, id);
   if (spliced === undefined) return undefined;
 
-  const { code, sourceDigest, blocks } = spliced;
-  return { code, sourceDigest, instrumentation: IDS[mode], blocks };
+  const { code, sourceDigest, blocks, module, headerAt } = spliced;
+  return { code, sourceDigest, instrumentation: instrumentationId(mode), blocks, module, headerAt };
 }
 
 /**

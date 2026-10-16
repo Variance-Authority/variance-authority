@@ -34,6 +34,19 @@ export function inlineBehindCut(code: string, shifts: readonly number[]): string
 }
 
 /**
+ * `code` without the map a transformer left inline, and that map's JSON;
+ * nothing when it left none.
+ */
+export function inlineMap(code: string): { readonly code: string; readonly map: string } | undefined {
+  const found = INLINE.exec(code);
+  if (found === null) return undefined;
+  return {
+    code: code.slice(0, found.index) + code.slice(found.index + found[0].length),
+    map: Buffer.from(found[1]!, 'base64').toString('utf8'),
+  };
+}
+
+/**
  * A cut that Node evaluates as it stands, with no transform after it: the map
  * a loader before the cut left inline is moved back, and where none did, the
  * cut's own map goes inline, so a stack frame names the file's columns.

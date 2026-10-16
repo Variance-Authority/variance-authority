@@ -12,7 +12,7 @@ import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core/form
 import { findingMark, inspect } from '@variance-authority/core/judge';
 import type { Observation } from '@variance-authority/observe';
 import type { Described } from '@variance-authority/raster';
-import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
+import { DEFAULT_POLICY } from '@variance-authority/raster';
 import type {
   FindingRecord,
   ObservationRecord,
@@ -59,18 +59,17 @@ export function recordOf(
     readonly unstable?: ObservationRecord['unstable'];
     /** Rendered relationship consequence supplied by a product-aware collector. */
     readonly presentation?: PresentationSignalRecord;
-    /** Where this subject's code lives, for a store that places by path. */
-    readonly placement?: string;
+    /** What this subject's baseline is named after, for a store that names by it. */
+    readonly baselineKey?: CliObservationRecord['baselineKey'];
   } = {},
 ): CliObservationRecord {
-  // Net of exclusions, on both policies. The comparison counts every differing
-  // pixel including the ones inside an excluded box, and a record that carried
-  // that number would report a subject with a mask over half of it as a subject
-  // that moved half of itself. What was absorbed is on `ignored` instead, where
-  // it cannot be added to this one by accident (spec 0024).
+  // Net of exclusions. The comparison counts every differing pixel including the
+  // ones inside an excluded box, and a record that carried that number would
+  // report a subject with a mask over half of it as a subject that moved half of
+  // itself. What was absorbed is on `ignored` instead, where it cannot be added
+  // to this one by accident (spec 0024).
   const absorbed = observation.ignored?.pixels ?? 0;
   const changed = Math.max(0, (observation.comparison?.changed[DEFAULT_POLICY.id] ?? 0) - absorbed);
-  const strict = Math.max(0, (observation.comparison?.changed[STRICT_POLICY.id] ?? 0) - absorbed);
   // The collector's causes first, then the observation's own. A collector that
   // held both documents named them from a full semantic diff, which is strictly
   // better evidence than a comparison of per-component hashes; the hashes are
@@ -90,7 +89,7 @@ export function recordOf(
   return {
     subject: observation.subject,
     verdict: observation.verdict,
-    because: because(observation, changed, strict) + qualification(diagnostics),
+    because: observation.because + qualification(diagnostics),
     changedPixels: changed,
     ...signalsField(observation.signals, options.presentation),
     // Carried whole, including when it is empty. `[]` is the comparison saying
@@ -118,7 +117,7 @@ export function recordOf(
     ...(options.alone !== undefined ? { alone: options.alone } : {}),
     ...(options.unstable !== undefined ? { unstable: options.unstable } : {}),
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
-    ...(options.placement !== undefined ? { placement: options.placement } : {}),
+    ...(options.baselineKey !== undefined ? { baselineKey: options.baselineKey } : {}),
   };
 }
 
@@ -250,29 +249,6 @@ export async function findingsOf(
           : {}),
     };
   });
-}
-
-/**
- * The sentence, with the forgiven pixels added back.
- *
- * `DEFAULT_POLICY` forgives antialiasing, which is what every deployed pixel
- * differ does and why "zero pixels changed" is not the same claim as "the images
- * are identical". When the strict policy disagrees, the disagreement is stated:
- * an unobservable difference is never reported as no difference, and a difference
- * that is only visible under a stricter reading is exactly that.
- */
-function because(observation: Observation, changed: number, strict: number): string {
-  // Both green verdicts, not one. `ignored` is the other way a subject reports
-  // nothing to review, and gating this on `unchanged` alone meant a subject that
-  // went green through an exclusion stopped disclosing the differences the
-  // default policy forgave — an unobservable difference rendered as no
-  // difference, in the one place this project refuses that (ADR-0002, ADR-0026).
-  const green = observation.verdict === 'unchanged' || observation.verdict === 'ignored';
-  if (!green || strict <= changed) return observation.because;
-
-  // The strict policy counts antialiasing, which the default policy forgives.
-  const pixels = `${strict.toLocaleString('en-US')} pixel${strict === 1 ? '' : 's'}`;
-  return `${observation.because}; ${pixels} differ with antialiasing counted`;
 }
 
 /**

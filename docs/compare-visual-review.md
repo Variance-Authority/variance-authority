@@ -343,7 +343,8 @@ two readings of one input. The order is load-bearing — `again` runs first,
 because `alone`'s inference is *the clean reading differs from the shared one,
 so the world changed it*, which is only evidence once two readings of one world
 are known to agree. A run re-collects at most `alone.limit` changed subjects
-this way.
+this way: the first to change in the order it takes them, whatever the number
+of worlds.
 
 Because a document keeps a hash per component per band, the answer is not
 "this subject is flaky", which is a page to re-examine. It is a component and a

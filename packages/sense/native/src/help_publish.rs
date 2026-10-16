@@ -1,7 +1,7 @@
 //! The Help value `variance index` publishes, refreshed from the chain it just
 //! wrote without its export list ever reaching JavaScript.
 //!
-//! `refreshWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
+//! `publishWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
 //! it. A reading holds what the chain says — the uses JavaScript joins against
 //! the documented surface, and the export list and path graph it has nothing to
 //! add to — and publishing writes the three files beside the index that
@@ -21,6 +21,7 @@ use sha2::{Digest, Sha256};
 use crate::compact::Layer;
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
+use crate::help_members::{member_declarations, MemberSite};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -98,6 +99,13 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
 #[napi]
 pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
+}
+
+/// Every declaration of a member named `name` the chain at `index` records,
+/// ordered by file in code units, then by line; `None` when there is no index.
+#[napi]
+pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<MemberSite>>> {
+    opened_chain(&index, |layers| member_declarations(&root, layers, &name))
 }
 
 /// The chain at `index`, each segment opened in place, handed to `read`;

@@ -8,9 +8,9 @@
  * together instead of accumulating at the top of `dispatch`.
  *
  * They arrive in two shapes and the split is a typing fact as much as a
- * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
- * an `ask` with no question, and an `ask` whose question is about the source —
- * whose commands otherwise go on to load a config like any other.
+ * narrative one. `constantAnswer` covers two *arguments* — an `ask` with no
+ * question, and an `ask` whose question is about the source — whose commands
+ * otherwise go on to load a config like any other.
  * `withoutConfig` covers thirteen whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
+import { writePieces } from '../json-pieces.js';
 
 /** The thirteen commands that read no project configuration at all. */
 export type Configless = Extract<
@@ -49,31 +50,28 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
 }
 
 /**
- * What answers before the project is read, for the three arguments that ask it to.
+ * What answers before the project is read, for the two arguments that ask it to.
  *
- * Two are constants this build carries rather than readings of anything. The
- * poster needs the marker in exactly the case where there is no body to find it
- * in — a clean run, where the previous docket has to be located and cleared; and
- * an agent finding out what it may ask has not reached a run to ask about, so
+ * One is a constant this build carries rather than a reading of anything: an
+ * agent finding out what it may ask has not reached a run to ask about, so
  * answering it with the config would be a refusal to hold a conversation on the
  * grounds that there is nothing to say yet.
  *
- * The third is a reading, of the one subject a config says nothing about. A
+ * The other is a reading, of the one subject a config says nothing about. A
  * question about the source — what a package publishes, who imports a name —
  * is asked of the checkout under the working directory, and a checkout is
  * there whether or not anybody configured a visual suite in it. Refusing it for
  * want of `variance.config.json` would send a reader to write a file that has
  * no bearing on the answer.
+ *
+ * `comment --marker` is not one of them: the marker names the config's
+ * `project`, so it is answered after the config is read, like any other answer
+ * about a project.
  */
 export async function constantAnswer(
   parsed: Parsed,
   streams: { out(text: string): void },
 ): Promise<ExitCode | undefined> {
-  if (parsed.command === 'comment' && parsed.marker) {
-    const { COMMENT_MARKER } = await import('./comment.js');
-    streams.out(`${COMMENT_MARKER}\n`);
-    return EXIT_CLEAN;
-  }
   if (parsed.command !== 'ask') return undefined;
   const [{ askSource, questions }, { questionFor }] = await Promise.all([import('./ask.js'), import('./asking.js')]);
   if (parsed.question === undefined) {
@@ -87,10 +85,21 @@ export async function constantAnswer(
   return undefined;
 }
 
+/**
+ * Where a command writes. `drained`, where a reader can lag, resolves once
+ * what was written has been taken, `false` when the reader has gone.
+ */
+export interface Streams {
+  out(text: string): void;
+  err(text: string): void;
+  drained?(): Promise<boolean>;
+  detach?: Detach;
+}
+
 /** Run one of them, each of which is about a suite rather than a project. */
 export async function answerConfigless(
   parsed: Configless,
-  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
+  streams: Streams,
 ): Promise<ExitCode> {
   switch (parsed.command) {
     // A watcher is about a suite, not about a project: it listens, holds what a
@@ -113,12 +122,12 @@ export async function answerConfigless(
       if (parsed.format === 'jsonl') {
         const { distillRows } = await import('./distill.js');
         const { rows, unrecorded } = await distillRows(parsed);
-        for (const row of rows) streams.out(`${JSON.stringify(row)}\n`);
+        await writePieces(linesOf(rows), streams);
         if (unrecorded !== undefined) streams.err(`Not recorded: ${unrecorded.length === 1 ? 'suite' : 'suites'} ${unrecorded.join(', ')}.\n`);
         return EXIT_CLEAN;
       }
-      const { distillFiles, formatDistill } = await import('./distill.js');
-      streams.out(formatDistill(await distillFiles(parsed), parsed.format));
+      const { distillFiles, distillPieces } = await import('./distill.js');
+      await writePieces(distillPieces(await distillFiles(parsed), parsed.format), streams);
       return EXIT_CLEAN;
     }
 
@@ -219,11 +228,20 @@ export async function answerConfigless(
     // same reason: it publishes what they read, and a pipeline that runs them
     // may have configured this tool for nothing else.
     case 'index': {
-      const { followUpsOutput, indexOutput } = await import('./index-command.js');
-      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
+      const [{ followUpsOutput, indexOutput }, { stepTicker }] = await Promise.all([
+        import('./index-command.js'),
+        import('./step-progress.js'),
+      ]);
+      // On stderr, beside the waiting lines: stdout is the answer a pipeline reads.
+      const ticker = stepTicker((text) => streams.err(text), process.stderr.isTTY === true);
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress };
       const waiting = (text: string): void => streams.err(text);
-      if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
-      else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      try {
+        if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
+        else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      } finally {
+        ticker.done();
+      }
       return EXIT_CLEAN;
     }
 
@@ -295,4 +313,9 @@ export async function answerConfigless(
       return exit;
     }
   }
+}
+
+/** One JSON line a row, each written as it is reached. */
+function* linesOf(rows: Iterable<unknown>): Generator<string, void, undefined> {
+  for (const row of rows) yield `${JSON.stringify(row)}\n`;
 }

@@ -127,6 +127,13 @@
   },
   {
     "files": [
+      "packages/core/src/format/shape.ts",
+      "packages/unit-test/src/shape.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
       "packages/core/src/rules/normalize/alias.ts",
       "packages/session/src/reads.ts"
     ],
@@ -333,7 +340,7 @@
       "packages/route-collector/src/page-agent-entry.ts",
       "packages/storybook-collector/src/page-agent-entry.ts"
     ],
-    "count": 2
+    "count": 1
   },
   {
     "files": [
@@ -347,7 +354,7 @@
       "packages/route-collector/src/read.ts",
       "packages/storybook-collector/src/read.ts"
     ],
-    "count": 2
+    "count": 1
   },
   {
     "files": [
@@ -570,13 +577,6 @@
     "files": [
       "packages/storybook-collector/src/contract.ts",
       "packages/unit-test/src/contract.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/storybook/src/show-story.ts",
-      "packages/storybook/src/show-story.ts"
     ],
     "count": 1
   },

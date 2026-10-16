@@ -64,5 +64,8 @@
     "@variance-authority/storybook": "workspace:^",
     "@variance-authority/vantage": "workspace:^",
     "ci-info": "^4.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

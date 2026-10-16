@@ -42,8 +42,8 @@ import { createDurableStore } from '@variance-authority/store/durable';
 const root = await mkdtemp(join(tmpdir(), 'baselines-'));
 const store = createDurableStore(root);
 
-// Everything about the machine that painted the image. Two machines that
-// disagree on any of these fields get separate directories under the root.
+// Everything about the machine that painted the image. The sidecar keeps it,
+// and a machine that disagrees on any field is told it cannot compare.
 const identity = {
   renderer: 'playwright-chromium',
   engine: 'chromium@131.0.0',
@@ -79,12 +79,22 @@ console.log(root);
 
 ### What you get
 
-Two files under the root, in a directory named by a hash of the identity:
+Two files under the root, at a path you can read back to the subject, its label
+and the engine that painted it:
 
 ```
-<root>/v1-d9e2d62e05a69046dc75e1a987837b31/components%2FButton%2Fprimary__wide.png
-<root>/v1-d9e2d62e05a69046dc75e1a987837b31/components%2FButton%2Fprimary__wide.json
+<root>/components/Button/primary__wide-chromium.png
+<root>/components/Button/primary__wide-chromium.json
 ```
+
+The path comes from a template, `{title}/{name}-{engine}` unless you pass
+`path` to `createDurableStore`. `{title}` is the subject id up to its last `/`,
+or a story's title; `{name}` is the rest, or a story's name. `{file}` and
+`{dir}` place the baseline beside the file that declares its subject,
+so `{dir}/__baselines__/{file}/{name}-{engine}` keeps
+`src/ui/__baselines__/Button.stories.tsx/Primary-chromium.png` next to the
+story. Two subjects that would share a path are refused before anything is
+written, and the refusal names both.
 
 The sidecar, verbatim:
 
@@ -125,8 +135,8 @@ The first `describe` — the machine that wrote it:
 }
 ```
 
-The second — the Linux runner, which reads a different directory and finds
-nothing of its own:
+The second — the Linux runner, which reads the same file and finds it painted on
+another platform:
 
 ```json
 {
@@ -186,7 +196,7 @@ Point the CLI at one of these backends in `variance.config.json`:
   "baselines": {
     "kind": "directory",
     "root": ".variance/baselines",
-    "layout": "flat",
+    "path": "{title}/{name}-{engine}",
     "records": ".variance/records"
   }
 }
@@ -209,32 +219,68 @@ Both store backends implement one contract, `RasterStore`, which is defined in
 
 | member | signature | answers |
 |---|---|---|
-| `find` | `(key, identity) => Promise<Found \| null>` | the baseline for `{ subject, label? }`, looked up under any identity that has ever written one; `null` only when none has. `Found` has the `raster`, whether it is `comparable` (written by the identity asking), and `storedUnder` (the identity that actually wrote it). |
+| `find` | `(key, identity) => Promise<Found \| null>` | the baseline for `{ subject, label?, file?, title?, name? }`, looked up under any identity that has ever written one; `null` only when none has. `Found` has the `raster`, whether it is `comparable` (written by the identity asking), `storedUnder` (the identity that actually wrote it), and `relocated` when the baseline sits where an older layout put it and accepting moves it. |
 | `describe` | `(key, identity) => Promise<Described \| null>` | the same lookup without the image: `documentDigest`, `comparable`, `storedUnder`, `pictured`, `missingFonts`, and optional accessibility, component and finding data when the sidecar includes it. Cheap enough to run for every subject before deciding which ones need the image at all. |
 | `put` | `(key, raster) => Promise<void>` | writes a baseline. |
 | `renderCache` | `{ get(documentDigest, identity), put(raster) }` | images this machine has already painted, keyed by document digest and identity, so an unchanged document is not re-rendered. A lookup or write here never throws; a miss and a failure both mean "render it". |
-| `unplanned?` | `(keys, identity) => Promise<readonly string[]>` | file names written under this identity that none of these keys addresses — the baselines left behind when a subject leaves the suite. Names an operator can find on disk, not keys. One root serving two suites reports each suite's subjects to the other. |
-| `expect?` | `(keys) => void` | an optional hint naming subjects about to be asked about; both backends here ignore it, because `describe` is already a `readFile`. |
+| `unplanned?` | `(keys, identity) => Promise<readonly string[]>` | paths written for this engine that none of these keys renders — the baselines left behind when a subject leaves the suite or the template changes. Paths an operator can find on disk, not keys. One root serving two suites reports each suite's subjects to the other. |
+| `expect?` | `(keys) => void` | names the subjects about to be asked about. Both backends here throw when two of them render one path, naming both, before anything is read or written. |
 | `retention` | `'durable' \| 'ephemeral'` | both backends here are `'durable'`. |
 
 ## Where the files go
 
 ```
-<root>/<identityDigest>/<subject>[__label].png
-<root>/<identityDigest>/<subject>[__label].json
+<root>/<path>.png
+<root>/<path>.json
 ```
 
-`identityDigest` hashes the identity — renderer, engine, platform, device scale
-factor and fonts — so it names a directory per rendering machine. A baseline
-written by one machine cannot be silently picked up by another: it is not in the
-directory the other machine reads.
+`<path>` is the `path` template rendered for the key and the engine family. The
+template's tokens:
 
-`createDurableStore(root, options)` takes three options, and `createLfsStore`
-passes all three through:
+| token | is |
+|---|---|
+| `{title}` | the key's `title` — a story's title, a test's `describe` titles — or the subject id up to its last `/`. Its `/` are directories. |
+| `{name}` | the key's `name` — a story's name, a test's own title — or the subject id after its last `/`. A label is spelled `__label` after it. |
+| `{id}` | the whole subject id in one file name. |
+| `{file}` | the name of the file that declares the subject. |
+| `{dir}` | that file's directory, as directories. |
+| `{engine}` | the engine family: `chromium`, `firefox`, `webkit`. |
+| `{project}` | the key's `project` — a Playwright project's `name`. |
+
+`{title}`, `{name}`, `{id}`, `{project}` and `{engine}` are written with letters, digits,
+`.`, `_` and `-`; anything else becomes `-`. `{file}` and `{dir}` are the
+declaring file's path as it is, and one that is absolute or holds a `..` is
+refused rather than cleaned. A template must name `{name}` or `{id}`, may not end in a run of
+directories, and may not leave `root`. `{file}` and `{dir}` need a key that
+names its file, and `{project}` one that names its project; a subject without
+one is refused with its id.
+
+The path names the engine and nothing finer. The rest of the identity —
+platform, device scale factor, fonts — is in the `.json` beside the image, and a
+machine that differs on any of it reads the baseline as `comparable: false`
+rather than another machine's directory as its own. Two machines painting one
+engine therefore share one file, the last to accept writes it, and only that
+one compares against it.
+
+Two keys that render one path, ignoring case because a macOS or Windows checkout
+does, are refused with both subjects named. Nothing is renumbered. The `.json`
+names the key it was written for (`placedFor`: subject, label, project), so a
+store that never saw the other key — another shard, another Playwright worker,
+a later run — refuses on reading or writing that path too, and names the token
+that would tell them apart: `{project}` when only the projects differ.
+
+A root written by an earlier release keeps each machine's images in a
+directory named for a hash of its identity. Those are still read: a lookup
+falls back to them, reports `relocated` with the old and new paths, and `put` from this machine's own identity or line
+writes the new path and removes the old pair, so the commit shows a rename.
+
+`createDurableStore(root, options)` takes four options, and `createLfsStore`
+passes all four through:
 
 | option | default | what it decides |
 |---|---|---|
-| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` puts each image in the directory where its code lives — `components/Button/<identityDigest>/primary__wide.png` — so baselines arrive with the checkout and move when the component's own files move. The directory comes from the key's `path` when the plan named one, and otherwise from the subject id read as a path. Either way a `..` or an empty segment is refused rather than resolved. A `path` from the plan keeps the whole subject id in the file name; an id split into directories spends its own slashes. |
+| `path` | `{title}/{name}-{engine}` | where each baseline goes under `root`, as described above. `{dir}/__baselines__/{file}/{name}-{engine}` with `root` at the repository puts each image beside the code it depicts, so baselines arrive with the checkout. A renamed file, or a changed template, leaves the old baseline where it was: the subject reads `new` and the old pair is reported as unplanned. |
+| `projects` | none | the Playwright projects the config runs, for a template with `{project}`. A record accepted for a project not in the list is a renamed project's, and the first key that renders its path takes it over; a project still in the list keeps its path and the run stops. Unset, every record is held to the project that accepted it. |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere. |
 | `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` ends up with images and nothing else. |
 
@@ -243,8 +289,7 @@ optional. Both halves are still written and both are still read, so one half
 without the other stops the run — the refusal names the file in the root it was
 looked for in.
 
-Both layouts keep the identity directory. Neither layout checks that the root is
-committed: if baselines are meant to travel with the branch, that is between you
+No template checks that the root is committed: if baselines are meant to travel with the branch, that is between you
 and your `.gitignore`.
 
 ## Missing and corrupt baselines

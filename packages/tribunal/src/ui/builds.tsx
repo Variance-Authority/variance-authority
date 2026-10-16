@@ -177,7 +177,7 @@ function addressOf(endpoint: string | undefined): string {
 function Verdicts({ build }: { readonly build: BuildSummary }): ReactElement {
   return (
     <p className="va-verdicts">
-      <span className={build.pending > 0 ? 'va-pending' : 'va-settled'}>
+      <span className={build.pending > 0 ? 'va-pending' : 'va-clear'}>
         {build.pending > 0 ? `${number(build.pending)} awaiting review` : 'nothing awaiting review'}
       </span>
       <span className="va-counts">
@@ -230,7 +230,7 @@ export function CoverageLine({ build }: { readonly build: BuildSummary }): React
         </>
       )}
       {coverage.failed === 0 ? null : <> · {coverage.failed} failed to render</>}
-      {coverage.excluded === 0 ? null : <> · {coverage.excluded} excluded by configuration</>}
+      {coverage.excluded === 0 ? null : <> · {coverage.excluded} excluded on purpose</>}
     </p>
   );
 }

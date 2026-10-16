@@ -3,7 +3,6 @@ import type {
   MatchedRule,
   ObservationProfile,
   RenderDocument,
-  FrameElement,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
@@ -11,9 +10,13 @@ import { detectProfile } from './collect.js';
 import { inheritedSeed } from './inherit.js';
 import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
 import { deviceProbe, type ConditionEnvironment } from './media.js';
-import { attributesOf, elements } from './dom-list.js';
+import { elements } from './dom-list.js';
 import { formState } from './form-state.js';
 import { splitPseudoElement } from './selector-parts.js';
+import { facesUsedBy, type IndexedFace } from './font-faces.js';
+import { objectUrls } from './object-urls.js';
+import { frameOf } from './frame.js';
+import { inLayers } from './layers.js';
 
 /**
  * Acquisition — phase one: a live DOM becomes something you can send somewhere.
@@ -89,6 +92,9 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
   const ownerDocument = root.ownerDocument;
   const view = ownerDocument.defaultView;
   const diagnostics: Diagnostic[] = [];
+  // Asked once, before the tree is stamped: the inherited seed and the
+  // severity of an unreadable object URL both read it.
+  const profile = options.profile ?? detectProfile(view);
 
   // The flattened CSS is what a deferred renderer paints, so it asks the engine
   // about the pointing device for the same reason the capture does.
@@ -112,14 +118,40 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
 
   try {
     const { css, bindings } = applicableCss(root, index);
-    const frame = frameOf(root);
+    const faces = facesUsedBy(root, index.faces);
+    const unreadable = [...new Set(faces.filter((face) => !face.readable).map((face) => face.family))];
+    if (unreadable.length > 0) {
+      diagnostics.push({
+        severity: 'warn',
+        code: 'unreadable-font-face',
+        message:
+          `the subject is set in ${unreadable.map((family) => `"${family}"`).join(', ')}, and this ` +
+          'host dropped the file its @font-face names; the render paints a fallback in its place',
+      });
+    }
+    // An image shown through an object URL lives in memory only this page can
+    // read, wherever the document names it: markup, frame, rules or inherited
+    // values. Each is carried as its bytes, or the deferred renderer paints a
+    // broken image.
+    const urls = objectUrls(view, PATH_ATTRIBUTE, profile.layout);
+    const frame = frameOf(root, urls);
     settleStamps(stamped);
-    // What a form holds now lives in properties `outerHTML` does not read; a
-    // play function's typing is written in here, on a copy, or the deferred
-    // renderer paints the form the server sent.
-    const html = formState(ownerDocument).serialize(root);
+    // What a form holds now lives in properties `outerHTML` does not read: it is
+    // written in here, on a copy, with the object URLs, or the deferred renderer
+    // paints the form the server sent.
+    const html = formState(ownerDocument).serialize(root, urls.editsIn(root));
 
     diagnostics.push(...verify(ownerDocument, html, frame, bindings));
+
+    const sheets = withFaces(css, faces.filter((face) => face.readable)).map((sheet) =>
+      urls.inCss(sheet, 'a rule the subject is painted with'),
+    );
+    const inherited = Object.fromEntries(
+      Object.entries(
+        options.inherited ?? inheritedSeed(root, profile, view, index),
+      ).map(([property, value]) => [property, urls.inCss(value, `the inherited ${property}`)]),
+    );
+    diagnostics.push(...urls.diagnostics);
 
     if (options.fonts === undefined) {
       diagnostics.push({
@@ -136,11 +168,9 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
       subject: options.subject,
       html,
       frame,
-      css,
+      css: sheets,
       viewport: options.viewport,
-      inherited:
-        options.inherited ??
-        inheritedSeed(root, options.profile ?? detectProfile(view), view, index),
+      inherited,
       fonts: options.fonts ?? [],
       ...(options.assets ? { assets: options.assets } : {}),
       diagnostics,
@@ -302,14 +332,30 @@ function applicableCss(
   }
 
   const rules = [...byOrder.values()].sort((a, b) => a.order - b.order);
-  const text = rules.map(
-    (rule) =>
-      `${rule.selector} {${rule.declarations
+  const text = rules.map((rule) => {
+    const layer = index.layerOf.get(rule.order);
+    return {
+      text: `${rule.selector} {${rule.declarations
         .map((d) => `${d.property}:${d.value}${d.important ? ' !important' : ''}`)
         .join(';')}}`,
-  );
+      ...(layer !== undefined ? { layer } : {}),
+    };
+  });
 
-  return { css: text.length > 0 ? [text.join('\n')] : [], bindings };
+  return { css: text.length > 0 ? [inLayers(text, index.layers)] : [], bindings };
+}
+
+/**
+ * The pruned sheet with the faces its subject is set in ahead of it.
+ *
+ * Ahead because a face is declared before anything is set in it in every sheet
+ * that works, and in the one sheet the render has, order among faces is the
+ * only order that decides anything: of two faces for one family and weight, the
+ * later wins.
+ */
+function withFaces(css: readonly string[], faces: readonly IndexedFace[]): readonly string[] {
+  if (faces.length === 0) return css;
+  return [[...faces.map((face) => face.text), ...css].join('\n')];
 }
 
 /** One (element, rule) pair that held in the live page and must hold in the render. */
@@ -332,30 +378,6 @@ function frameChain(root: Element): readonly Element[] {
     chain.unshift(node);
   }
   return chain;
-}
-
-/** Tags, ids, classes and attributes above the subject, outermost first. */
-function frameOf(root: Element): RenderDocument['frame'] {
-  const ownerDocument = root.ownerDocument;
-  const ancestors: FrameElement[] = [];
-
-  for (let node = root.parentElement; node !== null; node = node.parentElement) {
-    const tag = node.tagName.toLowerCase();
-    if (tag === 'html' || tag === 'body') continue;
-    ancestors.unshift({ tag, attributes: attributesOf(node) });
-  }
-
-  // Zero under a profile with no layout engine, and omitted rather than recorded
-  // as `0` — a container width of zero is a claim, and an unobservable one must
-  // never be reported as an observed value (ADR-0002).
-  const containerWidth = root.parentElement?.getBoundingClientRect().width ?? 0;
-
-  return {
-    html: ownerDocument.documentElement ? attributesOf(ownerDocument.documentElement) : {},
-    body: ownerDocument.body ? attributesOf(ownerDocument.body) : {},
-    ancestors,
-    ...(containerWidth > 0 ? { containerWidth } : {}),
-  };
 }
 
 /**

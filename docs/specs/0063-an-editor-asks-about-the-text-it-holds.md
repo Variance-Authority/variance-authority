@@ -127,7 +127,10 @@ A repository that declares suites gets these facets once per suite, under
 recorded over its own text and one stale record must not blank the others. A
 suite with no recording is `refused: "unrecorded"`, and a suite that never
 loaded the file is `refused: "unloaded"`, which is the answer rather than a
-gap: a visual suite that never loaded the payment module says so. A
+gap: a visual suite that never loaded the payment module says so. A suite
+whose recording was made at a commit that did not hold the file is
+`refused: "older"`: that record has no answer for it, and running the suite
+gives one. A
 test is referred to by the record's own id everywhere, and its detail appears
 once, under `tests`.
 

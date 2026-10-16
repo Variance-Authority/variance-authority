@@ -186,4 +186,20 @@ export const LATER_MIGRATIONS: readonly (readonly string[])[] = [
     `ALTER TABLE build_variations ADD COLUMN step TEXT`,
     `UPDATE schema_version SET version = 20`,
   ],
+  // 20 → 21: the snapshot a baseline was painted from.
+  [
+    // A changed region is joined against each node's box in this render and in
+    // the baseline's, paired by the differ's matcher, so the half of an edit
+    // that lies where an element left is not attributed to the row around it.
+    // The hashes carry no boxes the matcher can pair, so the tree itself is
+    // kept: gzipped JSON in base64, as the sidecar carries it. Text, not JSON,
+    // because nothing on this side reads inside it.
+    //
+    // Null is *not recorded*: a baseline promoted before this column, or a push
+    // from a CLI that did not pack one. A later run joins against its own boxes
+    // there, and its reason says so.
+    `ALTER TABLE build_subjects ADD COLUMN candidate_snapshot TEXT`,
+    `ALTER TABLE baselines ADD COLUMN snapshot TEXT`,
+    `UPDATE schema_version SET version = 21`,
+  ],
 ];

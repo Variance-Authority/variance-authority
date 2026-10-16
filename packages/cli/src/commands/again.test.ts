@@ -6,6 +6,7 @@ import {
   type RenderDocument,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
+import { packSnapshot } from '@variance-authority/observe';
 import type { Found } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { Collected, Collector, Plan } from './run.js';
@@ -38,7 +39,7 @@ describe('a subject that does not read the same way twice', () => {
    *
    * `dark` is what makes it differ from the white baseline — the run has to call
    * it `changed` before any of this is reached at all — and `at` is what moves
-   * between two readings taken seconds apart.
+   * between two readings taken in a row.
    */
   function reading(id: string, at: string): RenderDocument {
     return documentFor(
@@ -98,6 +99,18 @@ describe('a subject that does not read the same way twice', () => {
    */
   function baselineOf(id: string): Found {
     return whiteBaselineOf(documentFor(id));
+  }
+
+  /**
+   * A baseline equal to the reading taken at `at`, which settles on its digest.
+   *
+   * It keeps the snapshot of that reading, as a baseline an accepting run wrote
+   * does. One that kept none is rendered so a run can record one, and these
+   * tests are about the subject that never reaches a comparison.
+   */
+  function settlingBaselineOf(id: string, at: string): Found {
+    const found = whiteBaselineOf(reading(id, at));
+    return { ...found, raster: { ...found.raster, snapshot: packSnapshot(snapshotOf(id, at)) } };
   }
 
   /**
@@ -168,7 +181,7 @@ describe('a subject that does not read the same way twice', () => {
     // reason order dependence leaves it standing. What is added is that the
     // verdict was decided by whichever of two disagreeing readings came first.
     expect(observation?.verdict).toBe('changed');
-    expect(observation?.unstable?.because).toContain('two readings seconds apart, with nothing changed between, differ');
+    expect(observation?.unstable?.because).toContain('two readings in a row, with nothing changed between, differ');
 
     // The whole ordering argument, as an assertion. A clean-world answer here
     // would compare two readings that do not agree in *any* world, and would have
@@ -185,7 +198,7 @@ describe('a subject that does not read the same way twice', () => {
     });
 
     // "This subject is flaky" is a page to read. `Clock (content)` is a node whose
-    // text moves between two readings seconds apart, and the causes of that are a
+    // text moves between two readings in a row, and the causes of that are a
     // short list — a clock, a seed, a counter, a request that had not landed.
     expect(report.observations[0]?.unstable?.components).toEqual([{ name: 'Clock' }]);
     expect(report.observations[0]?.unstable?.bands).toEqual(['content']);
@@ -260,7 +273,7 @@ describe('a subject that does not read the same way twice', () => {
 
   it('treats a second collection that fails as the loudest form of yes', async () => {
     // A collector that produced this subject and then could not produce it again,
-    // seconds later, with nothing changed, has already answered the question. It
+    // right after, with nothing changed, has already answered the question. It
     // is not a coverage hole either — the subject *was* observed, once.
     let calls = 0;
     const collector: Collector = {
@@ -315,7 +328,7 @@ describe('a subject that does not read the same way twice', () => {
     // it at all — and it would have flaked on the next commit that touched
     // anything near it. One run earlier, for one collection.
     const collector = ticking(['fixture:a'], { snapshots: true });
-    const store = storeAnswering(whiteBaselineOf(reading('fixture:a', '12:00')));
+    const store = storeAnswering(settlingBaselineOf('fixture:a', '12:00'));
 
     const { report } = await runWith(configOf(), collector, store, {
       renderer: painter(),
@@ -385,7 +398,7 @@ describe('a subject that does not read the same way twice', () => {
     // A baseline the first reading settles against, so the *only* thing in
     // question is the instability. A `changed` verdict would exit 1 on its own
     // and the assertion below would pass without the boundary existing.
-    const store = storeAnswering(whiteBaselineOf(reading('route/home', '12:00')));
+    const store = storeAnswering(settlingBaselineOf('route/home', '12:00'));
 
     const { report } = await runWith(config, collector, store, {
       renderer: painter(),
@@ -419,7 +432,7 @@ describe('a subject that does not read the same way twice', () => {
       ],
     });
 
-    const store = storeAnswering(whiteBaselineOf(reading('route/checkout', '12:00')));
+    const store = storeAnswering(settlingBaselineOf('route/checkout', '12:00'));
 
     const { report } = await runWith(config, collector, store, {
       renderer: painter(),

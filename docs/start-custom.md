@@ -195,12 +195,13 @@ plan declares about it:
 
 | field | type | required | what it is |
 | --- | --- | --- | --- |
-| `subject.id` | `string` | yes | The id this state is stored, compared and accepted under. Any string. `receipt/empty` is one id, not a path — the slash means nothing to the tool. |
+| `subject.id` | `string` | yes | The id this state is stored, compared and accepted under. Any string. `receipt/empty` is one id; its slash is a directory in the baseline's file name and means nothing else. |
 | `subject.kind` | `'story' \| 'route' \| 'fixture' \| 'value'` | yes | What sort of thing it is. Subjects planned from a config `ids` list are `fixture`. |
 | `subject.title` | `string` | no | A human label for the report. |
 | `viewport` | `Viewport` | no | Present when the subject declares its own; it overrides the run's. Absent means use the run's. |
 | `tags` | `readonly string[]` | no | What the subject declares itself to be, when the artifact that planned it declared tags. Absent for a `list` plan. |
-| `path` | `string` | no | The directory that declares this subject, relative to the repository root, when a plan can supply one. It decides where a `beside` baseline layout files the image. |
+| `declaredIn` | `string` | no | The file that declares this subject, relative to the repository root, when a plan can supply one. A `baselines.path` with `{dir}` or `{file}` files the image beside it. |
+| `title`, `name` | `string` | no | Where the subject sits in its file's own hierarchy and its name there — a story's title and name. `baselines.path` writes them as `{title}` and `{name}`; absent, both are read from the id. |
 
 One subject id is one image. To observe the same state at two viewports or in
 dark mode, give it two ids.
@@ -257,7 +258,7 @@ A full success object from the example above, abbreviated:
 
 `acquireDocument` fills every one of those document fields for you, so you do not
 assemble it by hand. Two are worth knowing about anyway. `css` lists only the
-rules that actually match the subtree — the `.unused` rule in the harness's
+rules that actually match the subtree, plus the `@font-face` of each face it is set in — the `.unused` rule in the harness's
 stylesheet is not in the list above, and on a real design system this is the
 difference between shipping one rule and shipping a thousand. And `frame`
 reproduces the ancestors the subject rendered inside as empty tags, so a rule
@@ -330,7 +331,7 @@ against this file's directory rather than the working directory.
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent and your `collect` must return `before`. Setting both is refused. |
 | `subjects.kind` | `list` — the ids are in this file. `storybook` — read them from a built story index. `collector` — your `plan()` discovers them, and the config stops being the statement of what is watched. |
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. `[]` asserts nothing, which is correct for the example (it declares `system-ui` and no web fonts) and wrong for a subject with a web font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
+| `fonts` | Fonts installed on this machine that a subject is set in, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. A face the page serves itself does not go here: `acquireDocument` carries its `@font-face` and keys the subject on its file's bytes. `[]` asserts nothing, which is correct for the example (it declares `system-ui`) and for a page that serves every face it is set in. It is wrong for a subject set in an installed font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
 | `report` | Where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json`. Candidate images land beside it. |
 | `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the identity baselines are stored under, so switching it compares every subject against the other engine's image, with the engine named as the cause, until you accept. |
 
@@ -357,10 +358,10 @@ rather than the directory, and git still descends:
 !.variance/baselines/
 ```
 
-Inside that root, images are filed under the identity of the machine that
-painted them — `v1-297753c4…/receipt%2Fempty.png`. A run compares against its
-own partition first and otherwise against whichever identity painted the subject,
-naming the machine as the cause. So baselines approved on your laptop are
+Inside that root, images are filed by subject and engine —
+`receipt/empty-chromium.png` — and the `.json` beside each records the machine
+that painted it. A run compares against that image whichever machine painted
+it, and names the machine as the cause when it is not this one. So baselines approved on your laptop are
 compared with a Linux runner's pixels, and the platform's font and antialiasing
 differences come back as changes. Paint in one place that both use, which in practice means
 running `variance run` inside the same container image locally and in CI.
@@ -389,9 +390,9 @@ because the image links inside it are relative to the report:
 npx variance report --config variance.config.json --format html > .variance/report.html
 ```
 
-Open it in a browser. Each subject is a picture you can work: the approved
-image, the difference, and the candidate, with a wipe, a blend and a blink
-between them. A `new` subject has no approved image, so what you are looking at
+Open it in a browser. Each subject opens on what changed at its own size, and
+is a picture you can work: the approved image, the difference, and the
+candidate, with a wipe, a blend and a blink between them. A `new` subject has no approved image, so what you are looking at
 is the candidate alone, and the question is only whether that is what the
 template is supposed to look like.
 

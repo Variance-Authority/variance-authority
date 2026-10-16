@@ -34,6 +34,10 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
   // unreadable list is the sentence that says nothing was recorded, which is
   // what every baseline written before this field said anyway.
   const findingMarks = stringsFrom(sidecar.findingMarks);
+  // Dropped when it is not text, for the same reason: it decides which boxes a
+  // region is joined against, and the verdict that joined without it says so.
+  // Nothing here unpacks it; the run that decides does (see `PackedSnapshot`).
+  const snapshot = typeof sidecar.snapshot === 'string' ? sidecar.snapshot : undefined;
   const accessibility = accessibilityFrom(sidecar.accessibility);
   if (sidecar.accessibility !== undefined && accessibility === null) return null;
 
@@ -45,6 +49,7 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
     ...(accessibility === null ? {} : { accessibility }),
     ...(components !== undefined ? { components } : {}),
     ...(findingMarks === null ? {} : { findingMarks }),
+    ...(snapshot === undefined ? {} : { snapshot }),
   };
 }
 

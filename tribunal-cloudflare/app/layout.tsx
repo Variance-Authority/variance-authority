@@ -1,3 +1,4 @@
+import '@variance-authority/tribunal/fonts.css';
 import { REVIEW_STYLES } from '@variance-authority/tribunal/ui';
 import type { Metadata } from 'next';
 

@@ -41,7 +41,7 @@ the run to `1`:
 | --- | --- |
 | a subject is `changed` | pixels moved outside what you excluded, whatever the cause — a baseline painted under a different browser, platform, scale factor or font stack is compared, and the identity that moved is named first |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
-| two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
+| two readings in a row of one subject disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
 | an observation reports an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
 
 Four things deliberately do not take it there:
@@ -116,7 +116,7 @@ track review or flake history.
 | Deferred render instead | **yes** — the same adapter can emit a document |
 | Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters are compared with the painter named as the cause of the red |
 | Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |
-| Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
+| Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe are recorded with every baseline, and the ones that moved are named as the cause |
 | Hosted comments, reviewers, and flake register | **partial** — [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal) keeps concerns, each a reviewer's signed doubt about a render with its region, evidence and every step taken on it, beside the decisions; hosted comment threads and a flake register are Argos's |
 
 **Summary:** Good fit when the team already owns the test browser and wants to

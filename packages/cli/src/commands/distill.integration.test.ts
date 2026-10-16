@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { distillFiles, formatDistill } from './distill.js';
+import { distillFiles, distillPieces } from './distill.js';
+
+/** The text the CLI writes for a distillation, joined. */
+const written = (...args: Parameters<typeof distillPieces>): string => [...distillPieces(...args)].join('');
 
 // A test file recorded through the real Jest seam, whose imports reach three
 // distances from it: one it writes itself, two its subject writes (one read only
@@ -31,7 +34,7 @@ beforeAll(async () => {
     { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: execution, VARIANCE_AUTHORITY_JEST_CACHE: join(cache, 'jest') } },
   );
   await updateSourceIndex(repository);
-  text = formatDistill(await distillFiles({ file: `${at}/test/dialog.case.ts`, execution, root: repository }), 'text');
+  text = written(await distillFiles({ file: `${at}/test/dialog.case.ts`, execution, root: repository }), 'text');
 }, 60_000);
 
 afterAll(async () => {

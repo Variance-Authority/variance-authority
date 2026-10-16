@@ -33,6 +33,15 @@ export interface ObserveRequest {
    */
   readonly artifact: CaptureArtifact;
   readonly sensitivity?: Sensitivity;
+  /**
+   * The titles the test was declared under and its own, outermost first, when
+   * the subject took its id from the test. Absent when `subjectId` named it.
+   *
+   * Sent apart rather than read back from the id: Vitest joins them with
+   * ` > `, and a title may contain that too. The Node half files the baseline
+   * by them, so the path a reviewer reads names the test.
+   */
+  readonly titlePath?: readonly string[];
 }
 
 export interface Observed extends Observation {

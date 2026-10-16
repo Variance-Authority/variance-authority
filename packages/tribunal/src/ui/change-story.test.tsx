@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { SubjectView } from '../review-types.js';
-import { Shapes } from './change-story.js';
+import { Shapes, SinceLast } from './change-story.js';
+import type { Crossing } from './crossing.js';
 import type { Appearance, Origin } from './grouping.js';
+import type { Shift } from './shift.js';
 
 /**
  * What the divided batch says on the page, as distinct from how it is derived.
@@ -102,5 +104,34 @@ describe('where one change stopped agreeing with itself', () => {
     // Not an empty section with a heading over it. Nothing here was measured,
     // and a heading reading *0 shapes* is a finding about the baseline.
     expect(shapes([appearance('a', 0), appearance('b', 0)])).toBe('');
+  });
+});
+
+describe('what the build before this one already showed', () => {
+  function since(shifts: readonly Shift[]): string {
+    const appearances = shifts.map((_, index) => appearance(`r${String(index)}`, 100, 'f1'));
+    const rows = new Map(
+      shifts.map((shift, index) => [
+        `r${String(index)}`,
+        { subject: `r${String(index)}`, shift, earlier: { decision: null } as SubjectView },
+      ]),
+    );
+    const crossing = {
+      state: 'ready',
+      earlier: { build: 'ci-101' },
+      of: (subject: string) => rows.get(subject),
+    } as unknown as Crossing;
+    const origin: Origin = { component: 'Button', pixels: 300, appearances };
+
+    return renderToStaticMarkup(<SinceLast crossing={crossing} origin={origin} />);
+  }
+
+  it('counts the renders seen before without turning *of these* into a noun', () => {
+    // `count` pluralises its noun, and *of these* is not one: three of them
+    // printed as *3 of theses*.
+    const page = since(['again', 'again', 'differently']);
+
+    expect(page).toContain('2 of these carried the same difference in build ci-101');
+    expect(page).not.toContain('theses');
   });
 });

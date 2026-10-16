@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "mdast-util-to-string": "^4.0.0",
     "mermaid": "^11.17.2",
     "minisearch": "^7.2.0",
     "react": "latest",
@@ -16,11 +17,14 @@
     "react-server-dom-webpack": "^19.2.8",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.0",
     "vinext": "^1.0.0-beta.8"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.53.1",
+    "@cloudflare/vite-plugin": "^1.54.5",
     "@tailwindcss/postcss": "latest",
+    "@types/mdast": "^4.0.0",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
@@ -30,7 +34,7 @@
     "tailwindcss": "latest",
     "typescript": "latest",
     "vite": "^8.2.2",
-    "wrangler": "^4.125.0"
+    "wrangler": "^4.129.1"
   },
   "type": "module",
   "scripts": {

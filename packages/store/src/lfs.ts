@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Raster } from '@variance-authority/core/format';
 import { neverFails, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { Described, Found, RasterStore } from '@variance-authority/raster';
-import { createDurableStore, type DurableStoreOptions } from './durable.js';
+import { createDurableStore, DEFAULT_BASELINE_PATH, parseBaselinePath, type DurableStoreOptions } from './durable.js';
+import { attributesPattern, ensureEntry } from './lfs-attributes.js';
 
 /**
  * Baselines in the repository, tracked by git-LFS.
@@ -29,11 +29,10 @@ import { createDurableStore, type DurableStoreOptions } from './durable.js';
  * still read and write this directory perfectly well and refusing to run there
  * would trade a working capability for a warning.
  *
- * **The identity partition is not reimplemented.** Every path decision is
- * delegated to {@link createDurableStore}, so `<root>/<identityDigest>/<subject>`
- * exists once. A second copy of that layout is a second chance to get the
- * partition wrong, and the partition is the only thing standing between a
- * runner-image upgrade and a day of unattributable red (ADR-0011).
+ * **Placement is not reimplemented.** Every path decision is delegated to
+ * {@link createDurableStore}, so `baselines.path` is rendered in one place. A
+ * second copy would be a second chance to place a baseline where the first copy
+ * does not look for it.
  *
  * **What LFS adds that a plain directory does not have: a pointer.** On a clone
  * where git-lfs is not installed, the working tree holds a short text file where
@@ -41,8 +40,6 @@ import { createDurableStore, type DurableStoreOptions } from './durable.js';
  * one would compare a subject against a text file — so it is refused by name.
  */
 
-/** Images only. Sidecars stay text so a baseline stays attributable in review. */
-const DEFAULT_PATTERN = '*.png';
 
 /** First bytes of an LFS pointer file, per the git-lfs v1 pointer spec. */
 const POINTER_PREFIX = 'version https://git-lfs.github.com/spec/';
@@ -73,13 +70,12 @@ export type CommandRunner = (
 /**
  * Everything the durable store places by, and the four things git adds.
  *
- * The placement keys — `layout`, `cacheRoot`, `recordRoot` — are inherited
+ * The placement keys — `path`, `cacheRoot`, `recordRoot` — are inherited
  * rather than restated: this store *is* the durable one with a filter in front,
  * and two copies of that vocabulary are two things to keep in step. Each means
- * here exactly what it means there, with one addition each. `beside` needs
- * nothing extra in `.gitattributes`, because attributes apply to the directory
- * holding a file *and everything under it*, which is already why the entry lives
- * in the baseline root. And `recordRoot` matters more here than anywhere else:
+ * here exactly what it means there, with one addition each. `path` also decides
+ * the default `pattern`, so the entry tracks the images the template renders and
+ * no other image in the tree. And `recordRoot` matters more here than anywhere else:
  * `pattern` routes the images out of the object database, and the records are
  * the text left behind to go on growing it.
  */
@@ -90,7 +86,13 @@ export interface LfsStoreOptions extends DurableStoreOptions {
   /**
    * Glob for the tracked images, relative to the `.gitattributes` that holds it.
    *
-   * Defaults to `*.png`. Deliberately narrow: the `.json` sidecars beside each
+   * Defaults to the template's glob with `.png` on the end — `*-*.png` for the
+   * default `{title}/{name}-{engine}`, a name with no slash matching at every
+   * depth, and `**\/__baselines__/*\/*-*.png` for
+   * `{dir}/__baselines__/{file}/{name}-{engine}`. Under a root that is the
+   * repository itself the first also takes any other PNG with a `-` in its
+   * name, so the CLI's config refuses that pair unless the template names a
+   * directory of its own (`BaselinePathTemplate.anchored`) or this is set. Images only: the `.json` sidecars beside each
    * image are small, readable, and the only thing that says which machine wrote
    * a baseline, so putting them through LFS would make the reviewable half of the
    * artifact unreviewable in exchange for nothing.
@@ -149,16 +151,17 @@ export interface LfsStore extends RasterStore {
  * the line retroactively converts them.
  */
 export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore> {
-  const pattern = options.pattern ?? DEFAULT_PATTERN;
+  const template = parseBaselinePath(options.path ?? DEFAULT_BASELINE_PATH);
+  const pattern = options.pattern ?? attributesPattern(`${template.glob}.png`);
   const attributesFile = options.attributesFile ?? join(options.root, '.gitattributes');
 
-  const layout = options.layout === undefined ? {} : { layout: options.layout };
+  const placed = options.path === undefined ? {} : { path: options.path };
   const records = options.recordRoot === undefined ? {} : { recordRoot: options.recordRoot };
-  const baselines = createDurableStore(options.root, { ...layout, ...records });
-  // No `records` for the cache: its own are as regenerable as its images, so a
-  // second directory for them buys nothing.
-  const cache =
-    options.cacheRoot === undefined ? baselines : createDurableStore(options.cacheRoot, layout);
+  const projects = options.projects === undefined ? {} : { projects: options.projects };
+  const baselines = createDurableStore(options.root, { ...placed, ...records, ...projects });
+  // No `records` and no `path` for the cache: it is keyed by document digest
+  // and names no subject, and its records are as regenerable as its images.
+  const cache = options.cacheRoot === undefined ? baselines : createDurableStore(options.cacheRoot);
 
   // Ordered: writing the entry creates the directory that the check then runs
   // in, and a check in a directory that does not exist fails to spawn, which
@@ -221,6 +224,11 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
 
     put(key, raster): Promise<void> {
       return baselines.put(key, raster);
+    },
+
+    /** Delegated whole: the collision it refuses is the durable store's to find. */
+    expect(keys): void {
+      baselines.expect?.(keys);
     },
 
     /**
@@ -289,85 +297,6 @@ function refuseAPointer(raster: Raster, what: string): void {
       'git-lfs installed, so the working tree holds the pointer text where the PNG ' +
       `should be. Run \`git lfs install && git lfs pull\`. ${REFUSAL}.`,
   );
-}
-
-/**
- * The tracking line, as `git lfs track` writes it.
- *
- * Not a tidier subset. `filter=lfs` is the attribute that moves bytes out of the
- * object database; `diff=lfs` stops `git diff` from printing pointer text as if
- * it were the change; `merge=lfs` is what the tool writes and is inert without a
- * merge driver installed. The one doing the work in the conflict story is
- * `-text`, which marks the path binary so git never attempts a line-wise merge on
- * a PNG — a binary conflict leaves one side in the tree and asks for a choice,
- * which is exactly how a baseline conflict should end.
- */
-function entryFor(pattern: string): string {
-  return `${pattern} filter=lfs diff=lfs merge=lfs -text`;
-}
-
-/**
- * Add the entry if it is missing, and otherwise change nothing at all.
- *
- * "Nothing at all" is the contract, not an optimisation. A `.gitattributes` is a
- * file people write by hand and share with other tools; a store that rewrote it
- * into its own preferred form would silently change how git treats paths this
- * package knows nothing about. So an existing entry for the same glob is left
- * exactly as written even when it is wrong, and the wrongness is reported instead.
- */
-async function ensureEntry(
-  file: string,
-  pattern: string,
-): Promise<{ added: boolean; diagnostics: readonly string[] }> {
-  const existing = await readIfPresent(file);
-
-  if (existing === null) {
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, `${entryFor(pattern)}\n`, 'utf8');
-    return { added: true, diagnostics: [] };
-  }
-
-  const owned = existing.split('\n').find((line) => patternOf(line) === pattern);
-  if (owned !== undefined) {
-    return {
-      added: false,
-      diagnostics: owned.includes('filter=lfs')
-        ? []
-        : [
-            `${file} already has an entry for \`${pattern}\` that does not route it through ` +
-              `LFS (\`${owned.trim()}\`); it was left as written, so images under this root ` +
-              'will be committed whole',
-          ],
-    };
-  }
-
-  // Appended, with the original bytes untouched ahead of it. A missing trailing
-  // newline in someone else's file is theirs to have; joining onto it would
-  // rewrite their last line.
-  await writeFile(
-    file,
-    `${existing}${existing.endsWith('\n') || existing === '' ? '' : '\n'}${entryFor(pattern)}\n`,
-    'utf8',
-  );
-  return { added: true, diagnostics: [] };
-}
-
-/**
- * The glob a `.gitattributes` line applies to, or `null` for a blank or comment.
- *
- * **Limit, stated.** git allows a quoted, C-escaped pattern; only the unescaped
- * form of a quoted pattern is recognised here. An escaped duplicate would
- * therefore be appended a second time rather than a foreign line being rewritten,
- * which is the direction that costs a redundant line instead of somebody's file.
- */
-function patternOf(line: string): string | null {
-  const trimmed = line.trim();
-  if (trimmed === '' || trimmed.startsWith('#')) return null;
-
-  const quoted = /^"([^"\\]*)"/.exec(trimmed);
-  if (quoted !== null) return quoted[1] ?? null;
-
-  return trimmed.split(/\s+/)[0] ?? null;
 }
 
 /**
@@ -479,14 +408,6 @@ export const runCommand: CommandRunner = (command, args, options) =>
       },
     );
   });
-
-async function readIfPresent(file: string): Promise<string | null> {
-  try {
-    return await readFile(file, 'utf8');
-  } catch {
-    return null;
-  }
-}
 
 function firstLine(text: string): string {
   return text.trim().split('\n')[0] ?? '';

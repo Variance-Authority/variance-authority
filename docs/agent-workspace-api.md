@@ -50,7 +50,8 @@ its exact import sites. `uses --from` only orders those sites by path proximity;
 it does not perform another graph traversal or remove any result.
 
 `variance index` publishes a separate catalogue of installed third-party APIs.
-`ask search` shows those names in their own section. A `--from` or `--to` path
+`ask search` shows those names in their own section, after the repository's
+own. A `--from` or `--to` path
 limits them to packages available to the workspaces in that graph closure; the
 answer labels imports separately from availability. Ask `symbol --name <name>
 --package <package>` for the installed signature and full documentation. The
@@ -68,9 +69,12 @@ are on [their own page](tech-stack.md).
 This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It can answer what a file
-rests on, what rests on that file, and where an exported name is imported. It
-does not record that one function called another at runtime; open the named file
-or use a language server for that question.
+rests on, what rests on that file, and where an exported name is imported. A
+member of an interface, a type literal or a class is never imported: `uses`
+names where a member by that name is declared, after any imports, and `grep
+--to` the declaring file finds its callers as text in the files that import it. The graph
+does not record that one function called another at runtime; open the named
+file or use a language server for that question.
 
 No graph database service sits on the answer path. The producer publishes a
 compact graph beside the names and materializes both directions, so walking
@@ -294,7 +298,9 @@ ranking. Several words also match a name written in those words, in any order,
 so `kept reading` finds `keptReading` in that answer. Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
-after that answer and never inside it.
+after that answer and never inside it. So do the names holding at least half of
+your words, matched by stem, each labelled with the words it holds; both come
+before any installed package.
 
 ## Bound a search to where you are working
 

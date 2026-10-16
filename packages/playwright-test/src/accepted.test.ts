@@ -14,6 +14,7 @@ import type { VarianceRun } from './run.js';
 const VERDICTS = ['unchanged', 'changed', 'new', 'ignored'] as const;
 const DOCUMENTS = [undefined, 'unchanged', 'changed'] as const;
 const IDENTITIES = [undefined, 'recipe', 'machine'] as const;
+const SNAPSHOTS = [undefined, 'unrecorded'] as const;
 
 const RUNS: ReadonlyArray<{ readonly flag: string; readonly run: VarianceRun }> = [
   { flag: '=changed', run: { id: 'a', accepting: true } as VarianceRun },
@@ -24,11 +25,22 @@ describe('adopts', () => {
   for (const verdict of VERDICTS) {
     for (const document of DOCUMENTS) {
       for (const identity of IDENTITIES) {
+        for (const snapshot of SNAPSHOTS) {
         for (const { flag, run } of RUNS) {
-          const named = `${verdict}, document ${String(document)}, identity ${String(identity)}, under ${flag}`;
+          const named =
+            `${verdict}, document ${String(document)}, identity ${String(identity)}, ` +
+            `snapshot ${String(snapshot)}, under ${flag}`;
           it(`agrees with variance accept on ${named}`, () => {
           const signals =
-            document === undefined ? {} : { signals: { document, ...(identity === undefined ? {} : { identity }) } };
+            document === undefined
+              ? {}
+              : {
+                  signals: {
+                    document,
+                    ...(identity === undefined ? {} : { identity }),
+                    ...(snapshot === undefined ? {} : { snapshot }),
+                  },
+                };
           const record: ObservationRecord = {
             subject: 'story:a',
             verdict,
@@ -42,6 +54,7 @@ describe('adopts', () => {
 
           expect(adopts(observation, run)).toBe(promotionOf(record).kind === 'promotable');
           });
+        }
         }
       }
     }
@@ -66,6 +79,16 @@ describe('adopts', () => {
       signals: { identity: 'recipe', moved: ['rasterization e5ed66c6 → 865368fe'] },
     } as unknown as Observation;
     expect(adopts(unmoved, RUNS[0]!.run)).toBe(true);
+  });
+
+  it('re-stamps an unchanged subject whose baseline kept no snapshot', () => {
+    const unrecorded = {
+      subject: 'story:a',
+      verdict: 'unchanged',
+      because: 'asked',
+      signals: { document: 'unchanged', snapshot: 'unrecorded' },
+    } as unknown as Observation;
+    expect(adopts(unrecorded, RUNS[0]!.run)).toBe(true);
   });
 
   it('adopts nothing in a run that does not accept', () => {

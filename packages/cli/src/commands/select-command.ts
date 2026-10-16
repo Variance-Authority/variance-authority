@@ -47,7 +47,7 @@ import { beyondOf, compared, installReached, withWhole } from './select-beyond.j
 import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
-import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
+import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -138,7 +138,12 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   oneRecord(request.suite, request.execution, '--execution');
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
-  const said = (input: SelectInput) => suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+  // The record the selection reads, which a shard's record names; a skip list alone does not say which.
+  const read = found.held ? selection.recordDigestAt(at) : undefined;
+  const said = (input: SelectInput) => {
+    const reading = suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+    return read === undefined ? reading : { ...reading, read };
+  };
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
@@ -411,7 +416,7 @@ function handedNotes(reading: StandReading, commit: string): readonly string[] {
  */
 export async function recordedOrMainline(
   request: SuiteRequest,
-): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource }> {
+): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource; readonly missed?: MainlineMissed }> {
   const recorded = await recordedSuite(request.root, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
   if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
@@ -424,10 +429,11 @@ export async function recordedOrMainline(
   }
   const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
   if (base.from === 'primary') {
-    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) } };
+    const missed = base.missed === undefined ? {} : { missed: base.missed };
+    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) }, ...missed };
   }
   if (base.missed === undefined) return { at: base.file, held: false };
-  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) } };
+  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) }, missed: base.missed };
 }
 
 /**

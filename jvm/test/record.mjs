@@ -26,7 +26,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const [work, bin] = process.argv.slice(2).map((p) => resolve(p));
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
-const { narrowByExecution } = await import(
+const { caseSectionsOf, combineRecords, narrowByExecution } = await import(
   pathToFileURL(join(repoRoot, 'packages', 'sense', 'dist', 'test-selection', 'index.js')).href
 );
 const modules = join(work, 'modules');
@@ -102,6 +102,18 @@ const shout = await selects('words', words, '+ "!"', '+ "?"');
 assert.deepEqual(shout.entered, [test('words', 'ShoutTest')]);
 assert.deepEqual(shout.whole, [test('words', 'ShoutTest')]);
 console.log('fresh: checkout-relative names, the checkout\'s classes only, every fork once');
+
+// FIXME: no workflow runs this script, and it has not run since the agent wrote
+// `unknown`: the machine that changed it has no JDK.
+// Each module's snapshot names the record its run started from: it read
+// `unknown`, since the agent never sees the selection it runs under, and was laid
+// over none. The two combine, and the combine names both as unchecked.
+const snapshots = ['calc', 'words'].map((module) => join(modules, module, 'target', 'va', 'coverage.va'));
+for (const snapshot of snapshots) assert.equal(Buffer.from(caseSectionsOf(readFileSync(snapshot)).base).toString(), 'unknown over none', snapshot);
+const combined = combineRecords(snapshots, join(work, 'combined.va'));
+assert.equal(combined.shards.length, 2);
+assert.deepEqual(combined.unchecked, [...snapshots].sort());
+console.log('shards: each snapshot reads unknown, and two combine unchecked');
 
 mvn();
 assert.deepEqual(owners('calc'), calcClasses);

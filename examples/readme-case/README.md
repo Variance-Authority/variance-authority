@@ -31,8 +31,10 @@ the source position of the component that drew the changed pixels.
 
 [`artifacts/provenance.json`](artifacts/provenance.json) records the engine that
 painted the two PNGs, the platform it ran on, and the one semantic delta between
-them. The same engine rasterizes text differently on macOS and Linux, so the
-changed-pixel count is checked only on the platform that painted it:
+them, with the changed-pixel count the comparison finds between the two
+committed PNGs. The count is checked against those PNGs on every platform, not
+against a fresh paint: the same engine rasterizes text differently on macOS and
+Linux, and two Macs can differ by a glyph-edge pixel the default policy counts.
 
 ```json
 {
@@ -46,7 +48,7 @@ changed-pixel count is checked only on the platform that painted it:
     "to": "rgb(130 80 223 / 1)",
     "impact": "paint"
   },
-  "changedPixels": 9226
+  "changedPixels": 9237
 }
 ```
 
@@ -68,14 +70,16 @@ private and is not published; `generate` is its only script.
 The Vitest file re-runs the same comparison and checks the artifacts against it —
 that the semantic comparison finds exactly one paint-only `style-changed` delta,
 that `diff.png` is the diff actually derived from `before.png` and `after.png`,
-and that the committed report and images are the ones the repository README
-displays. From the repository root:
+that `changedPixels` is the count the comparison finds between them, and that
+the committed report and images are the ones the repository README displays.
+From the repository root:
 
 ```bash
 yarn vitest run examples/readme-case/src/readme.chromium.test.ts
 ```
 
-It skips itself, with a note, when no Chromium binary is installed.
+Without a Chromium binary it skips every case that paints, with a note, and still
+checks the count against the committed PNGs.
 
 ## The files
 

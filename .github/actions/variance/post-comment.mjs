@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 //
-// One comment on the pull request, updated in place.
+// One comment on the pull request for each marker, updated in place.
 //
 // A new comment per run buries the current state under a history nobody reads,
 // and attaches a notification to each burial. So this finds the comment it wrote
@@ -20,6 +20,17 @@
 // guaranteed-correct one, on a surface where the docket's contents are already
 // public and the check's verdict comes from an exit code this cannot touch.
 //
+// **A marker is one comment, and a repository may have several.** The renderer
+// keys the marker by the config's `project`, so two gates on one pull request
+// keep a comment each. Before that, every docket carried one marker that named
+// no project, `UNKEYED`. With `--adopt-unkeyed true`, a comment carrying it is
+// taken over, under `--marker`, when none carries `--marker` itself, so the
+// upgrade does not leave the old docket beside the new one. Only the gate that
+// wrote it adopts it: a gate that comments for the first time passes `false`,
+// or it would take the other gate's docket and, on a clean run, clear it. The
+// caller decides, and the action passes `true` unless its job says otherwise.
+// No comment of another marker is ever touched.
+//
 // **Nothing is uploaded anywhere the operator did not configure.** The only
 // network call is to the GitHub API of the instance this job is already running
 // on, with the token the workflow passed in. No SDK, no dependency, no registry
@@ -27,12 +38,16 @@
 // third party with write access to every pull request.
 //
 // Usage:
-//   node post-comment.mjs --body-file <path> --marker <string> [--pr <number>]
+//   node post-comment.mjs --body-file <path> --marker <string> \
+//     --adopt-unkeyed <true|false> [--pr <number>]
 
 import { readFileSync } from 'node:fs';
 
 const API_VERSION = '2022-11-28';
 const PER_PAGE = 100;
+
+/** The marker every docket carried before markers named the config's `project`. */
+const UNKEYED = '<!-- variance-authority: pr-docket v1 -->';
 
 /**
  * Pages of comments this will read before refusing to guess.
@@ -114,13 +129,16 @@ if (existing === undefined) {
 }
 
 /**
- * The comment this action wrote last time, if it is still there.
+ * The comment this action wrote last time, if it is still there, or else the
+ * first one carrying {@link UNKEYED}, when it was told to adopt that.
  *
  * Every page is read. Stopping early and concluding "none" would post a duplicate
  * — the failure this file exists to prevent — so an unreadable page or an
- * exhausted page budget is an error rather than a shrug.
+ * exhausted page budget is an error rather than a shrug. A comment of its own on
+ * a later page wins over an adoptable one on an earlier page.
  */
 async function findOwnComment() {
+  let adoptable;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const comments = await request(
       'GET',
@@ -131,12 +149,11 @@ async function findOwnComment() {
       fail(`the comments endpoint returned ${typeof comments}, not a list`);
     }
 
-    const found = comments.find(
-      (comment) => typeof comment?.body === 'string' && comment.body.includes(options.marker),
-    );
+    const found = comments.find((comment) => carries(comment, options.marker));
     if (found !== undefined) return found;
+    if (options.adoptUnkeyed) adoptable ??= comments.find((comment) => carries(comment, UNKEYED));
 
-    if (comments.length < PER_PAGE) return undefined;
+    if (comments.length < PER_PAGE) return adoptable;
   }
 
   fail(
@@ -144,6 +161,10 @@ async function findOwnComment() {
       'in them. Refusing to conclude that there is no previous comment, because that ' +
       'conclusion posts a duplicate.',
   );
+}
+
+function carries(comment, marker) {
+  return typeof comment?.body === 'string' && comment.body.includes(marker);
 }
 
 async function post(text) {
@@ -203,8 +224,8 @@ async function request(method, url, payload) {
 /**
  * The body a superseded docket is replaced with.
  *
- * Replaced rather than deleted: this action keeps exactly one comment per pull
- * request, and deleting it would leave the check's history with a gap nobody
+ * Replaced rather than deleted: this action keeps exactly one comment per
+ * marker, and deleting it would leave the check's history with a gap nobody
  * can account for. That is the action's bookkeeping, so it stays here and the
  * reviewer reads only the outcome.
  */
@@ -247,8 +268,8 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const name = argv[index];
     const value = argv[index + 1];
-    if (!['--body-file', '--marker', '--pr'].includes(name)) {
-      fail(`unknown argument \`${String(name)}\`; this takes --body-file, --marker, --pr`);
+    if (!['--adopt-unkeyed', '--body-file', '--marker', '--pr'].includes(name)) {
+      fail(`unknown argument \`${String(name)}\`; this takes --adopt-unkeyed, --body-file, --marker, --pr`);
     }
     if (value === undefined) fail(`\`${name}\` needs a value`);
     values.set(name, value);
@@ -260,10 +281,21 @@ function parseArgs(argv) {
     fail('--body-file and --marker are both required; without a marker this cannot find its own comment');
   }
 
+  // Asked every time, because neither answer is safe to assume: adopting takes
+  // another gate's docket, and not adopting leaves the old one beside the new.
+  const adopt = values.get('--adopt-unkeyed');
+  if (adopt !== 'true' && adopt !== 'false') {
+    fail(
+      `--adopt-unkeyed takes true or false, not ${JSON.stringify(adopt ?? null)}: ` +
+        'whether this gate wrote the docket from before markers named a project',
+    );
+  }
+
   const pr = values.get('--pr');
   return {
     bodyFile,
     marker,
+    adoptUnkeyed: adopt === 'true',
     ...(pr === undefined || pr === '' ? {} : { pr: Number(pr) }),
   };
 }

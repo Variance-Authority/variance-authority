@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { diffSnapshots } from '@variance-authority/core/compare';
-import { CHROMIUM_PROFILE, JSDOM_PROFILE, type Viewport } from '@variance-authority/core/format';
+import { CHROMIUM_PROFILE, interventionById, JSDOM_PROFILE, stepClock, type Viewport } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { collect } from './collect.js';
 import { indexStyleSheets } from './css-index.js';
@@ -315,6 +315,21 @@ describe('profile detection', () => {
     });
     expect(photographed.ids).toContain('hide-caret');
     photographed.release();
+  });
+
+  it('takes each wait as a step by its id, and the frames only when the sheet is new', async () => {
+    const first = stepClock(() => performance.now());
+    const held = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE, steps: first });
+    const second = stepClock(() => performance.now());
+    const still = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE, steps: second });
+
+    const waits = held.ids.filter((id) => interventionById(id)?.settle !== undefined);
+    expect(waits.length).toBeGreaterThan(0);
+    expect(first.taken.map((s) => s.step)).toEqual([...waits, 'frames']);
+    // The sheet was already in force, so there was no frame to wait for: absent, not zero.
+    expect(second.taken.map((s) => s.step)).toEqual(waits);
+    still.release();
+    held.release();
   });
 
   it('records a driver trick only when a driver says it applied it', async () => {

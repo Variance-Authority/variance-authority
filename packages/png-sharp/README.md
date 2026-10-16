@@ -131,7 +131,7 @@ Replace the two generated buffers with `readFileSync('before.png')` and
 ```
 
 `changed` is counted once per policy: `default` forgives antialiasing and a
-0.1 channel threshold, `strict` forgives nothing. Both are reported so that
+colour change of up to 1%, `strict` forgives nothing. Both are reported so that
 "zero pixels changed" can be told apart from "zero pixels changed after
 forgiveness". `total` is the pixels on the compared canvas — the union of the
 two boxes, so a size change is a difference in the padded rows rather than a

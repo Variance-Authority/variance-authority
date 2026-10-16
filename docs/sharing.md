@@ -374,9 +374,10 @@ left out 2 image(s) the report names and this machine could not read, the first 
 
 The same publish gives the line `subject-costs-v1`: what each subject took to
 collect, under the same commit. `npx variance run --shard k/n` reads it back
-from the mainline to split the suite evenly, and a run with `workers` reads it
-to take the slowest files first. `npx variance ask costs` reads the same line to
-show you, or an agent, which files and subjects the suite spends its time on;
+from the mainline to split the suite evenly, and a run reads it to give its
+slowest files to its [workers](../packages/cli#configuration) first.
+`npx variance ask costs` reads the same line to show you, or an agent, which
+files and subjects the suite spends its time on;
 see [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
 ### A sharded build
@@ -609,7 +610,8 @@ record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(
 ```
 
 `variance share --suite <name>` queries the remote now, whenever the last fetch
-was. Your test runner's integration never queries the remote. When its first run
+was. Your test runner's integration queries it only under `--shard`, for the
+times it [places the shard by](sharding.md#turn-it-on-in-a-vitest-jest-or-playwright-config). When its first run
 in a checkout has no record to land on, it copies the mainline record last
 fetched on this machine into the checkout's own place, with the runs record
 that came with it, and prints that it did. None of those runs are the
@@ -880,7 +882,7 @@ curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.exampl
 ```
 
 ```text
-{"service":"variance-authority-tribunal","api":5,"schema":19}
+{"service":"variance-authority-tribunal","api":6,"schema":21}
 ```
 
 `/version` answers any of the deployment's tokens and refuses any other with

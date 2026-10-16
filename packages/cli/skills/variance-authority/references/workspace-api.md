@@ -94,7 +94,9 @@ name's contract, and `uses` for its exact import sites and worked examples.
 
 This is a module graph, not a call graph. A site is an import. Never turn it
 into a claim that one function calls another; open the file or ask a language
-server.
+server. A member of an interface, a type literal or a class is never imported,
+so `uses` names its declarations, after any imports, and the `grep --to` that
+finds its callers.
 
 ## The verbs
 
@@ -207,6 +209,33 @@ alone, the same way. The first line names where it is exported:
 `roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.
 ```
 
+A method or property of an interface, a type literal or a class is never
+imported: code reaches it through a value, `scanner.resolveSources(…)`. `uses`
+lists where each member by that name is declared, each line ending with the
+container it is on, and names the search that finds its callers. For a name no
+export has, that is the whole answer:
+
+```
+`resolveSources` is no exported name; it is a member, declared in 1 place:
+Path order; `from` sorts nearest first.
+
+Member declarations:
+
+packages/sense/src/native.ts:234 — NativeScanner
+
+Its callers are text in the files that import a declaration: docs_grep with `query` `\bresolveSources\b` and `to` `packages/sense/src/native.ts`.
+That search matches text, as no type checker runs: it lists comments, strings, a call by key such as `entry('name')` and same-named members of other types in those files, and misses a value whose type comes in through a file that does not import the declaration.
+```
+
+Run it as `variance ask grep --query '\bresolveSources\b' --to
+packages/sense/src/native.ts`. A value of the member's type comes from a file
+that imports the declaration, at any depth, so that is where the search looks.
+When several files declare the name, pass the one whose container you mean.
+A name that an export has as well, such as a wrapper function named like the
+member, lists the wrapper's imports first, then `` `prepareJourneys` is a member
+too, declared in 2 places: `` and the declarations with their route. Ask a
+language server when you need the callers proven against one type.
+
 **`uses --from` sorts; `search --from` narrows.** On `uses`, `--from` is the
 file you are editing, and every site still comes back, ordered by the leading
 path segments it shares with that file. On `search`, `--from` is a start point,
@@ -230,13 +259,16 @@ pass its name to `symbol` and `uses`, which answer it from the source index.
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a
 third-party section, and prints a line when nothing in it matched. `symbol`
-matches installed third-party declarations from the same lexicon. The full
-signatures and JSDoc are in `dependency-lexicon.json` beside the source index.
+matches installed third-party declarations from the same lexicon, which is
+`dependency-lexicon.bin` beside the source index. It is a binary file: ask
+`search` and `symbol` for what it holds.
 
 Nothing back means nothing matched, not that a ranking left it out. In a
-checkout that publishes nothing, that is the final answer. The loosely matching
-section is a suggestion: it never changes the sections above it, and it does not
-find a word the repository never writes. For that, expand the query as
+checkout that publishes nothing, that is the final answer. The two sections that
+follow an empty answer — names holding at least half of your words by stem, then
+names your words reach loosely — are suggestions, printed before the installed
+packages: they never change the sections above them, and they do not find a word
+the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.
 
 **A start point removes names; it does not rank them down.** A path the

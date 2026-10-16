@@ -4,17 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
-
-/** The directory a store names for this identity's partition. */
-const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
 
 /**
  * Baselines in the repository, and the three things that can quietly go wrong.
  *
- * The bytes have to survive a round trip; the identity partition has to survive
+ * The bytes have to survive a round trip; the identity check has to survive
  * being wrapped; and the tracking has to be *established* rather than assumed,
  * because a `.gitattributes` that was never written and a `.gitattributes` that
  * is overridden from above look identical from inside this package. Every test
@@ -31,10 +27,10 @@ const MAC: RenderIdentity = {
   fonts: ['Inter/400/normal/abc'],
 };
 
-/** Same browser, different machine. The case the partition exists for. */
+/** Same browser, different machine. The case the identity check exists for. */
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-const ENTRY = '*.png filter=lfs diff=lfs merge=lfs -text';
+const ENTRY = '*-*.png filter=lfs diff=lfs merge=lfs -text';
 
 function rasterOf(identity: RenderIdentity, bytes = 'QUJD'): Raster {
   return { documentDigest: 'v1:doc', identity, width: 10, height: 10, bytes, missingFonts: [] };
@@ -75,7 +71,7 @@ describe('a baseline store in the repository', () => {
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe('QUJD');
     // At the durable layout's path, not somewhere of this store's own devising.
-    const path = join(root, partition(MAC), 'todo--empty.png');
+    const path = join(root, 'todo--empty-chromium.png');
     expect((await stat(path)).isFile()).toBe(true);
   });
 
@@ -99,13 +95,13 @@ describe('a baseline store in the repository', () => {
     await store.renderCache.put(rasterOf(MAC));
     await store.renderCache.get('v1:doc', MAC);
 
-    expect(calls).toEqual(['git check-attr filter -- probe.png', 'git lfs version']);
+    expect(calls).toEqual(['git check-attr filter -- probe-probe.png', 'git lfs version']);
     expect(calls.length).toBe(during);
   });
 
   it('does not let one machine reach another machine`s baseline', async () => {
-    // The partition is delegated rather than reimplemented, and this is the test
-    // that says so: wrapping the durable store must not have loosened it.
+    // The identity check is delegated rather than reimplemented, and this is the
+    // test that says so: wrapping the durable store must not have loosened it.
     const store = await createLfsStore({ root, git: TRACKED });
     await store.put({ subject: 'todo--empty' }, rasterOf(RUNNER));
 
@@ -139,13 +135,21 @@ describe('a baseline store in the repository', () => {
     // `.gitattributes` is a file people write by hand and other tools read.
     // Rewriting someone's entry into this package's preferred form would change
     // how git treats paths this package knows nothing about.
-    await writeFile(join(root, '.gitattributes'), '*.png text\n', 'utf8');
+    await writeFile(join(root, '.gitattributes'), '*-*.png text\n', 'utf8');
 
     const store = await createLfsStore({ root, git: TRACKED });
 
-    expect(await readFile(join(root, '.gitattributes'), 'utf8')).toBe('*.png text\n');
+    expect(await readFile(join(root, '.gitattributes'), 'utf8')).toBe('*-*.png text\n');
     expect(store.tracking.added).toBe(false);
     expect(store.tracking.diagnostics.join('\n')).toMatch(/does not route it through LFS/);
+  });
+
+  it('tracks the images a collocated template renders and no other image in the tree', async () => {
+    // A root that is the repository holds every screenshot, icon and fixture
+    // anyone committed. An entry for `*.png` would move all of them into LFS.
+    const store = await createLfsStore({ root, git: TRACKED, path: '{dir}/__baselines__/{file}/{name}-{engine}' });
+
+    expect(store.tracking.pattern).toBe('**/__baselines__/*/*-*.png');
   });
 
   it('appends without disturbing entries that were already there', async () => {
@@ -236,7 +240,7 @@ describe('a clone without git-lfs', () => {
     const pointer =
       'version https://git-lfs.github.com/spec/v1\n' +
       'oid sha256:4d7a2145b0d3f1e2c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7\nsize 1024\n';
-    await writeFile(join(root, partition(MAC), 'todo--empty.png'), pointer, 'utf8');
+    await writeFile(join(root, 'todo--empty-chromium.png'), pointer, 'utf8');
 
     // The class as much as the message: `run` routes a `RasterStoreError` to the
     // operator exit and reads any other throw as a fact about the subject it was
@@ -260,7 +264,7 @@ describe('a clone without git-lfs', () => {
     const store = await createLfsStore({ root, git: TRACKED });
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
     await writeFile(
-      join(root, partition(MAC), 'todo--empty.png'),
+      join(root, 'todo--empty-chromium.png'),
       'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a\nsize 1024\n',
       'utf8',
     );
@@ -269,6 +273,7 @@ describe('a clone without git-lfs', () => {
       documentDigest: 'v1:doc',
       comparable: true,
       pictured: true,
+      keepsSnapshot: false,
       storedUnder: MAC,
       missingFonts: [],
     });
@@ -313,8 +318,8 @@ describe('against a real git', () => {
       const store = await createLfsStore({ root, git: TRACKED, recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
-      expect(await readdir(join(root, partition(MAC)))).toEqual(['todo--empty.png']);
-      expect(await readdir(join(records, partition(MAC)))).toEqual(['todo--empty.json']);
+      expect((await readdir(root)).sort()).toEqual(['.gitattributes', 'todo--empty-chromium.png']);
+      expect(await readdir(records)).toEqual(['todo--empty-chromium.json']);
       expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe('QUJD');
     } finally {
       await rm(records, { recursive: true, force: true });

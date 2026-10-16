@@ -9,7 +9,9 @@ import {
   type Viewport,
 } from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
+import { watchArrivals } from './arrivals.js';
 import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
+import { CHROMIUM_RASTER_ARGS } from './renderer.js';
 import { pinnedRegion } from './viewport.js';
 
 /**
@@ -123,7 +125,12 @@ export interface Harness {
 }
 
 export async function createHarness(options: HarnessOptions): Promise<Harness> {
-  const browser = await chromium.launch({ headless: options.headless ?? true });
+  // Laid out under the text settings the renderer paints with, or a line that
+  // fits here wraps there and the painted page is a different height.
+  const browser = await chromium.launch({
+    headless: options.headless ?? true,
+    args: [...CHROMIUM_RASTER_ARGS],
+  });
   const errors: string[] = [];
 
   try {
@@ -147,8 +154,12 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     const features = featuresOf(forDriver(options.stabilize ?? [], driven), options.features);
     if (options.prepare !== undefined) await options.prepare(page);
 
+    // After the driver tricks, so the agent's first read of the clock is
+    // already the driven one, and before the navigation, so the first document
+    // gets the agent ahead of its own scripts as every later one does.
+    await page.addInitScript({ content: options.bundle });
     await page.goto(options.url, { waitUntil: 'load' });
-    await installAgent(page, options.bundle, errors);
+    await checkAgent(page, errors);
 
     const engine = `chromium@${browser.version()}`;
     const subjectId = options.subjectId ?? ((subject: string) => `fixture:${subject}`);
@@ -185,8 +196,9 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
 }
 
 /**
- * A harness whose page is watched by {@link observeNetwork} from before its
- * first navigation, when `network` asks for it; absent watches nothing.
+ * A harness whose page is watched from before its first navigation: by
+ * {@link observeNetwork} when `network` asks for it, and always by
+ * {@link watchArrivals}, which a page agent asks what is still arriving.
  *
  * The observation is the caller's to close, before the harness: it outlives the
  * harness's `prepare`, which is where it has to start, because a watcher
@@ -200,6 +212,7 @@ export async function createObservedHarness(
   const harness = await createHarness({
     ...options,
     prepare: async (page): Promise<void> => {
+      await watchArrivals(page);
       if (network !== undefined) observation = await observeNetwork(page, network);
     },
   });
@@ -244,28 +257,28 @@ async function newContext(
   });
 }
 
-async function installAgent(page: Page, bundle: string, errors: readonly string[]): Promise<void> {
-  await page.addScriptTag({ content: bundle });
-
-  /**
-   * And again for every document after this one.
-   *
-   * `addScriptTag` installs into the document that is open; `addInitScript`
-   * installs into the ones that follow. Both, because neither alone is enough:
-   * the init script does not touch the current document, and the script tag does
-   * not survive a navigation.
-   *
-   * There should not be a navigation — a session is one load and N subjects, and
-   * that is the whole economic argument. But the page is not this harness's to
-   * control: a Storybook preview reloads itself when a render it is replacing is
-   * still pending, a subject can set `location`, and a driver that assumed
-   * otherwise reported the truthful but useless `missing page agent
-   * __variance_authority_page_agent__` for every subject after the first one
-   * that reloaded. Losing the session's accumulated state to a reload is a
-   * weaker reading; losing the agent is no reading at all.
-   */
-  await page.addInitScript({ content: bundle });
-
+/**
+ * Whether the agent arrived. An init script installs it into every document of
+ * the page.
+ *
+ * Ahead of the page's scripts rather than after them, the first document
+ * included. An agent that has to see something from the start — React's commit
+ * stream, which `react-dom` only reports to a hook that existed when it loaded —
+ * missed it on the first document when the agent arrived there by script tag
+ * once the page had loaded, and only that document, so a run read its first
+ * subject with less than every other one.
+ *
+ * And into every document, not only the first. There should not be a
+ * navigation — a session is one load and N subjects, and that is the whole
+ * economic argument. But the page is not this harness's to control: a Storybook
+ * preview reloads itself when a render it is replacing is still pending, a
+ * subject can set `location`, and a driver that assumed otherwise reported the
+ * truthful but useless `missing page agent __variance_authority_page_agent__`
+ * for every subject after the first one that reloaded. Losing the session's
+ * accumulated state to a reload is a weaker reading; losing the agent is no
+ * reading at all.
+ */
+async function checkAgent(page: Page, errors: readonly string[]): Promise<void> {
   const installed = await page.evaluate(
     (global) => typeof (window as unknown as Record<string, unknown>)[global] === 'object',
     AGENT_GLOBAL,

@@ -52,6 +52,9 @@ export interface NodeSpec {
    */
   readonly owners?: readonly OwnerSpec[];
 
+  /** The component whose JSX created this node. See `Provenance.createdBy`. */
+  readonly createdBy?: string;
+
   /** Where the JSX that created this node is written, as a runtime records it. */
   readonly source?: SourceLocation;
 
@@ -107,13 +110,14 @@ export function node(spec: NodeSpec = {}): RawNode {
     ...(spec.rect ? { rect: spec.rect } : {}),
     ...(spec.text !== undefined ? { text: spec.text } : {}),
     ...(spec.holding ? { holding: spec.holding } : {}),
-    ...(spec.owners || spec.source || spec.stack
+    ...(spec.owners || spec.createdBy || spec.source || spec.stack
       ? {
           provenance: {
             owners: (spec.owners ?? []).map((owner) => ({
               name: owner.name,
               propsDigest: propsDigest(owner.props ?? {}),
             })),
+            ...(spec.createdBy ? { createdBy: spec.createdBy } : {}),
             ...(spec.source ? { source: spec.source } : {}),
             ...(spec.stack ? { stack: spec.stack } : {}),
           },

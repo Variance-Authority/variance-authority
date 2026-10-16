@@ -28,13 +28,15 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import type { ProbePlacement } from './instrumented-modules.js';
 import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
-import { selectionFrom, timesFrom } from './selection-environment.js';
+import { notingRead } from './record-base.js';
+import { landingTimes, selectionFrom } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
 
 export interface JestTestSelectionOptions {
@@ -79,6 +81,12 @@ export interface JestTestSelectionOptions {
    * ran before the file's first test.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go: after the project's transformer, through the map it
+   * returns, the default; or `before-transforms`, in the file as read, one
+   * parse and no map, for a suite whose transformer only strips types or JSX.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
@@ -181,6 +189,8 @@ export interface SelectionTransformerConfig {
   readonly unprobed?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
+  /** Where the probes go; `after-transforms` when absent. */
+  readonly placement?: ProbePlacement;
   /** Whether test files are cut, statement by statement; they are unless this is `false`. */
   readonly cadence?: boolean;
 }
@@ -310,7 +320,7 @@ export function withTestSelection(
   // A negated glob stays negated: `!` is Jest's, not part of the path.
   const unprobed = options.unprobed?.map((glob) =>
     glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
-  const placing = { mode, unprobed };
+  const placing = { mode, unprobed, placement: options.placement };
   const cadence = options.cadence !== false;
   const projects = inline?.map((project) =>
     instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence));
@@ -330,9 +340,10 @@ export function withTestSelection(
     ...(options.continuations === true ? { continuations: true } : {}),
   };
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
-  // A record named by file is the one this run lands in, so a shard's times are read there.
-  const times = timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
+  // Each reading notes the record it read against the record this run lands in, which names it.
+  const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
+  const selection = asked && notingRead(coverageFile, asked);
+  const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
     ...(projects === undefined ? instrumented(config, root, rootDir, placing, declared, cadence) : config),
@@ -434,7 +445,11 @@ function instrumented(
   config: JestConfig,
   root: string,
   rootDir: string,
-  { mode, unprobed }: { readonly mode: InstrumentMode | undefined; readonly unprobed: readonly string[] | undefined },
+  { mode, unprobed, placement }: {
+    readonly mode: InstrumentMode | undefined;
+    readonly unprobed: readonly string[] | undefined;
+    readonly placement?: ProbePlacement | undefined;
+  },
   declared: readonly string[],
   cadence: boolean,
 ): JestConfig {
@@ -459,6 +474,7 @@ function instrumented(
           ...(exclude.length === 0 ? {} : { exclude }),
           ...(unprobed === undefined ? {} : { unprobed }),
           ...(mode === undefined ? {} : { mode }),
+          ...(placement === undefined ? {} : { placement }),
           ...(cadence ? {} : { cadence: false }),
         },
       ],
@@ -476,4 +492,3 @@ function instrumented(
   };
 }
 
-export { mergeCoverage } from './merge.js';

@@ -161,7 +161,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -425,9 +425,12 @@ checkout (e2e): nothing is recorded in /repo: no run left a per-case index at �
 Not loaded by stories (visual): a run that never loaded the file has no answer about it, which is not the same as no test covering it.
 ```
 
-Once any suite answers, the answers come first, then any suite that has never
-run. A suite that never loaded the file costs one line at the end. When no suite
-answers, each says why in full, with the record it read, since a wrong path is
+Suites are asked nearest kind first: unit, integration, e2e, visual. Once any
+suite answers, the answers come first, then any suite that has never run. A
+suite that never loaded the file costs one line at the end. A suite whose record
+was made before the file existed says so, with the commit it recorded at, since
+only its next run can answer. When no suite answers, each says why in full,
+with the record it read, since a wrong path is
 then the likely cause. The record names files from the repository root, so give
 `--file` that way, or as an absolute path; one outside the root is refused. A
 refusal names the path you asked and no other: `apps/shop/src/checkout/total.ts`
@@ -435,8 +438,9 @@ is a different file from `src/checkout/total.ts`, and so is any other recorded
 path of the same name.
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
-with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. A file the suite loaded without
+with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`,
+to `unloaded` for a file the suite never loaded, or to `older` for a file its
+record predates. A file the suite loaded without
 instrumenting it is answered with `preconditionOf`, the test files that loaded
 it. `--suite <name>` reads one record alone, answers in the shape a repository with one record does, and so
 gives a suite's refusal in full.
@@ -964,14 +968,18 @@ on. Each changed place links to its lines at that commit.
 
 When the changed functions sit in more than one package, the verdict is
 followed by **Where this change lands**: one row a package, as its nearest
-`package.json` names it, with its changed functions counted by mark, the
-packages whose tests ran them (`own` for its own), and how many other packages
-import its changed files through any number of imports, type-only ones
-included. Packages with code no case ran come first, then those with the most
-functions no test importing their file ran. The table stays within 10 rows in a
-repository of any size: past that, the packages whose every changed function a
-test importing its file ran are folded into one row, and the packages that do
-not fit above it into another. `review.json` lists every package under
+`package.json` names it, with its changed functions counted by mark, how many
+of them hold code no case ran, the packages whose tests ran them (`own` for its
+own), and how many other packages import its changed files through any number
+of imports, type-only ones included. A function is counted under the mark the
+table of what ran gives it, for the nearest test that entered it, so a function
+a case entered is never counted under 🔴; a branch in it no case ran is counted
+in the next column, beside the functions no case entered. Packages with code no
+case ran come first, then those with the most functions no test importing their
+file ran. The table stays within 10 rows in a repository of any size: past
+that, the packages whose every changed function a test importing its file ran,
+in full, are folded into one row, and the packages that do not fit above it
+into another. `review.json` lists every package under
 `changedPackages`.
 
 Changed functions are listed in one table: how the edit wrote each (new,
@@ -1453,17 +1461,32 @@ remain separate files.
 accounting.
 
 When the page will be opened somewhere its images are not, add
-`--embed-images` and it carries every picture inside it:
+`--embed-images` and it carries the pictures its cards show:
 
 ```bash
 variance report --format html --embed-images > variance-report.html
 ```
 
-One file then opens anywhere, including a phone. On GitHub Actions, upload it
+One file then opens anywhere. On GitHub Actions, upload it
 with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
-opens the page in the browser instead of downloading a zip. The file grows
-with the images: a subject with a baseline and a change carries three
-pictures.
+opens the page in the browser instead of downloading a zip.
+
+The file grows with the subjects that changed. An unchanged subject carries no
+picture, because the page shows no card for it. A full page is carried whole, so every card keeps its wipe, blend, blink and
+trio, unless it is longer than 16,384 pixels, the largest image Chromium draws
+in one piece, and its run cut a change picture. Such a page is carried as that
+crop, and its card names each full page it leaves out, with its size. Those
+pages stay beside `report.json`, so the run's artifact still holds them.
+
+Every subject's card comes first in the file, then the picture each card opens
+on, then the pictures behind its other views. You can filter, read regions and
+copy commands while the pictures are still arriving, and every card's change is
+on screen before any card's other views have loaded. Each picture keeps its
+place at its own size before it arrives, and stays text until a view near the
+screen shows it, so opening the page decodes only what you are looking at. The
+page's script turns each carried picture into an image, so a viewer that runs
+no script shows the cards without their pictures. The command writes the page
+as it goes, one picture at a time, so its memory does not grow with the run.
 
 ### Detect instability with `run --flakes`
 
@@ -1588,6 +1611,32 @@ app/src/components/CartCard.tsx  3 observers
   …
 ```
 
+For a CI job that only combines records, `journeys combine` writes the one
+record an unsharded run would have written, and nothing else:
+
+```bash
+variance journeys combine shard-1/coverage.bin shard-2/coverage.bin \
+  --into artifacts/coverage.bin
+```
+
+```
+journeys: combined 2 records into artifacts/coverage.bin (342 tests, 1204 modules, 51873 crossings, 2210 cases, recorded at 4f2a1c9d0b73)
+```
+
+It reads the shards and nothing else: no configuration, no checkout, no
+source index. The output is the same bytes whatever order the shards are named
+in. `--into` names a new file: a path that is already there, a shard among
+them, is refused, because combining over a record would discard it. To lay the
+shards over a record that is already there, name it to `journeys` instead:
+`variance journeys <shard.bin>... --into <record>`. Paths resolve from the
+working directory. Landing the combined record, in this checkout or another,
+is `journeys`'s; the rules below apply to both commands, because `journeys`
+combines its shards the same way and lands the result as one.
+
+Each test file keeps the duration its shard measured: a test file runs in one
+shard, and a file two shards recorded is refused below. A shard that recorded no
+test files changes nothing, whatever commit or recipe it names.
+
 The fold refuses shards that were not one run, naming both files: recorded under
 different probe recipes, or at different commits — and a shard recorded outside
 a checkout names no commit, which is a disagreement rather than a blank. A test
@@ -1595,6 +1644,27 @@ file two shards both recorded means the split overlapped, which only the
 operator can resolve. A module one shard could not instrument is answered by the
 shards that did: that row records that one build could not read the module, and
 is no evidence about the tests another build watched run it.
+Shards whose selection read two records fail the build, naming both. A shard
+whose record names that read `unknown`, as a JVM shard's does, is combined
+without that check, and the output names it.
+
+The cases are refused by the shard that holds them, with what to do. A test
+file whose cases two shards both ran names both shards: two runs of one file's
+cases cannot both be the suite's, so you combine only one of them. A case index
+this build cannot read, the row spelling of older versions among them, is
+recorded again with this version. A case whose lines stand on a file two
+shards cut into different regions is refused, because its lines name regions
+by their order; record every shard with one build. Two shards that hold
+different Eyes journals for one attempt of one case, or a journal of a case
+the combined index does not record, are refused by name. Shards that started
+from different records fail the build: each record names the record its run
+was laid over, or none, and shards that name two, that stand on before layers
+at different commits, or that stand on one file at different text, each split
+the suite against another plan, so a test may have run in no shard. The
+message names the shards and their records; run the whole build again, so
+that every shard restores the same cached record. A shard that names no
+record at all, as one an earlier version wrote, is recorded again with this
+version.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root
@@ -1612,7 +1682,9 @@ coverage, and `covering`, `coverage` and `review` answer from the result. If you
 land a shard that ran a test file to the end and kept no cases, the landing
 drops the index, because no index can hold which of that file's cases run a
 line. Those commands then print that nothing is recorded until a run writes one.
-A shard keeps no cases when its seam recorded none. If another run is writing
+A shard keeps no cases when its seam recorded none, and one that kept cases
+beside one that kept none is refused, because their combined record could
+answer for the cases of only some of its files. If another run is writing
 the record when you land, nothing is written and `journeys` exits non-zero; land
 again once that run ends.
 
@@ -1645,7 +1717,7 @@ variance select
 source index updated: 2215 files, 0 read again, at <cache>/test-selection/<digest>/source-index.bin
 code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
 journeys, suite unit: 5718 cases walked; a caller is found for 216327 of the 253543 functions they ran (85%); 8895 calls, 204 package flows; 2 imports the index did not resolve were resolved by the walk
-dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.json
+dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.bin
 questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
 
@@ -2087,9 +2159,10 @@ follows three rules:
   the longest files first, each on the shard with the least work so far. A
   subject with no recorded cost is priced at the median of the ones that have
   one.
-- **A checksum decides when nothing was recorded.** Each file goes to the shard
-  with the highest `sha256` of the file and the shard number, so adding a file
-  moves no other one.
+- **File count decides when nothing was recorded.** Every file weighs the same
+  and is placed by the same rule, ties broken by path and then by the lowest
+  shard, so the shards differ by at most one file. Adding a file can move
+  others: the placement is a function of the whole plan.
 
 The shard that finishes last is the file `variance ask costs` lists first: it
 prints the slowest files with their summed time, then the slowest subjects, from
@@ -2113,7 +2186,7 @@ its own index and needs no merge.
 
 The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A
-checkout with no share, or a line that holds no costs, places by checksum.
+checkout with no share, or a line that holds no costs, places by file count.
 
 `--subjects <glob>` is the other way to split, when you want to choose the
 slices yourself.
@@ -2159,9 +2232,10 @@ and the filter does not distinguish the clean ones. It writes to `--body-file`
 when given one and to stdout otherwise, and it posts nothing itself. `--marker`
 prints the HTML comment the poster searches for to find and rewrite its own
 previous docket; it is printed by a separate flag because it is needed in
-exactly the case where there is no body to read it out of. Exit `0` means *this
-rendered*, never *the run was clean* — the verdict belongs to `run`, which
-already decided it.
+exactly the case where there is no body to read it out of. It names the config's
+`project`, so two configs gating one pull request keep a comment each. Exit `0`
+means *this rendered*, never *the run was clean* — the verdict belongs to `run`,
+which already decided it.
 
 `--intent <text>` declares what the change was *meant* to do, overriding the
 config's `intent`. **It is a label, and it changes no verdict.** The string is
@@ -2298,7 +2372,7 @@ owns its own collector, renderer, storage, or review surface:
 - `run` takes `shard` as `{ index, total }`, the library form of `--shard k/n`,
   and `costs` as `{ commit, costs }`, the subject costs that place files on
   shards and order each worker's queue longest first. The executable reads
-  `costs` from the share; without them a checksum places each file.
+  `costs` from the share; without them each file is placed by count.
 - `formatReport` takes a `format` of `text`, `json`, or `html`. `subject` narrows
   text or JSON to one id and is refused for HTML because a narrowed page would
   hide coverage. Use the CLI's `report` command when the report must be loaded
@@ -2322,10 +2396,14 @@ owns its own collector, renderer, storage, or review surface:
   read. `mainlineRead` and `mainlineMissed` print the same `record of
   "<suite>":` line `select` does. The mainline's record is read with the runs
   record the publishing run carried beside it, at `mainline.runs`. In a fresh CI
-  checkout, `layMainline` copies the record and its per-case index into the
-  checkout's own layer, with that runs record as a seed that lists no run, so
-  the run the job makes lands on them, as a cache restore would. `env` stands in
-  for `process.env` when the line is read, and `cacheRoot` for the cache.
+  checkout, `layMainline(root, mainline, instrumentation)` copies the record and
+  its per-case index into the checkout's own layer, with that runs record as a
+  seed that lists no run, so the run the job makes lands on them, as a cache
+  restore would. `instrumentation` is the probes that run records under: a
+  record written under other probes is not copied, because no run could be laid
+  over it, and comes back as `passed`, which `mainlinePassedOver` prints. Pass
+  `undefined` for a landing that lays no coverage. `env` stands in for
+  `process.env` when the line is read, and `cacheRoot` for the cache.
 - `recordedExecutionFile(root, suite)` names the record `distill`, `covering`
   and `review` read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,
@@ -2348,6 +2426,42 @@ owns its own collector, renderer, storage, or review surface:
 That last one is the failure this whole system exists to make impossible. A
 summary that prints "nothing to review" because eleven subjects failed to render
 is worse than no summary at all.
+
+### Where a run spent its time
+
+Each observation in the report carries `steps` beside `costMs`: every phase the
+subject went through, in the order it ran, with its wall time in milliseconds.
+The collector's phases come first under `collect.` (`collect.navigate`,
+`collect.wait-for-fonts`, `collect.capture`), the run's own follow
+(`inspect`, `settle`, `baseline`, `decode`, `compare`, `write`), and a painted
+subject adds the renderer's under `render.` (`render.load`,
+`render.screenshot`). A phase the subject skipped is absent, not zero: a settled
+subject has no `decode`. A route read's `collect.transfer` is the remainder: the
+read's time less the steps the page timed itself, so it holds the crossing from
+the page and anything the page did not time. A settled route subject, with its
+steps cut to five:
+
+```json
+{
+  "subject": "docs/reference",
+  "verdict": "unchanged",
+  "costMs": 452.4,
+  "steps": [
+    { "step": "collect.navigate", "ms": 50.6 },
+    { "step": "collect.capture", "ms": 63.5 },
+    { "step": "collect.normalize", "ms": 53.3 },
+    { "step": "inspect", "ms": 0.8 },
+    { "step": "settle", "ms": 2 }
+  ]
+}
+```
+
+The report's `steps` sums each phase over the subjects that ran it and counts
+them, and `workers` says how many worlds collected side by side. With more than
+one, a phase's total is subject time, not wall time: it can exceed the run's
+duration, and each span includes what the other worlds cost it. Timings are
+part of no digest, so two runs that differ only in timing write the same
+images, records and baselines.
 
 ## Acceptance does not produce an image
 
@@ -2474,11 +2588,12 @@ The remaining top-level keys:
 | `sensitivity` | narrows a named subject to a sensitivity level |
 | `decoder` | which PNG implementation to use |
 | `timezoneId`, `locale` | the IANA timezone and BCP 47 language the collectors read in and the renderer paints in; `UTC` and `en-US` when unset, never the host's. Part of the render identity, so changing one names the moved pair as the cause of every change until it is accepted again |
-| `concurrency` | how many subjects may be in flight at once |
-| `workers` | how many browser worlds one run collects in. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world and the run warns |
+| `concurrency` | how many subjects may be rendered and compared at once, split evenly across the worlds and rounded up, so at least one per world |
+| `workers` | how many browser worlds one run collects in; half the machine's logical cores when unset, never more than a `concurrency` you set and never more than there are files. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world, and the run warns when you set `workers`. Set `1` when the server under test cannot take concurrent pages. The report records the worlds it used in `workers` |
 | `intent` | the default `--intent` label |
 | `suites` | each test suite the repository runs, and its kind: `unit`, `integration`, `e2e` or `visual`. Each suite records on its own. Read only from the file at the repository root, as the [execution record](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite) page describes |
 | `tiers` | line budgets, largest first, that `variance layers` places each package in by how much code it pulls in, and that a `maxTier` rule in a `.relations.json` names. Tier 0 is the first entry and has no limit. Read only from the file at the repository root; see [tiers](https://variance-authority.dev/docs/boundaries#tiers-say-how-much-code-a-package-pulls-in) |
+| `typescript.tsconfig` | which `tsconfig` decides where an import resolves: `"auto"`, the default, reads the config that governs each file; a path from the repository root reads that config and the projects it references; `false` reads none, so no `paths` and no `customConditions`. `variance doctor` names the configs in the repository that add conditions, map `paths` or set `baseUrl`, and suggests `false` only when none does. Read only from the file at the repository root |
 | `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
 
 `history.token`, and `baselines.token` on a remote store, take either a literal
@@ -2570,6 +2685,14 @@ instead of naming them:
   run: for suite in $SHARED; do npx variance share --suite "$suite"; done
 ```
 
+With a config, `--format github` also prints `project=<segment>`: the config's
+`project` as one path segment that a git ref and an Actions artifact name both
+take. Every UTF-8 byte but a letter, a digit, `_` or `-` is written as `%XX`,
+so `@acme/web` stays one segment and `a b` stays apart from `a-b`, and a project
+holding a lone surrogate, which has no UTF-8 bytes, is refused. The composite
+action names its report page artifact and its images ref with it, and
+`variance comment --marker` spells the project the same way.
+
 A key is `variance-<file>:<branch>:<commit>`. The branch is the one a pull
 request targets, so a pull request restores what its target saved and never
 what it saved itself. A save appends the run id, because the Actions cache
@@ -2619,17 +2742,23 @@ pipelines:
 The poster is the platform-specific half, and it needs one thing from this CLI:
 
 ```bash
-variance comment --marker
+variance comment --config variance.config.json --marker
 ```
 
-That prints the invisible marker the rendered body embeds, and nothing else.
+That prints the invisible marker the rendered body embeds, and nothing else. It
+names the config's `project`, so each config's poster finds its own comment.
 Finding a previous comment by it and updating that comment — rather than adding
 one per run — is the whole of the "one comment, updated in place" rule; on
 Bitbucket that is a `GET` of
 `/2.0/repositories/{workspace}/{repo}/pullrequests/{id}/comments`, a search for
 the marker in `content.raw`, and a `PUT` to the one that has it or a `POST` if
-none does. The composite action above does the same three steps against
-GitHub's API.
+none does. A docket rendered before the marker named its project carries
+`<!-- variance-authority: pr-docket v1 -->`: the poster of the gate that wrote
+it takes a comment carrying it over, when none carries its own marker, and keeps
+an open pull request at one comment through the upgrade. A gate that never
+commented before leaves it alone, because it is another gate's docket. The
+composite action above does the same steps against GitHub's API, and adopts the
+old marker the same way unless `adopt-unkeyed-comment` is `'false'`.
 
 The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
@@ -2649,14 +2778,23 @@ variance comment --body-file body.md \
   --to-accept 'add the **variance: accept** label to this pull request'
 ```
 
-`--image-root` puts pictures in the comment: the leading cause's before and
-after on the first screen, and each further cause's pair in the fold. Give it
+`--image-root` puts pictures in the comment: the leading cause's change on the
+first screen, and each further cause's in the fold. The change is the
+`change.png` a run writes beside a subject's diff: each of the largest changed
+regions with the rows around it, before beside after, at one image pixel per
+pixel. Each row sits level with the row it became, with striped filler opposite
+rows only one side has. Every window is the same width, framed, under the
+subject's name and a label per column: `Before` the baseline, `After` this run.
+What changed is washed in red on the before and green on the after, and a blue
+arrow between them runs beside rows that only moved; a blank gap or
+plain box whose height changed is marked there too, with a line across it. A subject with no region to crop shows
+its whole before and after instead. Give it
 the address you published the report's directory under. The comment joins each
 image path the report records to it, with every segment percent-encoded, so the
 file `images/story%3Abutton.before.png` is asked for as
 `images/story%253Abutton.before.png`. On GitHub, a commit's `raw` address works,
 `https://github.com/<owner>/<repo>/raw/<sha>`, and the composite action's
-`image-ref` input publishes one.
+`image-ref-prefix` input publishes one.
 
 ## Integration troubleshooting
 
@@ -2665,7 +2803,7 @@ file `images/story%3Abutton.before.png` is asked for as
 | Exit `2` before any docket | The run failed operationally rather than finding a reviewable change. | Run `variance doctor` in the same environment; then inspect browser, collector, renderer, and store diagnostics. Do not suppress this with `|| true`. |
 | Every subject is `new` after changing browser or renderer settings | The environment identity changed, so old and new images are intentionally partitioned. | Confirm the engine, viewport scale, fonts, and stabilization inputs. Establish new baselines only when the identity change was intended. |
 | A planned subject is absent from the report | Coverage accounting failed; a complete run must account for observed, excluded, or failed subjects. | Inspect collector failures and, for shards, verify the subject globs cover the whole plan without overlap. |
-| HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory. |
+| HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory, or write it with `--embed-images` so it carries its pictures. |
 | A ready selector times out | The collector opened the subject but its project-owned completion marker never appeared. | Check the collector module's id-to-selector map; do not replace the marker with an arbitrary sleep. |
 | A clean pull request has no comment body | This is expected. `variance comment` emits an empty body for a clean report. | Keep the CI gate on `variance run`; let the posting integration delete or skip its prior comment. |
 | A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |

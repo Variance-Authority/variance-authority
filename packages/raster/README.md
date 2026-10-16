@@ -402,8 +402,9 @@ packages named in the table above.
   never throws. Wrap yours in `neverFails(cache)` at construction and that stays
   true whatever it is built on.
 - **`DiffPolicy`** — `{ id, threshold, includeAA }`. `DEFAULT_POLICY` is
-  `threshold: 0.1, includeAA: false`, which forgives antialiasing and is what a
-  real deployment runs, because text edges are otherwise permanently red.
+  `threshold: 0.01, includeAA: false`. It forgives antialiasing, because text
+  edges are otherwise permanently red, and a colour change of up to 1%, because
+  a browser can paint the same story one level per channel apart.
   `STRICT_POLICY` is `threshold: 0, includeAA: true`. Report both and "zero
   pixels changed" can be told apart from "zero pixels changed *after
   forgiveness*". `RasterComparison` and `CompareOptions` are the shapes a

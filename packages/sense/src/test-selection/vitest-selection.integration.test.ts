@@ -122,7 +122,7 @@ describe('a Vitest run under --shard, with the times a record holds', () => {
   async function shard(k: number) {
     await writeTestCoverage(resolve(directory, `timed-${k}.bin`), {
       version: 3,
-      instrumentation: 'fixture',
+      instrumentation: instrumentationId('presence'),
       tests: [
         { file: at('unit/unit.case.ts'), complete: true, preconditions: [], duration: 9000 },
         { file: at('dom/dom.case.ts'), complete: true, preconditions: [], duration: 100 },

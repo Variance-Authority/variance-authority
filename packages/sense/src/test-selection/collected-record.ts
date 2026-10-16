@@ -18,7 +18,7 @@ import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { withoutRetired } from './merge-carry.js';
+import { withoutRetired } from './carried-rows.js';
 
 /**
  * `record` without the test files `collected` does not name, and which those
@@ -70,7 +70,7 @@ function withoutTests(coverage: TestCoverage, retired: ReadonlySet<string>): Tes
  * The case sections with the cases of every file `collected` does not name
  * retired, the way a run retires a file the checkout no longer holds. An index
  * this build cannot lay over is carried as it was, for its reader to refuse,
- * and so are the last run's names.
+ * and so are the last run's names and the record it started from.
  */
 function withoutCases(sections: CaseSections, collected: ReadonlySet<string>): CaseSections {
   const nothing = encodeAsSetExecutionIndex({ tests: [], modules: [] });
@@ -87,6 +87,7 @@ function withoutCases(sections: CaseSections, collected: ReadonlySet<string>): C
     ...(index === undefined ? {} : { index }),
     ...(before === undefined ? {} : { before }),
     ...(sections.last === undefined ? {} : { last: sections.last }),
+    ...(sections.base === undefined ? {} : { base: sections.base }),
     ...(eyes === undefined ? {} : { eyes }),
   };
 }

@@ -2,7 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-03
-**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a run compares against an image another machine painted, with the identity named as the cause; the partition keys the store, it does not refuse
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a run compares against an image another machine painted, with the identity named as the cause; the partition keys the store, it does not refuse; [ADR-0091](0091-a-baseline-is-named-for-its-subject.md) — a baseline's path is the operator's template, with no identity in it, and what `createLfsStore` delegates is that template
 **Extends:** ADR-0011 (durable and ephemeral retention), ADR-0013 (packages are named for their requirements)
 **Discharges:** spec 0004
 

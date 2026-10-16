@@ -112,14 +112,17 @@ to group the changed pixels into rectangles.
 
 | constant | `id` | `threshold` | `includeAA` | counts |
 | --- | --- | --- | --- | --- |
-| `DEFAULT_POLICY` | `default` | `0.1` | `false` | pixels past 10% YIQ colour distance, with antialiasing detected and forgiven |
+| `DEFAULT_POLICY` | `default` | `0.01` | `false` | pixels past 1% YIQ colour distance, with antialiasing detected and forgiven |
 | `STRICT_POLICY` | `strict` | `0` | `true` | any channel difference at all, antialiasing included |
 
-`DEFAULT_POLICY` is the forgiving one. It is also what `pixelmatch` runs at out
-of the box, which is what Playwright's `toHaveScreenshot` and jest-image-snapshot
-report — so a number under `default` is comparable with a number from those
-tools. Both policies are measured by default so that "zero pixels changed" can be
-told apart from "zero pixels changed after antialiasing was forgiven".
+`DEFAULT_POLICY` is the forgiving one. `pixelmatch` runs at `threshold: 0.1` out
+of the box, and Playwright 1.62's `toHaveScreenshot` at `0.2`. At `0.1`, a border
+colour changed from `#2f3437` to `#3a4043` counts as no change, so the default
+here is `0.01`. That still forgives the one-level difference per channel that a
+browser can paint when it renders the same story twice. To compare a number with
+one from another tool, count a policy at that tool's threshold beside these two.
+Both policies are measured by default so that "zero pixels changed" can be told
+apart from "zero pixels changed after forgiveness".
 
 A `DiffPolicy` is a plain object with those three fields, so define your own.
 This is an excerpt — `before` and `after` are the buffers from the sample above:
@@ -127,7 +130,7 @@ This is an excerpt — `before` and `after` are the buffers from the sample abov
 ```ts
 import type { DiffPolicy } from '@variance-authority/raster';
 
-const NEAR_EXACT: DiffPolicy = { id: 'near-exact', threshold: 0.02, includeAA: false };
+const NEAR_EXACT: DiffPolicy = { id: 'near-exact', threshold: 0.005, includeAA: false };
 
 const comparison = comparePngs(before, after, {
   policies: [NEAR_EXACT],
@@ -142,12 +145,20 @@ shipped constants. `isolateWith` picks which one of them the returned
 rather than returning a mask describing a different comparison from the counts
 beside it.
 
-## Mismatched sizes are padded
+## Content that moved is aligned
 
 `pixelmatch` requires equal dimensions, and Playwright's `toHaveScreenshot` fails
-outright when they differ. Here both images are copied onto the union box,
-top-left aligned, `dimensionsChanged` is set, and `before` / `after` report the
-original sizes — so a size change is measured rather than merely detected.
+outright when they differ. A full-page capture changes height whenever content
+is inserted, and compared position by position every row under the insertion
+sits against the row that used to be there, so a paragraph added near the top
+marks the whole rest of the page as changed.
+
+Two images of the same width are aligned row by row first, the way a text diff
+aligns lines. Each after row is compared with the before row it shows: content
+that moved is compared where it moved to, rows with no partner in the before
+image are marked in full as inserted, and before rows with no partner are
+reported as removed. The comparison is drawn on the after image's canvas,
+`dimensionsChanged` is set, and `before` / `after` report the original sizes.
 
 A 20×20 white image against a 20×21 copy with one black row added at the bottom:
 
@@ -160,13 +171,52 @@ A 20×20 white image against a 20×21 copy with one black row added at the botto
   after: { width: 20, height: 21 },
   changed: { default: 20, strict: 20 },
   total: 420,
-  mask: { width: 20, height: 21, changed: 20 }
+  mask: { width: 20, height: 21, changed: 20 },
+  alignment: { inserted: [{ from: 20, to: 21 }], removed: [], shifted: [] }
 }
 ```
 
-Twenty pixels — the added row — rather than the whole image.
+Twenty pixels — the added row — rather than the whole image. `alignment` names
+the after rows that were inserted, the before rows that were removed with `at`,
+the after row they would have sat above, and the after rows that moved with `by`,
+how far. Content that moved without changing still counts as a change: the
+pixels match, and the rows say where they went.
 
-The padding is opaque **white**, and that is a position rather than a derived
+The alignment proposes pairs and the pixel comparison judges each one, and a
+row that moved, came or went is a change in itself, so no pairing makes a page
+read as unchanged. The shortest edit counts runs of rows, not pixels, so a
+pairing is kept only when it leaves fewer pixels differing than position does:
+where a mark beside a line of text changed in place, a matching row at another
+height would otherwise shift the lines around it. The count charges what each
+side leaves: the pixels that differ between paired rows, and a row the pairing
+leaves unpaired, inserted or removed, in full. A tie goes to whichever moved
+nothing. The rows a
+run of identical rows grew by, such as a white gap one row taller, are
+inserted, as the rows it lost are removed, so the place it grew is a region. Rows rewritten between two
+kept runs are paired from the band's top or its bottom, whichever leaves fewer
+pixels differing, so a block drawn into the middle of a gap marks the block and
+not the gap under it. Where two paired runs meet, the before rows on either
+side were not neighbours, and the anti-aliasing test, which reads neighbours,
+may count a pixel on that seam differently. Only whole rows are matched:
+content that moves in one column beside a column that stays put is compared
+where it sits.
+
+When the widths differ there is no row of one image in the other. Both are then
+copied onto the union box, top-left aligned, and compared position by position,
+and `alignment` is absent.
+
+The shortest edit is searched for up to 2,000 runs of rows, and it counts every
+change on the page, so a rewritten section and a few lines reflowed under it can
+pass that on a long page. Past it the rows are split where both images hold a
+run of rows exactly once, as patience diff does, and each stretch between two
+such runs is aligned on its own: the rows an edit only moved still pair with the
+rows they moved from. A run is a block of identical rows, counted as one. A
+stretch the two images share no such run in is paired by position within it, as
+is every stretch left once the split has spent as much work as the search may,
+and the pairing is still kept only when it leaves fewer pixels differing than
+position does.
+
+That padding is opaque **white**, and that is a position rather than a derived
 value: white is taken as the page's assumed canvas. Transparent padding would
 invent a difference wherever the shorter image's own background is opaque, which
 is most captures. The cost lands on dark-themed UIs, where the padded strip reads
@@ -185,6 +235,7 @@ the bytes arrive cannot change a verdict.
 | `comparePixels` | `(left: DecodedImage, right: DecodedImage, options?: CompareOptions) => RasterComparison` |
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Buffer` |
+| `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
 | `pngSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
 
@@ -214,6 +265,36 @@ default decoder is `pngjs`, so this package still requires nothing native.
 in red — for the person who does want to look. It is derived from the same bytes
 and is not the comparison result.
 
+`changeImages` returns that same diff and, beside it, `change`: the change at
+its own size, for a page too tall to read whole once it is scaled to a column.
+Pass it the regions the comparison isolated (`isolateRegions` from
+`@variance-authority/core/attribute`). Each of the three heaviest, merged where
+they meet, is cut with 32 rows above and below and at least 320 pixels wide, and
+shown as its before beside its after. A window stops at 400 rows, and its top
+and bottom move out of any line of text they would cut. Every window is cut as
+wide as the widest, so the panels line up down the sheet; each is framed, on a
+neutral canvas, with a margin between one window and the next. The before
+panel is read through the row alignment, so each row sits level with the row it
+became: opposite an insertion the before panel shows striped filler, and at a
+removal the after panel does. What changed is washed in red on the before and
+green on the after, with an edge of the same colour just outside it, widened
+to the space either side of the words it starts and ends in. Rows that only
+moved are not marked on the panels; a blue arrow in the gutter runs beside
+them, its head the way they went. A run of identical rows — a blank gap, or
+the plain inside of a box — that grew or shrank by more than a row is spacing
+that changed: it gets a window while the changes leave one free,
+and a blue line across the gutter rather than a mark, at both edges of a
+gap that grew and at the one place a gap that shrank closed. A gap one row
+taller or shorter is rounding from content that moved, and gets neither. With
+no regions, `change` is absent.
+
+Each column is labelled `Before` or `After`, beside a red or a green dot. `labels` adds
+what the sheet is of and where each side came from: `{ subject: 'story:button',
+before: 'baseline', after: 'this run' }` sets the subject over both columns and
+each source beside its label. The text is Inter, drawn from glyphs shipped in
+`glyphs/` with no browser and no font on the machine; Inter is under the SIL
+Open Font License 1.1, in `glyphs/inter-LICENSE.txt`.
+
 `pngSize` reads the width and height out of the IHDR without decoding, and
 returns `null` for bytes that are not a PNG or are too short for a header.
 That is the cheap way to check whether two captures are even the same shape.
@@ -234,7 +315,7 @@ from the image, and no component list is attached — `undefined` reads as
 
 ## `png/mask` — the same mask, without a codec
 
-`@variance-authority/png/mask` exports the two functions that do the per-pixel
+`@variance-authority/png/mask` exports the functions that do the per-pixel
 work, over raw RGBA. Take it when the pixels are already in hand: a canvas, a
 framebuffer, `createImageBitmap` in a review page. A bundler following this
 subpath never reaches `pngjs`.
@@ -258,8 +339,9 @@ console.log(padded.width, padded.height); // 4 4
 ```
 
 `differencePixels` returns `{ width, height, data, changed }`, where `data` is
-RGBA. It pads to the union box itself, so `padTo` is only worth calling directly
-when you need the padded pixels for something else. Pass
+RGBA, and `alignment` when it aligned the rows. It aligns or pads on its own, so
+`padTo` is only worth calling directly when you need the padded pixels for
+something else. Pass
 `{ diffMask: true }` as a fourth argument and it writes only the differing pixels
 and leaves the rest transparent, which is how `comparePngs` gets a mask without
 recovering one from a red-on-grey picture.

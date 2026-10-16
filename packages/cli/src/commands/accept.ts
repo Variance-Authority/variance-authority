@@ -121,8 +121,9 @@ export interface AcceptResult {
    */
   readonly alreadyBaseline: number;
   /**
-   * Unchanged subjects written again under this run's identity (ADR-0090).
-   * Counted apart from `accepted`: their pixels did not move, so nobody approved
+   * Unchanged subjects written again: under this run's identity when the one
+   * that painted the baseline moved (ADR-0090), or to record the snapshot of
+   * its nodes the baseline did not keep (ADR-0027). Counted apart from `accepted`: their pixels did not move, so nobody approved
    * a change, and neither the history record nor the commit message is told one.
    */
   readonly restamped: number;
@@ -261,7 +262,7 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
     await options.store.put(
       {
         subject: observation.subject,
-        ...(observation.placement !== undefined ? { path: observation.placement } : {}),
+        ...observation.baselineKey,
       },
       raster,
     );
@@ -370,7 +371,7 @@ export function formatAcceptance(result: AcceptResult): string {
       (result.alreadyBaseline > 0
         ? `, ${result.alreadyBaseline} already the baseline`
         : '') +
-      (result.restamped > 0 ? `, ${result.restamped} re-stamped under this run's identity` : '') +
+      (result.restamped > 0 ? `, ${result.restamped} unchanged and re-stamped` : '') +
       (result.refused.length > 0 ? `, refused ${result.refused.length}` : ''),
     ...result.accepted.map((entry) => `  [accepted] ${entry.subject} — ${entry.from}`),
     ...result.refused.map((entry) => `  [refused]  ${entry.subject}: ${entry.because}`),

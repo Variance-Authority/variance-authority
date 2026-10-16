@@ -360,8 +360,8 @@ test('the cart states', async ({ page }, testInfo) => {
 ```
 
 `unchanged` and `new` write nothing: there is nothing to look at in the first and
-nothing to compare against in the second. Two images of different sizes leave the pair and no diff, because they have no
-common canvas and the sizes are the whole finding.
+nothing to compare against in the second. A subject that changed size gets a diff on the after image: rows inserted
+above the content are marked, and the content they pushed down is compared where it moved to.
 
 Off by default on the direct path, and off is a real choice: the images are the
 largest thing a run can produce, and a suite that reads the verdict in CI and
@@ -393,7 +393,7 @@ const variance = await createVariance(page, {
 | Field | Use it when | Default and boundary |
 | --- | --- | --- |
 | `id` | Observations do not each name a `subjectId`. | None. An observation with neither is refused rather than given an invented address. |
-| `colorScheme`, `deviceScaleFactor` | Ever. Both partition the baseline. | `light` and `1`. |
+| `colorScheme`, `deviceScaleFactor` | Ever. The scale factor is part of the identity a baseline records, so a change names it as the cause. Neither is in the baseline's path: two projects that differ only in these share one baseline, so give their observations distinct `subjectId`s. | `light` and `1`. |
 | `baseURL` | Recording should use the URL the page is served from. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
 | `owner` | The run records which spec covered which source. | Omitted; the run records no execution against a file. |
 | `accepting` | This run is the one promoting candidates to baselines. | `false`. Under `TestInfo` it is `--update-snapshots=all\|changed` and nothing else — `missing` is the flag's absence. |
@@ -434,7 +434,7 @@ The three are passed separately because Rstest requires a test body's first
 parameter to be an object pattern, so there is no whole context to hand over.
 `expect` is the one the body was handed, which saves importing a second.
 `id` is the test's title path, `owner` is the spec relative to the project root,
-the raster partition — colour scheme, scale factor and base URL — is read off
+the raster settings — colour scheme, scale factor and base URL — are read off
 the `playwright` fixture's `contextOptions`, whatever `definePlaywrightConfig`
 resolved them to, and `accepting` is `rstest run -u` — Rstest's default writes
 snapshots that have none yet, which is an absence and not an approval.
@@ -578,6 +578,61 @@ Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
 
+### Place a shard by whole files
+
+Under `--shard k/n`, the reporter places the shard by whole spec files, and
+Playwright's own split does not run. Playwright splits by test group, and under
+`fullyParallel` a group is one test, so one file's tests would run in two
+shards and each shard would record part of the file. Each file goes to one
+shard, by the time it took on the last recorded run. When the record has no
+times, every file is priced the same, so the shards are balanced by file count.
+Every shard computes the same placement from
+the same record, as [sharding](../../docs/sharding.md) shows for Vitest and Jest,
+and prints one line on stderr before the first test:
+
+```text
+variance-authority: shard 1/2 by file count: 2 of 3 files; no times at …/coverage.bin: nothing is recorded there
+```
+
+The placement runs on the collected suite, after `--project`, `--grep` and
+`.only`. A file that several projects run, or that `repeatEach` repeats, goes
+with all its copies to one shard. A setup or teardown project is not placed:
+Playwright runs it in every shard that keeps a test that depends on it, and each
+of those shards records it, so combining the shards' records refuses its files
+as run by two shards. A project none of whose files are in this shard is left
+out whole, so its setup does not run for nothing. A shard left no file passes.
+
+Three things decide whether the placement runs:
+
+- **Playwright 1.62 or newer.** Older versions give the reporter no way to see
+  the suite before Playwright splits it, so `withTestSelection` refuses a run
+  that asks for a shard when the configuration is evaluated, before any test
+  starts, whether `--shard` is on the command line or `shard` is in the
+  configuration. It exits non-zero with `variance-authority: refusing shard
+  k/n: Playwright <version> would split it test by test`, and the version it
+  needs. A run with no shard runs as usual.
+- **The reporter is in the run.** `--reporter` on the command line replaces
+  every reporter your configuration names, this one included, so a sharded run
+  whose `--reporter` does not name `@variance-authority/playwright-test/reporter`
+  is refused the same way. Name it there too, as in
+  `--reporter=dot,@variance-authority/playwright-test/reporter`, or name extra
+  reporters in the configuration. A path that resolves to the reporter, as
+  Playwright resolves `--reporter` from the working directory, names it too.
+  A tool that starts Playwright through its API
+  and replaces the reporters is not seen: the shard is then split by
+  Playwright, test by test, with no line.
+- **`--shard` is on the command line or `shard` in the configuration.** Without
+  either, the reporter places nothing.
+
+`PWTEST_SHARD_WEIGHTS` is ignored for placement: Playwright applies the weights
+only in its own split, which the placement turns off, and the recorded times
+weigh each shard. Playwright still validates the variable as it reads the
+command line, and refuses a weight that is not a non-negative number.
+
+A configuration that names `@variance-authority/playwright-test/reporter` in
+`reporter` itself, without `withTestSelection`, is not refused below
+Playwright 1.62, and Playwright splits its shards test by test.
+
 ### Record which spec line reached each region
 
 A case's crossings name the regions its test reached, not the statement that
@@ -665,6 +720,7 @@ message reads *preconditions unmeasured* rather than *no preconditions recorded*
 | Fixture | Purpose | Default |
 | --- | --- | --- |
 | `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
+| `varianceBaselinePath` | Where each baseline goes under `varianceBaselines`, as a template. `{title}` is the `describe` titles, `{name}` the test's title or the `subjectId` after its last `/`, `{file}` and `{dir}` the spec file, `{project}` the Playwright project's `name`. `createVariance` and `observe` take the same template as `baselinePath`. | `{title}/{name}-{engine}` |
 | `varianceRenderer` | Renderer this test's page is painted by. | The worker's renderer for the timezone and locale the page runs in, from `varianceRenderers`. |
 | `varianceRenderers` | Renderers one Playwright worker holds, one per timezone and locale its pages ran in. | Playwright renderers launched on first use and closed by the fixture. |
 | `timezoneId` | Playwright's own option, the timezone the test's page opens in. | `UTC` when neither your config nor `test.use` sets one, rather than your machine's, so your laptop and CI read a page under one key. A value you set is used as it is. Playwright Test already opens the page in `en-US` when you set no `locale`. The default reaches every test that uses these fixtures, including one that never calls `variance`, so its own date assertions read `UTC`. |
@@ -1013,8 +1069,9 @@ the time it is read throws as well.
 
 ## Boundaries
 
-This package does not merge Playwright shards into one report. Playwright's
-`--shard` can still run the tests, but each shard owns its own result set.
+This package does not merge Playwright shards into one report: each shard
+writes its own result set. Combine the shards' records with
+`variance journeys combine`, from `@variance-authority/cli`.
 
 Use a different package when a Playwright test isn't the right place to start:
 for a Storybook inventory use `@variance-authority/storybook-collector`; for a

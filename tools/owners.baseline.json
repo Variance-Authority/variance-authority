@@ -196,17 +196,7 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/distill/src/file.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/distill/src/index.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/distill/src/scope.ts",
     "count": 1
   },
   {
@@ -461,11 +451,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/execution-merge.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/execution-select.ts",
     "count": 1
   },
@@ -507,6 +492,11 @@
   {
     "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/reading.ts",
+    "count": 1
+  },
+  {
+    "idiom": "digest",
+    "at": "packages/sense/src/test-selection/record-base.ts",
     "count": 1
   },
   {

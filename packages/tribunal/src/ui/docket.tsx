@@ -361,8 +361,10 @@ function Opening({
         )}
 
         <h1>
+          {/* No change filed is not nothing changed: a first run files none, and
+              neither does a render that moved with no component named. */}
           {origins.length === 0
-            ? 'Nothing in this build changed'
+            ? 'No change to work through'
             : `${count(origins.length, 'change')} to work through`}
         </h1>
         {origins.length === 0 ? <Still verdicts={build.verdicts} /> : null}
@@ -432,13 +434,18 @@ function Since({ crossing }: { readonly crossing: Crossing }): ReactElement | nu
 
   const { shifts, held } = crossing.divergence;
   const again = shifts.filter((each) => each.shift === 'again').length;
-  const fresh = shifts.filter((each) => each.shift === 'new' || each.shift === 'first').length;
+  const first = shifts.filter((each) => each.shift === 'first').length;
+  // A subject the earlier run did not have has nothing there to have moved from.
+  const fresh = shifts.filter((each) => each.shift === 'new').length;
 
   const clauses = [
     again === 0
       ? undefined
       : `${count(again, 'subject')} ${again === 1 ? 'carries a difference it' : 'carry a difference they'} already had`,
-    fresh === 0 ? undefined : `${count(fresh, 'subject')} moved for the first time`,
+    first === 0 ? undefined : `${count(first, 'subject')} moved for the first time`,
+    fresh === 0
+      ? undefined
+      : `${count(fresh, 'subject')} ${fresh === 1 ? 'is' : 'are'} new to this run`,
     held === 0 ? undefined : `${count(held, 'subject')} held still in both`,
   ].filter((each): each is string => each !== undefined);
 

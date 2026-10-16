@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { queryDependencyLexicon, readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
+import { dependencyStack, queryDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
 afterEach(() => {
@@ -73,37 +73,34 @@ it('indexes every declared available package, including one no source file impor
   await updateSourceIndex(root);
   const first = await refreshDependencyLexicon(root);
   expect(first).toMatchObject({ packages: 7, entrypoints: 6, reused: 0, unavailable: 0 });
-  const read = readDependencyLexicon(root).lexicon;
-  expect(read?.version).toBe(9);
-  expect(read?.availability.map((entry) => [entry.owner, entry.specifier, entry.imported])).toEqual([
-    ['package.json', 'fancy-lib', false], ['package.json', 'globbing', false], ['package.json', 'react', false], ['package.json', 'state-kit', false],
-    ['package.json', 'undocumented-kit', true],
-    ['packages/alpha/package.json', 'state-kit', false], ['packages/beta/package.json', 'fancy-lib', false],
+  const stacked = (file: string) => dependencyStack(root, [file], 0, 100)?.rows
+    .map((row) => [row.manifest, row.package, row.state, row.declaredAs, row.imports, row.site]);
+  expect(stacked('src/page.ts')).toEqual([
+    ['package.json', 'undocumented-kit', 'imported', undefined, 1, 'src/page.ts:1'],
+    ['package.json', 'fancy-lib', 'unused', 'dependency', 0, undefined], ['package.json', 'globbing', 'unused', 'dependency', 0, undefined],
+    ['package.json', 'react', 'unused', 'dependency', 0, undefined], ['package.json', 'state-kit', 'unused', 'dependency', 0, undefined],
   ]);
-  expect(read?.availability.map((entry) => [entry.owner, entry.specifier, entry.declaredAs, entry.imports, entry.site])).toEqual([
-    ['package.json', 'fancy-lib', 'dependency', 0, undefined], ['package.json', 'globbing', 'dependency', 0, undefined],
-    ['package.json', 'react', 'dependency', 0, undefined], ['package.json', 'state-kit', 'dependency', 0, undefined],
-    ['package.json', 'undocumented-kit', undefined, 1, 'src/page.ts:1'],
-    ['packages/alpha/package.json', 'state-kit', 'dependency', 0, undefined], ['packages/beta/package.json', 'fancy-lib', 'dev', 0, undefined],
-  ]);
+  expect(stacked('packages/alpha/src/page.ts')).toEqual([['packages/alpha/package.json', 'state-kit', 'unused', 'dependency', 0, undefined]]);
+  expect(stacked('packages/beta/src/page.ts')).toEqual([['packages/beta/package.json', 'fancy-lib', 'unused', 'dev', 0, undefined]]);
   expect(queryDependencyLexicon(root, 'flashy', ['packages/beta/src/page.ts'])?.shown[0]).toMatchObject({ manifest: 'packages/beta/package.json', declaredAs: 'dev', imports: 0 });
-  expect(queryDependencyLexicon(root, 'pulse')?.shown[0]).toMatchObject({ manifest: 'package.json', imports: 1, site: 'src/page.ts:1' });
+  expect(queryDependencyLexicon(root, 'pulse')?.shown[0]).toMatchObject({ manifest: 'package.json', imports: 1, site: 'src/page.ts:1', imported: true });
   expect(queryDependencyLexicon(root, 'nothing-matches', ['packages/beta/src/page.ts'])).toMatchObject({ total: 0, scope: { owners: ['packages/beta/package.json'], packages: 1 } });
-  expect(read?.entries.flatMap((entry) => entry.api.names?.map((name) => name.name) ?? []).sort()).toEqual(['React', 'flashy', 'globbing', 'makeStore', 'makeStore', 'pulse', 'useState']);
-  expect(read?.availability.find((entry) => entry.package === 'undocumented-kit')?.declared).toBe(false);
-  expect(read?.availability.some((entry) => entry.package === 'transitive-only')).toBe(false);
-  expect(read?.entries.find((entry) => entry.api.runtime?.name === 'react')?.api.declarations?.name).toBe('@types/react');
+  expect(queryDependencyLexicon(root, '', undefined, false, undefined, 100)?.shown.map((match) => match.name).sort()).toEqual(['React', 'flashy', 'globbing', 'makeStore', 'makeStore', 'pulse', 'useState']);
+  expect(queryDependencyLexicon(root, 'unused')?.total).toBe(0);
+  expect(queryDependencyLexicon(root, 'useState', undefined, true, 'react')?.shown[0]).toMatchObject({ version: '19.0.0', declarationProvider: '@types/react@19.0.1' });
   expect(queryDependencyLexicon(root, 'makeStore', ['packages/alpha/src/page.ts'])?.shown.map((match) => `${match.specifier}@${match.version}`)).toEqual(['state-kit@0.4.0']);
   expect(queryDependencyLexicon(root, 'makeStore', ['packages/beta/src/page.ts'])?.total).toBe(0);
   expect(queryDependencyLexicon(root, 'makeStore')?.total).toBe(2);
-  expect(queryDependencyLexicon(root, 'useState', undefined, true, 'react')?.shown[0]?.declarationProvider).toBe('@types/react@19.0.1');
   expect(queryDependencyLexicon(root, 'globbing', undefined, true, 'globbing')?.shown[0]?.signature).toContain('value: string');
-  writeFileSync(readDependencyLexicon(root).path, JSON.stringify({ ...read, version: 3 }));
+  // A catalogue that does not read is written again from nothing, and the refresh after it has nothing to do.
+  writeFileSync(first.path, 'not a catalogue');
   expect((await refreshDependencyLexicon(root)).reused).toBe(0);
-  expect((await refreshDependencyLexicon(root)).reused).toBe(6);
+  expect(await refreshDependencyLexicon(root)).toMatchObject({ unchanged: true, reused: 6 });
   writeFileSync(join(installed, 'index.d.ts'), '/** Use local state. */\nexport declare function makeStore<T>(value: T, id: string): T;\n');
   expect((await refreshDependencyLexicon(root)).reused).toBe(5);
-  expect(readDependencyLexicon(root).lexicon?.entries.find((entry) => entry.api.runtime?.name === 'state-kit')?.api.names?.[0]?.signature).toContain('id: string');
+  expect(queryDependencyLexicon(root, 'makeStore', undefined, true, 'state-kit')?.shown.map((match) => match.signature)).toEqual([
+    expect.stringContaining('id: string'), expect.not.stringContaining('id: string'),
+  ]);
 });
 
 it('reads a subpath a package wildcard opens only when a source file imports it', async () => {
@@ -124,8 +121,9 @@ it('reads a subpath a package wildcard opens only when a source file imports it'
   writeFileSync(join(installed, 'node_modules', 'nested', 'private.d.ts'), 'export declare const privateName: true;\n');
   await updateSourceIndex(root);
   await refreshDependencyLexicon(root);
-  const specifiers = readDependencyLexicon(root).lexicon?.availability.map((entry) => entry.specifier).sort();
+  const specifiers = queryDependencyLexicon(root, '', undefined, false, undefined, 100)?.shown.map((match) => match.specifier).sort();
   expect(specifiers).toEqual(['wildcard', 'wildcard/deep.d.ts']);
+  expect(dependencyStack(root, ['src/page.ts'])?.rows).toMatchObject([{ package: 'wildcard', specifiers: 2, imports: 1, site: 'src/page.ts:1' }]);
   expect(queryDependencyLexicon(root, 'deepName')?.total).toBe(1);
   expect(queryDependencyLexicon(root, 'otherName')?.total).toBe(0);
   expect(queryDependencyLexicon(root, 'privateName')?.total).toBe(0);
@@ -147,8 +145,8 @@ it('reads a namespace a declaration assigns to its export however the statement 
   declare('loose', 'export   =   Loose\ndeclare namespace Loose {\nfunction relax(): boolean;\n}\n');
   await updateSourceIndex(root);
   await refreshDependencyLexicon(root);
-  const names = readDependencyLexicon(root).lexicon?.entries.flatMap((entry) => entry.api.names?.map((name) => name.name) ?? []).sort();
+  const names = queryDependencyLexicon(root, '', undefined, false, undefined, 100)?.shown.map((match) => match.name).sort();
   expect(names).toEqual(['Loose', 'Tight', 'relax', 'squeeze']);
-  const squeeze = readDependencyLexicon(root).lexicon?.entries.flatMap((entry) => entry.api.names ?? []).find((name) => name.name === 'squeeze');
+  const squeeze = queryDependencyLexicon(root, 'squeeze', undefined, true)?.shown[0];
   expect(squeeze).toMatchObject({ kind: 'function', line: 3, signature: 'function squeeze(): boolean;' });
 });

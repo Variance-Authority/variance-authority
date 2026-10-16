@@ -20,14 +20,23 @@ const swept = new Map<string, Promise<unknown>>();
  * on the machine. The sweep runs once per process for each cache: a one-shot
  * `observe` opens and closes a session per call, and walking the cache that
  * often would cost more than the cache saves.
+ *
+ * `path` is the template each baseline is placed by, as `baselines.path` in the
+ * config spells it; the store's default when absent. `projects` are the
+ * config's project names, so a record a renamed project left is taken over
+ * rather than refused.
  */
-export function checkoutStore(baselines: string): {
+export function checkoutStore(baselines: string, path?: string, projects?: readonly string[]): {
   readonly store: RasterStore;
   readonly sweep: () => Promise<void>;
 } {
   const renders = renderCacheIn(cacheRootFor(process.cwd()));
   return {
-    store: createDurableStore(baselines, { cacheRoot: renders }),
+    store: createDurableStore(baselines, {
+      cacheRoot: renders,
+      ...(path === undefined ? {} : { path }),
+      ...(projects === undefined ? {} : { projects }),
+    }),
     sweep: async () => {
       if (!swept.has(renders)) swept.set(renders, sweepRenderCache(renders));
       await swept.get(renders);

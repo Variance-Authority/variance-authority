@@ -98,24 +98,24 @@ export const RESTRUCTURED_CASES: readonly CorpusCase[] = [
     baseVariant: 'base',
     perturbedVariant: 'card-as-region',
     expect: 'hash-changed',
-    band: 'geometry',
+    band: 'a11y',
     roots: 1,
     blames: 'Card',
-    spec: 'spec §5; ADR-0002 §3; `match.ts` `matchKey`',
+    spec: 'spec §5; ADR-0002 §3; `match.ts` `matchTrees`',
     rationale:
       'A `<div>` becomes a `<section aria-label>` with an implicit `region` role. Every ' +
       'computed style, every rect and every pixel is identical; a landmark appeared in the ' +
       'accessibility tree. A pixel differ cannot see this at any threshold, which is the ' +
       'general argument for the semantic stage sitting above raster rather than beside it. ' +
       'It also fixes the tag/role boundary: the snapshot keeps `tag`, so a normalizer that ' +
-      'collapsed elements purely by box effect would still have to keep these apart. ' +
-      'Banded `geometry` rather than `a11y`, and the reason is a limit worth stating: the ' +
-      'element changed tag, so `matchKey` never pairs the two and the report is a removal ' +
-      'plus an addition rather than a `role-changed`. The added node is described as ' +
-      '`region "Details"`, so the landmark is named — but by `describe()`, not by the band. ' +
-      'A tag change is a replacement to this differ, and pairing across one would need a ' +
-      'similarity heuristic that nothing here has. Reaching this from one snapshot rather ' +
-      'than from a pair is what `judge/a11y.ts` is for.',
+      'collapsed elements purely by box effect would still have to keep these apart. The ' +
+      '`div` has no role and no name and the `section` has both, so no identity key in ' +
+      '`matchKey` is shared; what pairs them is the record of ' +
+      'who wrote them — one element left and one arrived under the same parent, and `Card` ' +
+      'created both. The pair reports `tag-changed`, `role-changed` and `name-changed`, and ' +
+      'the band is `a11y`: "the card became a region named Details" rather than a removal ' +
+      'plus an addition. Two such replacements by one author under one parent stay unpaired, ' +
+      'since either could be either.',
   },
   {
     id: 'select-second/tabs',

@@ -101,7 +101,7 @@ export function evaluate(transformed: string, mode?: InstrumentMode): Realm {
   try {
     new Function(executionCollectorSource(mode))();
     page = Object.getOwnPropertyDescriptor(globalThis, '__VA__')!;
-    new Function(transformed.replace(/^import "[^"]+";/, ''))();
+    new Function(transformed.replace(/\n;import "[^"]+";$/, ''))();
   } finally {
     asRunner();
   }
@@ -139,7 +139,7 @@ export function twoCases(root: string, source = SOURCE): {
     },
     write: async () => {
       await writeFile(module, source, 'utf8');
-      const realm = evaluate(plugin.transform(source, module)!.code);
+      const realm = evaluate(plugin.transform.handler(source, module)!.code);
       realm.price(20);
       premium = realm.collector.drain();
       realm.price(1);
@@ -160,7 +160,7 @@ export async function casesOverOneLoad(
 ): Promise<{ readonly load?: ExecutionJournal; readonly plain: ExecutionJournal; readonly premium: ExecutionJournal }> {
   const module = resolve(root, 'price.js');
   await writeFile(module, source, 'utf8');
-  const realm = evaluate(testSelectionProbes({ root }).transform(source, module)!.code);
+  const realm = evaluate(testSelectionProbes({ root }).transform.handler(source, module)!.code);
   const load = eager ? realm.collector.drain() : undefined;
   realm.price(1);
   const plain = realm.collector.drain();

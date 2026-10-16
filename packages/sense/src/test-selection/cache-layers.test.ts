@@ -11,6 +11,7 @@ import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { encodeRecordedEyes } from './eyes-record.js';
 import {
   mainlineReadRoot,
+  noteSeeded,
   readTestCoverage,
   readableTestCoverage,
   RecordWithoutCoverage,
@@ -199,7 +200,7 @@ describe('the snapshot a checkout starts from', () => {
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
     const file = testCoverageFile(path, { cacheRoot });
-    await seedTestCoverage(file, path, cacheRoot);
+    await seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot);
 
     expect((await readTestCoverage(file)).tests).toEqual(snapshot.tests);
     expect(file).not.toBe(testCoverageFile(primary, { cacheRoot }));
@@ -220,7 +221,7 @@ describe('the snapshot a checkout starts from', () => {
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
     const file = testCoverageFile(path, { cacheRoot });
-    await seedTestCoverage(file, path, cacheRoot);
+    await seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot);
 
     const seeded = caseSectionsAt(file);
     expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
@@ -246,7 +247,7 @@ describe('the snapshot a checkout starts from', () => {
 
       const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
       const file = testCoverageFile(path, { cacheRoot });
-      await seedTestCoverage(file, path, cacheRoot);
+      await seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot);
 
       const seeded = caseSectionsAt(file);
       expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
@@ -269,7 +270,7 @@ describe('the snapshot a checkout starts from', () => {
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
     const file = testCoverageFile(path, { cacheRoot });
-    await expect(seedTestCoverage(file, path, cacheRoot)).resolves.toEqual({ from: 'primary', file: base });
+    await expect(seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot)).resolves.toEqual({ from: 'primary', file: base });
 
     const seeded = caseSectionsAt(file);
     expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
@@ -300,8 +301,34 @@ describe('the snapshot a checkout starts from', () => {
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
     const file = testCoverageFile(path, { cacheRoot });
-    await expect(seedTestCoverage(file, path, cacheRoot)).resolves.toBeUndefined();
+    await expect(seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot)).resolves.toBeUndefined();
     await expect(stat(file)).rejects.toThrow();
+  });
+
+  test('a base written under other probes than the run\'s is passed over, and said so, so the run lays over nothing', async () => {
+    const at = await checkout();
+    const cacheRoot = resolve(at, 'cache');
+    const primary = resolve(at, 'primary');
+    const base = testCoverageFile(primary, { cacheRoot });
+    await writeTestCoverage(base, { ...snapshot, instrumentation: 'older-recipe' });
+
+    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
+    const file = testCoverageFile(path, { cacheRoot });
+    const seeded = await seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot);
+    expect(seeded).toEqual({
+      from: 'nothing',
+      passed: [{ file: base, instrumentation: 'older-recipe', run: snapshot.instrumentation }],
+    });
+    await expect(stat(file)).rejects.toThrow();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    noteSeeded(seeded);
+    expect(warn.mock.calls.map(([line]) => String(line))).toEqual([
+      expect.stringContaining(`did not lay this checkout's first record on ${base}: it was written under the probes \`older-recipe\``),
+    ]);
+    warn.mockRestore();
+
+    // A run that lays no coverage lays over a base under any probes.
+    await expect(seedTestCoverage(file, path, undefined, cacheRoot)).resolves.toEqual({ from: 'primary', file: base });
   });
 
   test('a caller that named its own file is not seeded into', async () => {
@@ -312,7 +339,7 @@ describe('the snapshot a checkout starts from', () => {
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
     const mine = resolve(path, 'mine.bin');
 
-    await seedTestCoverage(mine, path, cacheRoot);
+    await seedTestCoverage(mine, path, snapshot.instrumentation, cacheRoot);
     await expect(stat(mine)).rejects.toThrow();
     await expect(stat(testCoverageFile(path, { cacheRoot }))).rejects.toThrow();
   });
@@ -339,7 +366,7 @@ describe('the snapshot a checkout starts from', () => {
     await writeFetchedMainline(cacheRoot, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
 
     expect(await readableTestCoverage(path, { cacheRoot, suite: 'unit' })).toBe(beneath);
-    await expect(seedTestCoverage(testCoverageFile(path, { cacheRoot, suite: 'unit' }), path, cacheRoot)).resolves.toMatchObject({
+    await expect(seedTestCoverage(testCoverageFile(path, { cacheRoot, suite: 'unit' }), path, snapshot.instrumentation, cacheRoot)).resolves.toMatchObject({
       from: 'primary',
       file: beneath,
     });
@@ -348,12 +375,24 @@ describe('the snapshot a checkout starts from', () => {
     await writeTestCoverage(fetched, snapshot);
     expect(await readableTestCoverage(other, { cacheRoot, suite: 'unit' })).toBe(fetched);
 
+    // Except for a run under other probes, which cannot be laid over it: the
+    // layer beneath is asked next, and is passed over for the same reason.
+    const elsewhere = testCoverageFile(other, { cacheRoot, suite: 'unit' });
+    await expect(seedTestCoverage(elsewhere, other, 'newer-recipe', cacheRoot)).resolves.toEqual({
+      from: 'nothing',
+      passed: [
+        { file: fetched, instrumentation: snapshot.instrumentation, run: 'newer-recipe' },
+        { file: beneath, instrumentation: snapshot.instrumentation, run: 'newer-recipe' },
+      ],
+    });
+    await expect(stat(elsewhere)).rejects.toThrow();
+
     // So is one whose run instrumented nothing: its cases are laid, and it
     // narrows nothing.
     const cases = encodeSetExecutionIndex({ tests: [{ id: 'a > b', file: 'a.test.ts', name: 'b' }], modules: [], sets: new CrossingSets(1).pool() });
     await writeFile(fetched, recordOfCases({ index: cases }));
     const laid = testCoverageFile(other, { cacheRoot, suite: 'unit' });
-    await expect(seedTestCoverage(laid, other, cacheRoot)).resolves.toMatchObject({ from: 'mainline' });
+    await expect(seedTestCoverage(laid, other, snapshot.instrumentation, cacheRoot)).resolves.toMatchObject({ from: 'mainline' });
     const seeded = caseSectionsAt(laid);
     expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
     expect(withoutCoverage(laid)).toBe(true);

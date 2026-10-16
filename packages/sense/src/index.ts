@@ -24,7 +24,7 @@
 // compass: variance-authority.reach
 
 export { scanRelations, type ScanOptions } from './scan.js';
-export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative } from './dependency-lexicon.js';
+export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.
@@ -64,6 +64,7 @@ export {
 
 export {
   openSourceIndex,
+  primarySourceIndexPath,
   readSourceRecords,
   sourceIndexPath,
   type PersistentSourceIndex,
@@ -80,6 +81,7 @@ export {
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
@@ -117,6 +119,8 @@ export {
 export { layerMoves, type LayerCause, type LayerHeld, type LayerMoves, type LayerPresence } from './layer-moves.js';
 export { tierMoves, type TierCause, type TierMoves } from './tier-moves.js';
 export { declaredTiers, parseTiers, tierLabel, tierOf, TiersError, type TierPlace, type Tiers } from './tiers.js';
+export { parseTypescript, TypescriptError } from './typescript.js';
+export { tsconfigUse, type TsconfigUse } from './typescript-use.js';
 export {
   cappedLayers,
   cappedTiers,
@@ -154,7 +158,7 @@ export {
   type PreparedCodeMap,
   type ShippedFiles,
 } from './code-map.js';
-export { checkoutListing, checkoutPath, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
+export { checkoutListing, checkoutPath, existedAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
   journeysAmong,
@@ -204,10 +208,12 @@ export {
   encodeSearch,
   exportedDigest,
   importersOf,
+  memberDeclarationsOf,
   readHelp,
   type EncodedSearch,
   type HelpPublish,
   type HelpReading,
+  type MemberSite,
   type PublishedRows,
   type SearchGeneration,
 } from './help-reading.js';

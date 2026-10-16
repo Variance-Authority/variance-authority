@@ -1,12 +1,15 @@
+import { relative, resolve, sep } from 'node:path';
 import { hashComponents } from '@variance-authority/core/attribute';
 import { documentDigest } from '@variance-authority/core/format';
+import { restamps } from '@variance-authority/core/judge';
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
   observeCaptureAgainstBaseline,
+  packSnapshot,
   summarizeObservation,
 } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
-import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
+import { testBaselineKey, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { cacheRootFor } from '@variance-authority/sense/cache-root';
 import {
   createDurableStore,
@@ -38,6 +41,11 @@ export interface VarianceNodeOptions {
   readonly renderer?: Renderer;
   /** Supply an existing store when baselines do not live in a directory. */
   readonly store?: RasterStore;
+  /**
+   * Where each baseline goes under `baselines`, as `baselines.path` in the
+   * config spells it. Defaults to `{title}/{name}-{engine}`.
+   */
+  readonly baselinePath?: string;
 
   /**
    * Whether this run may promote a candidate to a baseline.
@@ -70,7 +78,10 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
     options.store === undefined ? renderCacheIn(cacheRootFor(process.cwd())) : undefined;
   const store =
     options.store ??
-    createDurableStore(options.baselines ?? '.variance/baselines', { cacheRoot: renders! });
+    createDurableStore(options.baselines ?? '.variance/baselines', {
+      cacheRoot: renders!,
+      ...(options.baselinePath === undefined ? {} : { path: options.baselinePath }),
+    });
   let renderer: Promise<Renderer> | undefined = undefined;
 
   // Opened on the first observation rather than here. A watch-mode session that
@@ -92,7 +103,7 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
   return {
     varianceObserve: async (context, request) => {
       const artifact = request.artifact;
-      const key: BaselineKey = { subject: artifact.subject.id };
+      const key = keyOf(context, request);
       const painter = await painting();
       const observation = await observeCaptureAgainstBaseline(artifact, key, {
         store,
@@ -108,10 +119,10 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
 
       // `--update` sweeps every selected test as `variance accept --all` does.
       const accepting = options.accept === true || (options.accept === undefined && updating(context));
-      // An unchanged subject under a moved identity is re-stamped, so the move
-      // is named once rather than on every later run.
-      const restamp = observation.verdict === 'unchanged' && observation.signals?.identity !== undefined;
-      if (accepting && (observation.verdict !== 'unchanged' || restamp)) {
+      // An unchanged subject is re-stamped under a moved identity, so the move
+      // is named once rather than on every later run, and when its baseline
+      // kept no snapshot, so it keeps this run's.
+      if (accepting && (observation.verdict !== 'unchanged' || restamps(observation.signals))) {
         await promote(store, painter, artifact, key);
       }
 
@@ -183,6 +194,24 @@ export function variancePlugin(options: VarianceNodeOptions = {}): VarianceViteP
  * differently for each. Absent everywhere means no: promoting a candidate is
  * the one thing here that must never happen because a field could not be found.
  */
+/**
+ * The key a baseline is stored under: the subject, the test file Vitest says
+ * the command came from, and the titles the tab sent.
+ *
+ * The file and the titles decide only where the baseline is filed, so a
+ * template with `{dir}` puts it beside the test; the subject decides which
+ * baseline it is.
+ */
+function keyOf(context: unknown, request: ObserveRequest): BaselineKey {
+  const testPath = (context as { readonly testPath?: unknown } | undefined)?.testPath;
+  return testBaselineKey(request.artifact.subject.id, {
+    ...(typeof testPath === 'string'
+      ? { file: relative(resolve(process.cwd()), testPath).split(sep).join('/') }
+      : {}),
+    ...(request.titlePath === undefined ? {} : { titles: request.titlePath }),
+  });
+}
+
 function updating(context: unknown): boolean {
   const project = (context as { readonly project?: { readonly vitest?: unknown } } | undefined)
     ?.project;
@@ -232,6 +261,8 @@ async function promote(
   // every later run against it would rank regions by area.
   await store.put(key, {
     ...candidate,
-    ...(artifact.snapshot === undefined ? {} : { components: hashComponents(artifact.snapshot) }),
+    ...(artifact.snapshot === undefined
+      ? {}
+      : { components: hashComponents(artifact.snapshot), snapshot: packSnapshot(artifact.snapshot) }),
   });
 }

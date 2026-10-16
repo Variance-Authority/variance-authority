@@ -15,7 +15,7 @@
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
-import type { NativeInstrumented } from './instrument/spliced.js';
+import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
@@ -31,7 +31,9 @@ import type {
   NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeDistill } from './native-distill.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
+import type { NativeRecords } from './native-record.js';
 import { witnessesOf } from './witness.js';
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
@@ -61,7 +63,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
   ): NativeScanBatch;
   scanGraph(
@@ -69,7 +71,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     seeds: string[],
     largestFile?: number,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     includeParses?: boolean,
   ): NativeScanBatch;
@@ -120,12 +122,14 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
    */
   instrument(source: string, file: string, entries: boolean, module?: string): NativeInstrumented | null;
+  /** `authored`'s regions placed in `transformed` through `mappings`: `native/instrument/src/place.rs`. */
+  place(...args: [string, string, string, string, number, boolean, string, boolean]): NativePlaced | null;
   /** The header one module carries: `native/instrument/src/header.rs`. */
   probeHeader(module: string, count: number): string;
   /** The instrumenter crate's `recipe()` for `presence`, or for `entries`. */
@@ -187,7 +191,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     largestFile?: number,
     digests?: boolean,
     readers?: number,
-    tsconfig?: string,
+    tsconfig?: string | false,
     conditionNames?: string[],
     listed?: string[],
   ): NativeScanBatch;
@@ -225,9 +229,9 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   moduleReferences?(file: string, text: string): NativeModuleReferences | null;
   /**
    * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
-   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).
+   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
    */
-  resolveSources?(root: string, file: string, sources: string[], listed?: string[]): string[];
+  resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /**
    * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
    * `false` when no remote promised any, so a path a read found missing is absent.

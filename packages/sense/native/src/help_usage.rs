@@ -72,7 +72,7 @@ pub struct IndexedUsage {
 }
 
 /// `kindOf` in `package/src/use.ts`.
-fn kind_of(at: &str) -> &'static str {
+pub(crate) fn kind_of(at: &str) -> &'static str {
     let file = at.rsplit('/').next().unwrap_or(at);
     if file.contains(".stories.") { "story" }
     else if file.contains(".test.") || file.contains(".spec.") || file.contains(".check.") { "test" }

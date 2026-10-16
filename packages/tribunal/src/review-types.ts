@@ -127,8 +127,8 @@ export interface SubjectView {
    * named from where its box landed, so an edit that reflowed its neighbours
    * arrives as one blob attributed to the document root; these entries compared
    * digests and never saw a pixel, so they still hold the component and the
-   * sense. Absent means the baseline carried no hashes — never that nothing
-   * moved.
+   * sense. Absent means there was no baseline, or the baseline carried no
+   * hashes — never that nothing moved.
    */
   readonly moved?: ObservationRecord['moved'];
   /** Which images this build kept. Absent means the run did not save one. */

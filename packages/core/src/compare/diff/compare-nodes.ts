@@ -43,13 +43,22 @@ export function compareNodes(
 ): void {
   const owners = after.provenance?.owners;
   const createdBy = after.provenance?.createdBy;
+  const retagged = before.tag !== after.tag;
   const base = (kind: DeltaKind) => ({
     kind,
-    band: bandOf(kind),
+    band: bandOf(kind, { retagged }),
     path: after.path,
     ...(owners ? { owners } : {}),
     ...(createdBy ? { createdBy } : {}),
   });
+
+  // Two tags pair as the two roots, under a declared alias, under one role and
+  // name, or as the one replacement its author recorded (see `match.ts`). The tag is said first: the
+  // role, the attributes and the box that follow are what the new element is,
+  // not edits to the old one.
+  if (retagged) {
+    deltas.push({ ...base('tag-changed'), from: before.tag, to: after.tag });
+  }
 
   if (before.role !== after.role) {
     deltas.push({ ...base('role-changed'), from: before.role, to: after.role });

@@ -118,13 +118,12 @@
       "type": "integer",
       "minimum": 1,
       "default": 1,
-      "description": "How many subjects may be in the raster tier at once. Collection stays strictly serial however high this is set. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
+      "description": "How many subjects may be in the raster tier at once, split evenly across the worlds and rounded up, so at least one per world. It widens rendering, decoding and comparing; how many worlds collect is `workers`. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
     },
     "workers": {
       "type": "integer",
       "minimum": 1,
-      "default": 1,
-      "description": "How many standing worlds collect at once, each from the collector's `openWorker` with its own serial lane. Files go to workers whole, longest recorded first, and a worker that finishes takes the next. A collector with no `openWorker` runs one, and the report says so."
+      "description": "How many standing worlds collect at once, each from the collector's `openWorker` with its own serial lane. Absent, half the machine's logical cores, at least one, never more than a declared `concurrency` and never more than there are files. Files go to workers whole, longest recorded first, and a worker that finishes takes the next. A collector with no `openWorker` collects in one; it warns when `workers` was declared. Set 1 for a server under test that cannot take concurrent pages. The report names the worlds it used, and no verdict depends on the count."
     },
     "cacheRoot": {
       "type": "string",
@@ -179,6 +178,22 @@
       "minItems": 1,
       "items": { "type": "integer", "minimum": 1 },
       "description": "Budgets in effective lines of code (comments and blank lines excluded) over the code a package pulls in at run time, tier 0 first, each strictly smaller than the one before. A package sits in the highest-numbered tier whose budget holds it; tier 0 holds everything, so its budget labels it and does not limit it. `variance layers` prints each package's tier, and a `maxTier` entry in a `.relations.json` holds packages to one. Read only from the variance.config.json at the repository root."
+    },
+    "typescript": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tsconfig": {
+          "anyOf": [
+            { "const": "auto" },
+            { "const": false },
+            { "type": "string", "minLength": 1 }
+          ],
+          "default": "auto",
+          "description": "The `tsconfig` whose `paths` and `customConditions` decide where an import lands in every scan. `\"auto\"` reads the nearest config that owns each file. A path from the repository root, such as `tsconfig.app.json`, reads that config and the projects it references. `false` reads no `tsconfig`: imports resolve through `package.json` alone, which suits a repository whose packages export the files they hold, or one with no TypeScript. `variance doctor` says when no `tsconfig` in the repository names `customConditions`, `paths` or `baseUrl`."
+        }
+      },
+      "description": "How scans read TypeScript's configuration. Read only from the variance.config.json at the repository root."
     }
   },
   "$defs": {
@@ -242,7 +257,7 @@
           "type": "integer",
           "minimum": 0,
           "default": 20,
-          "description": "Subjects to re-collect, at most. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
+          "description": "Subjects to re-collect, at most: the first to change in the order the run takes its subjects, so the same ones at any `workers`. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
         }
       }
     },
@@ -334,7 +349,7 @@
           "minLength": 1,
           "description": "Directory the images live in, resolved against this file."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "path": { "$ref": "#/$defs/baselinePath" },
         "records": {
           "type": "string",
           "minLength": 1,
@@ -363,7 +378,7 @@
           "minLength": 1,
           "description": "The `.gitattributes` pattern the images are tracked by."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "path": { "$ref": "#/$defs/baselinePath" },
         "records": {
           "type": "string",
           "minLength": 1,
@@ -390,9 +405,11 @@
         }
       }
     },
-    "baselineLayout": {
-      "description": "How image files are arranged under `root`. `flat` is one directory per identity, for baselines kept as a corpus; `beside` puts each image in the directory holding the code it depicts, which is the placement to take when that code is in this repository. A story finds its directory through the `importPath` its built index carries; a subject named after a path finds it in its own id.",
-      "enum": ["flat", "beside"]
+    "baselinePath": {
+      "type": "string",
+      "minLength": 1,
+      "default": "{title}/{name}-{engine}",
+      "description": "Where each baseline is written under `root`, without an extension. `{title}` and `{name}` are the story's title and name, or a test's describe titles and its own title; `{file}` is the file that declares the subject and `{dir}` its directory; `{id}` is the subject id; `{engine}` is the browser engine. `{dir}/__baselines__/{file}/{name}-{engine}` keeps each image beside the code it depicts. A template names `{name}` or `{id}`. Without `{engine}`, every engine writes one file. `{project}` is refused here: it is the Playwright fixture's. Two subjects that render one path stop the run, which names both."
     },
 
     "share": {

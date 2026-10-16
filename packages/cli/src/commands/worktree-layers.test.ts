@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -102,7 +102,7 @@ describe('a worktree that has not run', () => {
     }));
     // A run or a landing seeds first and lists itself after; this one stops between.
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    await seedTestCoverage(own, worktree);
+    await seedTestCoverage(own, worktree, 'fixture');
     process.chdir(worktree);
     await updateSourceIndex(worktree);
 
@@ -123,8 +123,13 @@ describe('a worktree that has not run', () => {
       tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
       modules: [],
     });
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    const held = await readFile(base);
 
     const landed = await landJourneys(worktree, [shard]);
+
+    // The landing is a layer over the cached base: the base itself is read, never written.
+    expect((await readFile(base)).equals(held)).toBe(true);
 
     const own = testCoverageFile(worktree, { suite: 'unit' });
     expect(landed.at).toBe(own);
@@ -138,8 +143,28 @@ describe('a worktree that has not run', () => {
     // so the cases copied with the primary checkout's record cannot answer for it.
     expect(keepsCases(own)).toBe(false);
     await expect(recordedExecutionFile(worktree, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
-    expect(landed.cases).toEqual({ unanswered: own, shard, removed: true });
+    expect(landed.cases).toEqual({ unanswered: own, shards: [shard], removed: true });
     expect(keepsCases(testCoverageFile(primary, { suite: 'unit' }))).toBe(true);
+  });
+
+  it('refuses an `--into` that names the cached base, and leaves the base as it was', async () => {
+    const { primary, worktree, first } = await worktreeOf(true);
+    const shard = join(home, 'shard-1.bin');
+    await writeTestCoverage(shard, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    });
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    const held = await readFile(base);
+
+    await expect(landJourneys(worktree, [shard], base)).rejects.toThrow(
+      `${base} is the record the primary checkout's runs write, which this worktree's runs are laid over and never write. ` +
+        'Land without `--into`, and the landing is laid over it in this worktree\'s own layer.',
+    );
+    expect((await readFile(base)).equals(held)).toBe(true);
   });
 
   it('answers no case question from the primary checkout\'s cases once a landing dropped its own, and does not copy them again', async () => {
@@ -172,7 +197,7 @@ describe('a worktree that has not run', () => {
 
     // The snapshot is already the worktree's own, so a later seed copies no
     // cases into it.
-    await seedTestCoverage(own, worktree);
+    await seedTestCoverage(own, worktree, 'fixture');
     expect(keepsCases(own)).toBe(false);
   });
 });

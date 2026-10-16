@@ -124,6 +124,15 @@ describe('the Jest transformer over a module named unprobed', () => {
 
     expect(marking.getCacheKey!(PAGE, path, transformOptions(root))).not.toBe(probing.getCacheKey!(PAGE, path, transformOptions(root)));
   });
+
+  it('keys what it cached on where the probes go', async () => {
+    const root = await project('variance-jest-placement-key-');
+    const path = resolve(root, 'src/page.js');
+    const after = await createTransformer({ root });
+    const before = await createTransformer({ root, placement: 'before-transforms' });
+
+    expect(before.getCacheKey!(PAGE, path, transformOptions(root))).not.toBe(after.getCacheKey!(PAGE, path, transformOptions(root)));
+  });
 });
 
 /**
@@ -287,15 +296,26 @@ module.exports = {
     });
   });
 
-  it('is given the probes in the text when it has no recipe for the mode', async () => {
-    const root = await placing(JSON.stringify({ presence: probeRecipe('presence') }));
+  it('is a plain transformer when it has no recipe for the mode, and the probes go into what it wrote', async () => {
+    const root = await project('variance-jest-placing-');
+    await writeFile(resolve(root, 'src/pick.js'), RAW);
+    await writeFile(
+      resolve(root, 'transformer.cjs'),
+      `module.exports = {
+  senseRecipe: (mode) => (${JSON.stringify({ presence: probeRecipe('presence') })})[mode],
+  process: (source, path, options) => {
+    globalThis.handedToPlain = { source, probes: options.senseProbes ?? null };
+    return { code: source };
+  },
+};
+`,
+    );
     const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs'), mode: 'entries' });
 
     const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
 
-    const handed = JSON.parse(done.code) as { source: string; probes: unknown };
-    expect(handed.probes).toBeNull();
-    expect(handed.source).toContain('.r("src/pick.js@');
+    expect((globalThis as { handedToPlain?: unknown }).handedToPlain).toEqual({ source: RAW, probes: null });
+    expect(done.code).toContain('.r("src/pick.js@');
   });
 
   it('is handed a module named unprobed already marked, with nothing to place', async () => {

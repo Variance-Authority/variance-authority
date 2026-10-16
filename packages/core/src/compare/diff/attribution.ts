@@ -79,10 +79,12 @@ export function attribute(
       // change even though every node that moved is a `Chip`.
       //
       // Appearing and disappearing are deliberately *not* treated this way. A
-      // component that swaps its own output — `Toggle` rendering a `<div>` where
-      // it used to render an `<input>` — produces an added and a removed node
-      // whose creator is `Toggle` itself, and crediting whoever placed `<Toggle>`
-      // would blame `TodoItem` for a change it did not make.
+      // component that swaps its own output produces nodes whose creator is that
+      // component itself, and crediting whoever placed it would blame its parent
+      // for a change it did not make. One swap — `Toggle` rendering a `<div>`
+      // where it used to render an `<input>` — is a matched pair and arrives
+      // here as `tag-changed` (see `match.ts`); two swaps by one author stay an
+      // added and a removed node each, and the same rule names `Toggle` for both.
       //
       // Known cost: when a component element is added or removed wholesale, this
       // names the component that appeared rather than the one that decided to

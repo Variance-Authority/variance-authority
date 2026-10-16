@@ -36,19 +36,42 @@ runs:
       id: native
       shell: bash
       run: |
-        echo "tree=$(git rev-parse HEAD:packages/sense/native)" >> "$GITHUB_OUTPUT"
+        # On its own line, so a git that refuses the checkout fails the step:
+        # inside `echo` it would key the cache on an empty tree, which restores
+        # whichever scanner was saved under that key first.
+        tree=$(git rev-parse HEAD:packages/sense/native)
+        echo "tree=$tree" >> "$GITHUB_OUTPUT"
         # `awk` reads to the end: a `head` would close the pipe on `ldd`, which
         # `pipefail` then reports as the step failing with SIGPIPE.
         libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
         echo "libc=${libc:-none}" >> "$GITHUB_OUTPUT"
 
     - name: restore the native scanner
+      id: cache
       uses: actions/cache@v4
       with:
         path: |
           packages/sense/npm/*/scan.node
           packages/sense/npm/*/scan.node.tree
         key: sense-native-${{ runner.os }}-${{ runner.arch }}-libc-${{ steps.native.outputs.libc }}-${{ steps.native.outputs.tree }}
+
+    # A miss means `build.mjs` compiles the crate, and the Playwright image the
+    # browser jobs run in carries no compiler: without one the build skips the
+    # scanner, and every step that reads source fails to load it. A pull request
+    # that changes the crate always misses here until some job with a compiler
+    # has built that tree, so the jobs that have none install one rather than
+    # race for the cache. The hosted runners carry `cargo`, and there this is a
+    # no-op.
+    - name: a compiler for the native scanner
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        command -v cargo >/dev/null && exit 0
+        if ! command -v cc >/dev/null || ! command -v curl >/dev/null; then
+          apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates
+        fi
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
     - name: build
       shell: bash

@@ -2,6 +2,7 @@ import type {
   AccessibilitySnapshot,
   Digest,
   RenderIdentity,
+  SemanticSnapshot,
 } from '@variance-authority/core/format';
 import { describeIdentity, identityCause } from './renderer.js';
 import type { Described } from './store.js';
@@ -56,7 +57,7 @@ export type Settlement =
 /**
  * Decide whether this subject needs an image, from the baseline alone.
  *
- * Three answers, and the first is the one that pays for this whole design.
+ * Five answers, and the first is the one that pays for this whole design.
  *
  * **The document digest matches.** `documentDigest` covers the markup, the
  * applicable CSS in cascade order, the frame, the inherited floor, the viewport
@@ -79,6 +80,22 @@ export type Settlement =
  * whatever the comparison finds (ADR-0090). An upgrade of a browser or of this
  * tool moves every subject at once, and only the diff of each shows the few
  * that are regressions.
+ *
+ * **The baseline is an image that kept no snapshot of its nodes.** Rendered
+ * when this run has one, though the digest matches: a changed region is joined
+ * against the baseline's own nodes, and a baseline written before it kept them
+ * gains them only from an accepting run that observed it (ADR-0027). Settling
+ * here would keep such a subject settled for as long as its document holds,
+ * and the remedy its next changed verdict names would never be reachable. The
+ * cost is one render per such subject until one accepting run re-stamps it. A
+ * baseline with no pixels is settled as before, since no region is joined
+ * there.
+ *
+ * **The baseline was read from where an earlier layout kept it.** Rendered for
+ * the same reason: a settled subject produces no observation, accept moves only
+ * what an observation names, and the baseline would stay at a path no reviewer
+ * can read for as long as its document holds. The cost is one render per such
+ * subject until one accepting run moves it.
  *
  * **Anything else renders.** Including `new`, where the *verdict* is already
  * settled — there is no baseline, and no image changes that. It renders anyway,
@@ -123,6 +140,13 @@ export function settle(
    */
   mine?: RenderIdentity,
   accessibility?: AccessibilitySnapshot,
+  /**
+   * The snapshot this run collected, when it collected one.
+   *
+   * Read only for whether it is there. Absent, this run has nothing to record
+   * on a baseline that kept no snapshot, so rendering it would buy nothing.
+   */
+  snapshot?: SemanticSnapshot,
 ): Settlement {
   if (found === null) {
     return {
@@ -139,6 +163,30 @@ export function settle(
       because:
         (mine === undefined ? undefined : identityCause(found.storedUnder, mine)?.because) ??
         `a baseline exists, painted under another identity (${describeIdentity(found.storedUnder)})`,
+    };
+  }
+
+  if (found.relocated !== undefined) {
+    return {
+      kind: 'render',
+      because:
+        `the baseline was read from ${found.relocated.from}, a directory named for its ` +
+        `renderer identity, so this run renders it for an accepting run to move it to ` +
+        `${found.relocated.to}, the path \`baselines.path\` names`,
+    };
+  }
+
+  if (
+    found.documentDigest === digest &&
+    found.pictured &&
+    !found.keepsSnapshot &&
+    snapshot !== undefined
+  ) {
+    return {
+      kind: 'render',
+      because:
+        'the baseline records no snapshot of its nodes, so this run renders it for an ' +
+        'accepting run to record one',
     };
   }
 

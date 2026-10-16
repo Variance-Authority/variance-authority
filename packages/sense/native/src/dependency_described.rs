@@ -10,10 +10,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use napi_derive::napi;
 use serde::Serialize;
 
-use super::purposes::stems;
-use super::{Api, Availability};
+use super::purposes::{stem, stems};
+use super::view::Row;
+use super::Api;
 
 /// A package that says it does what was asked.
 #[derive(Serialize)]
@@ -48,8 +50,20 @@ fn asked(query: &str) -> BTreeMap<String, String> {
     asked
 }
 
+/// The question's distinct stems as `[stem, word]` pairs, for the repository's own names to be asked by the same words as a package.
+#[napi(js_name = "describedWords")]
+pub fn described_words(query: String) -> Vec<Vec<String>> {
+    asked(&query).into_iter().map(|(stem, word)| vec![stem, word]).collect()
+}
+
+/// Each word reduced to its stem, in order: which of a dictionary's terms a stem of `describedWords` stands for.
+#[napi(js_name = "wordStems")]
+pub fn word_stems(words: Vec<String>) -> Vec<String> {
+    words.iter().map(|word| stem(word)).collect()
+}
+
 /// The packages in `rows` that describe `query`, best first; `None` when the question has no word to describe.
-pub(super) fn described<'a>(query: &str, rows: impl Iterator<Item = (&'a Availability, &'a Api)>, limit: usize) -> Option<(u32, Vec<Described>)> {
+pub(super) fn described<'a>(query: &str, rows: impl Iterator<Item = (&'a Row<'a>, &'a Api)>, limit: usize) -> Option<(u32, Vec<Described>)> {
     let asked = asked(query);
     if asked.is_empty() { return None; }
     let needed = asked.len().div_ceil(2);
@@ -60,13 +74,13 @@ pub(super) fn described<'a>(query: &str, rows: impl Iterator<Item = (&'a Availab
         let held: BTreeSet<&str> = asked.keys().filter(|stem| said.contains(stem.as_str()) || purpose.named.binary_search(stem).is_ok()).map(String::as_str).collect();
         if held.len() < needed { continue; }
         let hit = Described {
-            package: row.package.clone(), specifier: row.specifier.clone(), manifest: row.owner.clone(),
+            package: row.package.to_owned(), specifier: row.specifier.to_owned(), manifest: row.owner.to_owned(),
             version: api.runtime.as_ref().or(api.declarations.as_ref()).map(|identity| identity.version.clone()),
-            declared_as: row.declared_as.clone(), imports: row.imports, site: row.site.clone(), imported: row.imported == Some(true),
+            declared_as: row.declared_as.map(str::to_owned), imports: row.imports, site: row.site.clone(), imported: row.imported == Some(true),
             words: held.iter().map(|stem| asked[*stem].clone()).collect(), said: said.len() as u32,
             description: purpose.description.clone(),
         };
-        let key = (row.package.clone(), row.specifier.clone());
+        let key = (row.package.to_owned(), row.specifier.to_owned());
         let better = best.get(&key).is_none_or(|prior| (hit.words.len(), hit.imported) > (prior.words.len(), prior.imported));
         if better { best.insert(key, hit); }
     }

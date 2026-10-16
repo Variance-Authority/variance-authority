@@ -128,26 +128,6 @@ export function preconditionSection(words: Uint32Array): Readonly<Record<string,
   return words.every((word) => word === UNHEARD) ? {} : { [PRECONDITIONS_COLUMN]: column(words) };
 }
 
-/**
- * What two runs of one case named, as one row, resolved as the calls of one
- * run are: per name the narrowest level wins, so a body one run reached
- * overrides the `beforeEach` a run that never reached it heard, and two values
- * at that level are both kept, which is the contradiction a retry that changed
- * its mind is. A value both runs said keeps the site `before` said it at.
- * Unmeasured only where neither run was listened to.
- */
-export function preconditionsAcross(
-  before: readonly CasePrecondition[] | undefined,
-  after: readonly CasePrecondition[] | undefined,
-): { readonly preconditions?: readonly CasePrecondition[] } {
-  if (before === undefined && after === undefined) return {};
-  return {
-    preconditions: preconditions.resolve(
-      [...(before ?? []), ...(after ?? [])].map(({ name, value, site, level }) => [name, value, site, level] as const),
-    ),
-  };
-}
-
 /** One case's preconditions off the column, where it has a word that says some. */
 export function preconditionsFrom(
   held: Uint32Array | undefined,

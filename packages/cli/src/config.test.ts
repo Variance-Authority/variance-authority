@@ -89,51 +89,18 @@ describe('parseConfig', () => {
     expect(attempt({ ...VALID, entrypoints: { 'apps/main': ['../widget/main.tsx'] } }).field).toBe('entrypoints.apps/main');
   });
 
+  it('takes `typescript.tsconfig` as auto, a path or false, and refuses anything else by the field', () => {
+    for (const tsconfig of ['auto', 'tsconfig.app.json', false]) {
+      expect(() => parseConfig({ ...VALID, typescript: { tsconfig } }, OPTIONS)).not.toThrow();
+    }
+    expect(attempt({ ...VALID, typescript: { tsconfig: true } }).field).toBe('typescript.tsconfig');
+    expect(attempt({ ...VALID, typescript: { paths: false } }).field).toBe('typescript.paths');
+    expect(attempt({ ...VALID, typescript: false }).field).toBe('typescript');
+  });
+
   it('refuses `tiers` that do not decrease, by the field', () => {
     expect(() => parseConfig({ ...VALID, tiers: [200000, 5000, 1000] }, OPTIONS)).not.toThrow();
     expect(attempt({ ...VALID, tiers: [1000, 5000] }).field).toBe('tiers');
-  });
-
-  it('accepts a baseline layout that keeps images beside their subject', () => {
-    // The layout decides where a baseline file lands, and the config is the only
-    // place that decision can be made once for every command that reads the root.
-    const config = parseConfig(withField('baselines', { kind: 'directory', root: 'b', layout: 'beside' }), OPTIONS);
-
-    expect(config.baselines).toEqual({ kind: 'directory', root: '/repo/b', layout: 'beside' });
-  });
-
-  it('refuses a layout it does not implement rather than falling back to flat', () => {
-    // A silently defaulted layout writes every baseline in the other place, and
-    // the run that discovers it reports every subject as new.
-    const error = attempt(withField('baselines', { kind: 'directory', root: 'b', layout: 'nested' }));
-
-    expect(error.field).toBe('baselines.layout');
-    expect(error.message).toContain('"flat" or "beside"');
-  });
-
-  it('resolves a records directory against the config file, like the root beside it', () => {
-    // The two are read together by a person deciding what their repository
-    // tracks. A pair of paths that resolved against different things is a pair
-    // somebody gets wrong once and finds out about a week later.
-    const config = parseConfig(
-      withField('baselines', { kind: 'directory', root: 'b', records: '.variance/records' }),
-      OPTIONS,
-    );
-
-    expect(config.baselines).toEqual({
-      kind: 'directory',
-      root: '/repo/b',
-      records: '/repo/.variance/records',
-    });
-  });
-
-  it('refuses a records directory that is not a path', () => {
-    // `records: true` is how an operator asks for the split without saying
-    // where, and there is no answer to guess: the point of the key is that the
-    // records go somewhere version control is not looking.
-    const error = attempt(withField('baselines', { kind: 'directory', root: 'b', records: true }));
-
-    expect(error.field).toBe('baselines.records');
   });
 
   it('refuses an unknown observation profile', () => {

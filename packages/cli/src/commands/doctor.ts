@@ -11,6 +11,7 @@ import type { Config } from '../config.js';
 import type { DoctorProbes } from './doctor-probes.js';
 import { cacheFinding, type CacheFinding } from './doctor-cache.js';
 import { agentSkills, type SkillsFinding } from './doctor-skills.js';
+import { typescriptFinding, type TypescriptFinding } from './doctor-typescript.js';
 
 /**
  * `variance doctor` — what *this* machine can observe, and nothing else.
@@ -61,6 +62,7 @@ export interface Diagnosis {
   readonly cache: CacheFinding;
   readonly history: HistoryFinding;
   readonly skills: SkillsFinding;
+  readonly typescript: TypescriptFinding;
 }
 
 /**
@@ -132,10 +134,10 @@ export interface BaselineFinding {
    *
    * `false` is the finding that costs an afternoon everywhere else: a run here
    * compares every subject against another machine's image (ADR-0090), and
-   * every change it reports names the machine as its cause. It is a `readdir`
-   * here, because the store's layout *is* the partition:
-   * `<…>/<identityDigest>/<subject>.png`, at the root under a `flat` layout and
-   * in the subject's own directory under `beside`.
+   * every change it reports names the machine as its cause. Read from each
+   * record's identity at the paths `baselines.path` renders, and from the
+   * directory name of an identity-directory baseline,
+   * `<…>/<identityDigest>/<subject>.png`.
    *
    * Absent when nothing was looked at: a remote store is not contacted, and an
    * ephemeral run keeps no baselines.
@@ -202,6 +204,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       cache: cacheFinding(await probes.cache()),
       history: history(config),
       skills: agentSkills(process.cwd()),
+      typescript: await typescriptFinding(process.cwd()),
     };
   }
 
@@ -234,6 +237,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       cache: cacheFinding(await probes.cache()),
       history: history(config),
       skills: agentSkills(process.cwd()),
+      typescript: await typescriptFinding(process.cwd()),
     };
   } finally {
     // Closed here rather than left to the process: doctor is often the last thing

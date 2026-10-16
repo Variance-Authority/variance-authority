@@ -62,6 +62,7 @@ const ROOT = import.meta.dirname;
  * test sits from that module has a path the scanner has actually read.
  */
 const PRODUCT = /[/\\](?:packages|examples|cases)[/\\][^/\\]+[/\\]src[/\\]/;
+const SITE = /[/\\]site[/\\]app[/\\]/;
 const BUILT = /[/\\]packages[/\\][^/\\]+[/\\]dist[/\\]/;
 const MODULE = /\.[cm]?[jt]sx?$/;
 /** A probe in a test file would record the test observing itself. */
@@ -77,7 +78,7 @@ const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
  * because the alternative —
  * a probe that tolerates its own absence — was tried and rejected.
  */
-const source = (file: string) => (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file);
+const source = (file: string) => (PRODUCT.test(file) || SITE.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file);
 const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
 
 /**
@@ -87,8 +88,31 @@ const instrumentable = (file: string) => source(file) && probeable(ROOT, file);
  */
 const unprobed = (file: string) => source(file) && marked(ROOT, file);
 
-/** What every slice runs under. */
+/**
+ * What a site test mocks and the root does not install: the site has its own
+ * install, which no slice here runs, so a site module importing one of these
+ * resolves only to the mock its test declares.
+ */
+const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw', 'remark-gfm'];
+
+/**
+ * What every slice runs under.
+ *
+ * The site is outside the workspaces and keeps its own install, but its tests
+ * run here, on the root one: the suite's CI job installs nothing in `site/`. So a module a site
+ * test loads resolves from the root manifest or not at all, and the root
+ * declares the site's rendering dependencies as `devDependencies` at the site's
+ * own ranges. The framework is the exception: `next/link` and
+ * `next/navigation` are interfaces each site test mocks, and the plugin below
+ * only lets their names resolve so the mock has something to replace.
+ */
 const shared = defineConfig({
+  plugins: [{
+    name: 'site-framework-test-interfaces',
+    resolveId(id, importer) {
+      if (importer && SITE.test(importer) && SITE_ONLY.includes(id)) return id;
+    },
+  }],
   test: {
     // `node` is the default; corpus fixtures opt into jsdom per-file with a
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay
@@ -123,6 +147,7 @@ const shared = defineConfig({
  * name, so a file says which slice it is in and no list has to.
  */
 const PLACES = [
+  'site/app/**/*.test.{ts,tsx}',
   'packages/*/src/**/*.test.{ts,tsx}',
   'packages/*/test/**/*.test.ts',
   'examples/*/src/**/*.test.{ts,tsx}',

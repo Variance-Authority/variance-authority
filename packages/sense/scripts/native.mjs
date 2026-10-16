@@ -25,11 +25,9 @@
  *                source. The one stage a build pays per changed file.
  *   encode     — the whole snapshot to bytes, which is what a run ends with.
  *   decode     — the same bytes back as the logical model.
- *   layer      — a run merged onto the index it found, the shape of every run
- *                after the first. Profiled twice: the merge alone, over a model
- *                somebody else decoded, and `layerTestCoverage`, which is the
- *                decode, the merge and the encode as one pass over the columns
- *                and is what the three write seams actually call.
+ *   layer      — a run laid over the index it found, the shape of every run
+ *                after the first: `layCoverage`, the addon's lay over the
+ *                columns, which is what the write seams call.
  *
  * Run:  node scripts/native.mjs
  *       node scripts/native.mjs 5000
@@ -43,8 +41,7 @@ import { digestString as portableDigest } from '@variance-authority/core/format'
 import { instrument } from '../dist/instrument/index.js';
 import { digestString } from '../dist/digest.js';
 import { decodeTestCoverage, encodeTestCoverage } from '../dist/test-selection/format.js';
-import { mergeCoverage } from '../dist/test-selection/merge.js';
-import { layerTestCoverage } from '../dist/test-selection/format-layer.js';
+import { layCoverage } from '../dist/test-selection/format-layer.js';
 import { ROOT, corpusOf, instrumentedSources, tracked } from './coverage-corpus.mjs';
 
 // The encode of a large index wants more heap than the default ceiling allows,
@@ -222,20 +219,6 @@ const layer = {
     blocks: module.blocks.map((block) => ({ ...block, testFiles: [...block.testFiles] })),
   })),
 };
-const layered = await profile(() => mergeCoverage(coverage, layer));
-if (layered.answer.modules.length !== MODULES) throw new Error('layering lost modules');
-report('layer: the merge alone', layered.spent, layered.split);
-
-// The whole read-modify-write, which is the stage a run pays. The composition
-// it replaces is timed beside it, and the two are compared as bytes: this is an
-// optimization of a function that still exists, and it is only worth having
-// while the two files are the same file.
-const whole = await profile(() => encodeTestCoverage(mergeCoverage(decodeTestCoverage(encoded.answer), layer)));
-const one = await profile(() => layerTestCoverage(encoded.answer, layer));
-if (Buffer.compare(whole.answer, one.answer) !== 0) throw new Error('the layer wrote a different file');
-report('layer: decode, merge and encode', whole.spent, whole.split);
-report('layer: the same, over the columns', one.spent, one.split);
-console.log(
-  `\n  ${whole.spent.toFixed(0)} ms -> ${one.spent.toFixed(0)} ms` +
-    `  (${(whole.spent / one.spent).toFixed(1)}x), byte for byte the same file`,
-);
+const one = await profile(() => layCoverage(encoded.answer, layer));
+if (decodeTestCoverage(one.answer).modules.length !== MODULES) throw new Error('the lay lost modules');
+report('layer: over the columns', one.spent, one.split);

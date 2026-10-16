@@ -213,9 +213,7 @@ function Crossed({
             {crossing.unreachedMoved.map((subject, index) => (
               <li key={subject.subject}>
                 <strong>{subject.subject}</strong>{' '}
-                <span className="va-note">
-                  {briefly(subject)} moved
-                </span>
+                <span className="va-note">{briefly(subject)}</span>
                 {index < ASKED ? <Journey client={client} subject={subject.subject} /> : null}
               </li>
             ))}

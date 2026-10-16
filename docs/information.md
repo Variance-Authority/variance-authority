@@ -32,7 +32,7 @@ several sections.
 | --- | --- |
 | **subject** | One named UI state you asked for and can ask for again — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
 | **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
-| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest. Two painters' images are still compared, and the fields that differ are named as the cause of what moved. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
+| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**, recorded in the `.json` beside each baseline. A *painter partition* is the set of images one such digest painted. Two painters' images are still compared, and the fields that differ are named as the cause of what moved. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
 | **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never changes and is a defect when it does; anti-aliasing changes constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
 
 ### Things a run records
@@ -101,7 +101,7 @@ and no other:
 
 | `verdict` | What it means |
 | --- | --- |
-| `unchanged` | The stored baseline and the new capture were compared, and nothing differs. |
+| `unchanged` | The stored baseline and the new capture were compared, and nothing differs beyond the default policy's tolerance: antialiasing, and a colour change of up to 1%. |
 | `changed` | Pixels moved. The report names the region, the component and the `file:line`. |
 | `new` | The subject was captured and no approved baseline exists. |
 | `ignored` | Pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. Green, and a separate word from `unchanged`, so a report can be asked how much of its green was earned and how much was declared. |
@@ -536,10 +536,13 @@ for every composed subject whether or not anything was attributed to it, so
 
 Finally, one input gates two sections. The `journeys` section and the
 lexicon's `regions` field are both filled from the same execution journal, so a
-build with no probes in it loses both at once. Getting that journal needs the
-application under test built with `testSelectionProbes()` from
-`@variance-authority/sense/journal` and the collector asked to record — `tests:
-true` on the Storybook or Playwright integration. Without a collector in the
+build with no probes in it loses both at once. Getting that journal needs probes in
+the build under test and the collector asked to record, `tests: true` on the
+Storybook or Playwright integration. A Storybook gets its probes from
+`@variance-authority/storybook-collector` in its `addons`, under
+`storybook build --test` or a dev server; an application gets them from
+`testSelectionProbes()` or `testSelectionRule()` in
+`@variance-authority/sense/journal`. Without a collector in the
 page the run prints that on stderr and records nothing. See the
 [Storybook](../packages/storybook-collector) and
 [Playwright](../packages/playwright-test) collector references.

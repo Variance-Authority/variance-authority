@@ -133,10 +133,13 @@ with no `since` beside it, a snapshot it cannot read — the seam fails the run
 with the same message.
 
 A selection that skips everything is an answer: the change reached no test the
-record holds. The seam prints `selected none of M`, and the run exits as the
-runner exits with no tests. Jest exits 1 there unless the project set
-`passWithNoTests`; the seam does not set it, because that is the runner's option
-(ADR-0068).
+record holds. The seam prints `selected none of M`, and the run passes. Vitest 2
+decides "no test files" before the sequencer drops anything, so it passes on its
+own; Vitest 3 and 4 decide after, so the Vitest seam sets `passWithNoTests` on
+that run's config when the selection dropped files and left the run, or its
+shard, none. A run that drops nothing keeps the project's setting. The Jest seam
+does not set it yet, and Jest exits 1 there unless the project set
+`passWithNoTests`.
 
 ### One selection per commit and record
 
@@ -239,9 +242,10 @@ These are the owner's to decide; each has a recommendation.
    asked of a runner, and a fifth for case-level recording. Dropping files is a
    sixth ask and changes the chart.
 5. **Exit code on an empty selection.** The runner's own no-tests exit with the
-   count printed (recommended: the seam does not set the runner's options, and a
-   project that wants 0 already has `passWithNoTests`), or 0 by the seam's
-   choice, which overrides that option.
+   count printed, or 0 by the seam's choice, which overrides that option.
+   Answered: 0. A pull request that reaches no test is not a failed run, and a
+   project cannot set `passWithNoTests` for selected runs alone. Vitest's own
+   `--changed` makes the same choice.
 6. **Runners in the first cut.** Jest and Vitest (recommended: they have a drop
    point that costs nothing per file; Rstest has none named and Playwright's
    brings back the costs refused above), or all four together.

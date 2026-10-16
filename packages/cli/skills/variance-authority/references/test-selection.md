@@ -67,6 +67,46 @@ one answers.
   recording is treated as absent, and the suite runs whole, which cannot produce
   a wrong skip.
 
+## Combine CI shard records
+
+A runner wrapped by `withTestSelection` places `--shard k/n` by whole test
+files — Vitest, Jest, and Playwright 1.62 or newer — so shards that read one
+record run each file in one shard; a Playwright setup project runs in every
+shard that needs it. Each shard prints one stderr line before its first test:
+`shard k/n by the times recorded at <commit>` when the record has times, and
+`shard k/n by file count` with the reason when it has none. `withTestSelection`
+refuses a sharded Playwright run, before any test starts, on Playwright older
+than 1.62, or when `--reporter` leaves out
+`@variance-authority/playwright-test/reporter`.
+
+To combine records written by `withTestSelection` into the one record an
+unsharded run would have written, name every shard and an output file:
+
+```bash
+variance journeys combine shard-1/coverage.bin shard-2/coverage.bin \
+  --into artifacts/coverage.bin
+```
+
+The combine reads the shards and nothing else: no configuration, no checkout, no
+source index. Paths resolve from the working directory. `--into` names a new
+file; a path that is already there, a shard among them, is refused. The output
+is the same bytes whatever order the shards are named in. It keeps the case
+sections for `distill`, keeps each test file's duration as its one shard
+measured it. A shard with no test files adds nothing, and must still have
+read, and been laid over, the record the others did. A shard whose
+record names the record its selection read `unknown`, as a JVM shard's does, is
+combined without checking that read, and the output names it. It refuses, by shard, overlapping
+test files or case files, different commits, different probe recipes, a shard
+that kept cases beside one that kept none, before layers that started from
+different records, different Eyes journals for one case attempt or a journal of a case the index does not
+record, a case index this build cannot read (record it again with this
+version), and lines on a file two shards cut into different regions (record
+every shard with one build). Land the result with
+`variance journeys <record>`; to lay the shards over a record that is already
+there, run `variance journeys <shard.bin>... --into <record>`.
+`journeys stitch` reads journey-only artifacts instead, which lack the per-file
+loads `distill` needs.
+
 ## From the command line
 
 These read only the `suites` and `cacheRoot` keys of the root
@@ -132,7 +172,8 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 - **Read the first stderr line.** `variance-authority: selected N of M` is the
   run you asked for. `declined:` means the selection could not be read and every
   file ran; the reason follows it. `selected none of M` means the edit reached
-  no recorded test: a type or comment edit, or a file no test ran.
+  no recorded test: a type or comment edit, or a file no test ran. Under
+  Vitest that run passes, with nothing run.
 - **Each run lands.** The next edit is measured from what each test last ran,
   so a test the near leg left out still runs in the far leg, and in the next
   run if you skip that.

@@ -200,7 +200,10 @@ Options:
   `presentation`.
 - `title`: optional human-facing subject title.
 - `fonts`: font identities the caller has independently established.
-- `suspense.timeoutMs`: settlement bound for React Suspense before sensing.
+- `suspense.timeoutMs`: bound on React Suspense under the subject; a boundary
+  still pending at it rejects the call instead of sensing the fallback.
+- `loading`: `true` senses the fallback of a subject that is its loading state;
+  a subject with no boundary pending then rejects the call.
 - `stabilize`: optional intervention ids replacing the default recipe entirely.
   The ids this build knows are `hold-animations`, `pin-animations`,
   `hide-caret`, `hide-scrollbars`, `hide-presentational-images`, `no-hover`,
@@ -250,9 +253,9 @@ findings [
 ]
 ```
 
-The browser agent waits for Suspense, settles images inside the subject and its
-portals rather than unrelated document images, applies the other collection
-interventions, collects computed style and layout, reads Playwright's ARIA
+The browser agent waits for Suspense and refuses a subject still showing a
+fallback, settles images inside the subject and its portals rather than
+unrelated document images, applies the other collection interventions, collects computed style and layout, reads Playwright's ARIA
 snapshot for the subject and portals, analyzes the plain capture, and then
 optionally paints from the returned report. It does not capture a PNG. Do not
 use an empty stabilization recipe to make a live page faster; it is a

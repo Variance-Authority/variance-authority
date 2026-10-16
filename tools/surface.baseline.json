@@ -35,7 +35,6 @@
         "AskRequest": "interface",
         "BaselineFinding": "interface",
         "BaselinesConfig": "type",
-        "COMMENT_MARKER": "const",
         "CandidateReader": "type",
         "CliRunReport": "interface",
         "Collected": "type",
@@ -60,7 +59,9 @@
         "Leg": "interface",
         "LfsBaselines": "interface",
         "ListSubjects": "interface",
+        "MainlineLaid": "type",
         "MainlineMissed": "interface",
+        "MainlinePassedOver": "interface",
         "MainlineRecord": "interface",
         "MissedMainline": "interface",
         "NotObserved": "interface",
@@ -102,6 +103,7 @@
         "argumentsOf": "function",
         "ask": "function",
         "collectorPath": "function",
+        "commentMarker": "function",
         "doctor": "function",
         "exitFor": "function",
         "exitForDiagnosis": "function",
@@ -111,11 +113,13 @@
         "formatPush": "function",
         "formatReport": "function",
         "isOperatorError": "function",
+        "landSuite": "function",
         "layMainline": "function",
         "loadCollector": "function",
         "loadConfig": "function",
         "machineProbes": "function",
         "mainlineMissed": "function",
+        "mainlinePassedOver": "function",
         "mainlineRead": "function",
         "matchesGlob": "function",
         "mergeReports": "function",
@@ -253,6 +257,8 @@
         "NodePath": "type",
         "ObservationProfile": "interface",
         "OwnerFrame": "interface",
+        "PACKED_SNAPSHOT_HEADER": "const",
+        "PackedSnapshot": "type",
         "PageRegion": "interface",
         "Pictured": "type",
         "ProfileId": "type",
@@ -276,6 +282,9 @@
         "ShapeValueOptions": "interface",
         "SourceLocation": "interface",
         "StackFrame": "interface",
+        "Step": "interface",
+        "StepClock": "interface",
+        "StepTotal": "interface",
         "StyleProvenanceEntry": "interface",
         "SubjectRef": "interface",
         "Tier": "type",
@@ -314,7 +323,11 @@
         "identityDigest": "function",
         "intersectionArea": "function",
         "interventionById": "function",
+        "isRenderDocument": "function",
+        "isSemanticSnapshot": "function",
+        "isSubjectRef": "function",
         "jsxSourceOf": "function",
+        "keepsSnapshot": "function",
         "keyedByPosition": "function",
         "mergeDiagnostics": "function",
         "occupiesPixels": "function",
@@ -334,8 +347,11 @@
         "relativizeSource": "function",
         "settleRecipe": "function",
         "shapeValue": "function",
+        "stepClock": "function",
         "tierOfProfile": "function",
         "tierReaches": "function",
+        "timeOn": "function",
+        "totalsOf": "function",
         "waitForFonts": "const",
         "waitForImages": "const",
         "withoutOrigin": "function"
@@ -619,7 +635,6 @@
         "closureOf": "function",
         "dependenciesOf": "function",
         "dependentsOf": "function",
-        "dominatorsOf": "function",
         "driftedBetween": "function",
         "explain": "function",
         "idOf": "function",
@@ -684,6 +699,7 @@
         "progress": "function",
         "record": "function",
         "relaxes": "function",
+        "restamps": "function",
         "severityOf": "function",
         "shapeOfDelta": "function",
         "startTrail": "function",
@@ -1026,10 +1042,7 @@
     "names": {
       ".": {
         "AnsweringOptions": "interface",
-        "DependencyLexicon": "interface",
-        "LexiconAvailability": "interface",
-        "LexiconEntry": "interface",
-        "LexiconIssue": "interface",
+        "FromIndexOptions": "type",
         "NamedTree": "interface",
         "PagesOptions": "interface",
         "ReadingOptions": "interface",
@@ -1037,8 +1050,8 @@
         "SnapshotOptions": "interface",
         "WorkspaceOptions": "interface",
         "Written": "interface",
+        "publishWorkspaceFromIndex": "function",
         "publishedGeneration": "function",
-        "readDependencyLexicon": "function",
         "readNamedTree": "function",
         "readSearchForAnswer": "function",
         "readWorkspace": "function",
@@ -1046,7 +1059,6 @@
         "readWorkspaceSnapshot": "function",
         "refreshDependencyLexicon": "function",
         "refreshWorkspace": "function",
-        "refreshWorkspaceFromIndex": "function",
         "serveWorkspace": "function",
         "wordsOf": "function",
         "workspaceGeneration": "function",
@@ -1448,7 +1460,9 @@
         "observeCaptureAgainstBaseline": "function",
         "observePair": "function",
         "observeRasters": "function",
-        "summarizeObservation": "function"
+        "packSnapshot": "function",
+        "summarizeObservation": "function",
+        "unpackSnapshot": "function"
       }
     }
   },
@@ -1521,6 +1535,7 @@
         "UsageOptions": "interface",
         "Use": "interface",
         "UseKind": "type",
+        "WorkspaceManifests": "interface",
         "assembleHelp": "function",
         "everyEntry": "function",
         "gatheringUsage": "function",
@@ -1533,6 +1548,7 @@
         "readMention": "function",
         "readOfferings": "function",
         "readUsage": "function",
+        "readWorkspaceManifests": "function",
         "readmes": "function",
         "requested": "function",
         "undocumented": "function",
@@ -1579,6 +1595,7 @@
     },
     "names": {
       ".": {
+        "ARRIVAL_GLOBAL": "const",
         "BlankRule": "interface",
         "BlankedAsset": "interface",
         "DeclarationReader": "interface",
@@ -1589,6 +1606,7 @@
         "ImageSize": "interface",
         "NetworkObservation": "interface",
         "NetworkOptions": "interface",
+        "UnansweredAssets": "class",
         "WidthPlanned": "interface",
         "acquireFromAgent": "function",
         "blankKey": "function",
@@ -1606,6 +1624,7 @@
         "pinnedRegion": "function",
         "unresizable": "function",
         "unwidened": "function",
+        "watchArrivals": "function",
         "widthsOf": "function"
       },
       "./engines": {
@@ -1757,6 +1776,7 @@
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
+        "glyphs",
         "mark.svg"
       ],
       "engines": {
@@ -1765,9 +1785,12 @@
     },
     "names": {
       ".": {
+        "ChangeImages": "interface",
+        "ChangeLabels": "interface",
         "DeclaredPainter": "interface",
         "DecodedImage": "interface",
         "PngDecoder": "interface",
+        "changeImages": "function",
         "comparePixels": "function",
         "comparePngs": "function",
         "compareRasters": "function",
@@ -1785,6 +1808,7 @@
         "observePngDifference": "function"
       },
       "./mask": {
+        "AlignedRows": "interface",
         "DecodedImage": "interface",
         "PixelDifference": "interface",
         "differencePixels": "function",
@@ -1937,9 +1961,12 @@
         "RasterComparison": "interface",
         "RasterStore": "interface",
         "RasterStoreError": "class",
+        "Relocated": "interface",
         "RenderCache": "interface",
         "Renderer": "interface",
         "Retention": "type",
+        "RowAlignment": "interface",
+        "RowSpan": "interface",
         "STRICT_POLICY": "const",
         "SUBJECT_PATH": "const",
         "Settlement": "type",
@@ -1962,7 +1989,8 @@
         "recordFrom": "function",
         "settle": "function",
         "sidecarFrom": "function",
-        "summarizeGate": "function"
+        "summarizeGate": "function",
+        "testBaselineKey": "function"
       },
       "./difference": {
         "AlphaMode": "type",
@@ -2036,6 +2064,7 @@
     "names": {
       ".": {
         "ANONYMOUS": "const",
+        "AwaitedArrival": "type",
         "Commit": "interface",
         "CommitTap": "interface",
         "CommitUpdater": "interface",
@@ -2054,8 +2083,10 @@
         "FiberWalkOptions": "interface",
         "FiberWalkResult": "interface",
         "HydrationSettlement": "interface",
+        "HydrationState": "type",
         "HydrationWaitOptions": "interface",
         "LoadingDeclaration": "interface",
+        "MarkupChange": "interface",
         "MemoizedUpdatersResult": "interface",
         "NO_FIBER": "const",
         "NoFiberReason": "type",
@@ -2068,6 +2099,7 @@
         "Remount": "interface",
         "RenderMark": "interface",
         "ResolvedProvenance": "interface",
+        "RootHydration": "interface",
         "SuspenseBoundary": "interface",
         "SuspenseOutcome": "type",
         "SuspenseSettlement": "interface",
@@ -2075,6 +2107,7 @@
         "SuspenseWaitOptions": "interface",
         "TapOptions": "interface",
         "TapRefusal": "type",
+        "UNCOMMITTED": "const",
         "UNMOUNTED": "const",
         "awaitHydration": "function",
         "awaitQuiet": "function",
@@ -2110,6 +2143,34 @@
         "tapCommits": "function",
         "walkFiberSubtree": "function",
         "wiringOf": "function"
+      }
+    }
+  },
+  "@variance-authority/reads": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "READS_ATTRIBUTE": "const",
+        "ReadsProps": "type",
+        "reads": "function"
       }
     }
   },
@@ -2352,6 +2413,7 @@
         "Plan": "interface",
         "PlannedSubject": "interface",
         "RouteCollectorOptions": "interface",
+        "RouteExecutionOptions": "type",
         "SourceScan": "interface",
         "locationsIn": "function",
         "routeCollector": "function",
@@ -2491,6 +2553,14 @@
           "types": "./dist/test-selection/rstest.d.ts",
           "default": "./dist/test-selection/rstest.js"
         },
+        "./probes-loader": {
+          "types": "./dist/test-selection/probes-loader.d.ts",
+          "default": "./dist/test-selection/probes-loader.js"
+        },
+        "./rstest-after-loader": {
+          "types": "./dist/test-selection/rstest-after-loader.d.ts",
+          "default": "./dist/test-selection/rstest-after-loader.js"
+        },
         "./rstest-loader": {
           "types": "./dist/test-selection/rstest-loader.d.ts",
           "default": "./dist/test-selection/rstest-loader.js"
@@ -2523,6 +2593,7 @@
         "native/instrument/Cargo.toml",
         "native/instrument/build.rs",
         "native/instrument/src/*.rs",
+        "record-layout.json",
         "scripts/overhead.mjs",
         "scripts/probe-write.mjs"
       ],
@@ -2589,6 +2660,7 @@
         "LayerHeld": "interface",
         "LayerMoves": "interface",
         "LayerPresence": "interface",
+        "MemberSite": "interface",
         "MockTaintOptions": "interface",
         "ModuleCallsTaintOptions": "interface",
         "OrientFlow": "interface",
@@ -2608,6 +2680,7 @@
         "PersistentSourceIndex": "interface",
         "PreparedCodeMap": "interface",
         "PreparedJourneys": "type",
+        "Progress": "type",
         "PublishedRows": "interface",
         "PublishedSources": "interface",
         "PublishedSourcesOptions": "interface",
@@ -2654,6 +2727,8 @@
         "TimedTestCase": "interface",
         "TimedTestFile": "interface",
         "TreeShape": "interface",
+        "TsconfigUse": "interface",
+        "TypescriptError": "class",
         "Violation": "interface",
         "WorkingTreeChanges": "interface",
         "auditTaints": "function",
@@ -2667,8 +2742,10 @@
         "declaredTiers": "function",
         "dependenciesAround": "function",
         "dependencyStackNative": "function",
+        "describedWordsNative": "function",
         "encodeSearch": "function",
         "enrichSources": "function",
+        "existedAt": "function",
         "exportedDigest": "function",
         "fileCases": "function",
         "fileSizes": "function",
@@ -2688,6 +2765,7 @@
         "layerMoves": "function",
         "matchesGlob": "function",
         "mayMock": "function",
+        "memberDeclarationsOf": "function",
         "memoryParseCache": "function",
         "memoryRecordCache": "function",
         "mockTaint": "function",
@@ -2699,9 +2777,12 @@
         "packageLayers": "function",
         "packagesAround": "function",
         "parseTiers": "function",
+        "parseTypescript": "function",
         "pathsThrough": "function",
+        "placesOf": "function",
         "prepareCodeMap": "function",
         "prepareJourneys": "function",
+        "primarySourceIndexPath": "function",
         "publishedSources": "function",
         "queryDependencyLexiconNative": "function",
         "readHelp": "function",
@@ -2722,6 +2803,7 @@
         "sourceIndexPath": "function",
         "sourceScope": "function",
         "sourcesWithin": "function",
+        "stepped": "function",
         "taintFile": "function",
         "taintRecords": "function",
         "taintTable": "function",
@@ -2730,7 +2812,9 @@
         "tierMoves": "function",
         "tierOf": "function",
         "treeShapeOf": "function",
+        "tsconfigUse": "function",
         "updateSourceIndex": "function",
+        "wordStemsNative": "function",
         "workingTreeChanges": "function"
       },
       "./read": {
@@ -2808,6 +2892,8 @@
         "CaseSections": "interface",
         "CaseTwin": "interface",
         "CodeExtent": "interface",
+        "CombinedRecord": "interface",
+        "CombinedShard": "interface",
         "CommitRuns": "interface",
         "CountedSuite": "interface",
         "CoverageBlock": "type",
@@ -2815,7 +2901,6 @@
         "CoverageFile": "interface",
         "CoverageModule": "interface",
         "CoveragePrecondition": "interface",
-        "CoverageShard": "interface",
         "CoverageTest": "interface",
         "CoveringCaseNote": "type",
         "CoveringChange": "interface",
@@ -2828,6 +2913,7 @@
         "DeviationOptions": "interface",
         "DistanceGroup": "interface",
         "DistanceOptions": "interface",
+        "DistillRecords": "interface",
         "EXECUTION_FORMAT": "const",
         "Entrypoints": "type",
         "EntrypointsError": "class",
@@ -2877,12 +2963,17 @@
         "NameGrammarError": "class",
         "NameIndex": "interface",
         "NamedAxis": "interface",
+        "NativeDistillCause": "interface",
+        "NativeDistillFile": "interface",
+        "NativeDistillRegion": "interface",
+        "NativeDistillScope": "interface",
         "ObservedEyes": "interface",
         "OutsideVocabulary": "interface",
         "OwnLayer": "interface",
         "OwnState": "interface",
         "PRUNE_EVERY_MS": "const",
         "PRUNE_REASONS": "const",
+        "PassedOver": "interface",
         "Placement": "interface",
         "PruneEntry": "interface",
         "PruneOwners": "interface",
@@ -2894,6 +2985,7 @@
         "RecordLocationOptions": "interface",
         "RecordWithoutCoverage": "class",
         "RecordedEyes": "interface",
+        "RecordedRun": "interface",
         "RecordedTests": "type",
         "RegionMotion": "interface",
         "RegionMotionKind": "type",
@@ -2909,6 +3001,8 @@
         "SelectionCause": "interface",
         "SelectionReason": "type",
         "SetColumns": "interface",
+        "ShardAsked": "interface",
+        "ShardPart": "interface",
         "SourceAudience": "interface",
         "SourceAudienceTest": "interface",
         "SourcePoint": "interface",
@@ -2931,6 +3025,7 @@
         "SuitesError": "class",
         "TestColumns": "interface",
         "TestCoverage": "interface",
+        "TestCoverageView": "interface",
         "TestDeviation": "interface",
         "TestDistance": "interface",
         "TestFileMotion": "interface",
@@ -2956,6 +3051,7 @@
         "casesCutApart": "function",
         "changedLines": "function",
         "collectedRecord": "function",
+        "combineRecords": "function",
         "commitRunsAfter": "function",
         "commitRunsFile": "function",
         "countCoverage": "function",
@@ -2978,9 +3074,11 @@
         "eitherFace": "function",
         "encodeAsSetExecutionIndex": "function",
         "encodeExecutionIndex": "function",
+        "encodeTestCoverage": "function",
         "finalizeJestJourneys": "function",
-        "foldTestCoverage": "function",
         "followRows": "function",
+        "followRowsIn": "function",
+        "foreignProbes": "function",
         "formatCoveringChange": "function",
         "groupByDistance": "function",
         "heldCommitRuns": "function",
@@ -3002,16 +3100,15 @@
         "keptTexts": "function",
         "landCases": "function",
         "landRun": "function",
+        "landedCoverage": "function",
+        "landingTimes": "function",
         "lastCaseRunOf": "function",
         "lastFetchedMainline": "function",
         "layFetchedMainline": "function",
-        "layerTestCoverage": "function",
         "layeredCoverage": "function",
         "layeredFiles": "function",
         "machineOwners": "function",
         "mainlineReadRoot": "function",
-        "mergeCoverage": "function",
-        "mergeExecutionIndexes": "function",
         "mib": "function",
         "nameIndex": "function",
         "narrowByExecution": "function",
@@ -3020,6 +3117,7 @@
         "noteSeeded": "function",
         "openCoverageFile": "function",
         "openSetColumns": "function",
+        "openTestCoverage": "function",
         "outsideVocabulary": "function",
         "parseBefore": "function",
         "parseEntrypoints": "function",
@@ -3032,7 +3130,9 @@
         "pruneWhenDue": "function",
         "prunedLine": "function",
         "ranWhileLoading": "function",
+        "rankDistillCauses": "function",
         "readCommitRuns": "function",
+        "readDistillRecords": "function",
         "readFetchedMainline": "function",
         "readJourneyChange": "function",
         "readOwnLayer": "function",
@@ -3040,12 +3140,15 @@
         "readableTestCoverage": "function",
         "readingFrom": "function",
         "readingLines": "function",
+        "recordBase": "function",
+        "recordDigestAt": "function",
         "recordFileFor": "function",
         "recordOfCases": "function",
         "recordedCases": "function",
         "recordedCommit": "function",
         "recordedEyesAt": "function",
         "recordedEyesOf": "function",
+        "recordedRun": "function",
         "regionRun": "function",
         "remaining": "function",
         "repinOwnLayer": "function",
@@ -3057,6 +3160,8 @@
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
         "selectedLines": "function",
+        "shardArgument": "function",
+        "shardOf": "function",
         "shardsInstall": "function",
         "sharedPreconditions": "function",
         "sharedRecord": "function",
@@ -3084,7 +3189,8 @@
         "writeCommitRuns": "function",
         "writeCoverageBytes": "function",
         "writeFetchedMainline": "function",
-        "writeTestCoverage": "function"
+        "writeTestCoverage": "function",
+        "writesBase": "function"
       },
       "./cache-root": {
         "cacheRootFor": "function"
@@ -3100,18 +3206,32 @@
         "ExecutionRecord": "interface",
         "InstrumentMode": "type",
         "InstrumentingPlugin": "interface",
+        "JourneyCookie": "interface",
+        "JourneyDriver": "interface",
+        "MintedJourney": "interface",
         "ModuleId": "type",
         "ObservedCase": "interface",
         "ObservedEyes": "interface",
         "ObservedSubject": "interface",
         "PreconditionListener": "interface",
         "PreconditionStanding": "type",
+        "ProbePlacement": "type",
+        "ProbesLoaderOptions": "interface",
         "RecordExecutionOptions": "interface",
+        "SETTLING_MS": "const",
         "STAGE_VARIABLE": "const",
         "StagedExecution": "interface",
+        "SubjectNote": "interface",
+        "SubjectRecorder": "interface",
+        "SubjectRecording": "interface",
+        "SubjectSurface": "interface",
         "TestSelectionProbeOptions": "interface",
+        "TestSelectionRule": "interface",
+        "TestSelectionRuleOptions": "interface",
         "closeStage": "function",
+        "createSubjectRecorder": "function",
         "drainExecution": "function",
+        "driveJourneys": "function",
         "enterModules": "function",
         "enteredModules": "function",
         "executionCollectorSource": "function",
@@ -3126,7 +3246,8 @@
         "recordExecution": "function",
         "stageExecution": "function",
         "stagingDirectory": "function",
-        "testSelectionProbes": "function"
+        "testSelectionProbes": "function",
+        "testSelectionRule": "function"
       },
       "./journey": {
         "JOURNEY_COOKIE": "const",
@@ -3185,7 +3306,6 @@
       },
       "./vitest": {
         "TestSelectionOptions": "interface",
-        "mergeCoverage": "function",
         "withTestSelection": "function"
       },
       "./rstest": {
@@ -3193,8 +3313,15 @@
         "RstestFileResult": "interface",
         "RstestTestSelectionOptions": "interface",
         "SELECTION_LOADER": "const",
-        "mergeCoverage": "function",
         "withTestSelection": "function"
+      },
+      "./probes-loader": {
+        "ProbesLoaderContext": "interface",
+        "default": "function"
+      },
+      "./rstest-after-loader": {
+        "AfterLoaderContext": "interface",
+        "default": "function"
       },
       "./rstest-loader": {
         "SelectionLoaderContext": "interface",
@@ -3216,7 +3343,6 @@
         "SelectionReporterConfig": "interface",
         "SelectionTransformerConfig": "interface",
         "TRACE_ENVIRONMENT": "const",
-        "mergeCoverage": "function",
         "withJourneyCoverage": "function",
         "withTestSelection": "function"
       },
@@ -3226,7 +3352,8 @@
         "JestTransformedSource": "interface",
         "JestTransformer": "interface",
         "SenseProbes": "interface",
-        "createTransformer": "function"
+        "createTransformer": "function",
+        "default": "object"
       },
       "./jest-reporter": {
         "JestRunResults": "interface",
@@ -3393,11 +3520,14 @@
     },
     "names": {
       "./durable": {
-        "BaselineLayout": "type",
+        "BaselinePathTemplate": "interface",
+        "DEFAULT_BASELINE_PATH": "const",
         "DurableStoreOptions": "interface",
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
+        "familyOf": "function",
+        "parseBaselinePath": "function",
         "renderCacheIn": "function",
         "sweepRenderCache": "function"
       },
@@ -3507,6 +3637,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./preset": {
+          "types": "./dist/preset.d.ts",
+          "default": "./dist/preset.js"
         }
       },
       "files": [
@@ -3530,9 +3664,15 @@
         "Plan": "interface",
         "PlannedSubject": "interface",
         "SourceScan": "interface",
-        "StoryExecutionOptions": "interface",
+        "StoryExecutionOptions": "type",
         "StorybookCollectorOptions": "interface",
         "storybookCollector": "function"
+      },
+      "./preset": {
+        "PresetOptions": "interface",
+        "rsbuildFinal": "function",
+        "viteFinal": "function",
+        "webpackFinal": "function"
       }
     }
   },
@@ -3581,11 +3721,13 @@
         "./testing": {
           "types": "./dist/testing.d.ts",
           "default": "./dist/testing.js"
-        }
+        },
+        "./fonts.css": "./fonts/fonts.css"
       },
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
+        "fonts",
         "mark.svg",
         "migrations",
         "wrangler.jsonc"

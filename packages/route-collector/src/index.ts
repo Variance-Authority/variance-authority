@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core/attribute';
 import { recipeToDrive, type Recipe } from '@variance-authority/core/format';
 import { createDeclarationReader, fetchModules, widthsOf } from '@variance-authority/playwright';
+import { createRouteRecorder } from './execution.js';
 import { operatorError } from './operator.js';
 import { readRoute, type RouteReading } from './read.js';
 import { scanSource } from './source.js';
@@ -18,8 +19,9 @@ export type {
 } from './contract.js';
 import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
 export type { RouteCollectorOptions } from './options.js';
+export type { RouteExecutionOptions } from './execution.js';
 import type { RouteCollectorOptions } from './options.js';
-import { declaredOnce, discover, routesFromFiles } from './sitemap.js';
+import { declaredOnce, discover, plannedRoute, rootNamed, routesFromFiles } from './sitemap.js';
 import { pagesIn, serveStatic, type StaticServer } from './serve.js';
 
 /**
@@ -124,6 +126,7 @@ export function routeCollector(
     }
 
     const roots = options.roots ?? DEFAULT_ROOTS;
+    const recording = options.tests !== undefined && options.tests !== false;
     const entries = Object.entries(options.routes ?? {});
     declaredOnce(options);
 
@@ -155,7 +158,11 @@ export function routeCollector(
         // Somewhere to be while the agent is installed. With a discovered plan
         // there is no first route yet — the sitemap has not been fetched — so the
         // harness opens `about:blank` and the first `collect` navigates.
-        url: entries[0]?.[1] ?? 'about:blank',
+        //
+        // So does a recorded run. A page served before any journey exists is
+        // served under none, and a head charges what it ran then to every page
+        // in the run: the first route's code would select all of them.
+        url: recording ? 'about:blank' : (entries[0]?.[1] ?? 'about:blank'),
         bundle,
         viewport: config.viewport,
         ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
@@ -176,6 +183,14 @@ export function routeCollector(
     };
 
     const world = await openWorld(recipe);
+
+    // Opened after the world, so a run that cannot open a browser holds no
+    // listener; closed first, so every head's account is in before the world
+    // that drove it goes.
+    const recorder =
+      options.tests === undefined || options.tests === false
+        ? undefined
+        : createRouteRecorder(options.tests === true ? {} : options.tests);
 
     // One per run, not one per route. A route's nodes come from a handful of
     // modules and the next route shares most of them, so the cache is worth more
@@ -251,9 +266,7 @@ export function routeCollector(
 
           return widthsOf(
             {
-              subjects: Object.keys(resolved).map((id) => ({
-                subject: { id, kind: 'route' as const },
-              })),
+              subjects: Object.keys(resolved).map((id) => plannedRoute(id)),
               notObserved: [],
               warnings: [
                 `planned ${Object.keys(resolved).length} subject(s) from ${from}. ` +
@@ -274,11 +287,11 @@ export function routeCollector(
               'or `sitemap`, with `subjects.kind: "collector"`, to discover one',
           );
         }
-        return widthsOf(plan, options.widths, config.viewport);
+        return widthsOf({ ...plan, subjects: plan.subjects.map(rootNamed) }, options.widths, config.viewport);
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {
-        return withDeclared(await readRoute(world, reading(), planned));
+        return withDeclared(await readRoute(world, reading(), planned, recorder));
       },
 
       /**
@@ -334,7 +347,8 @@ export function routeCollector(
         const declaredHere = createDeclarationReader(lane.page);
         return {
           plan: async () => collector.plan(),
-          collect: async (planned) => withDeclared(await readRoute(lane, reading(), planned), declaredHere),
+          collect: async (planned) =>
+            withDeclared(await readRoute(lane, reading(), planned, recorder), declaredHere),
           callSites,
           async close(): Promise<void> {
             await declaredHere.close();
@@ -345,7 +359,11 @@ export function routeCollector(
 
       callSites,
 
-      async close(): Promise<void> {
+      // The storybook collector closes in the same order, recorder first, so
+      // every head's account is in before the world that drove it goes.
+      // FIXME: one collector shell for both; until then they are kept in step by hand.
+      async close(costs?: ReadonlyMap<string, number>): Promise<void> {
+        await recorder?.close(costs);
         await declared.close();
         // Only the run's own world. An isolated one is opened and closed inside
         // `collectAlone`, and a worker's by the run before this is called.

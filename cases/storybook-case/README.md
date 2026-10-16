@@ -120,11 +120,11 @@ two are exercised separately.
 
 The first five rows are the five a `Button` edit moves. Of the nine subjects below
 them, eight read the same way every time. `Clock — ticking` does not: nothing
-freezes its clock, and its text counts the time since it mounted. Two readings of
-one mount seconds apart never agree, and a reading agrees with its baseline,
-which is another mount, only when both were taken the same 50 ms step after
-mounting. It has the tag `ticking`, so a run that asserts `unchanged` can exclude
-it.
+freezes its clock, and its text counts the time since it mounted. Two
+consecutive readings of one mount never agree, and a reading agrees with its
+baseline, which is another mount, only when both were taken the same 50 ms
+step after mounting. It has the tag `ticking`, so a run that asserts `unchanged`
+can exclude it.
 
 `Card — receipt not read` declares `exclude: true` in the same place. The report
 lists it as excluded by its own parameters rather than leaving it out.
@@ -146,7 +146,7 @@ running, because freezing the clock is the story author's job. A normal run
 compares one reading with a baseline taken from another mount, and the two match
 only when both were taken the same 50 ms step after mounting, so the run calls
 the story `unchanged` or `changed` depending on when it looked. That verdict is
-not the finding. The diagnostic sweep reads the same mount twice, seconds apart,
+not the finding. The diagnostic sweep reads the same mount twice in a row
 and asks whether the two readings agree. They never do.
 
 From the repository root:
@@ -164,8 +164,8 @@ exclude it. The case records a baseline for the story, then drives
 `variance run --flakes` for it. Whatever the verdict, the run reports the story
 `[unstable]`. The explanation depends on the second reading. When it completes,
 the explanation says the two readings differ and names `Clock` in `src/ds.jsx` as
-the component that wrote the text. When it does not settle before the readiness
-timeout, the explanation says the story root was still changing and the subject
+the component that wrote the text. When Storybook does not report the second
+render, the explanation names the missing `storyRendered` and says the subject
 cannot be taken twice. The run exits **1** — something needs a decision. A
 following `variance accept` refuses the candidate, because there are two readings and
 neither may become the baseline, and prints:

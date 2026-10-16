@@ -61,6 +61,14 @@ function page(setup: string, instrumented: string, test: string): { before: Hook
   };
 }
 
+/** `path` under `root`, written with `text`: the file a transform is handed a module of. */
+async function held(root: string, path: string, text: string): Promise<string> {
+  const file = resolve(root, path);
+  await mkdir(resolve(file, '..'), { recursive: true });
+  await writeFile(file, text);
+  return file;
+}
+
 const PRICE = 'export function price(amount) { if (amount > 10) { return 1; } return 2; }';
 
 describe('a test file that runs in a page', () => {
@@ -69,7 +77,7 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, setup } = seam(root);
       await plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(20);');
       const file = { type: 'suite', filepath: resolve(root, 'src/premium.test.ts') } as { meta?: object };
 
@@ -95,7 +103,7 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, setup } = seam(root);
       await plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const run = page(await readFile(setup, 'utf8'), instrumented, 'price(5);');
       const file = { type: 'suite', filepath: resolve(root, 'src/plain.test.ts') } as { meta?: object };
 
@@ -113,9 +121,8 @@ describe('a test file that runs in a page', () => {
     try {
       const { plugin, reporter, setup } = seam(root);
       await plugin.config({ test: { browser: { enabled: true } } });
-      const instrumented = plugin.transform.handler(PRICE, resolve(root, 'src/price.ts'))!.code;
+      const instrumented = plugin.transform.handler(PRICE, await held(root, 'src/price.ts', PRICE))!.code;
       const shim = await readFile(setup, 'utf8');
-      await mkdir(resolve(root, 'src'));
       const finished = async (name: string, test: string): Promise<ReportedModule> => {
         const filepath = resolve(root, 'src', name);
         await writeFile(filepath, `it("x", () => { ${test} });\n`);
@@ -170,6 +177,27 @@ describe('a test file that runs in a page', () => {
     }
   });
 
+  it('leaves a module `include` refuses as the transforms wrote it, unprobed', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-'));
+    try {
+      await mkdir(resolve(root, 'vendor'), { recursive: true });
+      const vendor = resolve(root, 'vendor/pad.ts');
+      const source = 'export const pad = (text) => ` ${text}`;\n';
+      await writeFile(vendor, source, 'utf8');
+      const { plugin } = seam(root);
+      await plugin.config({ test: { browser: { enabled: true } } });
+      const inside = resolve(root, 'src/pad.ts');
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(inside, source, 'utf8');
+
+      expect(plugin.transform.handler(source, vendor)).toBeNull();
+      // The same text under `include` is probed, so the refusal is what left it.
+      expect(plugin.transform.handler(source, inside)?.code).toMatch(/__va\(/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('leaves a file that runs in Node to the worker that writes its own', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-node-'));
     try {
@@ -184,3 +212,7 @@ describe('a test file that runs in a page', () => {
     }
   });
 });
+
+it.todo(
+  'a module run in a page is probed after the transforms, as one run in Node is — needs `vi.mock`’s mock, loaded under the file’s name in a page, carried back to the file (FIXME on `late` in vitest-plugin.ts)',
+);

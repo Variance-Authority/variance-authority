@@ -332,7 +332,7 @@ function moduleUnion(
 /**
  * The held region each region recorded now carries its cases and load flag
  * from: its landing, and for a region the held cut never had, the landing of
- * the nearest region around it — the reading `crossingsAround` gives a
+ * the nearest region around it — the reading `around` in `record_coverage_layer.rs` gives a
  * row born in a re-cut, by the same owners and the same walk. Without it the
  * two layers disagree: the rows say every test that stood on the enclosing
  * region stands on the new one, and the case index says nobody does.

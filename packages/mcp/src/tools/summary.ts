@@ -142,7 +142,7 @@ export const summarize: Tool = {
  *
  * The component and the band are printed because they are what makes the fix
  * bounded. "This subject is flaky" is a page to read; `Clock (content)` is a node
- * whose text moves between two readings taken seconds apart, and the causes of
+ * whose text moves between two readings taken in a row, and the causes of
  * that are a short list — a clock, a random seed, an id counter, a request that
  * had not landed. The band narrows it further: `content` is data, `geometry` is
  * layout that has not settled, `token` is a style that is still being applied.
@@ -166,7 +166,7 @@ function instability(report: RunReport): readonly string[] {
 
   return [
     '',
-    `UNSTABLE: ${unstable.length} subject(s) read twice seconds apart, nothing changed between,`,
+    `UNSTABLE: ${unstable.length} subject(s) read twice in a row, nothing changed between,`,
     '  and the readings disagreed. Do not review or accept them (`accept` refuses).',
     ...(unrecorded ? [`  ${NO_RECORD}.`] : []),
     '  Fix what differs between the two readings:',
@@ -377,7 +377,7 @@ function coverage(report: RunReport): readonly string[] {
   // `truncated` exists to prevent, applied to the list that matters most.
   return [
     `not observed: ${entries.length} subject(s) — ` +
-      `${failed.length} the run could not see, ${excluded.length} excluded by configuration, ` +
+      `${failed.length} the run could not see, ${excluded.length} excluded on purpose, ` +
       `${unreached.length} not reached by this change`,
     ...failed.map(coverageLine),
     ...excluded.map(coverageLine),
