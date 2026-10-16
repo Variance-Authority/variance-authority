@@ -192,15 +192,15 @@ export interface DeclaredName {
 export interface DeclaredNames {
   /** Ordered by file in code units, then by line. */
   readonly names: readonly DeclaredName[];
-  /** Files whose parse holds no declarations because none were harvested: unknown, not empty. */
+  /** Files whose declarations were not read — no parse, or one its reader did not harvest: unknown, not empty. */
   readonly unread: readonly string[];
 }
 
 /**
  * Every top-level declaration the index at `index` holds that no export of its
  * file binds — the names a file keeps to itself, which no export list holds —
- * named `query` exactly, or, given `containing`, whose name holds it in any
- * case; only in `files`, repo-relative, when they are named. A name declared
+ * named `query` exactly, or, given `containing`, whose name or doc comment
+ * holds it in any case; only in `files`, repo-relative, when they are named. A name declared
  * twice in one file is answered once. `undefined` when no index was
  * published; throws when the index does not read.
  */

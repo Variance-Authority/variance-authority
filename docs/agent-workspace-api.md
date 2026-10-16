@@ -294,8 +294,8 @@ what is written above it, and who can reach it under the file's language. A name
 in a JavaScript or TypeScript module is that file's alone: no other file can
 import it. A Rust item is named only by its module and the modules inside it.
 Another Python module can still import the name by spelling it. A script or
-CommonJS file and a `macro_rules!` hand a name out in ways their readers cannot
-tell, so the answer says who can reach it is not recorded. `docs_uses`
+CommonJS file, a module that hands itself out with `export =` and a
+`macro_rules!` hand a name out in ways their readers cannot tell, so the answer says who can reach it is not recorded. `docs_uses`
 answers with the same file, line and rule in one sentence, before any member
 declared by that name, and lists no import sites; for a Python name it gives the
 `ask grep` that finds the modules spelling it. Each answer names the files whose

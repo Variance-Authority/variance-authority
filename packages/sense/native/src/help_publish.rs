@@ -110,8 +110,9 @@ pub fn member_declarations_of(root: String, index: String, name: String) -> napi
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its
-/// file binds, named `query` or, with `containing`, whose lowercased name holds
-/// `query`, which the caller lowercased; only in `files` when they are named.
+/// file binds, named `query` or, with `containing`, whose lowercased name or doc
+/// comment holds `query`, which the caller lowercased; only in `files` when they
+/// are named.
 /// `None` when there is no index.
 #[napi]
 pub fn declared_of(root: String, index: String, query: String, containing: bool, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {

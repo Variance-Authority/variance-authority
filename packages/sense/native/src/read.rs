@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::Program;
+use oxc_ast::ast::{Program, Statement};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
@@ -149,8 +149,10 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     let lines = Lines::new(source);
     let mut harvest = Harvest::new(&parsed.program, source, &lines, symbols);
     // A module's own top level is its alone; a script's is global, or handed
-    // out through `module.exports`, which the record does not hold.
-    if record.has_module_syntax {
+    // out through `module.exports`, and `export =` hands out what it names,
+    // neither of which the record holds.
+    let assigned = parsed.program.body.iter().any(|statement| matches!(statement, Statement::TSExportAssignment(_)));
+    if record.has_module_syntax && !assigned {
         for symbol in &mut harvest.symbols {
             symbol.reach = Some("file");
         }

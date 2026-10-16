@@ -2,6 +2,7 @@
 '@variance-authority/sense': minor
 '@variance-authority/help': minor
 '@variance-authority/package': minor
+'@variance-authority/cli': minor
 ---
 
 `symbol`, `search` and `uses` answer a name a file declares and does not export
@@ -29,8 +30,8 @@ holds them, and who can reach it under the file's language. Nothing outside a
 JavaScript or TypeScript module can import it; only its module and the modules
 inside it can name a Rust item; another Python module can still import it by
 name. Each reader records that reach with the declaration, and one that cannot
-tell — a script or CommonJS file, a `macro_rules!` — records none, which the
-answer says. Source comes before tests and stories, and past five declarations the rest
+tell — a script or CommonJS file, a module that hands itself out with
+`export =`, a `macro_rules!` — records none, which the answer says. Source comes before tests and stories, and past five declarations the rest
 are counted. `search` lists the declarations whose names or documentation hold
 the query under *N more names are declared somewhere in the repository without
 being exported*, after the exported ones, and within the area when `from` or

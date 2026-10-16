@@ -62,6 +62,11 @@ describe('declaration facts harvested with a module record', () => {
     const script = readModule('script.cjs', 'function helper() {}\nmodule.exports = { helper };\n').symbols ?? [];
     expect(script.map((symbol) => [symbol.name, symbol.reach])).toEqual([['helper', undefined]]);
   });
+
+  it('records no reach in a module that hands itself out with `export =`, which no export list holds', () => {
+    const read = readModule('legacy.ts', 'function helper(): number {\n  return 0;\n}\nexport = helper;\n');
+    expect(read.symbols?.map((symbol) => [symbol.name, symbol.reach])).toEqual([['helper', undefined]]);
+  });
 });
 
 describe('export statement facts', () => {
