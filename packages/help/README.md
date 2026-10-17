@@ -50,8 +50,9 @@ now, so a function you just wrote is answered rather than reported missing.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
 compared with it. It performs no Git status or refresh, and refuses if there is
-no generation to read. `search` always behaves this way: it is a lookup, and
-producing the generation is the job of the step before it. The detailed cost model, including why Git's packed objects
+no generation to read. `search` opens a published search at any age, with or
+without the flag. When none is published it reads the checkout and publishes
+one, unless you passed `--just-answer`: then it refuses and names that flag. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
 index](https://variance-authority.dev/docs/agent-workspace-api#choose-the-cheapest-entrance).
 
@@ -100,10 +101,11 @@ This package is for the workspace that does not run one.
 
 ### What you get
 
-Text, on stdout. `search` answers in two sections — the names a manifest
-publishes, ranked by how many packages import them, then the names the source
-exports without publishing — and in a third when your words match a name they
-do not contain. Run against this repository, abridged to the first few lines of
+Text, on stdout. `search` answers in two sections: the names a manifest
+publishes, ranked by where they hold your words (the name, then the doc's
+first paragraph, then the rest of it) and then by how many packages import
+them; then the names the source exports without publishing. A third follows
+when your words match a name they do not contain. Run against this repository, abridged to the first few lines of
 each section:
 
 ```
@@ -152,7 +154,7 @@ stays available without taking space from the first answer.
 | `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, for each package that declares no entry, how many of its names and files other packages import by path, and for each package that declares one, how many imports reach past it; then the `entrypoint --package` questions for the most-imported specifier and the first row of each count |
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
-| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Twelve sites of each kind, unless `limit` says more |
+| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Twelve rows of each list, unless `limit` says more |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding half its words by stem and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
@@ -535,15 +537,18 @@ It does not serve source. `uses` names the story, the test and the file, with
 the line to open; reading them is your job, against the file as it is rather
 than as it was when the reading was taken.
 
-It does not rank on prose. `search` is a case-insensitive substring match over
-names and docs, so a match is a fact about the text rather than an opinion about
-the query. When it matches nothing, the names holding at least half of the
-query's words, stemmed as installed packages are, in any order across the name
-and its doc, follow under their own heading, each with the words it holds. A
-name its file declares and does not export is among them, and so is a file, by
-its own name and the doc it opens with. They are ordered by how many of the
-words each holds, then by how many of the query's adjacent word pairs its doc
-writes adjacent, then by how many its name holds: counts, never a score.
+It does not rank on prose. `search` matches the query case-insensitively as a
+substring of a name or its doc, and a name also matches when it is written in
+every word of the query, each word by its start or its stem, so `instrumenting`
+reaches `instrumentModule`. A match is a fact about the text rather than an
+opinion about the query. When it matches nothing, the names holding at least
+half of the query's words, stemmed as installed packages are, in any order
+across the name and its doc, follow under their own heading, each with the
+words it holds. A name its file declares and does not export is among them, and
+so is a file, by its own name and the doc it opens with. They are ordered by
+how many of the words each holds, then by how many of them its name holds, then
+by how many of the query's adjacent word pairs its doc writes adjacent: counts,
+never a score.
 The words every package says about itself — `package`, `module`, `use`,
 `tool`, `get` and the like — are stopwords for an installed package and words
 for your own code, which is named in them.

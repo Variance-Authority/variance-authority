@@ -14,7 +14,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Named, Taken } from '@variance-authority/package/help';
+import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
 import { importsByPath } from './by-path.js';
@@ -56,11 +56,12 @@ export type IndexedUse = Taken & { readonly specifier: string };
 
 /**
  * What the source index says about the imports of one name out of a set of
- * files: each use with the name it takes, and every file that passes the name
- * on with `export … from`; or why it could not be read.
+ * files: each use with the name it takes, every file that passes the name on
+ * with `export … from`, and each line of one of the files that uses the name
+ * it declares there; or why it could not be read.
  */
 export type Within =
-  | { readonly uses: readonly IndexedUse[]; readonly through: readonly string[] }
+  | { readonly uses: readonly IndexedUse[]; readonly through: readonly string[]; readonly inFile: readonly Use[] }
   | { readonly unread: string };
 
 /**
@@ -77,7 +78,8 @@ export function importsOf(root: string | undefined, files: readonly string[], na
     return { unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
   if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
-  return { uses: read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) })), through: read.through };
+  const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
+  return { uses: read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) })), through: read.through, inFile };
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

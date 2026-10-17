@@ -13,6 +13,7 @@ use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::compact::Layer;
+use crate::help_in_file::{in_file, InFile};
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
@@ -266,6 +267,9 @@ pub struct Importers {
     /// Every file that passes the name on with `export … from`, under the name
     /// it exports, in code-unit order; none of the files asked about.
     pub through: Vec<String>,
+    /// Every line of one of the files asked about that uses the name the file
+    /// declares at its top level, by file in code units, then by line.
+    pub in_file: Vec<InFile>,
 }
 
 /// Every import, by any file on the chain, of `name` out of one of `files`:
@@ -283,11 +287,16 @@ pub struct Importers {
 /// whatever its importer wrote. Each file is followed once per name, and once
 /// more when a value path reaches a name a type-only one reached first, so a
 /// cycle of re-exports ends.
+///
+/// A file asked about that declares the name uses it by scope, not by import,
+/// and the scan read those lines with its parse: they are `in_file`.
 pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
     // Every file is one origin, so a file passed the name by two of them is followed once.
     let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
         files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
-    let (found, through) = importers_from(root, layers, origins);
+    let folded = fold(layers);
+    let in_file = in_file(root, layers, &folded, files, name);
+    let (found, through) = importers_folded(root, layers, &folded, origins);
     let mut found: Vec<NameUse> = found.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at)
@@ -299,7 +308,7 @@ pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &s
     });
     let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
     through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    Importers { uses: found, through }
+    Importers { uses: found, through, in_file }
 }
 
 /// One use `importers_from` found, of the `origin` it was asked for, with the
@@ -324,7 +333,15 @@ pub(crate) fn importers_from(
     layers: &[Layer],
     asked: HashMap<String, HashMap<String, HashSet<usize>>>,
 ) -> (Vec<Taken>, HashSet<String>) {
-    let folded = fold(layers);
+    importers_folded(root, layers, &fold(layers), asked)
+}
+
+fn importers_folded(
+    root: &str,
+    layers: &[Layer],
+    folded: &HashMap<&str, At>,
+    asked: HashMap<String, HashMap<String, HashSet<usize>>>,
+) -> (Vec<Taken>, HashSet<String>) {
     let mut wanted: Wanted = asked
         .into_iter()
         .map(|(file, names)| (file, names.into_iter().map(|(name, origins)| (name, origins.into_iter().map(|origin| (origin, false)).collect())).collect()))
@@ -339,7 +356,7 @@ pub(crate) fn importers_from(
     let mut found: HashMap<(usize, String, u32, String, String, String), Taken> = HashMap::new();
     let mut through = HashSet::new();
     while !wanted.is_empty() {
-        let (uses, passed) = importers_of(root, layers, &folded, &wanted);
+        let (uses, passed) = importers_of(root, layers, folded, &wanted);
         for one in uses {
             let site = (one.origin, one.taken.at.clone(), one.taken.line, one.taken.name.clone(), one.taken.key.clone(), one.local.clone());
             match found.entry(site) {

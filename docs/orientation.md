@@ -131,7 +131,7 @@ tree is the answer. Both are exact and need no Variance index.
 | Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation, the members of an interface, type alias or class, and consumers |
-| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path, then the interface or class members by that name, the lines that use each through a value whose type they write, and the `grep --to` that finds the rest |
+| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path, the lines of the declaring file that use it, then the interface or class members by that name, the lines that use each through a value whose type they write, and the `grep --to` that finds the rest |
 | Several facts about the file you want | `variance ask discover --from <path> --imports <module#name> --declares <regex>` | The files every fact holds for, each fact checked against every file rather than its nearest fifty, with the line behind each fact |
 | Two questions you could ask alone, and want where they agree | `variance ask intersection '<question>' '<question>'` | The files every question answers, each question read whole rather than its first fifty, with the lines that put each file in each |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
@@ -220,8 +220,9 @@ variance ask search --query createStore --from src/checkout/ --just-answer
 
 Every answer prints when its workspace generation was produced. If no
 generation exists, `--just-answer` refuses instead of turning the question into
-an index build. `search` always reads this way, with or without the flag: it
-is a lookup, and it expects the generation to be published already. [The source index](source-index.md) explains production,
+an index build. `search` opens a published search this way, with or without
+the flag. With none published, it reads the checkout like any other question
+unless you passed `--just-answer`. [The source index](source-index.md) explains production,
 incremental reuse and CI caching.
 
 Subject orientation reads the report a completed run already produced. Its

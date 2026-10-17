@@ -19,7 +19,7 @@ import { listed, many } from './prose-counts.js';
 
 /**
  * A lockfile or a manifest that moved since the tests ran, as the files it
- * changed whole. Counts rather than the files, as a selection's `recorded` is.
+ * changed whole.
  */
 export interface SelectInstall {
   /** The lockfile compared, as the repository names it, when a bump reached a file. */
@@ -30,6 +30,12 @@ export interface SelectInstall {
   readonly moved: readonly string[];
   /** How many repository files the install changed whole. */
   readonly reached: number;
+  /**
+   * Each file the install changed whole, in code-unit order, with the chain
+   * from the bumped package to the one it imports when a bump reached it. A
+   * test's reason names a region of such a file, which the diff never touched.
+   */
+  readonly files: readonly { readonly file: string; readonly through?: readonly string[] }[];
   /** The sentences naming all of it, among the notes. */
   readonly says: readonly string[];
 }
@@ -118,6 +124,10 @@ export function installReached(
     packages: packages.map(({ name }) => name),
     moved,
     reached: files.size,
+    files: [...files].sort(codeUnitOrder).map((file) => {
+      const through = chains.get(file);
+      return through === undefined ? { file } : { file, through };
+    }),
     says,
   };
 }

@@ -12,8 +12,9 @@ declares after its signature, one line each as the checkout writes it, with its
 file and line. A nested type literal's members are not listed, and an alias that
 fits on its line lists nothing more.
 
-`ask uses --limit <n>` shows that many sites of each kind. Without it the answer
-shows twelve and counts the rest, as before. A `limit` that is not a whole
+`ask uses --limit <n>` shows that many rows of each list: each kind of site,
+the lines of the declaring file, and the members by the name. Without it the
+answer shows twelve of each and counts the rest, as before. A `limit` that is not a whole
 number of at least 1 is now refused by `uses`, `grep`, `discover`,
 `intersection`, `slowest-tests` and `variance_costs` alike, rather than read as
 the default, and `variance_costs` now also takes the digits a shell passes.

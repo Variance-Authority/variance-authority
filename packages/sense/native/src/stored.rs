@@ -71,6 +71,11 @@ impl<'a> Stored<'a> {
 
     /// The same framing under another format's name and version, as `segment::encode_as` writes it.
     pub fn open_as(bytes: &'a [u8], format: &str, version: u8) -> Result<Self, String> {
+        Self::open_since(bytes, format, version, version).map(|(stored, _)| stored)
+    }
+
+    /// The same framing written at any version from `oldest` to `version`, with the version it was written at.
+    pub fn open_since(bytes: &'a [u8], format: &str, oldest: u8, version: u8) -> Result<(Self, u8), String> {
         let length = bytes
             .get(..4)
             .map(|head| u32::from_le_bytes([head[0], head[1], head[2], head[3]]) as usize)
@@ -83,12 +88,12 @@ impl<'a> Stored<'a> {
             return Err(format!("{} version {}, not {format} version {version}", header.format, header.version));
         }
         // Another release wrote it: told apart from bytes that do not read, as the TypeScript reader tells them.
-        if header.version != u32::from(version) {
+        let Some(written) = u8::try_from(header.version).ok().filter(|written| (oldest..=version).contains(written)) else {
             return Err(format!(
                 "a {format} written in format version {}, and this release reads version {version}; `variance index` rebuilds it",
                 header.version
             ));
-        }
+        };
         let base = 4 + length;
         let body = bytes.len() - base;
         let mut sections = HashMap::with_capacity(header.sections.len());
@@ -113,7 +118,7 @@ impl<'a> Stored<'a> {
             .map(|at| blob.get(off.at(at) as usize..off.at(at + 1) as usize))
             .collect::<Option<_>>()
             .ok_or("a dictionary entry that is not a string")?;
-        Ok(stored)
+        Ok((stored, written))
     }
 
     fn section(&self, name: &str, width: u8) -> Result<Option<&'a [u8]>, String> {

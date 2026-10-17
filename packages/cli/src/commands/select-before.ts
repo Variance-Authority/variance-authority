@@ -84,7 +84,8 @@ export function restsSaid(suite: string | undefined, rests: readonly string[]): 
 /** What a selection carries from {@link restsOf}: its notes, and the reason for a whole run when the diff moved what the suite rests on. */
 export interface Resting {
   readonly resting?: readonly string[];
-  readonly whole?: string;
+  /** The sentence the whole run gives, and the changed files it is for. */
+  readonly whole?: { readonly says: string; readonly rests: readonly string[] };
 }
 
 /** {@link restsOf}, said: the notes as a selection carries them, and the sentence a whole run gives. */
@@ -97,7 +98,7 @@ export async function restingOf(
   const rest = await restsOf(root, suite, relations, changed);
   return {
     ...(rest.notes.length === 0 ? {} : { resting: rest.notes }),
-    ...(rest.rests.length === 0 ? {} : { whole: restsSaid(suite, rest.rests) }),
+    ...(rest.rests.length === 0 ? {} : { whole: { says: restsSaid(suite, rest.rests), rests: rest.rests } }),
   };
 }
 

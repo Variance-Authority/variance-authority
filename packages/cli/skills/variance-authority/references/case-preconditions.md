@@ -147,7 +147,8 @@ it('applies the discount', async () => {
 - In an `afterEach` it warns and records nothing.
 - One value that is not a string, finite number or boolean drops the whole
   record, with a warning.
-- It only takes effect in a recorded run; record the suite again before asking.
+- It only takes effect in a recorded run: a record made before the call was
+  added holds none of it.
 
 ## The answer keeps none, unmeasured — what now
 

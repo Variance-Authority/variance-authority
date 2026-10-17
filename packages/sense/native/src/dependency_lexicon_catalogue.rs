@@ -18,7 +18,11 @@ use crate::stored::{same_length, Stored, U32s};
 use super::Owner;
 
 const FORMAT: &str = "variance-authority-dependency-catalogue";
-const VERSION: u8 = 1;
+/// 2: a purpose holds stems cut to a fixed point, so a catalogue of one-pass stems is read again.
+const VERSION: u8 = 2;
+/// The oldest version still read: 1 lays its columns out as 2 does, so every question but a described one answers
+/// from it, and a refresh writes it again whole.
+const OLDEST: u8 = 1;
 const KINDS: [&str; 4] = ["dependency", "optional", "peer", "dev"];
 
 pub(super) struct MadePair { pub owner: u32, pub package: String, pub install: u32, pub issues: Vec<String> }
@@ -104,6 +108,7 @@ impl Made {
 /// A catalogue read in place.
 pub(super) struct Catalogue<'a> {
     stored: Stored<'a>,
+    written: u8,
     owners: [U32s<'a>; 4],
     kinds: (U32s<'a>, &'a [u8]),
     manifests: U32s<'a>,
@@ -119,7 +124,7 @@ pub(super) struct Catalogue<'a> {
 
 impl<'a> Catalogue<'a> {
     pub fn open(bytes: &'a [u8]) -> Result<Self, String> {
-        let stored = Stored::open_as(bytes, FORMAT, VERSION)?;
+        let (stored, written) = Stored::open_since(bytes, FORMAT, OLDEST, VERSION)?;
         let owner_rows = stored.u32s("owners.manifest")?.len();
         let kinds = stored.u32s("kinds.package")?;
         let pair_rows = stored.u32s("pairs.owner")?.len();
@@ -144,6 +149,7 @@ impl<'a> Catalogue<'a> {
             stamps: (stored.u32s("stamps.path")?, stored.u32s("stamps.value")?),
             summary: stored.u32s("summary")?,
             stored,
+            written,
         };
         let c = &catalogue;
         same_length(owner_rows, &[("owners.directory", c.owners[1].len()), ("owners.name", c.owners[2].len())])?;
@@ -201,4 +207,8 @@ impl<'a> Catalogue<'a> {
     }
 
     pub fn summary(&self) -> [u32; 4] { [0, 1, 2, 3].map(|at| self.summary.at(at)) }
+
+    /// The version this catalogue was written at, when it is older than the one this release writes: its columns
+    /// read the same, and the stems of what a package says do not compare with a question's.
+    pub fn older(&self) -> Option<u8> { (self.written < VERSION).then_some(self.written) }
 }

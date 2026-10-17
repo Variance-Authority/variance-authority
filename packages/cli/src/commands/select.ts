@@ -77,7 +77,8 @@
  */
 
 import { resolve } from 'node:path';
-import { readingLines, type ExecutionNarrowing, type FileReading, type TestDistance } from '@variance-authority/sense/test-selection';
+import { readingLines, type ExecutionNarrowing, type FileReading, type SelectionCause, type TestDistance } from '@variance-authority/sense/test-selection';
+import { jsonOf } from './select-json.js';
 import { many } from './prose-counts.js';
 import type { SelectInstall } from './select-beyond.js';
 
@@ -110,7 +111,12 @@ export type SelectGround =
   | { readonly kind: 'no-coverage' }
   | { readonly kind: 'no-diff'; readonly from: string }
   | { readonly kind: 'no-install'; readonly whole: string }
-  | { readonly kind: 'before'; readonly whole: string };
+  | {
+      readonly kind: 'before';
+      readonly whole: string;
+      /** The changed files inside the suite's `before` closure, which put the whole suite in the run. */
+      readonly rests: readonly string[];
+    };
 
 /**
  * Whose record was read, for a suite given to a share: this checkout's own, or
@@ -154,6 +160,9 @@ export interface SelectInput {
 }
 
 export interface TestSelection {
+  /** Which reading was made, or which could not be: the ground's own kind. */
+  readonly ground: SelectGround['kind'];
+
   /**
    * Test files the journal proves this diff did not reach.
    *
@@ -174,6 +183,18 @@ export interface TestSelection {
 
   /** One sentence for the operator, whichever way it went. */
   readonly because: string;
+
+  /** The changed files that moved what the suite rests on; present exactly when `ground` is `before`. */
+  readonly rests?: readonly string[];
+
+  /**
+   * Why each test the change reached was selected, as the narrowing named it.
+   * Present when the record narrowed and its reading names why.
+   */
+  readonly causes?: readonly SelectionCause[];
+
+  /** Recorded tests whose observation was not whole, so absence is no evidence and they run. */
+  readonly incomplete?: readonly string[];
 
   /** Facts about the recording itself that survive the answer. */
   readonly notes: readonly string[];
@@ -217,6 +238,7 @@ export interface TestSelection {
  */
 export function skippableTests(input: SelectInput): TestSelection {
   const base = {
+    ground: input.ground.kind,
     skip: [] as readonly string[],
     at: input.at,
     ...(input.commit === undefined ? {} : { commit: input.commit }),
@@ -268,12 +290,13 @@ export function skippableTests(input: SelectInput): TestSelection {
   if (input.ground.kind === 'before') {
     return {
       ...base,
+      rests: input.ground.rests,
       widened: input.ground.whole,
       because: 'what a suite rests on runs before every test in it, so every test file runs',
     };
   }
 
-  const { whole, entered, unread, declined, stale, readings } = input.ground.narrowing;
+  const { whole, entered, unread, declined, stale, readings, because, incomplete } = input.ground.narrowing;
   const notes = [
     ...base.notes,
     ...unreadNotes(unread),
@@ -287,6 +310,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     ...(declined === undefined ? {} : { declined }),
     stale,
     ...(readings === undefined ? {} : { readings }),
+    ...(incomplete === undefined ? {} : { incomplete }),
     recorded: { whole: whole.length, entered: entered.length },
   };
 
@@ -304,6 +328,7 @@ export function skippableTests(input: SelectInput): TestSelection {
   return {
     ...measured,
     skip,
+    ...(because === undefined ? {} : { causes: because }),
     because:
       `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none covered a changed ` +
       `line${input.install === undefined ? '' : ' or entered a file the install moved'}; every other test file runs`,
@@ -445,33 +470,6 @@ function jestIgnore(test: string): string {
   const escaped = test.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const boundary = escaped.startsWith('/') || escaped.startsWith('\\.') ? '' : '/';
   return `--testPathIgnorePatterns=${boundary}${escaped}$`;
-}
-
-/** Everything the reading knows, for a caller that is a program. */
-function jsonOf(selection: TestSelection): object {
-  // The sentences are among the notes already.
-  const { says: _inNotes, ...install } = selection.install ?? {};
-  return {
-    skip: selection.skip,
-    ...(selection.widened === undefined ? {} : { widened: selection.widened }),
-    because: selection.because,
-    notes: selection.notes,
-    journal: {
-      at: selection.at,
-      ...(selection.commit === undefined ? {} : { commit: selection.commit }),
-      ...(selection.recorded === undefined ? {} : { recorded: selection.recorded }),
-      ...(selection.source?.from === undefined ? {} : { from: selection.source.from }),
-      ...(selection.source?.mainline === undefined ? {} : { mainline: selection.source.mainline }),
-      ...(selection.source?.distance === undefined ? {} : { distance: selection.source.distance }),
-    },
-    unread: selection.unread,
-    ...(selection.install === undefined ? {} : { install }),
-    ...(selection.declined === undefined ? {} : { declined: selection.declined }),
-    stale: selection.stale,
-    ...(selection.readings === undefined ? {} : { readings: selection.readings }),
-    ...(selection.leg === undefined ? {} : { leg: selection.leg, left: selection.left ?? [] }),
-    ...(selection.distances === undefined ? {} : { distances: selection.distances }),
-  };
 }
 
 /**

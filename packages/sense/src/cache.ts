@@ -86,6 +86,12 @@ export interface Parsed {
    * reader but the native one.
    */
   readonly memberUses?: readonly MemberUse[];
+  /**
+   * Every line that uses a name the file declares at its top level, by scope
+   * rather than by import. Absent when there are none, and absent from any
+   * reader but the native module reader and the Rust one.
+   */
+  readonly ownUses?: readonly OwnUse[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
@@ -137,6 +143,12 @@ export interface MemberUse {
   /** The type's name as the file writes it: its own declaration's, or the local name of an import. */
   readonly of: string;
   readonly how: 'destructure' | 'read' | 'write';
+}
+
+/** One line that uses a name its file declares at its top level. */
+export interface OwnUse {
+  readonly name: string;
+  readonly line: number;
 }
 
 /** Content-addressed parses used by a scan and by consumers sharing its work. */

@@ -7,8 +7,9 @@ import { checkout, run } from './ask-packages-fixture.js';
 
 /**
  * `variance ask uses --limit`, which every other listing question takes: the
- * sites shown per section, every site still counted, and the rest said, each
- * shown site marked with the name its import binds.
+ * rows shown per section, sites and the lines of the declaring file alike,
+ * every row still counted, and the rest said, each shown site marked with the
+ * name its import binds.
  */
 
 const cwd = process.cwd();
@@ -68,6 +69,35 @@ describe('variance ask uses --limit', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('Imported in 3 places.');
     expect(rust(out)).toEqual(rust(all.out).slice(0, 1));
+    expect(out).toContain('… 2 more not shown; a higher `limit` shows them.');
+  });
+
+  it('cuts the lines of the declaring file at the same limit', async () => {
+    checkout({
+      'packages/lib/src/greet.ts': [
+        'export function greet(name: string): string {',
+        '  return name;',
+        '}',
+        "export const a = greet('a');",
+        "export const b = greet('b');",
+        "export const c = greet('c');",
+        '',
+      ].join('\n'),
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const own = (out: string): readonly string[] => {
+      const after = out.split('\n').slice(out.split('\n').indexOf('Used in the file that declares it:') + 2);
+      return after.slice(0, after.findIndex((line) => !line.startsWith('packages/lib/src/greet.ts:')));
+    };
+    const all = await run(['ask', 'uses', '--name', 'greet']);
+    expect(all.code).toBe(EXIT_CLEAN);
+    expect(own(all.out)).toHaveLength(3);
+
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'greet', '--limit', '1']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(own(out)).toEqual(own(all.out).slice(0, 1));
     expect(out).toContain('… 2 more not shown; a higher `limit` shows them.');
   });
 

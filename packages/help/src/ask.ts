@@ -5,6 +5,7 @@ import type { Help } from '@variance-authority/package/help';
 import { snapshotLine } from './caught-up.js';
 import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
+import { unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
 import { wordsOf } from './words.js';
@@ -145,23 +146,25 @@ export function ask(
 }
 
 /** The same answer as data: the generation is a field, and absent when unknown. */
-export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false): string {
+export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[]): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
   const from = startPointArg(input, 'from');
   const to = startPointArg(input, 'to');
   const answer = searchNames(index, { query: stringArg(input, 'query'), from, to }, tree);
   const at = index.generation?.generatedAt;
-  return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }) }, undefined, 2);
+  return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...(unopened === undefined ? {} : { unopened }) }, undefined, 2);
 }
 
 /** `search`, answered from its published index rather than the whole value. */
-export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false): string {
+export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[]): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
   const answer = answerSearch(index, input, tree);
   const at = index.generation?.generatedAt;
-  return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+  const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+  const said = unopenedLine(unopened, !unseen);
+  return said === undefined ? dated : `${dated}\n${said}`;
 }
 
 /** Every verb and what it answers, for the usage text and for `--help`. */

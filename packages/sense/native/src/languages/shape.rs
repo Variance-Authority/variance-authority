@@ -93,6 +93,9 @@ pub struct Read {
     /// a file the reader could not parse, whose declarations are unknown.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub harvested: bool,
+    /// Every line that uses a name the file declares at its top level.
+    #[serde(rename = "ownUses", skip_serializing_if = "Vec::is_empty")]
+    pub own_uses: Vec<crate::help_own_uses::OwnUse>,
     /// Bytes and lines, counted off the tree by [`size.rs`](./size.rs); absent
     /// for a file the grammar could not parse at all.
     // TODO: no region count, because no recorder cuts a Python, Rust, Swift or
@@ -110,6 +113,7 @@ impl Read {
             unknown: Some(reason),
             symbols: Vec::new(),
             harvested: false,
+            own_uses: Vec::new(),
             size: None,
         }
     }

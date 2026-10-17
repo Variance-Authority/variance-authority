@@ -51,7 +51,7 @@ fn fails_the_build_when_the_shards_started_from_different_records() {
             let message = folded_last(&shards, &[none(), none()]).err().unwrap();
             assert!(message.starts_with("the build failed because the sharding was unstable: one started from "), "{message}");
             assert!(message.contains(&format!("one started from {}, and two from {}.", named[0], named[1])), "{message}");
-            assert!(message.contains("the split may have left tests that ran in no shard. Run the whole build again, so that every shard restores the same cached record"), "{message}");
+            assert!(message.contains("the split may have left tests that ran in no shard. Nothing of this build is combined, so the record before it stands. Shards start alike when every one restores the same cached record"), "{message}");
         }
     };
     let at = |commit: &str| last(&format!(r#"{{"commit":"{commit}","at":"1","files":[],"cases":[]}}"#));
@@ -117,7 +117,7 @@ fn refuses_a_journal_when_no_shard_kept_cases_and_says_so() {
     let message = fold_eyes(&[("one", &one, &none())], None).err().unwrap();
     assert_eq!(
         message,
-        "one: its eyes section holds a journal of `a`, and no shard kept cases, so the combined record has no case index to name it. Record the shards again with cases kept."
+        "one: its eyes section holds a journal of `a`, and no shard kept cases, so the combined record has no case index to name it."
     );
 }
 

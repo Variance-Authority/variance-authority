@@ -52,6 +52,17 @@ describe('selecting from a journey file', () => {
     expect(said.out).toBe('test/other.test.ts\n');
   });
 
+  // A journey reading names the tests it reached and not why; an empty list
+  // would say the record never saw them.
+  it('lists under json no reasons for a journey reading, which names none', async () => {
+    writeFileSync(join(root, 'change.patch'), patch(6));
+    const said = await selectOutput({ cwd: root, format: 'json', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    const json = JSON.parse(said.out) as Record<string, unknown>;
+    expect(json).toMatchObject({ ground: 'read', skip: ['test/other.test.ts'] });
+    expect(json).not.toHaveProperty('selected');
+    expect(json).not.toHaveProperty('reasons');
+  });
+
   it('skips every test for a comment above a function, which sits in the region that ran as the module loaded', async () => {
     git('add', '.');
     git('commit', '-qm', 'before');

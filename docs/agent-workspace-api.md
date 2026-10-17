@@ -191,12 +191,13 @@ time and says the checkout was not compared with it; as JSON, `search` carries
 the command refuses instead of silently turning the question into production
 work.
 
-When no changed files are named, `search` always answers as if `--just-answer`
-were given. It opens the published search at any age and never scans, because
-in CI the step before it already brought the index up to date and is the one
-that owns freshness. The flag is accepted and changes nothing, and the answer
-says, as one under `--just-answer` does, that the checkout was not compared.
-With no published generation, `search` refuses and names the command to run.
+When no changed files are named and a search is published, `search` opens it
+at any age, because in CI the step before it already brought the index up to
+date and is the one that owns freshness. The answer says, as one under
+`--just-answer` does, that the checkout was not compared. With no published
+generation, `search` reads the checkout and publishes the search, the way any
+other question does, and that answer is the checkout's. Under `--just-answer`
+it refuses instead, says the flag is why, and names the command to run.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
@@ -290,7 +291,8 @@ what it is. It returns the file and line of every import, with the
 stories and the tests — the files written to show the name in use — listed apart
 from the source that depends on it. Pass `from` with the file you are editing and
 the sites arrive ordered by how many leading path segments they share with it.
-Each kind of site shows twelve and counts the rest; pass `limit` to show more.
+Each kind of site, and each list after the imports, shows twelve and counts the
+rest; pass `limit` to show more.
 
 `docs_uses` lists the imports within the name's own package too: every import
 that resolved to the file declaring it, or to a file that passes it on with
@@ -361,6 +363,15 @@ declarations were not read, such as one over the size a read opens, since the
 name may be declared there. `docs_search` lists the name after the exported ones, under a heading that
 says it is not exported, when the name or its documentation holds the query, and
 only when its file is in the area `from` or `to` names.
+
+The file that declares a name uses it without importing it, so `docs_uses` lists
+those lines too, after the imports, under `Used in the file that declares it`:
+a call, a read, a type, a Rust `self::name` path or a test module's
+`use super::*`, in a TypeScript, JavaScript or Rust file, for a name it exports
+and for one it keeps. The lines follow the language's scope, so a parameter, a
+local or an inner item of the same name is another name and is not listed, and
+neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
+its imports alone.
 
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call

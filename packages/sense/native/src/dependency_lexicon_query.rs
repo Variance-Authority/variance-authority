@@ -64,6 +64,7 @@ struct Silent {
 
 /// `silent` is asked for by an exact name only: a search over words has no name to be silent about.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Matches {
     total: u32, shown: Vec<Match>, silent: Vec<Silent>, scope: Scope,
     /// Packages whose own words describe the question, asked for by words rather than one name.
@@ -71,6 +72,9 @@ struct Matches {
     described: Option<Vec<Described>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     described_total: Option<u32>,
+    /// Why no package was asked to describe the question, when the catalogue cannot answer it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    described_unread: Option<String>,
 }
 
 /// What the question searched, so an empty answer says how much it looked at.
@@ -162,9 +166,12 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
     shown.sort_by(|a, b| b.imported.cmp(&a.imported)
         .then_with(|| (&a.specifier, &a.name, &a.kind).cmp(&(&b.specifier, &b.name, &b.kind))));
     shown.truncate(limit as usize);
-    let words = if exact { None } else { described(&query, read.iter().copied(), limit as usize) };
+    let older = lexicon.catalogue.older();
+    let described_unread = older.filter(|_| !exact)
+        .map(|version| format!("The dependency lexicon was written at version {version}, whose stems this release does not compare"));
+    let words = if exact || older.is_some() { None } else { described(&query, read.iter().copied(), limit as usize) };
     let (described_total, described) = match words { Some((total, shown)) => (Some(total), Some(shown)), None => (None, None) };
-    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(), described, described_total,
+    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(), described, described_total, described_unread,
         scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32,
             location: allowed.map(|allowed| { let mut held: Vec<String> = allowed.into_iter().map(str::to_owned).collect(); held.sort_unstable(); held }) } })
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;

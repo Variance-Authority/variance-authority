@@ -1,5 +1,5 @@
 import type { Help, UseKind } from '@variance-authority/package/help';
-import { everyEntry } from '@variance-authority/package/help';
+import { everyEntry, PARAGRAPH_BREAK } from '@variance-authority/package/help';
 import { encodeSearch, type PublishedRows, type SearchGeneration } from '@variance-authority/sense';
 import { specifierOf } from './tools/find.js';
 
@@ -123,6 +123,10 @@ export interface SearchIndex {
   docsContaining(query: string): readonly number[];
   /** Exported rows whose lowercase doc contains `query`, ascending. */
   exportedDocsContaining(query: string): readonly number[];
+  /** Of {@link docsContaining}, the rows whose doc says `query` in its opening paragraph, before any blank line. */
+  docOpeningsContaining(query: string): readonly number[];
+  /** Of {@link exportedDocsContaining}, the rows whose doc says `query` in its opening paragraph. */
+  exportedDocOpeningsContaining(query: string): readonly number[];
   name(id: number): string;
   publishedOf(name: number): Uint32Array;
   exportedOf(name: number): Uint32Array;
@@ -222,22 +226,24 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const termExp = u32('terms.exp');
 
   const name = (id: number): string => string(nameString[id] ?? NONE);
+  const pubDoc = (row: number): string => {
+    const doc = pub.doc[row] ?? NONE;
+    return doc === NONE ? '' : string(doc).toLowerCase();
+  };
+  const expDoc = (row: number): string => {
+    const doc = exp.doc[row] ?? NONE;
+    return doc === NONE ? '' : string(doc).toLowerCase();
+  };
   const slice = (off: Uint32Array, rows: Uint32Array, key: number): Uint32Array =>
     rows.subarray(off[key] ?? 0, off[key + 1] ?? 0);
 
   return {
     ...(head.generation === null ? {} : { generation: head.generation }),
     namesContaining: (query) => containing(namesLower, namesLowerOff, query, (id) => name(id).toLowerCase()),
-    docsContaining: (query) =>
-      containing(docLower, docLowerOff, query, (row) => {
-        const doc = pub.doc[row] ?? NONE;
-        return doc === NONE ? '' : string(doc).toLowerCase();
-      }),
-    exportedDocsContaining: (query) =>
-      containing(expDocLower, expDocLowerOff, query, (row) => {
-        const doc = exp.doc[row] ?? NONE;
-        return doc === NONE ? '' : string(doc).toLowerCase();
-      }),
+    docsContaining: (query) => containing(docLower, docLowerOff, query, pubDoc),
+    exportedDocsContaining: (query) => containing(expDocLower, expDocLowerOff, query, expDoc),
+    docOpeningsContaining: (query) => containing(docLower, docLowerOff, query, pubDoc, true),
+    exportedDocOpeningsContaining: (query) => containing(expDocLower, expDocLowerOff, query, expDoc, true),
     name,
     publishedOf: (id) => slice(namesPubOff, namesPub, id),
     exportedOf: (id) => slice(namesExpOff, namesExp, id),
@@ -316,25 +322,34 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
  * which no needle without one can span. A lone surrogate in the text encodes as
  * U+FFFD, so a query holding a NUL, a surrogate or U+FFFD is answered row by row
  * instead.
+ *
+ * With `opening`, a row is kept only when its first match comes before the
+ * first blank line — the paragraph `opening()` shows, by its own rule — read
+ * from the bytes between the row's start and the match alone.
  */
 function containing(
   blob: Buffer,
   off: Uint32Array,
   query: string,
   text: (row: number) => string,
+  opening = false,
 ): readonly number[] {
   const rows = off.length - 1;
   const found: number[] = [];
   if (rows <= 0 || query === '') return found;
   if (query.includes('\0') || /[\uD800-\uDFFF\uFFFD]/.test(query)) {
-    for (let row = 0; row < rows; row += 1) if (text(row).includes(query)) found.push(row);
+    for (let row = 0; row < rows; row += 1) {
+      const said = text(row);
+      const at = said.indexOf(query);
+      if (at !== -1 && (!opening || !PARAGRAPH_BREAK.test(said.slice(0, at)))) found.push(row);
+    }
     return found;
   }
   const needle = Buffer.from(query, 'utf8');
   let at = blob.indexOf(needle, 0);
   while (at !== -1) {
     const row = rowAt(off, at);
-    found.push(row);
+    if (!opening || !PARAGRAPH_BREAK.test(blob.toString('utf8', off[row] ?? 0, at))) found.push(row);
     at = blob.indexOf(needle, off[row + 1] ?? blob.length);
   }
   return found;

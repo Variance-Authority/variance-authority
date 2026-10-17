@@ -257,3 +257,10 @@ describe('the summary line', () => {
     expect(indexed(bare)).toEqual([]);
   });
 });
+
+describe('the tool description', () => {
+  it('says a spatial question on a run with no layout answers the anchor and names the gap', () => {
+    expect(locate.description).not.toMatch(/refused on a run/);
+    expect(locate.description).toMatch(/no layout, the answer is where the anchor is/);
+  });
+});

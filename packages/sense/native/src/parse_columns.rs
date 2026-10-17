@@ -1,8 +1,8 @@
 //! The parse half of a source-index segment, as columns: the part of
 //! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock, member, member-declaration and member-use columns
+//! mock, member, member-declaration, member-use and own-use columns
 //! `source-index-harvest.ts`, `-mocks.ts`, `-members.ts`,
-//! `-member-declarations.ts` and `-member-uses.ts` add.
+//! `-member-declarations.ts`, `-member-uses.ts` and `-own-uses.ts` add.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -94,6 +94,9 @@ pub struct ParseColumns {
     member_use_line: Vec<u32>,
     member_use_of: Vec<u32>,
     member_use_how: Vec<u32>,
+    own_uses: Vec<u32>,
+    own_use_name: Vec<u32>,
+    own_use_line: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -141,6 +144,7 @@ impl ParseColumns {
         self.members.push(self.member_name.len() as u32);
         self.member_declarations.push(self.member_declaration_name.len() as u32);
         self.member_uses.push(self.member_use_name.len() as u32);
+        self.own_uses.push(self.own_use_name.len() as u32);
     }
 
     /// One request; `flags` is [`request_flags`] of what its reader said about
@@ -211,6 +215,11 @@ impl ParseColumns {
         self.member_use_line.push(line);
         self.member_use_of.push(of);
         self.member_use_how.push(how);
+    }
+
+    pub fn own_use(&mut self, name: u32, line: u32) {
+        self.own_use_name.push(name);
+        self.own_use_line.push(line);
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -286,6 +295,9 @@ impl ParseColumns {
             u32s("member-uses.line", self.member_use_line),
             u32s("member-uses.of", self.member_use_of),
             u32s("member-uses.how", self.member_use_how),
+            u32s("parses.own-uses", self.own_uses),
+            u32s("own-uses.name", self.own_use_name),
+            u32s("own-uses.line", self.own_use_line),
             u32s("declares.name", self.declare_name),
         ]
     }
