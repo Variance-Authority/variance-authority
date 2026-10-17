@@ -170,7 +170,7 @@ describe('landJourneys — N shard records into the one this repository reads', 
         `the build failed because the sharding was unstable: ${shards[0]} started from the record ${first.slice(0, 19)}, ` +
           `and ${shards[1]} from the record ${second.slice(0, 19)}. `,
       );
-      await expect(landJourneys(home, shards, into)).rejects.toThrow('Run the whole build again, so that every shard restores the same cached record');
+      await expect(landJourneys(home, shards, into)).rejects.toThrow('Nothing of this build is combined, so the record before it stands. Shards start alike when every one restores the same cached record');
       expect(await left()).toEqual([]);
     }
   });

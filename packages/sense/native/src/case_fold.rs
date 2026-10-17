@@ -166,7 +166,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
             }
             let lines = case_shard::remap_lines(&shard.lines[local], &row_of).map_err(|error| {
                 format!(
-                    "{}: case {:?}: {error}, so they name regions the combined record does not hold. Record every shard with one build, so each cuts the file the same way.",
+                    "{}: case {:?}: {error}, so they name regions the combined record does not hold, and the shards are not combined. Shards combine when one build recorded every one, so each cuts the file the same way.",
                     shard.name, tests[global].id
                 )
             })?;

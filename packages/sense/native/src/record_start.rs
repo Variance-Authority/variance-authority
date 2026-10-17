@@ -30,13 +30,16 @@ pub(crate) struct Agreed {
 /// cached base was replaced while they ran, so each shard split the suite
 /// against another plan. Names both shards and the record each started from,
 /// and the cache step that restores one record to every shard (`docs/cache.md`).
+/// It names no rerun: the record before the build stands, and running a suite
+/// again is rarely the reader's to do.
 pub(crate) fn unstable(first: &str, from_first: &str, second: &str, from_second: &str) -> String {
     format!(
         "the build failed because the sharding was unstable: {first} started from {from_first}, and {second} from {from_second}. \
          Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. \
-         Run the whole build again, so that every shard restores the same cached record: \
+         Nothing of this build is combined, so the record before it stands. \
+         Shards start alike when every one restores the same cached record: \
          the `actions/cache` step keyed `variance-${{{{ runner.os }}}}-${{{{ runner.arch }}}}-${{{{ github.sha }}}}` restores it, \
-         and a shard that restored another, or none, starts apart again."
+         and a shard that restored another, or none, starts apart."
     )
 }
 
@@ -48,9 +51,10 @@ fn split_apart(first: &str, read_first: &str, second: &str, read_second: &str) -
     format!(
         "the build failed because the sharding was unstable: {first} chose its tests from {read_first}, and {second} from {read_second}. \
          Each shard chose its tests, and placed them by time, from the record it read, so the split may have left tests that ran in no shard. \
-         Run the whole build again, so that every shard reads the same record: \
+         Nothing of this build is combined, so the record before it stands. \
+         Shards choose alike when every one reads the same record: \
          a shard reads this checkout's record, which the `actions/cache` step keyed `variance-${{{{ runner.os }}}}-${{{{ runner.arch }}}}-${{{{ github.sha }}}}` restores, \
-         or else the mainline's from the share, and a shard that restored another, or none, or read a mainline record published while the others started, reads apart again."
+         or else the mainline's from the share, and a shard that restored another, or none, or read a mainline record published while the others started, reads apart."
     )
 }
 
@@ -92,8 +96,8 @@ pub(crate) fn versions_apart(shards: &[(&str, bool)]) -> Option<String> {
     }
     let later = if new.is_empty() { String::new() } else { format!(", and {} by a later version", new.join(", ")) };
     Some(format!(
-        "{} {} written by variance-authority 0.15.0 or earlier{later}: such a record names no record its run started from, so nothing says the shards split one plan. \
-         Run every shard on one version, the one that combines them, and combine again.",
+        "{} {} written by variance-authority 0.15.0 or earlier{later}: such a record names no record its run started from, so nothing says the shards split one plan, and they are not combined. \
+         Shards combine when the version that combines them wrote every one.",
         old.join(", "),
         if old.len() == 1 { "was" } else { "were" }
     ))
@@ -119,7 +123,7 @@ fn base(shard: &str, part: Option<&[u8]>) -> Result<Start, String> {
     };
     start.ok_or_else(|| {
         format!(
-            "{shard} names the record it started from as `{}`, which is neither `none`, a sha256 digest, nor two of them joined by `over`, the first of which may be `unknown`. Record it again with this build.",
+            "{shard} names the record it started from as `{}`, which is neither `none`, a sha256 digest, nor two of them joined by `over`, the first of which may be `unknown`, so this build cannot tell where it started, and nothing of it is combined.",
             String::from_utf8_lossy(part)
         )
     })

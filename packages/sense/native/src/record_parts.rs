@@ -160,7 +160,7 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], case
                 Some(_) => {}
                 None => {
                     return Err(refused(&format!(
-                        "holds a journal of `{case}`, and no shard kept cases, so the combined record has no case index to name it. Record the shards again with cases kept."
+                        "holds a journal of `{case}`, and no shard kept cases, so the combined record has no case index to name it."
                     )));
                 }
             }

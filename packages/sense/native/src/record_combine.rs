@@ -241,8 +241,8 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     if let Some(cased) = observed.iter().map(shard).find(|shard| shard.index.is_some()) {
         if let Some(uncased) = observed.iter().map(shard).find(|shard| shard.index.is_none()) {
             return Err(format!(
-                "{} kept cases and {} kept none, so the combined record could answer for the cases of only some of its files. Record {} again with cases kept, as {} was.",
-                cased.path, uncased.path, uncased.path, cased.path
+                "{} kept cases and {} kept none, so the combined record could answer for the cases of only some of its files, and the shards are not combined. Shards combine when every one kept cases, or none did.",
+                cased.path, uncased.path
             ));
         }
         // A shard that found no record holds no before layer; beside one that

@@ -181,14 +181,14 @@ describe('variance shards', () => {
     expect(JSON.parse(formatShards(answer, 'json'))).toEqual(answer);
   });
 
-  it('starts one shard when --unrecorded says zero, since the suite still has to run', () => {
+  it('starts one shard when --unrecorded says zero, since a matrix of none starts no job', () => {
     const answer = shardsAnswer({
       times: { recording: '/cache/coverage.va', unread: 'nothing is recorded there' },
       unrecorded: 0,
     });
     expect(answer).toMatchObject({ shards: 1, matrix: ['1/1'], by: 'unrecorded' });
     expect(formatShards(answer, 'text')).toBe(
-      '1 shard: nothing is recorded there (/cache/coverage.va). `--unrecorded 0` would start none, and the suite still has to run.\n',
+      '1 shard: nothing is recorded there (/cache/coverage.va). `--unrecorded 0` asks for no shard, and a matrix of none starts no job, so the count is one.\n',
     );
   });
 

@@ -484,8 +484,10 @@ filtered to this subject and folded by rendering: the census keys an echo under
 the props class it was found in, so one rendering reached from three props
 digests is three records there and one row here.
 
-Three absences, three sentences. A report with no structure section means the
-tier did not compose; for a subject the plan listed and the run did not observe,
+Three absences, three sentences. A report with no structure section still has
+the census, so you get the components that hold in the subject and the
+renderings it shares, under a line saying the report holds no order, depth,
+mount or count within it; for a subject the plan listed and the run did not observe,
 the tool prints that and points at `variance_explain_verdict`; for an id the run
 never planned, it lists what the run did plan and points at `variance_locate`.
 

@@ -289,9 +289,10 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     await expect(landJourneys(dir, [other, at], record)).rejects.toThrow(new Error(
       `the build failed because the sharding was unstable: ${at} started from commit \`${first}\`, and ${other} from commit \`${'b'.repeat(40)}\`. ` +
         'Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. ' +
-        'Run the whole build again, so that every shard restores the same cached record: ' +
+        'Nothing of this build is combined, so the record before it stands. ' +
+        'Shards start alike when every one restores the same cached record: ' +
         'the `actions/cache` step keyed `variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}` restores it, ' +
-        'and a shard that restored another, or none, starts apart again.',
+        'and a shard that restored another, or none, starts apart.',
     ));
     expect(await readFile(record)).toEqual(before);
   });

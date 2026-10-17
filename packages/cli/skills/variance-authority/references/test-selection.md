@@ -99,9 +99,9 @@ combined without checking that read, and the output names it. It refuses, by sha
 test files or case files, different commits, different probe recipes, a shard
 that kept cases beside one that kept none, before layers that started from
 different records, different Eyes journals for one case attempt or a journal of a case the index does not
-record, a case index this build cannot read (record it again with this
-version), and lines on a file two shards cut into different regions (record
-every shard with one build). Land the result with
+record, a case index this build cannot read, with the reader's reason, and
+lines on a file two shards cut into different regions, which combine only when
+one build recorded every shard. Land the result with
 `variance journeys <record>`; to lay the shards over a record that is already
 there, run `variance journeys <shard.bin>... --into <record>`.
 `journeys stitch` reads journey-only artifacts instead, which lack the per-file

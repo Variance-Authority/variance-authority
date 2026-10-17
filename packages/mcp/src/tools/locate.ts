@@ -81,11 +81,12 @@ export { tokensOf, type LocateField } from './locate-index.js';
  * the anchor — which is why this is one function and not six paragraphs that
  * drift apart.
  *
- * The rules the six share — one relation per question, refused on a run with no
- * layout — are stated once in the tool description and not here, because this
- * text is sent six times in every `tools/list`. The anchor is found first and
- * what stands in the relation to it is measured off the rectangles the run
- * resolved; a run that resolved none is refused rather than answered from
+ * The rules the six share — one relation per question, and no relation read on
+ * a run with no layout — are stated once in the tool description and not here,
+ * because this text is sent six times in every `tools/list`. The anchor is found
+ * first and what stands in the relation to it is measured off the rectangles the
+ * run resolved. On a run that resolved none, the answer is where the anchor is,
+ * with the relation named as what the run cannot say; it is never read from
  * document order, which would look like an arrangement and is not one.
  */
 function relationArgument(relation: string, extra?: string): Readonly<Record<string, unknown>> {
@@ -107,7 +108,8 @@ export const locate: Tool = {
     'of name — on-screen text, component, file. To ask where on a surface something sits, name ' +
     'the anchor in one of `under`, `above`, `inside`, `beside`, `leftOf`, `rightOf`, and the ' +
     'surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch drawer"}`. One ' +
-    'relation argument per question; a spatial relation is refused on a run that resolved no layout.',
+    'relation argument per question. On a run that resolved no layout, the answer is where the ' +
+    'anchor is, and it says the run cannot tell what sits in that relation to it.',
   inputSchema: {
     type: 'object',
     properties: {
