@@ -221,7 +221,7 @@ it, and `unentered` names the declarations the test never reached.
 Loaded but not covered: 1 module(s).
   src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
     never covered: HeavyChart (lines 5-8)
-    substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
+    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it
 ```
 
 This is a stronger reading than an opportunity and still not a verdict. Mocking
@@ -280,7 +280,11 @@ each group, ten of those only some cases entered, and sums the rest on one line;
 with its cause.
 
 A module listed is evidence; the fix is at its import. Delete that
-import, or mock it with a factory, when nothing behind it is used; when part
+import, or mock it with a factory, when nothing behind it is used. Where the
+test file's subject reads the import only in functions no case ran, the reading
+proposes the mock: the module, the file that would stop loading it, and every value it
+exports for a stand-in. It names no runner's call; write the mock the way your
+runner mocks a module. When part
 of it is, import past the barrel inside its own package, or from an entry its
 package declares; move it to the code that uses it when only some
 cases do. Which case calls a module does not change what the file loads: only
