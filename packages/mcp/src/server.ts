@@ -2,6 +2,7 @@ import type { Readable, Writable } from 'node:stream';
 import type { EyesArchive } from '@variance-authority/eyes';
 import type { RunReport } from '@variance-authority/report';
 import {
+  answering,
   createLineReader,
   handle,
   askedInput,
@@ -11,7 +12,6 @@ import {
   type JsonRpcRequest,
 } from './framing.js';
 import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
-import { thrownBy } from './thrown.js';
 import type { Served } from './tools/tool.js';
 import type { Tree } from './tools/tree.js';
 
@@ -31,7 +31,7 @@ import type { Tree } from './tools/tree.js';
  * pure function and never starts a server.
  */
 
-export interface ServerOptions<Subject = RunReport> {
+export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Subject> = AskedAgain<Subject>> {
   readonly input: Readable;
   readonly output: Writable;
   /** Which tools answer, and what the server calls itself. */
@@ -95,7 +95,7 @@ export interface ServerOptions<Subject = RunReport> {
    * bring its reading up to date and says why. Only a refusal pays for the
    * second reading.
    */
-  readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<AskedAgain<Subject> | undefined>;
+  readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<Again | undefined>;
 
   /**
    * The answer a refused call gives instead of its refusal, or none to let the
@@ -103,23 +103,25 @@ export interface ServerOptions<Subject = RunReport> {
    *
    * A tool says some answers by throwing them — a name nothing declares is
    * thrown so that `again` reads the subject once more before the absence is
-   * believed — and only its host knows which. So once `again` has had its turn,
-   * a call still refused is handed here with what its tool threw, the subject
-   * that refused it last, and what `again` said; text returned is the call's
-   * result, not an error, and `again`'s footer is the host's to say in it.
+   * believed — and only its host knows which. So a call to a tool the server
+   * has, with every argument it requires, still refused once `again` has had
+   * its turn, is handed here with what its tool threw, the subject that refused
+   * it last, and what `again` returned, as the host returned it; text returned
+   * is the call's result, not an error, and `again`'s footer is the host's to
+   * say in it. It runs whether or not the host passes `again`: a host that
+   * reads its subject fresh for every call has nothing to read again, and its
+   * thrown answers are answers all the same.
    */
-  readonly answered?: (thrown: unknown, subject: Subject, again: AskedAgain<Subject> | undefined) => string | undefined;
+  readonly answered?: (thrown: unknown, subject: Subject, again: Again | undefined) => string | undefined;
 }
 
 /** What a host answers a refused call with: a fresher subject, and what a refusal that still stands says. */
 export interface AskedAgain<Subject> {
   readonly subject?: Subject;
   readonly footer?: string;
-  /** True when `footer` opens with the date of the subject that could not be read again. */
-  readonly dated?: true;
 }
 
-export function serve<Subject>(options: ServerOptions<Subject>): () => void {
+export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Subject>>(options: ServerOptions<Subject, Again>): () => void {
   const write = (value: unknown): void => {
     options.output.write(`${JSON.stringify(value)}\n`);
   };
@@ -146,21 +148,23 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
       const asked = askedTool(request);
       const answer = async (subject: Subject) => {
         const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
-        return handle(request, () => subject, options.served, {
+        return answering(request, () => subject, options.served, {
           ...(previous === undefined ? {} : { previous }),
           ...(tree === undefined ? {} : { tree }),
           ...(options.root === undefined ? {} : { root: options.root }),
         });
       };
       let subject: Subject = await options.subject(asked, askedInput(request));
-      let response = await answer(subject);
+      let answered = await answer(subject);
+      let response = answered.response;
       if (!succeeded(response) && wellFormed(request, options.served)) {
         const fresher = await options.again?.(asked, subject, started);
         if (fresher?.subject !== undefined) {
           subject = fresher.subject;
-          response = await answer(subject);
+          answered = await answer(subject);
+          response = answered.response;
         }
-        const said = response === null || succeeded(response) ? undefined : options.answered?.(thrownBy(response), subject, fresher);
+        const said = response === null || answered.thrown === undefined ? undefined : options.answered?.(answered.thrown.value, subject, fresher);
         if (said !== undefined) response = { ...response!, result: { content: [{ type: 'text', text: said }] } };
         else if (fresher?.footer !== undefined) response = footed(response, fresher.footer);
       }

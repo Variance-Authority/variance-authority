@@ -1,5 +1,4 @@
 // compass: variance-authority/report
-import { keepThrown } from './thrown.js';
 import type { Served, Tool, ToolInvocation } from './tools/tool.js';
 
 /**
@@ -51,10 +50,35 @@ export function handle<Subject>(
   served: Served<Subject>,
   invocation?: ToolInvocation<Subject>,
 ): JsonRpcResponse | null {
-  if (request.id === undefined) return null;
-  const id = request.id;
+  return answering(request, subject, served, invocation).response;
+}
 
-  switch (request.method) {
+/**
+ * A response, and what the tool threw when the response refuses a call. The
+ * wire carries only the message; a server whose host tells one kind of throw
+ * from another — a thrown answer from a refusal — needs the value itself.
+ */
+export interface Answering {
+  readonly response: JsonRpcResponse | null;
+  /** Present when a tool threw: what it threw. */
+  readonly thrown?: { readonly value: unknown };
+}
+
+/** {@link handle}, with what a refusing tool threw beside its response. */
+export function answering<Subject>(
+  request: JsonRpcRequest,
+  subject: () => Subject,
+  served: Served<Subject>,
+  invocation?: ToolInvocation<Subject>,
+): Answering {
+  if (request.id === undefined) return { response: null };
+  const id = request.id;
+  if (request.method === 'tools/call') return callTool(id, request.params ?? {}, subject, served.tools, invocation);
+  return { response: respond(request.method, id, subject, served) };
+}
+
+function respond<Subject>(method: string, id: string | number, subject: () => Subject, served: Served<Subject>): JsonRpcResponse {
+  switch (method) {
     case 'initialize':
       return ok(id, {
         protocolVersion: PROTOCOL_VERSION,
@@ -80,11 +104,8 @@ export function handle<Subject>(
         })),
       });
 
-    case 'tools/call':
-      return callTool(id, request.params ?? {}, subject, served.tools, invocation);
-
     default:
-      return fail(id, METHOD_NOT_FOUND, `unknown method: ${request.method}`);
+      return fail(id, METHOD_NOT_FOUND, `unknown method: ${method}`);
   }
 }
 
@@ -149,12 +170,12 @@ function callTool<Subject>(
   subject: () => Subject,
   tools: readonly Tool<Subject>[],
   invocation?: ToolInvocation<Subject>,
-): JsonRpcResponse {
+): Answering {
   const name = params['name'];
-  if (typeof name !== 'string') return fail(id, INVALID_PARAMS, 'tools/call requires a name');
+  if (typeof name !== 'string') return { response: fail(id, INVALID_PARAMS, 'tools/call requires a name') };
 
   const tool = tools.find((candidate) => candidate.name === name);
-  if (tool === undefined) return fail(id, INVALID_PARAMS, `unknown tool: ${name}`);
+  if (tool === undefined) return { response: fail(id, INVALID_PARAMS, `unknown tool: ${name}`) };
 
   try {
     const text = tool.run(
@@ -162,7 +183,7 @@ function callTool<Subject>(
       (params['arguments'] ?? {}) as Record<string, unknown>,
       invocation,
     );
-    return ok(id, { content: [{ type: 'text', text }] });
+    return { response: ok(id, { content: [{ type: 'text', text }] }) };
   } catch (error) {
     // A tool failure is a *result* with `isError`, not a JSON-RPC error. The
     // distinction matters here: a transport error is invisible to the model,
@@ -173,8 +194,7 @@ function callTool<Subject>(
       content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
       isError: true,
     });
-    keepThrown(refused, error);
-    return refused;
+    return { response: refused, thrown: { value: error } };
   }
 }
 
