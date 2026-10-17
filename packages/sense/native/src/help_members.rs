@@ -137,6 +137,23 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
     found
 }
 
+/// The distinct extensions of the files on the chain, dot included, in code
+/// units: which languages a member question read beside the ones whose members
+/// the scan records. A file with no extension adds none.
+pub(crate) fn indexed_extensions(layers: &[Layer]) -> Vec<String> {
+    let mut held: Vec<String> = fold(layers)
+        .into_keys()
+        .filter_map(|file| {
+            let name = &file[file.rfind('/').map_or(0, |at| at + 1)..];
+            name.rfind('.').filter(|&at| at > 0).map(|at| name[at..].to_owned())
+        })
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    held.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+    held
+}
+
 /// Each declaration of `name` on a named container given its uses: the
 /// member-use rows of member `name` whose type is written as the container, in
 /// the declaring file, or as the name an import of it binds, in a file that

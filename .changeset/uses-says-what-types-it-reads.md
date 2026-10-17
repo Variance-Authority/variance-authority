@@ -1,6 +1,7 @@
 ---
 '@variance-authority/help': patch
 '@variance-authority/cli': patch
+'@variance-authority/sense': patch
 ---
 
 `ask uses` on a member says which uses it lists, and asks the declaration's type checker for the rest
@@ -21,3 +22,12 @@ prints neither line.
 The skill reference tells an agent to use both tools: `variance` for
 declarations, imports, the module graph and the recording, the language's type
 checker for anything that needs a value's type.
+
+Members are read from JavaScript and TypeScript files only, and a name nothing
+declares now says so. Where the source index holds Python, Rust, Java, Kotlin
+or Swift files, `ask symbol` no longer says no file declares the name "at its
+top level or as a member": it says no file declares it at its top level and no
+JavaScript or TypeScript file declares it as a member, names those languages,
+and sends you to their language server's workspace symbols, then its
+find-references. `ask uses` ends its refusal with the same sentence. A
+workspace of JavaScript and TypeScript alone keeps the old sentence.

@@ -184,6 +184,16 @@ lexicon is not published, and `variance index` publishes it.`` When the source
 index did not read some files' declarations, the refusal says no file *it read*
 declares the name, and names those files last.
 
+Members are read from JavaScript and TypeScript files only. When the source
+index holds files of another language, the refusal says what was read, names
+those languages and sends you to their language server:
+
+```
+`scan_things` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `scan_things` at its top level, and no JavaScript or TypeScript file declares it as a member. No installed dependency publishes it either. Members are read from JavaScript and TypeScript files only, and this workspace's Python and Rust files were not read for them: if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.
+```
+
+`uses` ends its refusal of such a name with the same last sentence.
+
 A name no entry publishes, but that another package imports by the path of its
 file, is answered rather than refused: where it is declared, why nothing
 publishes it, and each import of it. A name a file exports and no entry
@@ -277,7 +287,10 @@ src/shapes/props.ts:2 ``. The second line names TypeScript's language
 service for a declaration in JavaScript or TypeScript, the declaration's own
 language server for one in another language, and each declaration's own type
 checker when they are written in more than one. An answer with no member
-prints neither.
+prints neither. Members are read from JavaScript and TypeScript only, so a
+member of a Python, Rust, Java, Kotlin or Swift file is in no member answer;
+a name nothing else declares is refused, as under `symbol`, with the languages
+whose members were not read named.
 
 A use is a line that reads the member (`props.size`, `props['size']`,
 `props?.size`), writes it (`props.size = 1`, `+=`, `++`, a key of an object

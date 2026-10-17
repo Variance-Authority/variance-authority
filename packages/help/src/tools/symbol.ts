@@ -10,7 +10,7 @@ import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from 
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
-import { type Members, membersOf } from './members.js';
+import { type Members, membersOf, membersStop, unreadMemberLanguages } from './members.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
@@ -222,8 +222,11 @@ function memberBlocks(root: string | undefined, name: string, members: Members):
 /**
  * The refusal of a name nothing in the workspace declares: that no file
  * declares it, then, given `dependencies`, what is known of the installed
- * ones, then the files the source index holds no declarations of. Where the
- * index could not be read, that is said in place of a claim about the files.
+ * ones, then where the reading of members stopped, then the files the source
+ * index holds no declarations of. Where the index could not be read, that is
+ * said in place of a claim about the files. Members are read from JavaScript
+ * and TypeScript only, so where the index holds files of another language the
+ * claim about members is made of those two, and the others are named.
  */
 function nowhere(
   help: Help,
@@ -237,11 +240,15 @@ function nowhere(
   const read = declarations(root, name);
   const why = 'refused' in read ? read.refused : members?.unread;
   const unread = 'refused' in read ? [] : unreadLine(read.unread);
+  const stop = why === undefined ? membersStop(name, unreadMemberLanguages(root)) : undefined;
   // What was read and found nothing comes first, as only what was read; what was not read, last.
-  const files = why === undefined
-    ? `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\`, at its top level or as a member.`
-    : `Which files declare \`${name}\` is not known: ${why}.`;
-  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...unread].join(' ');
+  const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
+  const files = why !== undefined
+    ? `Which files declare \`${name}\` is not known: ${why}.`
+    : stop === undefined
+      ? `${none}, at its top level or as a member.`
+      : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
+  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), ...unread].join(' ');
 }
 
 /** Every published entry of the name, from the package asked for when one was. */

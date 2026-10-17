@@ -49,9 +49,12 @@ says so in two lines after the members. Those uses are the type checker's of
 the declaration's language: the answer names the declaration's `file:line`, or
 with several the one you mean from those it lists, and find-references on it
 in that language's tooling lists them, TypeScript's language service for
-JavaScript and TypeScript. Use `variance` for declarations, imports, the module
-graph and the recording, and the language's type checker for anything that
-needs a value's type.
+JavaScript and TypeScript. Members are read from JavaScript and TypeScript
+files only: when nothing declares the name and the workspace holds Python, Rust,
+Java, Kotlin or Swift files, `symbol` and `uses` name those languages, and their
+language server's workspace symbols find the member. Use `variance` for
+declarations, imports, the module graph and the recording, and the language's
+type checker for anything that needs a value's type.
 
 `variance ask` with no question lists every report, watcher and source question
 and its arguments. The source questions read the checkout under the working

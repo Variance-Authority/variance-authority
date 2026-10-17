@@ -91,6 +91,7 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(err).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
     expect(err).toContain('No installed dependency publishes it either.');
     expect(err).not.toContain('not known');
+    expect(err).not.toContain('Members are read');
   });
 
   it('publishes the lexicon a refusal of an absent name needs, and says no installed dependency publishes it', async () => {
@@ -150,8 +151,24 @@ describe('variance ask symbol says what is true of a name', () => {
 
   // FIXME: a file the chain holds no parse of — written after the source index — is not named among the unread.
   it.todo('names a file written after the source index as one whose declarations were not read — needs the unread list to compare the checkout against what the chain parsed');
-  // FIXME: a Rust struct field is no member until the scan records Rust fields and variants as members.
-  it.todo('answers a Rust struct field with the struct it is a member of — needs the scan to record Rust fields and variants as members (#424)');
+  it('says members were read from JavaScript and TypeScript only, and names the languages the index holds whose members were not', async () => {
+    checkout({
+      ...NATIVE,
+      'tools/scan.py': 'class Scanner:\n    def scan_things(self):\n        return []\n',
+      'crates/scan/src/lib.rs': 'pub struct Scanner {\n    pub scan_things: u32,\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, err } = await run(['ask', 'symbol', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).not.toContain('at its top level or as a member.');
+    expect(err).toContain(
+      'No file in this workspace declares `scan_things` at its top level, and no JavaScript or TypeScript file declares it as a member.',
+    );
+    expect(err).toContain(
+      "Members are read from JavaScript and TypeScript files only, and this workspace's Python and Rust files were not read for them: " +
+        "if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.",
+    );
+  });
   // FIXME: members are looked up only when nothing else declares the name, so a name that is also exported or declared at a file's top level loses its members; `ask uses` says "is a member too".
   it.todo('answers the members of a name that a file also declares at its top level — needs members looked up beside the other declarations, not only when they find nothing');
 });

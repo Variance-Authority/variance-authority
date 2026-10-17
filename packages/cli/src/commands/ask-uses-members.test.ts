@@ -144,6 +144,29 @@ describe('variance ask uses over a member', () => {
     expect(out.slice(member)).toContain(ROUTE);
   });
 
+  it('says where its reading of members stops for a name nothing declares, naming the languages whose members were not read', async () => {
+    checkout({ ...SCANNER, 'tools/scan.py': 'class Scanner:\n    def scan_things(self):\n        return []\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, err } = await run(['ask', 'uses', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('`scan_things` is not published by this workspace');
+    expect(err).toContain(
+      "Members are read from JavaScript and TypeScript files only, and this workspace's Python files were not read for them: " +
+        "if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.",
+    );
+  });
+
+  it('says nothing of other languages for a name nothing declares in a workspace of JavaScript and TypeScript', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, err } = await run(['ask', 'uses', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('`scan_things` is not published by this workspace');
+    expect(err).not.toContain('Members are read');
+  });
+
   it('refuses a name nothing publishes and says the member declarations went unread when no source index is published and `--just-answer` reads the generation as it is', async () => {
     const root = checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

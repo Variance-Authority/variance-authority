@@ -261,7 +261,9 @@ code called it at runtime. A member of an interface, a type literal or a class
 is never imported; `uses` names its declarations after any imports, the lines
 that use each one through a value whose type they write, and the declaration
 to ask its language's find-references about for the uses a type checker has
-to infer.
+to infer. Members are read from JavaScript and TypeScript files only; for a
+name nothing declares, the answer names the workspace's other languages, whose
+members were not read.
 
 No graph database service is required. The workspace generation stores a
 compact graph with dependencies and dependents both materialized. The useful

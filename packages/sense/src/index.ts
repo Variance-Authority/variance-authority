@@ -34,7 +34,7 @@ export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependenc
  * alternative is a caller carrying its own extension list that drifts from this
  * one the first time a language is added.
  */
-export { LANGUAGES, READABLE, languageOf, grainOf, type LanguageId } from './language.js';
+export { LANGUAGES, READABLE, languageOf, grainOf, readsMembers, type LanguageId } from './language.js';
 
 /**
  * One module's component index, read off its tree: where each component it
@@ -212,6 +212,7 @@ export {
   encodeSearch,
   exportedDigest,
   importersOf,
+  indexedExtensionsOf,
   memberDeclarationsOf,
   readHelp,
   type Alias,

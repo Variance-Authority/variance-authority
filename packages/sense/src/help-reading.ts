@@ -130,6 +130,7 @@ export interface NativeHelp {
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
+  indexedExtensionsOf?(index: string): string[] | null;
   aliasesOf?(root: string, index: string, local: string): Alias[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, query: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
@@ -202,6 +203,16 @@ export function importersOf(
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+}
+
+/**
+ * The distinct extensions of the files the index at `index` holds, dot
+ * included, in code units: what a question can tell its reader was read, by
+ * language, through `languageOf`. `undefined` when no index was published.
+ * Throws when the index does not read.
+ */
+export function indexedExtensionsOf(root: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
+  return entry('indexedExtensionsOf')(index) ?? undefined;
 }
 
 /**

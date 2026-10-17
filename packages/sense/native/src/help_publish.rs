@@ -23,7 +23,7 @@ use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_members::{member_declarations, MemberSite};
+use crate::help_members::{indexed_extensions, member_declarations, MemberSite};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -101,6 +101,13 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
 #[napi]
 pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
+}
+
+/// The distinct extensions of the files on the chain at `index`, in code
+/// units; `None` when there is no index.
+#[napi]
+pub fn indexed_extensions_of(index: String) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(&index, |layers| indexed_extensions(layers))
 }
 
 /// Every import on the chain at `index` that binds `local` to an export of

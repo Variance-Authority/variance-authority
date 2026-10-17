@@ -26,7 +26,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Use } from '@variance-authority/package/help';
-import { languageOf, memberDeclarationsOf } from '@variance-authority/sense';
+import { indexedExtensionsOf, LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
 
 /** The declarations of a member by one name. */
@@ -98,6 +98,53 @@ export function routes(name: string, members: Members): readonly string[] {
         ? "Ask TypeScript for those: its language service's find-references"
         : "Ask the declaration's own language for those: its language server's find-references";
   return ['', TYPED, `${ask} on ${at}.`];
+}
+
+/**
+ * What each language whose members the scan does not record is called in a
+ * sentence. A stylesheet declares no members, so it has no name here.
+ */
+const UNREAD_MEMBERS: Readonly<Record<Exclude<LanguageId, 'module' | 'style'>, string>> = {
+  python: 'Python',
+  rust: 'Rust',
+  java: 'Java',
+  kotlin: 'Kotlin',
+  swift: 'Swift',
+};
+
+/**
+ * The languages of the files the source index of the checkout at `root`
+ * holds whose members the scan does not record, by name, in the order a
+ * reader is looked for; none when no checkout is named, no index is
+ * published or it does not read, since the answer already says so.
+ */
+export function unreadMemberLanguages(root: string | undefined): readonly string[] {
+  if (root === undefined) return [];
+  let extensions: readonly string[] | undefined;
+  try {
+    extensions = indexedExtensionsOf(root);
+  } catch {
+    return [];
+  }
+  const held = new Set((extensions ?? []).map(languageOf));
+  return LANGUAGES.filter((id): id is keyof typeof UNREAD_MEMBERS => held.has(id) && !readsMembers(id) && id in UNREAD_MEMBERS).map(
+    (id) => UNREAD_MEMBERS[id],
+  );
+}
+
+/**
+ * Where a reading of member `name` that found no declaration stops, given the
+ * `languages` `unreadMemberLanguages` names: members are read from JavaScript
+ * and TypeScript only, so a member of those languages' files is their
+ * language server's to find. Nothing when there are none.
+ */
+export function membersStop(name: string, languages: readonly string[]): string | undefined {
+  if (languages.length === 0) return undefined;
+  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
+  return (
+    `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them: ` +
+    `if \`${name}\` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.`
+  );
 }
 
 /** `N places`, in words a sentence takes. */
