@@ -97,7 +97,7 @@ accounts of the same evidence with no way to tell which one was fixed.
 | [intent adjudication](./intent-adjudication/README.md) | Reads a run back against what its author declared they were changing |
 | `packages/cli/src/commands/report-html-{style,script,elements}.ts` | L5 — the page's inline stylesheet, its comparison script, and the escaping primitives every block writes through |
 | `packages/report/src/changelog-message.ts` | L5 — the codec a changelog record round-trips through on its way into and out of a commit message |
-| `packages/mcp/src/server.ts`, `packages/mcp/src/protocol.ts`, `packages/help/src/server.ts` | L5 — request framing and stdio transport, holding no decision |
+| `packages/mcp/src/server.ts`, `packages/mcp/src/framing.ts`, `packages/mcp/src/protocol.ts`, `packages/help/src/server.ts` | L5 — request framing and stdio transport, holding no decision |
 
 ## Diagram
 

@@ -1,12 +1,7 @@
 import type { Readable, Writable } from 'node:stream';
-import { createEyesArchive, type EyesArchive } from '@variance-authority/eyes';
+import type { EyesArchive } from '@variance-authority/eyes';
 import type { RunReport } from '@variance-authority/report';
-import { readRunReport } from '@variance-authority/report/file';
-import { attachVantage } from '@variance-authority/vantage/attach';
 import {
-  EYES,
-  REPORTS,
-  VANTAGE,
   createLineReader,
   handle,
   askedInput,
@@ -14,11 +9,10 @@ import {
   wantsTree,
   wellFormed,
   type JsonRpcRequest,
-} from './protocol.js';
+} from './framing.js';
 import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
-import { continuing } from './tools/continue.js';
 import type { Served } from './tools/tool.js';
-import { readTree, type Tree } from './tools/tree.js';
+import type { Tree } from './tools/tree.js';
 
 /**
  * The transport, and nothing else.
@@ -27,6 +21,13 @@ import { readTree, type Tree } from './tools/tree.js';
  * pure. What is left here is stream plumbing, which is the part that cannot be
  * unit-tested meaningfully and therefore the part that should contain no
  * decisions.
+ *
+ * What a started server reads — the served tool sets, the run report file, Eyes,
+ * the live-run listener and the source tree — is imported by the function that
+ * starts it, not by this module. The root entry exports `serve` beside pure
+ * functions such as `locateSubjects`, and Node evaluates every static import of
+ * an entry, so a static import here is paid by every caller that only wanted a
+ * pure function and never starts a server.
  */
 
 export interface ServerOptions<Subject = RunReport> {
@@ -209,7 +210,8 @@ function treeOnce(options: ReportFileOptions): (() => Promise<Tree | undefined>)
 
   let read: Promise<Tree | undefined> | undefined;
   return () => {
-    read ??= readTree({ root, ...(options.index === undefined ? {} : { index: options.index }) }).catch(
+    read ??= import('./tools/tree.js').then(({ readTree }) =>
+      readTree({ root, ...(options.index === undefined ? {} : { index: options.index }) })).catch(
       (error: unknown) => {
         // Said on stderr rather than swallowed. The refusal the caller reads is
         // about their question — *no source tree was read* — and the reason the
@@ -239,6 +241,10 @@ export async function serveReportFile(
   path: string,
   streams: ReportFileOptions = {},
 ): Promise<() => void> {
+  const [{ readRunReport }, { REPORTS }] = await Promise.all([
+    import('@variance-authority/report/file'),
+    import('./protocol.js'),
+  ]);
   // Read once before serving, so a path that is not a run report fails at
   // startup rather than on whichever request happens to arrive first.
   let cached = await readRunReport(path);
@@ -281,6 +287,10 @@ export async function serveEyesRecord(
   record: string,
   streams: ReportFileOptions = {},
 ): Promise<() => void> {
+  const [{ createEyesArchive }, { EYES }] = await Promise.all([
+    import('@variance-authority/eyes'),
+    import('./protocol.js'),
+  ]);
   let cached: EyesArchive = await readEyesRecord(record);
 
   return serve({
@@ -325,6 +335,11 @@ export interface ServedVantage {
  * changes is how long one execution lasts when somebody is watching it.
  */
 export async function serveVantage(streams: ReportFileOptions = {}): Promise<ServedVantage> {
+  const [{ attachVantage }, { VANTAGE }, { continuing }] = await Promise.all([
+    import('@variance-authority/vantage/attach'),
+    import('./protocol.js'),
+    import('./tools/continue.js'),
+  ]);
   const attached = await attachVantage();
   const stop = serve({
     input: streams.input ?? process.stdin,
