@@ -24,7 +24,7 @@ import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
-const DECLARED_CAP = 5;
+export const DECLARED_CAP = 5;
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =

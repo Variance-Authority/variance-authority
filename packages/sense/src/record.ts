@@ -280,6 +280,7 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
     ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
     ...(read.harvested === true ? { harvested: true } : {}),
     ...(declares.length === 0 ? {} : { declares }),
+    ...(read.memberDeclarations === undefined || read.memberDeclarations.length === 0 ? {} : { memberDeclarations: read.memberDeclarations }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
     ...(read.size === undefined ? {} : { size: read.size }),
   };

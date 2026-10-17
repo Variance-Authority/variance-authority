@@ -293,7 +293,11 @@ function memberLines(members: Members, from: string | undefined, name: string): 
   // A declaration no line reaches through its type is named once, with the others like it.
   const unused = members.used.filter(({ uses }) => uses.length === 0).map(({ declared }) => `\`${declared.by}\` at ${declared.at}:${declared.line}`);
   const none = unused.length === 0 ? [] : ['', `No line uses \`${name}\` through a value whose type is written as ${unused.join(', ')}.`];
-  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name), ...used, ...none, ...routes(name, members)];
+  const unrecorded = members.unrecorded.map((declared) => `\`${declared.by}\` at ${declared.at}:${declared.line}`);
+  const unmeasured = unrecorded.length === 0
+    ? []
+    : ['', `The uses of \`${name}\` through a value of its type are not recorded for ${unrecorded.join(', ')}: only the JavaScript and TypeScript reader records them.`];
+  return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name), ...used, ...none, ...unmeasured, ...routes(name, members)];
 }
 
 /** The imports of an exported name, as `uses` has always answered them. */

@@ -72,7 +72,7 @@
 
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { native, nativeRefusal } from './addon.js';
-import type { SourceSize } from './cache.js';
+import type { MemberDeclaration, SourceSize } from './cache.js';
 import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { ImportDiff } from './taint/index.js';
 
@@ -262,6 +262,13 @@ export interface Read {
 
   /** What the file mocks and loads for real, read off the same tree. Recorded, never applied. */
   readonly mocks?: ImportDiff;
+
+  /**
+   * Every member the file declares on its types, as `Parsed.memberDeclarations`
+   * says. Answered here by the tree-sitter readers; a module's are read in the
+   * native batch. Absent when it declares none.
+   */
+  readonly memberDeclarations?: readonly MemberDeclaration[];
 
   /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;

@@ -9,7 +9,7 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
+import { DECLARED_CAP, declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
 import { type Members, membersOf } from './members.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
@@ -32,7 +32,9 @@ export const symbol: Tool<Help> = {
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
     'name a file declares at its top level and does not export, answered with where it is written, a ' +
     'name an import binds with `as`, answered with that import and the original it names, a ' +
-    'member of an interface, a type literal or a class, answered with its container and where it is declared, and ' +
+    'member of a type in any language the scan reads — an interface, a type literal, a class, a Rust struct, trait or `impl`, ' +
+    'a Java, Kotlin or Swift type, a Python class — answered with its container and where it is declared, beside any ' +
+    'top-level declaration of the same name, and ' +
     'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
     'when the exact name is not known, docs_uses for local import sites.',
@@ -78,21 +80,26 @@ export const symbol: Tool<Help> = {
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
     // A name an import binds to an export of another name: the import, and the export it names.
     const aliased = localNames(help, invocation?.root, name, wanted).blocks;
-    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared, ...aliased].join('\n\n');
+    // A member of an interface, a type literal, a class or another language's
+    // type is the workspace's own declaration too, which no import names and
+    // the scan records. A top-level name that shares its spelling is another
+    // declaration, so it never stands for the member: both are answered.
+    const members = membersOf(invocation?.root, name, wanted);
+    const memberOwn = memberBlocks(invocation?.root, name, members);
+    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared, ...aliased, ...memberOwn].join('\n\n');
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    const kept = [
+    // The files whose declarations were not read are said once, after every
+    // declaration: `declared` says them when it answers anything.
+    const own = [
       ...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []),
       ...(found.length === 0 ? [...declared, ...aliased] : []),
+      ...(found.length === 0 ? memberOwn : []),
+      ...(found.length === 0 && declared.length === 0 && memberOwn.length > 0 ? unreadOf(invocation?.root, name) : []),
     ];
-    // A member of an interface, a type literal or a class is the workspace's
-    // own declaration too, which no import names and the scan records. It is
-    // answered only when nothing else, an import that binds the name included, does.
-    const members = found.length === 0 && kept.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
-    const own = members === undefined || members.declared.length === 0 ? kept : memberBlocks(invocation?.root, name, members);
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: the installed answers below say so.
     const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
@@ -164,7 +171,7 @@ export const symbol: Tool<Help> = {
     const within = importsOf(invocation?.root, declaring, name);
     const renamed = renamedSites(name, [...found.flatMap(([, , entry]) => entry.sites), ...('uses' in within ? within.uses : [])]);
 
-    return [[block(first[0], first[1], first[2]), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'), ...declared, ...aliased].join('\n\n');
+    return [[block(first[0], first[1], first[2]), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'), ...declared, ...aliased, ...memberOwn].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
@@ -187,8 +194,8 @@ export const symbol: Tool<Help> = {
     }
     at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     at.push(...localNames(help, invocation?.root, name, wanted).files);
-    const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
-    if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
+    const members = membersOf(invocation?.root, name, wanted);
+    at.push(...members.declared.map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new Error(nowhere(help, name, wanted, invocation?.root, members, undefined));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {
@@ -201,22 +208,31 @@ export const symbol: Tool<Help> = {
 };
 
 /**
- * A name the workspace declares only as a member: one block per declaration,
- * on the container that holds it, then the files whose declarations were not
- * read, since one of them may declare it at its top level.
+ * The member declarations of a name: one block per declaration, on the
+ * container that holds it, with the line as the checkout writes it, the first
+ * `DECLARED_CAP` of them and a count of the rest, which `docs_uses` lists.
  */
 function memberBlocks(root: string | undefined, name: string, members: Members): readonly string[] {
-  const read = declarations(root, name);
+  const more = members.declared.length - DECLARED_CAP;
   return [
-    ...members.declared.map((site) =>
+    ...members.declared.slice(0, DECLARED_CAP).map((site) =>
       [
         name,
-        `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
-        'docs_uses names the lines that use it through a value written as its container, and the search that finds the rest.',
+        `a member of ${/^a (?:type literal|class|companion object)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}${site.package === '' ? '' : ` by ${site.package}`}`,
+        ...(root === undefined ? [] : lineAt(root, site.at, site.line, name)),
+        members.unrecorded.includes(site)
+          ? 'docs_uses names the search that finds the lines that use it, as text: no reader of this file records them.'
+          : 'docs_uses names the lines that use it through a value written as its container, and the search that finds the rest.',
       ].join('\n'),
     ),
-    ...('refused' in read ? [] : unreadLine(read.unread)),
+    ...(more > 0 ? [`${more} more member ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown; docs_uses lists every one.`] : []),
   ];
+}
+
+/** The files whose declarations the source index did not read, said once. */
+function unreadOf(root: string | undefined, name: string): readonly string[] {
+  const read = declarations(root, name);
+  return 'refused' in read ? [] : unreadLine(read.unread);
 }
 
 /**
@@ -346,12 +362,17 @@ function importedIn(count: number): string {
  * an older text.
  */
 function lineOf(root: string, held: Named): readonly string[] {
+  return lineAt(root, held.at, held.line, held.name);
+}
+
+/** Line `line` of `file` as the checkout holds it now, trimmed; nothing when the file is gone or the line no longer holds `name`. */
+function lineAt(root: string, file: string, line: number, name: string): readonly string[] {
   let text: string;
   try {
-    text = readFileSync(join(root, held.at), 'utf8');
+    text = readFileSync(join(root, file), 'utf8');
   } catch {
     return [];
   }
-  const line = text.split(/\r?\n/)[held.line - 1]?.trim();
-  return line === undefined || !line.includes(held.name) ? [] : [line];
+  const written = text.split(/\r?\n/)[line - 1]?.trim();
+  return written === undefined || !written.includes(name) ? [] : [written];
 }

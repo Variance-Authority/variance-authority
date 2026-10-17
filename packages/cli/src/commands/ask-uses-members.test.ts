@@ -136,4 +136,18 @@ describe('variance ask uses over a member', () => {
     expect(err).toContain('`resolveThings` is not published by this workspace, and no published name contains it');
     expect(err).toContain('Members by this name were not read: no source index is published; run `variance index`.');
   });
+
+  it('says no reader records the uses of a member a Rust file declares, rather than that no line uses it', async () => {
+    checkout({
+      'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
+      'packages/kit/src/lib.rs': 'pub struct Bound {\n    pub width: u32,\n}\n\npub fn wide(bound: &Bound) -> u32 {\n    bound.width\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'width']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('packages/kit/src/lib.rs:2');
+    expect(out).not.toContain('No line uses');
+    expect(out).toContain('The uses of `width` through a value of its type are not recorded for `Bound` at packages/kit/src/lib.rs:2: only the JavaScript and TypeScript reader records them.');
+  });
 });

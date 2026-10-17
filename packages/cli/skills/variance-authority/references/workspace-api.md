@@ -183,10 +183,14 @@ apart, each with its own count, and an installed name it matches, which a file
 that passes it on exports without declaring, is said after it. A name a file
 declares and does not export is answered from the source index, as below, after
 any export of the same name in another file. A name an import binds with `as`
-is answered with that import and the original it names. A member of an
-interface, a type literal or a class, when nothing else declares or binds the
-name, is answered with its container and the file and line that declare it, one
-block per declaration. A name nothing declares is refused.
+is answered with that import and the original it names. A member is answered
+with its container, the file and line that declare it and the line as written,
+one block per declaration, the first five and a count of the rest, after any
+other answer for the name: a member of a TypeScript interface, type literal or
+class, a field, variant or method of a Rust struct, enum, trait or `impl`, and
+a member of a Java, Kotlin or Swift type or a Python class. A top-level
+declaration that shares the name never hides it. A name nothing declares is
+refused.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
@@ -270,6 +274,15 @@ followed through the import that binds it, renamed or passed on by `export *`
 or `export { … } from`, to the file that declares it, so `Props.size` and
 `Other.size` are listed apart and a same-named type of another file is neither.
 A binding that shadows an annotated one is no use.
+
+Only the JavaScript and TypeScript reader records uses. A member a Rust, Java,
+Kotlin, Swift or Python file declares is listed with the others, and its uses
+are said to be not recorded rather than none, so the `docs_grep` route is what
+finds them:
+
+```
+The uses of `width` through a value of its type are not recorded for `Bound` at src/lib.rs:2: only the JavaScript and TypeScript reader records them.
+```
 
 What a type checker infers is not read: a value returned by a call, a generic
 or a mapped type, a value narrowed or copied without an annotation, and a type

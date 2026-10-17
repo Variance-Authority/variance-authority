@@ -26,6 +26,7 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
 use serde::Serialize;
 
+use crate::batch::is_module;
 use crate::compact::Layer;
 use crate::help_usage::{importers_from, kind_of};
 use crate::orient_map_read::beside;
@@ -67,7 +68,8 @@ pub struct MemberSite {
     pub on: String,
     /// Every use of the member through a value whose type is written as its
     /// container, ordered by file in code units, then by line; absent for a
-    /// container with no name, which no line can write.
+    /// container with no name, which no line can write, and for a file no
+    /// reader records member uses of, which is any but a module.
     pub uses: Option<Vec<MemberUseSite>>,
 }
 
@@ -146,7 +148,9 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     let mut origins: Vec<(String, String)> = Vec::new();
     let mut of: Vec<Option<usize>> = Vec::new();
     for site in found.iter() {
-        if site.on == A_TYPE_LITERAL || site.on == A_CLASS { of.push(None); continue; }
+        // Only the module reader records member uses, so a declaration another
+        // reader read has none measured, which is not none found.
+        if site.on == A_TYPE_LITERAL || site.on == A_CLASS || !is_module(&site.at) { of.push(None); continue; }
         let origin = origins.iter().position(|(at, on)| *at == site.at && *on == site.on).unwrap_or_else(|| {
             origins.push((site.at.clone(), site.on.clone()));
             origins.len() - 1

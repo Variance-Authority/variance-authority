@@ -33,16 +33,25 @@ export const BY_NAME =
   "`entry('name')` and same-named members of other types in those files, and misses a value whose type comes in " +
   'through a file that does not import the declaration.';
 
+/** What the source index says a member is on when its container has no name, which no line can write as a type. */
+const ANONYMOUS: ReadonlySet<string> = new Set(['a type literal', 'a class']);
+
 /** The declarations of a member by one name. */
 export interface Members {
-  /** Each declaration, `by` the container it is on. */
-  readonly declared: readonly Use[];
+  /** Each declaration, `by` the container it is on, in the `package` that holds its file (empty when none does). */
+  readonly declared: readonly (Use & { readonly package: string })[];
   /**
    * Each declaration on a named container, in `declared`'s order, with every
    * line that uses the member through a value written as that container, `by`
    * the package and how it uses it.
    */
   readonly used: readonly { readonly declared: Use; readonly uses: readonly (Use & { readonly how: string })[] }[];
+  /**
+   * Each declaration on a named container, in `declared`'s order, whose
+   * file's reader records no member uses: the JavaScript and TypeScript one is
+   * the only reader that does, so its uses are not measured, which is not none.
+   */
+  readonly unrecorded: readonly Use[];
   /** Why the declarations were not read, when they were not. */
   readonly unread?: string;
 }
@@ -53,23 +62,24 @@ export interface Members {
  * why, when no checkout is named or the index does not read.
  */
 export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
-  if (root === undefined) return { declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
+  if (root === undefined) return { declared: [], used: [], unrecorded: [], unread: 'this host named no checkout to read the source index of' };
   let found: ReturnType<typeof memberDeclarationsOf>;
   try {
     found = memberDeclarationsOf(root, name);
   } catch (error) {
-    return { declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
+    return { declared: [], used: [], unrecorded: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
-  if (found === undefined) return { declared: [], used: [], unread: 'no source index is published; run `variance index`' };
+  if (found === undefined) return { declared: [], used: [], unrecorded: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
   const sites = found.filter((site) => owner === undefined || site.by === owner);
-  const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
+  const declared = sites.map((site) => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false, package: site.by }));
   const used = sites.flatMap((site, at) =>
     site.uses === undefined
       ? []
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
-  return { declared, used };
+  const unrecorded = sites.flatMap((site, at) => (site.uses === undefined && !ANONYMOUS.has(site.on) ? [declared[at]!] : []));
+  return { declared, used, unrecorded };
 }
 
 /**

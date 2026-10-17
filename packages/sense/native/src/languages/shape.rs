@@ -93,6 +93,10 @@ pub struct Read {
     /// a file the reader could not parse, whose declarations are unknown.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub harvested: bool,
+    /// Every member the file declares on a type, as [`members.rs`](./members.rs)
+    /// reads them. Absent when there are none.
+    #[serde(rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
+    pub member_declarations: Vec<crate::help_members::MemberDeclaration>,
     /// Bytes and lines, counted off the tree by [`size.rs`](./size.rs); absent
     /// for a file the grammar could not parse at all.
     // TODO: no region count, because no recorder cuts a Python, Rust, Swift or
@@ -110,6 +114,7 @@ impl Read {
             unknown: Some(reason),
             symbols: Vec::new(),
             harvested: false,
+            member_declarations: Vec::new(),
             size: None,
         }
     }

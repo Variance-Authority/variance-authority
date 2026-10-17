@@ -12,6 +12,7 @@
 //! must not read as a repository with no Python in it.
 
 pub mod jvm;
+pub mod members;
 pub mod python;
 pub mod rust;
 mod rust_paths;
@@ -180,7 +181,13 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
         Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source)),
         Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source)),
     };
-    Some(Read { size: Some(size::size_of(source, &tree, grammar)), symbols, harvested: true, ..read })
+    Some(Read {
+        size: Some(size::size_of(source, &tree, grammar)),
+        symbols,
+        harvested: true,
+        member_declarations: members::members(grammar, &tree, source),
+        ..read
+    })
 }
 
 /// The targets a `Package.swift` declares, or nothing when it does not parse.
