@@ -172,16 +172,6 @@ export function declaredBlocks(root: string | undefined, name: string, wanted: s
   ];
 }
 
-/**
- * What a refusal of `name` adds when the source index did not read some files'
- * declarations, so the name may be declared there: a sentence after a space,
- * or nothing.
- */
-export function unreadNote(root: string | undefined, name: string): string {
-  const read = declarations(root, name);
-  return 'refused' in read ? '' : unreadLine(read.unread).map((line) => ` ${line}`).join('');
-}
-
 /** The file-private declarations of the name, source first; none when the index is not at hand. */
 export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
   const read = declarations(root, name);
