@@ -478,6 +478,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.path` | the test file path, sorted by code unit |
 | tests | `tests.complete` | one byte, `1` when every case in the file ran and passed |
 | tests | `tests.duration` | the whole milliseconds the test runner reported for the file, `0xffffffff` when it reported none |
+| tests | `tests.phases` | five words a file, the whole milliseconds of its prepare, environment, setup, collect and cases phases, `0xffffffff` for a phase the runner did not time |
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
@@ -498,6 +499,17 @@ duration, Playwright's `testInfo.duration` summed over the file's tests, or the
 nothing for stores the sentinel, and a reader answers it as
 absent, not as zero. When two projects record the same file, its duration is
 their sum, and it is absent if either is.
+
+**Phases.** `tests.phases` splits a file's time into what is part of a test
+and what is not: readying the file in its worker, the test environment, the
+setup files, collecting the file — importing it and everything it loads — and
+running its cases with their hooks. Vitest reports all five. Jest's `perfStats`
+times the environment and the setup files, and the setup module marks where
+collecting ended on the same clock, so the rest splits into collect and cases
+there; Jest readies no file apart from those, so its prepare is absent. A Jest
+file whose every case was skipped runs no hook, leaves no mark, and has no
+collect or cases. Phases are summed across projects as durations are. A record
+written before phases were kept opens with every file unphased.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion

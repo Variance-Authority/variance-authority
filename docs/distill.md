@@ -321,23 +321,43 @@ variance distill --from packages/distill
 ```
 
 ```text
-packages/distill in suite unit: 4 test file(s), each read.
+packages/distill in suite unit: 6 test file(s), each read.
 
-Loaded, and entered by no case of the test file that loaded it: 63 module load(s), 12748 line(s).
-  packages/distill/src/own.ts imports packages/core/src/relate/index.ts: 11 module(s) in 2 test file(s), 4540 line(s)
-  packages/core/src/relate/index.ts imports packages/core/src/relate/merkle.ts: 4 module(s) in 2 test file(s), 1490 line(s)
+Where the time went, as the runner timed 6 of the 6 test file(s): 2189 ms.
+  prepare, the worker readying the file: 270 ms, 12%
+  environment: 0 ms, 0%
+  setup files: 65 ms, 3%
+  collect, importing the test file and everything it loads: 1568 ms, 72%
+  cases: 286 ms, 13%
+Loading took over ten times as long as the cases in 2 test file(s): 597 ms against 34 ms.
+  packages/distill/src/index.test.ts: 395 ms loading, 17 ms in its cases
+  packages/distill/src/mocks.test.ts: 202 ms loading, 17 ms in its cases
+
+Loaded, and entered by no case of the test file that loaded it: 951 module load(s), 198402 line(s).
+  packages/sense/src/test-selection/kept-install.ts imports packages/sense/src/lock/read.ts: 6 module(s) in 6 test file(s), 4476 line(s)
+  packages/sense/src/test-selection/index.ts imports packages/sense/src/test-selection/select.ts: 3 module(s) in 6 test file(s), 4218 line(s)
   ...
-  No one import brings these in alone: 7 module(s) in 4 test file(s), 3797 line(s)
+  No one import brings these in alone: 103 module(s) in 6 test file(s), 119366 line(s)
 ```
 
-An import's lines count once in every test file it reaches, because each file
-evaluates its imports anew. Only what no case of the loading file entered is
+The first part is time, as the runner measured it for each test file, split
+into what is part of a test and what is not. `collect` is importing the test
+file and running its top level, which is where its modules load; `cases` is
+the tests and their hooks. Vitest reports all five phases. Jest reports the
+environment and the setup files, and the recording marks the moment the file
+finished collecting, so a Jest file has every phase but `prepare`. A phase no
+file reported is left out rather than shown as zero. A test file whose loading
+took more than ten times as long as its cases is named: there the time is in
+what it imports, and the rest of the reading says which imports those are.
+
+In the second part, an import's lines count once in every test file it
+reaches, because each file evaluates its imports anew. Only what no case of the loading file entered is
 gathered; a module some cases used belongs to the file's own reading. The text
 names the ten heaviest imports and sums the rest, then the modules no one import
 brings in alone and those no static import reaches, as a file's reading names
 them ([above](#imports-a-file-loads-for-few-of-its-cases)); `--format json`
 lists every import with its modules and the test files it reaches. Lines are
-the size of what loaded, not its time. The fix is at the import named, as it
+the size of what loaded; the time above says what loading cost. The fix is at the import named, as it
 is for one file, and every test file the import reaches stops paying.
 
 You choose the scope:
