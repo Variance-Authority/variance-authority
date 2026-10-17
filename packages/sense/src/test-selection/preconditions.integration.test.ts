@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decodeExecutionIndex } from './execution-format.js';
-import type { CasePrecondition } from './case-precondition-column.js';
+import { rowOf, type CasePrecondition } from './case-said.js';
 import type { ExecutionIndex } from './reverse.js';
 
 // One test file per runner says the same things from the same places — a
@@ -110,29 +110,29 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   };
 
   it('carries what its body said, with the call site, over what a beforeEach said', () => {
-    expect(row('mocked', 'refunds behind a flag').preconditions).toEqual([
+    expect(rowOf(row('mocked', 'refunds behind a flag'))).toEqual([
       said('flag', 'ff-on', 'case flag'),
       said('network', 'mocked', 'mocked each'),
     ]);
-    expect(row('live', 'replays a recording').preconditions).toEqual([
+    expect(rowOf(row('live', 'replays a recording'))).toEqual([
       said('network', 'recorded', 'case network'),
       said('region', 'eu', 'live each'),
     ]);
   });
 
   it('carries what a beforeEach inside a describe said, which a sibling describe never hears', () => {
-    expect(row('mocked', 'pays').preconditions).toEqual([said('network', 'mocked', 'mocked each')]);
-    expect(row('live', 'pays').preconditions).toEqual([
+    expect(rowOf(row('mocked', 'pays'))).toEqual([said('network', 'mocked', 'mocked each')]);
+    expect(rowOf(row('live', 'pays'))).toEqual([
       said('network', 'live', 'file default'),
       said('region', 'eu', 'live each'),
     ]);
     // Named as if they were under `mocked`, and not under it.
-    expect(row('mocked flow', 'pays').preconditions).toEqual([said('network', 'live', 'file default')]);
-    expect(row('mocked refunds').preconditions).toEqual([said('network', 'live', 'file default')]);
+    expect(rowOf(row('mocked flow', 'pays'))).toEqual([said('network', 'live', 'file default')]);
+    expect(rowOf(row('mocked refunds'))).toEqual([said('network', 'live', 'file default')]);
   });
 
   it('keeps two values said at one level as a contradiction', () => {
-    expect(row('contradicted', 'pays').preconditions).toEqual([
+    expect(rowOf(row('contradicted', 'pays'))).toEqual([
       said('flag', 'ff-off', 'contradicted off'),
       said('flag', 'ff-on', 'contradicted on'),
       said('network', 'live', 'file default'),
@@ -140,21 +140,21 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   });
 
   it('lays what a failing beforeEach said on no later case', () => {
-    expect(row('after doomed', 'pays').preconditions).toEqual([said('network', 'live', 'file default')]);
-    expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'doomed')).toBe(false);
+    expect(rowOf(row('after doomed', 'pays'))).toEqual([said('network', 'live', 'file default')]);
+    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'doomed')).toBe(false);
   });
 
   it('gives a case that crossed nothing a row, and a case that said nothing an empty one', () => {
-    expect(row('crosses nothing').preconditions).toEqual([
+    expect(rowOf(row('crosses nothing'))).toEqual([
       said('network', 'live', 'file default'),
       said('seeded', true, 'seeded'),
     ]);
-    expect(row('says nothing').preconditions).toEqual([]);
+    expect(rowOf(row('says nothing'))).toEqual([]);
   });
 
   it('reports a call in afterEach with its site and lays it on no case', () => {
     expect(output).toMatch(new RegExp(`variancePrecondition at \\S*checkout\\.case\\.ts:${line('after each')} ran after its case`));
-    expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'cleaned')).toBe(false);
+    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'cleaned')).toBe(false);
   });
 
   it('throws where no case is running: the top level, a describe callback, a beforeAll and an afterAll', () => {
@@ -166,7 +166,7 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   });
 
   it('keeps both values of a retry that changed its mind', () => {
-    expect(row('retries').preconditions).toEqual([
+    expect(rowOf(row('retries'))).toEqual([
       said('attempt', 1, 'retried', runner.retries),
       said('attempt', 2, 'retried', runner.retries),
       ...runner.retries === 'checkout.case.ts' ? [said('network', 'live', 'file default')] : [],
@@ -174,12 +174,12 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   });
 
   it.runIf(runnerName !== 'jest')('tells two concurrent cases and their hooks apart', () => {
-    expect(row('lanes', 'left').preconditions).toEqual([
+    expect(rowOf(row('lanes', 'left'))).toEqual([
       said('lane', 'left', 'lane each'),
       said('network', 'live', 'file default'),
       said('side', 'left', 'left side'),
     ]);
-    expect(row('lanes', 'right').preconditions).toEqual([
+    expect(rowOf(row('lanes', 'right'))).toEqual([
       said('lane', 'right', 'lane each'),
       said('network', 'live', 'file default'),
       said('side', 'right', 'right side'),

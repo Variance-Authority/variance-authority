@@ -18,7 +18,7 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
+import { heldText, rowOf, type CaseTwin } from '@variance-authority/sense/test-selection';
 import { caseNameOf, twinText, whereText } from './covering-where.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
@@ -279,7 +279,7 @@ function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
   }, (test, indent) => {
     const twin = twinOf.get(test.id);
     return {
-      tail: heldText(test.preconditions),
+      tail: heldText(rowOf(test)),
       under: twin === undefined ? [] : [twinText(twin, caseNameOf, indent)],
     };
   });
@@ -316,7 +316,7 @@ function caseLines(
     ...cases.flatMap((test) => {
       const twin = twinOf.get(test.id);
       return [
-        `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test.preconditions)}`,
+        `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(rowOf(test))}`,
         ...twin === undefined ? [] : [twinText(twin, (id) => names.get(id) ?? caseNameOf(id), `${indent}    `)],
       ];
     }),

@@ -14,7 +14,7 @@
  * cannot disagree on which value a case holds.
  */
 
-import { preconditionText, type CasePrecondition } from './case-precondition-column.js';
+import { preconditionText, rowOf, type CasePrecondition } from './case-said.js';
 import { axisOf, coordinateKey, stepTowardBase, type NamedAxis, type NameGrammar } from './name-grammar.js';
 import type { ExecutionTest } from './reverse.js';
 
@@ -120,9 +120,10 @@ interface Placed {
  * to is placed nowhere.
  */
 function placeOf(test: ExecutionTest, grammar: NameGrammar): Placed | undefined {
-  if (test.preconditions === undefined) return undefined;
+  const row = rowOf(test);
+  if (row === undefined) return undefined;
   const values = new Map<string, Set<string>>();
-  for (const held of test.preconditions) {
+  for (const held of row) {
     values.set(held.name, (values.get(held.name) ?? new Set()).add(String(held.value)));
   }
   const said = new Map([...values].map(([name, all]) => [name, [...all].sort(byCodeUnit).join('|')]));

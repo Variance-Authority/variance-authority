@@ -231,7 +231,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
         project: None,
         runner: Some(runner.to_owned()),
         settled: FINISHED,
-        preconditions: None,
+        said: None,
     }];
     let regions_of = Module {
         id: "src/a.ts".to_owned(),
@@ -246,7 +246,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
     let loaded = vec![false; regions as usize];
     let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded }];
     let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] }, ..CaseExtras::default() };
-    journey_format::encode(&tests, &extras, &modules, &sets, None).unwrap()
+    journey_format::encode(&tests, &extras, &modules, &mut sets, None).unwrap()
 }
 
 fn last(commit: &str, files: &[&str], cases: &[&str]) -> Vec<u8> {

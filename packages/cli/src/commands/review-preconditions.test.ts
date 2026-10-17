@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
@@ -23,15 +23,18 @@ const AFTER = BEFORE.replace('0.9', '0.8');
 const SPEC = 'test/total.test.ts';
 const TEST = "import { applyDiscount } from '../src/total';\nit('discounts', () => applyDiscount(1));\n";
 
-function row(name: string, preconditions?: ExecutionTest['preconditions'], id = `${SPEC} > ${name}`): ExecutionTest {
-  return { id, file: SPEC, name, stopped: false, ...(preconditions === undefined ? {} : { preconditions }) };
+/** One thing a case said, as the frame spells it: name, value, call site, level. */
+type Item = readonly [name: string, value: string | number | boolean, site: string, level: number];
+
+function row(name: string, said?: readonly Item[], id = `${SPEC} > ${name}`): ExecutionTest {
+  return { id, file: SPEC, name, stopped: false, ...(said === undefined ? {} : { said: JSON.stringify(said) }) };
 }
 
 const SAID: readonly ExecutionTest[] = [
-  row('flag off', [{ name: 'flag', value: 'ff-off', site: `${SPEC}:7`, level: 1 }]),
+  row('flag off', [['flag', 'ff-off', `${SPEC}:7`, 1]]),
   row('flag on', [
-    { name: 'flag', value: 'ff-on', site: `${SPEC}:3`, level: 1 },
-    { name: 'network', value: 'mocked', site: `${SPEC}:1`, level: 1 },
+    ['flag', 'ff-on', `${SPEC}:3`, 1],
+    ['network', 'mocked', `${SPEC}:1`, 1],
   ]),
   row('plain', []),
 ];
@@ -74,7 +77,7 @@ async function changed(tests: readonly ExecutionTest[]): Promise<{ root: string;
     }],
   });
   await writeFile(coverageFile, withCaseSections(await readFile(coverageFile), {
-    index: encodeExecutionIndex({
+    index: encodeAsSetExecutionIndex({
       tests,
       modules: [{
         file: 'src/total.ts',
@@ -114,12 +117,12 @@ describe('the cases a review lists under a changed function, with what each arra
     // Said out of order: `zone` before `Locale`, `east` before `West`, `fr` before `de`.
     const { root, first } = await changed([
       row('first', [
-        { name: 'zone', value: 'east', site: `${SPEC}:1`, level: 1 },
-        { name: 'Locale', value: 'fr', site: `${SPEC}:2`, level: 1 },
+        ['zone', 'east', `${SPEC}:1`, 1],
+        ['Locale', 'fr', `${SPEC}:2`, 1],
       ]),
       row('second', [
-        { name: 'zone', value: 'West', site: `${SPEC}:5`, level: 1 },
-        { name: 'Locale', value: 'de', site: `${SPEC}:6`, level: 1 },
+        ['zone', 'West', `${SPEC}:5`, 1],
+        ['Locale', 'de', `${SPEC}:6`, 1],
       ]),
     ]);
 
@@ -130,8 +133,8 @@ describe('the cases a review lists under a changed function, with what each arra
 
   it('keeps a flag set and a flag said as the text `true` apart, as `covering` prints them', async () => {
     const { root, first } = await changed([
-      row('set', [{ name: 'flag', value: true, site: `${SPEC}:1`, level: 1 }]),
-      row('said', [{ name: 'flag', value: 'true', site: `${SPEC}:5`, level: 1 }]),
+      row('set', [['flag', true, `${SPEC}:1`, 1]]),
+      row('said', [['flag', 'true', `${SPEC}:5`, 1]]),
     ]);
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
@@ -141,8 +144,8 @@ describe('the cases a review lists under a changed function, with what each arra
 
   it('prints a value as its text, never as markup the comment would render', async () => {
     const { root, first } = await changed([
-      row('bold', [{ name: 'label', value: '<b>x</b>', site: `${SPEC}:1`, level: 1 }]),
-      row('closing', [{ name: 'label', value: '</summary>', site: `${SPEC}:5`, level: 1 }]),
+      row('bold', [['label', '<b>x</b>', `${SPEC}:1`, 1]]),
+      row('closing', [['label', '</summary>', `${SPEC}:5`, 1]]),
     ]);
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
@@ -162,7 +165,7 @@ describe('the cases a review lists under a changed function, with what each arra
   });
 
   it('says what the cases arranged is unmeasured, never none, from a record made before cases said anything', async () => {
-    const { root, first } = await changed(SAID.map(({ preconditions: _, ...test }) => test));
+    const { root, first } = await changed(SAID.map(({ said: _, ...test }) => test));
 
     const answer = await review(parse(['--since', first, '--root', root]));
 

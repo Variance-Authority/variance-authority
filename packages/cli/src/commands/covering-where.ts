@@ -24,6 +24,8 @@ import { DEFAULT_CONFIG } from '../usage.js';
 import {
   heldValues,
   outsideVocabulary,
+  rowOf,
+  type CasePrecondition,
   type CaseTwin,
   type ExecutionIndex,
   type ExecutionTest,
@@ -32,8 +34,6 @@ import {
 import type { WhereCondition } from '../covering-args.js';
 import { targetText } from './covering-at.js';
 import type { Covering } from './covering.js';
-
-type CasePrecondition = NonNullable<ExecutionTest['preconditions']>[number];
 
 /** What `--where` kept, out of the cases that covered what was asked, and what it could not read. */
 export interface CoveringWhere {
@@ -83,9 +83,11 @@ export function whereCases(
   names: NameGrammar | undefined,
 ): { readonly index: ExecutionIndex; readonly where: CoveringWhere } {
   const asked = where.map((condition) => condition.value === undefined ? condition.name : `${condition.name}=${condition.value}`);
-  const unmeasured = index.tests.filter((test) => test.preconditions === undefined).length;
-  const kept = index.tests.filter((test) => test.preconditions !== undefined
-    && where.every((condition) => holds(test.preconditions!, condition, names)));
+  const unmeasured = index.tests.filter((test) => test.said === undefined).length;
+  const kept = index.tests.filter((test) => {
+    const row = rowOf(test);
+    return row !== undefined && where.every((condition) => holds(row, condition, names));
+  });
   return {
     index: keepCases(index, new Set(kept.map((test) => test.id))),
     where: { asked, kept: kept.length, of: index.tests.length, unmeasured, outside: outside(kept, names) },
@@ -100,7 +102,7 @@ function holds(said: readonly CasePrecondition[], condition: WhereCondition, nam
 function outside(kept: readonly ExecutionTest[], names: NameGrammar | undefined): readonly string[] {
   const notes = new Set<string>();
   for (const test of kept) {
-    for (const off of outsideVocabulary(test.preconditions ?? [], names)) {
+    for (const off of outsideVocabulary(rowOf(test) ?? [], names)) {
       notes.add(`${off.axis}=${off.value} (${off.site}) is not one of ${off.values.join(', ')}`);
     }
   }
@@ -143,7 +145,7 @@ export function whereOver(
     asked: where.asked,
     kept: kept.length,
     of: reached.length,
-    unmeasured: reached.filter((test) => test.preconditions === undefined).length,
+    unmeasured: reached.filter((test) => test.said === undefined).length,
     outside: outside(kept, names),
   };
 }

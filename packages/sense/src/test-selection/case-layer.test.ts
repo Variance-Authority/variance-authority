@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
-import type { CasePrecondition } from './case-precondition-column.js';
 import { caseMotion } from './case-motion.js';
+import type { Said } from './case-said.js';
 import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -19,11 +19,11 @@ type Region = readonly [name: string, callers: readonly string[], loaded?: boole
 function index(
   cases: readonly string[],
   modules: Record<string, readonly Region[]>,
-  said: (id: string) => readonly CasePrecondition[] | undefined = () => undefined,
+  said: (id: string) => Said | undefined = () => undefined,
 ): Buffer {
   const tests = cases.map((id) => {
-    const preconditions = said(id);
-    return { id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]!, ...(preconditions === undefined ? {} : { preconditions }) };
+    const held = said(id);
+    return { id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]!, ...(held === undefined ? {} : { said: held }) };
   });
   const sets = new CrossingSets(tests.length);
   sets.intern([]);
@@ -187,8 +187,7 @@ describe('layerCaseIndex', () => {
     const decoded = (untouched: number): number => {
       const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
       // Each case says it in its own body, so no two share a spelling.
-      const said = (id: string): readonly CasePrecondition[] =>
-        [{ name: 'flag', value: id, site: `kept.test.ts:${kept.indexOf(id) + 2}`, level: 65535 }];
+      const said = (id: string): Said => JSON.stringify([['flag', id, `kept.test.ts:${kept.indexOf(id) + 2}`, 65535]]);
       const held = index([...kept, 'a.test.ts > one'], {
         'src/shared.ts': [['entry', ['a.test.ts > one', ...kept]]],
       }, said);
@@ -196,7 +195,7 @@ describe('layerCaseIndex', () => {
       try {
         const { merged } = layerCaseIndex(held, fresh, ran(['a.test.ts']));
         const count = decode.mock.calls.length;
-        expect(decodeExecutionIndex(merged).tests.filter((test) => test.preconditions !== undefined)).toHaveLength(untouched);
+        expect(decodeExecutionIndex(merged).tests.filter((test) => test.said !== undefined)).toHaveLength(untouched);
         return count;
       } finally {
         decode.mockRestore();

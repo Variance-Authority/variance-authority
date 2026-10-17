@@ -13,6 +13,7 @@ import { NO_OWNER } from './format-layout.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import preconditions from './case-preconditions.cjs';
+import { rowOf } from './case-said.js';
 import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import { nativeModule } from './jest-journey-artifact.js';
@@ -104,14 +105,15 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     const answered = decodeExecutionIndex(await readFile(output));
     const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
 
-    const row = (index: typeof folded) => Object.fromEntries(index.tests.map((test) => [test.name, test.preconditions]));
+    const row = (index: typeof folded) => Object.fromEntries(index.tests.map((test) => [test.name, rowOf(test)]));
     expect(row(answered)).toEqual(row(folded));
     expect(row(answered)).toEqual({
       flips: [
         { name: 'flag', value: 'ff-off', site: 'test/pay.test.ts:14', level: 1 },
         { name: 'flag', value: 'ff-on', site: 'test/pay.test.ts:12', level: 1 },
-        { name: 'retries', value: 2, site: 'test/pay.test.ts:15', level: 1 },
+        // Values in the code-unit order of their JSON spelling: `"2"` before `2`.
         { name: 'retries', value: '2', site: 'test/pay.test.ts:16', level: 1 },
+        { name: 'retries', value: 2, site: 'test/pay.test.ts:15', level: 1 },
       ],
       mocked: [
         { name: 'clock', value: 'frozen', site: 'test/pay.test.ts:7', level: 1 },
@@ -138,7 +140,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     const answered = decodeExecutionIndex(await readFile(output));
     const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
 
-    const row = (index: typeof folded) => index.tests.map((test) => [test.id, test.preconditions]);
+    const row = (index: typeof folded) => index.tests.map((test) => [test.id, rowOf(test)]);
     expect(row(answered)).toEqual(row(folded));
     expect(row(answered)).toEqual([
       ['test/pay.test.ts > pays', [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level: preconditions.CASE_LEVEL }]],
@@ -186,16 +188,14 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     );
 
     expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(oracle.bytes));
-    expect(decodeExecutionIndex(answered.bytes).tests).toMatchObject([
-      {
-        id: 'test/branch.test.ts > alpha',
-        stopped: true,
-        preconditions: [
-          { name: 'clock', value: 'frozen' },
-          { name: 'network', value: 'live' },
-        ],
-      },
+    const tests = decodeExecutionIndex(answered.bytes).tests;
+    expect(tests).toMatchObject([
+      { id: 'test/branch.test.ts > alpha', stopped: true },
       { id: 'test/branch.test.ts > beta' },
+    ]);
+    expect(rowOf(tests[0]!)).toMatchObject([
+      { name: 'clock', value: 'frozen' },
+      { name: 'network', value: 'live' },
     ]);
     expect(answered).toMatchObject({ tests: 2, modules: 1, crossings: 5 });
   });
