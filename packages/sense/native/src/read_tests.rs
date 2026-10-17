@@ -355,3 +355,56 @@ fn module_require_is_a_require_and_another_object_s_is_not() {
     assert_eq!(found, [("./module".to_owned(), "imports", 1)]);
     assert_eq!(unknown.as_deref(), Some("1 `require()` call(s) with a specifier this cannot read"));
 }
+
+#[test]
+fn a_module_held_whole_escapes_only_where_its_own_binding_is_read_as_a_value() {
+    // A holder is the binding, not its spelling: a parameter named the same is
+    // another value. A type query reads the type, a write replaces the value,
+    // and `.catch`/`.finally` on the promise still hand on the module.
+    let source = concat!(
+        "import * as ns from './ns';\n",
+        "const mod = await import('./mod');\n",
+        "mod.a;\n",
+        "xs.map((mod) => String(mod));\n",
+        "function g(mod: unknown) { return mod; }\n",
+        "type T = typeof mod;\n",
+        "type U = typeof ns;\n",
+        "let r = await import('./r');\n",
+        "r.b;\n",
+        "r = null;\n",
+        "import('./caught').catch(() => {});\n",
+        "await import('./finally').finally(done);\n",
+        "import('./then').then(() => {}).catch(report);\n",
+        "const k = await import('./k').catch(() => null);\n",
+        "k.c;\n",
+    );
+    assert_eq!(
+        members(source),
+        [("./mod", "a"), ("./r", "b"), ("./k", "c")].map(|(value, name)| (value.to_owned(), name.to_owned()))
+    );
+}
+
+#[test]
+fn the_default_of_a_module_moving_is_a_use_of_default_not_the_module_passed_on() {
+    // React.lazy and next/dynamic take the `default` and render it: that is a
+    // use of `default`, certain, and the module's other names are not read.
+    // `.default.default` is the same interop level, followed, not dropped.
+    let source = concat!(
+        "const { default: Page } = await import('./page');\n",
+        "const view = <Page />;\n",
+        "const Other = (await import('./other')).default;\n",
+        "use(Other);\n",
+        "const twice = await import('./twice');\n",
+        "twice.default.default.x;\n",
+    );
+    let read = read_module("a.tsx", source, &Allocator::default(), false);
+    let found: Vec<(String, String, bool)> = read.members
+        .iter()
+        .map(|member| (read.requests[member.request as usize].value.clone(), member.name.clone(), member.through_default))
+        .collect();
+    assert_eq!(
+        found,
+        [("./page", "default", false), ("./other", "default", false), ("./twice", "default", false), ("./twice", "x", true)]
+            .map(|(value, name, off)| (value.to_owned(), name.to_owned(), off))
+    );
+}

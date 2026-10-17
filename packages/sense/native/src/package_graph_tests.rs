@@ -107,8 +107,9 @@ fn publish(index: &str) {
         &[
             parse(&index_ts, &format!(r#"{{"requests": [{}]}}"#, request("@t/b/local", "imports", &["helper"]))),
             parse("git:0d0d", &format!(r#"{{"requests": [{}]}}"#, request("@t/b", "imports", &["never"]))),
+            // `util.format; util.default.inner`: `inner` is the default's, and no name `@t/a` is taken for.
             parse(&main, &format!(
-                r#"{{"requests": [{}, {}, {}], "members": [{{"request": 1, "name": "format", "line": 4}}]}}"#,
+                r#"{{"requests": [{}, {}, {}], "members": [{{"request": 1, "name": "format", "line": 4}}, {{"request": 1, "name": "inner", "line": 5, "throughDefault": true}}]}}"#,
                 request("@t/a", "imports", &["x", "y"]),
                 request("@t/a/util", "imports", &["*"]),
                 request("./local", "imports", &["local"]),

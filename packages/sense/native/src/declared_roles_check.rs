@@ -337,3 +337,7 @@ fn finding(kind: &str, file: &str, line: u32, name: &str, role: Option<Declared>
         declared_line: role.map_or(0, |role| role.line),
     }
 }
+
+#[cfg(test)]
+#[path = "declared_roles_check_tests.rs"]
+mod tests;

@@ -15,10 +15,12 @@
 //!
 //! This is a listing of where a name is used, and nothing selects on it: a
 //! request's `bindings` stay what the statement wrote, so a namespace still
-//! reads as the whole module to anything that charges a change. Shadowing is not
-//! resolved, so a parameter that reuses the holder's name lists its reads too;
-//! a holder handed to another function, or a specifier that is not a literal,
-//! lists nothing.
+//! reads as the whole module to anything that charges a change. A holder is the
+//! binding, resolved by scope, so a parameter that reuses its name is another
+//! value. Where the module goes on whole — read as a value anywhere the walk
+//! does not follow — the read is `*`: a write or a type query is not one. The
+//! module's `default` is a value of the module, so it moving is a use of
+//! `default` and no more; a name read off it is read through `default`.
 //!
 //! The same walk reads the [`Loads`]: an `import()` is a request only the tree
 //! can read, and a member read through it needs that request's index, so the
@@ -28,10 +30,16 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
+use oxc_semantic::{Scoping, SemanticBuilder};
+use oxc_syntax::symbol::SymbolId;
 use serde::Serialize;
 
 use crate::loads::Loads;
 use crate::read::{Lines, Request};
+
+#[path = "members_bind.rs"]
+mod bind;
+use bind::takes;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Member {
@@ -51,16 +59,27 @@ pub struct Member {
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
 /// read through an `import m = require()` as if `loads.required` followed those.
 pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
+    let namespaces: Vec<(&str, u32)> = requests
+        .iter()
+        .enumerate()
+        .flat_map(|(index, request)| request.bindings.iter().map(move |binding| (index, binding)))
+        .filter(|(_, binding)| binding.imported == "*" && !binding.type_only)
+        .map(|(index, binding)| (binding.local.as_str(), index as u32))
+        .collect();
+    // Scopes are resolved only for a file that holds a module whole.
+    let built = (!namespaces.is_empty() || loads_any(program)).then(|| SemanticBuilder::new().build(program));
+    let scoping = built.as_ref().map(|built| built.semantic.scoping());
     let mut holders = HashMap::new();
-    for (index, request) in requests.iter().enumerate() {
-        for binding in &request.bindings {
-            if binding.imported == "*" && !binding.type_only {
-                holders.insert(binding.local.clone(), Held::whole(Via::Indexed(index as u32)));
+    if let Some(scoping) = scoping {
+        for (local, index) in namespaces {
+            if let Some(symbol) = scoping.get_root_binding(local.into()) {
+                holders.insert(symbol, Held::whole(Via::Indexed(index)));
             }
         }
     }
     let mut walker = Walker {
         lines,
+        scoping,
         holders,
         stated: requests.len() as u32,
         loads: Loads::new(lines),
@@ -109,8 +128,10 @@ impl Held {
         Held { via, off: false }
     }
 
+    /// The module's `default`. Interop nests one level, so the `default` of
+    /// a `default` is the same level: `ns.default.default.x` reads `x` through it.
     fn default(self) -> Option<Self> {
-        (!self.off).then_some(Held { via: self.via, off: true })
+        Some(Held { via: self.via, off: true })
     }
 }
 
@@ -118,10 +139,12 @@ impl Held {
 /// not follow, as a binding takes it for the namespace whole.
 const WHOLE: &str = "*";
 
-struct Walker<'l> {
+struct Walker<'l, 's> {
     lines: &'l Lines,
-    /// A local name to what it holds.
-    holders: HashMap<String, Held>,
+    /// The file's scopes, when it holds a module whole at all.
+    scoping: Option<&'s Scoping>,
+    /// A binding to what it holds.
+    holders: HashMap<SymbolId, Held>,
     /// How many requests the record states, which the `import()` ones follow.
     stated: u32,
     loads: Loads<'l>,
@@ -132,7 +155,7 @@ struct Walker<'l> {
     followed: HashSet<u32>,
 }
 
-impl Walker<'_> {
+impl Walker<'_, '_> {
     /// What an expression evaluates to, looking through parentheses,
     /// TypeScript's casts and `await`: an awaited `import()`, a holder, or the
     /// `default` of either.
@@ -140,7 +163,7 @@ impl Walker<'_> {
         match expression.get_inner_expression() {
             Expression::AwaitExpression(it) => self.promised(&it.argument).map(Held::whole).or_else(|| self.held(&it.argument)),
             Expression::Identifier(it) => {
-                let held = self.holders.get(it.name.as_str()).copied()?;
+                let held = self.holder(it)?;
                 self.followed.insert(it.span.start);
                 Some(held)
             }
@@ -152,12 +175,29 @@ impl Walker<'_> {
     /// The request an `import()` promises. The promise is not the module: a read
     /// off it, `.then` among them, is the promise's own.
     fn promised(&mut self, expression: &Expression) -> Option<Via> {
-        match expression.get_inner_expression() {
+        match handed_on(expression) {
             Expression::ImportExpression(it) => {
                 self.followed.insert(it.span.start);
                 self.loads.import(it).map(|index| Via::Indexed(self.stated + index))
             }
             _ => None,
+        }
+    }
+
+    /// What a reference's binding holds.
+    fn holder(&self, it: &IdentifierReference) -> Option<Held> {
+        let symbol = self.symbol_of(it)?;
+        self.holders.get(&symbol).copied()
+    }
+
+    fn symbol_of(&self, it: &IdentifierReference) -> Option<SymbolId> {
+        let scoping = self.scoping?;
+        scoping.get_reference(it.reference_id.get()?).symbol_id()
+    }
+
+    fn hold(&mut self, symbol: Option<SymbolId>, held: Held) {
+        if let Some(symbol) = symbol {
+            self.holders.insert(symbol, held);
         }
     }
 
@@ -202,123 +242,50 @@ impl Walker<'_> {
 
     /// An `import()` whose promise is read, not passed on: what it loads goes nowhere.
     fn promise_read(&mut self, expression: &Expression) {
-        if let Expression::ImportExpression(it) = expression.get_inner_expression() {
+        if let Expression::ImportExpression(it) = handed_on(expression) {
             self.followed.insert(it.span.start);
         }
     }
 
-    /// What binding a pattern to `held` takes: a holder, or the names it
-    /// destructures, and a rest holds what the names left. `default`
-    /// destructured further holds the module's default; a key the walk cannot
-    /// spell, or an array pattern, reads the module whole.
-    fn bind(&mut self, pattern: &BindingPattern, held: Held) {
-        match pattern {
-            BindingPattern::BindingIdentifier(it) => {
-                self.holders.insert(it.name.to_string(), held);
-            }
-            BindingPattern::ObjectPattern(it) => {
-                for property in &it.properties {
-                    let Some(name) = property.key.static_name() else {
-                        self.add(held, WHOLE, property.span.start);
-                        continue;
-                    };
-                    self.add(held, &name, property.span.start);
-                    if let Some(default) = held.default().filter(|_| name == "default") {
-                        self.bind(&property.value, default);
-                    }
-                }
-                if let Some(rest) = &it.rest {
-                    self.bind(&rest.argument, held);
-                }
-            }
-            BindingPattern::AssignmentPattern(it) => self.bind(&it.left, held),
-            BindingPattern::ArrayPattern(it) => self.add(held, WHOLE, it.span.start),
-        }
-    }
-
-    /// Binding a pattern to what `Promise.all` resolves to: element `i` of the
-    /// pattern takes the request element `i` of the array holds, and a rest, or
-    /// a pattern that is not an array, holds the modules it gets whole.
-    fn bind_all(&mut self, pattern: &BindingPattern, held: &[Option<Via>]) {
-        let pattern = match pattern {
-            BindingPattern::AssignmentPattern(it) => &it.left,
-            other => other,
-        };
-        let BindingPattern::ArrayPattern(array) = pattern else {
-            let at = oxc_span::GetSpan::span(pattern).start;
-            for request in held.iter().flatten() {
-                self.add(Held::whole(*request), WHOLE, at);
-            }
-            return;
-        };
-        for (index, request) in held.iter().enumerate() {
-            let Some(request) = *request else { continue };
-            match (array.elements.get(index), &array.rest) {
-                (Some(Some(element)), _) => self.bind(element, Held::whole(request)),
-                (None, Some(rest)) => self.add(Held::whole(request), WHOLE, rest.span.start),
-                _ => {}
-            }
-        }
-    }
-
-    /// `bind` for an assignment, whose target is a reference rather than a declaration.
-    fn assign(&mut self, target: &AssignmentTarget, held: Held) {
-        match target {
-            AssignmentTarget::AssignmentTargetIdentifier(it) => {
-                self.followed.insert(it.span.start);
-                self.holders.insert(it.name.to_string(), held);
-            }
-            AssignmentTarget::ObjectAssignmentTarget(it) => {
-                for property in &it.properties {
-                    match property {
-                        AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(it) => self.add(held, &it.binding.name, it.span.start),
-                        AssignmentTargetProperty::AssignmentTargetPropertyProperty(it) => {
-                            let Some(name) = it.name.static_name() else {
-                                self.add(held, WHOLE, it.span.start);
-                                continue;
-                            };
-                            self.add(held, &name, it.span.start);
-                            if let (Some(default), Some(target)) = (held.default().filter(|_| name == "default"), target_of(&it.binding)) {
-                                self.assign(target, default);
-                            }
-                        }
-                    }
-                }
-                if let Some(rest) = &it.rest {
-                    self.assign(&rest.target, held);
-                }
-            }
-            AssignmentTarget::ArrayAssignmentTarget(it) => self.add(held, WHOLE, it.span.start),
-            _ => {}
-        }
-    }
-
-    /// `bind_all` for an assignment.
-    fn assign_all(&mut self, target: &AssignmentTarget, held: &[Option<Via>]) {
-        let AssignmentTarget::ArrayAssignmentTarget(array) = target else {
-            let at = oxc_span::GetSpan::span(target).start;
-            for request in held.iter().flatten() {
-                self.add(Held::whole(*request), WHOLE, at);
-            }
-            return;
-        };
-        for (index, request) in held.iter().enumerate() {
-            let Some(request) = *request else { continue };
-            match (array.elements.get(index), &array.rest) {
-                (Some(Some(element)), _) => {
-                    if let Some(target) = target_of(element) {
-                        self.assign(target, Held::whole(request));
-                    }
-                }
-                (None, Some(rest)) => self.add(Held::whole(request), WHOLE, rest.span.start),
-                _ => {}
-            }
-        }
-    }
-
+    /// A name read off what is held. Off the `default`, the value going on
+    /// whole is the `default` moving, a use already recorded, and its own
+    /// `default` is the same level.
     fn add(&mut self, held: Held, name: &str, at: u32) {
+        if held.off && (name == WHOLE || name == "default") {
+            return;
+        }
         self.found.insert((held, name.to_owned(), self.lines.at(at)));
     }
+}
+
+/// The promise an expression hands on: `.catch(…)` and `.finally(…)` settle
+/// to the same module, so `import('m').catch(…)` is still `import('m')`.
+fn handed_on<'e, 'a>(expression: &'e Expression<'a>) -> &'e Expression<'a> {
+    let mut expression = expression.get_inner_expression();
+    while let Expression::CallExpression(call) = expression {
+        let Expression::StaticMemberExpression(callee) = call.callee.get_inner_expression() else { break };
+        if !matches!(callee.property.name.as_str(), "catch" | "finally") {
+            break;
+        }
+        expression = callee.object.get_inner_expression();
+    }
+    expression
+}
+
+/// Whether a file calls `import()` or writes `import m = require()` anywhere.
+fn loads_any(program: &Program) -> bool {
+    struct Finds(bool);
+    impl<'a> Visit<'a> for Finds {
+        fn visit_import_expression(&mut self, _: &ImportExpression<'a>) {
+            self.0 = true;
+        }
+        fn visit_ts_import_equals_declaration(&mut self, _: &TSImportEqualsDeclaration<'a>) {
+            self.0 = true;
+        }
+    }
+    let mut finds = Finds(false);
+    finds.visit_program(program);
+    finds.0
 }
 
 /// The array of `Promise.all([...])`.
@@ -333,23 +300,7 @@ fn all_of<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e ArrayExpression<
     }
 }
 
-/// The target an assignment pattern's element writes, past its default.
-fn target_of<'e, 'a>(element: &'e AssignmentTargetMaybeDefault<'a>) -> Option<&'e AssignmentTarget<'a>> {
-    match element {
-        AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(it) => Some(&it.binding),
-        other => other.as_assignment_target(),
-    }
-}
-
-/// A destructuring target that can take a module: a name, or a pattern.
-fn takes(target: &AssignmentTarget) -> bool {
-    matches!(
-        target,
-        AssignmentTarget::AssignmentTargetIdentifier(_) | AssignmentTarget::ObjectAssignmentTarget(_) | AssignmentTarget::ArrayAssignmentTarget(_)
-    )
-}
-
-impl<'a> Visit<'a> for Walker<'_> {
+impl<'a> Visit<'a> for Walker<'_, '_> {
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         if let Some(init) = &it.init {
             if let Some(held) = self.held_all(init) {
@@ -403,7 +354,7 @@ impl<'a> Visit<'a> for Walker<'_> {
 
     fn visit_jsx_member_expression(&mut self, it: &JSXMemberExpression<'a>) {
         if let JSXMemberExpressionObject::IdentifierReference(object) = &it.object {
-            if let Some(held) = self.holders.get(object.name.as_str()).copied() {
+            if let Some(held) = self.holder(object) {
                 self.followed.insert(object.span.start);
                 self.add(held, &it.property.name, it.property.span.start);
             }
@@ -420,11 +371,17 @@ impl<'a> Visit<'a> for Walker<'_> {
         walk::walk_ts_qualified_name(self, it);
     }
 
+    // Read as a value where the walk does not follow it, the module goes on
+    // whole. A write replaces the value, and a type query reads its type.
     fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
-        if let Some(held) = self.holders.get(it.name.as_str()).copied() {
-            if !self.followed.contains(&it.span.start) {
-                self.add(held, WHOLE, it.span.start);
-            }
+        let (Some(scoping), Some(reference)) = (self.scoping, it.reference_id.get()) else { return };
+        let reference = scoping.get_reference(reference);
+        let flags = reference.flags();
+        if !flags.is_read() || flags.is_type() || flags.is_value_as_type() || self.followed.contains(&it.span.start) {
+            return;
+        }
+        if let Some(held) = reference.symbol_id().and_then(|symbol| self.holders.get(&symbol).copied()) {
+            self.add(held, WHOLE, it.span.start);
         }
     }
 
@@ -440,7 +397,7 @@ impl<'a> Visit<'a> for Walker<'_> {
     fn visit_ts_import_equals_declaration(&mut self, it: &TSImportEqualsDeclaration<'a>) {
         if let Some(index) = self.loads.import_equals(it) {
             if !it.import_kind.is_type() {
-                self.holders.insert(it.id.name.to_string(), Held::whole(Via::Required(index)));
+                self.hold(it.id.symbol_id.get(), Held::whole(Via::Required(index)));
             }
         }
         walk::walk_ts_import_equals_declaration(self, it);

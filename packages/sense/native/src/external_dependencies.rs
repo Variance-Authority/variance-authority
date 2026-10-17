@@ -323,3 +323,7 @@ pub(crate) fn requests_of(layers: &[Layer], crossing: &Crossing, internal: &Hash
     }
     Ok(found)
 }
+
+#[cfg(test)]
+#[path = "external_dependencies_tests.rs"]
+mod tests;
