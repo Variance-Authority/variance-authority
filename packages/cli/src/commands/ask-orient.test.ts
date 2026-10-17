@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { encodeSegment } from '@variance-authority/core/segment';
-import { SOURCE_INDEX_VERSION, sourceIndexPath } from '@variance-authority/sense';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
@@ -246,9 +246,10 @@ describe('variance ask orient', () => {
 
     const answered = await run(['ask', 'orient', '--files', 'packages/cart/src/price.ts']);
     expect(answered.code).toBe(EXIT_OPERATOR);
-    expect(answered.err.split('\n')[0]).toBe(
+    // The version this release reads is sense's to pin; the command relays sense's line around it.
+    expect(answered.err.split('\n')[0]!.replace(/reads version \d+;/, 'reads version N;')).toBe(
       `the source index at ${at} did not read: segment 0: a variance-authority-source-index written in format version 15, ` +
-        `and this release reads version ${String(SOURCE_INDEX_VERSION)}; \`variance index\` rebuilds it`,
+        'and this release reads version N; `variance index` rebuilds it',
     );
   });
 });

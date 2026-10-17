@@ -1519,8 +1519,7 @@ step ends.
 `readPublishedSources(path)` opens a published index and reads nothing from Git
 or the disk beyond it. `publishedSources(root, options)` is the reader with a
 policy for an index that is missing, damaged, or written in another format
-version (`state: 'other-version'`, with the version in `written`, and the
-version this release reads in `SOURCE_INDEX_VERSION`): with
+version (`state: 'other-version'`, with the version in `written`): with
 `ci: true` it throws `SourceIndexUnpublished`, whose message names `step`;
 otherwise it updates once, calls `announce` with a line that says which of the
 three it found, and reads. Pass your

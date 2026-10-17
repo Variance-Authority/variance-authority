@@ -84,7 +84,6 @@ export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
-export { SOURCE_INDEX_VERSION } from './source-index-format.js';
 
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';
 

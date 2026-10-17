@@ -34,7 +34,7 @@ function load(file: string, code: string, map: HandedMap, options: ProbesLoaderO
   return handed!;
 }
 
-/** What `code` loads through `import` and `export … from`, as the parser reads it; a text it cannot parse throws. */
+/** What `code` loads through `import`, `import()` and `export … from`, as the parser reads it; a text it cannot parse throws. */
 function imported(code: string): string[] {
   const { errors, module } = parseSync('handed.js', code, { sourceType: 'module' });
   if (errors.length > 0) throw new Error(errors.map((error) => error.message).join('\n'));

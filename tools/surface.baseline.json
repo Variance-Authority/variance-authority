@@ -2714,7 +2714,6 @@
         "RecordedDurations": "type",
         "RelationRule": "interface",
         "RuleFile": "interface",
-        "SOURCE_INDEX_VERSION": "const",
         "ScanOptions": "interface",
         "ScopeCounts": "interface",
         "SearchGeneration": "interface",
