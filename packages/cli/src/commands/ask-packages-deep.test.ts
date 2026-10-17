@@ -147,7 +147,9 @@ describe('variance ask over a private app that reaches into another package', ()
     );
 
     const uses = await run(['ask', 'uses', '--name', 'roundTax']);
-    expect(uses.out).toMatch(/^`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
+    // Each export is its own declaration, answered with the imports of its own file.
+    expect(uses.out).toMatch(/^`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages\/lib\/src\/internal\/math\.ts:5\.$/m);
+    expect(uses.out).toMatch(/^`roundTax` is exported, without being published, at packages\/kit\/src\/money\/round\.ts:1, and nothing in this workspace imports it;/m);
   });
 
   const TAXES = 'export const roundTax = (amount: number): number => amount;\nexport const rate = 1;\n';

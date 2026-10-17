@@ -11,7 +11,7 @@ import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { lineOf, originOf, passedOnRows } from './passed-on.js';
-import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
+import { UNCOUNTED, declaringExports, exportsApart, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -79,15 +79,20 @@ export const symbol: Tool<Help> = {
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
     // A name an import binds to an export of another name: the import, and the export it names.
     const aliased = localNames(help, invocation?.root, name, wanted).blocks;
-    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared, ...aliased].join('\n\n');
-
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
-    const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    const kept = [
+    // Beside a published name, each export that reaches another declaration
+    // is another thing, said after the published one.
+    const exported = exportsApart(help, invocation?.root, name, wanted, answeredBy(help, name, found, byPath));
+    if (byPath.length > 0) {
+      const apart = exported.length === 0 ? [] : [exportedOnly(name, exported, invocation?.root)];
+      return [importedByPath(help, name, byPath), ...apart, ...declared, ...aliased].join('\n\n');
+    }
+    const kept = found.length > 0 ? [] : [
       ...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []),
-      ...(found.length === 0 ? [...declared, ...aliased] : []),
+      ...declared,
+      ...aliased,
     ];
     // A member of an interface, a type literal or a class is the workspace's
     // own declaration too, which no import names and the scan records. It is
@@ -168,6 +173,7 @@ export const symbol: Tool<Help> = {
     const entry = first[2];
     return [
       [block(first[0], first[1], entry), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'),
+      ...(exported.length === 0 ? [] : [exportedOnly(name, exported, invocation?.root)]),
       ...declared,
       ...aliased,
     ].join('\n\n');
@@ -180,15 +186,15 @@ export const symbol: Tool<Help> = {
     const name = stringArg(input, 'name');
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
-    const at: (readonly [string, number])[] = publishing(help, name, wanted).map(([, , entry]) => [entry.at, entry.line]);
-    if (at.length === 0) {
-      for (const site of sitesByPath(help, name, wanted)) {
-        const declared = declaration(help, name, site);
-        if (declared !== undefined) at.push([declared.at, declared.line]);
-      }
+    const found = publishing(help, name, wanted);
+    const at: (readonly [string, number])[] = found.map(([, , entry]) => [entry.at, entry.line]);
+    const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
+    for (const site of byPath) {
+      const declared = declaration(help, name, site);
+      if (declared !== undefined) at.push([declared.at, declared.line]);
     }
-    if (at.length === 0) {
-      const exported = exportsNamed(help, name, wanted);
+    const exported = exportsApart(help, invocation?.root, name, wanted, answeredBy(help, name, found, byPath));
+    if (exported.length > 0) {
       for (const [held] of declaringExports(name, exported, invocation?.root)) {
         at.push([held.at, held.line]);
         const origin = originOf(invocation?.root, held);
@@ -269,6 +275,18 @@ function publishing(help: Help, name: string, wanted: string | undefined) {
   return entriesNamed(help, name).filter(([published, held]) => wanted === undefined || isPackage(published, held, wanted));
 }
 
+/**
+ * The files a published entry or an import by path already answers the name
+ * from: the declaration each entry reaches, the entry file that passes it on,
+ * and the file each import by path names it from.
+ */
+function answeredBy(help: Help, name: string, found: ReturnType<typeof publishing>, byPath: readonly PathSite[]): ReadonlySet<string> {
+  return new Set([
+    ...found.flatMap(([, opening, entry]) => [entry.at, opening.source]),
+    ...byPath.flatMap((site) => [site.held.to ?? declaration(help, name, site)?.at].filter((at): at is string => at !== undefined)),
+  ]);
+}
+
 /** Code-unit order, so a tie never depends on `LANG`. */
 function byCodeUnit(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -344,18 +362,6 @@ function exportedOnly(name: string, exported: readonly Named[], root: string | u
       ].join('\n');
     })
     .join('\n\n');
-}
-
-/**
- * The exports of a name that declare it, each with the imports the source index
- * resolved to it: a file that passes on another one's export is left out.
- */
-function declaringExports(name: string, exported: readonly Named[], root: string | undefined) {
-  const read = exported.map((held) => [held, importsOf(root, [held.at], name)] as const);
-  const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
-  // Files that pass the name on to each other and declare it nowhere else are all shown.
-  const declaring = read.filter(([held]) => !passing.has(held.at));
-  return declaring.length > 0 ? declaring : read;
 }
 
 /** How many places import one export, read off the source index. */
