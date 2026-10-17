@@ -297,7 +297,7 @@ npx variance-authority-help uses collect --from packages/cli/src/index.ts
 ```
 
 ```
-`collect` is imported in 24 places.
+`collect` [function] is imported in 24 places.
 Nearest to packages/cli/src/index.ts first.
 
 Tests:

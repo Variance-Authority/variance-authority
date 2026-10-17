@@ -19,6 +19,7 @@ import { digestString } from '../digest.js';
 import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { instrumentTransformed } from '../instrument/transformed.js';
 import { recordedBlocks } from './coverage-rows.js';
+import moduleIds from './module-id.cjs';
 import { fileOrNone, insideRoot, isMissing, mayTake, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
@@ -446,12 +447,10 @@ export async function deriveModules(
 /** How many files {@link deriveModules} reads at once. */
 const READERS = 64;
 
-const ID = /^(.+)@(~?)([0-9a-f]+)$/;
+const { ID } = moduleIds;
 
 /** The repository-relative path an id names, or the whole id when it names no digest. */
-export function pathOf(id: ModuleId): string {
-  return ID.exec(id)?.[1] ?? id;
-}
+export const pathOf: (id: ModuleId) => string = moduleIds.pathOf;
 
 async function deriveModule(
   root: string,

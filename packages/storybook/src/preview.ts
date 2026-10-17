@@ -19,6 +19,8 @@ import { previewUrl } from './preview-url.js';
 import { showStory } from './show-story.js';
 import { readStoryParameters } from './story-parameters.js';
 import { beginFinishWatch } from './story-finished.js';
+import { STORY_TIMING_KEY, type StoryTiming } from './story-timing.js';
+import { takeStoryTiming } from './story-timing-read.js';
 
 /**
  * Driving a Storybook preview: one navigation, N stories.
@@ -191,6 +193,12 @@ export interface StoryOutcome {
   readonly root?: string;
   readonly error?: StoryError;
   readonly warnings: readonly string[];
+  /**
+   * Where the page spent this story, on its own clock, when the page agent
+   * watched the document from its start: see `story-timing.ts`. Absent when
+   * the page timed nothing of it.
+   */
+  readonly timing?: StoryTiming;
 }
 
 export interface StoryError {
@@ -293,6 +301,8 @@ export async function collectStory(
       if (note !== undefined) extra.push(note);
     }
 
+    const timing = await page.evaluate(takeStoryTiming, { key: STORY_TIMING_KEY, storyId });
+
     return {
       storyId,
       url,
@@ -311,6 +321,7 @@ export async function collectStory(
           }
         : {}),
       warnings: [...extra, ...result.warnings],
+      ...(Object.keys(timing).length === 0 ? {} : { timing }),
     };
   } catch (error) {
     // A rejected `goto` or `evaluate` is the browser, not the component. Saying

@@ -249,7 +249,7 @@ no members is left out rather than shown empty.
 A published name that nothing imports is a different answer, not an empty list:
 
 ```
-`PagesOptions` is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
+`PagesOptions` [interface] is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
 ```
 
 The imports within the name's own package come from the source index: every
@@ -268,10 +268,11 @@ index is missing or does not read, the imports from other packages by their
 published path are still listed, and the answer says why the rest are not.
 
 A name a file exports and no entry publishes is answered from the source index
-alone, the same way. The first line names where it is exported:
+alone, the same way. The first line names, in brackets, the kind of the
+declaration it binds, and where it is exported:
 
 ```
-`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.
+`roundTax` [const] is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.
 ```
 
 When the one file that exports it only passes it on, the line goes on to the

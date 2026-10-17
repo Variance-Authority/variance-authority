@@ -16,6 +16,7 @@ import type { CoveragePrecondition } from './index.js';
 import { recordExecution } from './journal.js';
 import { driveJourneys, type JourneyCookie } from './journey-driver.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
+import type { FilePhases } from './reported-time.js';
 import { repositoryRoot } from './repository-root.js';
 import { stitchJourneys } from './stitch.js';
 
@@ -59,6 +60,11 @@ export interface SubjectNote {
   readonly preconditions?: readonly CoveragePrecondition[];
   /** The case this reading is, where the subject has a file to be a case in. */
   readonly case?: Omit<ObservedCase, 'journal' | 'stopped'>;
+  /**
+   * Where the driver saw this reading's time go. Where one subject is noted
+   * twice, the run's join adds the readings, as it adds their durations.
+   */
+  readonly phases?: FilePhases;
 }
 
 /** One run's accumulation: a window per subject, written once at the end. */
@@ -152,6 +158,7 @@ export function createSubjectRecorder(
         journal,
         complete,
         ...(noted.preconditions === undefined ? {} : { preconditions: noted.preconditions }),
+        ...(noted.phases === undefined ? {} : { phases: noted.phases }),
       });
       if (noted.case !== undefined) {
         cases.push({ subject: subjectId, observed: { ...noted.case, stopped: !complete, journal } });

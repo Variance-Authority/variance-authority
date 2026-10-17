@@ -48,7 +48,7 @@ const WALK = {
 
 /** The block of `out` that opens with a sentence about `name`'s declaration in `file`. */
 function about(out: string, name: string, file: string): string {
-  const blocks = out.split(new RegExp(`\\n(?=\`${name}\` is )`, 'u'));
+  const blocks = out.split(new RegExp(`\\n(?=\`${name}\`(?: \\[[^\\]]+\\])? is )`, 'u'));
   return blocks.find((block) => block.includes(` at ${file}:`)) ?? '';
 }
 

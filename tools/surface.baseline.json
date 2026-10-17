@@ -3648,6 +3648,7 @@
         "StoryPage": "interface",
         "StoryParameters": "interface",
         "StorySubject": "interface",
+        "StoryTiming": "interface",
         "StoryViewport": "interface",
         "SubjectOptions": "interface",
         "SubjectPlan": "interface",
@@ -3660,7 +3661,8 @@
         "readParameters": "function",
         "showStory": "const",
         "storySubjectId": "function",
-        "toSubjects": "function"
+        "toSubjects": "function",
+        "watchStoryTiming": "function"
       },
       "./read": {
         "readStoryIndex": "function"

@@ -10,6 +10,7 @@ import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
 import { readerOf } from './reader.js';
 import { skillLine } from './skill.js';
+import { unbuiltOf } from './unbuilt.js';
 import type { Streams } from './commands/configless.js';
 
 /**
@@ -33,7 +34,9 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
  * defect in this tool. The two print differently, because an operator reading
  * "cannot read the config file" should edit their config and an operator reading
  * a stack trace should file a bug, and a CLI that dresses the second up as the
- * first costs somebody an afternoon.
+ * first costs somebody an afternoon. One error looks like a defect and is not:
+ * a module of the program's own that an interrupted build never wrote. That is
+ * the operator's to fix by rebuilding one package, and `unbuiltOf` names which.
  */
 export async function main(
   argv: readonly string[],
@@ -82,6 +85,11 @@ export async function main(
   } catch (error) {
     if (isOperatorError(error)) {
       streams.err(`${messageOf(error)}\n${skillLine()}`);
+      return EXIT_OPERATOR;
+    }
+    const unbuilt = unbuiltOf(error);
+    if (unbuilt !== undefined) {
+      streams.err(`${unbuilt}\n${skillLine()}`);
       return EXIT_OPERATOR;
     }
     streams.err(

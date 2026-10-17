@@ -201,3 +201,30 @@ live('a story that is still busy when the next one is asked for', () => {
     }
   }, 120_000);
 });
+
+/** The collector's page agent, which watches each document from its start. */
+const COLLECTOR_AGENT = join(process.cwd(), 'packages', 'storybook-collector', 'dist', 'page-agent.bundle.js');
+
+live('where the browser spent each story', () => {
+  it('gives the preview load to the first story and every story its file and its render, afterEach included', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+
+    try {
+      await page.addInitScript({ path: COLLECTOR_AGENT });
+      const outcomes = await collectStories(page, [FIRST, BUSY, LAST], { baseUrl });
+      const [first, busy, last] = outcomes.map((outcome) => outcome.timing ?? {});
+
+      expect(Object.keys(first).sort()).toEqual(['cases', 'collect', 'ready']);
+      expect(first.ready).toBeGreaterThan(0);
+      // Switched to over the channel, so the document's load is already spent.
+      expect(Object.keys(busy).sort()).toEqual(['cases', 'collect', 'ready']);
+      expect(busy.ready).toBe(0);
+      expect(last.ready).toBe(0);
+      // The busy story's `afterEach` holds its render open for two seconds,
+      // and that hook is the story's own time.
+      expect(busy.cases).toBeGreaterThanOrEqual(2_000);
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+});

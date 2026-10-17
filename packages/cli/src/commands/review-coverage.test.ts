@@ -3,7 +3,7 @@ import type { SuiteChange } from '@variance-authority/sense/test-selection';
 import type { Coverage } from './coverage.js';
 import type { Review } from './review.js';
 import { formatCoverage } from './coverage-text.js';
-import { formatReview } from './review-text.js';
+import { formatReview, reviewPieces } from './review-text.js';
 
 const CHANGE: SuiteChange = {
   gained: 2, lost: 0, hidden: 0, thinned: 0,
@@ -107,7 +107,7 @@ describe('one review summary with coverage available on demand', () => {
   });
 
   it('carries the evidence through JSON without recomputing it from local recordings', () => {
-    const restored = JSON.parse(formatReview(REVIEW, 'json')) as Review;
+    const restored = JSON.parse([...reviewPieces(REVIEW, 'json')].join('')) as Review;
     expect(formatReview(restored, 'markdown')).toBe(formatReview(REVIEW, 'markdown'));
   });
 

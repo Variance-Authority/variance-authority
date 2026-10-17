@@ -251,26 +251,33 @@ function record(node: Statement, into: Map<string, Declaration>, source: Source,
  * comment was written, above both of them.
  */
 export function declarationsIn(source: Source): Map<string, Declaration> {
-  return declared(source, true);
+  return declared(source);
 }
 
 /**
- * The names a file binds at its top level, for `export { x }` to look its doc up
- * in. `export default` binds no name, and its expression is not read: a file
- * that only lists its exports may default-export any value at all.
+ * Every declaration a file makes at its top level, under each name it binds and
+ * in source order, for an export to find the one it declares: `const Kind` and
+ * `type Kind` are two, and `export default function f` binds `f`.
  */
-export function bindingsIn(source: Source): Map<string, Declaration> {
-  return declared(source, false);
+export function everyBindingIn(source: Source): Map<string, readonly Declaration[]> {
+  const every = new Map<string, Declaration[]>();
+  for (const node of source.parsed.program.body) {
+    const declaration = node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration' ? node.declaration : node;
+    if (declaration === null || !('type' in declaration)) continue;
+    const one = new Map<string, Declaration>();
+    record(declaration as Statement, one, source, around(source, node.start));
+    for (const [name, found] of one) every.set(name, [...(every.get(name) ?? []), found]);
+  }
+  return every;
 }
 
-function declared(source: Source, defaults: boolean): Map<string, Declaration> {
+function declared(source: Source): Map<string, Declaration> {
   const kinds = new Map<string, Declaration>();
 
   for (const node of source.parsed.program.body) {
     const context = around(source, node.start);
 
     if (node.type === 'ExportDefaultDeclaration') {
-      if (!defaults) continue;
       const kind = kindOfDefault(node.declaration, source.at);
       // A default-exported object literal has no head to quote — the whole of it
       // is a value, and a config object is a hundred lines of one.

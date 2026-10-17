@@ -375,6 +375,7 @@ export async function recordExecution(
         complete: whole,
         preconditions: [...held].map(([name, digest]) => ({ name, digest })),
         ...(subject.duration === undefined ? {} : { duration: subject.duration }),
+        ...(subject.phases === undefined ? {} : { phases: subject.phases }),
       };
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));

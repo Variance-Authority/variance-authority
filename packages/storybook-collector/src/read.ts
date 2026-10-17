@@ -90,7 +90,7 @@ export async function readStory(
   if (outcome.status !== 'rendered') {
     // A story that rendered a fallback still executed code, and counters left in
     // the page would be handed to whichever story drained next.
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return {
       ok: false,
       because:
@@ -105,7 +105,7 @@ export async function readStory(
   // at the bound refuses the story, named.
   const unanswered = await network?.settle();
   if (unanswered !== undefined) {
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return { ok: false, because: unanswered };
   }
 
@@ -169,7 +169,7 @@ export async function readStory(
     raw = await acquireFromAgent(page, network, request);
   } catch (error) {
     if (!(error instanceof UnansweredAssets)) throw error;
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return { ok: false, because: error.message };
   }
 
@@ -180,7 +180,7 @@ export async function readStory(
   // and take the run with it, and defaulting it to "settled" would silently
   // restore the behaviour this exists to end.
   if (acquired.suspense === undefined) {
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return {
       ok: false,
       because:
@@ -196,11 +196,11 @@ export async function readStory(
     declaredLoading,
   });
   if (unsettled !== undefined) {
-    await recorder?.note(page, planned.subject.id, false);
+    await recorder?.note(page, planned.subject.id, false, outcome.timing);
     return { ok: false, because: unsettled };
   }
 
-  await recorder?.note(page, planned.subject.id, true);
+  await recorder?.note(page, planned.subject.id, true, outcome.timing);
 
   // No frames are spent here, and that is deliberate: a story that settles on
   // its document digest has nobody to hand a location to. They ride the snapshot

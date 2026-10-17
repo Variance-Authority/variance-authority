@@ -22,7 +22,7 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, mainlinePassedOver, suiteBase } from './suite-base.js';
-import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
+import { publishSuite, runSuiteShare, suiteShare, suiteShareLines } from './suite-share.js';
 import { suiteTimes } from './suite-times.js';
 
 /**
@@ -308,6 +308,59 @@ describe('`variance share --suite unit`', () => {
     );
     expect(() => parseArgs(['share', '--suite', 'unit', '--publish', 'report.json'])).toThrow(/so it takes no report$/u);
     expect(parseArgs(['share', '--suite', 'unit', '--publish'])).toMatchObject({ command: 'share', suite: 'unit', publish: true });
+  });
+
+  it('names the commit of the record the mainline holds, for a workflow to merge the change with', async () => {
+    const ci = await mainline();
+    const { worktree } = await laptop(ci.origin, ci.first);
+
+    const done = await suiteShare(worktree, { suite: 'unit', publish: false, format: 'github' }, { env: LOCAL });
+
+    expect(done).toEqual({
+      lines: [`commit=${ci.first}`],
+      notes: [expect.stringMatching(/^record of "unit": read from mainline main, published at /u)],
+      exit: EXIT_CLEAN,
+    });
+  });
+
+  it("prints the commit alone for `$GITHUB_OUTPUT`, and says the read on stderr", async () => {
+    const ci = await mainline();
+    const { worktree } = await laptop(ci.origin, ci.first);
+    const out: string[] = [];
+    const err: string[] = [];
+
+    const exit = await runSuiteShare({ suite: 'unit', publish: false, format: 'github' }, { out: (text) => out.push(text), err: (text) => err.push(text) }, worktree, { env: LOCAL });
+
+    expect({ exit, out, err }).toEqual({
+      exit: EXIT_CLEAN,
+      out: [`commit=${ci.first}\n`],
+      err: [expect.stringMatching(/^record of "unit": read from mainline main, published at .*\n$/su)],
+    });
+  });
+
+  it('names no commit when the mainline holds no record, and says why beside it', async () => {
+    const ci = await mainline({ publish: false });
+    const { worktree } = await laptop(ci.origin, ci.first);
+
+    expect(await suiteShare(worktree, { suite: 'unit', publish: false, format: 'github' }, { env: LOCAL })).toEqual({
+      lines: ['commit='],
+      notes: ['record of "unit": the share has none either; mainline main: nothing is published there.'],
+      exit: EXIT_CLEAN,
+    });
+  });
+
+  it('takes `--format` only to read the mainline', () => {
+    expect(parseArgs(['share', '--suite', 'unit', '--format', 'github'])).toMatchObject({ command: 'share', suite: 'unit', format: 'github' });
+    expect(() => parseArgs(['share', '--suite', 'unit', '--format', 'json'])).toThrow('--format must be text or github, not `json`');
+    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', '--format', 'github'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
+    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', '--format', 'text'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
+    expect(() => parseArgs(['share', '--mainline', 'main', '--format', 'github'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
   });
 });
 
