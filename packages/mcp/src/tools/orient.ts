@@ -32,9 +32,10 @@ import type { Tree } from './tree.js';
  *    landmarks, which is affordable precisely because step one cut the corpus
  *    to the handful of surfaces that could possibly answer.
  * 3. **Whether the relation holds.** Two rectangles. `beneath` is read off
- *    coordinates and is an observation; with no layout it is refused rather
- *    than guessed, because document order agrees with the screen often enough
- *    to be dangerous and not often enough to be relied on.
+ *    coordinates and is an observation; with no layout it is never guessed,
+ *    because document order agrees with the screen often enough to be
+ *    dangerous and not often enough to be relied on. The answer is then where
+ *    the anchor is, with the relation named as what the reading cannot say.
  *
  * The answer is a file and a line. That is the difference worth the whole
  * mechanism: every other tool here hands back an id to look something up with,
@@ -81,8 +82,11 @@ export interface Orientation {
   readonly scope?: Scope;
   /** Component → declaring files, carried so an answer can print a place. */
   readonly declaredIn?: Readonly<Record<string, readonly string[]>>;
-  /** Set when a spatial question met a reading with no layout. */
-  readonly refused?: string;
+  /**
+   * Set when a spatial question met a reading with no layout: the hits then
+   * place the anchor alone, and this says why nothing stands beside it.
+   */
+  readonly unrelated?: string;
 }
 
 /**
@@ -114,17 +118,13 @@ export function orient(
 
   const spatial = asked.relation !== undefined && asked.relation !== 'inside';
   if (spatial && !index.laidOut && index.surfaces > 0) {
+    const { relation: _unmeasured, ...where } = asked;
     return {
+      ...orient(report, where, from, tree, to),
       asked,
-      hits: [],
-      considered: 0,
-      surfaces: index.surfaces,
-      ...(scope === undefined ? {} : { scope }),
-      laidOut: false,
-      refused:
+      unrelated:
         'This run did not resolve layout, so no landmark carries a rectangle and nothing here ' +
-        'knows what sits beneath what. Re-run under a profile with layout, or ask which ' +
-        'surfaces hold both things without a relation between them.',
+        `knows what sits ${asked.relation} what.`,
     };
   }
 

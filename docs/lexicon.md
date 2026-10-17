@@ -187,9 +187,10 @@ that join once — `declaredIn`, one row per component rather than a path on eac
 of ten thousand landmarks — and an answer prints a file either way.
 
 `box` is absent rather than zeroed when the run resolved no layout. Ask *what is
-under this* against such a run and you are told the run has no layout to answer
-from: document order agrees with the screen often enough to be dangerous and not
-often enough to be relied on. Containment is answered all the same, because
+under this* against such a run and you get where *this* is, and a line saying
+the run has no layout to tell what is under it: document order agrees with the
+screen often enough to be dangerous and not often enough to be relied on.
+Containment is answered all the same, because
 `within` needs no rectangles. [Asking where something
 sits](locate.md#ask-where-something-sits) is the reading side.
 

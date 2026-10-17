@@ -1711,10 +1711,11 @@ from different records fail the build: each record names the record its run
 was laid over, or none, and shards that name two, that stand on before layers
 at different commits, or that stand on one file at different text, each split
 the suite against another plan, so a test may have run in no shard. The
-message names the shards and their records; run the whole build again, so
-that every shard restores the same cached record. A shard that names no
-record at all, as one an earlier version wrote, is recorded again with this
-version.
+message names the shards and their records, says nothing of the build is
+combined and the record before it stands, and names what starts shards alike:
+every one restoring the same cached record. A shard that names no record at
+all, as one an earlier version wrote, is not combined either: nothing in it
+says where it started.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root

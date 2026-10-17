@@ -163,7 +163,7 @@ describe('combineRecords against the TypeScript writers', () => {
     const apart = await shardsReading([one, two], 'apart');
     const failed = (() => { try { combineRecords(apart, join(root, 'apart.bin'), root); } catch (error) { return (error as Error).message; } })();
     expect(failed).toContain(`the build failed because the sharding was unstable: ${apart[0]} chose its tests from ${await named(one)}, and ${apart[1]} from ${await named(two)}.`);
-    expect(failed).toContain('Run the whole build again, so that every shard reads the same record');
+    expect(failed).toContain('Nothing of this build is combined, so the record before it stands. Shards choose alike when every one reads the same record');
 
     const together = await shardsReading([one, one], 'together');
     expect(combineRecords(together, join(root, 'together.bin'), root).shards).toHaveLength(2);

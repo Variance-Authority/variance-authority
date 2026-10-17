@@ -80,9 +80,10 @@ the anchor has to pick the surface as well. One relation per question; two is
 refused.
 
 **`--inside` is the only relation a run without layout can answer.** The other
-five are decided from the rectangles the run resolved. A run that resolved no
-layout refuses them rather than falling back to document order, and prints that.
-Containment needs no rectangle.
+five are decided from the rectangles the run resolved. On a run that resolved
+no layout, they answer where the anchor is and say the run cannot tell what sits
+in that relation to it, rather than falling back to document order. Containment
+needs no rectangle.
 
 On a relation answer, read three things before acting:
 

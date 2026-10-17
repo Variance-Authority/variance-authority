@@ -124,7 +124,7 @@ describe('distillFile', () => {
 
     expect(result.modules).toBeUndefined();
     expect(result.withheld).toContain(`the coverage row for ${FILE} is incomplete`);
-    expect(result.withheld).toContain('Run the file again.');
+    expect(result.withheld).toMatch(/so it cannot say what the file did without\.$/);
   });
 
   it('counts a module another file\'s case entered as entered by none of this file\'s cases', () => {

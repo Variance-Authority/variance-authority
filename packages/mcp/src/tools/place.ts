@@ -66,16 +66,28 @@ function placeOf(landmark: Landmark, declaredIn: Declared = {}): string {
  */
 export function renderOrientation(answer: Orientation, limit: number): string {
   const { asked } = answer;
-  const declaredIn = answer.declaredIn ?? {};
   const relation = asked.relation ?? 'inside';
   const on = asked.surface.length === 0 ? '' : ` on \`${asked.surface.join(' ')}\``;
   const said = `\`${asked.target.join(' ')}\` ${relation} \`${asked.anchor.join(' ')}\`${on}`;
 
-  if (answer.refused !== undefined) return `Cannot answer ${said}: ${answer.refused}`;
-
   // Said before the count either way, because how many surfaces were put to the
   // question is the first thing that makes a nil answer readable.
   const scope = answer.scope === undefined ? '' : `\n${scopeLine(answer.scope, answer.surfaces)}`;
+
+  // The relation is the gap and the anchor's place is the answer: said in that
+  // order, so no line below reads as standing in a relation nobody measured.
+  if (answer.unrelated !== undefined) {
+    const where = `\`${asked.anchor.join(' ')}\`${on}`;
+    if (answer.hits.length === 0) {
+      return `${answer.unrelated} No surface of ${answer.surfaces} says ${where}.${scope}`;
+    }
+    return placed(
+      answer,
+      limit,
+      `${answer.unrelated} Where ${where} is: ${answer.hits.length} surface(s) of ${answer.surfaces}, ` +
+        `${answer.considered} read in full.${scope}`,
+    );
+  }
 
   if (answer.hits.length === 0) {
     return (
@@ -84,9 +96,19 @@ export function renderOrientation(answer: Orientation, limit: number): string {
     );
   }
 
-  const sections = [
+  return placed(
+    answer,
+    limit,
     `${answer.hits.length} surface(s) of ${answer.surfaces} put ${said}, ${answer.considered} read in full.${scope}`,
-  ];
+  );
+}
+
+/** The hits of an answer under its head line, each where it is written. */
+function placed(answer: Orientation, limit: number, head: string): string {
+  const { asked } = answer;
+  const declaredIn = answer.declaredIn ?? {};
+  const relation = asked.relation ?? 'inside';
+  const sections = [head];
 
   for (const hit of answer.hits.slice(0, limit)) {
     const lines = [

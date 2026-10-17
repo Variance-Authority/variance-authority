@@ -391,9 +391,10 @@ Three things in that answer are worth reading before you act on it:
 - **`also beneath`.** Everything else standing in the same relation, nearest
   first. The one you meant is sometimes the second.
 - **`4px away`.** Measured between the rectangles the run resolved. Absent when
-  the run resolved no layout — and a spatial question against such a run is
-  refused rather than answered from document order. `inside` still answers,
-  because containment needs no rectangles.
+  the run resolved no layout. A spatial question against such a run is never
+  answered from document order: you get where the anchor is on each surface
+  that says it, under a line saying the run cannot tell what sits beneath it.
+  `inside` still answers in full, because containment needs no rectangles.
 
 ## Read a hit before you trust it
 

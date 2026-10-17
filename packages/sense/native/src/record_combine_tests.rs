@@ -298,7 +298,8 @@ fn refuses_shards_of_which_only_some_kept_cases() {
     let bare = fixture::write(&spec(vec![test("b.test.ts")], Vec::new()));
     let message = refused(&[&fixture::write(&cased("a.test.ts", "1")), &bare]);
     assert!(message.contains("shard-0.bin kept cases and shard-1.bin kept none"), "{message}");
-    assert!(message.contains("Record shard-1.bin again with cases kept"), "{message}");
+    assert!(message.contains("so the combined record could answer for the cases of only some of its files, and the shards are not combined. Shards combine when every one kept cases, or none did."), "{message}");
+    assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "again"), "{message}");
 }
 
 #[test]
@@ -326,7 +327,8 @@ fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file(
     let other = cases_alone(index("b.test.ts", "1", 3, Vec::new()), "b.test.ts");
     let message = refused(&[&one, &other]);
     assert!(message.starts_with("shard-0.bin: case \"a.test.ts > adds\": its lines stand on `src/a.ts`"), "{message}");
-    assert!(message.contains("Record every shard with one build"), "{message}");
+    assert!(message.ends_with("so they name regions the combined record does not hold, and the shards are not combined. Shards combine when one build recorded every one, so each cuts the file the same way."), "{message}");
+    assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "Record"), "{message}");
 }
 
 #[test]
