@@ -1,6 +1,6 @@
 ---
 name: variance-testing
-description: Write, fix and debug tests with the record Variance Authority keeps. Use it when a test fails, flakes or passes when it should not, when you need the tests an edit reaches, or when you write tests for a change. Not for visual review.
+description: Write, fix, debug, improve and shorten tests with the record Variance Authority keeps. Use it when a test fails, flakes or passes when it should not, when you need the tests an edit reaches, when you write tests for a change or improve a file's coverage, or when a test loads or renders more than it needs. Not for visual review.
 ---
 
 # Testing with Variance Authority
@@ -105,6 +105,52 @@ each region the change needs pinned, then check that it lands:
 
 A test that pins changed behaviour fails on the code as it was, before the code
 changes.
+
+## Improve a file's coverage
+
+```bash
+variance covering --file src/cart.ts --suite unit
+```
+
+Every recorded range of the file has a state. Line coverage calls the last
+three covered or not; the record tells them apart:
+
+| state | what it means for a test |
+|---|---|
+| `unwalked` | no case ran it, and every case that could have finished: write one |
+| `loaded` | it ran only while the module was imported; no case called it, though line coverage counts it |
+| `alone` | one case is the only one that fails for it: a second case, if the line matters |
+| `hole` | a case stopped before it could; run the file again before you read it |
+
+Each declared suite answers on its own, so a range one suite never walked may
+be walked by another; `--suite` names the suite you will write the test in.
+For a long file, `--format json` and
+`jq -r '.suites[] | .ranges[]? | select(.state != "walked")'` keep the ranges
+to read. Write each test as the previous section does, and break the line to
+see it fail.
+[covering](../variance-authority/references/covering.md)
+
+## Make a test smaller
+
+```bash
+variance distill --suite unit --file src/cart.test.ts
+variance distill --suite unit --file src/cart.test.ts --test "cart > removes the last item"
+```
+
+The file reading names the modules the test file loaded that no case, or only
+some cases, entered, with the import that brought each in: change that import,
+never mock the listed path. It is withheld when a case stopped; run the file
+again. The case reading names the files the test ran without addressing
+anything in them, from the Eyes journal of a component test; each is a
+candidate, not permission to mock it.
+
+Take one candidate at a time: substitute it at one boundary, rerun the exact
+test, distill again, and compare the `assert:` targets and sources and the
+update initiators with the first reading. Keep the edit only when they are what
+they were and no initiator newly appears outside; revert it otherwise, and when
+a reading is unavailable. Two candidates in one rerun do not show which one was
+safe.
+[distill](../variance-authority/references/distill.md)
 
 ## Rules
 

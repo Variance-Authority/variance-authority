@@ -382,7 +382,8 @@ review loop.
   file for each only when the question needs it.
 - **`variance-testing`** is the order to ask in while you write, fix or debug a
   test: which tests stand on a line, what an edit needs to run, where a failing
-  or flaky test went, and what a change left untested. It links the
+  or flaky test went, what a change or a file's tests left untested, and how
+  much of a test can go. It links the
   `variance-authority` references for its flags, so link both.
 
 Installing the package puts them on disk; your agent reads a skill only from

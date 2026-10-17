@@ -10,7 +10,9 @@ while it works on tests: `covering` for the tests that stand on a line before
 an edit, the `VARIANCE_AUTHORITY_SINCE` legs after it, a story of one failing
 test and `--compare outcome` or `--compare alone,file` when it fails only
 sometimes, a `console.log` in the code under test when the question is a value,
-and `covering --since` for what a change left untested. It links the
+`covering --since` for what a change left untested, `covering --file` for what a
+file's tests leave `unwalked`, `loaded` or `alone`, and `distill` with one
+reversible substitution at a time to make a test smaller. It links the
 `variance-authority` references for flags, so link both into your agent's
 skills directory:
 
