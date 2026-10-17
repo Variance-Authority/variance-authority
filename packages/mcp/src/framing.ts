@@ -1,4 +1,5 @@
 // compass: variance-authority/report
+import { keepThrown } from './thrown.js';
 import type { Served, Tool, ToolInvocation } from './tools/tool.js';
 
 /**
@@ -168,10 +169,12 @@ function callTool<Subject>(
     // while an error result is text it can read and correct from — and "unknown
     // subject; this run has: …" is precisely the kind of correction worth
     // handing back rather than swallowing.
-    return ok(id, {
+    const refused = ok(id, {
       content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
       isError: true,
     });
+    keepThrown(refused, error);
+    return refused;
   }
 }
 

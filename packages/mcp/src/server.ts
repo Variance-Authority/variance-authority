@@ -11,6 +11,7 @@ import {
   type JsonRpcRequest,
 } from './framing.js';
 import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
+import { thrownBy } from './thrown.js';
 import type { Served } from './tools/tool.js';
 import type { Tree } from './tools/tree.js';
 
@@ -95,12 +96,27 @@ export interface ServerOptions<Subject = RunReport> {
    * second reading.
    */
   readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<AskedAgain<Subject> | undefined>;
+
+  /**
+   * The answer a refused call gives instead of its refusal, or none to let the
+   * refusal stand.
+   *
+   * A tool says some answers by throwing them — a name nothing declares is
+   * thrown so that `again` reads the subject once more before the absence is
+   * believed — and only its host knows which. So once `again` has had its turn,
+   * a call still refused is handed here with what its tool threw, the subject
+   * that refused it last, and what `again` said; text returned is the call's
+   * result, not an error, and `again`'s footer is the host's to say in it.
+   */
+  readonly answered?: (thrown: unknown, subject: Subject, again: AskedAgain<Subject> | undefined) => string | undefined;
 }
 
 /** What a host answers a refused call with: a fresher subject, and what a refusal that still stands says. */
 export interface AskedAgain<Subject> {
   readonly subject?: Subject;
   readonly footer?: string;
+  /** True when `footer` opens with the date of the subject that could not be read again. */
+  readonly dated?: true;
 }
 
 export function serve<Subject>(options: ServerOptions<Subject>): () => void {
@@ -138,13 +154,15 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
       };
       let subject: Subject = await options.subject(asked, askedInput(request));
       let response = await answer(subject);
-      if (options.again !== undefined && !succeeded(response) && wellFormed(request, options.served)) {
-        const fresher = await options.again(asked, subject, started);
+      if (!succeeded(response) && wellFormed(request, options.served)) {
+        const fresher = await options.again?.(asked, subject, started);
         if (fresher?.subject !== undefined) {
           subject = fresher.subject;
           response = await answer(subject);
         }
-        if (fresher?.footer !== undefined) response = footed(response, fresher.footer);
+        const said = response === null || succeeded(response) ? undefined : options.answered?.(thrownBy(response), subject, fresher);
+        if (said !== undefined) response = { ...response!, result: { content: [{ type: 'text', text: said }] } };
+        else if (fresher?.footer !== undefined) response = footed(response, fresher.footer);
       }
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);
