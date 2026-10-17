@@ -395,9 +395,10 @@ fn unquoted(text: &str) -> String {
     rest.strip_suffix('"').unwrap_or(rest).to_string()
 }
 
-/// One `use` argument flattened into the item paths it names.
-/// Each path comes with its alias, and whether it is a glob, which binds no name of its own.
-fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>, bool)> {
+/// One `use` argument flattened into the item paths it names, each with the
+/// name it binds when it renames one, and whether it is a `*`, whose path is
+/// the module it takes every item of.
+pub(super) fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>, bool)> {
     match node.kind() {
         "scoped_identifier" => {
             let mut path = prefix.to_vec();

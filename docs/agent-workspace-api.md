@@ -351,6 +351,15 @@ name may be declared there. `docs_search` lists the name after the exported ones
 says it is not exported, when the name or its documentation holds the query, and
 only when its file is in the area `from` or `to` names.
 
+The file that declares a name uses it without importing it, so `docs_uses` lists
+those lines too, after the imports, under `Used in the file that declares it`:
+a call, a read, a type, a Rust `self::name` path or a test module's
+`use super::*`, in a TypeScript, JavaScript or Rust file, for a name it exports
+and for one it keeps. The lines follow the language's scope, so a parameter, a
+local or an inner item of the same name is another name and is not listed, and
+neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
+its imports alone.
+
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever

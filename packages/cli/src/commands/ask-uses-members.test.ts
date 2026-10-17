@@ -94,7 +94,10 @@ describe('variance ask uses over a member', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`resolveThings` is a member too, declared in 3 places:');
     const listed = out.split('\n').filter((line) => / — /.test(line) && /\.ts:\d+/.test(line));
+    // `references.ts` destructures its own `resolveThings` and reads it a line
+    // later, which is a use in the declaring file, listed before the members.
     expect(listed).toEqual([
+      'packages/lib/src/references.ts:4 — @acme/lib',
       'packages/kit/src/held.ts:2 — Held',
       'packages/lib/src/native.ts:5 — Scanner',
       'packages/lib/src/native.ts:9 — Later',

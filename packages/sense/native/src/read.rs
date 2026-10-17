@@ -13,6 +13,7 @@ use crate::declarations::declarations;
 use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
 use crate::help_member_uses::{member_uses_in, MemberUse};
+use crate::help_own_uses::{own_uses_in, OwnUse};
 use crate::help_members::{member_declarations_in, MemberDeclaration};
 use crate::members::{members_and_loads_in, Member};
 use crate::mocks::{mocks_in, Mocks};
@@ -110,6 +111,9 @@ pub struct Read {
     /// Every use of a member through a value whose type the module writes.
     #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
     pub(crate) member_uses: Vec<MemberUse>,
+    /// Every line that uses a name the module declares at its top level.
+    #[serde(rename = "ownUses", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) own_uses: Vec<OwnUse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -337,6 +341,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         members,
         member_declarations: member_declarations_in(&parsed.program, &lines),
         member_uses: member_uses_in(&parsed.program, &lines),
+        own_uses: own_uses_in(&parsed.program, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
         doc: harvest.module_doc,
