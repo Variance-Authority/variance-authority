@@ -59,7 +59,7 @@ describe('search from its published file', () => {
 
     await rm(workspaceSnapshotPath(at));
     let searchTree: Tree | undefined;
-    const search = await readSearchForAnswer(root, { index: at, justAnswer: true, tree: (drawn) => { searchTree = drawn; } });
+    const { index: search } = await readSearchForAnswer(root, { index: at, justAnswer: true, tree: (drawn) => { searchTree = drawn; } });
 
     expect([...(tree?.files ?? [])].length).toBeGreaterThan(0);
     expect([...(searchTree?.files ?? [])]).toEqual([...(tree?.files ?? [])]);
@@ -72,7 +72,7 @@ describe('search from its published file', () => {
     await readWorkspace(root, { index: other });
     await rm(workspaceSearchPath(other));
 
-    const search = await readSearchForAnswer(root, { index: other });
+    const { index: search } = await readSearchForAnswer(root, { index: other });
 
     await expect(access(workspaceSearchPath(other))).resolves.toBeUndefined();
     const help = await readWorkspaceForAnswer(root, { index: other, justAnswer: true });
@@ -84,16 +84,18 @@ describe('search from its published file', () => {
       Promise.all([at, workspaceSearchPath(at)].map(async (file) => (await stat(file)).mtimeMs));
     const before = await written();
 
-    const search = await readSearchForAnswer(root, { index: at, refreshAfterMs: 0 });
+    const { index: search, compared } = await readSearchForAnswer(root, { index: at, refreshAfterMs: 0 });
 
     expect(await written()).toEqual(before);
+    expect(compared).toBe(false);
     expect(askSearch(search, ['--query', 'measure'])).toContain('measure');
   });
 
   it('reads the checkout and publishes the search when nothing is published and no flag forbade it', async () => {
     const empty = join(root, '.unread');
-    const search = await readSearchForAnswer(root, { index: empty });
+    const { index: search, compared } = await readSearchForAnswer(root, { index: empty });
 
+    expect(compared).toBe(true);
     expect(askSearch(search, ['--query', 'measure'])).toContain('measure');
     await expect(access(workspaceSearchPath(empty))).resolves.toBeUndefined();
   });

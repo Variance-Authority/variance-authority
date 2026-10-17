@@ -40,6 +40,16 @@ const PROBES = [
   'export const regionCount = 0;',
 ].join('\n');
 
+// Exported by a file no entrypoint reaches, declared in the reverse of the order expected.
+const UNPUBLISHED = [
+  '/**\n * How long a run took.\n *\n * Read off the instrument.\n */',
+  'export const runTime = 0;',
+  '/** The calls an instrument recorded. */',
+  'export const callCount = 0;',
+  '/** Records every call. */',
+  'export function instrumentCalls(): void {}',
+].join('\n');
+
 let index: SearchIndex;
 let root: string;
 const cache = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -54,6 +64,7 @@ beforeAll(async () => {
     'packages/probes/package.json': manifest('probes'),
     'packages/probes/tsconfig.json': TSCONFIG,
     'packages/probes/src/index.ts': `${PROBES}\n`,
+    'packages/probes/src/unpublished.ts': `${UNPUBLISHED}\n`,
     ...app('first', 'Flakiness, probeSites'),
     ...app('second', 'Flakiness'),
     ...app('third', 'Flakiness'),
@@ -63,6 +74,7 @@ beforeAll(async () => {
 
 const ask = (query: string) => searchNames(index, { query }, treeOf([], root), root);
 const publishedFirst = (query: string): readonly string[] => (ask(query).published?.shown ?? []).map((one) => one.name);
+const exportedFirst = (query: string): readonly string[] => (ask(query).exported?.shown ?? []).map((one) => one.name);
 const describedFirst = (query: string): readonly string[] =>
   (ask(query).described?.shown ?? []).map((one) => ('name' in one ? one.name : one.at));
 
@@ -76,6 +88,10 @@ describe('the names a question puts first', () => {
     // `Flakiness` is imported by three packages and `instrumentModule` by none:
     // where the word was found decides first, and the importers only within that.
     expect(publishedFirst('instrument')).toEqual(['instrumentModule', 'probeSites', 'Flakiness']);
+  });
+
+  it('orders the names the source exports without publishing by the same fields', () => {
+    expect(exportedFirst('instrument')).toEqual(['instrumentCalls', 'callCount', 'runTime']);
   });
 
   it('puts a name holding a word of the question before a doc holding them all and no name', () => {

@@ -263,13 +263,12 @@ export async function askSource(request: SourceRequest): Promise<string> {
     ...(request.justAnswer === true ? { justAnswer: true } : {}),
     ...(tool.wants?.(input) === true ? { tree: true } : {}),
   };
-  // A reading that names its generation, or that `search` makes, is not
-  // compared with the checkout, and every answer from it says so. Every other
-  // one is the checkout's as it is by the time it refuses.
-  const named = changed !== undefined || taints !== undefined;
-  const unseen = request.justAnswer === true || (tool.name === search.name && !named);
   const started = Date.now();
   const answering = await sourceAnswering(request, tool, input, reading);
+  // A reading `--just-answer` asked for, or a published search opened at its
+  // age, is not compared with the checkout, and every answer from it says so.
+  // Every other one is the checkout's as it is by the time it refuses.
+  const unseen = request.justAnswer === true || answering.unseen === true;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where

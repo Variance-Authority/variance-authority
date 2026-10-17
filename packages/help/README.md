@@ -101,10 +101,11 @@ This package is for the workspace that does not run one.
 
 ### What you get
 
-Text, on stdout. `search` answers in two sections — the names a manifest
-publishes, ranked by how many packages import them, then the names the source
-exports without publishing — and in a third when your words match a name they
-do not contain. Run against this repository, abridged to the first few lines of
+Text, on stdout. `search` answers in two sections: the names a manifest
+publishes, ranked by where they hold your words (the name, then the doc's
+first paragraph, then the rest of it) and then by how many packages import
+them; then the names the source exports without publishing. A third follows
+when your words match a name they do not contain. Run against this repository, abridged to the first few lines of
 each section:
 
 ```

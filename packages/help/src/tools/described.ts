@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { opening } from '@variance-authority/package/help';
-import { declaredDescribedOf, describedWordsNative, nearOfNative, wordStemsNative, type DescribedFile } from '@variance-authority/sense';
+import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
 import { declaredMatch } from './declared.js';
 import type { DeclaredMatch, FileMatch } from './search-answer.js';
-import { admittedBy, matchingTerms } from './loose.js';
+import { admittedBy, termsOfStems } from './loose.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -95,8 +95,7 @@ export function describedNames(
   const asked = describedWordsNative(query);
   if (asked.length === 0) return undefined;
 
-  const candidates = asked.map(([stem]) => [...matchingTerms(index, stem, 0)]);
-  const stemmed = wordStemsNative(candidates.flat().map((term) => index.term(term)));
+  const stemmed = termsOfStems(index, asked.map(([stem]) => stem));
 
   const admits = admittedBy(index, within, already);
 
@@ -111,10 +110,8 @@ export function describedNames(
     positions.add(position);
     into.set(name, positions);
   };
-  let at = 0;
-  asked.forEach(([stem], position) => {
-    for (const term of candidates[position] ?? []) {
-      if (stemmed[at++] !== stem) continue;
+  asked.forEach((_, position) => {
+    for (const term of stemmed[position] ?? []) {
       for (const name of index.termNames(term)) {
         if (!admits(name)) continue;
         mark(held, name, position);

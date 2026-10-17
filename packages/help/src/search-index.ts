@@ -1,5 +1,5 @@
 import type { Help, UseKind } from '@variance-authority/package/help';
-import { everyEntry } from '@variance-authority/package/help';
+import { everyEntry, PARAGRAPH_BREAK } from '@variance-authority/package/help';
 import { encodeSearch, type PublishedRows, type SearchGeneration } from '@variance-authority/sense';
 import { specifierOf } from './tools/find.js';
 
@@ -324,8 +324,8 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
  * instead.
  *
  * With `opening`, a row is kept only when its first match comes before the
- * first blank line — the paragraph `opening()` shows — which the bytes between
- * the row's start and the match say without decoding either.
+ * first blank line — the paragraph `opening()` shows, by its own rule — read
+ * from the bytes between the row's start and the match alone.
  */
 function containing(
   blob: Buffer,
@@ -341,7 +341,7 @@ function containing(
     for (let row = 0; row < rows; row += 1) {
       const said = text(row);
       const at = said.indexOf(query);
-      if (at !== -1 && (!opening || !BREAK.test(said.slice(0, at)))) found.push(row);
+      if (at !== -1 && (!opening || !PARAGRAPH_BREAK.test(said.slice(0, at)))) found.push(row);
     }
     return found;
   }
@@ -349,25 +349,10 @@ function containing(
   let at = blob.indexOf(needle, 0);
   while (at !== -1) {
     const row = rowAt(off, at);
-    if (!opening || !brokenBefore(blob, off[row] ?? 0, at)) found.push(row);
+    if (!opening || !PARAGRAPH_BREAK.test(blob.toString('utf8', off[row] ?? 0, at))) found.push(row);
     at = blob.indexOf(needle, off[row + 1] ?? blob.length);
   }
   return found;
-}
-
-/** A blank line, as `opening()` ends a doc's first paragraph on one. */
-const BREAK = /\n[ \t]*\n/;
-
-/** Whether `blob` holds a blank line between `from` and `to`. */
-function brokenBefore(blob: Buffer, from: number, to: number): boolean {
-  let line = blob.indexOf(0x0a, from);
-  while (line !== -1 && line < to) {
-    let next = line + 1;
-    while (next < to && (blob[next] === 0x20 || blob[next] === 0x09)) next += 1;
-    if (next < to && blob[next] === 0x0a) return true;
-    line = blob.indexOf(0x0a, next);
-  }
-  return false;
 }
 
 /** The row whose bytes start at or before `at`. */

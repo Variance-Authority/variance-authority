@@ -5,7 +5,7 @@ import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
-import { looseNames, matchingTerms } from './loose.js';
+import { looseNames, matchingTerms, termsOfStems } from './loose.js';
 import { describedDeclarations, describedNames, describedOrder, fileMatch } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
@@ -415,30 +415,26 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
  * in, ascending: every word of the query is a word of the name, the start of
  * one, or one that shares its stem, so `select test files` is
  * `selectTestFiles` and `instrumenting modules` is `instrumentModule`. The
- * stem is the dependency lexicon's, which the described section asks by too.
+ * stem is the dependency lexicon's, admitted the way the described section
+ * admits it.
  * A query of one word is the substring's alone.
  */
 function namesOfWords(index: SearchIndex, query: string): readonly number[] {
   const words = tokensOf(query);
   if (words.length < 2) return [];
 
-  const stems = wordStemsNative(words);
-  // A term stands for a stem when it reduces to it, so the run under the stem
-  // is read once and kept only where it does: `modul` admits `module` and not `modular`.
-  const under = stems.map((stem) => [...matchingTerms(index, stem, 0)]);
-  const reduced = wordStemsNative(under.flat().map((term) => index.term(term)));
-  let at = 0;
+  const stemmed = termsOfStems(index, wordStemsNative(words));
   let held: ReadonlySet<number> | undefined;
-  words.forEach((word, position) => {
-    const terms = new Set(matchingTerms(index, word, 0));
-    for (const term of under[position] ?? []) if (reduced[at++] === stems[position]) terms.add(term);
+  for (const [position, word] of words.entries()) {
+    const terms = new Set([...matchingTerms(index, word, 0), ...(stemmed[position] ?? [])]);
     const reached = new Set<number>();
     for (const term of terms) {
       for (const name of index.termNames(term)) if (held === undefined || held.has(name)) reached.add(name);
     }
+    if (reached.size === 0) return [];
     held = reached;
-  });
-  return held === undefined || held.size === 0 ? [] : [...held];
+  }
+  return held === undefined ? [] : [...held];
 }
 
 /** Two lists of ids as one, ascending and without repeats. */

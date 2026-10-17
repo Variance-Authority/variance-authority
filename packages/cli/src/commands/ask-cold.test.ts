@@ -57,12 +57,23 @@ function answeredOrRefused(answered: { code: number; err: string }): void {
 }
 
 describe('variance ask on a checkout with no index', () => {
-  it('search reads the checkout when nothing is published', async () => {
+  it('search reads the checkout when nothing is published, and does not call that reading uncompared', async () => {
     cold();
     const answered = await run(['ask', 'search', '--query', 'shim']);
     expect(answered.err).toBe('');
     expect(answered.code).toBe(EXIT_CLEAN);
     expect(answered.out).toContain('shim');
+    expect(answered.out).toContain('\nSnapshot ');
+    expect(answered.out).not.toContain('not compared with the checkout');
+  });
+
+  it('search --format json from a read of the checkout carries its generation without `compared: false`', async () => {
+    cold();
+    const answered = await run(['ask', 'search', '--query', 'shim', '--format', 'json']);
+    expect(answered.code).toBe(EXIT_CLEAN);
+    const data = JSON.parse(answered.out) as { generatedAt?: string; compared?: boolean };
+    expect(data.generatedAt).toBeDefined();
+    expect(data.compared).toBeUndefined();
   });
 
   it('search --just-answer refuses with a code, names the flag it was given and `variance index` as the remedy', async () => {
@@ -74,13 +85,14 @@ describe('variance ask on a checkout with no index', () => {
     expect(answered.err).toContain('asked with `--just-answer`');
   });
 
-  it('search answers once `variance index` has published the generation', async () => {
+  it('search answers once `variance index` has published the generation, and says it opened it uncompared', async () => {
     cold();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const answered = await run(['ask', 'search', '--query', 'shim']);
     expect(answered.err).toBe('');
     expect(answered.code).toBe(EXIT_CLEAN);
     expect(answered.out).toContain('shim');
+    expect(answered.out).toContain('not compared with the checkout');
   });
 
   it('packages answers or refuses with a code', async () => {

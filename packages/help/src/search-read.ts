@@ -6,10 +6,22 @@ import { readWorkspace, readWorkspaceForAnswer, type AnsweringOptions } from './
 import type { SearchIndex } from './search-index.js';
 import { readSearchSnapshot, readSearchTree, searchOf, workspaceSearchPath } from './snapshot.js';
 
+/** A search, and whether it was read from the checkout as it is now. */
+export interface SearchReading {
+  readonly index: SearchIndex;
+  /**
+   * True when the checkout was read for this question; false when a published
+   * search or value was opened at whatever age it had, which nothing compared
+   * with the checkout.
+   */
+  readonly compared: boolean;
+}
+
 /**
- * The search over the workspace, read from what was published and never built.
+ * The search over the workspace, opened from what was published, and read
+ * from the checkout only when nothing was.
  *
- * Search is a lookup, and publishing is somebody else's job: in CI the scan and
+ * Publishing is somebody else's job: in CI the scan and
  * the documentation are brought up to date by the steps before it, and the
  * question after them expects to find their output. So the published search is
  * opened in place at any age — not the value, not the checkout, and the graph
@@ -23,17 +35,17 @@ import { readSearchSnapshot, readSearchTree, searchOf, workspaceSearchPath } fro
  * generation by name: that reading is {@link readWorkspaceForAnswer}'s, and it
  * publishes the search it answers from.
  */
-export async function readSearchForAnswer(root: string, options: AnsweringOptions = {}): Promise<SearchIndex> {
+export async function readSearchForAnswer(root: string, options: AnsweringOptions = {}): Promise<SearchReading> {
   const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;
   const index = reading.index ?? sourceIndexPath(resolve(root));
   if (reading.changed !== undefined || reading.taints !== undefined) {
-    return searchOf(await readWorkspaceForAnswer(root, options), index);
+    return { index: await searchOf(await readWorkspaceForAnswer(root, options), index), compared: true };
   }
 
   try {
     const search = await readSearchSnapshot(root, reading.index);
     if (reading.tree !== undefined) reading.tree(await readSearchTree(search, root, reading.index));
-    return search;
+    return { index: search, compared: false };
   } catch {
     // Not published, or not this checkout's: the published value may still hold it.
   }
@@ -49,7 +61,7 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
         { cause },
       );
     }
-    return searchOf(await readWorkspace(root, reading), index);
+    return { index: await searchOf(await readWorkspace(root, reading), index), compared: true };
   }
-  return searchOf(help, index);
+  return { index: await searchOf(help, index), compared: false };
 }

@@ -2,6 +2,7 @@
 '@variance-authority/help': patch
 '@variance-authority/sense': patch
 '@variance-authority/cli': patch
+'@variance-authority/package': patch
 ---
 
 Search ranks a name by where it holds the words, reaches a name through a word's stem, and answers when nothing is published
@@ -10,9 +11,11 @@ Search ranks a name by where it holds the words, reaches a name through a word's
 `instrumentModule`, because a word of the question had to start a word of the
 name as written. Now a word also reaches a name word that shares its stem, so
 `instrumenting modules` and `instrumented module` answer `instrumentModule`
-as an exact match. The stemmer runs to a fixed point, so a word and its
-inflections share one stem: `instrument`, `instrumenting` and
-`instrumentation` meet, and so do `placement`, `place` and `placed`. The
+as an exact match. The stemmer takes one inflection off and then every noun
+or agent ending, so a word and its forms share one stem: `instrument`,
+`instrumenting` and `instrumentation` meet, and so do `placement`, `place`
+and `placed`. An ending needs four letters left, so `comment` stays apart from
+`come` and `generation` from `gene`, and `process` from `proceed`. The
 dependency lexicon's catalogue is built again once, because it stores stems.
 
 A published or exported match is ordered by where it holds the question
@@ -27,6 +30,7 @@ holds none. The phrase the doc writes settles the order after that.
 
 With no published search, `search` refused and told you to drop
 `--just-answer`, even when you had not passed it. Now it reads the checkout
-and publishes the search, the way every other question does. Only under
+and publishes the search, the way every other question does, and the answer
+no longer says the checkout was not compared. Only under
 `--just-answer` does it refuse, and the refusal names that flag and
 `variance index` as the command that publishes one.

@@ -53,21 +53,31 @@ const DESCRIPTION: &[&str] = &["use", "using", "used", "library", "package", "mo
 
 /// A word reduced to what a plural, a tense or a noun form would share with it.
 ///
-/// Suffixes come off until none does, so the answer is its own stem: one pass
-/// takes `instrumenting` to `instrument` and `instrument` to `instru`, and a
-/// question in one form would miss a name written in the other.
+/// An inflection comes off once — a plural, a tense, a participle — and then
+/// the noun and agent endings come off until none does, so `instrumenting`,
+/// `instrumentation` and `instrument` all reach `instru`. A noun ending needs
+/// four letters left, so `comment` stays apart from `come` and `generation`
+/// from `gene`; a plural `s` stays on after `s` or `u`, so `process` is not
+/// `proces`, and `ed` stays on after `e`, so `proceed` is not `proc`.
 pub(super) fn stem(word: &str) -> String {
     let mut stem = word.to_lowercase();
-    loop {
-        let before = stem.len();
-        for suffix in ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ed", "es", "s"] {
+    for suffix in ["ings", "ing", "ies", "ed", "es", "s"] {
+        if let Some(rest) = stem.strip_suffix(suffix) {
+            if suffix == "s" && (rest.ends_with('s') || rest.ends_with('u')) { break; }
+            if suffix == "ed" && rest.ends_with('e') { break; }
+            if rest.chars().count() >= 3 { stem = rest.to_owned(); break; }
+        }
+    }
+    'ending: loop {
+        for (suffix, left) in [("ation", 4), ("ment", 4), ("er", 4)] {
             if let Some(rest) = stem.strip_suffix(suffix) {
-                if rest.chars().count() >= 3 { stem = rest.to_owned(); break; }
+                if rest.chars().count() >= left { stem = rest.to_owned(); continue 'ending; }
             }
         }
-        if stem.ends_with('e') && stem.chars().count() > 3 { stem.pop(); }
-        if stem.len() == before { return stem; }
+        break;
     }
+    if stem.ends_with('e') && stem.chars().count() > 3 { stem.pop(); }
+    stem
 }
 
 /// The stems of the words in `text`, splitting camelCase and punctuation; short words and the words `dropped` names left out.
@@ -163,14 +173,23 @@ mod tests {
     #[test]
     fn a_word_and_its_inflections_share_one_stem() {
         for (inflected, plain) in [("instrumenting", "instrument"), ("instrumented", "instrument"), ("instrumentation", "instrument"),
-            ("orders", "order"), ("placement", "place"), ("placed", "place"), ("modules", "module"), ("probes", "probe")] {
+            ("orders", "order"), ("placement", "place"), ("placed", "place"), ("modules", "module"), ("probes", "probe"),
+            ("processes", "process"), ("proceeds", "proceed"), ("rendered", "render")] {
             assert_eq!(stem(inflected), stem(plain), "{inflected} and {plain}");
         }
     }
 
     #[test]
+    fn a_shorter_word_inside_a_longer_one_keeps_its_own_stem() {
+        for (longer, shorter) in [("generation", "gene"), ("process", "proceed"), ("comment", "come"), ("segment", "seg"),
+            ("element", "ele"), ("processes", "proceeds")] {
+            assert_ne!(stem(longer), stem(shorter), "{longer} and {shorter}");
+        }
+    }
+
+    #[test]
     fn a_stem_is_its_own_stem() {
-        for word in ["instrumenting", "instrument", "order", "placement", "statements", "settings"] {
+        for word in ["instrumenting", "instrument", "order", "placement", "statements", "settings", "process", "renderers"] {
             assert_eq!(stem(&stem(word)), stem(word), "{word}");
         }
     }

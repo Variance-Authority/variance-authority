@@ -23,6 +23,8 @@ export interface Answering {
   /** The answer as data, for the one question that has a shape: `search`. */
   readonly data?: () => SearchAnswer;
   readonly at: string | undefined;
+  /** True when the reading was opened at its age and nothing compared it with the checkout. */
+  readonly unseen?: boolean;
 }
 
 /** The question `search` was asked, read off the input its schema accepted. */
@@ -54,7 +56,7 @@ export async function searchSource(
   options: SourceReadOptions,
 ): Promise<Answering> {
   let tree: Tree | undefined;
-  const index = await readSearchForAnswer(root, {
+  const { index, compared } = await readSearchForAnswer(root, {
     index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
@@ -65,6 +67,7 @@ export async function searchSource(
     answer: () => answerSearch(index, input, tree, root),
     data: () => searchNames(index, searchQuestion(input), tree, root),
     at: index.generation?.generatedAt,
+    unseen: !compared,
   };
 }
 
