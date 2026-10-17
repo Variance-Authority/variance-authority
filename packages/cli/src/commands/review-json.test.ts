@@ -98,13 +98,13 @@ describe('a review.json read back', () => {
     expect(() => reviewOfJson(newer as never)).toThrow(/version 3, written by a newer variance/);
   });
 
-  it('places the cases by file, title and id, so the same cases take the same places in every review', () => {
+  it('places the cases by file, title and id, so a review over the same cases gives each the same place', () => {
     const twin = (id: string): ReviewCase => ({ id, file: 'test/a.test.ts', name: 'twice' });
     const region = { kind: 'function', startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 0, tests: ['test/a.test.ts'] } as const;
     const review: Review = {
       from: 'cc25d6a6', base: 'since', record: 'ran',
       files: [{ file: 'src/a.ts', regions: [
-        { ...region, name: 'b', cases: 2, called: [twin('a#1'), twin('a#2')] },
+        { ...region, name: 'b', cases: 2, called: [twin('a#2'), twin('a#1')] },
         { ...region, name: 'c', cases: 1, called: [twin('a#2')] },
       ] }],
     };
@@ -113,6 +113,9 @@ describe('a review.json read back', () => {
 
     expect(kept.cases.map((test) => test.id)).toEqual(['a#1', 'a#2']);
     expect(kept.files[0]!.regions!.map((written) => written.called)).toEqual([[0, 1], [1]]);
-    expect(reviewOfJson(JSON.parse(JSON.stringify(kept)))).toEqual(review);
+    // Read back, a region lists its cases in the review's order, whatever order it was handed them in.
+    const read = reviewOfJson(JSON.parse(JSON.stringify(kept)));
+    expect(read.files[0]!.regions![0]!.called.map((test) => test.id)).toEqual(['a#1', 'a#2']);
+    expect(read.files[0]!.regions![1]).toEqual(review.files[0]!.regions![1]);
   });
 });

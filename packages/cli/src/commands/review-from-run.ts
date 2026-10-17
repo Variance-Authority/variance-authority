@@ -58,7 +58,8 @@ export async function reviewFromRun(request: RunRequest, exec: Exec = run): Prom
     let bytes: Buffer;
     try {
       bytes = await readFile(join(into, 'review.json'));
-    } catch {
+    } catch (error) {
+      if ((error as { code?: unknown }).code !== 'ENOENT') throw error;
       throw new OperatorError(`run ${id}'s artifact \`${request.artifact}\` holds no review.json, so there is no review to print.`);
     }
     try {

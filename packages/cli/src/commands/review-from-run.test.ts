@@ -9,13 +9,23 @@ import { REVIEW_ARTIFACT, reviewFromRun, runOf } from './review-from-run.js';
 import { reviewPieces } from './review-text.js';
 import type { Review } from './review.js';
 
-// A review.json past the longest string V8 holds takes gigabytes to write, so reading it as one string fails as V8 would.
+// A review.json past the longest string V8 holds takes gigabytes to write, so the file read here refuses, as V8
+// would, to spell itself whole: as a string, or as one string from its bytes.
 const tooLong = vi.hoisted(() => ({ now: false }));
 vi.mock('node:fs/promises', async (original) => {
   const fs = await original<typeof import('node:fs/promises')>();
+  const refuse = () => Object.assign(new Error('Cannot create a string longer than 0x1fffffe8 characters'), { code: 'ERR_STRING_TOO_LONG' });
   const readFile = (async (...args: Parameters<typeof fs.readFile>) => {
-    if (tooLong.now && args[1] !== undefined) throw Object.assign(new Error('Cannot create a string longer than 0x1fffffe8 characters'), { code: 'ERR_STRING_TOO_LONG' });
-    return fs.readFile(...args);
+    if (!tooLong.now) return fs.readFile(...args);
+    if (args[1] !== undefined) throw refuse();
+    const bytes = (await fs.readFile(...args)) as Buffer;
+    const spell = bytes.toString.bind(bytes);
+    return Object.assign(bytes, {
+      toString: (encoding?: BufferEncoding, from = 0, to = bytes.length) => {
+        if (to - from >= bytes.length) throw refuse();
+        return spell(encoding, from, to);
+      },
+    });
   }) as typeof fs.readFile;
   return { ...fs, readFile };
 });

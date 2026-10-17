@@ -40,8 +40,8 @@ export interface ReviewJson extends Omit<Review, 'files'> {
   readonly files: readonly ReviewJsonFile[];
 }
 
-/** The order cases are placed in: by test file, title, then the producer's id, which no two share. */
-function caseOrder(left: ReviewCase, right: ReviewCase): number {
+/** The order a review lists cases in, and the order of the table: by test file, title, then the producer's id, which no two share. */
+export function caseOrder(left: Pick<ReviewCase, 'file' | 'name' | 'id'>, right: Pick<ReviewCase, 'file' | 'name' | 'id'>): number {
   return order(left.file, right.file) || order(left.name, right.name) || order(left.id, right.id);
 }
 
@@ -74,7 +74,10 @@ export function reviewJson(review: Review): ReviewJson {
 export function reviewOfJson(kept: Review | ReviewJson): Review {
   if (!('version' in kept)) return kept;
   const { version, cases, files, ...rest } = kept;
-  if (version !== REVIEW_JSON_VERSION) throw new OperatorError(`This review.json is version ${String(version)}, written by a newer variance than this one, which reads up to version ${REVIEW_JSON_VERSION}: upgrade @variance-authority/cli, or read the review.md beside it.`);
+  if (version !== REVIEW_JSON_VERSION) {
+    const newer = typeof version === 'number' && version > REVIEW_JSON_VERSION;
+    throw new OperatorError(`This review.json is version ${JSON.stringify(version)}, ${newer ? 'written by a newer variance than this one' : 'which no variance writes'}; this one reads versions up to ${REVIEW_JSON_VERSION}${newer ? ': upgrade @variance-authority/cli, or read the review.md beside it' : ''}.`);
+  }
   return {
     ...rest,
     files: files.map(({ regions, ...file }) => regions === undefined ? file : {
