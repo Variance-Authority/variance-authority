@@ -109,6 +109,36 @@ describe('story timing', () => {
     expect(take('a')).toEqual({ ready: 300 });
   });
 
+  it('keeps its stamps when the watch is installed a second time', async () => {
+    watchStoryTiming();
+    const page = preview();
+    scope.__STORYBOOK_PREVIEW__ = page.instance;
+    await page.initialize(300);
+    clock = 400;
+    watchStoryTiming();
+    await Promise.resolve();
+    expect(take('a')).toEqual({ ready: 300 });
+  });
+
+  it('times nothing for a render it did not see start, or a payload that names no story', () => {
+    watchStoryTiming();
+    const page = preview();
+    scope.__STORYBOOK_PREVIEW__ = page.instance;
+    // Mid-render when the watch began: no `preparing`, so no start to measure from.
+    page.phase(10, 'a', 'loading');
+    page.phase(20, 'a', 'finished');
+    page.phase(30, undefined as unknown as string, 'preparing');
+    expect(take('a')).toEqual({});
+    expect(Object.keys((scope[STORY_TIMING_KEY] as { renders: object }).renders)).toEqual([]);
+  });
+
+  it('lets the page assign something other than a preview', () => {
+    watchStoryTiming();
+    scope.__STORYBOOK_PREVIEW__ = null;
+    expect(scope.__STORYBOOK_PREVIEW__).toBeNull();
+    expect(take('a')).toEqual({});
+  });
+
   it('answers nothing on a page that was never watched', () => {
     expect(take('a')).toEqual({});
   });
