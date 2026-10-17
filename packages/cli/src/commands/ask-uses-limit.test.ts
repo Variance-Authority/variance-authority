@@ -60,7 +60,7 @@ describe('variance ask uses --limit', () => {
 
     const all = await run(['ask', 'uses', '--name', 'flag']);
     expect(all.code).toBe(EXIT_CLEAN);
-    expect(all.out).toContain('`flag` is declared, not exported, at packages/kit/src/lexicon.rs:8');
+    expect(all.out).toContain('`flag` [function] is declared, not exported, at packages/kit/src/lexicon.rs:8');
     const rust = (out: string): readonly string[] => out.split('\n').filter((line) => /^\S+\.rs:\d+\b/.test(line));
     expect(rust(all.out)).toHaveLength(3);
 
