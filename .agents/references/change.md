@@ -114,8 +114,9 @@ the site, CLI output and error messages. Read it before writing any of them.
   one is a defect, however it is spelled: a new flag beside an old one, a fast
   path beside the general path, a fallback beside the reader that refused. The
   change extends, calls or replaces the first; it never sits next to it.
-- **Four layers, and complexity goes down.** Each file is one of them, and an
-  import points down the list, never up:
+- **Four roles, and complexity goes down.** Each file plays one of them, and an
+  import points down the list, never up. A role is not a package layer: those
+  are depth in the import graph, from `variance layers`.
   1. **Engine** — borrowed: oxc parses, git finds files and diffs, TypeScript
      answers types, Chromium paints, the runner says what an import meant under
      test. We call an engine; we never re-implement it.
@@ -126,11 +127,12 @@ the site, CLI output and error messages. Read it before writing any of them.
   4. **Shell** — wiring: read arguments, call, print. No branches beyond
      dispatch.
 
-  A rule that wants a loop over bytes goes down a layer into a mechanism; a
+  A rule that wants a loop over bytes goes down a role into a mechanism; a
   mechanism that wants a policy takes it as a parameter. Before writing a
   mechanism, ask whether an engine already answers it. This is Bernhardt's
   "functional core, imperative shell" with the core split into Ousterhout's
-  deep modules.
+  deep modules. Nothing checks a role yet: a file does not declare one
+  (`tools/relations.check.ts` holds the marker).
 - **Scope stops at a neighbour's answer.** What another tool owns — the table in
   [`.compass/COMPASS.md`](../../.compass/COMPASS.md#not-ours) — is asked of that
   tool, never grown here. A capability that would make variance answer its
@@ -159,7 +161,8 @@ the site, CLI output and error messages. Read it before writing any of them.
   every other subject for it.
   A reload, a new page or a new context is a `fresh-page` site, and a
   `setTimeout`, `setInterval` or `waitForTimeout` is a `timer` site:
-  `tools/owners.check.ts` holds today's per file, and a new one fails. Readiness
+  `tools/owners.check.ts` holds today's per file, tests included, and a new one
+  fails. Readiness
   is a signal — an event, a promise, `aria-busy`, the harness hook — and a timer
   is only a deadline that names what never answered.
 - **No magic, and not alone.** Nothing performs an operation the user did not

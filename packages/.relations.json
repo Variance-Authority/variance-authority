@@ -1,0 +1,8 @@
+[
+  { "from": "core", "to": "vitest-browser", "type": "restricted", "message": "core serves every runner and reads no Vitest integration" },
+  { "from": "core", "to": "playwright-test", "type": "restricted", "message": "core serves every runner and reads no Playwright Test integration" },
+  { "from": "sense", "to": "vitest-browser", "type": "restricted", "message": "sense serves every runner and reads no Vitest integration" },
+  { "from": "sense", "to": "playwright-test", "type": "restricted", "message": "sense serves every runner and reads no Playwright Test integration" },
+  { "from": "cli", "to": "vitest-browser", "type": "restricted", "message": "the CLI serves every runner and reads no Vitest integration" },
+  { "from": "cli", "to": "playwright-test", "type": "restricted", "message": "the CLI serves every runner and reads no Playwright Test integration" }
+]

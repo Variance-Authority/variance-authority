@@ -2,7 +2,9 @@
 #
 # The rules CodeRabbit reviews against live in AGENTS.md, `.agents/references/`
 # and `.compass/`; this file points it at them and adds the one check a reviewer
-# that reads only the diff can still answer: is the change's shape ours.
+# that reads only the diff can still answer: is the change's shape ours. What a
+# tool already decides stays with the tool: `yarn owners` holds timers, reloads
+# and new pages, and `yarn restrictions` holds which file may import a runner.
 language: en-US
 reviews:
   profile: assertive
@@ -19,9 +21,9 @@ reviews:
         instructions: |
           Fail when any of these holds, quoting the hunk:
           1. It computes an answer the repository already computes elsewhere, under any name: a second implementation, a fallback beside a reader, a fast path beside the general one.
-          2. It adds setTimeout, setInterval, waitForTimeout, a page reload, newPage or newContext, a per-case cost where per-file would do, or a pass over the whole repository.
+          2. It adds a per-case cost where a per-file one would do, or reads every file in the repository where the files the change touched would do.
           3. It answers a question .compass/COMPASS.md "Not ours" gives to TypeScript, git, oxc, a test runner, Chromium or a bundler.
-          4. Code outside a runner integration (jest*, vitest*, rstest*, packages named for a runner) imports one runner, or a feature lands for Vitest only without saying at the site which runners wait.
+          4. A feature lands for one runner, Vitest most often, without saying at the site which runners wait for it.
           5. A flag switching between two behaviours, an option no task asked for, or an abstraction with one caller.
           6. Logic in a shell (argument parsing, printing) or I/O in a pure decision function.
           A reason in the PR body clears an item only with a measurement or a failing case.
@@ -31,11 +33,6 @@ reviews:
         A new dependency needs a reason in the PR body: what it owns that no
         existing dependency or engine (oxc, git, TypeScript, Chromium) already
         answers. Flag a second package that does what an existing one does.
-    - path: "packages/{core,sense,cli}/src/**"
-      instructions: >-
-        Runner-neutral code. Flag any import of vitest, jest, @rstest or
-        @playwright/test, and any branch on which runner is in use, outside a
-        file whose name starts with that runner.
 knowledge_base:
   code_guidelines:
     enabled: true

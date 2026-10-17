@@ -748,5 +748,220 @@
     "idiom": "code-unit-order",
     "at": "tools/unrun.mjs",
     "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/concurrency.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/index-command.integration.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/cli/src/commands/report-page.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/workers.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/core/src/format/drive.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/core/src/format/stabilize.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright-test/src/arranged.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright-test/src/device-emulation.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright-test/src/direct.chromium.test.ts",
+    "count": 4
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright-test/src/interaction.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright-test/src/recipe-rebaseline.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright-test/src/untouched.chromium.test.ts",
+    "count": 8
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/playwright-test/src/untouched.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright-test/src/watch.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright/src/capture.chromium.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright/src/declarations.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright/src/harness.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright/src/network.chromium.test.ts",
+    "count": 7
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/playwright/src/network.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/presentation/src/playwright.chromium.test.ts",
+    "count": 8
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/react/src/commits.test.tsx",
+    "count": 9
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/react/src/hydration-change.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/react/src/hydration.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/react/src/root-state.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/react/src/suspense.test.tsx",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/route-collector/src/form-state.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/route-collector/src/hydration.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/route-collector/src/laid-out-size.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/route-collector/src/pseudo-elements.chromium.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/route-collector/src/stabilization.chromium.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/index-turn.integration.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/cases.concurrency.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/collectors.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/journey-driver.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/journey-parts.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/journey-trace.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/journey.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/session/src/readiness.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/store/src/share-line.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/store/src/share-lock-holder.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/tribunal/src/ui/difference.test.ts",
+    "count": 4
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/tribunal/src/ui/failed-mask.test.tsx",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/tribunal/src/ui/look.test.tsx",
+    "count": 2
   }
 ]

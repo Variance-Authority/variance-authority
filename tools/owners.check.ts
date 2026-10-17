@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, IDIOMS, counted, sites, sitesIn, sources } from './owners.mjs';
+import { BASELINE, IDIOMS, counted, sites, sitesIn, sources, tests } from './owners.mjs';
 
 /**
  * Owned answers, computed again outside their owner (ADR-0069).
@@ -146,6 +146,21 @@ describe('the owners reader', () => {
 
   it('reads production sources, not the files a runner collects', () => {
     expect((sources() as readonly string[]).filter((file) => /\.(test|spec|check|measure)\.[cm]?tsx?$/.test(file))).toEqual([]);
+  });
+
+  it('reads the tests a runner collects for waits and fresh pages only', () => {
+    const text = [
+      "import { createHash } from 'node:crypto';",
+      "const oracle = (t: string) => createHash('sha256').update(t).digest('hex');",
+      'const wait = (page: Page) => page.waitForTimeout(500);',
+      'const again = (page: Page) => page.reload();',
+    ].join('\n');
+
+    expect(tests()).toEqual(expect.arrayContaining(['packages/playwright/src/harness.chromium.test.ts']));
+    expect((sitesIn('packages/a/src/a.test.ts', text, ['timer', 'fresh-page']) as readonly Site[]).map((site) => site.idiom)).toEqual([
+      'timer',
+      'fresh-page',
+    ]);
   });
 
   it('reads the JavaScript a package ships beside its TypeScript', () => {

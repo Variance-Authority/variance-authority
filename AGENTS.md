@@ -192,7 +192,7 @@ problem, the solution, and one row per block the change touches. Before
 anything is pushed, four subagents with no other context review the change,
 each for one question: does the body say the problem and the solution, should the change
 happen at all, does the diff do what the body says, and is its shape ours — one
-implementation, the right layer, no runner favoured, nothing a neighbour owns
+implementation, the right role, no runner favoured, nothing a neighbour owns
 (the `alignment` reviewer). A change that writes a
 top-layer page gets a fifth, the `content-flow` reviewer, and it runs first:
 the other four wait until the page's structure passes. Fix what they mark

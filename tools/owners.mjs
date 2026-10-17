@@ -84,7 +84,7 @@ export function sources() {
     'git',
     // Without `:(glob)`, `*` crosses directories: these reach every depth. A
     // package can also ship JavaScript, under `src/` or as a shim at its root.
-    ['ls-files', '--', ...['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((extension) => `packages/*/src/*.${extension}`),
+    ['ls-files', '--', ...SCRIPT.map((extension) => `packages/*/src/*.${extension}`),
       ':(glob)packages/*/*.js', ':(glob)packages/*/*.mjs', ':(glob)packages/*/*.cjs', 'tools/*.mjs', 'tools/*.ts'],
     { cwd: ROOT, encoding: 'utf8' },
   )
@@ -94,11 +94,32 @@ export function sources() {
     .filter((file) => existsSync(join(ROOT, file)));
 }
 
+/**
+ * The tests a runner collects, read for waits and fresh pages only.
+ *
+ * A visual test is where a wait on the clock or a reload does its damage: the
+ * run gets slower and the pixel it waited for is still not promised. The other
+ * idioms stay out of tests, where the platform's answer is the oracle.
+ */
+export function tests() {
+  return execFileSync('git', ['ls-files', '--', ...SCRIPT.map((extension) => `packages/*.${extension}`)], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    .filter((file) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file) && !/(^|\/)(__fixtures__|fixtures)\//.test(file))
+    .filter((file) => existsSync(join(ROOT, file)));
+}
+
+const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
+const IN_TESTS = new Set(['timer', 'fresh-page']);
+
 const isTest = (file) =>
   /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/.test(file) || /(^|\/)(__tests__|__fixtures__|fixtures|test)\//.test(file);
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
-export function sitesIn(file, text) {
+export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
   const parsed = parseSync(file, text);
   if (parsed.errors.length > 0) {
     throw new Error(`${file}: ${parsed.errors[0].message}`);
@@ -106,7 +127,7 @@ export function sitesIn(file, text) {
   const lineOf = lines(text);
   const sites = [];
   const found = (idiom, node, name) => {
-    if (IDIOMS[idiom].owns.includes(file)) return;
+    if (!read.includes(idiom) || IDIOMS[idiom].owns.includes(file)) return;
     sites.push({ idiom, at: file, line: lineOf(node.start), name });
   };
 
@@ -121,9 +142,10 @@ export function sitesIn(file, text) {
   return sites;
 }
 
-/** Every site in the repository, in code-unit order of file and line. */
+/** Every site in the repository: production sources, then the tests. */
 export function sites() {
-  return sources().flatMap((file) => sitesIn(file, readFileSync(join(ROOT, file), 'utf8')));
+  const read = (file, idioms) => sitesIn(file, readFileSync(join(ROOT, file), 'utf8'), idioms);
+  return [...sources().flatMap((file) => read(file)), ...tests().flatMap((file) => read(file, [...IN_TESTS]))];
 }
 
 /** One row per idiom per file: what the baseline records. */

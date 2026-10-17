@@ -106,7 +106,7 @@ worktree and `origin/main`, never from local `main`:
    and the path of the body file. It designs the change from the task and the
    compass before it reads the diff, then reports each gap against the code
    rules: a second implementation, a wait or a reload, a neighbour's question,
-   a runner favoured, complexity in the wrong layer. It reads the body last,
+   a runner favoured, complexity in the wrong role. It reads the body last,
    and a reason clears a finding only with evidence. Direction asks whether the
    change should happen; Alignment asks whether its shape is ours.
 
