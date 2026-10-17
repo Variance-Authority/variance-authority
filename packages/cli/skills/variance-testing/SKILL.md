@@ -112,23 +112,25 @@ changes.
 variance covering --file src/cart.ts --suite unit
 ```
 
-Every recorded range of the file has a state; `walked`, two or more cases, needs
+A range the record can rank has a state; `walked`, two or more cases, needs
 nothing. Line coverage reads the other four as covered or not covered; the
 record tells them apart:
 
 | state | what it means for a test |
 |---|---|
-| `unwalked` | no case ran it, and every case that could have finished: write one |
+| `unwalked` | no case ran it, and every case that could have finished: write one, once `ask uses` shows the code is called |
 | `loaded` | it ran only while the module was imported, and line coverage counts it: assert on what it set up, or leave it |
 | `alone` | one case is the only one that fails for it: a second case, if the line matters |
 | `hole` | a case stopped before it could; run the file again before you read it |
 
 Each declared suite answers on its own, so a range one suite never walked may
 be walked by another; `--suite` names the suite you will write the test in.
-For a long file, `--format json` and
+For a long file, `--format json` with `--suite` and
 `jq -c '.ranges[] | select(.state != null and .state != "walked")'` keep the
-ranges to read; a range with no state is one the record cannot rank. Write each test as the previous section does, and break the line to
-see it fail.
+ranges to read; without `--suite` the ranges sit under `.suites[]`. A range
+with no state is one the record cannot rank. Write each test as the previous section does, run it, and read the range
+again with `--line <n> --cases last`: it lists the new case. Then break the line
+and see the case fail.
 [covering](../variance-authority/references/covering.md)
 
 ## Make a test smaller
@@ -140,8 +142,8 @@ variance distill --suite unit --file src/cart.test.ts --test "cart > removes the
 
 The file reading names the modules the test file loaded that no case, or only
 some cases, entered. For a module no case entered, it names the import that
-brought it in: delete that import or import past the barrel, never mock the
-listed path. For one only some cases entered, make it lazy in the code that uses
+brought it in: delete it, mock it with a factory when nothing behind it is
+used, or import past the barrel; never mock the listed path. For one only some cases entered, make it lazy in the code that uses
 it, or move those cases to a file of their own. Rerun the file and read it
 again: the module is gone from the list, and every case passes. It is withheld
 when a case stopped; run the file again.
