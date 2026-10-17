@@ -38,7 +38,7 @@ variance run --config variance.config.json
 `variance run` writes the report at the path the config's `report` key names,
 `.variance/report.json` unless you change it. Setting up the config and the
 collector that mounts each UI state is
-[run visual review from the command line](https://variance-authority.dev/docs/start-cli).
+[run visual review from the command line](https://variance-authority.dev/start/cli).
 
 The report lists one record per **subject** — one named UI state you asked for
 and can ask for again, such as `checkout/empty`. Storybook stories become
@@ -512,7 +512,7 @@ against a suite in flight the same way it works against a report.
 The same three questions, and `variance_diff` with them, are on the command line
 without a client: `variance watch` hosts the run and `variance ask <question>
 --at <address>` reads it. Same functions, same text, no client configuration to
-edit — see [ask a run from the command line](https://variance-authority.dev/docs/agent-cli).
+edit — see [ask a run from the command line](https://variance-authority.dev/agents/cli).
 
 ## Give an agent the tests for source
 
@@ -633,10 +633,10 @@ the producer and route for every unavailable domain:
 
 | unavailable domain | supply it from | integration contract |
 |---|---|---|
-| visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](https://variance-authority.dev/docs/start-cli) |
+| visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](https://variance-authority.dev/start/cli) |
 | presentation readings | `@variance-authority/presentation/playwright` | call `sensePresentation` on the live subject and supply the returned full graph; see [presentation](https://variance-authority.dev/docs/presentation) |
 | runtime journey | a Vitest run wrapped with `withTestSelection`, or any other per-test collector | supply an `ExecutionIndex` with stable per-test ids; see [record which case covered a region](https://variance-authority.dev/reference/packages/sense#record-which-case-covered-a-region) |
-| live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/docs/agent-live-run) |
+| live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/agents/live-run) |
 | Eyes attention | `@variance-authority/eyes` | compose the host adapter in a recording run, so each case's journal lands in its record under the case's id, author AAA phase markers, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
 | scenario AAA | `@variance-authority/scenario` | record host-produced semantic snapshots and authored Acts, then use the archive entrypoint when the evidence must survive the process; see the [scenario reference](https://variance-authority.dev/reference/packages/scenario) |
 

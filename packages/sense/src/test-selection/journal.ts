@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense/journal` — the same instrument, over a wire.
  *
- * [Spec 0028](../../../../docs/specs/0028-the-instrument.md) states the rule this
+ * [Spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states the rule this
  * file discharges: *a browser needs a different transport, not a different
  * instrument.* A browser is the case that exists, and not the boundary this
  * draws. What the Vitest seam has and this does not is a recorder that ran the
@@ -37,7 +37,7 @@
  * that also read it are not selected. So every region entered while a module
  * was evaluating — its root, a helper the top level called — is attributed to
  * **every subject the run drained**, over-including in the direction
- * [`selecting.md`](../../../../docs/selecting.md) already argues for. The page
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) already argues for. The page
  * marks those regions itself ([`instrument`](../instrument/index.ts)); the
  * join only reads the mark.
  */

@@ -142,6 +142,8 @@ export function resolveProvenance(
  *
  * Discards *why* provenance is missing. Use `resolveProvenance` where the reason
  * belongs in a diagnostic.
+ *
+ * @see https://variance-authority.dev/docs/framework-reference#provenanceof
  */
 export function provenanceOf(
   node: Node,

@@ -79,7 +79,7 @@ export async function writeSuiteIndex(path: string, index: SuiteIndex): Promise<
  *
  * A caller that cannot read one has no baseline and must say so rather than
  * answer from this run alone — the same direction
- * [`sense`](../../sense/src/test-selection/commit.ts) already fails in, where an
+ * [`sense`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/test-selection/commit.ts) already fails in, where an
  * index that cannot say where it is means everything runs.
  */
 export async function readSuiteIndex(path: string): Promise<SuiteIndex> {

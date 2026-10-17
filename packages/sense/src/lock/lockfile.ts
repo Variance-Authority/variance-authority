@@ -12,7 +12,7 @@
  * conservative one in both directions: if any instance of a name moved, the name
  * moved; if any instance of a name depends on `bar`, the name depends on `bar`.
  * Both over-include, and over-including is a run that observes more than it had
- * to ([`docs/selecting.md`](../../../../docs/selecting.md)).
+ * to ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
  *
  * Workspaces are left out of every reader, and that is what makes this usable at
  * all. A workspace package is *our* source: the file graph holds it edge for edge

@@ -285,7 +285,7 @@ export const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', 
  * Built once per file and searched, rather than counted per request: a barrel
  * makes hundreds of requests and counting newlines for each one is quadratic on
  * exactly the largest files. The same structure, for the same reason, is behind
- * [`package/doc.ts`](../../package/src/doc.ts).
+ * [`package/doc.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/doc.ts).
  */
 export function linesOf(contents: string): (offset: number) => number {
   const starts: number[] = [0];

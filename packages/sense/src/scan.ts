@@ -84,7 +84,7 @@ export interface ScanOptions extends ResolveOptions {
    * The harness. A `vitest.config.ts` lives outside every directory anybody
    * would point a component scan at, and what it loads — a setup module, an
    * environment — is the part of a run nothing imports and every test rests
-   * on ([`before`](../../core/src/relate/before.ts)). Seeded here, the file and
+   * on ([`before`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/relate/before.ts)). Seeded here, the file and
    * everything it reaches become ordinary nodes, and the question *what does
    * the run rest on* becomes an ordinary walk.
    *

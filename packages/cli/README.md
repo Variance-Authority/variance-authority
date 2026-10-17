@@ -61,7 +61,7 @@ export default storybookCollector({
 `@variance-authority/route-collector` is configured the same way from its own
 options. A collector you write yourself is a factory the CLI calls once per run,
 returning `plan`, `collect` and `close`;
-[run visual review from the command line](https://variance-authority.dev/docs/start-cli)
+[run visual review from the command line](https://variance-authority.dev/start/cli)
 spells out the full shape, and `Collector`, `CollectorContext`, `Plan`,
 `PlannedSubject`, `Collected` and `SubjectSource` are type-only exports of this
 package. A module whose default export is not a function is refused by path

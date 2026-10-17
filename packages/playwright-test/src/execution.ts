@@ -3,7 +3,7 @@
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
  * transport differs, which is the rule
- * [spec 0028](../../../docs/specs/0028-the-instrument.md) states. The adopter's
+ * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The adopter's
  * application build carries `testSelectionProbes()`, the page counts block
  * crossings, and this drains those counters around each observation.
  *

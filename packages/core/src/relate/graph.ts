@@ -47,7 +47,7 @@
  * for each name an install resolved. That is deliberate rather than incidental. A
  * component relation — *`TodoFooter` renders `Chip`* — is another edge kind
  * between nodes of another kind in this same structure, and
- * [`composition.md`](../../../../docs/composition.md) already computes exactly
+ * [`composition.md`](https://variance-authority.dev/docs/composition) already computes exactly
  * that relation from what a run rendered. One graph means the static answer and
  * the rendered answer are joinable rather than adjacent.
  *
@@ -56,7 +56,7 @@
  * tests, and leaves it again at the packages — so a bumped dependency is a node
  * like any other, and *which of our files a new `jsdom` can affect* is the
  * one traversal this file already performs, seeded on the other side
- * ([`docs/selecting.md`](../../../../docs/selecting.md)).
+ * ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
  *
  * ## What it is not
  *
@@ -121,7 +121,7 @@ export interface Node {
    * package the name source code imports it by — `@mui/material`, never a
    * version and never a resolution. Which copy a resolver handed any one
    * importer is unanswerable without running that resolver, and the question
-   * this graph is asked never needs it ([`sense/lock`](../../../sense/src/lock/index.ts)).
+   * this graph is asked never needs it ([`sense/lock`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/lock/index.ts)).
    */
   readonly name: string;
 }

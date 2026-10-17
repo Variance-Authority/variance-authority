@@ -81,6 +81,8 @@ const MAX_CONTEXTS = 256;
  * band rather than carrying a digest of emptiness — the ADR-0002 distinction
  * between "no wiring" and "no reading", which the band relies on to avoid
  * claiming a plain-DOM page and a React page render alike.
+ *
+ * @see https://variance-authority.dev/docs/framework-reference#wiringof
  */
 export function wiringOf(node: Node): Wiring | undefined {
   // Committed only: a component read off a render React has not committed is

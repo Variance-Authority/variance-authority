@@ -10,7 +10,7 @@
  *
  * So the witnesses are narrowed by where the *test* sits, never by what the
  * crossing recorded. Nothing here reads
- * [`ExecutionCrossing.distance`](../../../sense/src/test-selection/reverse.ts):
+ * [`ExecutionCrossing.distance`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/test-selection/reverse.ts):
  * that is call-stack depth, ADR-0056 forecloses recording one, and this
  * project's own collector writes zero into it. The quantity used instead is
  * import hops from the file under the question to the test's own file, walked
