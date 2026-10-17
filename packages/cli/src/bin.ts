@@ -89,7 +89,7 @@ export async function main(
     }
     const unbuilt = unbuiltOf(error);
     if (unbuilt !== undefined) {
-      streams.err(`${unbuilt}\n`);
+      streams.err(`${unbuilt}\n${skillLine()}`);
       return EXIT_OPERATOR;
     }
     streams.err(

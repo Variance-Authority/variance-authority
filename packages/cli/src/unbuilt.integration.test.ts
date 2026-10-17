@@ -50,9 +50,27 @@ describe('a module the build never wrote', () => {
     );
   });
 
+  it('says to reinstall a package installed under node_modules', () => {
+    const error = loadFailure(
+      {
+        'app/node_modules/@example/png/package.json': JSON.stringify({ name: '@example/png', type: 'module' }),
+        'app/node_modules/@example/png/dist/index.js': "export { mask } from './mask.js';\n",
+      },
+      'app/node_modules/@example/png/dist/index.js',
+    );
+    expect(unbuiltOf(error)).toBe(
+      'variance could not load: `@example/png` is only partly built, and its `dist/mask.js` does not exist. ' +
+        'Reinstall `@example/png`, then run the command again.',
+    );
+  });
+
   it('is not said of an error that is not a missing module', () => {
     expect(unbuiltOf(new Error('boom'))).toBeUndefined();
-    expect(unbuiltOf(Object.assign(new Error('Cannot find package'), { code: 'ERR_MODULE_NOT_FOUND' }))).toBeUndefined();
+  });
+
+  it('is not said of a package that is not installed at all', () => {
+    const error = loadFailure({ 'loose/entry.mjs': "import 'va-no-such-package';\n" }, 'loose/entry.mjs');
+    expect(unbuiltOf(error)).toBeUndefined();
   });
 
   it('is not said when no package holds the missing file', () => {
@@ -60,5 +78,5 @@ describe('a module the build never wrote', () => {
     expect(unbuiltOf(error)).toBeUndefined();
   });
 
-  it.todo('names the package and the file when an output was left empty or cut short — Node names no file in a field of the `SyntaxError`');
+  it.todo('names the package and the file when an output was left empty or cut short — needs the file a `SyntaxError` was raised in, which Node carries only in its stack text');
 });
