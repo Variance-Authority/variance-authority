@@ -203,7 +203,7 @@ export const uses: Tool<Help> = {
     'renames the name. The lines of the declaring file that use the name are listed after the imports. A member of an interface, a type literal or a class by that ' +
     'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
     'it through a value whose type is written as its container, and the docs_grep that finds the uses no line types. A top-level ' +
-    'name a file declares and does not export is answered with where it is declared and who can reach it there. Stories ' +
+    'name a file declares and does not export is answered with its kind, where it is declared and who can reach it there. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
@@ -268,19 +268,26 @@ function ownLines(inFile: readonly Use[], name: string): readonly string[] {
   return listed(inFile, 'Used in the file that declares it:', name);
 }
 
-/** A name its files keep to themselves: where each declares it, and who can reach it from there. */
+/**
+ * A name its files keep to themselves: what each declaration is, where it is
+ * declared, and who can reach it from there. The kind is said every time,
+ * since a name is not a thing: a Rust `mod walk;` and the `fn walk` inside it
+ * are two declarations that share a spelling, and the export of one is no
+ * answer about the other.
+ */
 function keptLine(name: string, kept: readonly DeclaredName[]): string {
   // A Rust item inside an inline module answers to its own name, and is
   // declared on its module path: the path is said where it is not the name.
   const named = (one: DeclaredName): string => (one.name === name ? '' : ` as \`${one.name}\``);
+  const kind = (one: DeclaredName): string => (one.kind === '' ? '' : ` [${one.kind}]`);
   if (kept.length === 1) {
     const one = kept[0]!;
-    return `\`${name}\` is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}.`;
+    return `\`${name}\`${kind(one)} is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}.`;
   }
   const files = new Set(kept.map((one) => one.at)).size;
   return [
     `\`${name}\` is declared, not exported, in ${files === kept.length ? `${files} files` : places(kept.length)}:`,
-    ...kept.map((one) => `  ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}`),
+    ...kept.map((one) => `  ${one.at}:${one.line}${named(one)}${kind(one)}${reachSentences(one).clause}`),
   ].join('\n');
 }
 

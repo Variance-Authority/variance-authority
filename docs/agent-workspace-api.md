@@ -340,8 +340,11 @@ seen, so the answer says who can reach it is not recorded. A script or
 CommonJS file, a module that hands itself out with `export =` and a
 `macro_rules!` hand a name out in ways their readers cannot tell, so the answer
 says who can reach it is not recorded. `docs_uses`
-answers with the same file, line and rule in one sentence, before any member
+answers with the same kind, file, line and rule in one sentence, before any member
 declared by that name, and after the imports of an export of that name elsewhere.
+The kind tells apart two declarations that share a spelling: a Rust `mod walk;`
+is answered as a `[module]`, and the imports listed above it belong to the
+`fn walk` the module exports.
 It lists the imports the source index resolved to the declaring file: for a
 Rust item the modules inside its own that name it, by a `use` or by a path
 written in a type or an expression, such as `super::flag()`, and for a Python
