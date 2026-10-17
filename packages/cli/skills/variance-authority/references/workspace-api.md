@@ -171,8 +171,9 @@ specifier, and only narrows: it answers from that package instead of from every
 specifier that publishes the name.
 
 A name nothing declares is answered on stdout, exit `0`: what was read and
-declares nothing, and where else the name may be written. A generation reused
-from earlier is asked again with one made now before the answer is given:
+declares nothing, and where else the name may be written. Unless you pass
+`--just-answer`, a generation reused from earlier is asked again with one made
+now before the answer is given:
 
 ```
 `NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.
