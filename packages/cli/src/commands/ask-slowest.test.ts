@@ -58,7 +58,7 @@ describe('variance ask slowest-tests', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Slowest recorded test files, as their runner reported them, from ${at}:`,
+        `Slowest recorded test files, as their runner timed them, from ${at}:`,
         '  2.4 s  test/slow.test.ts',
         '1 of 2 timed file(s) shown; 1 recorded file(s) have no duration.',
         '',
@@ -140,11 +140,11 @@ describe('variance ask slowest-tests, somewhere', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Slowest recorded test files, that entered src/format.ts, as their runner reported them, from ${at}:`,
+        `Slowest recorded test files, that entered src/format.ts, as their runner timed them, from ${at}:`,
         '  300 ms  test/a.test.ts',
         '1 of 1 timed file(s) shown.',
         '',
-        `Slowest recorded test cases, that entered src/format.ts, as their runner reported them, from ${at}:`,
+        `Slowest recorded test cases, that entered src/format.ts, as their runner timed them, from ${at}:`,
         '  250 ms  test/a.test.ts  writes',
         '1 of 1 timed case(s) shown.',
         '',
@@ -161,7 +161,7 @@ describe('variance ask slowest-tests, somewhere', () => {
 
     expect(answered.out.split('\n').slice(0, 2)).toEqual([
       `Slowest recorded test files, under test/a.test.ts, that entered src/other or src/format.ts, ` +
-        `as their runner reported them, from ${at}:`,
+        `as their runner timed them, from ${at}:`,
       '  300 ms  test/a.test.ts',
     ]);
     const empty = await run(['ask', 'slowest-tests', '--from', 'test/b.test.ts', '--to', 'src/format.ts']);

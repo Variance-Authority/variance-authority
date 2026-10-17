@@ -1,12 +1,13 @@
 /**
- * What each recorded test file and test case cost, as its runner reported it.
+ * What each recorded test file and test case cost, as its runner timed it.
  *
  * Read from what a recorded run published, the way `recordedCases` reads the
  * per-case index: the nearest layer holding one answers, for each suite the
  * root config declares — the snapshot for files, the case index beside it for
  * cases. Nothing here runs a test or times one. A duration is the runner's
- * figure, stored when the run was recorded, and a file or case whose runner
- * reported none is counted as untimed rather than as free.
+ * figure, stored when the run was recorded; a file's is what running it cost,
+ * the phases before its first case included (`fileCost`). A file or case whose
+ * runner reported none is counted as untimed rather than as free.
  *
  * A scope narrows both halves the same way, and the counts are counted inside
  * it: `from` keeps the tests declared under a path, `to` the tests the record
@@ -19,7 +20,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
-import { NO_DURATION } from './test-selection/format-layout.js';
+import { fileCost } from './test-selection/file-cost.js';
+import { NO_DURATION, PHASE_NAMES } from './test-selection/format-layout.js';
+import type { TestCoverageView } from './test-selection/format-view.js';
 import { recordDigestAt } from './test-selection/record-base.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
@@ -35,7 +38,7 @@ import {
 
 export type { DurationScope, ScopeCounts } from './recorded-scope.js';
 
-/** One test file and the milliseconds its runner reported for it. */
+/** One test file and the milliseconds running it cost, as `fileCost` reads them. */
 export interface TimedTestFile {
   readonly file: string;
   readonly duration: number;
@@ -101,12 +104,12 @@ export function recordedDurations(
     try {
       return { ...named, recording, cases, ...askCoverageFile(recording, (view) => {
         const paths = view.testPath.all();
-        const durations = view.testDuration?.all();
+        const costOf = costs(view);
         const timed: TimedTestFile[] = [];
         let untimed = 0;
         const counts = countScope(scopeOfSnapshot(view, scope), scope, paths.length, (test) => {
-          const duration = durations?.[test] ?? NO_DURATION;
-          if (duration === NO_DURATION) untimed += 1;
+          const duration = costOf(test);
+          if (duration === undefined) untimed += 1;
           else timed.push({ file: view.string(paths[test]!), duration });
         });
         timed.sort((left, right) => right.duration - left.duration || order(left.file, right.file));
@@ -116,6 +119,14 @@ export function recordedDurations(
       return { ...named, recording, unread: messageOf(error), cases };
     }
   });
+}
+
+/** What running test `test` of `view` cost, as {@link fileCost} reads it; absent where its runner timed nothing. */
+function costs(view: TestCoverageView): (test: number) => number | undefined {
+  const durations = view.testDuration?.all();
+  const phases = view.testPhases?.all();
+  const width = PHASE_NAMES.length;
+  return (test) => fileCost(durations?.[test] ?? NO_DURATION, phases?.subarray(test * width, (test + 1) * width));
 }
 
 /**
@@ -132,11 +143,11 @@ export function recordedTimes(recording: string): SuiteTimes {
   if (!existsSync(recording)) return { recording, unread: 'nothing is recorded there' };
   const placed = askCoverageFile(recording, (view) => {
     const paths = view.testPath.all();
-    const durations = view.testDuration?.all();
+    const costOf = costs(view);
     const times = new Map<string, number>();
     paths.forEach((path, test) => {
-      const duration = durations?.[test] ?? NO_DURATION;
-      if (duration !== NO_DURATION) times.set(view.string(path), duration);
+      const duration = costOf(test);
+      if (duration !== undefined) times.set(view.string(path), duration);
     });
     return { times, ...(view.commit === undefined ? {} : { commit: view.commit }) };
   });

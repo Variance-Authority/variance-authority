@@ -331,7 +331,12 @@ describe('a named import nothing ever calls', () => {
     const text = formatDistillation(result);
     expect(text).toContain('Loaded but not covered: 1 module(s).');
     expect(text).toContain('never covered: formatTotal (lines 3-6)');
-    expect(text).toContain("substitution to try: vi.mock('src/format-total.ts')");
+    expect(text).toContain(
+      '    substitution to try: mock src/format-total.ts in this test\'s file; loading it is all this test used of it. ' +
+        'Stand in for what it exports: an automock loads the module to read its shape',
+    );
+    // The module is named, and how to write the mock is left to the file's runner.
+    expect(text).not.toMatch(/\b(?:jest|vi|sb)\.(?:mock|doMock|unstable_mockModule|fn)\b|\bmock\.module\b/);
     // The proposal is a candidate, and the top level is what mocking also takes.
     expect(text).toContain('Mocking removes the top level too');
   });

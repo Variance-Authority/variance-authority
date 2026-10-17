@@ -2,7 +2,7 @@ import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
-import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
+import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
@@ -108,7 +108,7 @@ export const symbol: Tool<Help> = {
       // Without it, what the workspace holds is still an answer: the
       // dependencies are the part of it not checked.
       if (everywhere === undefined) {
-        throw new Error(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.'));
+        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.'));
       }
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
@@ -140,7 +140,7 @@ export const symbol: Tool<Help> = {
       const checked = invocation?.root === undefined
         ? undefined
         : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
-      throw new Error(nowhere(help, name, wanted, invocation?.root, members, checked));
+      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked));
     }
 
     const [first] = found;
@@ -230,38 +230,6 @@ function memberBlocks(root: string | undefined, name: string, members: Members):
     ...(stop === undefined ? [] : [stop]),
     ...('refused' in read ? [] : unreadLine(read.unread)),
   ];
-}
-
-/**
- * The refusal of a name nothing in the workspace declares: that no file
- * declares it, then, given `dependencies`, what is known of the installed
- * ones, then where the reading of members stopped, then the files the source
- * index holds no declarations of. Where the index could not be read, that is
- * said in place of a claim about the files. Members are read from JavaScript
- * and TypeScript only, so where the index holds files of another language the
- * claim about members is made of those two, and the others are named.
- */
-function nowhere(
-  help: Help,
-  name: string,
-  wanted: string | undefined,
-  root: string | undefined,
-  members: Members | undefined,
-  dependencies: string | undefined,
-): string {
-  const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
-  const read = declarations(root, name);
-  const why = 'refused' in read ? read.refused : members?.unread;
-  const unread = 'refused' in read ? [] : unreadLine(read.unread);
-  const stop = why === undefined && members !== undefined ? membersStop(name, members) : undefined;
-  // What was read and found nothing comes first, as only what was read; what was not read, last.
-  const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
-  const files = why !== undefined
-    ? `Which files declare \`${name}\` is not known: ${why}.`
-    : stop === undefined
-      ? `${none}, at its top level or as a member.`
-      : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
-  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), ...unread].join(' ');
 }
 
 /** Every published entry of the name, from the package asked for when one was. */

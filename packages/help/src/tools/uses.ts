@@ -3,9 +3,9 @@ import { limitOf, notShown, stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
-import { entriesNamed, isPackage, unfound } from './find.js';
+import { FoundNothing, entriesNamed, isPackage, nowhere } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
-import { type Members, membersOf, membersStop, places, routes } from './members.js';
+import { type Members, membersOf, places, routes } from './members.js';
 import { originOf, passesOn } from './passed-on.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
@@ -427,10 +427,8 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
     if (kept.length > 0 || members.declared.length > 0) {
       return { name, found, exported, byPath, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], members, kept, keptSites, keptInFile, undeclared, origin: undefined };
     }
-    const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
-    // Members are read from JavaScript and TypeScript only: the files of another language the index holds are named.
-    const stop = membersStop(name, members);
-    throw new Error([`${unfound(help, name, wanted)}${unreadMembers}`, ...(stop === undefined ? [] : [stop]), ...unreadLine(undeclared)].join(' '));
+    // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
+    throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined));
   }
   // A published name is read from its entry file as well as its declaration:
   // an entry that renames it, `export { greet as salute }`, passes on a name

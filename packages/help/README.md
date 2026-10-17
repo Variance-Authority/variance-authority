@@ -45,7 +45,7 @@ Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
 commands reuse a generation for one hour before refreshing it, and a name a
-reused generation refuses is looked for again in one made from the checkout
+reused generation does not hold is looked for again in one made from the checkout
 now, so a function you just wrote is answered rather than reported missing.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
@@ -160,7 +160,7 @@ stays available without taking space from the first answer.
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
-| `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
+| `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have none |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version, how many times the code imports it, and each agent skill it ships in `skills/<name>/SKILL.md`, with the file to read. [Use the packages your project already installed](https://variance-authority.dev/docs/tech-stack) |
@@ -506,7 +506,11 @@ the same one-hour policy and asks a refused call again of a generation made
 now, or serves only the recorded generation when `justAnswer` is true. A host
 of its own asks `caughtUp` whether a refusal is worth asking again, and is
 handed what to ask again and, when the checkout could not be compared, the line
-its refusal ends with; `snapshotLine` dates an answer.
+its refusal ends with; `snapshotLine` dates an answer. A name nothing declares
+is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
+message is the answer: what was read, and where else the name may be written.
+`variance ask` and `variance-authority-help` print it on stdout and exit `0`,
+under the lines `foundNothingFooter` gives.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';

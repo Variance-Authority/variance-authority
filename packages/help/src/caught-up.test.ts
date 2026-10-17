@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
-import { caughtUp, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingFooter, snapshotLine } from './caught-up.js';
 import { serveWorkspace } from './server.js';
 
 /**
@@ -63,6 +63,34 @@ describe('caughtUp', () => {
     const again = async (): Promise<string> => 'asked again';
     expect(await caughtUp(new Date(started + 1).toISOString(), started, undefined, again)).toBeUndefined();
     expect(await caughtUp(undefined, started, undefined, again)).toBeUndefined();
+  });
+});
+
+describe('foundNothingFooter', () => {
+  const at = '2026-01-02T03:04:05.000Z';
+
+  it('dates an answer that found nothing with the generation it was read from', () => {
+    expect(foundNothingFooter(undefined, at, false)).toBe(`Snapshot ${at}.`);
+    expect(foundNothingFooter(undefined, at, true)).toMatch(UNCOMPARED);
+    expect(foundNothingFooter(undefined, undefined, false)).toBeUndefined();
+  });
+
+  it('dates it as well when only the installed packages could not be compared', async () => {
+    const started = Date.now();
+    const caught = await caughtUp(new Date(started + 1).toISOString(), started, fixture.cache(), async () => 'asked again');
+    const footer = foundNothingFooter(caught, at, false);
+    expect(footer?.split('\n')[0]).toBe(`Snapshot ${at}.`);
+    expect(footer?.split('\n')[1]).toMatch(/^Installed packages not compared with the checkout/u);
+  });
+
+  it('dates it once, and says why, when the checkout could not be read again', async () => {
+    const started = Date.now();
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => {
+      throw new Error('a manifest is half-written');
+    });
+    const footer = foundNothingFooter(caught, at, false);
+    expect(footer).toMatch(UNREAD);
+    expect(footer?.match(/Snapshot/gu)).toHaveLength(1);
   });
 });
 

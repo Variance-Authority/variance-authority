@@ -221,7 +221,7 @@ it, and `unentered` names the declarations the test never reached.
 Loaded but not covered: 1 module(s).
   src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
     never covered: HeavyChart (lines 5-8)
-    substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
+    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it. Stand in for what it exports: an automock loads the module to read its shape
 ```
 
 This is a stronger reading than an opportunity and still not a verdict. Mocking
@@ -280,7 +280,11 @@ each group, ten of those only some cases entered, and sums the rest on one line;
 with its cause.
 
 A module listed is evidence; the fix is at its import. Delete that
-import, or mock it with a factory, when nothing behind it is used; when part
+import, or mock it with a factory, when nothing behind it is used. Where the
+test file's subject reads the import only in functions no case ran, the reading
+proposes the mock: the module, the file that would stop loading it, and every value it
+exports for a stand-in. It names no runner's call; write the mock the way your
+runner mocks a module. When part
 of it is, import past the barrel inside its own package, or from an entry its
 package declares; move it to the code that uses it when only some
 cases do. Which case calls a module does not change what the file loads: only
@@ -329,26 +333,27 @@ Where the time went, as the runner timed 6 of the 6 test file(s): 3964 ms.
   setup files: 119 ms, 3%
   collect, importing the test file and everything it loads: 3447 ms, 87%
   cases: 156 ms, 4%
-Loading took longer than the cases in 6 test file(s): 3447 ms against 156 ms.
-  packages/distill/src/charge.test.ts: 575 ms loading, 34 ms in its cases
-  packages/distill/src/file.test.ts: 575 ms loading, 24 ms in its cases
-  packages/distill/src/mocks.test.ts: 575 ms loading, 14 ms in its cases
-  packages/distill/src/own.test.ts: 575 ms loading, 33 ms in its cases
-  packages/distill/src/scope.test.ts: 575 ms loading, 35 ms in its cases
+Loading took longer than the cases in 6 test file(s): 3808 ms against 156 ms.
+  packages/distill/src/charge.test.ts: 635 ms loading, 34 ms in its cases
+  packages/distill/src/file.test.ts: 635 ms loading, 24 ms in its cases
+  packages/distill/src/mocks.test.ts: 635 ms loading, 14 ms in its cases
+  packages/distill/src/own.test.ts: 635 ms loading, 33 ms in its cases
+  packages/distill/src/scope.test.ts: 635 ms loading, 35 ms in its cases
   and 1 more
 ```
 
 Only `cases` is your tests: the cases and their hooks. `collect` is importing
-the test file and running its top level, which is where its modules load, and
-"loading" in the last lines means `collect` alone. Vitest reports all five
+the test file and running its top level, which is where its modules load.
+"Loading" in the last lines is everything before the first case: `prepare`,
+`environment`, `setup` and `collect` summed. Vitest reports all five
 phases. Jest reports the environment and the setup files, and the recording
 marks the moment jest-circus starts each file's run, so a Jest file has every phase
 but `prepare`. A phase no file reported is left out rather than shown as zero,
 and a file without both a `collect` and a `cases` time is left out of every
 sum, which is why the head says how many of the files were timed.
 
-A test file whose `collect` took longer than its cases spends most of its time
-in what it imports. Each one is named, the longest loading first, the line
+A test file whose loading took longer than its cases spends most of its time
+before it tests anything, and usually in what it imports. Each one is named, the longest loading first, the line
 before the names sums them, and the next reading says which imports those are.
 Files that load side by side wait on one another's imports, so in a parallel
 run their `collect` times come out close together, as they do above.
