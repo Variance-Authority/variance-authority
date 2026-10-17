@@ -1,6 +1,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { readsNames } from './discover.js';
+import { limitOf, notShown } from '@variance-authority/mcp/tools';
 
 /**
  * `docs_intersection` — the files every one of several whole questions answers.
@@ -57,11 +58,6 @@ function questionsOf(input: Readonly<Record<string, unknown>>): readonly Questio
     }
     return { question, input: (given ?? {}) as Readonly<Record<string, unknown>> };
   });
-}
-
-function limitArg(input: Readonly<Record<string, unknown>>): number {
-  const said = input['limit'];
-  return typeof said === 'number' && Number.isInteger(said) && said > 0 ? said : SHOWN;
 }
 
 const evidenceOf = (lines: readonly number[]): string =>
@@ -131,6 +127,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
         operands.find((candidate) => verbOf(candidate) === question)?.wants?.(given) === true),
 
     run: (subject, input, invocation?: ToolInvocation<Subject>) => {
+      const limit = limitOf(input, SHOWN);
       const questions = questionsOf(input);
       // Every question is resolved before any is asked, so a misspelled third
       // question costs nothing to refuse.
@@ -165,12 +162,11 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       });
       if (common.length === 0) return [...lines, '', 'No file is in all of them.'].join('\n');
 
-      const limit = limitArg(input);
       lines.push('', `${counted(common.length)} in all of them.`, '');
       for (const file of common.slice(0, limit)) {
         lines.push(`${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`);
       }
-      if (common.length > limit) lines.push('', `${common.length - limit} more not shown; a higher \`limit\` shows them.`);
+      if (common.length > limit) lines.push('', notShown(common.length - limit));
       return lines.join('\n');
     },
   };

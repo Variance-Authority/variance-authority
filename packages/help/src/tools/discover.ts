@@ -1,7 +1,7 @@
 import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
+import { entryPoints, limitOf, notShown, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
@@ -103,11 +103,6 @@ function listArg(input: Readonly<Record<string, unknown>>, name: string): readon
 function textArg(input: Readonly<Record<string, unknown>>, name: string): string | undefined {
   const said = input[name];
   return typeof said === 'string' && said.trim() !== '' ? said : undefined;
-}
-
-function limitArg(input: Readonly<Record<string, unknown>>): number {
-  const said = input['limit'];
-  return typeof said === 'number' && Number.isInteger(said) && said > 0 ? said : SHOWN;
 }
 
 function regexOf(name: string, pattern: string, flags: string): RegExp {
@@ -407,11 +402,11 @@ export const discover: Tool<unknown> = {
   wants: () => true,
 
   run: (_subject, input, invocation) => {
+    const limit = limitOf(input, SHOWN);
     const { kept, header, answer, matched, reaches } = answered(input, invocation);
     if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
 
     const shown = (file: string, evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${file}:${evidence.line}  `}${evidence.text}`;
-    const limit = limitArg(input);
     const order = reaches === 0 ? '.' : ', nearest first.';
     const lines = [...header, '', `${counted(answer.length)} in all of them${order}`];
     for (const file of answer.slice(0, limit)) {
@@ -419,7 +414,7 @@ export const discover: Tool<unknown> = {
       for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(file, evidence));
       for (const evidence of matched.get(file) ?? []) lines.push(shown(file, evidence));
     }
-    if (answer.length > limit) lines.push('', `${answer.length - limit} more not shown; a higher \`limit\` shows them.`);
+    if (answer.length > limit) lines.push('', notShown(answer.length - limit));
     return lines.join('\n');
   },
 

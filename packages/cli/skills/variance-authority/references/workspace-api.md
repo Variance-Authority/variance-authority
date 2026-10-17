@@ -75,7 +75,7 @@ A misspelling *inside* a verb is refused against the tool's own schema:
 
 ```
 $ variance-authority-help uses digestValue --form x
-`uses` takes no `--form`; it takes: name, package, from
+`uses` takes no `--form`; it takes: name, package, from, limit
 ```
 
 ## Ask about a repository that does not depend on it
@@ -216,6 +216,21 @@ block per declaration. A name nothing declares is refused.
 resolved to. When nothing in the workspace imports the specifier, the file it
 names is not known, and the name is refused with that reason.
 
+An interface, a type alias or a class is followed by `Members:`, one row per
+line that declares a member, as the checkout holds it. A member of a type
+literal inside it belongs to the literal and is not listed, and a line the
+signature already shows is not repeated.
+
+A name a file only passes on with `export … from`, renamed, type-only, through
+`export *` or as an import it exports again, is followed to the file that
+declares it: the answer says `It passes on <name>, declared at <file>:<line>:`,
+shows that line, and lists its members. The name is resolved the way an import
+resolves it: the file's own export of the name first, then a named `export …
+from`, then its stars, and no star passes `default`. Files that only pass the
+name to each other name no declaration, and neither do two stars that reach
+different declarations, a namespace (`export * as`, `import * as`), or a file
+the source index holds no export list of and that does not declare the name.
+
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
 
@@ -254,6 +269,22 @@ alone, the same way. The first line names where it is exported:
 
 ```
 `roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.
+```
+
+When the one file that exports it only passes it on, the line goes on to the
+declaration:
+
+```
+`levy` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
+```
+
+`--limit <n>` sets how many rows of each list are shown, 12 when not said:
+each kind of site, the lines of the declaring file, the member declarations
+and the uses of each member.
+Every site is still counted, and the rest are said:
+
+```
+… 3 more not shown; a higher `limit` shows them.
 ```
 
 A method or property of an interface, a type literal or a class is never

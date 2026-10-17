@@ -23,7 +23,8 @@ use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_members::{indexed_extensions, member_declarations, MemberDeclarations};
+use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
+use crate::help_origin::{declaration_passed_on, PassedOnDeclaration};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -117,6 +118,28 @@ pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Op
 #[napi]
 pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<MemberDeclarations>> {
     opened_chain(&index, |layers| MemberDeclarations { sites: member_declarations(&root, layers, &name), extensions: indexed_extensions(layers) })
+}
+
+/// Every member the interface, type alias or class named `on` declares in
+/// `file`, repo-relative, by line; `None` when there is no index.
+#[napi]
+pub fn members_on_of(index: String, file: String, on: String) -> napi::Result<Option<Vec<ContainerMember>>> {
+    opened_chain(&index, |layers| members_on(layers, &file, &on))
+}
+
+/// What the index reads of the declaration an export passes on.
+#[napi(object)]
+pub struct PassedOnReading {
+    /// `None` when the file declares the name or the walk ends short of a declaration.
+    pub declaration: Option<PassedOnDeclaration>,
+}
+
+/// The declaration the export `name` of `file`, repo-relative, passes on with
+/// `export … from`, as [`declaration_passed_on`] walks to it; `None` when
+/// there is no index.
+#[napi]
+pub fn declaration_passed_on_of(index: String, file: String, name: String) -> napi::Result<Option<PassedOnReading>> {
+    opened_chain(&index, |layers| PassedOnReading { declaration: declaration_passed_on(layers, &file, &name) })
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its

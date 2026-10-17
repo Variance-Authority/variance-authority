@@ -103,6 +103,19 @@ export interface MemberDeclarations {
   readonly extensions: readonly string[];
 }
 
+/** One member a container declares: its name and its line. */
+export interface ContainerMember {
+  readonly name: string;
+  readonly line: number;
+}
+
+/** The declaration an export passes on: the file that declares it, the name it has there, and its line. */
+export interface PassedOnDeclaration {
+  readonly at: string;
+  readonly name: string;
+  readonly line: number;
+}
+
 /** One line that uses a member, and how. */
 export interface MemberUseSite {
   readonly at: string;
@@ -136,6 +149,8 @@ export interface NativeHelp {
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
+  membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
+  declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
   aliasesOf?(root: string, index: string, local: string): Alias[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, query: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
@@ -210,6 +225,37 @@ export function importersOf(
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): MemberDeclarations | undefined {
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+}
+
+/**
+ * Every member the interface, type alias or class named `on` declares in
+ * `file`, repo-relative, by line, as the newest parse the index at `index`
+ * holds of the file records them: a property or method signature, a class
+ * method, property or accessor, or a constructor parameter property. A member
+ * of a type literal inside the container is the literal's. `undefined` when no
+ * index was published; throws when the index does not read.
+ */
+export function membersOn(root: string, file: string, on: string, index: string = sourceIndexPath(root)): readonly ContainerMember[] | undefined {
+  return entry('membersOnOf')(index, file, on) ?? undefined;
+}
+
+/**
+ * The declaration the export `name` of `file`, repo-relative, passes on,
+ * through every `export … from` and every import a file exports again between
+ * them, renamed or not and type-only or not, and through an `export *` when no
+ * named export passes the name, as ECMAScript resolves an export: a file's own
+ * export list first, then a named `export … from`, then its stars, none of
+ * which passes `default`. `null` when `file` declares the name itself, and
+ * when the walk ends short of a declaration: at a namespace (`export * as`,
+ * `import * as`), at a request that resolved to no file of the checkout, at a
+ * file with no export list in the index that does not declare the name, back
+ * at a file it passed through, or at stars that reach different declarations.
+ * `undefined` when no index was published; throws when the index does not
+ * read.
+ */
+export function declarationPassedOn(root: string, file: string, name: string, index: string = sourceIndexPath(root)): PassedOnDeclaration | null | undefined {
+  const read = entry('declarationPassedOnOf')(index, file, name);
+  return read === null ? undefined : (read.declaration ?? null);
 }
 
 /**
