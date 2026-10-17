@@ -164,7 +164,8 @@ the site, CLI output and error messages. Read it before writing any of them.
   `tools/owners.check.ts` holds today's per file, tests included, and a new one
   fails. Readiness
   is a signal — an event, a promise, `aria-busy`, the harness hook — and a timer
-  is only a deadline that names what never answered.
+  is only a deadline that names what never answered. A deadline lands the way
+  any recorded site does: its reason at the site, then `yarn owners --write`.
 - **No magic, and not alone.** Nothing performs an operation the user did not
   ask for, in a place they would not look for it. We never keep the user blind,
   and we never fix an edge case behind their back. Across a boundary we ride what

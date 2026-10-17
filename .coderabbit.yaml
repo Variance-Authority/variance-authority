@@ -19,14 +19,8 @@ reviews:
       - name: Alignment
         mode: error
         instructions: |
-          Fail when any of these holds, quoting the hunk:
-          1. It computes an answer the repository already computes elsewhere, under any name: a second implementation, a fallback beside a reader, a fast path beside the general one.
-          2. It adds a per-case cost where a per-file one would do, or reads every file in the repository where the files the change touched would do.
-          3. It answers a question .compass/COMPASS.md "Not ours" gives to TypeScript, git, oxc, a test runner, Chromium or a bundler.
-          4. A feature lands for one runner, Vitest most often, without saying at the site which runners wait for it.
-          5. A flag switching between two behaviours, an option no task asked for, or an abstraction with one caller.
-          6. Logic in a shell (argument parsing, printing) or I/O in a pure decision function.
-          A reason in the PR body clears an item only with a measurement or a failing case.
+          Judge the diff against the Code rules in .agents/references/change.md and the "Not ours" table in .compass/COMPASS.md; do not restate them, quote the rule you apply. Fail, quoting the hunk and the rule, when the diff breaks "One implementation", "Four roles, and complexity goes down", "Scope stops at a neighbour's answer", "No runner is the default" or "Performance is earned, and isolation is not how it is earned" in a way no tool already reports: yarn owners holds timers, reloads and new pages, and yarn restrictions holds which file may import a runner. Also fail a flag switching between two behaviours, an option no task asked for, or an abstraction with one caller.
+          A reason in the PR body clears a failure only with a measurement or a failing case.
   path_instructions:
     - path: "packages/*/package.json"
       instructions: >-

@@ -136,6 +136,10 @@ describe('the owners reader', () => {
     ).toEqual(['fresh-page one', 'fresh-page two', 'fresh-page three']);
   });
 
+  it('leaves a function of the caller\'s own that is named reload', () => {
+    expect(idioms('packages/tribunal/src/ui/a.tsx', 'export const one = (reload: () => void) => reload();')).toEqual([]);
+  });
+
   it('leaves the owner of each idiom alone', () => {
     const digest = "import { createHash } from 'node:crypto';\nexport const d = (t: string) => createHash('sha256').update(t);";
     const order = 'export const o = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);';
@@ -156,7 +160,13 @@ describe('the owners reader', () => {
       'const again = (page: Page) => page.reload();',
     ].join('\n');
 
-    expect(tests()).toEqual(expect.arrayContaining(['packages/playwright/src/harness.chromium.test.ts']));
+    expect(tests()).toEqual(
+      expect.arrayContaining([
+        'packages/playwright/src/harness.chromium.test.ts',
+        'cases/storybook-case/src/globals.chromium.test.js',
+        'examples/todomvc/src/entry.test.tsx',
+      ]),
+    );
     expect((sitesIn('packages/a/src/a.test.ts', text, ['timer', 'fresh-page']) as readonly Site[]).map((site) => site.idiom)).toEqual([
       'timer',
       'fresh-page',

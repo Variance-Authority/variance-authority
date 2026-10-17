@@ -102,16 +102,19 @@ export function sources() {
  * idioms stay out of tests, where the platform's answer is the oracle.
  */
 export function tests() {
-  return execFileSync('git', ['ls-files', '--', ...SCRIPT.map((extension) => `packages/*.${extension}`)], {
+  return execFileSync('git', ['ls-files', '--', ...COLLECTED.flatMap((place) => SCRIPT.map((extension) => `${place}*.${extension}`))], {
     cwd: ROOT,
     encoding: 'utf8',
   })
     .trim()
     .split('\n')
-    .filter((file) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file) && !/(^|\/)(__fixtures__|fixtures)\//.test(file))
+    .filter((file) => /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/.test(file) && !/(^|\/)(__fixtures__|fixtures)\//.test(file))
     .filter((file) => existsSync(join(ROOT, file)));
 }
 
+// Where the runner configurations collect from: `PLACES` in `vitest.config.mts`,
+// and the checks and measurements under `tools/` and `packages/`.
+const COLLECTED = ['packages/', 'cases/', 'examples/', 'site/app/', 'tools/'];
 const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
 const IN_TESTS = new Set(['timer', 'fresh-page']);
 
@@ -136,7 +139,7 @@ export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
     if (node.type === 'ConditionalExpression' && isCodeUnitOrder(node)) found('code-unit-order', node, scope.name);
     if (isFunction(node) && writesThenRenames(node)) found('atomic-write', node, nameOf(node, scope));
     if (node.type === 'CallExpression' && TIMERS.has(calleeName(node.callee))) found('timer', node, scope.name);
-    if (node.type === 'CallExpression' && FRESH_PAGES.has(calleeName(node.callee))) found('fresh-page', node, scope.name);
+    if (node.type === 'CallExpression' && isFreshPage(node.callee)) found('fresh-page', node, scope.name);
   });
 
   return sites;
@@ -224,6 +227,10 @@ function writesThenRenames(fn) {
   const renames = called.has('rename') || called.has('renameSync');
   return writes && renames;
 }
+
+// A method on a page, a context, a browser or `location`. A bare `reload()` is
+// the caller's own function, such as a view fetching its data again.
+const isFreshPage = (callee) => callee.type === 'MemberExpression' && FRESH_PAGES.has(calleeName(callee));
 
 function calleeName(callee) {
   if (callee.type === 'Identifier') return callee.name;
