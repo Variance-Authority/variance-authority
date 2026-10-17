@@ -20,12 +20,7 @@
  * known only against the file on disk, which the probes read.
  */
 
-/** A plugin as Vite resolves it, as far as this reads one. */
-interface ResolvedPlugin {
-  readonly name: string;
-  transform?: unknown;
-  load?: unknown;
-}
+import { afterHook, type AfterHook, type HookedPlugin } from './plugin-hooks.js';
 
 /**
  * A step that wrote a module and returned no map: the plugin, with `loaded`
@@ -37,8 +32,6 @@ export interface UnmappedStep {
   readonly loaded?: string;
   readonly nulled?: boolean;
 }
-
-type Handler = (this: object, code: string, id: string, ...rest: unknown[]) => unknown;
 
 /** Where a step is noted: on the pass's context under the dev server, by module in a build. */
 type Keyed = 'context' | 'module';
@@ -57,7 +50,7 @@ const notesOf = new WeakMap<object, Set<UnmappedNotes>>();
  * wrapped once, however many seams or environments resolve it; one that more
  * than one watcher resolved notes a module for each of them.
  */
-export function watchUnmapped(plugins: readonly ResolvedPlugin[], self: string, keyed: Keyed = 'context'): UnmappedNotes {
+export function watchUnmapped(plugins: readonly HookedPlugin[], self: string, keyed: Keyed = 'context'): UnmappedNotes {
   const notes: UnmappedNotes = new Map();
   for (const plugin of plugins) {
     if (plugin.name === self) continue;
@@ -68,17 +61,8 @@ export function watchUnmapped(plugins: readonly ResolvedPlugin[], self: string, 
     }
     const stores = new Set([notes]);
     notesOf.set(plugin, stores);
-    for (const hook of ['transform', 'load'] as const) {
-      const value = plugin[hook];
-      const wrap = (handler: Handler) => (hook === 'load' ? loaded(plugin.name, handler, stores) : wrapped(plugin.name, handler, keyed, stores));
-      if (typeof value === 'function') {
-        plugin[hook] = wrap(value as Handler);
-      } else if (typeof value === 'object' && value !== null && typeof (value as { handler?: unknown }).handler === 'function') {
-        // An object hook keeps its `order` and `filter`: only the handler changes.
-        const object = value as { handler: Handler };
-        plugin[hook] = { ...object, handler: wrap(object.handler) };
-      }
-    }
+    afterHook(plugin, 'transform', transformed(plugin.name, keyed, stores));
+    afterHook(plugin, 'load', loaded(plugin.name, stores));
   }
   return notes;
 }
@@ -94,18 +78,16 @@ export function unmappedSteps(context: unknown, id: string, notes: UnmappedNotes
   return [...shared, ...own.filter((step) => !shared.some((it) => it.plugin === step.plugin))];
 }
 
-function wrapped(name: string, handler: Handler, keyed: Keyed, stores: ReadonlySet<UnmappedNotes>): Handler {
-  return function (this: object, code, id, ...rest) {
-    const result = handler.call(this, code, id, ...rest);
-    return settled(result, (value) => {
-      const { written, map } = answer(value);
-      if (typeof written !== 'string' || written === code) return;
-      if (map === null && !movesLines(code, written)) return;
-      if (map !== undefined && map !== null) return;
-      const step = map === null ? { plugin: name, nulled: true } : { plugin: name };
-      if (keyed === 'module') noteModule(stores, id, step);
-      else push(onContextOf(this), step);
-    });
+function transformed(name: string, keyed: Keyed, stores: ReadonlySet<UnmappedNotes>): AfterHook {
+  return function (this: object, value, [code, id]) {
+    const { written, map } = answer(value);
+    if (typeof written !== 'string' || written === code) return value;
+    if (map !== undefined && map !== null) return value;
+    if (map === null && !movesLines(code as string, written)) return value;
+    const step = map === null ? { plugin: name, nulled: true } : { plugin: name };
+    if (keyed === 'module') noteModule(stores, id as string, step);
+    else push(onContextOf(this), step);
+    return value;
   };
 }
 
@@ -125,22 +107,12 @@ function lineCount(text: string): number {
 }
 
 /** A `load` hook's answer with no map, kept with its text for the probes to hold against the file. */
-function loaded(name: string, handler: Handler, stores: ReadonlySet<UnmappedNotes>): Handler {
-  return function (this: object, id, ...rest) {
-    const result = handler.call(this, id, ...rest);
-    return settled(result, (value) => {
-      const { written, map } = answer(value);
-      if (typeof written === 'string' && map === undefined) noteModule(stores, id, { plugin: name, loaded: written });
-    });
+function loaded(name: string, stores: ReadonlySet<UnmappedNotes>): AfterHook {
+  return function (value, [id]) {
+    const { written, map } = answer(value);
+    if (typeof written === 'string' && map === undefined) noteModule(stores, id as string, { plugin: name, loaded: written });
+    return value;
   };
-}
-
-function settled(result: unknown, look: (value: unknown) => void): unknown {
-  if (typeof (result as PromiseLike<unknown> | undefined)?.then === 'function') {
-    return (result as PromiseLike<unknown>).then((value) => (look(value), value));
-  }
-  look(result);
-  return result;
 }
 
 function answer(result: unknown): { written: unknown; map: unknown } {
@@ -175,7 +147,7 @@ function onContextOf(context: object): UnmappedStep[] {
  * Vite's and Vitest's own are left out: they read the module to resolve its
  * imports, which the probes do not change.
  */
-export function transformsAfter(plugins: readonly ResolvedPlugin[], self: string): readonly string[] {
+export function transformsAfter(plugins: readonly HookedPlugin[], self: string): readonly string[] {
   const at = plugins.findIndex((plugin) => plugin.name === self);
   if (at === -1) return [];
   return plugins
@@ -192,7 +164,7 @@ export function transformsAfter(plugins: readonly ResolvedPlugin[], self: string
  * the compiler the probes go in after would read them again, which is the
  * failure placing them last exists to prevent.
  */
-export function refuseTransformsAfter(plugins: readonly ResolvedPlugin[], self: string): void {
+export function refuseTransformsAfter(plugins: readonly HookedPlugin[], self: string): void {
   const after = transformsAfter(plugins, self);
   if (after.length === 0) return;
   const one = after.length === 1;
