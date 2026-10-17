@@ -444,6 +444,16 @@ the index names each row by where the story is declared — its file, its
 `title/name` — which is the coordinate a person reads in the sidebar and the one
 a diff touches.
 
+Each story's row also says where the browser spent it, timed by the page on its
+own clock rather than by the test driving it, under the phase names a test
+file's row uses. `prepare` is the document's start until the preview is ready:
+the runtime, the project annotations and the index. A document pays it once, so
+only the first story read on it carries one, and a story the preview switched to
+carries none, as the second test in one file pays no worker start. `collect` is
+importing the story's file and everything it loads. `cases` is the render, from
+loaders through the play function to `afterEach`. A story read twice keeps its
+first reading's figures.
+
 ## When integration fails
 
 - **The index cannot be read:** build Storybook first and check

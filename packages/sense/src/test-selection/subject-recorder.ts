@@ -16,6 +16,7 @@ import type { CoveragePrecondition } from './index.js';
 import { recordExecution } from './journal.js';
 import { driveJourneys, type JourneyCookie } from './journey-driver.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
+import type { FilePhases } from './reported-time.js';
 import { repositoryRoot } from './repository-root.js';
 import { stitchJourneys } from './stitch.js';
 
@@ -59,6 +60,11 @@ export interface SubjectNote {
   readonly preconditions?: readonly CoveragePrecondition[];
   /** The case this reading is, where the subject has a file to be a case in. */
   readonly case?: Omit<ObservedCase, 'journal' | 'stopped'>;
+  /**
+   * Where the driver saw this reading's time go. Kept from the subject's first
+   * reading only, as its duration is: the run's time covers every reading.
+   */
+  readonly phases?: FilePhases;
 }
 
 /** One run's accumulation: a window per subject, written once at the end. */
@@ -126,6 +132,7 @@ export function createSubjectRecorder(
   const observed: ObservedSubject[] = [];
   // Each case with the subject it was noted for, so the run's time finds it.
   const cases: { readonly subject: string; readonly observed: ObservedCase }[] = [];
+  const phased = new Set<string>();
   let seen = false;
 
   return {
@@ -147,11 +154,14 @@ export function createSubjectRecorder(
       const journal = await drainExecution(page);
       if (journal === undefined) return;
       seen = true;
+      const phases = noted.phases === undefined || phased.has(subjectId) ? undefined : noted.phases;
+      if (phases !== undefined) phased.add(subjectId);
       observed.push({
         owner: subjectId,
         journal,
         complete,
         ...(noted.preconditions === undefined ? {} : { preconditions: noted.preconditions }),
+        ...(phases === undefined ? {} : { phases }),
       });
       if (noted.case !== undefined) {
         cases.push({ subject: subjectId, observed: { ...noted.case, stopped: !complete, journal } });

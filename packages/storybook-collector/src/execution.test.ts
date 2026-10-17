@@ -113,6 +113,25 @@ describe('a Storybook run records what each story executed', () => {
     });
   });
 
+  it('records where the browser spent a story: the preview load once, the story file, the render', async () => {
+    await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
+      const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile });
+      // The first story on a document carries the preview's load; a story the
+      // preview switched to carries none. A second reading adds nothing: the
+      // phases are the first reading's, as the duration is noted once.
+      await recorder.note(pageReporting(journal(0)), 'story:price--premium', true, { ready: 900, collect: 40, cases: 12 });
+      await recorder.note(pageReporting(journal(0)), 'story:price--premium', true, { ready: 700, collect: 30, cases: 10 });
+      await recorder.note(pageReporting(journal(1)), 'story:price--plain', true, { collect: 5, cases: 3 });
+      await recorder.close();
+
+      const files = (await readTestCoverage(coverageFile)).tests;
+      expect(Object.fromEntries(files.map((test) => [test.file, test.phases]))).toEqual({
+        'story:price--premium': { prepare: 900, collect: 40, cases: 12 },
+        'story:price--plain': { collect: 5, cases: 3 },
+      });
+    });
+  });
+
   it('names a story file from the checkout, not from where Storybook ran', async () => {
     // Storybook writes `importPath` relative to its own directory, with a `./`
     // in front. In a workspace that directory is a package, and a story file
