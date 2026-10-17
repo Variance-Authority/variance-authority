@@ -354,7 +354,7 @@
       "packages/route-collector/src/serve.ts",
       "packages/storybook-collector/src/serve.ts"
     ],
-    "count": 2
+    "count": 3
   },
   {
     "files": [

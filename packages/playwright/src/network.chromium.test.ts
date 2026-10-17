@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { crc32, deflateSync } from 'node:zlib';
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { observeNetwork } from './network.js';
+import { observeNetwork, type NetworkObservation } from './network.js';
 
 /**
  * An animated GIF, held still on the wire.
@@ -177,6 +177,11 @@ const SPECULATING_PAGE = `<!doctype html><html><head>
   </script>
 </body></html>`;
 
+/** Two cacheable images, one of them animated, and a guess at what comes next. */
+const CACHING_PAGE = `<!doctype html><html><head><link rel="prefetch" href="/guessed/cached"></head><body>
+  <img id="hero" src="/cached/hero.png"><img id="spinner" src="/cached/spinner.gif">
+</body></html>`;
+
 let server: Server | undefined;
 let browser: Browser | undefined;
 let base = '';
@@ -195,6 +200,15 @@ beforeAll(async () => {
     if (path.startsWith('/withheld.png')) {
       withheld.push(response);
       withheldArrived();
+      return;
+    }
+    // The same bytes as their uncached twins, under a header that lets the
+    // browser keep them.
+    if (path.startsWith('/cached/')) {
+      const gif = path.endsWith('.gif');
+      response
+        .writeHead(200, { 'content-type': gif ? 'image/gif' : 'image/png', 'cache-control': 'max-age=3600' })
+        .end(gif ? GIF : HERO);
       return;
     }
     if (path.startsWith('/spinner.gif')) {
@@ -219,7 +233,9 @@ beforeAll(async () => {
             ? IMAGES_PAGE
             : path.startsWith('/speculating')
               ? SPECULATING_PAGE
-              : PAGE,
+              : path.startsWith('/caching')
+                ? CACHING_PAGE
+                : PAGE,
       );
   });
 
@@ -426,6 +442,56 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image served as nothing', () => {
       // hashed like anything else. `^` stays.
       expect(network.assets[`${base}/icons/chevron.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
 
+      await network.close();
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+});
+
+// A Storybook run's worker pages share a context so that each boots from what
+// the first one fetched. Playwright's routing turns the cache off, so with
+// `cache` on the wire is watched another way, and must record the same things.
+describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already filled', () => {
+  it('is answered from the cache, and still records what it was answered', async () => {
+    const context = await browser!.newContext({ viewport: { width: 200, height: 200 } });
+    const before = served.filter((path) => path === '/cached/hero.png').length;
+
+    try {
+      const observed: NetworkObservation[] = [];
+      for (const page of [await context.newPage(), await context.newPage()]) {
+        const network = await observeNetwork(page, { cache: true });
+        await page.goto(`${base}/caching`, { waitUntil: 'load' });
+        await network.settle();
+        observed.push(network);
+      }
+
+      expect(served.filter((path) => path === '/cached/hero.png').length - before).toBe(1);
+      for (const network of observed) {
+        expect(network.assets[`${base}/cached/hero.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
+        expect(network.frozen).toEqual([`${base}/cached/spinner.gif`]);
+        expect(network.diagnostics).toEqual([]);
+        await network.close();
+      }
+      expect(observed[1]!.assets).toEqual(observed[0]!.assets);
+      expect(served.filter((path) => path.startsWith('/guessed'))).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
+  it('names an image the server never answers, and closes with it still open', async () => {
+    const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
+
+    try {
+      const network = await observeNetwork(page, { cache: true });
+      const arrived = new Promise<void>((resolve) => {
+        withheldArrived = resolve;
+      });
+      await page.goto(`${base}/withholding`, { waitUntil: 'domcontentloaded' });
+      await arrived;
+
+      expect(await network.settle(0)).toMatch(/1 image, font or media request.*\/withheld\.png/s);
       await network.close();
     } finally {
       await page.close();
