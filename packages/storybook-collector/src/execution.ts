@@ -3,7 +3,7 @@
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
  * transport differs, which is the rule
- * [spec 0028](../../../docs/specs/0028-the-instrument.md) states. The preview is
+ * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The preview is
  * built with the package's addon, which adds the probes whichever builder runs
  * it ([`preset.ts`](./preset.ts)), the page counts block crossings, and this
  * closes one window per story and joins them at the end of the run.

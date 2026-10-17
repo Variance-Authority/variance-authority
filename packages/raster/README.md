@@ -448,4 +448,4 @@ need — `/difference` alone pulls in none of the store, renderer or plan code.
 
 ---
 
-**[@variance-authority/raster](https://variance-authority.dev/reference/packages/raster)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/raster](https://variance-authority.dev/reference/packages/raster)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/raster) · MIT

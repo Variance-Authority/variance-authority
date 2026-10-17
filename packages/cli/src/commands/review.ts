@@ -48,7 +48,7 @@ import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { runsBase } from './runs-base.js';
-import { relationsFor } from './source-graph.js';
+import { sourceGraphFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
 /**
  * How a changed region was reached, first match wins.
@@ -123,6 +123,10 @@ export interface ReviewFile {
   readonly unread?: string;
   /** The change created the file: there is no base text to read the edit against. */
   readonly created?: true;
+  /** The source index read the file: it holds code, in a language the module reader may not claim. */
+  readonly indexed?: true;
+  /** The record holds cases declared in the file: a test file it ran, which no case enters as a module. */
+  readonly holdsCases?: true;
   /** Whether the record holds a row for this file. Absent when coverage was not asked: an edit that changes nothing that runs. */
   readonly recorded?: boolean;
   readonly regions?: readonly ReviewRegion[];
@@ -287,7 +291,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
   const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
-  const relations = await relationsFor(root, ['.'], [], []);
+  const { relations, sources } = await sourceGraphFor(root, ['.'], [], []);
 
   const changed = changedLines(forward);
   const reading = readJourneyChange(forward, textsAt(await prefetch(point, [...changed.keys()], named)), {
@@ -312,6 +316,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
   const comparable = (file: string): boolean => against !== undefined || (unread === undefined && (wrote === undefined || ('compared' in wrote && wrote.compared.has(file))));
 
+  const tested = new Set(full.tests.map((test) => test.file));
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
     const read = readings.get(file);
@@ -322,6 +327,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     files.push({
       file,
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
+      ...(sources.has(file) ? { indexed: true } : {}),
+      ...(tested.has(file) ? { holdsCases: true } : {}),
       ...(change === undefined ? {} : { recorded: change.recorded, regions: change.regions }),
       ...(cases === undefined ? {} : { cases }),
     });

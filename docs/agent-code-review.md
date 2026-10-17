@@ -202,6 +202,14 @@ no case ran come first. Past twelve lines the rest are only counted, so the
 block stays a handful of lines on a change of any size, and its last line is
 the `covering` command that reads one file in full.
 
+The changed source files that no suite's record holds, in any language the
+[source index](source-index.md) reads, such as Rust, are named on one last line, *not in the
+record*, twelve by name and the rest counted. The record holds no function from
+those files, so the block cannot name one there. When they are all the change
+touched, the summary prints *no changed function in the record, 2 changed files
+not in it* rather than *no changed function*. A test file the record holds
+cases of is in the record, and is not named there.
+
 A person sees one collapsed line. A bot reads the raw body, folded content
 included. The markers show where the block a later run prints is pasted, so
 the body never carries two. Every suite in your configuration's `suites` is

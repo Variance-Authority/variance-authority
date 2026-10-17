@@ -355,7 +355,7 @@ function warningsOf(
  * It cannot be recomputed here either. `variants` and `renderings` count
  * distinct digests, and the digests are in the snapshots rather than in the
  * artifact — which is the bargain
- * [`composition.ts`](../../../report/src/composition.ts) already states.
+ * [`composition.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/report/src/composition.ts) already states.
  *
  * So it is omitted, and the omission is a warning rather than a silence. The
  * rule this file is built on is that a merged report must not say anything a

@@ -8,11 +8,12 @@ import { checkout, run } from './ask-packages-fixture.js';
 
 /**
  * `variance ask uses` over a member of an interface, a type literal or a
- * class, and `variance ask grep --to`, which it routes to. A member is never
- * imported, so `uses` names its declarations, which the scan records, and the text search
- * over the files that import a declaring file, which finds its callers. An
- * object literal's key declares nothing, and a file that does not import the
- * declaration is not searched.
+ * class, and `variance ask grep --to`. A member is never imported, so `uses`
+ * names its declarations, which the scan records, and says that a use whose
+ * type the line does not write is TypeScript's to find, at the declaration it
+ * names. The text search over the files that import a declaring file finds
+ * the name as text. An object literal's key declares nothing, and a file that
+ * does not import the declaration is not searched.
  */
 
 const cwd = process.cwd();
@@ -40,10 +41,13 @@ const SCANNER = {
   'packages/kit/src/elsewhere.ts': 'export const other = { resolveThings: () => [] };\nexport const read = other.resolveThings();\n',
 };
 
-const ROUTE = 'docs_grep with `query` `\\bresolveThings\\b` and `to` `packages/lib/src/native.ts`.';
+const STOP =
+  "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, " +
+  "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
+const ROUTE = "Ask TypeScript for those: its language service's find-references on `Scanner.resolveThings` at packages/lib/src/native.ts:2.";
 
 describe('variance ask uses over a member', () => {
-  it('names the declaration of an interface member and the search that finds its callers', async () => {
+  it('names the declaration of an interface member and hands the uses no line types to TypeScript at that declaration', async () => {
     checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
@@ -54,8 +58,20 @@ describe('variance ask uses over a member', () => {
     expect(out).toContain('`resolveThings` [const] is declared, not exported, at packages/lib/src/references.ts:3, so nothing outside that file can import it.');
     expect(out).toContain('`resolveThings` is a member too, declared in 1 place:');
     expect(out).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
-    expect(out).toContain(ROUTE);
+    expect(out).toContain(`${STOP}\n${ROUTE}`);
+    expect(out).not.toContain('docs_grep');
     expect(out).not.toContain('elsewhere.ts');
+  });
+
+  it('says nothing of types for a name that is no member', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'scanner']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts:1 — @acme\/lib$/m);
+    expect(out).not.toContain('type checker');
+    expect(out).not.toContain('find-references');
   });
 
   it('finds the callers of a member in the files that import its declaration', async () => {
@@ -126,6 +142,41 @@ describe('variance ask uses over a member', () => {
     expect(member).toBeGreaterThan(imported);
     expect(out.slice(member)).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
     expect(out.slice(member)).toContain(ROUTE);
+  });
+
+  it('says where its reading of members stops for a name nothing declares, naming the languages whose members were not read', async () => {
+    checkout({ ...SCANNER, 'tools/scan.py': 'class Scanner:\n    def scan_things(self):\n        return []\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, err } = await run(['ask', 'uses', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('`scan_things` is not published by this workspace');
+    expect(err).toContain(
+      "Members are read from JavaScript and TypeScript files only, and this workspace's Python files were not read for them: " +
+        "if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.",
+    );
+  });
+
+  it('says, under the members it lists, that the languages whose members were not read may declare it too', async () => {
+    checkout({ ...SCANNER, 'tools/scan.py': 'class Scanner:\n    def resolveThings(self):\n        return []\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain(
+      `${STOP}\n${ROUTE}\nMembers are read from JavaScript and TypeScript files only, and this workspace's Python files were not read for them: ` +
+        "if `resolveThings` is a member there too, ask their language server's workspace symbols for it, then its find-references on the declaration.",
+    );
+  });
+
+  it('says nothing of other languages for a name nothing declares in a workspace of JavaScript and TypeScript', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, err } = await run(['ask', 'uses', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('`scan_things` is not published by this workspace');
+    expect(err).not.toContain('Members are read');
   });
 
   it('refuses a name nothing publishes and says the member declarations went unread when no source index is published and `--just-answer` reads the generation as it is', async () => {

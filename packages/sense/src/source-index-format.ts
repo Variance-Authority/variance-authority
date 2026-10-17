@@ -27,7 +27,7 @@ import { packageOf } from './specifier.js';
  *
  * The writer is the addon's (`native/src/generation.rs`); this file hands it
  * documents and reads back what it wrote. The segment arithmetic is not here
- * either: [`core/segment`](../../core/src/segment/index.ts) owns sections,
+ * either: [`core/segment`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/segment/index.ts) owns sections,
  * alignment and the checks a decode runs before it believes a file.
  *
  * What stays is the part that is about *source*: which columns exist, which of
@@ -36,7 +36,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 29;
+export const SOURCE_INDEX_VERSION = 30;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */

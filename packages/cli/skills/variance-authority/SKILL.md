@@ -19,7 +19,9 @@ run, and its evidence comes back through the same read-only commands.
 devDependency and never globally. Run it through the package manager —
 `npm exec variance`, `yarn variance`, `pnpm exec variance`. A bare `variance`,
 as the commands in this skill are written, is on `PATH` only inside a package
-script. If the package is missing, add it as a devDependency with the project's
+script. Yarn 2 and later have no `-s`: `yarn variance` already prints only the
+CLI's output, and `yarn -s variance` fails before the CLI starts. If the
+package is missing, add it as a devDependency with the project's
 package manager.
 
 `variance ask` with no question prints every question and what each one needs.

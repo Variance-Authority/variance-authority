@@ -5,12 +5,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::{fs, path::Path};
 
-use regex::Regex;
-
 use super::sites::{sites, State};
 use super::view::Owning;
 use super::Owner;
-use crate::package_owners::NO_OWNER;
+use crate::package_owners::{is_package, NO_OWNER};
 
 /// The `package.json` paths git tracks under `root`, in code-unit order. A manifest that is not yet added is
 /// not listed: the walk for untracked files costs half a second on a checkout the size of Kibana, and a
@@ -47,33 +45,15 @@ pub(super) fn of(owners: &[Owner], state: Option<&State>) -> BTreeMap<(String, S
     wanted
 }
 
-fn workspace_patterns(value: &serde_json::Value) -> Vec<Regex> {
-    let listed = value.get("workspaces").and_then(|value|
-        value.as_array().or_else(|| value.get("packages").and_then(serde_json::Value::as_array)));
-    listed.into_iter().flatten().filter_map(serde_json::Value::as_str).filter_map(|pattern| {
-        let mut regex = String::from("^");
-        let mut chars = pattern.chars().peekable();
-        while let Some(ch) = chars.next() {
-            match ch {
-                '*' if chars.peek() == Some(&'*') => { chars.next(); regex.push_str(".*"); }
-                '*' => regex.push_str("[^/]*"),
-                '?' => regex.push_str("[^/]"),
-                _ => regex.push_str(&regex::escape(&ch.to_string())),
-            }
-        }
-        regex.push('$');
-        Regex::new(&regex).ok()
-    }).collect()
-}
-
+/// The owner rows: every tracked `package.json` the package owner would read (`crate::package_owners::is_package`),
+/// so a file is judged against the manifest nearest above it (ADR-0082) whether or not the root's `workspaces` list
+/// it. A project nested in the checkout with a manifest and an install of its own declares its own dependencies. A
+/// manifest without a `name` declares them all the same: a name makes a package importable, not its declarations.
 pub(super) fn owners(root: &Path, paths: &[String]) -> Vec<Owner> {
-    let root_value: serde_json::Value = fs::read(root.join("package.json")).ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or(serde_json::Value::Null);
-    let patterns = workspace_patterns(&root_value);
+    let manifests = paths.iter().filter(|path| path.rsplit('/').next() == Some("package.json") && is_package(path));
     let mut found = Vec::new();
-    for manifest in paths.iter().filter(|path| path == &"package.json" || path.ends_with("/package.json")) {
+    for manifest in manifests {
         let directory = manifest.strip_suffix("/package.json").unwrap_or("");
-        if manifest != "package.json" && !patterns.iter().any(|pattern| pattern.is_match(directory)) { continue; }
         let value: serde_json::Value = match fs::read(root.join(manifest)).ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok()) { Some(value) => value, None => continue };
         // A package in more than one field is reported under the strongest: what ships, then what a consumer must bring, then what only builds.

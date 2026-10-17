@@ -71,6 +71,15 @@ pub struct MemberSite {
     pub uses: Option<Vec<MemberUseSite>>,
 }
 
+/// The declarations of a member by one name, and the distinct extensions of
+/// the files the chain holds: whose members the scan records is a fact of
+/// their language, which the caller names from the extension.
+#[napi(object)]
+pub struct MemberDeclarations {
+    pub sites: Vec<MemberSite>,
+    pub extensions: Vec<String>,
+}
+
 /// One line that uses a member, `how`: `read`, `write` or `destructure`.
 #[napi(object)]
 #[derive(Clone)]
@@ -135,6 +144,54 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
     }
     used(root, layers, name, &mut found);
     found
+}
+
+/// The distinct extensions of the files on the chain, dot included, in code
+/// units. A file with no extension adds none.
+pub(crate) fn indexed_extensions(layers: &[Layer]) -> Vec<String> {
+    let mut held: Vec<String> = fold(layers)
+        .into_keys()
+        .filter_map(|file| {
+            let name = &file[file.rfind('/').map_or(0, |at| at + 1)..];
+            name.rfind('.').filter(|&at| at > 0).map(|at| name[at..].to_owned())
+        })
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    held.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+    held
+}
+
+/// One member a container declares: its name and its line.
+#[napi(object)]
+pub struct ContainerMember {
+    pub name: String,
+    pub line: u32,
+}
+
+/// Every member the interface, type alias or class named `on` declares in
+/// `file`, by line, as the file's newest parse on the chain records them; a
+/// member of a type literal inside it is the literal's, not the container's.
+/// Empty when the chain holds no parse of the file.
+pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<ContainerMember> {
+    let folded = fold(layers);
+    let Some((&file, &at)) = folded.get_key_value(file) else { return Vec::new() };
+    let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
+    join_parses(layers, &mut crossings);
+    let Some((layer, row)) = crossings[0].parse else { return Vec::new() };
+    let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+    // FIXME: `member-declarations.on` is the container's name alone, so a
+    // container nested in a function shares its members with a top-level one of
+    // the same name in the file; telling them apart needs the container's place
+    // in the index (`ask-symbol-members.test.ts`, the `it.todo`).
+    let mut members: Vec<ContainerMember> = parses
+        .member_declarations
+        .range(row)
+        .filter(|&at| stored.text(parses.member_declaration_on.at(at)) == on)
+        .map(|at| ContainerMember { name: stored.text(parses.member_declaration_name.at(at)).to_owned(), line: parses.member_declaration_line.at(at) })
+        .collect();
+    members.sort_by_key(|member| member.line);
+    members
 }
 
 /// Each declaration of `name` on a named container given its uses: the

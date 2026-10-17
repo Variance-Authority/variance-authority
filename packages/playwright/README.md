@@ -508,4 +508,4 @@ with `harness.pageErrors()`.
 
 ---
 
-**[@variance-authority/playwright](https://variance-authority.dev/reference/packages/playwright)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/playwright](https://variance-authority.dev/reference/packages/playwright)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/playwright) · MIT

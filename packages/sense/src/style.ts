@@ -5,7 +5,7 @@
  * [`python.ts`](./python.ts), [`rust.ts`](./rust.ts), [`jvm.ts`](./jvm.ts),
  * [`swift.ts`](./swift.ts) — rather than inside [`read.ts`](./read.ts), which
  * owns the [`Read`](./read.ts) contract every one of them fills and the module
- * reader `oxc` backs ([ADR-0066](../../../docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
+ * reader `oxc` backs ([ADR-0066](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
  *
  * It is the one reader with no parser behind it, and the one whose requests bind
  * no names at all. Its half of resolution is here too: the Sass partial

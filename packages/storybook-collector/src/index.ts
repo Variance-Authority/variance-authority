@@ -56,7 +56,7 @@ import { scanSource } from './source.js';
  *
  * Nothing outside Storybook. A Playwright suite, a route table or a bespoke
  * mount is still a collector somebody writes — see
- * [`@variance-authority/playwright-test`](../playwright-test) for the surface
+ * [`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test) for the surface
  * where the adopter's own test body plays that part instead.
  */
 

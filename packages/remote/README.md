@@ -368,4 +368,4 @@ disk passes, from `@variance-authority/raster`.
 
 ---
 
-**[@variance-authority/remote](https://variance-authority.dev/reference/packages/remote)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/remote](https://variance-authority.dev/reference/packages/remote)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/remote) · MIT

@@ -108,7 +108,7 @@ that drops nothing keeps your setting.
 The files are removed in a `sequence.sequencer` that wraps the one your
 configuration names, before it shards and sorts, so every shard divides the
 same list. `--shard` places that list by whole files, by the time each file took
-on the last recorded run, or by file count when the record has no times, as [sharding](../../docs/sharding.md) shows. Your sequencer still sorts
+on the last recorded run, or by file count when the record has no times, as [sharding](https://variance-authority.dev/docs/sharding) shows. Your sequencer still sorts
 each shard, but it does not choose the shard's files. Watch mode does not select.
 `@variance-authority/cli` has to be installed in the project; when the checkout cannot resolve it, the run fails and the message
 names the package.
@@ -2292,7 +2292,7 @@ case also records, for each region it crossed, the line of the test statement
 that first reached it, and whether that statement was the case's own or a
 hook's. Those lines are the test's cadence: what each of its statements added
 to what the case reached. Under Playwright, `withTestSelection` from
-[`@variance-authority/playwright-test`](../playwright-test/README.md#record-which-spec-line-reached-each-region)
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test#record-which-spec-line-reached-each-region)
 records the same lines for what a spec's page reached.
 
 The seam's transform puts a call in front of every statement of a test or hook
@@ -2356,7 +2356,7 @@ are unmeasured, never none.
 
 [Case preconditions](https://variance-authority.dev/docs/case-preconditions)
 is the full page, and
-[`variance covering`](../cli#reading-the-state-each-covering-test-ran-under)
+[`variance covering`](https://variance-authority.dev/reference/packages/cli#reading-the-state-each-covering-test-ran-under)
 reads them back.
 
 ### Ask the index about a diff
@@ -2458,4 +2458,4 @@ same under every host:
 
 ---
 
-**[@variance-authority/sense](https://variance-authority.dev/reference/packages/sense)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/sense](https://variance-authority.dev/reference/packages/sense)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/sense) · MIT

@@ -21,8 +21,8 @@ import { listed, many } from './prose-counts.js';
  *
  * This derives it from the baselines instead. A stored baseline records the
  * components the document that painted it actually rendered
- * ([ADR-0018](../../../../docs/context/adr/0018-a-component-hash-covers-its-own-nodes.md),
- * [ADR-0027](../../../../docs/context/adr/0027-a-baseline-carries-what-its-document-said.md)),
+ * ([ADR-0018](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0018-a-component-hash-covers-its-own-nodes.md),
+ * [ADR-0027](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0027-a-baseline-carries-what-its-document-said.md)),
  * so *what this subject is made of* is a fact the last run established rather
  * than one a build tool predicts. It needs no plugin, no stats file and no
  * second graph.

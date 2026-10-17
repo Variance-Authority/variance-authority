@@ -303,7 +303,7 @@ function readerFor(language: LanguageId): (file: string, contents: string) => Re
  * A tree-sitter language, read by the grammar linked into the addon.
  *
  * The walk happens where the tree is and what crosses the boundary is the
- * answer ([ADR-0074](../../../docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
+ * answer ([ADR-0074](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
  * A binary built without the grammars claims no language, and the file is then
  * unknown with that reason rather than read some other way.
  */

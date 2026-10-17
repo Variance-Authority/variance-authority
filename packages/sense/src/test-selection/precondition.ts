@@ -40,6 +40,8 @@ type Recorder = (named: unknown, value: unknown, called: Error) => void;
  * The call hands the record to the recording's listener, with an error whose
  * stack names the call site; without a recording, it returns. The listener's
  * error reaches the test only when it says no case is running.
+ *
+ * @see https://variance-authority.dev/docs/case-preconditions#what-varianceprecondition-takes
  */
 export function variancePrecondition(preconditions: Readonly<Record<string, PreconditionValue>>): void {
   const recorder = (globalThis as { [PRECONDITION]?: Recorder })[PRECONDITION];

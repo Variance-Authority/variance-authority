@@ -20,7 +20,7 @@ import type { Capability } from '../next.js';
  * the same code.
  *
  * Configuration is environment variables rather than flags, matching
- * [`server`](../../../server/src/bin.ts) — a service is started by a supervisor,
+ * [`server`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/bin.ts) — a service is started by a supervisor,
  * a unit file or a container, and all three pass an environment.
  *
  * ## The three things this refuses
