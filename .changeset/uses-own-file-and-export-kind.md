@@ -15,5 +15,6 @@ name: a published name its entry's kind, the one `ask symbol` prints, and an
 export no entry publishes the kind of the declaration it binds in its own file,
 as the source index holds it: "`addTax` [function] is imported in 1 place",
 "`orphan` [const] is exported, without being published". An export that passes
-the name on with `export … from` names no kind. `Named` carries it
+the name on with `export … from` names no kind, and a name declared twice,
+`const Kind` and `type Kind`, gives each export the kind on its own line. `Named` carries it
 as `declaration`, and the Help snapshot moves to version 7.
