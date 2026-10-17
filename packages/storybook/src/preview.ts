@@ -4,6 +4,7 @@ import {
   STORYBOOK_ERROR_OVERLAY,
   STORYBOOK_EVENTS,
   STORY_ROOT_SELECTORS,
+  TEST_ENVIRONMENT,
   type ErrorOverlay,
   type FinishRequest,
   type PreviewGlobals,
@@ -19,6 +20,7 @@ import { previewUrl } from './preview-url.js';
 import { showStory } from './show-story.js';
 import { readStoryParameters } from './story-parameters.js';
 import { beginFinishWatch } from './story-finished.js';
+import { enterTestEnvironment } from './story-test-environment.js';
 import { STORY_TIMING_KEY, type StoryTiming } from './story-timing.js';
 import { takeStoryTiming } from './story-timing-read.js';
 
@@ -61,7 +63,8 @@ import { takeStoryTiming } from './story-timing-read.js';
  */
 export { PREVIEW_PATH, previewUrl } from './preview-url.js';
 export { showStory } from './show-story.js';
-export { beginFinishWatch, markFinishAbsent, readFinishRecord } from './story-finished.js';
+export { beginFinishWatch, markFinishAbsent, readFinishRecord, waitFinishRecord } from './story-finished.js';
+export { enterTestEnvironment } from './story-test-environment.js';
 export { applyGlobals } from './preview-globals.js';
 export {
   DEFAULT_PREVIEW_GLOBALS,
@@ -69,12 +72,15 @@ export {
   STORYBOOK_ERROR_OVERLAY,
   STORYBOOK_EVENTS,
   STORY_ROOT_SELECTORS,
+  TEST_ENVIRONMENT,
 } from './preview-protocol.js';
 export type {
   ErrorOverlay,
   FinishRecord,
   FinishRequest,
+  FinishWatch,
   GlobalsRequest,
+  TestEnvironmentRequest,
   PreviewGlobals,
   Readiness,
   ShowEvents,
@@ -270,7 +276,7 @@ export async function collectStory(
     // prevent, and still happens on the channel-less path — comes back with the
     // project's own globals, and an addon this pass turned off would be back on
     // for every story after it.
-    if (navigated) await setGlobals(page, options, request.events.updateGlobals);
+    if (navigated) await prepareDocument(page, options, request.events.updateGlobals);
 
     // Before the story is shown, not after: a story that finishes inside the
     // round trip back to Node would otherwise finish with nobody listening, and
@@ -291,7 +297,7 @@ export async function collectStory(
         'no Storybook channel on the preview, so this story was shown by reloading the iframe: ' +
           'one navigation per subject, which is the cost a session exists to avoid (ADR-0009)',
       );
-      await setGlobals(page, options, request.events.updateGlobals);
+      await prepareDocument(page, options, request.events.updateGlobals);
       await page.evaluate(beginFinishWatch, watch);
       result = await page.evaluate(showStory, request);
     }
@@ -413,6 +419,19 @@ export async function collectStories(
  */
 export async function readParameters(page: StoryPage): Promise<ParametersRead> {
   return page.evaluate(readStoryParameters, PARAMETERS_KEY);
+}
+
+/**
+ * What a session sets on each document it opens, before the next story.
+ *
+ * The globals, and Storybook's test branch: with it, Storybook does not open
+ * every render with its 100 ms animation wait (`story-test-environment.ts`).
+ * The story the document opened on has already rendered by the time this runs,
+ * so the switch is paid for once per document and saves on every story after.
+ */
+async function prepareDocument(page: StoryPage, options: CollectOptions, event: string): Promise<void> {
+  await setGlobals(page, options, event);
+  await page.evaluate(enterTestEnvironment, TEST_ENVIRONMENT);
 }
 
 /**

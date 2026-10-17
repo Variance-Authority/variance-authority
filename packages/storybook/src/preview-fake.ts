@@ -47,6 +47,7 @@ export type Behaviour =
   | 'empty'
   | 'never-settles'
   | 'never-finishes'
+  | 'finishes-late'
   | 'finishes-badly'
   | 'throws-on-select'
   | 'exception'
@@ -178,6 +179,13 @@ export function fakePreview(
         // A render that finished and mounted nothing.
         root.replaceChildren();
         render.phase = 'finished';
+        break;
+      case 'finishes-late':
+        // Rendered at once and finished well after: an `afterEach` that holds
+        // the render for a while and then lets go, inside the driver's budget.
+        root.replaceChildren(paragraph(storyId));
+        pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
+        finishes(storyId, 'success', 40);
         break;
       case 'finishes-badly':
         // Rendered, finished, and failed: a `play` that threw after the last

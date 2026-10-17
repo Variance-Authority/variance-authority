@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { collectStories } from '@variance-authority/storybook';
+import { collectStories, collectStory } from '@variance-authority/storybook';
 
 /**
  * The end of a render, against a Storybook that has one.
@@ -196,6 +196,73 @@ live('a story that is still busy when the next one is asked for', () => {
       );
       expect(rendered).toContain('Cancel');
       expect(rendered).not.toContain('Settling');
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+});
+
+/** Stories switched to over the channel, the Spinner among them: an infinite CSS animation. */
+const SWITCHED = ['case-surface--button-secondary', 'case-surface--loading', 'case-surface--card-with-actions'];
+
+live('a story switched to over the channel', () => {
+  it("pays no fixed wait of Storybook's, and keeps the animation state the page set", async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+
+    try {
+      // Storybook's `waitForAnimations` opens every story's `completing` phase
+      // with a 100 ms timer, whatever the story does, and the render waits for
+      // it to fire. Counted, not timed: the count is the same on a loaded
+      // machine, and a wall-clock bound is not. Only a timer that fires counts:
+      // the preview also sets a 100 ms timer before showing its "preparing"
+      // overlay, and clears it when the story is quicker than that.
+      await page.addInitScript(() => {
+        const original = window.setTimeout;
+        window.__variance_case_fixed_waits__ = 0;
+        window.setTimeout = function (handler, delay, ...rest) {
+          if (delay !== 100 || typeof handler !== 'function') return original.call(this, handler, delay, ...rest);
+          return original.call(
+            this,
+            (...args) => {
+              window.__variance_case_fixed_waits__ += 1;
+              return handler(...args);
+            },
+            delay,
+            ...rest,
+          );
+        };
+      });
+
+      // The first story arrives with the document, before anything the driver
+      // sets on it, so the count starts once it is on screen.
+      await collectStory(page, FIRST, { baseUrl });
+      await page.evaluate(() => {
+        window.__variance_case_fixed_waits__ = 0;
+      });
+
+      const outcomes = await collectStories(page, SWITCHED, { baseUrl });
+      expect(outcomes.map((outcome) => `${outcome.storyId}: ${outcome.status} ${outcome.readiness}`)).toEqual(
+        SWITCHED.map((id) => `${id}: rendered storyRendered`),
+      );
+      expect(await page.evaluate(() => window.__variance_case_fixed_waits__)).toBe(0);
+
+      // Skipping the wait puts Storybook on its test branch, which pauses every
+      // animation in reverse at its last keyframe. The page shows what it
+      // showed before: no sheet of Storybook's, and the Spinner runs forwards.
+      await collectStory(page, 'case-surface--loading', { baseUrl });
+      const state = await page.evaluate(() => {
+        const spinning = [...document.querySelectorAll('#storybook-root *')].find(
+          (element) => getComputedStyle(element).animationName === 'case-spin',
+        );
+        return {
+          sheets: [...document.querySelectorAll('style')].filter((style) =>
+            (style.textContent ?? '').includes('animation-direction: reverse'),
+          ).length,
+          direction: spinning ? getComputedStyle(spinning).animationDirection : null,
+          playState: spinning ? getComputedStyle(spinning).animationPlayState : null,
+        };
+      });
+      expect(state).toEqual({ sheets: 0, direction: 'normal', playState: 'running' });
     } finally {
       await page.close();
     }
