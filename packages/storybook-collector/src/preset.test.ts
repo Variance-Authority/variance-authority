@@ -267,6 +267,14 @@ describe('Storybook\'s preview rewrite, under the addon', () => {
     expect(transform("sb.mock(import('./a'));\n", PREVIEW)).toEqual({ code: "sb.mock(       './a' );\n", map: null });
   });
 
+  it('leaves a config without Storybook\'s preview rewrite as it is', async () => {
+    const other = { name: 'other', transform: reprint };
+    const config = (await viteFinal({ plugins: [other] }, TEST)) as { plugins: { name: string }[] };
+    const addon = config.plugins.find((plugin) => plugin.name === 'variance-authority:storybook-addon') as unknown as Addon;
+    addon.configResolved.handler({ plugins: config.plugins });
+    expect(other.transform).toBe(reprint);
+  });
+
   it('waits for a Storybook that answers a promise', async () => {
     const { transform } = await rewritten(async (code: string, id: string) => reprint(code, id));
     await expect(transform("sb.mock(import('./a'));\n", PREVIEW)).resolves.toEqual({ code: "sb.mock(       './a' );\n", map: null });
