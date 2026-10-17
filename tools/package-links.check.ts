@@ -154,11 +154,15 @@ function source(path: string): string {
 function published(home: string, inside: string): boolean {
   const files: unknown = JSON.parse(readFileSync(join(ROOT, home, 'package.json'), 'utf8')).files;
   if (!Array.isArray(files)) return true;
-  return files.some((entry) => {
-    if (typeof entry !== 'string' || entry.startsWith('!')) return false;
+  const entries = files.filter((entry): entry is string => typeof entry === 'string');
+  const matches = (entry: string) => {
     const pattern = entry.replace(/\/$/, '').replace(/[.+?^${}()|[\]\\]/g, '\\$&').replaceAll('*', '[^/]*');
     return new RegExp(`^${pattern}(?:/|$)`).test(inside);
-  });
+  };
+  return (
+    entries.some((entry) => !entry.startsWith('!') && matches(entry)) &&
+    !entries.some((entry) => entry.startsWith('!') && matches(entry.slice(1)))
+  );
 }
 
 /** Source a package ships, by the package it ships in. */
@@ -178,6 +182,8 @@ describe('a relative link in a package names what the package ships', () => {
     expect(packageMiss(file, '../../../cli')).toBe('outside the package');
     expect(packageMiss('packages/tribunal/README.md', 'migrations')).toBeNull();
     expect(packageMiss('packages/tribunal/README.md', 'src/store.ts')).toBe('not in the tarball');
+    expect(packageMiss('packages/sense/README.md', 'native/instrument/Cargo.toml')).toBeNull();
+    expect(packageMiss('packages/sense/README.md', 'native/Cargo.toml')).toBe('not in the tarball');
   });
 
   it('finds packaged source and READMEs to read', () => {
