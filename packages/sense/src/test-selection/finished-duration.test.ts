@@ -88,6 +88,11 @@ describe('the phases Jest reported for a test file', () => {
     expect(jestPhases(perfStats, undefined)).toEqual({ phases: { environment: 30, setup: 9 } });
   });
 
+  it('splits nothing at a mark outside the file\'s own span, rather than give one half the other\'s time', () => {
+    expect(jestPhases(perfStats, 0)).toEqual({ phases: { environment: 30, setup: 9 } });
+    expect(jestPhases(perfStats, 1800)).toEqual({ phases: { environment: 30, setup: 9 } });
+  });
+
   it('is absent when Jest timed nothing', () => {
     expect(jestPhases(undefined, 1600)).toEqual({});
   });

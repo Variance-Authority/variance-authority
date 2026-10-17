@@ -36,6 +36,14 @@ describe('one row for a file several Jest projects ran', () => {
     expect(oneTestPerFile([timed, { file, complete: true, preconditions: [] }])[0]).not.toHaveProperty('duration');
   });
 
+  it('spends in each phase what both projects spent there, unknown where one did not say', () => {
+    const merged = oneTestPerFile([
+      { file, complete: true, preconditions: [], phases: { environment: 3, setup: 4, collect: 100, cases: 10 } },
+      { file, complete: true, preconditions: [], phases: { environment: 2, collect: 50, cases: 5 } },
+    ]);
+    expect(merged[0]?.phases).toEqual({ environment: 5, collect: 150, cases: 15 });
+  });
+
   it('leaves a file one project ran as it was', () => {
     const other: CoverageTest = { file: 'test/other.case.ts', complete: true, preconditions: [], duration: 3 };
     expect(oneTestPerFile([{ file, complete: false, preconditions: [] }, other])).toEqual([

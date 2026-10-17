@@ -67,9 +67,10 @@ export interface JestPerfStats {
 
 /**
  * A Jest file's phases: the environment and both kinds of setup file from
- * `perfStats`, and the rest split at `collected`, the moment the setup module's
- * `beforeAll` marked on the same clock. Jest readies no file apart from these,
- * so it reports no `prepare`; without the mark it reports no collect or cases.
+ * `perfStats`, and the rest split at `collected`, the moment the setup module
+ * saw jest-circus start the file's run, on the same clock. Jest readies no file
+ * apart from these, so it reports no `prepare`; without the mark, or with one
+ * outside the file's span, it reports no collect or cases.
  */
 export function jestPhases(
   perfStats: JestPerfStats | undefined,
@@ -79,12 +80,13 @@ export function jestPhases(
   // A missing stamp is `undefined`, and arithmetic on it a `NaN` that
   // `reportedPhases` leaves out, as it leaves out anything negative.
   const between = (start?: number, end?: number): number => (end ?? Number.NaN) - (start ?? Number.NaN);
-  const { setupFilesStart, setupFilesEnd, setupAfterEnvStart, setupAfterEnvEnd } = perfStats;
+  const { setupFilesStart, setupFilesEnd, setupAfterEnvStart, setupAfterEnvEnd, end } = perfStats;
+  // A mark outside the file's own span is on some other clock, and splits
+  // nothing: both halves go, never one with the other's time in it.
+  const split = collected !== undefined && between(setupAfterEnvEnd, collected) >= 0 && between(collected, end) >= 0;
   return reportedPhases({
     environment: between(perfStats.loadTestEnvironmentStart, perfStats.loadTestEnvironmentEnd),
     setup: between(setupFilesStart, setupFilesEnd) + between(setupAfterEnvStart, setupAfterEnvEnd),
-    ...(collected === undefined
-      ? {}
-      : { collect: between(setupAfterEnvEnd, collected), cases: between(collected, perfStats.end) }),
+    ...(split ? { collect: between(setupAfterEnvEnd, collected), cases: between(collected, end) } : {}),
   });
 }

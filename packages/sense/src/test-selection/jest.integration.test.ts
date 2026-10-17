@@ -101,6 +101,9 @@ describe('the Jest integration', () => {
       [at('test/beta.case.ts'), ['cases', 'collect', 'environment', 'setup']],
       [at('test/gamma.case.ts'), ['cases', 'collect', 'environment', 'setup']],
     ]);
+    // The project's setup file holds a 150 ms `beforeAll` and freezes the
+    // test's clock: the hook is in the cases, and the frozen clock moves no mark.
+    expect(coverage.tests.every((test) => (test.phases?.cases ?? 0) >= 150)).toBe(true);
     // The project's setup files stayed configured and are preconditions of
     // every observation. `src/decide.ts` is not one: a precondition is a file
     // the answer depended on that the instrument could not see inside, and an

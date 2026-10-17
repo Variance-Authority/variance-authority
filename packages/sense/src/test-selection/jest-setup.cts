@@ -36,6 +36,7 @@
 import globals = require('@jest/globals');
 import fs = require('node:fs');
 import crypto = require('node:crypto');
+import perfHooks = require('node:perf_hooks');
 import install = require('./jest-globals.cjs');
 import journalNames = require('./jest-journal-name.cjs');
 import caseOwner = require('./case-owner.cjs');
@@ -60,19 +61,14 @@ const project = typeof named === 'string' ? named : undefined;
 // been evaluated by now and whatever its top level called has been counted.
 // The ambient bucket is the only one that exists at this point, and where cases
 // are recorded it is closed here as a record of its own rather than copied.
-// The same hook marks when collecting ended, on the worker clock Jest's
-// `perfStats` reads: this file's `beforeAll` is the first one declared, so the
-// mark falls before any hook of the test file, and the reporter splits the
-// file's time into its collect and its cases there.
 let loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map();
-let collected: number | undefined;
 beforeAll(() => {
-  collected = Date.now();
   const testFile = expect.getState().testPath;
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
   loaded = collector.seal(testFile);
 });
 
+const collected = markCollected();
 if (collector.scoped) openCaseScopes();
 skipTheCut();
 
@@ -89,7 +85,7 @@ afterAll(() => {
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
   const { modules, frames } = collector.finish(testFile);
   fs.mkdirSync(runDirectory, { recursive: true });
-  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded, collected));
+  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded, collected.at));
 
   const outlived = collector.runaways();
   if (outlived.length > 0) {
@@ -199,6 +195,32 @@ function skipTheCut(): void {
       walk(state.rootDescribeBlock, []);
     },
   );
+}
+
+/**
+ * When collecting ended: jest-circus's `run_start`, after the file's tests are
+ * declared and before any hook runs, the project's own setup files' included.
+ * The reporter splits the file's time into its collect and its cases there.
+ * Epoch milliseconds, as Jest's `perfStats` reads them, from the process's own
+ * clock: `node:perf_hooks` is the outer realm's, which the sandbox's fake
+ * timers do not replace. Unmarked where the runner is not jest-circus.
+ */
+function markCollected(): { at?: number } {
+  const mark: { at?: number } = {};
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return mark;
+  }
+  const register = circus.addEventHandler;
+  if (typeof register !== 'function') return mark;
+  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+    if (event.name !== 'run_start') return;
+    const { performance } = perfHooks;
+    mark.at = performance.timeOrigin + performance.now();
+  });
+  return mark;
 }
 
 /**
