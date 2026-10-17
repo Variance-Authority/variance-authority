@@ -5,12 +5,12 @@
  * scope's time went — asks here, so they all mean the same thing by it.
  *
  * The runner's duration covers what that runner chose to time: Jest's spans
- * the whole file, Vitest's only its cases. The phases are spans of the same
- * run, each counting a part of it. Both are measurements of one interval from
- * below, so the cost is the larger of the two: the whole of Jest's runtime,
- * which its phases add up to less than, and the whole of Vitest's phases,
- * which its duration is the last of. A file with no phases costs its duration,
- * as it did before phases were recorded.
+ * the file's run, Vitest's only its cases. The phases are spans of the same
+ * run, each counting a part of it. Each undercounts the one interval, so the
+ * cost is the larger of the two: Jest's runtime unless its phases add up to
+ * more, and the whole of Vitest's phases, which its duration is the last of.
+ * A file with no phases costs its duration, as it did before phases were
+ * recorded.
  */
 
 // compass: variance-authority.reach
