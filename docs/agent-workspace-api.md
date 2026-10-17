@@ -73,17 +73,24 @@ files a module names in `/// <depends path="…" />`. It can answer what a file
 rests on, what rests on that file, and where an exported name is imported. A
 member of an interface, a type literal or a class is never imported: `uses`
 names where a member by that name is declared, after any imports, and under
-each declaration the lines that read, write or destructure it through a value
-whose type the line writes, joined to that declaration through the import that
+each declaration the lines that call, read, write or destructure it through a
+value whose type the line writes, joined to that declaration through the import that
 binds the type's name. A line whose value's type a checker would infer, or a JSX
 attribute, is not in that list, and the answer ends by saying so and naming the
-declaration's `file:line`, or with several the one you mean from those it
-lists, for find-references in that language's tooling, TypeScript's language
+declaration's `file:line`, or with several declarations the one you
+pick from its list, for
+find-references in that language's tooling, TypeScript's language
 service for JavaScript and TypeScript, which lists those uses. Members are read
-from JavaScript and TypeScript files only; top-level declarations are read in
-every language the index reads. When the workspace also holds Python, Rust,
-Java, Kotlin or Swift files, the answer ends with a sentence that names those
-languages, whether or not it found a member, and sends you to their language
+from JavaScript and TypeScript files only, so a Python class's methods and a
+Rust struct's fields and `impl` methods are not; top-level declarations are read in
+every language the index reads, Python, Rust, Java, Kotlin and Swift
+included. `ask symbol` answers a top-level declaration of the name first, in
+any of those languages; on a name that no top-level declaration or import has,
+it names each container that declares it as a member, with the member's
+`file:line`, and points to `uses`, which lists the members beside any top-level
+declaration. When the workspace also holds Python, Rust, Java, Kotlin or Swift
+files, an answer that looked for members ends with a sentence that names those
+languages, whether or not it found one, and sends you to their language
 server's workspace symbols. The graph does not record that one
 function called another at runtime; open the named file or use a language
 server for that question.
@@ -428,10 +435,12 @@ language service runs behind it. Rust, Python, Swift, Java and Kotlin files are
 read with tree-sitter grammars, for their imports and their top-level
 declarations, and Rust files also for the declarations inside inline modules. A types target under an output directory is mapped back to that
 package's source. A consumer is a workspace package whose source imports the
-symbol; it is not a claim about runtime execution or external adoption. A site
-is an import of the name, or a read of it off a module the file holds whole, not
-a call to it — where a named import is used inside that file is a question for
-your editor's language server.
+symbol; it is not a claim about runtime execution or external adoption. For a
+top-level name, a site in another file is an import of the name, or a read of
+it off a module the file holds whole, not a call to it: where that file uses a
+named import is a question for your editor's language server. A member has no
+import, so its sites are the typed lines described
+[above](#search-finds-the-name-the-graph-finds-the-area).
 
 Missing documentation remains missing, and a search with no exact substring
 match reports that before it offers anything near it. Those absences are source
