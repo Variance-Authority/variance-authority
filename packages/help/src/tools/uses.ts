@@ -279,7 +279,7 @@ function keptLine(name: string, kept: readonly DeclaredName[]): string {
   // A Rust item inside an inline module answers to its own name, and is
   // declared on its module path: the path is said where it is not the name.
   const named = (one: DeclaredName): string => (one.name === name ? '' : ` as \`${one.name}\``);
-  const kind = (one: DeclaredName): string => (one.kind === '' ? '' : ` [${one.kind}]`);
+  const kind = (one: DeclaredName): string => ` [${one.kind}]`;
   if (kept.length === 1) {
     const one = kept[0]!;
     return `\`${name}\`${kind(one)} is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}.`;
