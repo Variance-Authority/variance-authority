@@ -226,11 +226,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/help/src/tools/uses.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/history/src/flakiness.ts",
     "count": 1
   },

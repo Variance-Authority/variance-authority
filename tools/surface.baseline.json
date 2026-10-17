@@ -2840,6 +2840,7 @@
         "taintRecords": "function",
         "taintTable": "function",
         "testCompositions": "function",
+        "thirdPartyImportersOf": "function",
         "tierLabel": "function",
         "tierMoves": "function",
         "tierOf": "function",

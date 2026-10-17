@@ -6,6 +6,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { notShown } from '@variance-authority/mcp/tools';
 import type { Use } from '@variance-authority/package/help';
 
@@ -33,7 +34,7 @@ export function order(sites: readonly Site[], from: string | undefined): readonl
   return [...sites].sort(
     (a, b) =>
       (from === undefined ? 0 : sharedSegments(from, b.at) - sharedSegments(from, a.at)) ||
-      (a.at < b.at ? -1 : a.at > b.at ? 1 : 0) ||
+      codeUnitOrder(a.at, b.at) ||
       a.line - b.line,
   );
 }

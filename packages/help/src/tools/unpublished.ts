@@ -70,16 +70,26 @@ export type Within =
  * nothing: no checkout named, none published, or one that does not read.
  */
 export function importsOf(root: string | undefined, files: readonly string[], name: string): Within {
+  const answer = indexed(root, (checkout) => importersOf(checkout, files, name));
+  if ('unread' in answer) return answer;
+  const { read } = answer;
+  const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
+  return { uses: read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) })), through: read.through, inFile };
+}
+
+/**
+ * What `read` answers off the source index of `root`, or why the index says
+ * nothing: no checkout named, none published, or one that does not read.
+ */
+export function indexed<T>(root: string | undefined, read: (root: string) => T | undefined): { readonly read: T } | { readonly unread: string } {
   if (root === undefined) return { unread: 'this host named no checkout to read the source index of' };
-  let read: ReturnType<typeof importersOf>;
+  let answer: T | undefined;
   try {
-    read = importersOf(root, files, name);
+    answer = read(root);
   } catch (error) {
     return { unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
-  if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
-  const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
-  return { uses: read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) })), through: read.through, inFile };
+  return answer === undefined ? { unread: 'no source index is published; run `variance index`' } : { read: answer };
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

@@ -27,6 +27,7 @@ import { useOf } from '../refresh-native.js';
 import { ownerOf } from './by-path.js';
 import { places } from './members.js';
 import { type Site, kinds } from './sites.js';
+import { indexed } from './unpublished.js';
 
 /** The imports of a name out of packages the workspace installs, and those packages; or why they were not read. */
 export type Outside = { readonly sites: readonly Site[]; readonly packages: readonly string[] } | { readonly unread: string };
@@ -37,14 +38,9 @@ export type Outside = { readonly sites: readonly Site[]; readonly packages: read
  * names a package or one of its specifiers.
  */
 export function outsideOf(root: string | undefined, name: string, wanted: string | undefined): Outside {
-  if (root === undefined) return { unread: 'this host named no checkout to read the source index of' };
-  let read: ReturnType<typeof thirdPartyImportersOf>;
-  try {
-    read = thirdPartyImportersOf(root, name);
-  } catch (error) {
-    return { unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
-  }
-  if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
+  const answer = indexed(root, (checkout) => thirdPartyImportersOf(checkout, name));
+  if ('unread' in answer) return answer;
+  const { read } = answer;
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
   const taken = read.filter((use) => owner === undefined || (ownerOf(use.key) === owner && (wanted === owner || use.key === wanted)));
   const sites = taken.map((use): Site => {
