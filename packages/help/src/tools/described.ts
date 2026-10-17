@@ -31,25 +31,27 @@ import { admittedBy, matchingTerms } from './loose.js';
  * of code and not of a package, since code is named in them.
  *
  * Ordered by counts, never a score: the question's words it holds at all, then
- * how many of the question's adjacent word pairs its doc writes adjacent, then
- * the words its name holds, then how many rows publish or export it, then the
- * name's own rank. How much of the question is held comes first, the way a
+ * the words its name holds, then how many of the question's adjacent word
+ * pairs its doc writes adjacent, then how many rows publish or export it, then
+ * the name's own rank. How much of the question is held comes first, the way a
  * search engine's coordination factor puts a document holding every term above
  * one holding half: a doc that says all of what was asked describes it better
- * than a name that says half. Between two that hold as much, a doc that writes
- * the question's phrase — term proximity, counted as the pairs it shares —
- * describes it better than words scattered across a name; then the name
- * decides, since a name was chosen for what it does.
+ * than a name that says half. Between two that hold as much, the name decides,
+ * as a field-weighted ranking weighs a title over a body: a name was chosen for
+ * what it does, and a doc that writes the question's phrase about a name that
+ * holds none of it is usually saying what the name is used with. The phrase —
+ * term proximity, counted as the pairs it shares — settles what the name
+ * leaves level.
  */
 
 /** What a reached name is ordered on. */
 export interface DescribedKey {
   /** The question's words it holds, as the question wrote them, in stem order. */
   readonly words: readonly string[];
-  /** How many of the question's adjacent word pairs its doc writes adjacent. */
-  readonly near: number;
   /** How many of them its name holds. */
   readonly named: number;
+  /** How many of the question's adjacent word pairs its doc writes adjacent. */
+  readonly near: number;
   /** Rows that publish or export it. */
   readonly rows: number;
   readonly rank: number;
@@ -225,14 +227,14 @@ export function fileMatch(root: string | undefined, file: DescribedFile): FileMa
 const kindOrder = (one: Described): number => ('match' in one ? 1 : 'file' in one ? 2 : 0);
 
 /**
- * Best first: words held, then the phrase its doc shares, then words in the
- * name, then rows, then rank; a name of the index before a declaration before
+ * Best first: words held, then words in the name, then the phrase its doc
+ * shares, then rows, then rank; a name of the index before a declaration before
  * a file, declarations by file, then line, and files by path.
  */
 export const describedOrder = (a: Described, b: Described): number =>
   b.words.length - a.words.length ||
-  b.near - a.near ||
   b.named - a.named ||
+  b.near - a.near ||
   b.rows - a.rows ||
   a.rank - b.rank ||
   kindOrder(a) - kindOrder(b) ||

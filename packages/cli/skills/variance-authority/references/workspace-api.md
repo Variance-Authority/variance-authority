@@ -42,8 +42,10 @@ the first argument is positional.
   lexicon could not be built says the installed packages were not compared. `--just-answer` uses the
   last generation without inspecting the checkout and refuses when none exists;
   its answers and refusals say the checkout was not compared, and JSON carries
-  `compared: false`. When no changed files are named, `search` always reads
-  that way, with or without the flag, says so too, and never scans.
+  `compared: false`. When no changed files are named, `search` reads a
+  published search that way, with or without the flag, and says so too. When
+  none is published it reads the checkout and publishes one; only
+  `--just-answer` refuses, and the refusal names that flag.
 - **Working directory.** `variance ask` reads the checkout under the working
   directory, so run it from the workspace root; it refuses `--root`.
   `variance-authority-help` takes `--root <dir>`.

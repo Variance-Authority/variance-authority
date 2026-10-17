@@ -191,12 +191,14 @@ time and says the checkout was not compared with it; as JSON, `search` carries
 the command refuses instead of silently turning the question into production
 work.
 
-When no changed files are named, `search` always answers as if `--just-answer`
-were given. It opens the published search at any age and never scans, because
+When no changed files are named and a search is published, `search` answers
+as if `--just-answer` were given. It opens the published search at any age, because
 in CI the step before it already brought the index up to date and is the one
 that owns freshness. The flag is accepted and changes nothing, and the answer
 says, as one under `--just-answer` does, that the checkout was not compared.
-With no published generation, `search` refuses and names the command to run.
+With no published generation, `search` reads the checkout and publishes the
+search, the way any other question does. Under `--just-answer` it refuses
+instead, says the flag is why, and names the command to run.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited

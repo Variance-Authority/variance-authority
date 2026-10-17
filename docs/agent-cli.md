@@ -90,14 +90,18 @@ it. `--from` keeps the names the code at your path already depends on. To
 change it, you need the declaration's `file:line` and the code that depends on
 it. `--to` keeps the names in that code.
 
-It answers in two sections: the names a manifest publishes, ranked by how
-many packages import them, then the names the source exports without
-publishing. When neither holds your words as written, two more follow, each
-labelled as the reading it is and both before any installed package: the names
-and files holding at least half of your words, matched by stem, a file by its
-name and the doc it opens with, ranked by how many of your words each holds,
-then by how much of your phrase its doc writes, then by how many its name
-holds; then the names your words reach written apart or one character off,
+It answers in two sections: the names a manifest publishes, then the names
+the source exports without publishing. Several words also match a name
+written in them, each word by its start or its stem, so `instrumenting
+modules` answers `instrumentModule`. In both sections a name holding your
+words comes before a doc that opens with them, and that before a doc that
+says them further down; the published names are then ranked by how many
+packages import them. When neither holds your words as written, two more
+follow, each labelled as the reading it is and both before any installed
+package: the names and files holding at least half of your words, matched by
+stem, a file by its name and the doc it opens with, ranked by how many of
+your words each holds, then by how many its name holds, then by how much of
+your phrase its doc writes; then the names your words reach written apart or one character off,
 exported or kept to their file. So `tsconfig custom conditions` answers
 `customConditionsFor` before the bundlers that also say those words, and
 `loose reading` answers `packages/help/src/tools/loose.ts`.

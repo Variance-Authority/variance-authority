@@ -52,15 +52,22 @@ const DESCRIPTION: &[&str] = &["use", "using", "used", "library", "package", "mo
     "simple", "small", "fast", "based", "make", "get", "set"];
 
 /// A word reduced to what a plural, a tense or a noun form would share with it.
+///
+/// Suffixes come off until none does, so the answer is its own stem: one pass
+/// takes `instrumenting` to `instrument` and `instrument` to `instru`, and a
+/// question in one form would miss a name written in the other.
 pub(super) fn stem(word: &str) -> String {
     let mut stem = word.to_lowercase();
-    for suffix in ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ed", "es", "s"] {
-        if let Some(rest) = stem.strip_suffix(suffix) {
-            if rest.chars().count() >= 3 { stem = rest.to_owned(); break; }
+    loop {
+        let before = stem.len();
+        for suffix in ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ed", "es", "s"] {
+            if let Some(rest) = stem.strip_suffix(suffix) {
+                if rest.chars().count() >= 3 { stem = rest.to_owned(); break; }
+            }
         }
+        if stem.ends_with('e') && stem.chars().count() > 3 { stem.pop(); }
+        if stem.len() == before { return stem; }
     }
-    if stem.ends_with('e') && stem.chars().count() > 3 { stem.pop(); }
-    stem
 }
 
 /// The stems of the words in `text`, splitting camelCase and punctuation; short words and the words `dropped` names left out.
@@ -147,4 +154,24 @@ pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Op
     named.truncate(NAMED);
     let found = Purpose { description, keywords, headings, said: sorted(said), named };
     (found.description.is_some() || !found.keywords.is_empty() || !found.headings.is_empty() || !found.named.is_empty()).then_some(found)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stem;
+
+    #[test]
+    fn a_word_and_its_inflections_share_one_stem() {
+        for (inflected, plain) in [("instrumenting", "instrument"), ("instrumented", "instrument"), ("instrumentation", "instrument"),
+            ("orders", "order"), ("placement", "place"), ("placed", "place"), ("modules", "module"), ("probes", "probe")] {
+            assert_eq!(stem(inflected), stem(plain), "{inflected} and {plain}");
+        }
+    }
+
+    #[test]
+    fn a_stem_is_its_own_stem() {
+        for word in ["instrumenting", "instrument", "order", "placement", "statements", "settings"] {
+            assert_eq!(stem(&stem(word)), stem(word), "{word}");
+        }
+    }
 }

@@ -57,12 +57,21 @@ function answeredOrRefused(answered: { code: number; err: string }): void {
 }
 
 describe('variance ask on a checkout with no index', () => {
-  it('search refuses with a code and names `variance index` as the remedy', async () => {
+  it('search reads the checkout when nothing is published', async () => {
     cold();
     const answered = await run(['ask', 'search', '--query', 'shim']);
+    expect(answered.err).toBe('');
+    expect(answered.code).toBe(EXIT_CLEAN);
+    expect(answered.out).toContain('shim');
+  });
+
+  it('search --just-answer refuses with a code, names the flag it was given and `variance index` as the remedy', async () => {
+    cold();
+    const answered = await run(['ask', 'search', '--query', 'shim', '--just-answer']);
     answeredOrRefused(answered);
     expect(answered.code).toBe(EXIT_OPERATOR);
     expect(answered.err).toContain('Run `variance index`');
+    expect(answered.err).toContain('asked with `--just-answer`');
   });
 
   it('search answers once `variance index` has published the generation', async () => {

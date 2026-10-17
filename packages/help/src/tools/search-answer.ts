@@ -1,5 +1,6 @@
 import type { Tree } from '@variance-authority/mcp/tools';
 import { opening } from '@variance-authority/package/help';
+import { wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
@@ -201,6 +202,8 @@ interface Hit {
   readonly rank: number;
   readonly usedBy: number;
   readonly uses: number;
+  /** Where the question was found: 0 in the name, 1 in the doc's opening paragraph, 2 later in the doc. */
+  readonly field: number;
   /** What the area saw of it — nothing, when there is no area. */
   readonly scoped: InArea | undefined;
 }
@@ -230,12 +233,18 @@ function usedWithin(index: SearchIndex, row: number, area: Area, inArea: Readonl
  * decides both what is admitted and how what is admitted is ordered, and a
  * second pass that applied only one of the two would answer a scoped question
  * with an unscoped ranking.
+ *
+ * `field` says where the question was found in a row, and orders before
+ * anything the area or the importers say: a name holding the word is that
+ * thing, a doc opening with it says what the name is for, and a doc saying it
+ * three paragraphs down mentions it. Absent, every row was reached alike.
  */
 function surface(
   index: SearchIndex,
   rows: Iterable<number>,
   area: Area | undefined,
   inArea: ReadonlySet<number> | undefined,
+  field?: (row: number, name: number) => number,
 ): readonly Hit[] {
   const hits: Hit[] = [];
   for (const row of new Set(rows)) {
@@ -244,12 +253,13 @@ function surface(
     // does not use, however well it matches the word.
     if (scoped !== undefined && scoped.imports === 0) continue;
     const name = index.publishedName(row);
-    hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), scoped });
+    hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped });
   }
   return hits;
 }
 
 const surfaceOrder = (a: Hit, b: Hit): number =>
+  a.field - b.field ||
   (b.scoped?.files ?? 0) - (a.scoped?.files ?? 0) ||
   (b.scoped?.imports ?? 0) - (a.scoped?.imports ?? 0) ||
   b.usedBy - a.usedBy ||
@@ -297,12 +307,15 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
 
   const within = area === undefined ? undefined : index.fileIds(area.files);
   const named = ascending(index.namesContaining(query), namesOfWords(index, query));
-  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
+  const byName = new Set(named);
+  const openings = new Set(index.docOpeningsContaining(query));
+  const field = (row: number, name: number): number => (byName.has(name) ? 0 : openings.has(row) ? 1 : 2);
+  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within, field);
   const answered = new Set(hits.map((hit) => hit.name));
   // An exported row is reached by its doc as a published one is, and inside an
   // area only through a row whose file is in it.
-  const through = docRows(index, index.exportedDocsContaining(query), within, new Set(named));
-  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through);
+  const through = docRows(index, index.exportedDocsContaining(query), within, byName);
+  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, new Set(index.exportedDocOpeningsContaining(query)));
   return { query, area, within, named, hits, answered, rest } as const;
 }
 
@@ -399,24 +412,33 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
 
 /**
  * Names a query of several words reaches through the words names are written
- * in, ascending: every word of the query is a word of the name or the start of
- * one, so `select test files` is `selectTestFiles`. A query of one word is the
- * substring's alone.
+ * in, ascending: every word of the query is a word of the name, the start of
+ * one, or one that shares its stem, so `select test files` is
+ * `selectTestFiles` and `instrumenting modules` is `instrumentModule`. The
+ * stem is the dependency lexicon's, which the described section asks by too.
+ * A query of one word is the substring's alone.
  */
 function namesOfWords(index: SearchIndex, query: string): readonly number[] {
   const words = tokensOf(query);
   if (words.length < 2) return [];
 
+  const stems = wordStemsNative(words);
+  // A term stands for a stem when it reduces to it, so the run under the stem
+  // is read once and kept only where it does: `modul` admits `module` and not `modular`.
+  const under = stems.map((stem) => [...matchingTerms(index, stem, 0)]);
+  const reduced = wordStemsNative(under.flat().map((term) => index.term(term)));
+  let at = 0;
   let held: ReadonlySet<number> | undefined;
-  for (const word of words) {
+  words.forEach((word, position) => {
+    const terms = new Set(matchingTerms(index, word, 0));
+    for (const term of under[position] ?? []) if (reduced[at++] === stems[position]) terms.add(term);
     const reached = new Set<number>();
-    for (const term of matchingTerms(index, word, 0)) {
+    for (const term of terms) {
       for (const name of index.termNames(term)) if (held === undefined || held.has(name)) reached.add(name);
     }
-    if (reached.size === 0) return [];
     held = reached;
-  }
-  return [...(held ?? [])];
+  });
+  return held === undefined || held.size === 0 ? [] : [...held];
 }
 
 /** Two lists of ids as one, ascending and without repeats. */

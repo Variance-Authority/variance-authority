@@ -1,7 +1,8 @@
 import { resolve } from 'node:path';
+import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
-import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
+import { readWorkspace, readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { readSearchSnapshot, readSearchTree, searchOf, workspaceSearchPath } from './snapshot.js';
 
@@ -13,15 +14,17 @@ import { readSearchSnapshot, readSearchTree, searchOf, workspaceSearchPath } fro
  * question after them expects to find their output. So the published search is
  * opened in place at any age — not the value, not the checkout, and the graph
  * only when a start point was said. A search missing beside a published value
- * is written from that value, which reads no source. With neither, the question
- * is refused rather than answered by a scan nobody asked this step to run.
+ * is written from that value, which reads no source. With neither, there is
+ * nothing to look up: the checkout is read and the search published, as any
+ * source question reads it, unless `--just-answer` was asked, which forbids the
+ * read — and only then is the question refused, naming the flag that refused it.
  *
  * Changed paths or taints are the one exception, because they ask for a new
  * generation by name: that reading is {@link readWorkspaceForAnswer}'s, and it
  * publishes the search it answers from.
  */
 export async function readSearchForAnswer(root: string, options: AnsweringOptions = {}): Promise<SearchIndex> {
-  const { justAnswer: _asked, refreshAfterMs: _age, ...reading } = options;
+  const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;
   const index = reading.index ?? sourceIndexPath(resolve(root));
   if (reading.changed !== undefined || reading.taints !== undefined) {
     return searchOf(await readWorkspaceForAnswer(root, options), index);
@@ -34,13 +37,19 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   } catch {
     // Not published, or not this checkout's: the published value may still hold it.
   }
+  // The value is opened at any age, as the search is: how old a reused one may be is the other questions' rule.
+  let help: Help;
   try {
-    return await searchOf(await readWorkspaceForAnswer(root, { ...reading, justAnswer: true }), index);
+    help = await readWorkspaceForAnswer(root, { ...reading, justAnswer: true });
   } catch (cause) {
-    throw operatorError(
-      `search reads the published source generation, and none is published at ${workspaceSearchPath(index)}. ` +
-        'Run `variance index`, or ask any other source question without `--just-answer`, to read the checkout and publish one.',
-      { cause },
-    );
+    if (justAnswer) {
+      throw operatorError(
+        `search reads the published source generation, and none is published at ${workspaceSearchPath(index)}; ` +
+          'it was asked with `--just-answer`, so the checkout was not read. Run `variance index` to publish one.',
+        { cause },
+      );
+    }
+    return searchOf(await readWorkspace(root, reading), index);
   }
+  return searchOf(help, index);
 }

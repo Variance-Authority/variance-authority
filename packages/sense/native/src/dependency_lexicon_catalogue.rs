@@ -18,7 +18,8 @@ use crate::stored::{same_length, Stored, U32s};
 use super::Owner;
 
 const FORMAT: &str = "variance-authority-dependency-catalogue";
-const VERSION: u8 = 1;
+/// 2: a purpose holds stems cut to a fixed point, so a catalogue of one-pass stems is read again.
+const VERSION: u8 = 2;
 const KINDS: [&str; 4] = ["dependency", "optional", "peer", "dev"];
 
 pub(super) struct MadePair { pub owner: u32, pub package: String, pub install: u32, pub issues: Vec<String> }

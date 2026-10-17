@@ -29,7 +29,8 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
  *
  * Grouped by name because one name exported from a barrel and from the file that
  * declares it is one thing to go and look at, and ordered by how many files
- * export it — which is the only count this half has. Source before tests and
+ * export it — which is the only count this half has — once `openings` has
+ * said where the question was found. Source before tests and
  * stories within a name, so the place shown first is the implementation rather
  * than something exercising it.
  *
@@ -37,6 +38,11 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
  * rows whose doc was read: the row shown and the rows listed are among them,
  * since another file's `sum` says nothing about this one's. `files` still
  * counts every file that exports the name.
+ *
+ * `openings`, when given, are the rows whose doc says the question in its
+ * opening paragraph, and where it was found then orders first, as the
+ * published half orders: a name its own words reached, then one a doc opens
+ * with, then one a doc says later.
  */
 export function exported(
   index: SearchIndex,
@@ -44,8 +50,9 @@ export function exported(
   shown: ReadonlySet<number>,
   within: ReadonlySet<number> | undefined,
   through?: ReadonlyMap<number, ReadonlySet<number>>,
+  openings?: ReadonlySet<number>,
 ): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
-  const found: { name: number; rank: number; count: number }[] = [];
+  const found: { name: number; rank: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
   // barrel inside the area and declared outside it arrives here twice, under
   // two paths, and the one in the area is the one a reader can open.
@@ -61,14 +68,17 @@ export function exported(
   for (const name of names) {
     if (shown.has(name)) continue;
     const count = within === undefined ? index.exportedOf(name).length : rowsOf(name).length;
-    if (count > 0) found.push({ name, rank: index.rank(name), count });
+    if (count === 0) continue;
+    const read = openings === undefined ? undefined : through?.get(name);
+    const field = read === undefined ? 0 : reached(name).some((row) => openings?.has(row) === true) ? 1 : 2;
+    found.push({ name, rank: index.rank(name), count, field });
   }
 
   return {
     total: found.length,
     rows: () => found.flatMap(({ name }) => reached(name)),
     head: (count) =>
-      first(found, count, (a, b) => b.count - a.count || a.rank - b.rank).flatMap(({ name, count: files }) => {
+      first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.rank - b.rank).flatMap(({ name, count: files }) => {
         // Source before tests before stories, and the first written within a
         // kind: the kind column orders the rows, and only the one shown is read.
         // `count` is the number of these rows, so one is always chosen.

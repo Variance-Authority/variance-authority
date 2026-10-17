@@ -46,21 +46,20 @@ it('reaches react from "state management", answers an undescribed job empty with
 
 it('answers a description with the repository\'s own names first, and the packages that describe it after', async () => {
   const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
-    'src/store.ts': 'export function managedStateFor(key: string): string {\n  return key;\n}\n',
+    'src/store.ts': '/** Keeps the state of one key. */\nexport function managedFor(key: string): string {\n  return key;\n}\n',
   });
   const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
 
   // Neither the phrase nor every word is in the name, so only the words held answer it.
-  expect(said).toContain('managedStateFor');
-  expect(said).toContain('[holds: management, state]');
-  expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('react @1.0.0'));
+  expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
+  expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('react @1.0.0'));
 });
 
 describe('which names the described section holds, and in what order', () => {
   const ask = async (query: string): Promise<string> => {
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/store.ts': 'export function managedStateFor(key: string): string {\n  return key;\n}\n',
-      'src/state.ts': 'export const stateOf = (key: string): string => key;\n',
+      'src/state.ts': '/** What a store manages for a key. */\nexport const stateOf = (key: string): string => key;\n',
       'src/cache.ts': 'export const cacheEntries: readonly string[] = [];\n',
       'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',
     });
@@ -81,25 +80,26 @@ describe('which names the described section holds, and in what order', () => {
   });
 
   it('puts the name holding more of the words in its name first', async () => {
-    const said = await ask('state management');
-    expect(said).toMatch(/stateOf .*\[holds: state\]/);
+    // Both hold `state` and `management`: `managedStateFor` in its name, `stateOf` half in its doc.
+    const said = await ask('state management policy');
+    expect(said).toMatch(/stateOf .*\[holds: management, state\]/);
     expect(said.indexOf('managedStateFor')).toBeGreaterThan(-1);
     expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('stateOf'));
   });
 
-  it('reads the words in a published doc too, after a name that holds them itself', async () => {
+  it('reads the words in a published doc too, after a name that holds one of them itself', async () => {
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'], dependencies: { react: '1.0.0' } }),
       'packages/kit/package.json': JSON.stringify({ name: 'kit', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } }),
       'packages/kit/tsconfig.json': JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } }),
       'packages/kit/src/index.ts': '/** Management of each session and its state. */\nexport function journalOf(key: string): string {\n  return key;\n}\n',
-      'src/store.ts': 'export function managedStateFor(key: string): string {\n  return key;\n}\n',
+      'src/store.ts': '/** Keeps the state of one key. */\nexport function managedFor(key: string): string {\n  return key;\n}\n',
     });
     const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
     // `journalOf` holds neither word in its name; its published doc holds both.
     expect(said).toMatch(/journalOf .*\[holds: management, state\]/);
-    expect(said.indexOf('managedStateFor')).toBeGreaterThan(-1);
-    expect(said.indexOf('managedStateFor')).toBeLessThan(said.indexOf('journalOf'));
+    expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
+    expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('journalOf'));
   });
 
   it('puts a name whose doc holds every word before one whose name holds half of them', async () => {

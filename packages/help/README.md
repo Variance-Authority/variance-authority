@@ -50,8 +50,9 @@ now, so a function you just wrote is answered rather than reported missing.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
 compared with it. It performs no Git status or refresh, and refuses if there is
-no generation to read. `search` always behaves this way: it is a lookup, and
-producing the generation is the job of the step before it. The detailed cost model, including why Git's packed objects
+no generation to read. `search` opens a published search at any age, with or
+without the flag. When none is published it reads the checkout and publishes
+one, unless you passed `--just-answer`: then it refuses and names that flag. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
 index](https://variance-authority.dev/docs/agent-workspace-api#choose-the-cheapest-entrance).
 

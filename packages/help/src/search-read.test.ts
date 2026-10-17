@@ -90,9 +90,19 @@ describe('search from its published file', () => {
     expect(askSearch(search, ['--query', 'measure'])).toContain('measure');
   });
 
-  it('refuses when nothing is published, and publishes nothing', async () => {
+  it('reads the checkout and publishes the search when nothing is published and no flag forbade it', async () => {
+    const empty = join(root, '.unread');
+    const search = await readSearchForAnswer(root, { index: empty });
+
+    expect(askSearch(search, ['--query', 'measure'])).toContain('measure');
+    await expect(access(workspaceSearchPath(empty))).resolves.toBeUndefined();
+  });
+
+  it('refuses under `--just-answer` when nothing is published, names that flag, and publishes nothing', async () => {
     const empty = join(root, '.unpublished');
-    await expect(readSearchForAnswer(root, { index: empty })).rejects.toThrow(/none is published/);
+    const refused = readSearchForAnswer(root, { index: empty, justAnswer: true });
+    await expect(refused).rejects.toThrow(/none is published/);
+    await expect(refused).rejects.toThrow(/asked with `--just-answer`/);
     await expect(access(empty)).rejects.toThrow();
     await expect(access(workspaceSnapshotPath(empty))).rejects.toThrow();
   });
