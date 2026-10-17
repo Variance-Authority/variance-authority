@@ -178,7 +178,7 @@ export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFil
 export { openTestCoverage, type TestCoverageView } from './format-view.js';
 // What a landing of shards reads of the record they combined into, and the coverage it lands.
 export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
-export { BLOCK_KINDS } from './format-layout.js';
+export { BLOCK_KINDS, NO_DURATION, PHASE_NAMES } from './format-layout.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.
@@ -295,6 +295,29 @@ export interface CoverageTest {
    * millisecond.
    */
   readonly duration?: number;
+  /**
+   * Where the file's time went, phase by phase, as the runner timed it.
+   * Absent when it reported none of them.
+   */
+  readonly phases?: FilePhases;
+}
+
+/**
+ * Milliseconds a test file spent in each phase: the worker readying it, the
+ * test environment, the setup files, loading the file with everything it
+ * imports, and then its cases. `duration` is what the runner calls the file's
+ * time, which for Jest holds every phase and for Vitest only the cases; these
+ * read the same under both. A phase nobody timed is absent, never zero: Jest
+ * times no `prepare`.
+ */
+export interface FilePhases {
+  readonly prepare?: number;
+  readonly environment?: number;
+  readonly setup?: number;
+  /** Importing the test file and running its top level, which is where its modules load. */
+  readonly collect?: number;
+  /** Running the cases and their hooks, from the first `beforeAll` to the last `afterAll`. */
+  readonly cases?: number;
 }
 
 /**

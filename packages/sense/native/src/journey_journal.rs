@@ -7,7 +7,9 @@ use crate::case_owner::{journey_of, project_of, project_path, unpack_case};
 use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
-const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
+const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x03];
+/// The moment a file's collection ended, a double after the frame's name: Jest's timing, not this fold's.
+const TIME_BYTES: usize = 8;
 /// `VAEYS`: an Eyes frame rides beside the case frames (`eyes-frame.cts`) and
 /// crosses nothing, so every fold steps over it.
 const EYES_MAGIC: [u8; 8] = [0x56, 0x41, 0x45, 0x59, 0x53, 0x00, 0x00, 0x01];
@@ -362,6 +364,7 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
         }
     }
     visitor.test(&read.text()?)?;
+    read.step(TIME_BYTES)?;
     let count = read.number()?;
     let mut scratch = Vec::new();
     for _ in 0..count {
@@ -439,6 +442,12 @@ impl<'a> Reader<'a> {
                 return Err(damaged());
             }
         }
+    }
+
+    fn step(&mut self, bytes: usize) -> Result<(), String> {
+        let end = self.at.checked_add(bytes).filter(|end| *end <= self.raw.len()).ok_or_else(damaged)?;
+        self.at = end;
+        Ok(())
     }
 
     fn text(&mut self) -> Result<String, String> {

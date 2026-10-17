@@ -52,8 +52,15 @@ export const MODEL = LAYOUT.coverage.model;
  * holding bytes of its own. The layout before it stays readable as a record
  * that kept no cases, which is what it is to every reader: the case index it
  * may have had beside it is not read.
+ *
+ * And again for `tests.phases`, what the runner said each test file spent
+ * before its first case. The layout before it stays readable, as a record whose
+ * runner reported no phases.
  */
 export const FORMAT = LAYOUT.coverage.format;
+
+/** The layout before `tests.phases`, read as one whose runner reported no phases. */
+export const UNPHASED_FORMAT = LAYOUT.coverage.unphased;
 
 /** The layout before the case sections, read as a record that kept no cases. */
 export const UNCASED_FORMAT = LAYOUT.coverage.uncased;
@@ -63,7 +70,7 @@ export const UNTIMED_FORMAT = LAYOUT.coverage.untimed;
 
 /** The layouts a reader opens. */
 export function readableFormat(version: unknown): version is number {
-  return version === FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
+  return version === FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
 }
 
 const ALIGNMENT = LAYOUT.alignment;
@@ -96,10 +103,20 @@ export function durationWord(duration: number | undefined): number {
 const PACK_ABOVE = LAYOUT.packAbove;
 
 /** Every section the file holds, in the order it holds them. */
-export const NAMES: readonly string[] = LAYOUT.coverage.sections.filter((name) => name !== LAYOUT.coverage.duration);
+export const NAMES: readonly string[] = LAYOUT.coverage.sections.filter((name) =>
+  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases);
 
 /** The section the layouts after `UNTIMED_FORMAT` added: one word a test, see {@link NO_DURATION}. */
 export const DURATION = LAYOUT.coverage.duration;
+
+/**
+ * The section the layouts after `UNPHASED_FORMAT` added: {@link PHASE_NAMES}
+ * words a test, each a duration as `tests.duration` holds one.
+ */
+export const PHASES = LAYOUT.coverage.phases;
+
+/** The phases of a test file, its cases last, in the order a test's words in {@link PHASES} hold them. */
+export const PHASE_NAMES = LAYOUT.coverage.phaseNames;
 
 export interface Section {
   readonly name: string;

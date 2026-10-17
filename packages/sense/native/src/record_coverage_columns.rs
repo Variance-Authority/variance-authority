@@ -11,6 +11,7 @@ use rustc_hash::FxHashMap;
 
 use crate::journey_columns::Column;
 use crate::journey_format::SetPool;
+use crate::record_coverage::{Phases, PHASES};
 use crate::record_layout::LAYOUT;
 
 /// One region row as it is written.
@@ -33,6 +34,7 @@ pub(crate) struct Columns {
     test_complete: Vec<u8>,
     test_preconditions: Vec<u32>,
     test_duration: Vec<u32>,
+    test_phases: Vec<u32>,
     precondition_name: Vec<u32>,
     precondition_digest: Vec<u32>,
     module_path: Vec<u32>,
@@ -60,6 +62,7 @@ impl Columns {
             test_complete: Vec::with_capacity(tests),
             test_preconditions: Vec::with_capacity(tests + 1),
             test_duration: Vec::with_capacity(tests),
+            test_phases: Vec::with_capacity(tests * PHASES),
             precondition_name: Vec::with_capacity(inputs),
             precondition_digest: Vec::with_capacity(inputs),
             module_path: Vec::with_capacity(modules),
@@ -81,10 +84,11 @@ impl Columns {
     }
 
     /// The next test, its preconditions as `(name, digest)` ids in the order written.
-    pub fn test(&mut self, path: u32, complete: u8, duration: u32, preconditions: impl IntoIterator<Item = (u32, u32)>) {
+    pub fn test(&mut self, path: u32, complete: u8, duration: u32, phases: Phases, preconditions: impl IntoIterator<Item = (u32, u32)>) {
         self.test_path.push(path);
         self.test_complete.push(complete);
         self.test_duration.push(duration);
+        self.test_phases.extend_from_slice(&phases);
         self.test_preconditions.push(self.precondition_name.len() as u32);
         for (name, digest) in preconditions {
             self.precondition_name.push(name);
@@ -181,6 +185,7 @@ impl Columns {
             Column::Bytes(name("tests.complete")?, self.test_complete),
             Column::Words(name("tests.preconditions")?, self.test_preconditions),
             Column::Words(name(&LAYOUT.coverage.duration)?, self.test_duration),
+            Column::Words(name(&LAYOUT.coverage.phases)?, self.test_phases),
             Column::Words(name("preconditions.name")?, self.precondition_name),
             Column::Words(name("preconditions.digest")?, self.precondition_digest),
             Column::Words(name("modules.path")?, self.module_path),

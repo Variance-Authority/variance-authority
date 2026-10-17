@@ -8,6 +8,7 @@ import {
   carriedJournal,
   reportedComplete,
   reportedDuration,
+  reportedPhases,
   runnerSkipped,
   taskComplete,
   type FinishedFile,
@@ -56,6 +57,13 @@ export function selectionReporter(
           filepath: file.filepath,
           complete: taskComplete(file, runnerSkipped(runner)),
           ...reportedDuration(file.result?.duration),
+          ...reportedPhases({
+            prepare: file.prepareDuration,
+            environment: file.environmentLoad,
+            setup: file.setupDuration,
+            collect: file.collectDuration,
+            cases: file.result?.duration,
+          }),
           ...taskCases(file),
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
@@ -66,10 +74,22 @@ export function selectionReporter(
         filepath: module.moduleId,
         complete: reportedComplete(module, runnerSkipped(runner, reason)),
         ...reportedDuration(module.diagnostic?.()?.duration),
+        ...modulePhases(module.diagnostic?.()),
         ...reportedCases(module),
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),
     ),
   } as Reporter;
+}
+
+/** Vitest 3 and 4's phases for a module, under the record's names. */
+function modulePhases(diagnostic: ReturnType<NonNullable<ReportedModule['diagnostic']>>): Pick<FinishedFile, 'phases'> {
+  return diagnostic === undefined ? {} : reportedPhases({
+    prepare: diagnostic.prepareDuration,
+    environment: diagnostic.environmentSetupDuration,
+    setup: diagnostic.setupDuration,
+    collect: diagnostic.collectDuration,
+    cases: diagnostic.duration,
+  });
 }

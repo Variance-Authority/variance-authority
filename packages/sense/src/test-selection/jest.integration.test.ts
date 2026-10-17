@@ -94,6 +94,13 @@ describe('the Jest integration', () => {
       [at('test/beta.case.ts'), true],
       [at('test/gamma.case.ts'), true],
     ]);
+    // Jest times the environment and the setup files; the setup module marks
+    // where collecting ended, and a file it ran no hook in has no such mark.
+    expect(coverage.tests.map((test) => [test.file, Object.keys(test.phases ?? {}).sort()])).toEqual([
+      [at('test/alpha.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+      [at('test/beta.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+      [at('test/gamma.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+    ]);
     // The project's setup files stayed configured and are preconditions of
     // every observation. `src/decide.ts` is not one: a precondition is a file
     // the answer depended on that the instrument could not see inside, and an
@@ -277,13 +284,13 @@ describe('the Jest integration', () => {
     // recordings is the same.
     const recorded = async (into: string): Promise<unknown> => {
       const { tests, ...rest } = decodeTestCoverage(await readFile(resolve(into, 'coverage.bin')));
-      expect(tests.every((test) => test.duration !== undefined)).toBe(true);
+      expect(tests.every((test) => test.duration !== undefined && test.phases !== undefined)).toBe(true);
       const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin')));
       expect(cases.tests.length).toBeGreaterThan(0);
       expect(cases.tests.every((test) => test.duration !== undefined)).toBe(true);
       return {
         ...rest,
-        tests: tests.map(({ duration: _, ...test }) => test),
+        tests: tests.map(({ duration: _, phases: __, ...test }) => test),
         cases: { ...cases, tests: cases.tests.map(({ duration: _, ...test }) => test) },
       };
     };

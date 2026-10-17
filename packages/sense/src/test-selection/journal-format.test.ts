@@ -22,6 +22,20 @@ describe('a journal as bytes', () => {
     });
   });
 
+  it('carries the moment its test file finished collecting, as the worker\'s clock read it', () => {
+    const frame = encodeJournal('src/a.test.ts', new Map([['src/cart.ts', counters([1])]]), new Map(), 1_760_000_000_123);
+    const seen: string[] = [];
+    scanJournal(frame, { test: (file) => seen.push(file), module: (id) => seen.push(id) });
+
+    expect(decodeJournal(frame).collected).toBe(1_760_000_000_123);
+    expect(seen).toEqual(['src/a.test.ts', 'src/cart.ts']);
+  });
+
+  it('leaves the moment out of a frame that has none, as a case\'s frame has none', () => {
+    expect(decodeJournal(encodeJournal('src/a.test.ts', new Map())).collected).toBeUndefined();
+    expect(decodeJournal(encodeLog('src/a.test.ts', { rows: [], start: new Int32Array(), end: new Int32Array(), sorted: new Int32Array(), ids: [] }))).not.toHaveProperty('collected');
+  });
+
   it('refuses a module row filed under a number', () => {
     const frame = encodeJournal('src/a.test.ts', new Map([['src/cart.ts', counters([1])]]));
     const tag = frame.indexOf(Buffer.from('src/cart.ts')) - 2;

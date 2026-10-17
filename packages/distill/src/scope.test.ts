@@ -16,13 +16,17 @@ interface Module {
 /** A record of test files with one finished case each, from its modules. */
 function record(
   modules: Readonly<Record<string, Module>>,
-  options: { readonly suite?: string; readonly incomplete?: readonly string[] } = {},
+  options: {
+    readonly suite?: string;
+    readonly incomplete?: readonly string[];
+    readonly times?: Readonly<Record<string, Pick<TestCoverage['tests'][number], 'duration' | 'phases'>>>;
+  } = {},
 ): ScopeRecord {
   const files = [...new Set(Object.values(modules).flatMap((module) => module.by))].sort();
   const coverage: TestCoverage = {
     version: 3,
     instrumentation: 'fixture-instrumentation',
-    tests: files.map((file) => ({ file, complete: !options.incomplete?.includes(file), preconditions: [] })),
+    tests: files.map((file) => ({ file, complete: !options.incomplete?.includes(file), preconditions: [], ...options.times?.[file] })),
     modules: Object.entries(modules).map(([file, module]) => {
       const root: Block = {
         ordinal: 0, kind: 'module', digest: `${file}#root`, name: '', path: '', source: true,
@@ -204,6 +208,73 @@ describe('distillScope', () => {
     const text = formatScopeDistillation(distillScope({ records: [record(MODULES)] }));
 
     expect(text.split('\n')[3]).toBe('  packages/ui/src/chart.ts: 1 module(s) in 3 test file(s), 300 line(s)');
+  });
+});
+
+// A loads for 60 ms and runs its cases in 4; B loads for 10 and runs for 30; C's runner timed nothing.
+const TIMES = {
+  [A]: { phases: { prepare: 2, environment: 0, setup: 1, collect: 60, cases: 4 } },
+  [B]: { phases: { prepare: 2, environment: 0, setup: 1, collect: 10, cases: 30 } },
+};
+
+describe('where the time of a scope went', () => {
+  it('sums each phase the runner timed before the cases, and the cases, over the test files that report them', () => {
+    expect(distillScope({ records: [record(MODULES, { times: TIMES })], relations }).time).toEqual({
+      timed: 2,
+      prepare: 4,
+      environment: 0,
+      setup: 2,
+      collect: 70,
+      cases: 34,
+      loadBound: [{ file: A, collect: 60, cases: 4 }],
+    });
+  });
+
+  it('counts only the test files under the directory it is given', () => {
+    const times = { ...TIMES, [C]: { phases: { prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5 } } };
+
+    expect(distillScope({ within: 'packages/lib', records: [record(MODULES, { times })], relations }).time)
+      .toEqual({ timed: 1, prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5, loadBound: [] });
+  });
+
+  it('leaves out a phase no timed test file reported, as Jest reports no prepare', () => {
+    const jest = {
+      [A]: { phases: { environment: 3, setup: 1, collect: 60, cases: 4 } },
+      [B]: { phases: { environment: 2, setup: 1, collect: 10, cases: 30 } },
+    };
+    const time = distillScope({ records: [record(MODULES, { times: jest })], relations }).time;
+
+    expect(time).toEqual({ timed: 2, environment: 5, setup: 2, collect: 70, cases: 34, loadBound: [{ file: A, collect: 60, cases: 4 }] });
+    expect(formatScopeDistillation(distillScope({ records: [record(MODULES, { times: jest })], relations })))
+      .not.toContain('prepare');
+  });
+
+  it('skips a test file whose runner timed its collect or its cases not at all', () => {
+    const times = { [A]: { phases: { collect: 60 } }, [B]: { phases: { cases: 30 } } };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time).toBeUndefined();
+  });
+
+  it('is absent when no test file of the scope reported its phases', () => {
+    expect(distillScope({ records: [record(MODULES)], relations }).time).toBeUndefined();
+  });
+
+  it('shows each phase in the order the runner meets it, its share, and the files loading dwarfs', () => {
+    const text = formatScopeDistillation(distillScope({ records: [record(MODULES, { times: TIMES })], relations }));
+
+    expect(text.split('\n').slice(0, 11)).toEqual([
+      'every test file: 3 test file(s), each read.',
+      '',
+      'Where the time went, as the runner timed 2 of the 3 test file(s): 110 ms.',
+      '  prepare, the worker readying the file: 4 ms, 4%',
+      '  environment: 0 ms, 0%',
+      '  setup files: 2 ms, 2%',
+      '  collect, importing the test file and everything it loads: 70 ms, 64%',
+      '  cases: 34 ms, 31%',
+      'Loading took over ten times as long as the cases in 1 test file(s): 60 ms against 4 ms.',
+      `  ${A}: 60 ms loading, 4 ms in its cases`,
+      '',
+    ]);
   });
 });
 

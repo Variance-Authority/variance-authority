@@ -25,6 +25,8 @@ import { type CrossingSetsPool } from './crossing-sets.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import {
   DURATION,
+  FORMAT,
+  PHASES,
   UNTIMED_FORMAT,
   BLOCK_KINDS,
   NAMES,
@@ -66,6 +68,12 @@ export interface TestCoverageView {
    * the layout before durations were recorded.
    */
   readonly testDuration: WordColumn | undefined;
+  /**
+   * What the runner said each test file spent before its first case:
+   * `PHASE_NAMES` words a test, `NO_DURATION` for a phase it did not report.
+   * Absent from a snapshot written in a layout before phases were recorded.
+   */
+  readonly testPhases: WordColumn | undefined;
   readonly preconditionName: WordColumn;
   readonly preconditionDigest: WordColumn;
   readonly modulePath: WordColumn;
@@ -152,6 +160,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const header = JSON.parse(head.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
   if (!readableFormat(header.version)) throw new Error(`unsupported test coverage version: ${header.version}`);
   const timed = header.version !== UNTIMED_FORMAT;
+  const phased = header.version === FORMAT;
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
   const found = new Map(header.sections.map((section) => [section.name, section]));
@@ -170,7 +179,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   };
 
   const rows: Record<string, number> = {};
-  for (const name of timed ? [...NAMES, DURATION] : NAMES) {
+  for (const name of [...NAMES, ...(timed ? [DURATION] : []), ...(phased ? [PHASES] : [])]) {
     const section = at(name);
     if (section.rows !== undefined) rows[name] = section.rows;
     else {
@@ -318,6 +327,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
       csr(values, rows['preconditions.name']!),
     ),
     testDuration: timed ? words(DURATION) : undefined,
+    testPhases: phased ? words(PHASES) : undefined,
     preconditionName: words('preconditions.name', (values) => ids(values, strings)),
     preconditionDigest: words('preconditions.digest', (values) => ids(values, strings)),
     modulePath: words('modules.path', (values) => ids(values, strings)),
