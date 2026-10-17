@@ -14,6 +14,7 @@ use rayon::prelude::*;
 
 use crate::compact::Layer;
 use crate::help_in_file::{in_file, InFile};
+use crate::help_origin::star_passes;
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
@@ -281,12 +282,14 @@ pub struct Importers {
 /// What an `export … from` passes on is `passed_on`'s answer, the one the
 /// package graph reads: that is no use, and the file that writes it is
 /// followed instead under the name it exports, so an import through a barrel
-/// is listed and the barrel is not. A bare `export *` passes on every name but
-/// `default`. The question is about source, so a type-only re-export passes
-/// its names on too, and every use that came through one is a type use,
-/// whatever its importer wrote. Each file is followed once per name, and once
-/// more when a value path reaches a name a type-only one reached first, so a
-/// cycle of re-exports ends.
+/// is listed and the barrel is not. A bare `export *` passes a name on only
+/// where ECMAScript's export resolution says it does (`star_passes`): never
+/// `default`, never past the file's own export or named `export … from` of the
+/// name, and never when another star reaches a different declaration. The
+/// question is about source, so a type-only re-export passes its names on too,
+/// and every use that came through one is a type use, whatever its importer
+/// wrote. Each file is followed once per name, and once more when a value path
+/// reaches a name a type-only one reached first, so a cycle of re-exports ends.
 ///
 /// A file asked about that declares the name uses it by scope, not by import,
 /// and the scan read those lines with its parse: they are `in_file`.
@@ -422,7 +425,7 @@ fn importers_of(
             let by = owners.package_of(crossing.file);
             let kind = kind_of(crossing.file);
             for request in parses.requests.range(row) {
-                let Some(names) = resolved[request - first].and_then(|path| wanted.get(path)) else { continue };
+                let Some((from, names)) = resolved[request - first].and_then(|path| Some((path, wanted.get(path)?))) else { continue };
                 if parses.request_republishes[request] != 1 {
                     let written = text.text(parses.request_value.at(request));
                     for (mut taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
@@ -435,19 +438,22 @@ fn importers_of(
                     }
                     continue;
                 }
-                let every = |type_only: bool| {
-                    names.iter().filter(|(name, _)| *name != "default").flat_map(move |(name, origins)| {
-                        origins.iter().map(move |(&origin, &typed)| (crossing.file.to_owned(), name.clone(), origin, typed || type_only))
-                    })
+                // Every wanted name `keep` lets through, as the file passes it on.
+                let pass = |keep: &dyn Fn(&str) -> bool, type_only: bool| -> Vec<(String, String, usize, bool)> {
+                    names
+                        .iter()
+                        .filter(|(name, _)| keep(name))
+                        .flat_map(|(name, origins)| origins.iter().map(move |(&origin, &typed)| (crossing.file.to_owned(), name.clone(), origin, typed || type_only)))
+                        .collect()
                 };
                 match passed_on(&layers[layer], row, request) {
                     // An export list the parse never recorded reads as the whole
                     // module, and as types when the whole statement says `export type`.
-                    None => passed.extend(every(text.text(parses.request_kind.at(request)) == "type")),
+                    None => passed.extend(pass(&|name| name != "default", text.text(parses.request_kind.at(request)) == "type")),
                     Some(listed) => {
                         for one in listed {
                             match (one.exported, names.get(one.imported)) {
-                                (None, _) if one.imported == "*" => passed.extend(every(one.type_only)),
+                                (None, _) if one.imported == "*" => passed.extend(pass(&|name| star_passes(layers, folded, crossing.file, from, name), one.type_only)),
                                 // `export * as ns` passes a namespace: the name is a member read off it.
                                 (Some(_), _) if one.imported == "*" => {}
                                 (Some(exported), Some(origins)) => passed.extend(
