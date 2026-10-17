@@ -12,8 +12,6 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { parseWay } from './files.js';
-import { languageOf, recordsMemberUses } from './language.js';
 import { native, nativeRefusal } from './native.js';
 import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { SourceSymbolReach } from './harvest.js';
@@ -94,11 +92,12 @@ export interface MemberSite {
   /**
    * Every line that uses the member through a value whose type is written as
    * the container, by file in code units, then by line; absent for a
-   * container with no name, which no line can write, and for a file whose
-   * reader records no member uses (`recordsMemberUses`), where they are not
-   * measured.
+   * container with no name, which no line can write, and when `usesRead` is
+   * false.
    */
   readonly uses?: readonly MemberUseSite[];
+  /** Whether the declaring file's reader records member uses; when it does not, they are not measured, which is not none. */
+  readonly usesRead: boolean;
 }
 
 /** One line that uses a member, and how. */
@@ -205,18 +204,7 @@ export function importersOf(
  * the index does not read.
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
-  const sites: readonly MemberSite[] | undefined = entry('memberDeclarationsOf')(root, index, name) ?? undefined;
-  return sites?.map((site) => (site.uses === undefined || measuresUses(site.at) ? site : withoutUses(site)));
-}
-
-/** Whether the reader of the file at `at` records the lines that use a member it declares. */
-function measuresUses(at: string): boolean {
-  const language = languageOf(parseWay(at).suffix);
-  return language !== undefined && recordsMemberUses(language);
-}
-
-function withoutUses({ uses: _unmeasured, ...site }: MemberSite): MemberSite {
-  return site;
+  return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
 }
 
 /**

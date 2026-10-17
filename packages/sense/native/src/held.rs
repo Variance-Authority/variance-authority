@@ -122,6 +122,8 @@ pub struct HeldParse {
     symbols: Vec<HeldSymbol>,
     #[serde(default)]
     harvested: bool,
+    #[serde(default, rename = "memberUsesRead")]
+    member_uses_read: bool,
     declares: Option<Vec<String>>,
     #[serde(default)]
     mocks: HeldMocks,
@@ -236,6 +238,10 @@ impl ParseRow for HeldParse {
 
     fn harvested(&self) -> bool {
         self.harvested
+    }
+
+    fn member_uses_read(&self) -> bool {
+        self.member_uses_read
     }
 
     fn size(&self) -> Option<crate::source_size::Size> {

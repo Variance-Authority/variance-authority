@@ -32,8 +32,8 @@ export const symbol: Tool<Help> = {
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
     'name a file declares at its top level and does not export, answered with where it is written, a ' +
     'name an import binds with `as`, answered with that import and the original it names, a ' +
-    'member of a type in any language the scan reads — an interface, a type literal, a class, ' +
-    'a Java, Kotlin or Swift type, a Python class — answered with its container and where it is declared, beside any ' +
+    'member of a TypeScript or JavaScript interface, type literal or class, a Java, Kotlin or Swift ' +
+    'type, or a Python class, answered with its container and where it is declared, beside any ' +
     'top-level declaration of the same name, and ' +
     'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
@@ -225,7 +225,7 @@ function memberBlocks(root: string | undefined, name: string, members: Members):
           : 'docs_uses names the lines that use it through a value written as its container, and the search that finds the rest.',
       ].join('\n'),
     ),
-    ...(more > 0 ? [`${more} more member ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown; docs_uses lists every one.`] : []),
+    ...(more > 0 ? [`${more} more member ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown; docs_uses lists more, and its \`package\` narrows them to one package.`] : []),
   ];
 }
 

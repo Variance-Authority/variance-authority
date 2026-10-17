@@ -149,6 +149,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const parseDeclarePresent = opened.u8('parses.declares-present');
   const parseUnknown = opened.u32('parses.unknown');
   const parseHarvested = opened.u8('parses.harvested');
+  const parseMemberUsesRead = opened.u8('parses.member-uses-read');
   const requestValue = opened.u32('requests.value');
   const requestKind = opened.u32('requests.kind');
   const requestLine = opened.u32('requests.line');
@@ -237,6 +238,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       ...membersOf(row, requests.length),
       ...declaredMembersOf(row),
       ...memberUsesOf(row),
+      ...(flag(parseMemberUsesRead[row]) ? { memberUsesRead: true } : {}),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),
       ...(moduleDoc === undefined ? {} : { doc: moduleDoc }),

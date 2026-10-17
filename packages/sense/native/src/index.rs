@@ -143,6 +143,10 @@ impl ParseRow for Read {
         self.harvested
     }
 
+    fn member_uses_read(&self) -> bool {
+        self.member_uses_read
+    }
+
     fn size(&self) -> Option<crate::source_size::Size> {
         self.size
     }

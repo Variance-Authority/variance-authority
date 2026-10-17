@@ -27,6 +27,8 @@ pub trait ParseRow {
     fn declares_present(&self) -> bool;
     fn unknown(&self) -> Option<&str>;
     fn harvested(&self) -> bool;
+    /// Whether the row's reader recorded member uses, including none.
+    fn member_uses_read(&self) -> bool;
     /// How big the module is; absent for a row whose reader did not measure it.
     fn size(&self) -> Option<Size>;
     /// The module's own doc comment, inside its marks; absent when it writes none.
@@ -47,6 +49,7 @@ pub struct ParseColumns {
     declares_present: Vec<u8>,
     unknown: Vec<u32>,
     harvested: Vec<u8>,
+    member_uses_read: Vec<u8>,
     bytes: Vec<u32>,
     lines: Vec<u32>,
     blocks: Vec<u32>,
@@ -113,6 +116,7 @@ impl ParseColumns {
             columns.declares_present.push(u8::from(row.declares_present()));
             columns.unknown.push(strings.optional(row.unknown()));
             columns.harvested.push(u8::from(row.harvested()));
+            columns.member_uses_read.push(u8::from(row.member_uses_read()));
             let size = row.size();
             columns.bytes.push(size.map_or(NONE, |size| size.bytes));
             columns.lines.push(size.map_or(NONE, |size| size.lines));
@@ -234,6 +238,7 @@ impl ParseColumns {
             u8s("parses.declares-present", self.declares_present),
             u32s("parses.unknown", self.unknown),
             u8s("parses.harvested", self.harvested),
+            u8s("parses.member-uses-read", self.member_uses_read),
             u32s("parses.bytes", self.bytes),
             u32s("parses.lines", self.lines),
             u32s("parses.blocks", self.blocks),

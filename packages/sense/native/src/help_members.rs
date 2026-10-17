@@ -39,8 +39,8 @@ use crate::read::Lines;
 pub struct MemberDeclaration {
     pub(crate) name: String,
     pub(crate) line: u32,
-    /// The interface, type alias or class the member is on, or how it is
-    /// written when it has no name.
+    /// The type the member is on, as its file's reader names it, or how it
+    /// is written when it has no name.
     pub(crate) on: String,
 }
 
@@ -67,8 +67,12 @@ pub struct MemberSite {
     pub on: String,
     /// Every use of the member through a value whose type is written as its
     /// container, ordered by file in code units, then by line; absent for a
-    /// container with no name, which no line can write.
+    /// container with no name, which no line can write, and when `uses_read`
+    /// is false.
     pub uses: Option<Vec<MemberUseSite>>,
+    /// Whether the reader of the declaring file records member uses; when it
+    /// does not, they are not measured, which is not none.
+    pub uses_read: bool,
 }
 
 /// One line that uses a member, `how`: `read`, `write` or `destructure`.
@@ -117,6 +121,7 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
         let Some((layer, row)) = crossing.parse else { continue };
         let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
         let by = owners.package_of(crossing.file);
+        let uses_read = parses.member_uses_read[row] == 1;
         let mut sites: Vec<MemberSite> = parses
             .member_declarations
             .range(row)
@@ -128,6 +133,7 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
                 kind: kind_of(crossing.file).to_owned(),
                 on: stored.text(parses.member_declaration_on.at(at)).to_owned(),
                 uses: None,
+                uses_read,
             })
             .collect();
         sites.sort_by_key(|site| site.line);
@@ -146,7 +152,7 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     let mut origins: Vec<(String, String)> = Vec::new();
     let mut of: Vec<Option<usize>> = Vec::new();
     for site in found.iter() {
-        if site.on == A_TYPE_LITERAL || site.on == A_CLASS { of.push(None); continue; }
+        if !site.uses_read || site.on == A_TYPE_LITERAL || site.on == A_CLASS { of.push(None); continue; }
         let origin = origins.iter().position(|(at, on)| *at == site.at && *on == site.on).unwrap_or_else(|| {
             origins.push((site.at.clone(), site.on.clone()));
             origins.len() - 1

@@ -83,7 +83,7 @@ export function membersOf(root: string | undefined, name: string, wanted: string
       ? []
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
-  const unrecorded = sites.flatMap((site, at) => (site.uses === undefined && !ANONYMOUS.has(site.on) ? [declared[at]!] : []));
+  const unrecorded = sites.flatMap((site, at) => (site.usesRead ? [] : [declared[at]!]));
   return { declared, used, unrecorded };
 }
 

@@ -29,6 +29,7 @@ pub(crate) struct Parses<'a> {
     declares_present: &'a [u8],
     pub unknown: U32s<'a>,
     pub harvested: &'a [u8],
+    pub member_uses_read: &'a [u8],
     bytes: U32s<'a>,
     lines: U32s<'a>,
     blocks: U32s<'a>,
@@ -106,6 +107,7 @@ impl<'a> Parses<'a> {
             declares_present: stored.u8s("parses.declares-present")?,
             unknown: u32s("parses.unknown")?,
             harvested: stored.u8s("parses.harvested")?,
+            member_uses_read: stored.u8s("parses.member-uses-read")?,
             bytes: u32s("parses.bytes")?,
             lines: u32s("parses.lines")?,
             blocks: u32s("parses.blocks")?,
@@ -192,6 +194,7 @@ impl<'a> Parses<'a> {
             ("parses.declares-present", self.declares_present.len()),
             ("parses.unknown", self.unknown.len()),
             ("parses.harvested", self.harvested.len()),
+            ("parses.member-uses-read", self.member_uses_read.len()),
             ("parses.bytes", self.bytes.len()),
             ("parses.lines", self.lines.len()),
             ("parses.blocks", self.blocks.len()),
@@ -397,6 +400,10 @@ impl ParseRow for ParseView<'_, '_> {
 
     fn harvested(&self) -> bool {
         flag(self.columns.harvested, self.row)
+    }
+
+    fn member_uses_read(&self) -> bool {
+        flag(self.columns.member_uses_read, self.row)
     }
 
     fn size(&self) -> Option<crate::source_size::Size> {

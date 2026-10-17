@@ -110,6 +110,10 @@ pub struct Read {
     /// Every use of a member through a value whose type the module writes.
     #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
     pub(crate) member_uses: Vec<MemberUse>,
+    /// The reader recorded member uses, including when there were none; a
+    /// reader that does not leaves them unmeasured, which is not none.
+    #[serde(rename = "memberUsesRead", skip_serializing_if = "is_false")]
+    pub(crate) member_uses_read: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -337,6 +341,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         members,
         member_declarations: member_declarations_in(&parsed.program, &lines),
         member_uses: member_uses_in(&parsed.program, &lines),
+        member_uses_read: true,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
         doc: harvest.module_doc,

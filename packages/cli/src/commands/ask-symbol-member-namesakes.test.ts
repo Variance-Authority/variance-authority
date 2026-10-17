@@ -115,7 +115,7 @@ describe('variance ask symbol about a member', () => {
     expect(out.match(/^a member of `/gmu)).toHaveLength(5);
     expect(out).toContain('a member of `Five`, declared at packages/kit/kit/sizes.py:14');
     expect(out).not.toContain('a member of `Six`');
-    expect(out).toContain('1 more member declaration of `size` not shown; docs_uses lists every one.');
+    expect(out).toContain('1 more member declaration of `size` not shown; docs_uses lists more, and its `package` narrows them to one package.');
   });
 
   it('answers a method and a field of a Java class', async () => {
