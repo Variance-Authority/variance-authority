@@ -22,6 +22,7 @@ import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, 
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';
+import { reviewJson } from './review-json.js';
 
 /** The first line of the markdown, which a workflow looks for to edit its own comment. */
 export const REVIEW_MARKER = '<!-- variance-authority: review -->';
@@ -63,15 +64,15 @@ export function formatReview(review: Review, format: Exclude<ReviewFormat, 'json
 }
 
 /**
- * A review in the pieces `writePieces` writes. Every region carries the cases
- * that entered it, so a change that moves most of a suite's regions spells
- * more JSON than V8 holds in one string; written as it serializes, a region at
- * a time, it is never held whole, nor is a file most of the suite enters.
+ * A review in the pieces `writePieces` writes. JSON is `review.json`'s shape,
+ * each case once ({@link reviewJson}), written as it serializes, a region at a
+ * time, so neither the answer nor a file most of the suite enters is held
+ * whole as one string.
  */
 export function* reviewPieces(review: Review, format: ReviewFormat): Generator<string, void, undefined> {
   if (format !== 'json') return yield formatReview(review, format);
   // The review, its files, a file, its regions: below that, one region is one piece.
-  yield* jsonPieces(review, 4);
+  yield* jsonPieces(reviewJson(review), 4);
   yield '\n';
 }
 

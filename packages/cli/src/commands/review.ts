@@ -99,7 +99,7 @@ export interface ReviewRegion {
   readonly changedLineCases: number;
   /** The test files those cases are declared in, in code-unit order. */
   readonly tests: readonly string[];
-  /** Those cases by test file and title, in code-unit order: what a reader asks the count about. */
+  /** Those cases by test file, title and id, in code-unit order: what a reader asks the count about. */
   readonly called: readonly ReviewCase[];
 }
 

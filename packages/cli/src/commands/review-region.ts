@@ -164,7 +164,7 @@ export function regionsOf(
       tests: [...new Set(called.map((test) => test.file))].sort(order),
       called: called
         .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
-        .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
+        .sort((left, right) => order(left.file, right.file) || order(left.name, right.name) || order(left.id, right.id)),
     };
   });
 }

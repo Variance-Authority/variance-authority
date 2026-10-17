@@ -206,9 +206,6 @@ export async function answerConfigless(
       const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
-        // FIXME: review.json is unbounded — every moved region carries its cases in full, and a change that moves
-        // most of a suite's regions writes hundreds of megabytes (430 MB on a pull request's CI run), and past V8's string
-        // limit `--from-run` cannot read it back.
         await writeFile(join(parsed.out, 'review.json'), reviewPieces(answer, 'json'));
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
