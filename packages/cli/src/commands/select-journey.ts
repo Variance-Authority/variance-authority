@@ -74,7 +74,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   const suite = await journeySuite(here, request.suite);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...changed.keys()]);
   const base = { at: request.execution, given: true, ...rest };
-  if (whole !== undefined) return suiteOf({ ...base, ground: { kind: 'before', whole } }, request.atDistance);
+  if (whole !== undefined) return suiteOf({ ...base, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, request.atDistance);
   const preimages = await patchPreimages(text, request.root);
   const { read, readings } = selection.readJourneyChange(text, (file) => preimages.get(file), {
     root: request.root,

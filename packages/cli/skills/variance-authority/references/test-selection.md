@@ -122,8 +122,14 @@ variance reach --since origin/main              # files a diff reaches over impo
 - **`select` prints a skip list, never a run list.** A test the recording has
   not seen stays in the run. An empty stdout skips nothing, and runs the whole
   suite. Every sentence about the reading goes to stderr, so `$(...)` gets only
-  arguments for the runner. `--format json` gives the counts, and gives the
-  reason it declined to narrow as `widened`.
+  arguments for the runner. `--format json` gives the counts, the reason it
+  declined to narrow as `widened`, and which reading was made as `ground`
+  (`read`, `no-journal`, `no-coverage`, `no-diff`, `no-install`, or `before`
+  with the changed files under `rests`). Under `read`, `selected` lists each
+  test file the change reached with the positions of its reasons in `reasons`,
+  where each `region`, `precondition`, `reader` or `importer` reason is named
+  once, and `incomplete` lists the recorded test files not observed whole,
+  which run whatever changed.
 - **`select` flags.** `--suite <name>` names the record, and is required when
   the root config declares more than one suite. `--since <ref>` is the base when
   the recording names no commit. `--execution <journey file>` reads that file
@@ -157,7 +163,7 @@ Which cases ran one line, and what a change did to the cases, is `variance
 covering`, in [covering](covering.md).
 
 For what the commands do not print, read [selection API](selection-api.md): a
-distance per test, the `because` trail, or a diff that is not a ref.
+distance per test outside a leg, or a diff that is not a ref.
 
 ## Test an edit in a loop
 
