@@ -176,6 +176,8 @@ export interface Named {
   readonly type: boolean;
   /** Whether the exporting file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
+  /** The kind of the declaration the export binds in its own file, as the parse records it (`function`, `class`, `variable` …); absent for `export … from`, whose declaration is another file's. */
+  readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
 }

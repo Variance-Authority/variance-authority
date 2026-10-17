@@ -28,6 +28,11 @@ pub struct NamedExport {
     #[serde(rename = "type")]
     pub r#type: bool,
     pub kind: String,
+    /// The kind of the declaration the export binds in its own file, as the
+    /// parse records it (`function`, `class`, `variable` …); absent for an
+    /// `export … from`, whose declaration is another file's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declaration: Option<String>,
     /// The doc comment above the export, or above the declaration it binds in
     /// the same file, as `dependency_namespace::doc` cuts it from the file at the
     /// span the index holds; absent when nothing documents it.
@@ -174,18 +179,17 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
             let Some(name) = text.optional(id) else { continue };
             // The TypeScript reader spans an export's doc on the export; the
             // others span it on the declaration the export binds, by its name.
-            let declared = || {
-                let local = text.optional(parses.export_local.at(export))?;
-                if text.optional(parses.export_from.at(export)).is_some() { return None }
-                parses.symbols.range(row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == local).and_then(|symbol| parses.doc_of_symbol(symbol))
-            };
-            let doc = parses.doc_of_export(export).or_else(declared).and_then(|span| {
+            let bound = text.optional(parses.export_local.at(export)).filter(|_| text.optional(parses.export_from.at(export)).is_none()).and_then(|local| {
+                parses.symbols.range(row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == local)
+            });
+            let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());
+            let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol))).and_then(|span| {
                 let utf16 = source.get_or_insert_with(|| {
                     std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
                 });
                 crate::dependency_namespace::doc(utf16, Some(span))
             });
-            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), doc });
+            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), declaration, doc });
         }
     }
     let first = parses.requests.at(row) as usize;

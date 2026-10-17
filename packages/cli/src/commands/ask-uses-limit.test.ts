@@ -88,7 +88,7 @@ describe('variance ask uses --limit', () => {
 
     const own = (out: string): readonly string[] => {
       const lines = out.split('\n');
-      const at = lines.indexOf('Used in the file that declares it:');
+      const at = lines.indexOf('Used in packages/lib/src/greet.ts, which declares it:');
       if (at === -1) return [];
       const after = lines.slice(at + 2);
       const end = after.findIndex((line) => !/^\S+:\d+ — /.test(line));
