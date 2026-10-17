@@ -163,8 +163,15 @@ A miss is a refusal on stderr. `variance ask` exits `2`;
 `variance-authority-help` exits `1`:
 
 ```
-`NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation.
+`NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either.
 ```
+
+When the dependency lexicon is not published, the refusal still says what the
+workspace holds, and that the installed dependencies were not checked:
+``Whether an installed dependency publishes it is not known: the dependency
+lexicon is not published, and `variance index` publishes it.`` When the source
+index did not read some files' declarations, the refusal says no file *it read*
+declares the name, and names those files last.
 
 A name no entry publishes, but that another package imports by the path of its
 file, is answered rather than refused: where it is declared, why nothing
@@ -174,8 +181,12 @@ checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
 that passes it on exports without declaring, is said after it. A name a file
-declares and nothing exports is answered from the source index, as below; a
-name nothing declares is refused.
+declares and does not export is answered from the source index, as below, after
+any export of the same name in another file. A name an import binds with `as`
+is answered with that import and the original it names. A member of an
+interface, a type literal or a class, when nothing else declares or binds the
+name, is answered with its container and the file and line that declare it, one
+block per declaration. A name nothing declares is refused.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
