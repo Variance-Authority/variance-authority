@@ -62,7 +62,7 @@ export interface SubjectNote {
   readonly case?: Omit<ObservedCase, 'journal' | 'stopped'>;
   /**
    * Where the driver saw this reading's time go. Where one subject is noted
-   * twice, the run's join keeps the first reading's.
+   * twice, the run's join adds the readings, as it adds their durations.
    */
   readonly phases?: FilePhases;
 }

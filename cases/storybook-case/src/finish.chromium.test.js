@@ -217,8 +217,9 @@ live('where the browser spent each story', () => {
       expect(Object.keys(first).sort()).toEqual(['cases', 'collect', 'ready']);
       expect(first.ready).toBeGreaterThan(0);
       // Switched to over the channel, so the document's load is already spent.
-      expect(Object.keys(busy).sort()).toEqual(['cases', 'collect']);
-      expect(Object.keys(last).sort()).toEqual(['cases', 'collect']);
+      expect(Object.keys(busy).sort()).toEqual(['cases', 'collect', 'ready']);
+      expect(busy.ready).toBe(0);
+      expect(last.ready).toBe(0);
       // The busy story's `afterEach` holds its render open for two seconds,
       // and that hook is the story's own time.
       expect(busy.cases).toBeGreaterThanOrEqual(2_000);

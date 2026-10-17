@@ -16,11 +16,12 @@ export interface StoryTimingRequest {
  * Hand back what the page timed of one story, and forget it. **Runs in page
  * scope.**
  *
- * `ready` goes to the first story asked about on the document. `collect` and
+ * `ready` goes to the first story asked about on the document, and every later
+ * one reads 0: it was timed, and the document was already ready. `collect` and
  * `cases` come from the story's last render: `cases` ends where it finished,
  * or failed, or — for one still in `afterEach` — rendered, and a render with
  * none of those has no end to measure to. A story read
- * again without a new render has nothing left to give.
+ * again without a new render has only that 0 left to give.
  */
 export const takeStoryTiming = (request: StoryTimingRequest): StoryTiming => {
   const record = (globalThis as unknown as Record<string, unknown>)[request.key] as
@@ -32,9 +33,9 @@ export const takeStoryTiming = (request: StoryTimingRequest): StoryTiming => {
     | undefined;
   if (record === undefined) return {};
   const timing: { ready?: number; collect?: number; cases?: number } = {};
-  if (!record.claimed && record.ready !== undefined) {
+  if (record.ready !== undefined) {
+    timing.ready = record.claimed ? 0 : record.ready;
     record.claimed = true;
-    timing.ready = record.ready;
   }
   const render = record.renders[request.storyId];
   if (render === undefined) return timing;

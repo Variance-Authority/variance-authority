@@ -11,11 +11,12 @@
  * - `ready`: the document's start until the preview's store is initialized —
  *   the runtime, the project annotations, the index. Paid once per document,
  *   so it belongs to the first story read on it, and a story the preview
- *   switched to over the channel carries none, as a second test in one file
+ *   switched to over the channel carries 0, as a second test in one file
  *   pays no worker start.
- * - `collect`: the render's `preparing` phase, which is where the story's file
- *   is imported with everything it loads.
- * - `cases`: from the end of `preparing` to the render's last phase — loaders,
+ * - `collect`: from the render's `preparing` phase to its `loading`: importing
+ *   the story's file with everything it loads, and then unmounting the story
+ *   shown before it, which Storybook does in between and signals nothing for.
+ * - `cases`: from `loading` to the render's last phase — loaders,
  *   `beforeEach`, the render, the play function and `afterEach`.
  *
  * {@link watchStoryTiming} runs at document start and only writes stamps down;

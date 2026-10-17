@@ -10,12 +10,20 @@ const subject = (extra: Partial<ObservedSubject>): ObservedSubject => ({
 });
 
 describe('a joined subject says where its time went', () => {
-  it('keeps the first source that timed it, rather than adding a second reading to the first', () => {
+  it('adds every reading that timed it, as durations are, and a source that timed nothing leaves the rest standing', () => {
     const [joined] = joinObservations([
       [subject({})],
       [subject({ phases: { prepare: 900, collect: 40, cases: 12 } })],
+      [subject({ phases: { prepare: 0, collect: 5, cases: 3 } })],
+    ]);
+    expect(joined?.phases).toEqual({ prepare: 900, collect: 45, cases: 15 });
+  });
+
+  it('leaves a phase unknown where one reading did not time it', () => {
+    const [joined] = joinObservations([
+      [subject({ phases: { prepare: 900, collect: 40, cases: 12 } })],
       [subject({ phases: { collect: 5, cases: 3 } })],
     ]);
-    expect(joined?.phases).toEqual({ prepare: 900, collect: 40, cases: 12 });
+    expect(joined?.phases).toEqual({ collect: 45, cases: 15 });
   });
 });

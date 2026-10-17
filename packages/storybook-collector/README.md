@@ -448,9 +448,11 @@ Each story's row also says where the browser spent it, timed by the page on its
 own clock rather than by the test driving it, under the phase names a test
 file's row uses. `prepare` is the document's start until the preview is ready:
 the runtime, the project annotations and the index. A document pays it once, so
-only the first story read on it carries one, and a story the preview switched to
-carries none, as the second test in one file pays no worker start. `collect` is
-importing the story's file and everything it loads. `cases` is the render, from
+only the first story read on it carries it, and a story the preview switched to
+reads 0, as the second test in one file pays no worker start. `collect` is
+importing the story's file and everything it loads, and then unmounting the
+story shown before it: Storybook does that in between and signals nothing for
+it. `cases` is the render, from
 loaders through the play function to `afterEach`. Each width a story is read at
 is its own row, with its own figures.
 

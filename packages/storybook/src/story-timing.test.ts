@@ -64,14 +64,15 @@ describe('story timing', () => {
     page.phase(970, 'price--premium', 'finished');
     expect(take('price--premium')).toEqual({ ready: 900, collect: 40, cases: 20 });
 
-    // Switched to over the channel: the document was already ready.
+    // Switched to over the channel: the document was already ready, so the
+    // story was timed and paid nothing for it.
     page.phase(1000, 'price--plain', 'preparing');
     page.phase(1005, 'price--plain', 'loading');
     page.phase(1008, 'price--plain', 'finished');
-    expect(take('price--plain')).toEqual({ collect: 5, cases: 3 });
+    expect(take('price--plain')).toEqual({ ready: 0, collect: 5, cases: 3 });
 
-    // Read again with no new render, nothing is left to give.
-    expect(take('price--plain')).toEqual({});
+    // Read again with no new render, only the load it did not pay is left.
+    expect(take('price--plain')).toEqual({ ready: 0 });
   });
 
   it('ends a render still in afterEach where it rendered, and leaves a running one without cases', async () => {
