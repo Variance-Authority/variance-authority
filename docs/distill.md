@@ -58,8 +58,9 @@ stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
 whole file: what it loaded, and how many of its cases entered each module
 ([below](#imports-a-file-loads-for-few-of-its-cases)). Name neither, and Distill
 reads every test file, or with `--from <dir>` every one under a folder or a
-package, and ranks the imports they load for nothing
-([below](#imports-a-folder-a-suite-or-the-repository-loads-for-nothing)).
+package, says how much of their time went to loading rather than to the tests
+([below](#where-a-folders-test-time-went)), and ranks the imports they load for
+nothing ([below](#imports-a-folder-a-suite-or-the-repository-loads-for-nothing)).
 
 Distill reads the record your last recorded run wrote, `coverage.bin`, and finds
 it the way [test selection](selecting.md) does. With more than one declared
@@ -308,13 +309,12 @@ without. Running the file again records a row the reading can use.
 As with every finding here, rerun the file after the change: a top level can
 register something a case depends on.
 
-## Imports a folder, a suite or the repository loads for nothing
+## Where a folder's test time went
 
-One test file shows you what its own imports cost. The import worth removing
-first is usually one many test files share: a barrel that puts a hundred unused
-lines into forty test files costs four thousand, paid once in each. Name no case
-and no file, and Distill reads every test file on its own, as `--file` would,
-then gathers what each loaded for nothing under the import that brought it in:
+Before you cut an import, find out whether loading is what your tests cost.
+Name no case and no file, and Distill opens with the time the runner measured
+for each test file under the scope, split into what is part of a test and what
+is not:
 
 ```bash
 variance distill --from packages/distill
@@ -332,7 +332,30 @@ Where the time went, as the runner timed 6 of the 6 test file(s): 2189 ms.
 Loading took over ten times as long as the cases in 2 test file(s): 597 ms against 34 ms.
   packages/distill/src/index.test.ts: 395 ms loading, 17 ms in its cases
   packages/distill/src/mocks.test.ts: 202 ms loading, 17 ms in its cases
+```
 
+Only `cases` is your tests: the cases and their hooks. `collect` is importing
+the test file and running its top level, which is where its modules load, and
+"loading" in the last lines means `collect` alone. Vitest reports all five
+phases. Jest reports the environment and the setup files, and the recording
+marks the moment each file finished collecting, so a Jest file has every phase
+but `prepare`. A phase no file reported is left out rather than shown as zero,
+and a file without both a `collect` and a `cases` time is left out of every
+sum, which is why the head says how many of the files were timed.
+
+A test file whose `collect` took over ten times as long as its cases spends
+its time in what it imports. Each one is named, the line before the names sums
+them, and the next reading says which imports those are.
+
+## Imports a folder, a suite or the repository loads for nothing
+
+One test file shows you what its own imports cost. The import worth removing
+first is usually one many test files share: a barrel that puts a hundred unused
+lines into forty test files costs four thousand, paid once in each. The same
+command reads every test file on its own, as `--file` would, and after the time
+gathers what each loaded for nothing under the import that brought it in:
+
+```text
 Loaded, and entered by no case of the test file that loaded it: 951 module load(s), 198402 line(s).
   packages/sense/src/test-selection/kept-install.ts imports packages/sense/src/lock/read.ts: 6 module(s) in 6 test file(s), 4476 line(s)
   packages/sense/src/test-selection/index.ts imports packages/sense/src/test-selection/select.ts: 3 module(s) in 6 test file(s), 4218 line(s)
@@ -340,25 +363,17 @@ Loaded, and entered by no case of the test file that loaded it: 951 module load(
   No one import brings these in alone: 103 module(s) in 6 test file(s), 119366 line(s)
 ```
 
-The first part is time, as the runner measured it for each test file, split
-into what is part of a test and what is not. `collect` is importing the test
-file and running its top level, which is where its modules load; `cases` is
-the tests and their hooks. Vitest reports all five phases. Jest reports the
-environment and the setup files, and the recording marks the moment the file
-finished collecting, so a Jest file has every phase but `prepare`. A phase no
-file reported is left out rather than shown as zero. A test file whose loading
-took more than ten times as long as its cases is named: there the time is in
-what it imports, and the rest of the reading says which imports those are.
-
-In the second part, an import's lines count once in every test file it
-reaches, because each file evaluates its imports anew. Only what no case of the loading file entered is
-gathered; a module some cases used belongs to the file's own reading. The text
-names the ten heaviest imports and sums the rest, then the modules no one import
-brings in alone and those no static import reaches, as a file's reading names
-them ([above](#imports-a-file-loads-for-few-of-its-cases)); `--format json`
-lists every import with its modules and the test files it reaches. Lines are
-the size of what loaded; the time above says what loading cost. The fix is at the import named, as it
-is for one file, and every test file the import reaches stops paying.
+An import's lines count once in every test file it reaches, because each file
+evaluates its imports anew, and so does a module: 951 module loads is the sum
+over the six files. Only what no case of the loading file entered is gathered;
+a module some cases used belongs to the file's own reading. The text names the
+ten heaviest imports and sums the rest, then the modules no one import brings
+in alone and those no static import reaches, as a file's reading names them
+([above](#imports-a-file-loads-for-few-of-its-cases)); `--format json` lists
+every import with its modules and the test files it reaches. Lines are the size
+of what loaded, not its time: the time is the `collect` above, measured per
+file and not per import. The fix is at the import named, as it is for one file,
+and every test file the import reaches stops paying.
 
 You choose the scope:
 
