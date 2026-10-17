@@ -138,9 +138,46 @@ fn a_member_is_read_through_a_namespace_and_every_import_call_holder() {
             ("./held", "b"),
             ("./awaited", "c"),
             ("./then", "d"),
-            ("./then", "then"),
             ("./destructured", "e"),
             ("./later", "f"),
+        ]
+            .map(|(value, name)| (value.to_owned(), name.to_owned()))
+    );
+}
+
+#[test]
+fn a_promise_is_not_the_module_it_loads() {
+    // `.then` and `.x` off an `import()` that is not awaited read the promise:
+    // neither is an export of the module.
+    assert_eq!(members("import('./promised').x;\nconst { y } = import('./unawaited');\n"), []);
+}
+
+#[test]
+fn a_destructured_import_call_takes_each_name_it_destructures() {
+    let source = concat!(
+        "const [{ a }, { b: local, c }, , whole, { d }] = await Promise.all([\n",
+        "  import('./first'), import('./second'), import('./skipped'), import('./whole'), import('./fifth'),\n",
+        "]);\n",
+        "const { e, ...rest } = await import('./rested');\n",
+        "rest.f;\n",
+        "const { g } = (await import('./cast')) as typeof import('./cast');\n",
+        "Promise.all([import('./then')]).then(([{ h }]) => h);\n",
+        "const [{ i }] = await Promise.all([...spread, import('./after-spread')]);\n",
+        "const [{ j }] = await Promise.allSettled([import('./settled')]);\n",
+        "whole.k;\n",
+    );
+    assert_eq!(
+        members(source),
+        [
+            ("./first", "a"),
+            ("./second", "b"),
+            ("./second", "c"),
+            ("./whole", "k"),
+            ("./fifth", "d"),
+            ("./rested", "e"),
+            ("./rested", "f"),
+            ("./cast", "g"),
+            ("./then", "h"),
         ]
             .map(|(value, name)| (value.to_owned(), name.to_owned()))
     );

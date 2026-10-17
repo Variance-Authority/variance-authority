@@ -4,8 +4,11 @@
 //! `import m = require('m')` and an `import()` do not: the file holds the module
 //! whole, and the names it uses are member reads further down — `ns.x`,
 //! `(await import('m')).x`, `m.x` after `const m = await import('m')` or
-//! `import m = require('m')`, `const { x } = await import('m')`, and the
-//! callback of `import('m').then(…)`. Each of those is recorded against the
+//! `import m = require('m')`, `const { x } = await import('m')`, the element of
+//! `const [{ x }] = await Promise.all([import('m')])` in the same position, and
+//! the callback of `import('m').then(…)`. A cast changes no value, and a rest
+//! holds the module too; a read off the promise `import()` returns is the
+//! promise's, not the module's. Each of those is recorded against the
 //! request it reads through, by that request's index in the parse. An
 //! `import m = require()` holds from where it is written on, as the `const`
 //! TypeScript compiles it to does; a type-only one holds nothing.
@@ -100,17 +103,54 @@ struct Walker<'l> {
 }
 
 impl Walker<'_> {
-    /// The request an expression evaluates to, looking through parentheses and `await`.
+    /// The request an expression evaluates to, looking through parentheses,
+    /// TypeScript's casts and `await`: an awaited `import()`, or a holder.
     fn held(&mut self, expression: &Expression) -> Option<Via> {
-        match expression.without_parentheses() {
-            Expression::AwaitExpression(it) => self.held(&it.argument),
-            Expression::ImportExpression(it) => self.loads.import(it).map(|index| Via::Indexed(self.stated + index)),
+        match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => self.promised(&it.argument).or_else(|| self.held(&it.argument)),
             Expression::Identifier(it) => self.holders.get(it.name.as_str()).copied(),
             _ => None,
         }
     }
 
-    /// What binding a pattern to `request` takes: a holder, or the names it destructures.
+    /// The request an `import()` promises. The promise is not the module: a read
+    /// off it, `.then` among them, is the promise's own.
+    fn promised(&mut self, expression: &Expression) -> Option<Via> {
+        match expression.get_inner_expression() {
+            Expression::ImportExpression(it) => self.loads.import(it).map(|index| Via::Indexed(self.stated + index)),
+            _ => None,
+        }
+    }
+
+    /// What an awaited `Promise.all([...])` resolves to, element by element:
+    /// the request each `import()` in the array holds, and none for any other
+    /// element, a hole, or everything from a spread on, whose positions are unknown.
+    fn held_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
+        match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => self.promised_all(&it.argument),
+            _ => None,
+        }
+    }
+
+    fn promised_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
+        let Expression::CallExpression(call) = expression.get_inner_expression() else { return None };
+        if !call.callee.get_inner_expression().is_specific_member_access("Promise", "all") {
+            return None;
+        }
+        let Some(Argument::ArrayExpression(array)) = call.arguments.first() else { return None };
+        let mut held = Vec::new();
+        for element in &array.elements {
+            match element {
+                ArrayExpressionElement::SpreadElement(_) => break,
+                ArrayExpressionElement::Elision(_) => held.push(None),
+                _ => held.push(element.as_expression().and_then(|it| self.promised(it))),
+            }
+        }
+        Some(held)
+    }
+
+    /// What binding a pattern to `request` takes: a holder, or the names it
+    /// destructures, and a rest holds what the names left.
     fn bind(&mut self, pattern: &BindingPattern, request: Via) {
         match pattern {
             BindingPattern::BindingIdentifier(it) => {
@@ -122,9 +162,27 @@ impl Walker<'_> {
                         self.add(request, &name, property.span.start);
                     }
                 }
+                if let Some(rest) = &it.rest {
+                    self.bind(&rest.argument, request);
+                }
             }
             BindingPattern::AssignmentPattern(it) => self.bind(&it.left, request),
             BindingPattern::ArrayPattern(_) => {}
+        }
+    }
+
+    /// Binding an array pattern to what `Promise.all` resolves to: element `i`
+    /// of the pattern takes the request element `i` of the array holds.
+    fn bind_all(&mut self, pattern: &BindingPattern, held: &[Option<Via>]) {
+        let pattern = match pattern {
+            BindingPattern::AssignmentPattern(it) => &it.left,
+            other => other,
+        };
+        let BindingPattern::ArrayPattern(array) = pattern else { return };
+        for (element, request) in array.elements.iter().zip(held) {
+            if let (Some(element), Some(request)) = (element, request) {
+                self.bind(element, *request);
+            }
         }
     }
 
@@ -135,8 +193,12 @@ impl Walker<'_> {
 
 impl<'a> Visit<'a> for Walker<'_> {
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
-        if let Some(request) = it.init.as_ref().and_then(|init| self.held(init)) {
-            self.bind(&it.id, request);
+        if let Some(init) = &it.init {
+            if let Some(held) = self.held_all(init) {
+                self.bind_all(&it.id, &held);
+            } else if let Some(request) = self.held(init) {
+                self.bind(&it.id, request);
+            }
         }
         walk::walk_variable_declarator(self, it);
     }
@@ -178,7 +240,8 @@ impl<'a> Visit<'a> for Walker<'_> {
         walk::walk_ts_import_equals_declaration(self, it);
     }
 
-    // `import('m').then((m) => …)`: the callback's first parameter holds the module.
+    // `import('m').then((m) => …)`: the callback's first parameter holds the
+    // module, and `Promise.all([import('m')]).then(([m]) => …)` pairs as `await` does.
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         self.loads.call(it, self.mock_factory.as_deref());
         if let Some(target) = crate::mocks::factory_target(it) {
@@ -194,16 +257,19 @@ impl<'a> Visit<'a> for Walker<'_> {
             }
             return;
         }
-        if let Expression::StaticMemberExpression(callee) = it.callee.without_parentheses() {
-            let loaded = matches!(callee.object.without_parentheses(), Expression::ImportExpression(_));
-            if let (true, "then", Some(request)) = (loaded, callee.property.name.as_str(), self.held(&callee.object)) {
+        if let Expression::StaticMemberExpression(callee) = it.callee.get_inner_expression() {
+            if callee.property.name == "then" {
                 let first = match it.arguments.first() {
                     Some(Argument::ArrowFunctionExpression(f)) => f.params.items.first(),
                     Some(Argument::FunctionExpression(f)) => f.params.items.first(),
                     _ => None,
                 };
                 if let Some(parameter) = first {
-                    self.bind(&parameter.pattern, request);
+                    if let Some(held) = self.promised_all(&callee.object) {
+                        self.bind_all(&parameter.pattern, &held);
+                    } else if let Some(request) = self.promised(&callee.object) {
+                        self.bind(&parameter.pattern, request);
+                    }
                 }
             }
         }
