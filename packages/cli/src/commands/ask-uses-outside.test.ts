@@ -6,11 +6,12 @@ import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
 /**
- * `variance ask uses` over a name an installed package declares: every import
- * of it out of that package, each written the way the workspace writes its
- * own — an `import()` and an `export … from` marked — nearest to `from` first,
- * after the workspace's own answer when the workspace declares the name too,
- * and what was not read named after them.
+ * `variance ask uses` over a name an installed package or a module of the
+ * runtime's declares: every import of it out of that package or module, each
+ * written the way the workspace writes its own — an `import()` and an
+ * `export … from` marked — nearest to `from` first, after the workspace's own
+ * answer when the workspace declares the name too, and what was not read
+ * named after them.
  */
 
 const cwd = process.cwd();
@@ -96,7 +97,17 @@ describe('variance ask uses over a name an installed package declares', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'parseSync']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('The imports of 1 file were not read, so an import of it there out of an installed package is not known: packages/tool/src/any.ts.');
+    expect(out).toContain('The imports of 1 file were not read, so an import of it there from outside the workspace is not known: packages/tool/src/any.ts.');
+  }, 120_000);
+
+  it('names the files whose imports were not read after a workspace answer with no import from outside', async () => {
+    checkout({ ...OUTSIDE, 'packages/tool/src/any.ts': 'export const load = (at: string): Promise<unknown> => import(at);\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'view']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).not.toContain('imported from outside the workspace');
+    expect(out).toContain('The imports of 1 file were not read, so an import of it there from outside the workspace is not known: packages/tool/src/any.ts.');
   }, 120_000);
 
   it('lists an export … from out of an installed package as an import that passes the name on, and no declaration', async () => {
@@ -106,7 +117,44 @@ describe('variance ask uses over a name an installed package declares', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'parseSync']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).not.toContain('each answered below');
-    expect(out).toContain('`parseSync` is imported from outside the workspace too, in 3 places, out of thirdp:');
+    expect(out).not.toContain('exported at');
+    expect(out).toContain('`parseSync` is declared in no file of this workspace; it is imported from outside it in 3 places, out of thirdp.');
     expect(out).toMatch(/^packages\/tool\/src\/again\.ts:1 — @acme\/tool, from thirdp, passes it on$/m);
+  }, 120_000);
+});
+
+const RUNTIME = {
+  ...OUTSIDE,
+  'packages/other/src/resolve.ts': 'export function resolve(at: string): string {\n  return at;\n}\n',
+  'packages/tool/src/where.ts': "import { join, resolve } from 'node:path';\nexport const at = resolve(join('a', 'b'));\n",
+  'packages/tool/src/bare.ts': "import { resolve as resolved } from 'path';\nexport const there = resolved('c');\n",
+};
+
+describe('variance ask uses over a name a module of the runtime declares', () => {
+  it('counts the runtime module as one more source, with or without its scheme, after the workspace declaration', async () => {
+    checkout(RUNTIME);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'resolve']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n').slice(0, 3)).toEqual([
+      '`resolve` names 1 declaration and is imported from 1 built-in module, each answered below:',
+      '  function, exported, at packages/other/src/resolve.ts:1',
+      '  imported from node:path, which the runtime declares',
+    ]);
+    expect(out).toContain('`resolve` is imported from outside the workspace too, in 2 places, out of node:path:');
+    expect(out).toMatch(/^packages\/tool\/src\/bare\.ts:1 — @acme\/tool, from node:path, the runtime's \(as resolved\)$/m);
+    expect(out).toMatch(/^packages\/tool\/src\/where\.ts:1 — @acme\/tool, from node:path, the runtime's$/m);
+  }, 120_000);
+
+  it('answers a name only the runtime declares by its imports, and says the declaration is the runtime’s', async () => {
+    checkout(RUNTIME);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'join']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('`join` is declared in no file of this workspace; it is imported from outside it in 1 place, out of node:path.');
+    expect(out).toContain("A built-in module's declaration is the runtime's, which the source index does not read.");
+    expect(out).not.toContain('docs_symbol has its declaration');
   }, 120_000);
 });

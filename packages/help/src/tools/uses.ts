@@ -363,21 +363,24 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   const byPath: Site[] = sitesByPath(help, name, wanted)
     .filter((site) => found.length === 0 || (site.held.to !== undefined && declared.has(site.held.to)))
     .map((site) => ({ ...site.taken, how: how(site) }));
-  const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
+  // A name declared outside the workspace is imported here whether or not the workspace declares one too.
+  const outside = outsideOf(root, name, wanted);
+  // An `export … from` out of a module outside the workspace passes on that
+  // module's declaration: it is one of the imports from outside, not a declaration here.
+  const passing = new Set('sites' in outside ? outside.passing : []);
+  const exported = found.length === 0 ? exportsNamed(help, name, wanted).filter((one) => !passing.has(`${one.at}:${one.line}`)) : [];
   // The scan records every member declaration, so reading the ones by this
   // name is a lookup in the source index, made whether or not an export has it.
   const members: Members = membersOf(root, name, wanted);
   // A name may be one a file declares and keeps to itself, which the source
   // index holds with the file's parse, beside an export of it elsewhere.
   const { kept, keptSites, keptInFile, undeclared } = keptOf(root, name, wanted);
-  // A name an installed package declares is imported here whether or not the workspace declares one too.
-  const outside = outsideOf(root, name, wanted);
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
     if (kept.length > 0 || members.declared.length > 0 || ('sites' in outside && outside.sites.length > 0)) {
       return { name, found, exported, byPath, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], members, kept, keptSites, keptInFile, undeclared, origin: undefined, outside };
     }
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
-    // A file whose imports were not read may import it out of an installed package.
+    // A file whose imports were not read may import it from outside the workspace.
     throw new FoundNothing([nowhere(help, name, wanted, root, members, undefined), ...importsUnread(outside)].join(' '));
   }
   // A published name is read from its entry file as well as its declaration:

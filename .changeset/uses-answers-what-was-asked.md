@@ -18,9 +18,18 @@ package it is installed from, nearest first and with the module-whole reads
 and each `export … from` that passes it on marked, and points to
 `docs_symbol` for the declaration. A name both the workspace and an installed
 package carry opens by counting each apart: `render` names 1 declaration and
-is imported from 1 installed package. Files whose imports were not read, and
-declarations or members the source index did not read, are named rather than
-passed over.
+is imported from 1 installed package.
+
+`variance ask uses --name resolve` said nothing of the hundreds of files that
+import `resolve` from `node:path`. A built-in module now counts as one more
+source the name is imported from, `node:path` or a bare `path` alike: the
+answer opens with `imported from node:path, which the runtime declares` and
+lists each import, marked as the runtime's. An `export … from` out of an
+installed package or a built-in module is listed as the import it is and no
+longer answered as a declaration of the workspace. Files whose imports were
+not read are named after every answer, including one with no import from
+outside, and declarations or members the source index did not read are named
+rather than passed over.
 
 A Rust item's answer now says that a use from JavaScript through a native
 binding imports no Rust name, so it is not listed, and to ask for the name the
