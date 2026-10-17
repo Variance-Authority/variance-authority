@@ -5,6 +5,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { testSelectionProbes, testSelectionRule } from '@variance-authority/sense/journal';
+import { parseAst } from 'vite';
 import { rsbuildFinal, viteFinal, webpackFinal } from './preset.js';
 
 const PROBES = /probes-loader\.js$/;
@@ -161,6 +162,9 @@ describe('webpackFinal', () => {
   });
 });
 
+/** The plugin the addon adds beside the Vite probes, as far as these tests read it. */
+type Addon = { readonly name: string; readonly configResolved: { readonly order: string; handler(config: object): void } };
+
 describe('viteFinal', () => {
   it('adds the Vite probes plugin after the plugins the config holds', async () => {
     const theirs = { name: 'theirs' };
@@ -187,9 +191,9 @@ describe('viteFinal', () => {
   it('says the addon added none where `vite.config` held the probes and `main.js` added a second', async () => {
     const config = (await viteFinal({ plugins: [testSelectionProbes()] }, TEST)) as { plugins: unknown[] };
     const plugins = resolved([...config.plugins, testSelectionProbes()]);
-    const addon = plugins.find((plugin) => plugin.name === 'variance-authority:storybook-addon') as { configResolved(config: object): void };
+    const addon = plugins.find((plugin) => plugin.name === 'variance-authority:storybook-addon') as unknown as Addon;
 
-    expect(() => addon.configResolved({ plugins })).toThrow(/holds 2 `testSelectionProbes\(\)`, and the addon added none.*keep one/s);
+    expect(() => addon.configResolved.handler({ plugins })).toThrow(/holds 2 `testSelectionProbes\(\)`, and the addon added none.*keep one/s);
   });
 
   it('keeps the probes `vite.config` holds, silently, where the addon was given no recipe of its own', async () => {
@@ -211,6 +215,52 @@ describe('viteFinal', () => {
     const held = testSelectionProbes({ mode: 'entries', include });
     const config = (await viteFinal({ plugins: [held] }, { ...TEST, mode: 'entries', include, placement: 'after-transforms' })) as { plugins: unknown[] };
     expect(config.plugins[0]).toBe(held);
+  });
+});
+
+describe('Storybook\'s preview rewrite, under the addon', () => {
+  const PREVIEW = '/project/.storybook/preview.js';
+  /** Storybook's `storybook:mock-loader-preview`: it reprints the preview, and no other module, with no map. */
+  const reprint = (code: string, id: string) => (id === PREVIEW ? `// reprinted\n${code.replace(/\n\n/g, '\n')}` : null);
+  /** What Vite hands a `transform` as `this`. */
+  const context = { parse: (code: string) => parseAst(code) };
+
+  type Handler = (code: string, id: string) => unknown;
+
+  /** The rewrite's `transform` hook as the addon leaves it once the config resolves, and its handler called as Vite calls it. */
+  async function rewritten(transform: unknown): Promise<{ hook: unknown; transform: Handler }> {
+    const storybook = { name: 'storybook:mock-loader-preview', transform };
+    const config = (await viteFinal({ plugins: [storybook] }, TEST)) as { plugins: { name: string }[] };
+    const addon = config.plugins.find((plugin) => plugin.name === 'variance-authority:storybook-addon') as unknown as Addon;
+    // Ordered `pre`, so the probes watch the rewrite as the addon leaves it.
+    expect(addon.configResolved.order).toBe('pre');
+    addon.configResolved.handler({ plugins: config.plugins });
+    const hook = storybook.transform as Handler | { handler: Handler };
+    const handler = typeof hook === 'function' ? hook : hook.handler;
+    return { hook, transform: (code, id) => handler.call(context, code, id) };
+  }
+
+  it('names the mocked module where `import()` stood, moving no other character, so it needs no map', async () => {
+    const { transform } = await rewritten(reprint);
+    const code = "import { sb } from 'storybook/test';\n\nsb.mock(import('../lib/api'), { spy: true }); go();\nsb.mock(\n  import(\"./b\")\n);\n";
+    expect(transform(code, PREVIEW)).toEqual({
+      code: "import { sb } from 'storybook/test';\n\nsb.mock(       '../lib/api' , { spy: true }); go();\nsb.mock(\n         \"./b\" \n);\n",
+      map: null,
+    });
+  });
+
+  it('leaves the preview as written where it mocks nothing, and every other module to Storybook', async () => {
+    const { transform } = await rewritten(reprint);
+    const kept = "sb.mock('../lib/api');\nsb.spy(import('./a'));\nother.mock(import('./b'));\nsb.mock(import(name));\n";
+    expect(transform(kept, PREVIEW)).toBeNull();
+    expect(transform("sb.mock(import('./a'));\n", '/project/src/a.js')).toBeNull();
+  });
+
+  it('keeps the `filter` and `order` of an object hook, as Storybook 10 writes it', async () => {
+    const filter = { id: /preview/ };
+    const { hook, transform } = await rewritten({ filter, order: 'pre', handler: reprint });
+    expect(hook).toMatchObject({ filter, order: 'pre' });
+    expect(transform("sb.mock(import('./a'));\n", PREVIEW)).toEqual({ code: "sb.mock(       './a' );\n", map: null });
   });
 });
 
