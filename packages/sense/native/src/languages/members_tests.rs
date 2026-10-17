@@ -8,33 +8,6 @@ fn read(grammar: Grammar, source: &str) -> Vec<String> {
 }
 
 #[test]
-fn a_rust_type_holds_its_fields_variants_and_the_items_of_its_impls_and_traits() {
-    let source = [
-        "pub struct Bound { pub width: u32, height: u32 }",
-        "enum Shape { Round, Square(u8) }",
-        "impl<'a> Wrapper<'a> { pub fn same(&self) -> bool { true } const LIMIT: u8 = 1; type Item = u8; }",
-        "impl Charged for outer::Held<u8> { fn charge(&mut self) {} }",
-        "trait Charged { fn charge(&mut self); fn twice(&self) {} type Unit; const RATE: u8; }",
-        "mod inner { impl Bound { fn inside() {} } }",
-        "fn local() { struct Kept { kept: u8 } }",
-        "struct Pair(u8, u8);",
-    ]
-    .join("\n");
-    assert_eq!(
-        read(Grammar::Rust, &source),
-        [
-            "width on Bound at 1", "height on Bound at 1",
-            "Round on Shape at 2", "Square on Shape at 2",
-            "same on Wrapper at 3", "LIMIT on Wrapper at 3", "Item on Wrapper at 3",
-            "charge on Held at 4",
-            "charge on Charged at 5", "twice on Charged at 5", "Unit on Charged at 5", "RATE on Charged at 5",
-            "inside on Bound at 6",
-            "kept on Kept at 7",
-        ]
-    );
-}
-
-#[test]
 fn a_java_type_holds_its_fields_methods_constants_and_components_and_not_its_constructor() {
     let source = [
         "class Agent {",

@@ -9,7 +9,7 @@ import { checkout, paragraph, run } from './ask-packages-fixture.js';
  * `variance ask symbol` about a name the workspace declares as a member of a
  * type. A member is the workspace's own declaration whether or not another file
  * declares a top-level name that shares its spelling, and whatever language
- * declares it: a method in a Rust `impl`, a Java field. Either was answered with
+ * declares it: a Java field, a method of a Python class. Either was answered with
  * *no file declares it*, or left out behind a top-level namesake.
  */
 
@@ -44,22 +44,13 @@ const NAMESAKES = {
   ].join('\n'),
 };
 
-const RUST = {
-  'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
-  'packages/kit/src/lib.rs': [
-    'pub struct Bound {',
-    '    pub width: u32,',
-    '}',
+const PYTHON = {
+  'packages/kit/kit/bound.py': [
+    'class Bound:',
+    '    width = 0',
     '',
-    'impl Bound {',
-    '    fn same_bound(&self, other: &Self) -> bool {',
-    '        self.width == other.width',
-    '    }',
-    '}',
-    '',
-    'pub trait Charged {',
-    '    fn charge_once(&mut self) -> u32;',
-    '}',
+    '    def same_bound(self, other):',
+    '        return self.width == other.width',
     '',
   ].join('\n'),
 };
@@ -100,15 +91,15 @@ describe('variance ask symbol about a member', () => {
     expect(out).toContain('a member of `Table`, declared at packages/kit/src/money/table.ts:3 by @acme/kit');
   });
 
-  it('answers a method of a Rust `impl`, a trait method and a struct field on the type that holds them', async () => {
-    checkout(RUST);
+  it('answers a method and an attribute of a Python class on the class that holds them', async () => {
+    checkout(PYTHON);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    for (const [name, on, line] of [['same_bound', 'Bound', 6], ['charge_once', 'Charged', 12], ['width', 'Bound', 2]] as const) {
+    for (const [name, line] of [['same_bound', 4], ['width', 2]] as const) {
       const { code, out, err } = await run(['ask', 'symbol', '--name', name]);
       expect(err).toBe('');
       expect(code).toBe(EXIT_CLEAN);
-      expect(out).toContain(`a member of \`${on}\`, declared at packages/kit/src/lib.rs:${line}`);
+      expect(out).toContain(`a member of \`Bound\`, declared at packages/kit/kit/bound.py:${line}`);
       expect(out).not.toContain('No file in this workspace');
       expect(out).toContain('docs_uses names the search that finds the lines that use it, as text: no reader of this file records them.');
     }

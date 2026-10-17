@@ -187,8 +187,7 @@ is answered with that import and the original it names. A member is answered
 with its container, the file and line that declare it and the line as written,
 one block per declaration, the first five and a count of the rest, after any
 other answer for the name: a member of a TypeScript interface, type literal or
-class, a field, variant or method of a Rust struct, enum, trait or `impl`, and
-a member of a Java, Kotlin or Swift type or a Python class. A top-level
+class, and a member of a Java, Kotlin or Swift type or a Python class. A top-level
 declaration that shares the name never hides it. A name nothing declares is
 refused.
 
@@ -275,13 +274,13 @@ or `export { … } from`, to the file that declares it, so `Props.size` and
 `Other.size` are listed apart and a same-named type of another file is neither.
 A binding that shadows an annotated one is no use.
 
-Only the JavaScript and TypeScript reader records uses. A member a Rust, Java,
-Kotlin, Swift or Python file declares is listed with the others, and its uses
-are said to be not recorded rather than none, so the `docs_grep` route is what
-finds them:
+The Java, Kotlin, Swift and Python readers record a type's members and none of
+the lines that use one. A member one of those files declares is listed with
+the others, and its uses are said to be not recorded rather than none, so the
+`docs_grep` route is what finds them:
 
 ```
-The uses of `width` through a value of its type are not recorded for `Bound` at src/lib.rs:2: only the JavaScript and TypeScript reader records them.
+The uses of `width` through a value of its type are not recorded for `Bound` at src/Bound.java:4: the reader of its file records none.
 ```
 
 What a type checker infers is not read: a value returned by a call, a generic

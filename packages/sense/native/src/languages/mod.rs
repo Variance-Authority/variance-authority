@@ -20,7 +20,7 @@ pub mod shape;
 pub mod size;
 pub mod swift;
 
-use tree_sitter::Node;
+use tree_sitter::{Node, Tree};
 
 use crate::grammar::{self, Grammar};
 use crate::harvest::{SourceSymbol, TextSpan};
@@ -175,19 +175,18 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
     };
 
     let (read, symbols) = match grammar {
-        Grammar::Python => (python::read(file, source, &tree), python::declarations(&tree, source)),
+        Grammar::Python => (with_members(grammar, &tree, source, python::read(file, source, &tree)), python::declarations(&tree, source)),
         Grammar::Rust => (rust::read(file, source, &tree), rust::declarations(&tree, source)),
-        Grammar::Swift => (swift::read(file, source, &tree), swift::declarations(&tree, source)),
-        Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source)),
-        Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source)),
+        Grammar::Swift => (with_members(grammar, &tree, source, swift::read(file, source, &tree)), swift::declarations(&tree, source)),
+        Grammar::Java => (with_members(grammar, &tree, source, jvm::read(file, source, &tree, "java")), jvm::declarations(&tree, source)),
+        Grammar::Kotlin => (with_members(grammar, &tree, source, jvm::read(file, source, &tree, "kotlin")), jvm::declarations(&tree, source)),
     };
-    Some(Read {
-        size: Some(size::size_of(source, &tree, grammar)),
-        symbols,
-        harvested: true,
-        member_declarations: members::members(grammar, &tree, source),
-        ..read
-    })
+    Some(Read { size: Some(size::size_of(source, &tree, grammar)), symbols, harvested: true, ..read })
+}
+
+/// `read`, with the members the file declares on its types (`members.rs`).
+fn with_members(grammar: Grammar, tree: &Tree, source: &str, read: Read) -> Read {
+    Read { member_declarations: members::members(grammar, tree, source), ..read }
 }
 
 /// The targets a `Package.swift` declares, or nothing when it does not parse.

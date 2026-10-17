@@ -296,7 +296,7 @@ function memberLines(members: Members, from: string | undefined, name: string): 
   const unrecorded = members.unrecorded.map((declared) => `\`${declared.by}\` at ${declared.at}:${declared.line}`);
   const unmeasured = unrecorded.length === 0
     ? []
-    : ['', `The uses of \`${name}\` through a value of its type are not recorded for ${unrecorded.join(', ')}: only the JavaScript and TypeScript reader records them.`];
+    : ['', `The uses of \`${name}\` through a value of its type are not recorded for ${unrecorded.join(', ')}: the reader of its file records none.`];
   return [nearest, ...listed(order(members.declared, from), 'Member declarations:', name), ...used, ...none, ...unmeasured, ...routes(name, members)];
 }
 
