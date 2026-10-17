@@ -19,7 +19,7 @@ use super::Owner;
 
 const FORMAT: &str = "variance-authority-dependency-catalogue";
 /// 2: a purpose holds stems cut to a fixed point, so a catalogue of one-pass stems is read again.
-/// 3: an owner is every named manifest, not only a member the root's `workspaces` list, so a catalogue whose owners
+/// 3: an owner is every tracked manifest, not only a member the root's `workspaces` list, so a catalogue whose owners
 /// were cut by `workspaces` is made again.
 const VERSION: u8 = 3;
 /// The version whose stems this release compares: a catalogue written before it answers no described question.

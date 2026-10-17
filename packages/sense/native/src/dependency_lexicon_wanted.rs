@@ -8,7 +8,7 @@ use std::{fs, path::Path};
 use super::sites::{sites, State};
 use super::view::Owning;
 use super::Owner;
-use crate::package_owners::{Package, NO_OWNER};
+use crate::package_owners::{is_package, NO_OWNER};
 
 /// The `package.json` paths git tracks under `root`, in code-unit order. A manifest that is not yet added is
 /// not listed: the walk for untracked files costs half a second on a checkout the size of Kibana, and a
@@ -45,16 +45,16 @@ pub(super) fn of(owners: &[Owner], state: Option<&State>) -> BTreeMap<(String, S
     wanted
 }
 
-/// The owner rows: the root manifest, which answers a path no other manifest sits above, and every package
-/// `crate::package_owners` found, so a file is judged against the manifest nearest above it (ADR-0082) whether or
-/// not the root's `workspaces` list it. A project nested in the checkout with a manifest and an install of its own
-/// declares its own dependencies, and Node resolves its imports from there.
-pub(super) fn owners(root: &Path, packages: &[Package]) -> Vec<Owner> {
-    let directories = std::iter::once("").chain(packages.iter().map(|package| package.directory.as_str()).filter(|directory| !directory.is_empty()));
+/// The owner rows: every tracked `package.json` the package owner would read (`crate::package_owners::is_package`),
+/// so a file is judged against the manifest nearest above it (ADR-0082) whether or not the root's `workspaces` list
+/// it. A project nested in the checkout with a manifest and an install of its own declares its own dependencies. A
+/// manifest without a `name` declares them all the same: a name makes a package importable, not its declarations.
+pub(super) fn owners(root: &Path, paths: &[String]) -> Vec<Owner> {
+    let manifests = paths.iter().filter(|path| path.rsplit('/').next() == Some("package.json") && is_package(path));
     let mut found = Vec::new();
-    for directory in directories {
-        let manifest = if directory.is_empty() { "package.json".to_owned() } else { format!("{directory}/package.json") };
-        let value: serde_json::Value = match fs::read(root.join(&manifest)).ok()
+    for manifest in manifests {
+        let directory = manifest.strip_suffix("/package.json").unwrap_or("");
+        let value: serde_json::Value = match fs::read(root.join(manifest)).ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok()) { Some(value) => value, None => continue };
         // A package in more than one field is reported under the strongest: what ships, then what a consumer must bring, then what only builds.
         let mut kinds = BTreeMap::<String, &'static str>::new();
@@ -64,7 +64,7 @@ pub(super) fn owners(root: &Path, packages: &[Package]) -> Vec<Owner> {
             }
         }
         let declared = kinds.keys().cloned().collect();
-        found.push(Owner { manifest, directory: directory.to_owned(),
+        found.push(Owner { manifest: manifest.clone(), directory: directory.to_owned(),
             name: value.get("name").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(), declared, kinds });
     }
     found.sort_by(|a, b| a.manifest.cmp(&b.manifest));
