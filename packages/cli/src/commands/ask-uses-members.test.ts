@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
 /**
@@ -148,10 +148,12 @@ describe('variance ask uses over a member', () => {
     checkout({ ...SCANNER, 'tools/scan.py': 'class Scanner:\n    def scan_things(self):\n        return []\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const { code, err } = await run(['ask', 'uses', '--name', 'scan_things']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('`scan_things` is not published by this workspace');
-    expect(err).toContain(
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('`scan_things` is not published by this workspace');
+    expect(out).toContain('No file in this workspace declares `scan_things` at its top level, and no JavaScript or TypeScript file declares it as a member.');
+    expect(out).toContain(
       "Members are read from JavaScript and TypeScript files only, and this workspace's Python files were not read for them: " +
         "if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.",
     );
@@ -173,21 +175,22 @@ describe('variance ask uses over a member', () => {
     checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const { code, err } = await run(['ask', 'uses', '--name', 'scan_things']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('`scan_things` is not published by this workspace');
-    expect(err).not.toContain('Members are read');
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'scan_things']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('`scan_things` is not published by this workspace');
+    expect(out).not.toContain('Members are read');
   });
 
-  it('refuses a name nothing publishes and says the member declarations went unread when no source index is published and `--just-answer` reads the generation as it is', async () => {
+  it('answers a name nothing publishes, saying the member declarations went unread, when no source index is published and `--just-answer` reads the generation as it is', async () => {
     const root = checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     rmSync(sourceIndexPath(root));
 
     const { code, out, err } = await run(['ask', 'uses', '--name', 'resolveThings', '--just-answer']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(out).toBe('');
-    expect(err).toContain('`resolveThings` is not published by this workspace, and no published name contains it');
-    expect(err).toContain('Members by this name were not read: no source index is published; run `variance index`.');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('`resolveThings` is not published by this workspace, and no published name contains it');
+    expect(out).toContain('Which files declare `resolveThings` is not known: no source index is published; run `variance index`.');
   });
 });

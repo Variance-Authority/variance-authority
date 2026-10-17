@@ -45,7 +45,7 @@ Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
 commands reuse a generation for one hour before refreshing it, and a name a
-reused generation refuses is looked for again in one made from the checkout
+reused generation does not hold is looked for again in one made from the checkout
 now, so a function you just wrote is answered rather than reported missing.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not

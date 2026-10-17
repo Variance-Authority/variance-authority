@@ -7,6 +7,7 @@ import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
+import { FoundNothing } from './tools/find.js';
 import { intersection, namesWanted } from './tools.js';
 import { search } from './tools/search.js';
 import { serveWorkspace } from './server.js';
@@ -186,8 +187,14 @@ if (asking(verb) && verb !== undefined) {
         if (caught?.subject === undefined) throw refusal;
         answer = caught.subject.answer();
       } catch (still) {
-        if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
-        throw still;
+        // A name not found is an answer once nothing newer can be read, dated as any other.
+        const at = caught?.subject?.at ?? first.at;
+        const dated = footer ?? (at === undefined ? undefined : snapshotLine(at, false));
+        if (still instanceof FoundNothing) answer = dated === undefined ? still.message : `${still.message}\n${dated}`;
+        else {
+          if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
+          throw still;
+        }
       }
     }
 

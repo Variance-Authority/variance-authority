@@ -2,7 +2,7 @@ import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
-import { entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
+import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
@@ -108,7 +108,7 @@ export const symbol: Tool<Help> = {
       // Without it, what the workspace holds is still an answer: the
       // dependencies are the part of it not checked.
       if (everywhere === undefined) {
-        throw new Error(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.'));
+        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.'));
       }
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
@@ -140,7 +140,7 @@ export const symbol: Tool<Help> = {
       const checked = invocation?.root === undefined
         ? undefined
         : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
-      throw new Error(nowhere(help, name, wanted, invocation?.root, members, checked));
+      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked));
     }
 
     const [first] = found;

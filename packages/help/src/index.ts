@@ -49,3 +49,4 @@ export { writePages } from './write.js';
 export type { PagesOptions, Written } from './write.js';
 export { refreshDependencyLexicon } from './dependency-lexicon.js';
 export { caughtUp, snapshotLine, type CaughtUp } from './caught-up.js';
+export { FoundNothing } from './tools/find.js';

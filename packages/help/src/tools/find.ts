@@ -5,9 +5,9 @@ import { declarations, unreadLine } from './declared.js';
 import { type Members, membersStop } from './members.js';
 
 /**
- * Locating the thing a question is about, and refusing well when it is not there.
+ * Locating the thing a question is about, and answering well when it is not there.
  *
- * Every refusal here names what *is* there. A model handed "unknown package" has
+ * Every such answer names what *is* there. A model handed "unknown package" has
  * one move left, which is to guess again; a model handed the list has the answer
  * in the same turn. The list is the expensive part of the reading and it has
  * already been read, so withholding it buys nothing.
@@ -132,9 +132,25 @@ export function unfound(help: Help, name: string, within: string | undefined): s
 }
 
 /**
- * The refusal of a name nothing in the workspace declares: that no file
+ * A name a question looked for and did not find, said as an answer rather
+ * than a refusal: what was read and found nothing, and where else the name
+ * may be written. It is thrown, not returned, so every surface that reads a
+ * reused generation asks the question again of a current one before the
+ * absence is believed, as it does for a refusal; the last reading's
+ * `FoundNothing` is then given as the answer, on stdout and with a clean exit.
+ */
+export class FoundNothing extends Error {
+  override readonly name = 'FoundNothing';
+}
+
+/** Where a name is written that no reader here declares. */
+const AS_TEXT = 'A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.';
+
+/**
+ * The answer for a name nothing in the workspace declares: that no file
  * declares it, then, given `dependencies`, what is known of the installed
- * ones, then where the reading of members stopped, then the files the source
+ * ones, then where the reading of members stopped, then that a name written
+ * only as text is a text search's to find, then the files the source
  * index holds no declarations of. Where the index could not be read, that is
  * said in place of a claim about the files. Members are read from JavaScript
  * and TypeScript only, so where the index holds files of another language the
@@ -160,5 +176,5 @@ export function nowhere(
     : stop === undefined
       ? `${none}, at its top level or as a member.`
       : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
-  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), ...unread].join(' ');
+  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
 }
