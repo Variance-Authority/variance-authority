@@ -107,14 +107,34 @@ export interface MemberUseSite {
   readonly how: 'destructure' | 'read' | 'write';
 }
 
+/** One import that binds a local name to an export of another name. */
+export interface Alias {
+  /** The importing file, and the line of its import statement. */
+  readonly at: string;
+  readonly line: number;
+  /** The package of the importing file, or empty when no package holds it. */
+  readonly by: string;
+  readonly kind: 'source' | 'story' | 'test';
+  /** The export name the binding takes, `default` for a default import. */
+  readonly imported: string;
+  /** The specifier as the importing file wrote it. */
+  readonly specifier: string;
+  /** The file the index resolved the specifier to, when it resolved. */
+  readonly to?: string | null;
+  readonly type: boolean;
+}
+
 export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
+  aliasesOf?(root: string, index: string, local: string): Alias[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
-  declaredDescribedOf?(root: string, index: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
+  declaredDescribedOf?(root: string, index: string, query: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
+  declaredTermsOf?(index: string, files: string[] | null): string[] | null;
+  declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
 }
 
 function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
@@ -184,6 +204,18 @@ export function memberDeclarationsOf(root: string, name: string, index: string =
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
 }
 
+/**
+ * Every import the index at `index` holds that binds `local` to an export of
+ * another name — `import { stringReader as openStrings }` for `openStrings` —
+ * ordered by the importing file in code units, then by line; `undefined` when
+ * no index was published. The binding the parse recorded is what ties the two
+ * names. A namespace import and a binding an `export … from` writes are left
+ * out. Throws when the index does not read.
+ */
+export function aliasesOf(root: string, local: string, index: string = sourceIndexPath(root)): readonly Alias[] | undefined {
+  return entry('aliasesOf')(root, index, local) ?? undefined;
+}
+
 /** One top-level declaration no export of its file binds. */
 export interface DeclaredName {
   readonly name: string;
@@ -207,6 +239,24 @@ export interface DeclaredName {
   readonly held?: readonly number[] | null;
   /** Asked by `declaredDescribedOf`: how many of those its name holds. */
   readonly named?: number | null;
+  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes adjacent. */
+  readonly near?: number | null;
+}
+
+/** A file a description reached by its own name and the doc it opens with. */
+export interface DescribedFile {
+  readonly at: string;
+  /** The package whose source it is; empty at the repository root. */
+  readonly by: string;
+  /** The module doc's span, inside its marks, when the file opens with one. */
+  readonly docStart?: number | null;
+  readonly docEnd?: number | null;
+  /** The positions, ascending, of the asked stems its name or its module doc holds. */
+  readonly held: readonly number[];
+  /** How many of those its name holds. */
+  readonly named: number;
+  /** How many of the question's adjacent word pairs its module doc writes adjacent. */
+  readonly near: number;
 }
 
 /** What `declaredOf` found, and the files whose declarations it could not read. */
@@ -215,6 +265,8 @@ export interface DeclaredNames {
   readonly names: readonly DeclaredName[];
   /** Files whose declarations were not read — no parse, or one its reader did not harvest: unknown, not empty. */
   readonly unread: readonly string[];
+  /** Asked by `declaredDescribedOf`: the files whose name and module doc hold enough of the question; empty otherwise. */
+  readonly files: readonly DescribedFile[];
 }
 
 /**
@@ -239,18 +291,45 @@ export function declaredOf(
 /**
  * Every top-level declaration the index at `index` holds that no export of its
  * file binds, whose name and doc comment, cut into stems by the rule
- * `describedWordsNative` cuts a question by, hold at least `needed` of
+ * `describedWordsNative` cuts `query` by, hold at least `needed` of
  * `stems`, in any order; only in `files`, repo-relative, when they are named.
- * Each carries the positions of the stems it holds and how many its name
- * holds. `undefined` when no index was published; throws when the index does
- * not read.
+ * Each carries the positions of the stems it holds, how many its name holds,
+ * and how many of the question's adjacent word pairs its doc writes adjacent.
+ * Beside them, the files whose name and module doc hold as many, the same way.
+ * `undefined` when no index was published; throws when the index does not read.
  */
 export function declaredDescribedOf(
   root: string,
+  query: string,
   stems: readonly string[],
   needed: number,
   files?: Iterable<string>,
   index: string = sourceIndexPath(root),
 ): DeclaredNames | undefined {
-  return entry('declaredDescribedOf')(root, index, [...stems], needed, files === undefined ? null : [...files]) ?? undefined;
+  return entry('declaredDescribedOf')(root, index, query, [...stems], needed, files === undefined ? null : [...files]) ?? undefined;
+}
+
+/**
+ * The distinct search terms of every top-level name the index at `index`
+ * harvested, cut as the search file cuts an exported name, in `files` when they
+ * are named, sorted by their UTF-8 bytes as the search file's dictionary is.
+ * `undefined` when no index was published; throws when the index does not read.
+ */
+export function declaredTermsOf(root: string, files?: Iterable<string>, index: string = sourceIndexPath(root)): readonly string[] | undefined {
+  return entry('declaredTermsOf')(index, files === undefined ? null : [...files]) ?? undefined;
+}
+
+/**
+ * Every top-level declaration the index at `index` holds that no export of its
+ * file binds, whose name's terms hold one of every group of `groups`: the
+ * terms the loose pass let each word of a question stand for. `undefined` when
+ * no index was published; throws when the index does not read.
+ */
+export function declaredLooseOf(
+  root: string,
+  groups: readonly (readonly string[])[],
+  files?: Iterable<string>,
+  index: string = sourceIndexPath(root),
+): DeclaredNames | undefined {
+  return entry('declaredLooseOf')(root, index, groups.map((group) => [...group]), files === undefined ? null : [...files]) ?? undefined;
 }

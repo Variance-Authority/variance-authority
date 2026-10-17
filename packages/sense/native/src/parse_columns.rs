@@ -29,6 +29,8 @@ pub trait ParseRow {
     fn harvested(&self) -> bool;
     /// How big the module is; absent for a row whose reader did not measure it.
     fn size(&self) -> Option<Size>;
+    /// The module's own doc comment, inside its marks; absent when it writes none.
+    fn doc(&self) -> Span;
 }
 
 /// A text span's two ends, or `NONE` twice when there is no span.
@@ -48,6 +50,7 @@ pub struct ParseColumns {
     bytes: Vec<u32>,
     lines: Vec<u32>,
     blocks: Vec<u32>,
+    doc: [Vec<u32>; 2],
     request_value: Vec<u32>,
     request_kind: Vec<u32>,
     request_line: Vec<u32>,
@@ -121,6 +124,7 @@ impl ParseColumns {
             columns.bytes.push(size.map_or(NONE, |size| size.bytes));
             columns.lines.push(size.map_or(NONE, |size| size.lines));
             columns.blocks.push(size.and_then(|size| size.blocks).unwrap_or(NONE));
+            span(&mut columns.doc, row.doc());
             row.write(strings, &mut columns);
         }
         columns.close();
@@ -235,6 +239,7 @@ impl ParseColumns {
         let [export_doc_start, export_doc_end] = self.export_doc;
         let [symbol_signature_start, symbol_signature_end] = self.symbol_signature;
         let [symbol_doc_start, symbol_doc_end] = self.symbol_doc;
+        let [doc_start, doc_end] = self.doc;
         vec![
             u32s("parses.key", self.digest),
             u32s("parses.key-way", self.way),
@@ -250,6 +255,8 @@ impl ParseColumns {
             u32s("parses.bytes", self.bytes),
             u32s("parses.lines", self.lines),
             u32s("parses.blocks", self.blocks),
+            u32s("parses.doc-start", doc_start),
+            u32s("parses.doc-end", doc_end),
             u32s("requests.value", self.request_value),
             u32s("requests.kind", self.request_kind),
             u32s("requests.line", self.request_line),

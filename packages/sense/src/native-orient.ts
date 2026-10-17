@@ -365,6 +365,8 @@ export interface NativeDependencyLexicon {
   dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
   /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
   describedWords(query: string): [string, string][];
+  /** Per text, how many of the adjacent word pairs of `query` it writes adjacent. */
+  nearOf(query: string, texts: string[]): number[];
   /** Each word's stem, in order. */
   wordStems(words: string[]): string[];
 }
@@ -386,6 +388,8 @@ export interface NativeIndexedUsage {
 export interface NativeNameUse {
   key: string;
   name: string;
+  /** The name the importing file binds it to, or passes it on as, when its binding renames it with `as`. */
+  local?: string | null;
   by: string;
   at: string;
   line: number;

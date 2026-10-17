@@ -224,6 +224,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       };
     });
     const symbols = harvest.symbols(row);
+    const moduleDoc = harvest.moduleDoc(row);
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
     const mocks = mocksOf(row);
@@ -241,6 +242,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       ...carriesOf(row),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),
+      ...(moduleDoc === undefined ? {} : { doc: moduleDoc }),
     });
   }
   const deletedParses = new Set<ParseKey>();

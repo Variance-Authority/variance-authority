@@ -117,6 +117,9 @@ pub struct Read {
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) size: Option<Size>,
+    /// The module's own doc comment, inside its marks, as [`Harvest`] reads it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) doc: Option<TextSpan>,
 }
 
 pub(crate) struct Lines(Vec<usize>);
@@ -341,6 +344,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         carries: typed.carries,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
+        doc: harvest.module_doc,
     };
     (read, parsed.program)
 }

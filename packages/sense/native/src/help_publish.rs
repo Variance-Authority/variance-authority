@@ -19,7 +19,8 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
-use crate::help_declared::{declared, Declared, Matching};
+use crate::help_aliases::{aliases, Alias};
+use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
 use crate::help_members::{member_declarations, MemberSite};
@@ -102,6 +103,14 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
 }
 
+/// Every import on the chain at `index` that binds `local` to an export of
+/// another name, ordered by the importing file in code units, then by line;
+/// `None` when there is no index.
+#[napi]
+pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Option<Vec<Alias>>> {
+    opened_chain(&index, |layers| aliases(&root, layers, &local))
+}
+
 /// Every declaration of a member named `name` the chain at `index` records,
 /// ordered by file in code units, then by line; `None` when there is no index.
 #[napi]
@@ -121,13 +130,31 @@ pub fn declared_of(root: String, index: String, query: String, containing: bool,
 }
 
 /// The declarations no export binds whose name and doc hold at least `needed`
-/// of `stems` — `describedWords`' stems of a question — in `files` when they
-/// are named, each with the positions of the stems it holds.
+/// of `stems` — `describedWords`' stems of `query` — in `files` when they
+/// are named, each with the positions of the stems it holds and how near its
+/// doc writes `query`; and the files whose name and module doc hold as many.
 /// `None` when there is no index.
 #[napi]
-pub fn declared_described_of(root: String, index: String, stems: Vec<String>, needed: u32, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
-    let matching = Matching::Described { stems, needed: needed.max(1) as usize };
+pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, needed: u32, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = Matching::Described { stems, needed: needed.max(1) as usize, query };
     opened_chain(&index, |layers| declared(&root, layers, "", matching, files.as_deref()))
+}
+
+/// The distinct search terms of the top-level names the chain at `index`
+/// harvested, in `files` when they are named, sorted by their UTF-8 bytes: the
+/// dictionary the loose pass reads for names no export list holds.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_terms_of(index: String, files: Option<Vec<String>>) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(&index, |layers| declared_terms(layers, files.as_deref()))
+}
+
+/// The declarations no export binds whose name's terms hold one of every
+/// group of `groups`, in `files` when they are named: the names the loose pass
+/// reaches among them. `None` when there is no index.
+#[napi]
+pub fn declared_loose_of(root: String, index: String, groups: Vec<Vec<String>>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    opened_chain(&index, |layers| declared(&root, layers, "", Matching::Terms { groups }, files.as_deref()))
 }
 
 /// The chain at `index`, each segment opened in place, handed to `read`;
