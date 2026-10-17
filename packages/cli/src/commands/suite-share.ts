@@ -42,6 +42,13 @@ export interface SuiteShareOptions {
    * against. A line naming no test in the record changes nothing.
    */
   readonly collected?: string;
+  /**
+   * `github` prints the read as `commit=<sha>` for `$GITHUB_OUTPUT`, empty when
+   * the mainline holds no record, and says the read beside it: the commit a
+   * workflow merges a pull request with, so the change a selection measures is
+   * the pull request's alone.
+   */
+  readonly format?: 'text' | 'github';
 }
 
 /**
@@ -114,12 +121,13 @@ async function publishOnLine(
  * What `variance share --suite <name>` prints, and the code it exits with:
  * what the publish did, or the record the reader's mainline holds and where it
  * is kept. A mainline publish that wrote nothing exits `EXIT_OPERATOR`.
+ * `notes` are said beside `lines` when `lines` are a workflow's output.
  */
 export async function suiteShare(
   root: string,
   options: SuiteShareOptions,
   here: Here = {},
-): Promise<{ readonly lines: readonly string[]; readonly exit: ExitCode }> {
+): Promise<{ readonly lines: readonly string[]; readonly notes?: readonly string[]; readonly exit: ExitCode }> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (options.publish) {
     const share = rootShare(selection.rootConfig(root));
@@ -130,20 +138,25 @@ export async function suiteShare(
   const declared = declaredIn(selection.declaredSuites(root), options.suite);
   // Asked by name, the remote is asked now, whatever was fetched a moment ago.
   const read = await mainlineBase(root, declared, { ...(here.env === undefined ? {} : { env: here.env }), refetch: true });
-  if (read === undefined) {
-    return { lines: [`record of "${options.suite}": not given to the share; its "carry" in the root config is not "share".`], exit: EXIT_CLEAN };
-  }
-  return { lines: [`${'miss' in read ? mainlineMissed(read) : mainlineRead(read)}.`], exit: EXIT_CLEAN };
+  const said =
+    read === undefined
+      ? `record of "${options.suite}": not given to the share; its "carry" in the root config is not "share".`
+      : `${'miss' in read ? mainlineMissed(read) : mainlineRead(read)}.`;
+  if (options.format !== 'github') return { lines: [said], exit: EXIT_CLEAN };
+  const commit = read === undefined || 'miss' in read ? '' : read.commit;
+  return { lines: [`commit=${commit}`], notes: [said], exit: EXIT_CLEAN };
 }
 
-/** `variance share --suite <name>`, from the directory it was run in. */
+/** `variance share --suite <name>`, from the directory it was run in: the lines to `out`, and what is said beside them to `err`. */
 export async function runSuiteShare(
   options: SuiteShareOptions,
-  streams: { readonly out: (text: string) => void },
+  streams: { readonly out: (text: string) => void; readonly err: (text: string) => void },
   root: string = process.cwd(),
+  here: Here = {},
 ): Promise<ExitCode> {
-  const done = await suiteShare(root, options);
+  const done = await suiteShare(root, options, here);
   streams.out(`${done.lines.join('\n')}\n`);
+  if (done.notes !== undefined) streams.err(`${done.notes.join('\n')}\n`);
   return done.exit;
 }
 

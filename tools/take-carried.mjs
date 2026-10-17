@@ -12,10 +12,14 @@
  * file the first left incomplete, a failed one included.
  *
  * The commits a carried record names are the merge commits of earlier pushes.
- * GitHub moves `refs/pull/<n>/merge` on every push, so no ref a clone fetches
- * holds them, and each is fetched by name. A suite whose commits cannot all be
- * had is left, and says which: its tests would be diffed from nothing. A suite
- * left reads the mainline's record, as a push with nothing carried does.
+ * A merge `check.yml` made with the commit the mainline's record was made at
+ * is on no remote, and the push that made it left it in
+ * `<carried>/commits.bundle` (`tools/bundle-carried.mjs`), which is read
+ * first. GitHub's own merge is on the remote, but it moves
+ * `refs/pull/<n>/merge` on every push, so no ref a clone fetches holds it, and
+ * each is fetched by name. A suite whose commits cannot all be had is left,
+ * and says which: its tests would be diffed from nothing. A suite left reads
+ * the mainline's record, as a push with nothing carried does.
  *
  * Nothing is laid over a record the checkout already holds.
  *
@@ -36,7 +40,7 @@ import { readCommitRuns, testCoverageFile } from '@variance-authority/sense/test
  * recorded, where its runs started, and where each test stands. Undefined when
  * no runs record beside it names where it was recorded.
  */
-async function namedCommits(coverage) {
+export async function namedCommits(coverage) {
   const runs = await readCommitRuns(coverage);
   if (runs?.commit === undefined) return undefined;
   return [...new Set([runs.commit, runs.over, ...(runs.standing ?? []).map((entry) => entry.commit)])].filter(
@@ -58,7 +62,8 @@ const holds = (root, commit) => {
  * the suites laid; `left` the rest, each with the commits the remote did not
  * give, the record the checkout already held, or `unlisted` when the record
  * names no commit its tests ran at: a selection would have nothing to diff
- * each test from.
+ * each test from. `unbundled` says why the bundle beside the records did not
+ * read, when it did not.
  */
 export async function takeCarried(root, carried) {
   let entries;
@@ -70,6 +75,9 @@ export async function takeCarried(root, carried) {
   }
   const taken = [];
   const left = [];
+  const bundle = join(carried, 'commits.bundle');
+  let unbundled;
+  let bundleRead = false;
   for (const suite of entries.map((entry) => entry.name).sort()) {
     const from = join(carried, suite);
     if (!existsSync(join(from, 'coverage.bin'))) continue;
@@ -82,6 +90,22 @@ export async function takeCarried(root, carried) {
     if (named === undefined) {
       left.push({ suite, unlisted: true });
       continue;
+    }
+    if (!bundleRead && named.some((commit) => !holds(root, commit)) && existsSync(bundle)) {
+      // Once: what the bundle holds is in the clone after the first read.
+      bundleRead = true;
+      // Each head by name, into FETCH_HEAD alone: the commits are wanted, not
+      // the refs that named them, and a glob would need somewhere to put them.
+      try {
+        const run = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        const heads = run('bundle', 'list-heads', bundle)
+          .split('\n')
+          .map((line) => line.split(' ')[1])
+          .filter((ref) => ref !== undefined);
+        run('fetch', '--quiet', '--no-tags', bundle, ...heads);
+      } catch (error) {
+        unbundled = `${bundle} did not read: ${String(error?.stderr ?? error).trim()}`;
+      }
     }
     const absent = named.filter((commit) => !holds(root, commit));
     if (absent.length > 0) {
@@ -104,7 +128,7 @@ export async function takeCarried(root, carried) {
     await cp(from, dirname(own), { recursive: true });
     taken.push(suite);
   }
-  return { taken, left };
+  return { taken, left, ...(unbundled === undefined ? {} : { unbundled }) };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
@@ -113,7 +137,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.error('take-carried: name the directory the last push carried, one directory per suite, and whether the base job checked it (true or false)');
     process.exit(2);
   }
-  const { taken, left } = await takeCarried(process.cwd(), carried);
+  const { taken, left, unbundled } = await takeCarried(process.cwd(), carried);
+  if (unbundled !== undefined) console.error(`take-carried: ${unbundled}`);
   for (const suite of taken) console.error(`take-carried: ${suite} reads from what the last push ran.`);
   for (const { suite, missing, held } of left) {
     console.error(
