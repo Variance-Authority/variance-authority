@@ -94,10 +94,13 @@ It answers in two sections: the names a manifest publishes, ranked by how
 many packages import them, then the names the source exports without
 publishing. When neither holds your words as written, two more follow, each
 labelled as the reading it is and both before any installed package: the names
-holding at least half of your words, matched by stem and ranked by how many of
-them the name itself holds, then the names your words reach written apart or
-one character off. So `tsconfig custom conditions` answers
-`customConditionsFor` before the bundlers that also say those words.
+and files holding at least half of your words, matched by stem, a file by its
+name and the doc it opens with, ranked by how many of your words each holds,
+then by how much of your phrase its doc writes, then by how many its name
+holds; then the names your words reach written apart or one character off,
+exported or kept to their file. So `tsconfig custom conditions` answers
+`customConditionsFor` before the bundlers that also say those words, and
+`loose reading` answers `packages/help/src/tools/loose.ts`.
 
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
@@ -116,7 +119,7 @@ first paragraph of its documentation as `summary`, and `inArea` when you gave a
 start point. An exported row carries `at` and `line`. A section that was not run
 is missing: `described` and `loose` are present only when the other two are
 empty, a `described` row carries the `words` of yours it holds and a `source`
-of `published`, `exported` or `declared`, and is never repeated in `loose`, and
+of `published`, `exported`, `declared` or `file`, and is never repeated in `loose`, and
 a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 

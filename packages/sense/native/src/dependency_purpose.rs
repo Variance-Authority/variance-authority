@@ -8,6 +8,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
@@ -39,9 +40,16 @@ pub(super) struct Purpose {
 /// Stems kept from names and documentation: a very large package is a vocabulary, not a description.
 const NAMED: usize = 1500;
 
-const STOP: &[&str] = &["the", "and", "for", "with", "that", "this", "from", "into", "how", "use", "using", "used",
-    "you", "your", "are", "can", "has", "have", "not", "all", "any", "its", "our", "via", "when", "which", "will",
-    "library", "package", "module", "modules", "tool", "tools", "simple", "small", "fast", "based", "make", "get", "set"];
+/// Words that say how a question is put, never what it is about: dropped from every text.
+const FUNCTION: &[&str] = &["the", "and", "for", "with", "that", "this", "from", "into", "how", "you", "your", "are",
+    "can", "has", "have", "not", "all", "any", "its", "our", "via", "when", "which", "will", "what", "where", "who",
+    "whom", "whose", "why", "does", "did", "was", "were", "been", "there", "their", "them", "they", "then", "than",
+    "but", "about", "each"];
+
+/// Words every package says about itself, so they tell no package from another;
+/// in code they name things (`packageOf`, `useStore`), so code keeps them.
+const DESCRIPTION: &[&str] = &["use", "using", "used", "library", "package", "module", "modules", "tool", "tools",
+    "simple", "small", "fast", "based", "make", "get", "set"];
 
 /// A word reduced to what a plural, a tense or a noun form would share with it.
 pub(super) fn stem(word: &str) -> String {
@@ -55,13 +63,13 @@ pub(super) fn stem(word: &str) -> String {
     stem
 }
 
-/// The stems of the words in `text`, splitting camelCase and punctuation; short words and stopwords dropped.
-pub(crate) fn stems(text: &str) -> Vec<String> {
+/// The stems of the words in `text`, splitting camelCase and punctuation; short words and the words `dropped` names left out.
+fn cut(text: &str, dropped: impl Fn(&str) -> bool) -> Vec<String> {
     let mut out = Vec::new();
     let mut word = String::new();
     let mut last_lower = false;
     let flush = |word: &mut String, out: &mut Vec<String>| {
-        if word.chars().count() >= 3 && !STOP.contains(&word.to_lowercase().as_str()) { out.push(stem(word)); }
+        if word.chars().count() >= 3 && !dropped(&word.to_lowercase()) { out.push(stem(word)); }
         word.clear();
     };
     for ch in text.chars() {
@@ -72,6 +80,31 @@ pub(crate) fn stems(text: &str) -> Vec<String> {
     }
     flush(&mut word, &mut out);
     out
+}
+
+/// The stems a package is described by: function words and the words every package says about itself dropped.
+pub(crate) fn stems(text: &str) -> Vec<String> {
+    cut(text, |word| FUNCTION.contains(&word) || DESCRIPTION.contains(&word))
+}
+
+/// The stems code is described by: function words dropped, and `package`,
+/// `module` or `use` kept, since a repository's names are written in them.
+pub(crate) fn code_stems(text: &str) -> Vec<String> {
+    cut(text, |word| FUNCTION.contains(&word))
+}
+
+/// How many of the adjacent word pairs of `query` `text` also writes adjacent:
+/// a doc that says the question's phrase, not only its words. Both are read as
+/// [`code_stems`] reads them, so the pairs are of the words a question is
+/// about: `it is` or `of a` are how any sentence is put, and two docs sharing
+/// them share nothing.
+pub(crate) fn near(query: &str, text: &str) -> u32 {
+    let (asked, said) = (code_stems(query), code_stems(text));
+    let pairs = |words: &'_ [String]| -> BTreeSet<(String, String)> {
+        words.windows(2).map(|pair| (pair[0].clone(), pair[1].clone())).collect()
+    };
+    let written = pairs(&said);
+    pairs(&asked).iter().filter(|pair| written.contains(*pair)).count() as u32
 }
 
 fn sorted(mut words: Vec<String>) -> Vec<String> { words.sort_unstable(); words.dedup(); words }
