@@ -331,4 +331,4 @@ where it was answering instead.
 
 ---
 
-**[@variance-authority/event](https://variance-authority.dev/reference/packages/event)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/event](https://variance-authority.dev/reference/packages/event)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/event) · MIT

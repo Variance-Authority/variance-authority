@@ -381,4 +381,4 @@ the comparison is refused rather than reported as a difference in the product.
 
 ---
 
-**[@variance-authority/core](https://variance-authority.dev/reference/packages/core)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/core](https://variance-authority.dev/reference/packages/core)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/core) · MIT

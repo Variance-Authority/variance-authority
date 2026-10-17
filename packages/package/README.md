@@ -388,4 +388,4 @@ silently producing a smaller surface:
 
 ---
 
-**[@variance-authority/package](https://variance-authority.dev/reference/packages/package)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/package](https://variance-authority.dev/reference/packages/package)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/package) · MIT

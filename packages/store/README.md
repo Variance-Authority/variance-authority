@@ -532,4 +532,4 @@ commit with no parent, so what the line replaced is the remote's to collect.
 
 ---
 
-**[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/store) · MIT
