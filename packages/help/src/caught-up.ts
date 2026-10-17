@@ -53,7 +53,7 @@ export async function caughtUp<Answer>(
     return { subject: await again(reused), ...(packages === undefined ? {} : { footer: packages }) };
   } catch (failure) {
     const source = snapshotLine(refusedAt, `it could not be read again: ${messageOf(failure)}`);
-    return { footer: packages === undefined ? source : `${source}\n${packages}` };
+    return { footer: packages === undefined ? source : `${source}\n${packages}`, dated: true };
   }
 }
 
@@ -67,6 +67,21 @@ export interface CaughtUp<Answer> {
   readonly subject?: Answer;
   /** The lines a refusal ends with when part of the checkout could not be compared, and why. */
   readonly footer?: string;
+  /** True when `footer` opens with the date of the generation that could not be read again. */
+  readonly dated?: true;
+}
+
+/**
+ * The lines under an answer that found nothing, which {@link caughtUp} read
+ * again before it was believed: the date of the generation it was read from
+ * (`at`, `unseen` saying the checkout was not compared with it), then what part
+ * of the checkout could not be compared, and why. A footer that already dates
+ * the generation is not dated twice.
+ */
+export function foundNothingFooter(caught: CaughtUp<unknown> | undefined, at: string | undefined, unseen: boolean): string | undefined {
+  const lines = caught?.dated === true ? [caught.footer] : [at === undefined ? undefined : snapshotLine(at, unseen), caught?.footer];
+  const said = lines.filter((line) => line !== undefined);
+  return said.length === 0 ? undefined : said.join('\n');
 }
 
 function messageOf(failure: unknown): string {
