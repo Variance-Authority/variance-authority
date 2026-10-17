@@ -73,6 +73,11 @@ it('answers from a catalogue of the version before, names the described packages
   expect(older).not.toContain('package describes');
   expect(older).toContain('The dependency lexicon was written at version 1, whose stems this release does not compare, so no package was asked whether it describes `state management`; `variance index` rebuilds it.');
 
+  // A question by one exact name never reads the stems, so it answers whole and names no gap.
+  const exact = queryDependencyLexicon(root, 'useState', undefined, true);
+  expect(exact).toMatchObject({ total: 1 });
+  expect(exact).not.toHaveProperty('describedUnread');
+
   await refreshDependencyLexicon(root);
   expect(said()).toContain('1 package describes `state management`');
   expect(queryDependencyLexicon(root, 'state management')).toMatchObject({ describedTotal: 1 });

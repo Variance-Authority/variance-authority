@@ -23,6 +23,8 @@ answers every question; only the packages that describe a question by words
 are left out, and the answer says so and names `variance index`. A question
 by words also reports how many packages describe it when more are held than
 shown, which it read under the wrong field name before.
+The first `variance index`, or the first refused question that refreshes
+the lexicon, after the upgrade rebuilds the catalogue whole, once.
 
 A published or exported match is ordered by where it holds the question
 first: in its name, then in its doc's opening paragraph, then later in its
@@ -45,6 +47,6 @@ the checkout, `{ index, compared }`, instead of the search alone. Only under
 
 A published search or published value that is there and does not open is no
 longer passed over in silence. The answer names each one it tried, why it did
-not open, and that it read the checkout instead; under `--json` it is
+not open, and what it read instead; under `--json` it is
 `unopened`, one `{ published, at, reason }` per file. A file that is not there
 is still absence, and says nothing.
