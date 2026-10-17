@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Use } from '@variance-authority/package/help';
-import { type Members, routes } from './members.js';
+import { type Members, membersStop, routes } from './members.js';
 
 /**
  * The checker a member answer sends the reader to is the declaration's own.
@@ -55,5 +55,30 @@ describe('the checker a member answer names is the declaration language’s', ()
     expect(routes('size', named(declared('src/a.py'), declared('src/b.py', 'Other'))).at(-1)).toBe(
       "Ask the declaration's own language for those: its language server's find-references on the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package).",
     );
+  });
+});
+
+describe('a member answer says which languages its members were not read from', () => {
+  const stop = (elsewhere: readonly string[] | undefined, ...sites: readonly Use[]): string | undefined =>
+    membersStop('size', { ...named(...sites), ...(elsewhere === undefined ? {} : { elsewhere }) });
+
+  it('says nothing where every file is read for members, or the declarations were not read', () => {
+    expect(stop([], declared('src/a.ts'))).toBeUndefined();
+    expect(stop(undefined)).toBeUndefined();
+  });
+
+  it('names every language the index holds whose members were not read, in one sentence', () => {
+    expect(stop(['Java', 'Kotlin', 'Swift'])).toBe(
+      "Members are read from JavaScript and TypeScript files only, and this workspace's Java, Kotlin and Swift files were not read for them: " +
+        "if `size` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.",
+    );
+  });
+
+  it('says the member may be declared there too, beside the declarations it lists', () => {
+    expect(stop(['Rust'], declared('src/a.ts'))).toContain("this workspace's Rust files were not read for them: if `size` is a member there too,");
+  });
+
+  it('ends the member answer with it, after the line that names the checker', () => {
+    expect(routes('size', { ...named(declared('src/a.ts')), elsewhere: ['Python'] }).at(-1)).toBe(stop(['Python'], declared('src/a.ts')));
   });
 });

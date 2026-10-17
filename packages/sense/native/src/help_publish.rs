@@ -23,7 +23,7 @@ use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_members::{indexed_extensions, member_declarations, MemberSite};
+use crate::help_members::{indexed_extensions, member_declarations, MemberDeclarations};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -103,13 +103,6 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
 }
 
-/// The distinct extensions of the files on the chain at `index`, in code
-/// units; `None` when there is no index.
-#[napi]
-pub fn indexed_extensions_of(index: String) -> napi::Result<Option<Vec<String>>> {
-    opened_chain(&index, |layers| indexed_extensions(layers))
-}
-
 /// Every import on the chain at `index` that binds `local` to an export of
 /// another name, ordered by the importing file in code units, then by line;
 /// `None` when there is no index.
@@ -119,10 +112,11 @@ pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Op
 }
 
 /// Every declaration of a member named `name` the chain at `index` records,
-/// ordered by file in code units, then by line; `None` when there is no index.
+/// ordered by file in code units, then by line, beside the extensions of the
+/// files the chain holds; `None` when there is no index.
 #[napi]
-pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<MemberSite>>> {
-    opened_chain(&index, |layers| member_declarations(&root, layers, &name))
+pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<MemberDeclarations>> {
+    opened_chain(&index, |layers| MemberDeclarations { sites: member_declarations(&root, layers, &name), extensions: indexed_extensions(layers) })
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its

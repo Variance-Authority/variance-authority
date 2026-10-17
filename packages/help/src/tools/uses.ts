@@ -5,7 +5,7 @@ import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
-import { type Members, membersOf, membersStop, places, routes, unreadMemberLanguages } from './members.js';
+import { type Members, membersOf, membersStop, places, routes } from './members.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
 /**
@@ -391,7 +391,7 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
     }
     const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
     // Members are read from JavaScript and TypeScript only: the files of another language the index holds are named.
-    const stop = members.unread === undefined ? membersStop(name, unreadMemberLanguages(root)) : undefined;
+    const stop = membersStop(name, members);
     throw new Error([`${unfound(help, name, wanted)}${unreadMembers}`, ...(stop === undefined ? [] : [stop]), ...unreadLine(undeclared)].join(' '));
   }
   // A published name is read from its entry file as well as its declaration:

@@ -157,6 +157,18 @@ describe('variance ask uses over a member', () => {
     );
   });
 
+  it('says, under the members it lists, that the languages whose members were not read may declare it too', async () => {
+    checkout({ ...SCANNER, 'tools/scan.py': 'class Scanner:\n    def resolveThings(self):\n        return []\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain(
+      `${STOP}\n${ROUTE}\nMembers are read from JavaScript and TypeScript files only, and this workspace's Python files were not read for them: ` +
+        "if `resolveThings` is a member there too, ask their language server's workspace symbols for it, then its find-references on the declaration.",
+    );
+  });
+
   it('says nothing of other languages for a name nothing declares in a workspace of JavaScript and TypeScript', async () => {
     checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

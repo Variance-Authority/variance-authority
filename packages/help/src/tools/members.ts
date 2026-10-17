@@ -26,7 +26,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Use } from '@variance-authority/package/help';
-import { indexedExtensionsOf, LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
+import { LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
 
 /** The declarations of a member by one name. */
@@ -41,6 +41,11 @@ export interface Members {
   readonly used: readonly { readonly declared: Use; readonly uses: readonly (Use & { readonly how: string })[] }[];
   /** Why the declarations were not read, when they were not. */
   readonly unread?: string;
+  /**
+   * The languages of the files the source index holds whose members the scan
+   * does not record, by name; absent when the declarations were not read.
+   */
+  readonly elsewhere?: readonly string[];
 }
 
 /**
@@ -58,14 +63,14 @@ export function membersOf(root: string | undefined, name: string, wanted: string
   }
   if (found === undefined) return { declared: [], used: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const sites = found.filter((site) => owner === undefined || site.by === owner);
+  const sites = found.sites.filter((site) => owner === undefined || site.by === owner);
   const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
   const used = sites.flatMap((site, at) =>
     site.uses === undefined
       ? []
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
-  return { declared, used };
+  return { declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
 }
 
 /** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
@@ -97,7 +102,8 @@ export function routes(name: string, members: Members): readonly string[] {
       : languages.has('module')
         ? "Ask TypeScript for those: its language service's find-references"
         : "Ask the declaration's own language for those: its language server's find-references";
-  return ['', TYPED, `${ask} on ${at}.`];
+  const stop = membersStop(name, members);
+  return ['', TYPED, `${ask} on ${at}.`, ...(stop === undefined ? [] : [stop])];
 }
 
 /**
@@ -113,37 +119,31 @@ const UNREAD_MEMBERS: Readonly<Record<Exclude<LanguageId, 'module' | 'style'>, s
 };
 
 /**
- * The languages of the files the source index of the checkout at `root`
- * holds whose members the scan does not record, by name, in the order a
- * reader is looked for; none when no checkout is named, no index is
- * published or it does not read, since the answer already says so.
+ * The languages of files by these `extensions` whose members the scan does
+ * not record, by name, in the order a reader is looked for.
  */
-export function unreadMemberLanguages(root: string | undefined): readonly string[] {
-  if (root === undefined) return [];
-  let extensions: readonly string[] | undefined;
-  try {
-    extensions = indexedExtensionsOf(root);
-  } catch {
-    return [];
-  }
-  const held = new Set((extensions ?? []).map(languageOf));
+function unreadMemberLanguages(extensions: readonly string[]): readonly string[] {
+  const held = new Set(extensions.map(languageOf));
   return LANGUAGES.filter((id): id is keyof typeof UNREAD_MEMBERS => held.has(id) && !readsMembers(id) && id in UNREAD_MEMBERS).map(
     (id) => UNREAD_MEMBERS[id],
   );
 }
 
 /**
- * Where a reading of member `name` that found no declaration stops, given the
- * `languages` `unreadMemberLanguages` names: members are read from JavaScript
- * and TypeScript only, so a member of those languages' files is their
- * language server's to find. Nothing when there are none.
+ * Where a reading of member `name` stops, given the languages `elsewhere`
+ * names: members are read from JavaScript and TypeScript only, so a member of
+ * those languages' files is their language server's to find, beside any
+ * declaration the answer lists. Nothing when there are none, or the
+ * declarations were not read.
  */
-export function membersStop(name: string, languages: readonly string[]): string | undefined {
+export function membersStop(name: string, members: Members): string | undefined {
+  const languages = members.elsewhere ?? [];
   if (languages.length === 0) return undefined;
+  const there = members.declared.length === 0 ? 'there' : 'there too';
   const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
   return (
     `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them: ` +
-    `if \`${name}\` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.`
+    `if \`${name}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`
   );
 }
 

@@ -151,6 +151,18 @@ describe('variance ask symbol says what is true of a name', () => {
 
   // FIXME: a file the chain holds no parse of — written after the source index — is not named among the unread.
   it.todo('names a file written after the source index as one whose declarations were not read — needs the unread list to compare the checkout against what the chain parsed');
+  it('answers a member with its container, and names the languages whose members were not read', async () => {
+    checkout({ ...NATIVE, 'tools/scan.py': 'class Scanner:\n    def resolveThings(self):\n        return []\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'resolveThings']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('a member of `Scanner`, declared at packages/lib/src/native.ts:2');
+    expect(out).toContain(
+      "Members are read from JavaScript and TypeScript files only, and this workspace's Python files were not read for them: " +
+        "if `resolveThings` is a member there too, ask their language server's workspace symbols for it, then its find-references on the declaration.",
+    );
+  });
+
   it('says members were read from JavaScript and TypeScript only, and names the languages the index holds whose members were not', async () => {
     checkout({
       ...NATIVE,

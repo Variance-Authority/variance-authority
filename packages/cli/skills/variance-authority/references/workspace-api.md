@@ -192,7 +192,9 @@ those languages and sends you to their language server:
 `scan_things` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `scan_things` at its top level, and no JavaScript or TypeScript file declares it as a member. No installed dependency publishes it either. Members are read from JavaScript and TypeScript files only, and this workspace's Python and Rust files were not read for them: if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.
 ```
 
-`uses` ends its refusal of such a name with the same last sentence.
+`uses` ends its refusal of such a name with the same last sentence, and a
+member answer of `symbol` or `uses` ends with it as well, saying the member may
+be declared ``there too``.
 
 A name no entry publishes, but that another package imports by the path of its
 file, is answered rather than refused: where it is declared, why nothing
@@ -288,9 +290,9 @@ service for a declaration in JavaScript or TypeScript, the declaration's own
 language server for one in another language, and each declaration's own type
 checker when they are written in more than one. An answer with no member
 prints neither. Members are read from JavaScript and TypeScript only, so a
-member of a Python, Rust, Java, Kotlin or Swift file is in no member answer;
-a name nothing else declares is refused, as under `symbol`, with the languages
-whose members were not read named.
+member of a Python, Rust, Java, Kotlin or Swift file is in no member answer.
+When the source index holds files of those languages, a third line names them
+and sends you to their language server, as under `symbol`.
 
 A use is a line that reads the member (`props.size`, `props['size']`,
 `props?.size`), writes it (`props.size = 1`, `+=`, `++`, a key of an object

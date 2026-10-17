@@ -71,6 +71,15 @@ pub struct MemberSite {
     pub uses: Option<Vec<MemberUseSite>>,
 }
 
+/// The declarations of a member by one name, and the distinct extensions of
+/// the files the chain holds: whose members the scan records is a fact of
+/// their language, which the caller names from the extension.
+#[napi(object)]
+pub struct MemberDeclarations {
+    pub sites: Vec<MemberSite>,
+    pub extensions: Vec<String>,
+}
+
 /// One line that uses a member, `how`: `read`, `write` or `destructure`.
 #[napi(object)]
 #[derive(Clone)]
@@ -138,8 +147,7 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
 }
 
 /// The distinct extensions of the files on the chain, dot included, in code
-/// units: which languages a member question read beside the ones whose members
-/// the scan records. A file with no extension adds none.
+/// units. A file with no extension adds none.
 pub(crate) fn indexed_extensions(layers: &[Layer]) -> Vec<String> {
     let mut held: Vec<String> = fold(layers)
         .into_keys()

@@ -80,9 +80,11 @@ attribute, is not in that list, and the answer ends by saying so and naming the
 declaration's `file:line`, or with several the one you mean from those it
 lists, for find-references in that language's tooling, TypeScript's language
 service for JavaScript and TypeScript, which lists those uses. Members are read
-from JavaScript and TypeScript files only: when nothing declares the name and the
-workspace holds files of another language, the answer names those languages and
-sends you to their language server's workspace symbols. The graph does not record that one
+from JavaScript and TypeScript files only; top-level declarations are read in
+every language the index reads. When the workspace also holds Python, Rust,
+Java, Kotlin or Swift files, the answer ends with a sentence that names those
+languages, whether or not it found a member, and sends you to their language
+server's workspace symbols. The graph does not record that one
 function called another at runtime; open the named file or use a language
 server for that question.
 

@@ -10,7 +10,7 @@ import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from 
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
-import { type Members, membersOf, membersStop, unreadMemberLanguages } from './members.js';
+import { type Members, membersOf, membersStop } from './members.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
@@ -202,11 +202,13 @@ export const symbol: Tool<Help> = {
 
 /**
  * A name the workspace declares only as a member: one block per declaration,
- * on the container that holds it, then the files whose declarations were not
- * read, since one of them may declare it at its top level.
+ * on the container that holds it, then the languages whose members were not
+ * read, then the files whose declarations were not read, since one of them
+ * may declare it at its top level.
  */
 function memberBlocks(root: string | undefined, name: string, members: Members): readonly string[] {
   const read = declarations(root, name);
+  const stop = membersStop(name, members);
   return [
     ...members.declared.map((site) =>
       [
@@ -215,6 +217,7 @@ function memberBlocks(root: string | undefined, name: string, members: Members):
         "docs_uses names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
       ].join('\n'),
     ),
+    ...(stop === undefined ? [] : [stop]),
     ...('refused' in read ? [] : unreadLine(read.unread)),
   ];
 }
@@ -240,7 +243,7 @@ function nowhere(
   const read = declarations(root, name);
   const why = 'refused' in read ? read.refused : members?.unread;
   const unread = 'refused' in read ? [] : unreadLine(read.unread);
-  const stop = why === undefined ? membersStop(name, unreadMemberLanguages(root)) : undefined;
+  const stop = why === undefined && members !== undefined ? membersStop(name, members) : undefined;
   // What was read and found nothing comes first, as only what was read; what was not read, last.
   const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
   const files = why !== undefined
