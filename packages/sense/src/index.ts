@@ -24,7 +24,7 @@
 // compass: variance-authority.reach
 
 export { scanRelations, type ScanOptions } from './scan.js';
-export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, wordStemsNative } from './dependency-lexicon.js';
+export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.
@@ -206,7 +206,9 @@ export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-chan
 export {
   aliasesOf,
   declaredDescribedOf,
+  declaredLooseOf,
   declaredOf,
+  declaredTermsOf,
   encodeSearch,
   exportedDigest,
   importersOf,
@@ -215,6 +217,7 @@ export {
   type Alias,
   type DeclaredName,
   type DeclaredNames,
+  type DescribedFile,
   type EncodedSearch,
   type HelpPublish,
   type HelpReading,

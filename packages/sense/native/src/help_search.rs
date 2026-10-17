@@ -12,6 +12,7 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
@@ -104,6 +105,15 @@ fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
     found
 }
 
+/// What a token ends at: a line break, a space or a punctuation mark.
+static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}]+").expect("the pattern is fixed"));
+
+/// A name's terms as the search file indexes an exported one, so a name the
+/// file does not hold answers the loose pass by the same rule.
+pub(crate) fn name_terms(name: &str) -> HashSet<String> {
+    terms_of(&SPLIT, name)
+}
+
 /// `wordsOf`: the words one token is written in, split where the case or a
 /// digit changes — a lowercase letter before an uppercase one, the last capital
 /// of a run before a lowercase letter, and a digit beside anything that is not one.
@@ -177,7 +187,7 @@ fn json(text: &str) -> String {
 /// The search file's bytes. The digest of `exported` is the caller's: a
 /// reading already holds it, and the encoder does not compute it again.
 pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], generation: Option<&SearchGeneration>) -> Vec<u8> {
-    let split = Regex::new(r"[\n\r\p{Z}\p{P}]+").expect("the pattern is fixed");
+    let split = &*SPLIT;
     let (mut strings, mut names) = (Pool::default(), Pool::default());
     let (mut name_string, mut name_pub, mut name_exp): (Vec<u32>, Vec<Vec<u32>>, Vec<Vec<u32>>) = Default::default();
     // Per term: the names, the published rows and the exported rows that hold it.

@@ -37,14 +37,23 @@ export function dependencyStackNative(root: string, files: readonly string[], of
 }
 
 /**
- * A question's distinct stems, each with the word it was written as: the words
- * a package is described by, split the same way, so the repository's own names
- * are asked by the words its dependencies are.
+ * A question's distinct stems, each with the word it was written as, split
+ * the way a package's words are, so the repository's own names are asked by
+ * the words its dependencies are, with the words every package says about
+ * itself — `package`, `module`, `use` and the like — kept, since code is
+ * named in them.
  */
 export function describedWordsNative(query: string): readonly (readonly [stem: string, word: string])[] {
   const addon = native();
   if (addon === undefined) throw new Error(`described words require the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
   return addon.describedWords(query);
+}
+
+/** Per text, how many of the adjacent word pairs of `query` it writes adjacent: a doc that says the question's phrase. */
+export function nearOfNative(query: string, texts: readonly string[]): readonly number[] {
+  const addon = native();
+  if (addon === undefined) throw new Error(`nearness requires the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
+  return addon.nearOf(query, [...texts]);
 }
 
 /** Each word reduced to its stem, in order: the rule `describedWordsNative` stems a question by. */

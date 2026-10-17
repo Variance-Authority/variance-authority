@@ -31,7 +31,7 @@
  * be wrong the first time a package moved. Specifiers go in; edges do not.
  */
 
-import type { SourceSymbol } from './harvest.js';
+import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { Export, Request } from './read.js';
 import type { ImportDiff } from './taint/index.js';
 import { openSourceIndexFile } from './source-index-file.js';
@@ -89,6 +89,13 @@ export interface Parsed {
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
+  /**
+   * The module's own doc comment, inside its marks, in UTF-16 units: the first
+   * `/**` before the first statement that is not an import, documenting no
+   * such statement. Absent when it writes none, and from any reader but the
+   * JavaScript and TypeScript one.
+   */
+  readonly doc?: TextSpan;
 }
 
 /**
