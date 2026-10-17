@@ -1875,9 +1875,37 @@ touches. `vitest` writes `--exclude=` arguments naming each file's absolute path
 a workspace is many projects and a project matches an exclude pattern against
 its own directory rather than the root the journal counts from; `jest` writes
 `--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`
-default, which that flag would otherwise replace. `--format json` reports the
-counts and the widening reason together for a program that decides for
-itself.
+default, which that flag would otherwise replace.
+
+`--format json` is for a program that decides for itself, such as a CI step or
+an agent, and it says why each test file runs. `ground` names the reading:
+`read` when the record answered, or the reason it could not: `no-journal`,
+`no-coverage`, `no-diff`, `no-install`, or `before` when the diff moved what
+the suite rests on, with the changed files under `rests`. `widened` is present
+whenever every test file runs, under `read` too when the record holds no whole
+observation. When the record narrowed, `selected` lists each test file the
+change reached with the positions of its reasons in `reasons`, which names each
+reason once however many test files it selected. A reason is a changed
+`region` the test file entered, a changed `precondition` it declared, a
+`reader` of a value the change moved, or an `importer` trail from a changed
+file the record did not measure to the file whose tests answered for it. A
+region of a file under `install.files` is one a bump or a moved manifest made
+the reading treat as changed whole, which the diff never touched; `through` is
+the chain from the bumped package. A journey file names the tests it reached
+and not why, so a reading of one carries neither list. `incomplete`, when the
+record keeps one, lists the recorded test files whose observation was not
+whole, which run whatever changed. With `selected` present, a test file in no
+list is one the record never saw, and runs too. An excerpt:
+
+```json
+{
+  "ground": "read",
+  "skip": ["test/alpha.test.ts"],
+  "reasons": [{ "kind": "region", "file": "src/pad.ts", "name": "pad", "path": "pad", "startLine": 1, "endLine": 3 }],
+  "selected": [{ "test": "test/beta.test.ts", "reasons": [0] }],
+  "incomplete": []
+}
+```
 
 A failure near the change comes back sooner when the nearest tests run first.
 `--at-distance <hops>` cuts the selection to one leg, the selected test files

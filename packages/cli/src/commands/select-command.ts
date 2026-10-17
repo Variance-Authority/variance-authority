@@ -283,7 +283,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   );
   const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
-  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
+  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } });
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.
   // What changed between a stand and the journal's commit is the diff between

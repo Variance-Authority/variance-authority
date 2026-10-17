@@ -130,7 +130,7 @@ function moduleOf(coverage: TestCoverageView, block: number): number {
  * with the chain that reached it beside the reasons the reading gave. What is
  * unread the reading already said: it asked the same graph.
  */
-export function withGraph<Reading extends Pick<ExecutionNarrowing, 'entered' | 'because'>>(
+export function withGraph<Reading extends Required<Pick<ExecutionNarrowing, 'entered' | 'because'>>>(
   coverage: TestCoverageView,
   reading: Reading,
   changed: readonly string[],
