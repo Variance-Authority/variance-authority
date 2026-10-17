@@ -1,6 +1,6 @@
 ---
 '@variance-authority/sense': patch
-'@variance-authority/distill': patch
+'@variance-authority/distill': minor
 '@variance-authority/help': patch
 '@variance-authority/cli': patch
 ---
