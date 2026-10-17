@@ -78,17 +78,21 @@ describe('variance ask uses --limit', () => {
         'export function greet(name: string): string {',
         '  return name;',
         '}',
+        "const loud = (name: string) => greet(name).toUpperCase();",
         "export const a = greet('a');",
-        "export const b = greet('b');",
-        "export const c = greet('c');",
+        "export const b = loud(greet('b'));",
         '',
       ].join('\n'),
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const own = (out: string): readonly string[] => {
-      const after = out.split('\n').slice(out.split('\n').indexOf('Used in the file that declares it:') + 2);
-      return after.slice(0, after.findIndex((line) => !line.startsWith('packages/lib/src/greet.ts:')));
+      const lines = out.split('\n');
+      const at = lines.indexOf('Used in the file that declares it:');
+      if (at === -1) return [];
+      const after = lines.slice(at + 2);
+      const end = after.findIndex((line) => !/^\S+:\d+ — /.test(line));
+      return end === -1 ? after : after.slice(0, end);
     };
     const all = await run(['ask', 'uses', '--name', 'greet']);
     expect(all.code).toBe(EXIT_CLEAN);
