@@ -206,7 +206,8 @@ describe('distill', () => {
   });
 
   it('carries what each case said it arranged, and leaves an unheard case without any', () => {
-    const said: ExecutionIndex = { ...EXECUTION, tests: [
+    // The JSON spells each item as an object; the index holds them as the frame does, unresolved, in the order given.
+    const spelled = { ...EXECUTION, tests: [
       { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', preconditions: [
         { name: 'network', value: 'mocked', site: 'test/pay.test.ts:4', level: 1 },
         { name: 'retries', value: 3, site: 'test/pay.test.ts:5', level: 0 },
@@ -216,13 +217,21 @@ describe('distill', () => {
       { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
     ] };
 
-    const parsed = parseExecutionIndex(said);
+    const parsed = parseExecutionIndex(spelled);
 
-    expect(parsed).toEqual(said);
-    expect(parsed.tests[2]).not.toHaveProperty('preconditions');
-    expect(() => parseExecutionIndex({ ...said, tests: [{ ...said.tests[0], preconditions: {} }] }))
+    expect(parsed).toEqual({ ...EXECUTION, tests: [
+      { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', said: JSON.stringify([
+        ['network', 'mocked', 'test/pay.test.ts:4', 1],
+        ['retries', 3, 'test/pay.test.ts:5', 0],
+        ['flaky', true, 'test/pay.test.ts:9', 65535],
+      ]) },
+      { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', said: '[]' },
+      { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
+    ] } satisfies ExecutionIndex);
+    expect(parsed.tests[2]).not.toHaveProperty('said');
+    expect(() => parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: {} }] }))
       .toThrow('execution test 0 preconditions must be an array');
-    expect(() => parseExecutionIndex({ ...said, tests: [{ ...said.tests[0], preconditions: [
+    expect(() => parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: [
       { name: 'network', value: null, site: 'test/pay.test.ts:4', level: 1 },
     ] }] })).toThrow('execution test 0 precondition 0 value must be a string, number or boolean');
   });

@@ -25,6 +25,7 @@ import {
   coveringTestsInFile,
   distanceToSource,
   hunksOf,
+  rowOf,
   type CoveringRegion,
   type ExecutionIndex,
   type LineRange,
@@ -163,7 +164,7 @@ export function regionsOf(
       changedLineCases: changedLines.size,
       tests: [...new Set(called.map((test) => test.file))].sort(order),
       called: called
-        .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
+        .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.said === undefined ? {} : { preconditions: rowOf(test)! }) }))
         .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
     };
   });

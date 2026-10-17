@@ -8,7 +8,7 @@ import { main } from '../bin.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   writeTestCoverage,
   type ExecutionIndex,
   type ExecutionTest,
@@ -23,7 +23,7 @@ import { covering, formatCovering } from './covering.js';
 function said(file: string, name: string, flag: string, stopped: boolean): ExecutionTest {
   return {
     id: `${file} > ${name}`, file, name, stopped,
-    preconditions: [{ name: 'flag', value: flag, site: `${file}:3`, level: 1 }],
+    said: JSON.stringify([['flag', flag, `${file}:3`, 1]]),
   };
 }
 
@@ -62,7 +62,7 @@ async function checkout(): Promise<{ root: string; execution: string }> {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-where-state-'));
   const execution = join(await mkdtemp(join(tmpdir(), 'variance-covering-where-state-')), 'coverage.bin');
   await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-    index: encodeExecutionIndex(INDEX),
+    index: encodeAsSetExecutionIndex(INDEX),
   });
   const cart = (edit: boolean) => ['total', 'round', 'discount', 'fee']
     .map((name, at) => `export function ${name}() {\n  return ${at};${edit ? ' // edited' : ''}\n}\n`).join('\n');

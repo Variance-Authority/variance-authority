@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::case_id;
-use crate::case_preconditions;
+use crate::case_said;
+use crate::case_shard::decode_set;
 use crate::journey_columns::{self, Column};
 use crate::journey_journal::Test;
 use crate::journey_record::{Module, NO_OWNER};
@@ -31,11 +32,34 @@ impl SetPool {
         }
     }
 
+    /// A pool another writer laid, ready to intern more sets into: its ids keep
+    /// their meaning, and an equal set is found rather than laid twice.
+    pub fn from_pool(bytes: Vec<u8>, offsets: Vec<u32>, test_count: usize) -> Result<Self, String> {
+        let sound = offsets.first() == Some(&0)
+            && offsets.windows(2).all(|pair| pair[0] <= pair[1])
+            && offsets.last().is_some_and(|end| *end as usize == bytes.len());
+        if !sound {
+            return Err("the crossing-set pool is damaged".to_owned());
+        }
+        let mut hashes: HashMap<u32, Vec<u32>> = HashMap::new();
+        for (id, pair) in offsets.windows(2).enumerate() {
+            hashes.entry(hash_of(&bytes[pair[0] as usize..pair[1] as usize])).or_default().push(id as u32);
+        }
+        Ok(Self { test_count, bytes, offsets, hashes })
+    }
+
+    /// The cases in set `id`.
+    pub fn members(&self, id: u32) -> Result<Vec<u32>, String> {
+        let (from, to) = (self.offsets.get(id as usize), self.offsets.get(id as usize + 1));
+        let (Some(from), Some(to)) = (from, to) else {
+            return Err(format!("no crossing set {id}"));
+        };
+        decode_set(&self.bytes[*from as usize..*to as usize], self.test_count)
+    }
+
     pub fn intern(&mut self, members: &[u32]) -> u32 {
         let encoded = encode_set(members, self.test_count);
-        let hash = encoded.iter().fold(2_166_136_261_u32, |held, byte| {
-            (held ^ u32::from(*byte)).wrapping_mul(16_777_619)
-        });
+        let hash = hash_of(&encoded);
         if let Some(candidates) = self.hashes.get(&hash) {
             for id in candidates {
                 let from = self.offsets[*id as usize] as usize;
@@ -59,6 +83,10 @@ impl SetPool {
     pub fn offsets(&self) -> &[u32] {
         &self.offsets
     }
+}
+
+fn hash_of(encoded: &[u8]) -> u32 {
+    encoded.iter().fold(2_166_136_261_u32, |held, byte| (held ^ u32::from(*byte)).wrapping_mul(16_777_619))
 }
 
 fn encode_set(members: &[u32], test_count: usize) -> Vec<u8> {
@@ -191,7 +219,7 @@ pub fn encode(
     tests: &[Test],
     extras: &CaseExtras,
     modules: &[EncodedModule<'_>],
-    sets: &SetPool,
+    sets: &mut SetPool,
     gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
     let timed = extras.always_timed || extras.durations.iter().any(Option::is_some);
@@ -200,10 +228,8 @@ pub fn encode(
         return Err("case columns disagree with the cases".to_owned());
     }
     let mut strings = Vec::new();
-    let said: Vec<Option<String>> = tests
-        .iter()
-        .map(|test| test.preconditions.as_deref().map(case_preconditions::spelled))
-        .collect();
+    let said: Vec<Option<&[case_said::Item]>> = tests.iter().map(|test| test.said.as_deref()).collect();
+    let said = case_said::lay(&said, sets);
     for test in tests {
         strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
     }
@@ -213,7 +239,6 @@ pub fn encode(
     // Carried when any case has one: a case no named project ran is `UNNAMED`.
     let named = tests.iter().any(|test| test.project.is_some());
     strings.extend(tests.iter().filter_map(|test| test.project.clone()));
-    strings.extend(said.iter().flatten().cloned());
     for held in modules {
         strings.push(held.module.file.clone());
         for block in &held.module.blocks {
@@ -301,9 +326,8 @@ pub fn encode(
         let words = extras.durations.iter().map(|duration| duration.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.duration.as_str(), words));
     }
-    if said.iter().any(Option::is_some) {
-        let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
-        columns.push(Column::Words(case_preconditions::COLUMN, words));
+    if let Some(said) = said {
+        columns.push(Column::Bytes(case_said::SECTION, said));
     }
     if lined {
         let mut blob = Vec::new();

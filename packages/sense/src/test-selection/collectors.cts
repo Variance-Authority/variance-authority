@@ -232,8 +232,17 @@ function flat(holder: Holder): Collector {
  * asked for stories.
  * @param root The checkout the record names files against. Given, the scope
  * also keeps what Eyes hands each case, as `eyes-frame.cts` describes.
+ * @param siteNamed How a warning names a precondition's call site, given by a
+ * host that can load the addon; a sandboxed realm prints the site as it was
+ * spelled.
  */
-function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, root?: string): Collector {
+function scoped(
+  holder: Holder,
+  continuations: boolean,
+  story?: StoryWriter,
+  root?: string,
+  siteNamed?: (site: string) => string,
+): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
   if (tap !== undefined) storyTap.listen(tap, holder);
@@ -289,7 +298,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
       return bucket.key;
     },
     continuations ? new async_hooks.AsyncLocalStorage() : undefined,
-    root,
+    siteNamed,
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);

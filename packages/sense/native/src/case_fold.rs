@@ -17,7 +17,7 @@ use rustc_hash::FxHashMap;
 
 use crate::case_id::{self, CaseIds};
 use crate::case_lines;
-use crate::case_preconditions;
+use crate::case_said;
 use crate::case_shard::{self, Inventory, Shard};
 use crate::journey_format::{self, CaseExtras, EncodedModule, Gaps, SetPool};
 use crate::journey_journal::{self, Test};
@@ -67,7 +67,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
                 return Err(format!("case id {:?} names two cases", test.id));
             }
             before.settled = journey_journal::settled_across(before.settled, test.settled);
-            before.preconditions = case_preconditions::across(before.preconditions.take(), test.preconditions.clone());
+            before.said = case_said::join(before.said.take(), test.said.clone());
         } else {
             tests_by_key.insert(key(test), test.clone());
         }
@@ -225,7 +225,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         .map(|(at, module)| EncodedModule { module, called: &called_by_module[at], loaded: &loaded_by_module[at] })
         .collect();
     let gaps = union_gaps(&shards);
-    let bytes = journey_format::encode(&tests, &extras, &encoded, &sets, gaps.as_ref())?;
+    let bytes = journey_format::encode(&tests, &extras, &encoded, &mut sets, gaps.as_ref())?;
     Ok(Folded {
         ids: tests.iter().map(|test| test.id.clone()).collect(),
         bytes,
