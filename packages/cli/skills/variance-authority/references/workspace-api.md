@@ -246,7 +246,7 @@ no members is left out rather than shown empty.
 A published name that nothing imports is a different answer, not an empty list:
 
 ```
-`PagesOptions` is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
+`PagesOptions` [interface] is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
 ```
 
 The imports within the name's own package come from the source index: every

@@ -29,7 +29,7 @@ pub struct NamedExport {
     pub r#type: bool,
     pub kind: String,
     /// The kind of the declaration the export binds in its own file, as the
-    /// parse records it (`function`, `class`, `variable` …); absent for an
+    /// parse records it (`function`, `class`, `const` …); absent for an
     /// `export … from`, whose declaration is another file's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declaration: Option<String>,
