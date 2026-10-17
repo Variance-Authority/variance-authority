@@ -62,3 +62,12 @@ fn two_uses_on_one_line_are_one_line() {
     let found = uses("const a = 1;\nconst b = a + a;\n", SourceType::ts());
     assert_eq!(found, vec![one("a", 2)]);
 }
+
+#[test]
+fn a_file_whose_every_declaration_is_exported_uses_its_names() {
+    let found = uses(
+        "export function greet(name: string): string {\n  return name;\n}\nexport const hello = greet('hello');\nexport const hi = greet('hi');\nexport const hey = greet('hey');\n",
+        SourceType::ts(),
+    );
+    assert_eq!(found, vec![one("greet", 4), one("greet", 5), one("greet", 6)]);
+}

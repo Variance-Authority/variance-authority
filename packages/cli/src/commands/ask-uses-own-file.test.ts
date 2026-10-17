@@ -63,6 +63,29 @@ describe('variance ask uses over the file that declares the name', () => {
     ]);
   });
 
+  it('lists the lines of a TypeScript file that use a name it exports, when every declaration in the file is exported', async () => {
+    checkout({
+      'packages/lib/src/greet.ts': [
+        'export function greet(name: string): string {',
+        '  return name;',
+        '}',
+        "export const hello = greet('hello');",
+        "export const hi = greet('hi');",
+        "export const hey = greet('hey');",
+        '',
+      ].join('\n'),
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(section(out, OWN)).toEqual([
+      'packages/lib/src/greet.ts:4 — @acme/lib',
+      'packages/lib/src/greet.ts:5 — @acme/lib',
+      'packages/lib/src/greet.ts:6 — @acme/lib',
+    ]);
+  });
+
   it('lists the lines of a TypeScript file that use a name it declares and does not export', async () => {
     checkout({
       'packages/lib/src/kept.ts': 'function keptAside(): number {\n  return 1;\n}\nexport const held = keptAside() + keptAside();\n',
