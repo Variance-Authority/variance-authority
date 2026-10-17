@@ -364,7 +364,7 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
         }
     }
     visitor.test(&read.text()?)?;
-    read.step(TIME_BYTES)?;
+    read.take(TIME_BYTES)?;
     let count = read.number()?;
     let mut scratch = Vec::new();
     for _ in 0..count {
@@ -444,20 +444,16 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn step(&mut self, bytes: usize) -> Result<(), String> {
-        let end = self.at.checked_add(bytes).filter(|end| *end <= self.raw.len()).ok_or_else(damaged)?;
+    fn take(&mut self, bytes: usize) -> Result<&'a [u8], String> {
+        let end = self.at.checked_add(bytes).ok_or_else(damaged)?;
+        let taken = self.raw.get(self.at..end).ok_or_else(damaged)?;
         self.at = end;
-        Ok(())
+        Ok(taken)
     }
 
     fn text(&mut self) -> Result<String, String> {
         let length = self.number()? as usize;
-        let end = self.at.checked_add(length).ok_or_else(damaged)?;
-        let value = std::str::from_utf8(self.raw.get(self.at..end).ok_or_else(damaged)?)
-            .map_err(|_| damaged())?
-            .to_owned();
-        self.at = end;
-        Ok(value)
+        std::str::from_utf8(self.take(length)?).map(str::to_owned).map_err(|_| damaged())
     }
 
     fn skip(&mut self) -> Result<(), String> {

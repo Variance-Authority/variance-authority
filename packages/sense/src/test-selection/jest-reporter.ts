@@ -26,7 +26,8 @@ import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
-import { noteAnEmptyRecord, reportedDuration, reportedPhases } from './finished-files.js';
+import { noteAnEmptyRecord } from './finished-files.js';
+import { jestPhases, reportedDuration, type JestPerfStats } from './reported-time.js';
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { landRun } from './commit-runs.js';
@@ -333,47 +334,6 @@ async function coverageTest(
     ...jestPhases(result.perfStats, collected),
   };
 }
-
-/**
- * What Jest timed of a file: `runtime` is the milliseconds it measured for the
- * whole file, and the stamps are the worker's `Date.now()`. A stamp it did not
- * set reads as a phase it did not time.
- */
-interface JestPerfStats {
-  readonly runtime?: number;
-  readonly loadTestEnvironmentStart?: number;
-  readonly loadTestEnvironmentEnd?: number;
-  readonly setupFilesStart?: number;
-  readonly setupFilesEnd?: number;
-  readonly setupAfterEnvStart?: number;
-  readonly setupAfterEnvEnd?: number;
-  readonly end?: number;
-}
-
-/**
- * A Jest file's phases: the environment and both kinds of setup file from
- * `perfStats`, and the rest split at `collected`, the moment the setup module's
- * `beforeAll` marked on the same clock. Jest readies no file apart from these,
- * so it reports no `prepare`; without the mark it reports no collect or cases.
- */
-export function jestPhases(
-  perfStats: JestPerfStats | undefined,
-  collected: number | undefined,
-): ReturnType<typeof reportedPhases> {
-  if (perfStats === undefined) return {};
-  // A missing stamp is `undefined`, and arithmetic on it a `NaN` that
-  // `reportedPhases` leaves out, as it leaves out anything negative.
-  const between = (start?: number, end?: number): number => (end ?? Number.NaN) - (start ?? Number.NaN);
-  const { setupFilesStart, setupFilesEnd, setupAfterEnvStart, setupAfterEnvEnd } = perfStats;
-  return reportedPhases({
-    environment: between(perfStats.loadTestEnvironmentStart, perfStats.loadTestEnvironmentEnd),
-    setup: between(setupFilesStart, setupFilesEnd) + between(setupAfterEnvStart, setupAfterEnvEnd),
-    ...(collected === undefined
-      ? {}
-      : { collect: between(setupAfterEnvEnd, collected), cases: between(collected, perfStats.end) }),
-  });
-}
-
 
 /**
  * The setup and environment files one Jest project rests on, as Jest resolved

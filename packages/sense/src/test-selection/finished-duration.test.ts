@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { oneRowPerFile, reportedDuration, reportedPhases } from './finished-files.js';
-import { jestPhases } from './jest-reporter.js';
+import { oneRowPerFile } from './finished-files.js';
+import { jestPhases, reportedDuration, reportedPhases } from './reported-time.js';
 
 describe('the duration a runner reported for a test file', () => {
   it('is kept as reported when it is a figure a runner could mean', () => {

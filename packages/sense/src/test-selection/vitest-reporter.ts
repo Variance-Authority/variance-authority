@@ -7,14 +7,13 @@ import type { Reporter } from 'vitest/reporters';
 import {
   carriedJournal,
   reportedComplete,
-  reportedDuration,
-  reportedPhases,
   runnerSkipped,
   taskComplete,
   type FinishedFile,
   type ReportedModule,
   type RunnerTask,
 } from './finished-files.js';
+import { reportedDuration, reportedPhases } from './reported-time.js';
 import { reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';

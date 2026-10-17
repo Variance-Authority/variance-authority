@@ -1,4 +1,5 @@
 // compass: variance-authority/runtime/attention
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { NO_DURATION, openTestCoverage, PHASE_NAMES } from '@variance-authority/sense/test-selection';
 
 /**
@@ -76,7 +77,7 @@ export function scopeTime(
   PHASE_NAMES.forEach((name, at) => {
     if (sum[at] !== undefined) phases[name] = sum[at];
   });
-  loadBound.sort((left, right) => right.collect - left.collect || (left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
+  loadBound.sort((left, right) => right.collect - left.collect || (codeUnitOrder(left.file, right.file)));
   return { timed, ...phases, collect: phases.collect!, cases: phases.cases!, loadBound };
 }
 

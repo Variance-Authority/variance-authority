@@ -42,7 +42,7 @@ import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
 import { defaultInclude, insideRoot } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
-import { reportedDuration } from './finished-files.js';
+import { reportedDuration } from './reported-time.js';
 import { finishedCase } from './case-durations.js';
 import { foldRun } from './selection-fold.js';
 import { newRun } from './selection-run.js';

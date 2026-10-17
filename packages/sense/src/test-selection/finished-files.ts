@@ -25,7 +25,7 @@ import {
   type ReadJournal,
 } from './instrumented-modules.js';
 import type { CoveragePrecondition, CoverageTest, FilePhases } from './index.js';
-import { PHASE_NAMES } from './format-layout.js';
+import { reportedDuration, reportedPhases, summedPhases } from './reported-time.js';
 import type { ExecutedModule } from './probes.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
 import type { RunnerContext, RunnerProject } from './governing-config.js';
@@ -136,24 +136,6 @@ export interface FinishedFile {
   readonly phases?: FilePhases;
   /** Every case the runner reported in it; absent when it reported none. */
   readonly cases?: readonly FinishedCase[];
-}
-
-/** The runner's duration for a file, as a field to spread; nothing here times a file. */
-export function reportedDuration(value: unknown): Pick<FinishedFile, 'duration'> {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? { duration: value } : {};
-}
-
-/**
- * The phases the runner reported for a file, as a field to spread: each one a
- * duration {@link reportedDuration} would keep, and nothing when none is.
- */
-export function reportedPhases(value: { readonly [phase in keyof FilePhases]?: unknown }): Pick<FinishedFile, 'phases'> {
-  const phases: Record<string, number> = {};
-  for (const name of PHASE_NAMES) {
-    const kept = reportedDuration(value[name]).duration;
-    if (kept !== undefined) phases[name] = kept;
-  }
-  return Object.keys(phases).length === 0 ? {} : { phases };
 }
 
 /** What a page's two drains carry: before the first test, and after it. */
@@ -405,13 +387,7 @@ export function oneRowPerFile(
       : seen.duration === undefined || file.duration === undefined
       ? undefined
       : seen.duration + file.duration;
-    // Each phase the same way: the projects' sum, unknown if one did not say.
-    const phases = seen === undefined
-      ? file.phases
-      : reportedPhases(Object.fromEntries(PHASE_NAMES.map((name) => {
-        const [held, more] = [seen.phases?.[name], file.phases?.[name]];
-        return [name, held === undefined || more === undefined ? undefined : held + more];
-      }))).phases;
+    const phases = seen === undefined ? file.phases : summedPhases(seen.phases, file.phases).phases;
     byPath.set(path, {
       filepath: seen?.filepath ?? file.filepath,
       complete: (seen?.complete ?? true) && file.complete,
