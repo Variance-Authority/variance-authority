@@ -130,9 +130,10 @@ export function readUsage(
     }
 
     const publishes: Exported[] = [];
-    // `export { x }` has no comment of its own: its doc is above what it binds.
+    // `export { x }` has no comment of its own: its doc is above what it binds,
+    // and its kind is that declaration's.
     let declared: ReturnType<typeof bindingsIn> | undefined;
-    const boundDoc = (local: string | null) => (local === null ? undefined : (declared ??= bindingsIn(source)).get(local)?.doc);
+    const bound = (local: string | null) => (local === null ? undefined : (declared ??= bindingsIn(source)).get(local));
     for (const statement of source.parsed.module.staticExports) {
       const line = lineAt(source.writing, statement.start);
       const above = source.writing.docs.get(statement.start);
@@ -140,8 +141,17 @@ export function readUsage(
         // `export * from './x'` names nothing here: the set is whatever the other
         // file publishes, and inventing a name would claim one never written.
         const exported = nameOf(entry.exportName.kind, entry.exportName.name);
-        const doc = above ?? (entry.moduleRequest === null ? boundDoc(entry.localName.name) : undefined);
-        if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType, ...(doc === undefined ? {} : { doc }) });
+        const binds = entry.moduleRequest === null ? bound(entry.localName.name) : undefined;
+        const doc = above ?? binds?.doc;
+        if (exported !== undefined) {
+          publishes.push({
+            name: exported,
+            line,
+            type: entry.isType,
+            ...(binds === undefined ? {} : { declaration: binds.kind }),
+            ...(doc === undefined ? {} : { doc }),
+          });
+        }
 
         const specifier = entry.moduleRequest?.value;
         if (specifier === undefined) continue;

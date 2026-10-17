@@ -262,6 +262,8 @@ export interface Exported {
   readonly line: number;
   /** `export type { x }` and `export { type x }` alike. */
   readonly type: boolean;
+  /** The kind of the declaration the export binds in its own file, as {@link Named} carries it; absent for `export … from`. */
+  readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
 }
@@ -296,6 +298,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
         line: published.line,
         type: published.type,
         kind,
+        ...(published.declaration === undefined ? {} : { declaration: published.declaration }),
         ...(published.doc === undefined ? {} : { doc: published.doc }),
       });
     }
