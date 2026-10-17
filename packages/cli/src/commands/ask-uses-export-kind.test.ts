@@ -33,7 +33,7 @@ describe('variance ask uses names the kind of the declaration an export binds', 
 
     const orphan = await run(['ask', 'uses', '--name', 'orphan']);
     expect(orphan.code).toBe(EXIT_CLEAN);
-    expect(orphan.out).toContain('`orphan` [variable] is exported, without being published, at packages/kit/src/orphan.ts:1');
+    expect(orphan.out).toContain('`orphan` [const] is exported, without being published, at packages/kit/src/orphan.ts:1');
   });
 
   it('names it for a published name', async () => {

@@ -106,7 +106,7 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.');
+    expect(out).toContain('`roundTax` [const] is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.');
     expect(out).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib$/m);
   });
 
@@ -117,7 +117,7 @@ describe('variance ask over a private app that reaches into another package', ()
     const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(
-      '`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted.',
+      '`roundTax` [const] is exported, without being published, at packages/lib/src/internal/math.ts:5, and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted.',
     );
   });
 
@@ -147,7 +147,7 @@ describe('variance ask over a private app that reaches into another package', ()
     );
 
     const uses = await run(['ask', 'uses', '--name', 'roundTax']);
-    expect(uses.out).toMatch(/^`roundTax` is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
+    expect(uses.out).toMatch(/^`roundTax` \[const\] is imported in 1 place, and no entry publishes it; it is exported at packages\/\w+\/src\/\S+:\d+ and 1 more\.$/m);
   });
 
   const TAXES = 'export const roundTax = (amount: number): number => amount;\nexport const rate = 1;\n';
