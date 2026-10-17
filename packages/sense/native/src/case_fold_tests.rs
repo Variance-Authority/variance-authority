@@ -12,7 +12,7 @@ fn case(file: &str, name: &str, runner: &str, settled: u8) -> Test {
         project: None,
         runner: Some(runner.to_owned()),
         settled,
-        preconditions: None,
+        said: None,
     }
 }
 
@@ -38,7 +38,7 @@ fn shard(tests: &[Test], extras: &CaseExtras, modules: &[(&str, Vec<Vec<u32>>)])
         })
         .collect();
     let encoded: Vec<EncodedModule<'_>> = held.iter().map(|(module, called, loaded)| EncodedModule { module, called, loaded }).collect();
-    journey_format::encode(tests, extras, &encoded, &sets, None).unwrap()
+    journey_format::encode(tests, extras, &encoded, &mut sets, None).unwrap()
 }
 
 fn folded(files: &[&[u8]]) -> Result<Folded, String> {

@@ -52,7 +52,7 @@ describe('variance_changed_tests', () => {
       ...INDEX,
       tests: [INDEX.tests[0]!, {
         ...INDEX.tests[1]!,
-        preconditions: [{ name: 'role', value: 'staff', site: 'test/cart.test.ts:4', level: 1 }],
+        said: JSON.stringify([['role', 'staff', 'test/cart.test.ts:4', 1]]),
       }],
     };
     const text = changedTests.run(index, { diff: diff('src/cart/total.ts', 3) });

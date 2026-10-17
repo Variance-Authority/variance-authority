@@ -4,8 +4,10 @@ import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { parseSync } from 'oxc-parser';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkoutSaid } from './case-precondition-column.js';
 import preconditions from './case-preconditions.cjs';
+import { preconditionText, rowOf, saidJoined, saidRow, saidSite } from './case-said.js';
+import { decodeExecutionIndex } from './execution-format.js';
+import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { variancePrecondition } from './precondition.js';
 
 const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
@@ -127,7 +129,7 @@ describe('the recorder a case scope installs', () => {
   it('names the call site from the checkout in what it warns and throws, as the row names it', () => {
     const root = resolve(import.meta.dirname, '../../../..');
     const site = /variancePrecondition at packages\/sense\/src\/test-selection\/precondition\.test\.ts:\d+ /;
-    const recorder = preconditions.recorder(globalThis, () => undefined, undefined, root);
+    const recorder = preconditions.recorder(globalThis, () => undefined, undefined, (called) => saidSite(root, called));
     const warned: unknown[] = [];
     const warn = console.warn;
     console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
@@ -245,54 +247,68 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
       ['named', 'http://localhost:5173/@fs/repo/test/a.test.ts:9'],
       ['rooted', 'http://localhost:5173/test/a.test.ts:2'],
     ]);
-    // A site served from the dev server's root keeps its URL: the FIXME at `checkoutSite`.
-    expect(checkoutSaid('/repo', said).map(([, , site]) => site)).toEqual([
+    // A site served from the dev server's root keeps its URL.
+    expect(said.map(([, , site]) => saidSite('/repo', site))).toEqual([
       '', '', 'test/a.test.ts:4', 'test/a.test.ts:9', 'http://localhost:5173/test/a.test.ts:2',
     ]);
   });
 
   it('refuses a frame owner whose sixth field is not a list of calls', () => {
-    expect(() => preconditions.saidOf('a.test.ts\u0000pays\u00001\u0000\u0000\u0000{}')).toThrow(/not a variance-authority case journal/);
+    const field = preconditions.saidField('a.test.ts\u0000pays\u00001\u0000\u0000\u0000{}');
+    expect(field).toBe('{}');
+    expect(() => saidJoined(undefined, [field])).toThrow(/not what a case said/);
   });
 });
 
 describe('resolving what a case said', () => {
   const said = (name: string, value: string | boolean, level: number, site = 'a.test.ts:1') =>
     [name, value, site, level] as const;
+  const spelled = (...items: readonly (readonly unknown[])[]) => JSON.stringify(items);
 
   it('lets a narrower level override a wider one', () => {
-    expect(preconditions.resolve([
+    expect(saidRow(spelled(
       said('flag', 'ff-off', 0, 'a.test.ts:1'),
       said('flag', 'ff-on', preconditions.CASE_LEVEL, 'a.test.ts:9'),
-    ])).toEqual([{ name: 'flag', value: 'ff-on', site: 'a.test.ts:9', level: preconditions.CASE_LEVEL }]);
+    ))).toEqual([{ name: 'flag', value: 'ff-on', site: 'a.test.ts:9', level: preconditions.CASE_LEVEL }]);
   });
 
   it('keeps two values said at one level, and reports them as a contradiction', () => {
-    const resolved = preconditions.resolve([
+    const resolved = saidRow(spelled(
       said('flag', 'ff-on', 1, 'a.test.ts:4'),
       said('flag', 'ff-off', 1, 'a.test.ts:5'),
       said('flag', 'ff-on', 1, 'a.test.ts:7'),
-    ]);
+    ));
     expect(resolved).toEqual([
       { name: 'flag', value: 'ff-off', site: 'a.test.ts:5', level: 1 },
       { name: 'flag', value: 'ff-on', site: 'a.test.ts:4', level: 1 },
     ]);
-    expect(preconditions.contradictions(resolved)).toEqual(['flag']);
+    expect(preconditionText(resolved)).toBe('flag contradicted: ff-off (a.test.ts:5), ff-on (a.test.ts:4)');
   });
 
-  it('keeps the site of the call that said a value first, not the one that sorts first', () => {
-    expect(preconditions.resolve([
-      said('flag', 'ff-on', 1, 'b.test.ts:9'),
-      said('flag', 'ff-on', 1, 'a.test.ts:2'),
-    ])).toEqual([{ name: 'flag', value: 'ff-on', site: 'b.test.ts:9', level: 1 }]);
+  it('names a value said at several sites at the first of them in site order, however the calls were made', () => {
+    // What a case said is stored in one order, whichever frame or call said it first.
+    const joined = saidJoined(undefined, [spelled(said('flag', 'ff-on', 1, 'b.test.ts:9')), spelled(said('flag', 'ff-on', 1, 'a.test.ts:2'))]);
+    expect(joined).toBe(spelled(said('flag', 'ff-on', 1, 'a.test.ts:2'), said('flag', 'ff-on', 1, 'b.test.ts:9')));
+    expect(saidRow(joined!)).toEqual([{ name: 'flag', value: 'ff-on', site: 'a.test.ts:2', level: 1 }]);
   });
 
   it('carries what a frame said in its owner, and tells a silent frame from one that never listened', () => {
     const owner = 'a.test.ts\u0000pays\u00001';
     const packed = preconditions.packSaid(owner, [said('network', 'mocked', 0)]);
-    expect(preconditions.saidOf(packed)).toEqual([said('network', 'mocked', 0)]);
-    expect(preconditions.saidOf(preconditions.packSaid(owner, []))).toEqual([]);
-    expect(preconditions.saidOf(owner)).toBeUndefined();
+    expect(preconditions.saidField(packed)).toBe(spelled(said('network', 'mocked', 0)));
+    expect(preconditions.saidField(preconditions.packSaid(owner, []))).toBe('[]');
+    expect(preconditions.saidField(owner)).toBeUndefined();
     expect(packed.split('\u0000').slice(0, 3)).toEqual(['a.test.ts', 'pays', '1']);
+  });
+
+  it('keeps what a beforeEach said under what the case body overrode it with, and resolves it only when read', () => {
+    const arranged = spelled(said('flag', 'off', 0, 'a.test.ts:3'), said('flag', 'on', preconditions.CASE_LEVEL, 'a.test.ts:9'));
+    const back = decodeExecutionIndex(encodeAsSetExecutionIndex({
+      tests: [{ id: 'a.test.ts > pays', file: 'a.test.ts', name: 'pays', said: arranged }],
+      modules: [],
+    })).tests[0]!;
+
+    expect(back.said).toBe(arranged);
+    expect(preconditionText(rowOf(back)!)).toBe('flag=on (a.test.ts:9)');
   });
 });

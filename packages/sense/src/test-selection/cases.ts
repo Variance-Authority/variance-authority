@@ -124,8 +124,7 @@ import { codeUnitOrder } from './instrumented-modules.js';
 import { NO_OWNER } from './format-layout.js';
 import { heldAround } from './region-around.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
-import { heardAcross, heardOf, type Said } from './case-precondition-column.js';
-import preconditions from './case-preconditions.cjs';
+import { saidAcross, type Said } from './case-said.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 import type { CaseLines } from './case-lines.js';
@@ -344,7 +343,7 @@ export function ownedExecutionIndexFrom(
       modules: [...first.modules, ...journal.modules],
       ...settledAcross(first.stopped, journal.stopped),
       ...timedAcross(first.duration, journal.duration),
-      ...heardOf(heardAcross(first.said, journal.said)),
+      ...saidAcross(first.said, journal.said),
       ...linesAcross(first.lines, journal.lines),
     });
   }
@@ -363,7 +362,7 @@ export function ownedExecutionIndexFrom(
       name: journal.name,
       ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),
       ...(duration === undefined ? {} : { duration }),
-      ...(journal.said === undefined ? {} : { preconditions: preconditions.resolve(journal.said) }),
+      ...(journal.said === undefined ? {} : { said: journal.said }),
     };
   });
 

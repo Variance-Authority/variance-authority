@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use crate::case_id;
-use crate::case_preconditions;
+use crate::case_said;
 use crate::journey_columns::{self, Decoded};
 use crate::journey_format::{self, Gaps};
 use crate::journey_journal::Test;
@@ -56,7 +56,6 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let count = ids.len();
     let optional_words = |name: &str| if decoded.has(name) { decoded.words(name).map(Some) } else { Ok(None) };
     let settled = decoded.bytes("tests.stopped")?;
-    let said = optional_words(case_preconditions::COLUMN)?;
     let runners = optional_words(case_id::COLUMN)?;
     let projects = optional_words(case_id::PROJECT_COLUMN)?;
     let durations = optional_words(&cases.duration)?;
@@ -64,12 +63,12 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     if files.len() != count
         || names.len() != count
         || settled.len() != count
-        || [&said, &runners, &projects, &durations].into_iter().flatten().any(|column| column.len() != count)
+        || [&runners, &projects, &durations].into_iter().flatten().any(|column| column.len() != count)
         || lines.as_ref().is_some_and(|(_, offsets)| offsets.len() != count + 1)
     {
         return Err("test columns disagree".to_owned());
     }
-    let tests = (0..count)
+    let mut tests: Vec<Test> = (0..count)
         .map(|at| Ok(Test {
             id: string(&strings, ids[at])?.to_owned(),
             file: string(&strings, files[at])?.to_owned(),
@@ -78,10 +77,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
             project: projects.as_ref().map(|column| column[at]).filter(|word| *word != case_id::UNNAMED).map(|word| string(&strings, word).map(str::to_owned)).transpose()?,
             runner: runners.as_ref().map(|column| string(&strings, column[at]).map(str::to_owned)).transpose()?,
             settled: settled[at],
-            preconditions: match said.as_ref().map(|column| column[at]) {
-                None | Some(case_preconditions::UNHEARD) => None,
-                Some(word) => Some(case_preconditions::unspelled(string(&strings, word)?)?),
-            },
+            said: None,
         }))
         .collect::<Result<_, String>>()?;
     let no_duration = LAYOUT.coverage.no_duration;
@@ -101,6 +97,12 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     };
     let set_bytes = decoded.bytes("sets.blob")?;
     let set_offsets = decoded.words("sets.off")?;
+    if decoded.has(case_said::SECTION) {
+        let members = |set| decode_set(set_slice(&set_bytes, &set_offsets, set)?, count);
+        for (test, said) in tests.iter_mut().zip(case_said::read(&decoded.bytes(case_said::SECTION)?, count, members)?) {
+            test.said = said;
+        }
+    }
     let module_files = decoded.words("modules.file")?;
     let module_blocks = decoded.words("modules.blocks")?;
     let called = decoded.words("blocks.calledSet")?;

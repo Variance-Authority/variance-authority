@@ -4,7 +4,7 @@ import { relative, resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
 import { moduleId, type PreconditionStanding } from '@variance-authority/sense/journal';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { decodeExecutionIndex, repositoryRoot } from '@variance-authority/sense/test-selection';
+import { decodeExecutionIndex, repositoryRoot, rowOf } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
 import { createExecutionRecorder } from './execution.js';
@@ -122,7 +122,7 @@ describe('snapshotCaseOf', () => {
       recorder.mark(owner, true, { name: 'mocked > pays', id: 'one' });
       await recorder.close();
       const index = decodeExecutionIndex(await readFile(coverageFile));
-      expect(index.tests.map((one) => [one.name, one.preconditions?.map(({ name, value }) => [name, value])]))
+      expect(index.tests.map((one) => [one.name, rowOf(one)?.map(({ name, value }) => [name, value])]))
         .toEqual([['mocked > pays', [['network', 'mocked'], ['seeded', true]]]]);
     } finally {
       await rm(root, { recursive: true, force: true });

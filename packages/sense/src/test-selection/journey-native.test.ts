@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { beyondReach, relationsOfFiles, type FileRecord, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { blocksChargedAt } from './blocks-around.js';
+import { rowOf } from './case-said.js';
 import { CrossingSets } from './crossing-sets.js';
 import type { LineRange } from './diff-lines.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -332,8 +333,8 @@ describe('projecting a journey file onto a change', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
     writeFileSync(file, encodeSetExecutionIndex({
       tests: [
-        { id: 'card > a', file: 'test/card.test.ts', name: 'a', preconditions: [network] },
-        { id: 'card > b', file: 'test/card.test.ts', name: 'b', preconditions: [] },
+        { id: 'card > a', file: 'test/card.test.ts', name: 'a', said: JSON.stringify([['network', 'mocked', 'test/card.test.ts:3', 0]]) },
+        { id: 'card > b', file: 'test/card.test.ts', name: 'b', said: '[]' },
         { id: 'card > c', file: 'test/card.test.ts', name: 'c' },
       ],
       modules: [{
@@ -347,6 +348,6 @@ describe('projecting a journey file onto a change', () => {
 
     const projected = await projectJourneyFile(file, new Map([['src/api.ts', lines(2)]]));
 
-    expect(projected?.index.tests.map((test) => test.preconditions)).toEqual([[network], [], undefined]);
+    expect(projected?.index.tests.map(rowOf)).toEqual([[network], [], undefined]);
   });
 });

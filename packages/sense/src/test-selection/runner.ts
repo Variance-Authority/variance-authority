@@ -36,6 +36,7 @@ import { cadence } from '../instrument/cadence.js';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import caseOwner from './case-owner.cjs';
 import { captureModule, markModule } from './captured-modules.js';
+import { saidSite } from './case-said.js';
 import collectors from './collectors.cjs';
 import { evaluatedCut } from './cut-map.js';
 import journalFormat from './journal-format.cjs';
@@ -337,7 +338,13 @@ export function observeTestFile(file: string): TestFileObserver | undefined {
   observing = testFile;
   // Given the checkout, the scope names a precondition's call site from it, as
   // every other host's does, and keeps what Eyes hands each case.
-  const collector = collectors.scoped(globalThis as { __VA__?: unknown }, recording.continuations, undefined, recording.root);
+  const collector = collectors.scoped(
+    globalThis as { __VA__?: unknown },
+    recording.continuations,
+    undefined,
+    recording.root,
+    (site) => saidSite(recording.root, site),
+  );
   let loaded: ReadonlyMap<ModuleId, Uint32Array> | undefined;
   let ordinal = 0;
   let finished = false;
