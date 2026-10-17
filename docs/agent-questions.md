@@ -46,8 +46,9 @@ whose type the line writes, such as `props: Props` or `value as Props`. A line
 whose value's type a checker would infer, `const p = getProps(); p.size`, or
 a JSX attribute such as `<Box size={2} />`, is not in that list, and the answer
 says so in its last two lines. Those uses are TypeScript's: the answer names the
-declaration's `file:line`, and your TypeScript language service's
-find-references on it lists them. Use `variance` for declarations, imports, the
+declaration's `file:line`, or with several the one you mean from those it
+lists, and your TypeScript language service's find-references on it lists
+them. Use `variance` for declarations, imports, the
 module graph and the recording, and TypeScript for anything that needs a
 value's type.
 

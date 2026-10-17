@@ -75,7 +75,8 @@ export const TYPED =
 /**
  * Where the uses no line types are found: TypeScript's find-references on the
  * one declaration of member `name`, or, when several declare it, on the one
- * the reader means among those the answer lists.
+ * the reader means among those the answer lists, which `package` narrows to
+ * when the list is cut.
  */
 export function routes(name: string, members: Members): readonly string[] {
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
@@ -83,7 +84,7 @@ export function routes(name: string, members: Members): readonly string[] {
   const named = members.used.some(({ declared }) => declared === only);
   const at =
     only === undefined
-      ? 'the declaration you mean, each listed above with its file and line'
+      ? 'the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package)'
       : `\`${named ? `${only.by}.${name}` : name}\` at ${only.at}:${only.line}`;
   return ['', TYPED, `Ask TypeScript for those: its language service's find-references on ${at}.`];
 }

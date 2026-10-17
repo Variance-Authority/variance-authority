@@ -77,8 +77,9 @@ each declaration the lines that read, write or destructure it through a value
 whose type the line writes, joined to that declaration through the import that
 binds the type's name. A line whose value's type a checker would infer, or a JSX
 attribute, is not in that list, and the answer ends by saying so and naming the
-declaration's `file:line` for your TypeScript language service's
-find-references, which lists those uses. The graph does not record that one
+declaration's `file:line`, or with several the one you mean from those it
+lists, for your TypeScript language service's find-references, which lists
+those uses. The graph does not record that one
 function called another at runtime; open the named file or use a language
 server for that question.
 

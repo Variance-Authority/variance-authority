@@ -266,7 +266,7 @@ src/shapes/use.ts:8 — @acme/shop, destructure
 No line uses `size` through a value whose type is written as `Other` at src/shapes/props.ts:7.
 
 A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
-Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line.
+Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package).
 ```
 
 The last two lines close every member answer, whatever it lists. With one

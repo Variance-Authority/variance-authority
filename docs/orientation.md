@@ -131,7 +131,7 @@ tree is the answer. Both are exact and need no Variance index.
 | Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |
-| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path, the lines of the declaring file that use it, then the interface or class members by that name, the lines that use each through a value whose type they write, and the `grep --to` that finds the rest |
+| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path, the lines of the declaring file that use it, then the interface or class members by that name, the lines that use each through a value whose type they write, and the declaration to ask TypeScript's find-references about for the rest |
 | Several facts about the file you want | `variance ask discover --from <path> --imports <module#name> --declares <regex>` | The files every fact holds for, each fact checked against every file rather than its nearest fifty, with the line behind each fact |
 | Two questions you could ask alone, and want where they agree | `variance ask intersection '<question>' '<question>'` | The files every question answers, each question read whole rather than its first fifty, with the lines that put each file in each |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
@@ -259,8 +259,9 @@ type imports and asset edges. It is not a function-call graph. `uses` reports
 where a name is imported, or read off a namespace or an `import()`, not where
 code called it at runtime. A member of an interface, a type literal or a class
 is never imported; `uses` names its declarations after any imports, the lines
-that use each one through a value whose type they write, and the `grep --to` a
-declaring file that finds the rest as text.
+that use each one through a value whose type they write, and the declaration
+to ask TypeScript's find-references about for the uses a type checker has to
+infer.
 
 No graph database service is required. The workspace generation stores a
 compact graph with dependencies and dependents both materialized. The useful
