@@ -9,7 +9,8 @@ import { checkout, run } from './ask-packages-fixture.js';
  * `variance ask symbol` and `ask uses` over a name an import renames:
  * `import { greet as hail } from './greet.js'`. The import binding the parser
  * read is the one fact that ties `hail` to `greet`, and the answers go through
- * it in both directions.
+ * it in both directions, and the original's answer lists its members as the
+ * original's own answer does.
  */
 
 const cwd = process.cwd();
@@ -96,6 +97,25 @@ describe('variance ask over a renamed import', () => {
     expect(within.code).toBe(EXIT_CLEAN);
     expect(within.out).toContain("`shout` is a local name: packages/lib/src/shout.ts:1 imports `inner` as `shout` from './inner.js'.");
     expect(within.out).toMatch(/packages\/lib\/src\/inner\.ts:1/);
+  });
+
+  it('lists the members of the original a local name binds, published or not', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport type { Card } from './card.js';\n",
+      'packages/lib/src/card.ts': 'export interface Card {\n  title: string;\n}\n',
+      'apps/app/src/tile.ts': "import type { Card as Tile } from '@acme/lib';\nexport type Tiles = Tile[];\n",
+      'packages/kit/src/money/types.ts': 'export interface Rate {\n  percent: number;\n}\n',
+      'packages/kit/src/money/priced.ts': "import type { Rate as Price } from './types.js';\nexport type Cost = Price;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const published = await run(['ask', 'symbol', '--name', 'Tile']);
+    expect(published.code).toBe(EXIT_CLEAN);
+    expect(published.out).toContain('Members:\npackages/lib/src/card.ts:2 — title: string;');
+
+    const unpublished = await run(['ask', 'symbol', '--name', 'Price']);
+    expect(unpublished.code).toBe(EXIT_CLEAN);
+    expect(unpublished.out).toContain('Members:\npackages/kit/src/money/types.ts:2 — percent: number;');
   });
 
   it('answers `symbol` for a local name that is also a member with the import alone, as a member is answered only when nothing else binds the name', async () => {

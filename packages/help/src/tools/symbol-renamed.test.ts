@@ -13,6 +13,7 @@ import { symbol } from './symbol.js';
  * installed declaration, or a file of the checkout that `files` gives to
  * `intersection`, and where the renaming is a re-export, which publishes the
  * name rather than binding it, also beside an import that binds the same name.
+ * An original a file only passes on is followed to its declaration.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -36,6 +37,7 @@ async function workspace(): Promise<string> {
     'packages/beta/src/inner.ts': 'export const inner = (text: string): string => text;\n',
     'packages/beta/src/both.ts': "import { inner as loud, inner as quiet } from './inner.js';\nexport const both = [loud, quiet];\n",
     'packages/beta/src/relay.ts': "export { inner as relayed } from './inner.js';\n",
+    'packages/beta/src/echo.ts': "import { relayed as echo } from './relay.js';\nexport const echoed = echo('x');\n",
     'packages/beta/src/kinds.ts': 'export type Kind = string;\n',
     'packages/beta/src/kind-relay.ts': "export type { Kind as Sort } from './kinds.js';\n",
     'packages/beta/src/kind-own.ts':
@@ -89,4 +91,19 @@ it('answers the local name an `import type` binds beside a type-only re-export o
   const root = await workspace();
   const out = symbol.run(readHelp(root), { name: 'Ilk' }, { root });
   expect(out).toContain("`Ilk` is a local name: packages/beta/src/kind-own.ts:1 imports `Kind` as `Ilk` from './kinds.js' (type only).");
+});
+
+it('follows the original of a local name that a file only passes on to its declaration, in the answer and in `files`', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'echo' }, { root });
+  expect(out).toContain("`echo` is a local name: packages/beta/src/echo.ts:1 imports `relayed` as `echo` from './relay.js'.");
+  expect(out).toContain(
+    [
+      'exported, without being published, at packages/beta/src/relay.ts:1 by beta',
+      'It passes on `inner`, declared at packages/beta/src/inner.ts:1:',
+      'export const inner = (text: string): string => text;',
+    ].join('\n'),
+  );
+  const { files } = symbol.files!(readHelp(root), { name: 'echo' }, { root });
+  expect(Object.fromEntries(files)).toEqual({ 'packages/beta/src/echo.ts': [1], 'packages/beta/src/inner.ts': [1], 'packages/beta/src/relay.ts': [1] });
 });

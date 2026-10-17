@@ -16,7 +16,9 @@ import type { Help, Use } from '@variance-authority/package/help';
 import { aliasesOf, type Alias } from '@variance-authority/sense';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
+import { memberRows } from './container.js';
 import { block } from './format.js';
+import { passedOnRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
 /** How many renamed sites are worth naming on one line. */
@@ -48,10 +50,10 @@ function more(count: number): string {
   return count > CAP ? `, and ${count - CAP} more` : '';
 }
 
-/** One original an import binds under another name, and where it is declared when that is known. */
+/** One original an import binds under another name, and the lines of the checkout that export and declare it, when they are known. */
 interface Original {
   readonly text: string;
-  readonly at?: readonly [string, number];
+  readonly at: readonly (readonly [string, number])[];
 }
 
 /**
@@ -97,7 +99,7 @@ export function localNames(
       original.text,
     ].join('\n'));
     files.push(...group.map((alias) => [alias.at, alias.line] as const));
-    if (original.at !== undefined) files.push(original.at);
+    files.push(...original.at);
   }
   return { blocks, files };
 }
@@ -105,8 +107,10 @@ export function localNames(
 /**
  * The export one import names: the published entry its specifier opens or
  * that the file the index resolved it to declares, the export of that file
- * when no entry publishes it, or the installed declaration
- * its specifier names. Said as unknown, not left out, when none answers.
+ * when no entry publishes it, followed to the declaration it passes on with
+ * `export … from`, or the installed declaration its specifier names. The
+ * members of an interface, a type alias or a class follow the declaration.
+ * Said as unknown, not left out, when none answers.
  * `undefined` when `wanted` names another package.
  */
 function originalOf(help: Help, root: string, alias: Alias, wanted: string | undefined): Original | undefined {
@@ -119,25 +123,32 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
   if (door !== undefined) {
     const [published, held, entry] = door;
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
-    return { text: block(published, held, entry), at: [entry.at, entry.line] };
+    return { text: [block(published, held, entry), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
     const held = help.exported.find((one) => one.name === name && one.at === to);
     if (held !== undefined) {
       if (wanted !== undefined && held.by !== wanted) return undefined;
+      const { declared, rows } = passedOnRows(root, held);
       return {
-        text: `${name}\nexported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
-        at: [held.at, held.line],
+        text: [
+          name,
+          `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
+          ...rows,
+          ...memberRows(root, declared.at, declared.name, declared.line),
+        ].join('\n'),
+        at: [[held.at, held.line], ...(declared === held ? [] : [[declared.at, declared.line] as const])],
       };
     }
   }
   const installed = queryDependencyLexicon(root, name, [alias.at], true, wanted, 100)?.shown.filter((match) => match.specifier === alias.specifier) ?? [];
-  if (installed.length > 0) return { text: installed.map(thirdBlock).join('\n\n') };
+  if (installed.length > 0) return { text: installed.map(thirdBlock).join('\n\n'), at: [] };
   if (wanted !== undefined) return undefined;
   return {
     text: to === undefined
       ? `Where \`${name}\` is declared is not known: the source index did not resolve '${alias.specifier}' to a file.`
       : `Where \`${name}\` is declared is not known: ${to} exports no \`${name}\` this reading holds.`,
+    at: [],
   };
 }

@@ -1,16 +1,16 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
+import { memberRows } from './container.js';
 import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
 import { type Members, membersOf } from './members.js';
+import { lineOf, originOf, passedOnRows } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
@@ -27,8 +27,9 @@ export const symbol: Tool<Help> = {
   description:
     'Everything known about one name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
-    'written above it, the README passage that names it — which packages import it, and where an ' +
-    'import renames it. Names are ' +
+    'written above it, the README passage that names it — which packages import it, where an import ' +
+    'renames it, and the members an interface, a type alias or a class declares, one line each. An export ' +
+    'that only passes the name on with `export … from` is followed to the declaration it reaches. Names are ' +
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
     'name a file declares at its top level and does not export, answered with where it is written, a ' +
     'name an import binds with `as`, answered with that import and the original it names, a ' +
@@ -164,7 +165,12 @@ export const symbol: Tool<Help> = {
     const within = importsOf(invocation?.root, declaring, name);
     const renamed = renamedSites(name, [...found.flatMap(([, , entry]) => entry.sites), ...('uses' in within ? within.uses : [])]);
 
-    return [[block(first[0], first[1], first[2]), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'), ...declared, ...aliased].join('\n\n');
+    const entry = first[2];
+    return [
+      [block(first[0], first[1], entry), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'),
+      ...declared,
+      ...aliased,
+    ].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
@@ -183,7 +189,11 @@ export const symbol: Tool<Help> = {
     }
     if (at.length === 0) {
       const exported = exportsNamed(help, name, wanted);
-      for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
+      for (const [held] of declaringExports(name, exported, invocation?.root)) {
+        at.push([held.at, held.line]);
+        const origin = originOf(invocation?.root, held);
+        if (origin !== undefined) at.push([origin.at, origin.line]);
+      }
     }
     at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
     at.push(...localNames(help, invocation?.root, name, wanted).files);
@@ -306,18 +316,23 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
  * index resolved to that file, or to a file that passes the name on from it.
  * Exports that share a name are told apart, each with the imports of its own
  * file. A file that passes on another one's export is not told apart: its
- * imports are counted with the export it passes on, once.
+ * imports are counted with the export it passes on, once. An export that
+ * passes on a declaration of another file is followed to it, and that line is
+ * shown too. The members of an interface, a type alias or a class come last.
  */
 function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
   return declaringExports(name, exported, root)
-    .map(([held, within]) =>
-      [
+    .map(([held, within]) => {
+      const { declared, rows } = passedOnRows(root, held);
+      return [
         name,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
         ...(root === undefined ? [] : lineOf(root, held)),
+        ...rows,
         ...('uses' in within ? [importedIn(within.uses.length), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
-      ].join('\n'),
-    )
+        ...memberRows(root, declared.at, declared.name, declared.line),
+      ].join('\n');
+    })
     .join('\n\n');
 }
 
@@ -338,20 +353,4 @@ function importedIn(count: number): string {
   return count === 0
     ? `Nothing in this workspace imports it; ${UNCOUNTED}.`
     : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; docs_uses lists them, nearest to a file you name first.`;
-}
-
-/**
- * The line an export is written on, as the checkout holds it now; nothing when
- * the file is gone or the line no longer holds the name, since the index read
- * an older text.
- */
-function lineOf(root: string, held: Named): readonly string[] {
-  let text: string;
-  try {
-    text = readFileSync(join(root, held.at), 'utf8');
-  } catch {
-    return [];
-  }
-  const line = text.split(/\r?\n/)[held.line - 1]?.trim();
-  return line === undefined || !line.includes(held.name) ? [] : [line];
 }

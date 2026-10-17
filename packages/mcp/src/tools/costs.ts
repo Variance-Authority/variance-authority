@@ -1,3 +1,4 @@
+import { limitOf } from './limit.js';
 import type { Tool } from './tool.js';
 
 /**
@@ -67,7 +68,7 @@ export const costs: Tool<CostsSubject> = {
   },
 
   run(subject, input) {
-    const limit = limitOf(input['limit']);
+    const limit = limitOf(input, DEFAULT_LIMIT);
     const paths = pathsOf(input['from']);
     const all = [...subject.subjects].sort(slowestFirstSubject);
     if (all.length === 0) return `${subject.from} timed no subject.`;
@@ -138,14 +139,6 @@ function nothingUnder(from: string, where: string, all: readonly SubjectCost[]):
     ? ' No timed subject names a file, so no path can hold one.'
     : ` The timed subjects are declared under ${heaviest.map((entry) => `${entry.dir} (${seconds(entry.ms)})`).join(', ')}.`;
   return `${from} timed no subject${where}.${hint}`;
-}
-
-function limitOf(given: unknown): number {
-  if (given === undefined) return DEFAULT_LIMIT;
-  if (typeof given !== 'number' || !Number.isInteger(given) || given < 1) {
-    throw new Error('`limit` must be a whole number of at least 1');
-  }
-  return given;
 }
 
 /** Longest first; a tie in code-unit order of the id, so the list is the same list twice. */
