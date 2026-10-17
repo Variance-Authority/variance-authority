@@ -61,8 +61,8 @@ export interface SubjectNote {
   /** The case this reading is, where the subject has a file to be a case in. */
   readonly case?: Omit<ObservedCase, 'journal' | 'stopped'>;
   /**
-   * Where the driver saw this reading's time go. Kept from the subject's first
-   * reading only, as its duration is: the run's time covers every reading.
+   * Where the driver saw this reading's time go. Kept from the first reading
+   * of the subject that carries any: the run's time covers every reading.
    */
   readonly phases?: FilePhases;
 }

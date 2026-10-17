@@ -15,7 +15,7 @@ import type { ObservedEyes } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ExecutedModule, ExecutionJournal } from './probes.js';
-import { summedPhases, type FilePhases } from './reported-time.js';
+import type { FilePhases } from './reported-time.js';
 
 /** One subject's window in the page, as the driver observed it. */
 export interface ObservedSubject {
@@ -51,7 +51,7 @@ export interface ObservedSubject {
   /**
    * Where that time went, as the driver saw it: for a story, the preview's
    * load, the story file's and the render. Absent from a source that timed
-   * none, as `duration` is.
+   * none; a join keeps the first source's, never a sum.
    */
   readonly phases?: FilePhases;
 }
@@ -196,13 +196,10 @@ export function joinObservations(
       }
       if (subject.complete === false) held.complete = false;
       if (subject.duration !== undefined) held.duration = (held.duration ?? 0) + subject.duration;
-      // Summed like the duration where two sources timed the owner; a source
-      // that timed nothing — a head — leaves the other's phases standing.
-      if (subject.phases !== undefined) {
-        const phases = held.phases === undefined ? subject.phases : summedPhases(held.phases, subject.phases).phases;
-        if (phases === undefined) delete held.phases;
-        else held.phases = phases;
-      }
+      // The first source that timed the owner stands. A head times nothing,
+      // and a later reading of the same subject ran on a page the first
+      // already paid for, so adding it would count the load twice.
+      if (subject.phases !== undefined) held.phases ??= subject.phases;
       // A recipe that does not match this driver's has to survive the fold, or
       // the refusal it exists to trigger is folded away with it.
       if (subject.journal.instrumentation !== INSTRUMENTATION_ID) {
