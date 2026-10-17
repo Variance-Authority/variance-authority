@@ -59,6 +59,8 @@ interface Collector {
    * that closed, so a late crossing lands in the ambient bucket unnamed.
    */
   runaways(): readonly string[];
+  /** Every module whose probes registered in the realm, whichever bucket they wrote into. */
+  registered(): readonly ModuleId[];
 }
 
 /** What a case frame calls the bucket no case owns; mirrors `AMBIENT` in `cases.ts`. */
@@ -217,6 +219,7 @@ function flat(holder: Holder): Collector {
     seal: () => presenceOf(engine.read(bucket)),
     finish: () => ({ modules: presenceOf(engine.close(bucket)), frames: undefined }),
     runaways: () => [],
+    registered: () => engine.registered(),
   };
 }
 
@@ -455,6 +458,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
       return { modules: union, frames: tangled ? undefined : frames };
     },
     runaways: () => [...late].map(nameOf),
+    registered: () => engine.registered(),
   };
 }
 
