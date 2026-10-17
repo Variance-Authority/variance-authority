@@ -459,7 +459,7 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
     use,
     /** The bucket the probes write into now. */
     current: (): Bucket => current,
-    registered: (): readonly ModuleId[] => rowIds,
+    /** Every module whose probes registered in this realm. */ registered: (): readonly ModuleId[] => rowIds,
     /** The scope's resolver, where the bucket follows an async scope. */
     scope(resolver: () => Bucket): void {
       resolveNow = resolver;

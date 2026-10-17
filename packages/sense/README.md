@@ -702,12 +702,13 @@ Jest transforms inside the workers it forks and keeps the transformed text on
 disk under a content key. The probes ride that cache, and nothing else is
 written: each probe reports its file and a digest of the text it was placed on,
 and the reporter cuts that file again from your checkout. Each test file writes
-one journal from `afterAll`; nothing crosses the worker channel. Before it does,
-the journal is held against Jest's module registry, `require.cache`: a module in
-the registry whose probes ran and that the journal does not name fails the test
-file, naming the module, because that journal would select too little. A module
-evaluated outside the registry, by `jest.resetModules`, `jest.isolateModules` or
-an automock, is recorded and has nothing to be held against.
+one journal from `afterAll`; nothing crosses the worker channel. Before it is
+written, it is checked against Jest's module registry, `require.cache`. If your
+test file evaluated a module whose probes ran and the journal does not name it,
+the test file fails and the message names the module, because that journal would
+select too little. A module your test evaluates outside the registry, through
+`jest.resetModules`, `jest.isolateModules` or an automock, is still recorded; the
+registry just no longer lists it, so it is not checked.
 
 A Jest worker runs many test files, and each of them loads modules with probes
 in them, so a recorded run needs more memory per worker than a plain one while

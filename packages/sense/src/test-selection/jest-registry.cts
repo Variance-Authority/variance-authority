@@ -20,6 +20,11 @@
  * evaluated before the collector, anything the transform placed nothing in —
  * is no observation's to name, and is not held against one.
  *
+ * What the registry cannot show goes unchecked, never failed: an ES module,
+ * which Jest keeps in a registry `require.cache` does not expose, and a module
+ * whose key is not the path its id names — a root reached through a symlink,
+ * which Jest keys by its real path, or a `dist/` file read as its source.
+ *
  * CommonJS for the reason `journal-format.cts` is: the setup file requires it
  * from inside the sandbox.
  */

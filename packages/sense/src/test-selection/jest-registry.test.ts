@@ -21,7 +21,8 @@ describe("Jest's registry, held against what the file entered", () => {
   });
 
   it('reads a marked module by its path, as a probed one', () => {
-    expect(registry.unentered(root, [at('src/env.ts')], ['src/env.ts@~ee'], ['src/env.ts@~ee'])).toEqual([]);
+    expect(registry.unentered(root, [at('src/env.ts')], ['src/env.ts@~ee'], ['src/env.ts@ee'])).toEqual([]);
+    expect(registry.unentered(root, [at('src/env.ts')], ['src/env.ts@~ee'], [])).toEqual(['src/env.ts']);
   });
 
   it('holds nothing against a registry module no probe registered for: the transform placed none there', () => {
