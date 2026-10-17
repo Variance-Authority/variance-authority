@@ -1044,6 +1044,7 @@
       ".": {
         "AnsweringOptions": "interface",
         "CaughtUp": "interface",
+        "FoundNothing": "class",
         "FromIndexOptions": "type",
         "NamedTree": "interface",
         "PagesOptions": "interface",
