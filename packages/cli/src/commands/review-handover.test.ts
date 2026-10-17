@@ -6,7 +6,7 @@ import { main } from '../bin.js';
 import { readFlags } from '../args.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { AFTER, DISCOUNTS, block, changed, git } from './review-fixture.js';
+import { AFTER, BEFORE, DISCOUNTS, block, changed, git } from './review-fixture.js';
 import { formatHandover, HANDOVER_END, HANDOVER_LINES, HANDOVER_START } from './review-handover.js';
 import type { Review, ReviewRegion } from './review.js';
 import { REVIEW_MARKER } from './review-text.js';
@@ -49,6 +49,32 @@ describe('a review handed over in the pull request body, before CI', () => {
       '',
     ].join('\n'));
     expect(out).not.toContain(REVIEW_MARKER);
+  });
+
+  it('names a changed source file no record holds, a Rust one, rather than saying the change touched no function, as the review comment names it', async () => {
+    const walk = (step: number): string => `pub fn walk() -> u32 {\n    ${step}\n}\n`;
+    const { root, first } = await changed({ tree: BEFORE, others: { 'src/walk.rs': [walk(1), walk(2)] } });
+
+    const { code, out } = await printed(['--since', first, '--root', root, '--format', 'handover']);
+
+    expect(code).toBe(0);
+    expect(out).toContain('<summary>🧭 Coverage of the changed area: no changed function in the record, 1 changed file not in it</summary>');
+    expect(out).toContain('\nNot in the record, so no function in it is named: `src/walk.rs`.\n');
+    expect(out).not.toContain('config.json');
+    // The review comment names the same file, and not the test file whose cases the record holds.
+    const text = await printed(['--since', first, '--root', root]);
+    expect(text.out).toContain('\n- Not in the record, so not counted: src/walk.rs.\n');
+  });
+
+  it('names a file not in the record only when no suite read holds it, as many as twelve by name', () => {
+    const outside = Array.from({ length: 14 }, (_, at) => ({ file: `src/w${String(at).padStart(2, '0')}.rs`, recorded: false, indexed: true }));
+    const at = (files: readonly object[]): Review => ({ from: 'a'.repeat(40), record: 'before', base: 'since', files } as unknown as Review);
+    // The second suite holds the first file, so only the other thirteen are outside every record.
+    const out = formatHandover([{ suite: 'unit', review: at(outside) }, { suite: 'browser', review: at([{ ...outside[0], recorded: true, regions: [] }, ...outside.slice(1)]) }]);
+
+    expect(out).toContain('<summary>🧭 Coverage of the changed area: no changed function in the record, 13 changed files not in it</summary>');
+    const named = outside.slice(1, 13).map(({ file }) => `\`${file}\``).join(', ');
+    expect(out).toContain(`\nNot in the record, so no function in them is named: ${named} and 1 more.\n`);
   });
 
   it('stays a handful of lines however many functions the change touched, absences first', () => {

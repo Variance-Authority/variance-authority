@@ -259,11 +259,24 @@ function selectionMarkdown(review: Review, code: (value: string) => string): rea
   } kept the rows recorded before them. ${select} lists the files a change reaches.`];
 }
 
+/** The changed files the record holds nothing of, source or not: a file the change created is named whatever it holds. */
 function unrecordedFiles(review: Review): readonly string[] {
-  return review.files
-    .filter((file) => file.recorded === false && file.cases === undefined)
-    .filter((file) => file.verdict !== undefined || file.unread !== undefined || file.created === true)
-    .map((file) => file.file);
+  return outsideRecord(review).filter((file) => isSource(file) || file.created === true).map((file) => file.file);
+}
+
+/** The changed source files the record holds nothing of, in any language a reader here reads: no function in them can be named. */
+export function unrecordedSources(review: Review): readonly string[] {
+  return outsideRecord(review).filter(isSource).map((file) => file.file);
+}
+
+/** Neither a module the record holds a row for nor a test file it holds cases of. */
+function outsideRecord(review: Review): readonly ReviewFile[] {
+  return review.files.filter((file) => file.recorded === false && file.cases === undefined && file.holdsCases !== true);
+}
+
+/** Code: what the module reader claims, and what the source index reads in any language. */
+function isSource(file: ReviewFile): boolean {
+  return file.verdict !== undefined || file.unread !== undefined || file.indexed === true;
 }
 
 function marksOf(file: ReviewFile): string {
