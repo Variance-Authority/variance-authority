@@ -49,7 +49,7 @@ export interface ObservedSubject {
    */
   readonly duration?: number;
   /**
-   * Where that time went, as the driver saw it: for a story, the preview's
+   * Where that time went, as the source timed it: for a story, the preview's
    * load, the story file's and the render. Absent from a source that timed
    * none, as `duration` is, and summed across sources as it is.
    */

@@ -38,7 +38,7 @@ export interface StoryTiming {
 interface StoryTimingRecord {
   ready?: number;
   claimed: boolean;
-  readonly renders: Record<string, { readonly phases: Record<string, number>; last: string }>;
+  readonly renders: Record<string, { readonly phases: Record<string, number> }>;
 }
 
 interface PreviewLike {
@@ -79,11 +79,10 @@ export function watchStoryTiming(key: string = STORY_TIMING_KEY): void {
       if (typeof newPhase !== 'string' || typeof storyId !== 'string') return;
       // A new render of a story starts its stamps over: the last one is the one
       // the driver waited for.
-      if (newPhase === 'preparing') record.renders[storyId] = { phases: {}, last: newPhase };
+      if (newPhase === 'preparing') record.renders[storyId] = { phases: {} };
       const render = record.renders[storyId];
       if (render === undefined) return;
       render.phases[newPhase] ??= now();
-      render.last = newPhase;
     });
   };
 
