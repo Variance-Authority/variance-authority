@@ -24,8 +24,8 @@ import { awaitFollowUps } from './commands/index-follow-ups.js';
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 
-/** The packages a run of the built program loaded, by name, each once; `exits` is the code the run answers with. */
-async function packagesLoaded(args: readonly string[], exits = 0): Promise<string[]> {
+/** The packages a run of the built program loaded, by name, each once; the run must answer with 0. */
+async function packagesLoaded(args: readonly string[]): Promise<string[]> {
   const at = realpathSync(mkdtempSync(join(tmpdir(), 'va-bin-load-')));
   const hook = join(at, 'hook.mjs');
   const loaded = join(at, 'loaded.txt');
@@ -42,7 +42,7 @@ async function packagesLoaded(args: readonly string[], exits = 0): Promise<strin
   let urls: string[];
   try {
     const run = spawnSync(process.execPath, ['--import', hook, BIN, ...args], { cwd: at, encoding: 'utf8', env: { ...process.env, CI: 'false' } });
-    if (run.error !== undefined || run.status !== exits) throw new Error(`\`variance ${args.join(' ')}\` exited ${String(run.status)}: ${run.error?.message ?? run.stderr}`);
+    if (run.error !== undefined || run.status !== 0) throw new Error(`\`variance ${args.join(' ')}\` exited ${String(run.status)}: ${run.error?.message ?? run.stderr}`);
     const own = `${String(run.pid)} `;
     urls = readFileSync(loaded, 'utf8')
       .split('\n')
@@ -70,9 +70,9 @@ describe('what the program loads before it answers', () => {
   });
 
   // A question about names reads the source index, never a pixel: a half-built `png` or `observe`
-  // dist must not stop it. In this empty checkout the name is not found, which answers with 2.
+  // dist must not stop it. In this empty checkout nothing declares the name, which is an answer, so the run exits 0.
   it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x']])('loads no pixel package for `%s %s %s %s`', async (...args) => {
-    const loaded = await packagesLoaded(args, 2);
+    const loaded = await packagesLoaded(args);
     expect(loaded).toContain('cli');
     expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
