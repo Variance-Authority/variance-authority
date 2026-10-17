@@ -116,6 +116,17 @@ export function indexesComponents(id: LanguageId): boolean {
 }
 
 /**
+ * Whether the scan records the members a file in this language declares.
+ *
+ * Only `module`. A member — a property, a method, a field — is read off the
+ * `oxc` parse, and no tree-sitter reader records one, so a member question
+ * answers for JavaScript and TypeScript and has to say so for the rest.
+ */
+export function readsMembers(id: LanguageId): boolean {
+  return id === 'module';
+}
+
+/**
  * Whether this language's edges are file-grain or coarser than that.
  *
  * Every language here but Swift names a file, however indirectly: a Python

@@ -41,12 +41,30 @@ For [source orientation](orientation.md), ask three questions in this order:
 Those relations are resolved module imports, not runtime function calls. A
 member of an interface, a type literal or a class is never imported: `uses`
 names where a member by that name is declared, after any imports, and under
-each declaration the lines that read, write or destructure it through a value
-whose type the line writes, such as `props: Props` or `value as Props`. A line
+each declaration the lines that call, read, write or destructure it through a
+value whose type the line writes, such as `props: Props` or `value as Props`. A line
 whose value's type a checker would infer, `const p = getProps(); p.size`, or
-a JSX attribute such as `<Box size={2} />`, is not in that list: `variance ask grep --query '\bsize\b' --to <declaring file>`
-finds it as text in the files that import the declaration, along with comments
-and same-named members of other types.
+a JSX attribute such as `<Box size={2} />`, is not in that list, and the answer
+says so in two lines after the members. Finding those uses needs the type
+checker of the declaration's language, so the answer names the declaration's
+`file:line`, or with several declarations the one you
+pick from its list, for find-references in that
+language's tooling: TypeScript's language service for JavaScript and
+TypeScript. Members are read from JavaScript and TypeScript files only, so a
+Python class's methods and a Rust struct's fields and `impl` methods are not;
+top-level declarations are read in every language the index reads:
+JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. `symbol` answers a top-level
+declaration of the name first, in any of those languages; on a name that no
+top-level declaration or import has, it names each container that declares it
+as a member, with the member's `file:line`, and points to `uses`, which lists
+the members beside any top-level declaration.
+When the workspace also holds Python, Rust, Java, Kotlin or Swift files,
+an answer of `symbol` or `uses` that looked for members ends with a sentence
+that names those languages, whether or not it found one: a member of theirs
+is found by their language server's workspace symbols, then its
+find-references. Use `variance` for
+declarations, imports, the module graph and the recording, and the language's
+type checker for anything that needs a value's type.
 
 `variance ask` with no question lists every report, watcher and source question
 and its arguments. The source questions read the checkout under the working

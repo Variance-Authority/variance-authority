@@ -5,7 +5,7 @@ import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
-import { type Members, membersOf, places, routes } from './members.js';
+import { type Members, membersOf, membersStop, places, routes } from './members.js';
 import { originOf, passesOn } from './passed-on.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
@@ -89,9 +89,9 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  * line writes as that container — an annotation, an `as`, a `satisfies`. The
  * type's name is joined to its declaration the way an import is, so two
  * containers that share a member's name each get their own uses, and a value
- * typed as neither is a use of neither. What a type checker would infer is
- * `docs_grep`'s: a text search over the files that import a declaring file,
- * which this answer names, with what a text match lets in and misses.
+ * typed as neither is a use of neither. What a type checker would infer is the
+ * checker's of the declaration's language: the answer says so and names the
+ * declaration to ask it about.
  */
 
 /**
@@ -203,7 +203,7 @@ export const uses: Tool<Help> = {
     'name exported and not published is answered too. A site is marked `(as x)` where its import or a re-export ' +
     'renames the name. The lines of the declaring file that use the name are listed after the imports. A member of an interface, a type literal or a class by that ' +
     'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
-    'it through a value whose type is written as its container, and the docs_grep that finds the uses no line types. A top-level ' +
+    "it through a value whose type is written as its container, and the declaration to ask its language's find-references about for the uses no line types. A top-level " +
     'name a file declares and does not export is answered with where it is declared and who can reach it there. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path; `limit` says how many sites of ' +
     'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches.',
@@ -301,8 +301,8 @@ function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly 
 
 /**
  * The declarations of a member, then the uses of each one on a named
- * container, nearest first when `from` is said, and where the uses no line
- * types are read.
+ * container, nearest first when `from` is said, and the declaration its
+ * language's type checker is asked about for the uses no line types.
  */
 function memberLines(members: Members, from: string | undefined, name: string, limit: number): readonly string[] {
   const nearest = from === undefined ? 'Path order; `from` sorts nearest first.' : `Nearest to ${from} first.`;
@@ -396,7 +396,9 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
       return { name, found, exported, byPath, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], members, kept, keptSites, keptInFile, undeclared, origin: undefined };
     }
     const unreadMembers = members.unread === undefined ? '' : ` Members by this name were not read: ${members.unread}.`;
-    throw new Error([`${unfound(help, name, wanted)}${unreadMembers}`, ...unreadLine(undeclared)].join(' '));
+    // Members are read from JavaScript and TypeScript only: the files of another language the index holds are named.
+    const stop = membersStop(name, members);
+    throw new Error([`${unfound(help, name, wanted)}${unreadMembers}`, ...(stop === undefined ? [] : [stop]), ...unreadLine(undeclared)].join(' '));
   }
   // A published name is read from its entry file as well as its declaration:
   // an entry that renames it, `export { greet as salute }`, passes on a name
