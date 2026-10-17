@@ -189,7 +189,7 @@ export interface TestSelection {
 
   /**
    * Why each test the change reached was selected, as the narrowing named it.
-   * Present exactly when the record narrowed.
+   * Present when the record narrowed and its reading names why.
    */
   readonly causes?: readonly SelectionCause[];
 
@@ -310,7 +310,6 @@ export function skippableTests(input: SelectInput): TestSelection {
     ...(declined === undefined ? {} : { declined }),
     stale,
     ...(readings === undefined ? {} : { readings }),
-    causes: because,
     ...(incomplete === undefined ? {} : { incomplete }),
     recorded: { whole: whole.length, entered: entered.length },
   };
@@ -329,6 +328,7 @@ export function skippableTests(input: SelectInput): TestSelection {
   return {
     ...measured,
     skip,
+    ...(because === undefined ? {} : { causes: because }),
     because:
       `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none covered a changed ` +
       `line${input.install === undefined ? '' : ' or entered a file the install moved'}; every other test file runs`,

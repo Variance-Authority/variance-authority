@@ -6,8 +6,8 @@
  * when the record narrowed, why each test it kept was kept. The facts are the
  * ones the selection already held when it chose each test, carried rather than
  * recomputed. A reason is named once in `reasons`, and each selected test
- * points at its own by position, because one changed region of a hub can select
- * tens of thousands of tests and its name is the same for all of them.
+ * points at its own there by position, because one changed region of a hub
+ * can select tens of thousands of tests and its name is the same for all.
  */
 
 // compass: variance-authority.reach
@@ -19,14 +19,16 @@ import type { TestSelection } from './select.js';
 export function jsonOf(selection: TestSelection): object {
   // The sentences are among the notes already.
   const { says: _inNotes, ...install } = selection.install ?? {};
+  // A leg leaves tests it does not run in `skip`, so no other list names them.
+  const skipped = new Set(selection.skip);
   return {
     ground: selection.ground,
     skip: selection.skip,
     ...(selection.widened === undefined ? {} : { widened: selection.widened }),
     because: selection.because,
     ...(selection.rests === undefined ? {} : { rests: selection.rests }),
-    ...(selection.causes === undefined ? {} : causesOf(selection.causes, new Set(selection.skip))),
-    ...(selection.incomplete === undefined ? {} : { incomplete: selection.incomplete }),
+    ...(selection.causes === undefined ? {} : causesOf(selection.causes, skipped)),
+    ...(selection.incomplete === undefined ? {} : { incomplete: selection.incomplete.filter((test) => !skipped.has(test)) }),
     notes: selection.notes,
     journal: {
       at: selection.at,
@@ -48,19 +50,18 @@ export function jsonOf(selection: TestSelection): object {
 
 /**
  * Each reason once, in the order the selected tests first name it, and each
- * selected test with the positions of its reasons in that table. A test a leg
- * left is in `skip` and not here, so the two never share a test.
+ * selected test with the positions of its reasons in that table.
  */
 function causesOf(
   causes: readonly SelectionCause[],
   skipped: ReadonlySet<string>,
-): { readonly reasons: readonly SelectionReason[]; readonly selected: readonly { readonly test: string; readonly because: readonly number[] }[] } {
+): { readonly reasons: readonly SelectionReason[]; readonly selected: readonly { readonly test: string; readonly reasons: readonly number[] }[] } {
   const reasons: SelectionReason[] = [];
   const position = new Map<string, number>();
   const selected = causes
     .filter(({ test }) => !skipped.has(test))
     .map(({ test, via }) => {
-      const because = new Set<number>();
+      const named = new Set<number>();
       for (const reason of via) {
         const key = JSON.stringify(reason);
         let at = position.get(key);
@@ -69,9 +70,9 @@ function causesOf(
           position.set(key, at);
           reasons.push(reason);
         }
-        because.add(at);
+        named.add(at);
       }
-      return { test, because: [...because] };
+      return { test, reasons: [...named] };
     });
   return { reasons, selected };
 }

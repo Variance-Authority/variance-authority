@@ -145,7 +145,6 @@ export function narrowByJourneys(
     unread: unread.sort(codeUnitOrder),
     ...(options.unmeasured === 'nothing' ? { declined: declined.sort(codeUnitOrder) } : {}),
     stale: [],
-    because: [],
   };
 }
 

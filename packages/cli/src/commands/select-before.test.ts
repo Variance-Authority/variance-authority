@@ -121,11 +121,11 @@ describe('a diff that moved what the suite rests on', () => {
     write(root, 'src/pad.ts', PAD.replace('padStart(4', 'padStart(5'));
     const said = JSON.parse((await selectOutput({ cwd: root, format: 'json', suite: 'unit' })).out) as {
       readonly reasons: readonly { readonly kind: string; readonly file?: string; readonly name?: string }[];
-      readonly selected: readonly { readonly test: string; readonly because: readonly number[] }[];
+      readonly selected: readonly { readonly test: string; readonly reasons: readonly number[] }[];
     };
 
     expect(said.selected.map(({ test }) => test)).toEqual(['test/beta.test.ts']);
-    const named = said.selected[0]!.because.map((index) => said.reasons[index]);
+    const named = said.selected[0]!.reasons.map((index) => said.reasons[index]);
     expect(named).toContainEqual(expect.objectContaining({ kind: 'region', file: 'src/pad.ts', name: 'pad' }));
   });
 });

@@ -125,11 +125,12 @@ variance reach --since origin/main              # files a diff reaches over impo
   arguments for the runner. `--format json` gives the counts, the reason it
   declined to narrow as `widened`, and which reading was made as `ground`
   (`read`, `no-journal`, `no-coverage`, `no-diff`, `no-install`, or `before`
-  with the changed files under `rests`). Under `read`, `selected` lists each
-  test file the change reached with the positions of its reasons in `reasons`,
-  where each `region`, `precondition`, `reader` or `importer` reason is named
-  once, and `incomplete` lists the recorded test files not observed whole,
-  which run whatever changed.
+  with the changed files under `rests`). When the record narrowed, `selected`
+  lists each test file the change reached with the positions of its reasons in
+  `reasons`, where each `region`, `precondition`, `reader` or `importer` reason
+  is named once; a journey file's reading names no reasons and carries
+  neither. `incomplete`, when the record keeps one, lists the recorded test
+  files not observed whole, which run whatever changed.
 - **`select` flags.** `--suite <name>` names the record, and is required when
   the root config declares more than one suite. `--since <ref>` is the base when
   the recording names no commit. `--execution <journey file>` reads that file

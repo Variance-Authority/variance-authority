@@ -179,7 +179,7 @@ export function distanceFromView(
   options: DistanceOptions = {},
 ): readonly TestDistance[] {
   const entered = enteredByTest(coverage);
-  const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
+  const placed = (narrowing.because ?? []).map((cause) => place(coverage, cause, entered, options));
   const selected = new Set(narrowing.entered);
   const read = (narrowing.readings ?? []).filter(reachesThrough).map((reading) => reading.file);
   for (const test of narrowing.incomplete ?? []) {

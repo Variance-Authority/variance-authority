@@ -41,8 +41,8 @@ describe('why `--format json` selected each test', () => {
     expect(said['ground']).toBe('read');
     expect(said['reasons']).toEqual([PAD, TRAIL]);
     expect(said['selected']).toEqual([
-      { test: 'test/beta.test.ts', because: [0] },
-      { test: 'test/gamma.test.ts', because: [0, 1] },
+      { test: 'test/beta.test.ts', reasons: [0] },
+      { test: 'test/gamma.test.ts', reasons: [0, 1] },
     ]);
     expect(said['skip']).toEqual(['test/alpha.test.ts', 'test/delta.test.ts']);
   });
@@ -53,6 +53,27 @@ describe('why `--format json` selected each test', () => {
     expect(said['incomplete']).toEqual(['test/epsilon.test.ts']);
     expect(said['selected']).toEqual([]);
     expect(said['reasons']).toEqual([]);
+  });
+
+  // A leg leaves in `skip` tests the change reached; it does not run them.
+  it('names in no other list a test the selection skips', () => {
+    const selection = skippableTests({
+      at: '/cache/coverage.bin',
+      ground: read({
+        entered: ['test/beta.test.ts', 'test/gamma.test.ts'],
+        incomplete: ['test/epsilon.test.ts'],
+        because: [
+          { test: 'test/beta.test.ts', via: [PAD] },
+          { test: 'test/gamma.test.ts', via: [TRAIL] },
+        ],
+      }),
+    });
+    const left = { ...selection, skip: [...selection.skip, 'test/gamma.test.ts', 'test/epsilon.test.ts'] };
+    const said = JSON.parse(formatSelection(left, 'json', '/repo')) as Record<string, unknown>;
+
+    expect(said['selected']).toEqual([{ test: 'test/beta.test.ts', reasons: [0] }]);
+    expect(said['reasons']).toEqual([PAD]);
+    expect(said['incomplete']).toEqual([]);
   });
 
   it('names the stage that kept the whole suite, and the files that moved what it rests on', () => {

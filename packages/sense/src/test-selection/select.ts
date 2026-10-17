@@ -115,8 +115,11 @@ export interface ExecutionNarrowing {
    * places. `entered` alone cannot tell them apart. The reasons are the facts
    * the inner loop already held when it selected the test, kept rather than
    * discarded, so what a run prints about itself is what it did.
+   *
+   * Absent from a reading that names the tests it reached and not why: a
+   * journey file's, read in the addon or here.
    */
-  readonly because: readonly SelectionCause[];
+  readonly because?: readonly SelectionCause[];
 
   /**
    * What the parser made of each changed file whose frame was proved: which

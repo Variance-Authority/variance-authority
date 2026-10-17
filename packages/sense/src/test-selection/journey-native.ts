@@ -54,7 +54,6 @@ export async function selectJourneyFile(
     unread: [...selected.unread].sort(codeUnitOrder),
     ...(declines ? { declined: [...selected.declined!].sort(codeUnitOrder) } : {}),
     stale: [],
-    because: [],
   };
 }
 
