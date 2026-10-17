@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { main } from '../bin.js';
+import { reviewPieces } from './review-text.js';
 import type { Review, ReviewCase, ReviewFile } from './review.js';
 
 // The review is cut at what the command prints: what it read is pinned by the
@@ -43,6 +44,15 @@ describe('review --format json', () => {
     // reader gets instead of the answer. Written in batches, no write holds the
     // whole answer, whatever it weighs.
     expect(Math.max(...writes.map((write) => write.length))).toBeLessThan(printed.length / 2);
+  });
+
+  it('writes a file every case of the suite entered a region at a time, so one file never spells the answer alone', () => {
+    const one = hub(1, 40, 60);
+    const pieces = [...reviewPieces(one, 'json')];
+    const file = JSON.stringify(one.files[0], undefined, 2);
+
+    expect(pieces.join('')).toBe(`${JSON.stringify(one, undefined, 2)}\n`);
+    expect(Math.max(...pieces.map((piece) => piece.length))).toBeLessThan(file.length / 10);
   });
 
   it('saves the same answer it prints when given a directory', async () => {

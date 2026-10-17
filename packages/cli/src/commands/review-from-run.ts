@@ -52,12 +52,15 @@ export async function reviewFromRun(request: RunRequest, exec: Exec = run): Prom
     } catch (error) {
       throw new OperatorError(downloadFailed(error, `gh ${args.slice(0, 5).join(' ')}`));
     }
-    // FIXME: a review.json past V8's string limit, which `review --out` writes for a change that moves most of a
-    // suite's regions, reads as no string at all, and the catch below says the artifact holds none.
     let text: string;
     try {
       text = await readFile(join(into, 'review.json'), 'utf8');
-    } catch {
+    } catch (error) {
+      // FIXME: a review.json past V8's string limit, which `review --out` writes for a change that moves most of a
+      // suite's regions, is not read at all; the cure is each case written once and named by id.
+      if ((error as { code?: unknown }).code === 'ERR_STRING_TOO_LONG') {
+        throw new OperatorError(`run ${id}'s artifact \`${request.artifact}\` holds a review.json longer than one string can hold, which this reader cannot parse yet; \`review.md\` beside it is the review the run printed.`);
+      }
       throw new OperatorError(`run ${id}'s artifact \`${request.artifact}\` holds no review.json, so there is no review to print.`);
     }
     return JSON.parse(text) as Review;

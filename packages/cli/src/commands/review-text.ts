@@ -65,12 +65,13 @@ export function formatReview(review: Review, format: Exclude<ReviewFormat, 'json
 /**
  * A review in the pieces `writePieces` writes. Every region carries the cases
  * that entered it, so a change that moves most of a suite's regions spells
- * more JSON than V8 holds in one string; written as it serializes, it is never
- * held whole.
+ * more JSON than V8 holds in one string; written as it serializes, a region at
+ * a time, it is never held whole, nor is a file most of the suite enters.
  */
 export function* reviewPieces(review: Review, format: ReviewFormat): Generator<string, void, undefined> {
   if (format !== 'json') return yield formatReview(review, format);
-  yield* jsonPieces(review);
+  // The review, its files, a file, its regions: below that, one region is one piece.
+  yield* jsonPieces(review, 4);
   yield '\n';
 }
 
