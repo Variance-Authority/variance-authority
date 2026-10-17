@@ -1,7 +1,7 @@
 import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
-import { how, sitesByPath, type PathSite } from './by-path.js';
+import { declaration, how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
@@ -11,7 +11,7 @@ import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { lineOf, originOf, passedOnRows } from './passed-on.js';
-import { UNCOUNTED, declaringExports, exportsApart, importsOf } from './unpublished.js';
+import { UNCOUNTED, answeredBy, declaringExports, exportsApart, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -275,18 +275,6 @@ function publishing(help: Help, name: string, wanted: string | undefined) {
   return entriesNamed(help, name).filter(([published, held]) => wanted === undefined || isPackage(published, held, wanted));
 }
 
-/**
- * The files a published entry or an import by path already answers the name
- * from: the declaration each entry reaches, the entry file that passes it on,
- * and the file each import by path names it from.
- */
-function answeredBy(help: Help, name: string, found: ReturnType<typeof publishing>, byPath: readonly PathSite[]): ReadonlySet<string> {
-  return new Set([
-    ...found.flatMap(([, opening, entry]) => [entry.at, opening.source]),
-    ...byPath.flatMap((site) => [site.held.to ?? declaration(help, name, site)?.at].filter((at): at is string => at !== undefined)),
-  ]);
-}
-
 /** Code-unit order, so a tie never depends on `LANG`. */
 function byCodeUnit(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -325,18 +313,6 @@ function importedByPath(help: Help, name: string, sites: readonly PathSite[]): s
   return blocks.join('\n\n');
 }
 
-/**
- * Where the name an import takes is declared: the export in the file the index
- * resolved the import to, or, when the reading has no resolution, the one
- * export of that name its package holds. Two candidates and no resolution is
- * no answer, and says nothing.
- */
-function declaration(help: Help, name: string, site: PathSite): { readonly at: string; readonly line: number } | undefined {
-  const to = site.held.to;
-  if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
-  const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);
-  return owned.length === 1 ? owned[0] : undefined;
-}
 
 /**
  * One name a file exports and no entry publishes: where each export is written,

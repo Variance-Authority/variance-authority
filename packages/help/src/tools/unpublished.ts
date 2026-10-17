@@ -14,10 +14,10 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
+import type { Documented, Entry, Help, Named, Opening, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
-import { importsByPath } from './by-path.js';
+import { declaration, importsByPath, type PathSite } from './by-path.js';
 import { originOf } from './passed-on.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
@@ -28,7 +28,7 @@ export const UNCOUNTED = 'a read through an `export * as` namespace and, outside
  * paths a file writes and never resolves a type, so a glob, a method and a
  * macro are the type checker's.
  */
-export const RUST_UNREAD = "In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer's find-references has those.";
+const RUST_UNREAD = "In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer's find-references has those.";
 
 /** The line that says so, when one of `files` is Rust. */
 export function rustUnread(files: readonly string[]): readonly string[] {
@@ -123,4 +123,16 @@ export function importsOf(root: string | undefined, files: readonly string[], na
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */
 export function indexMissing(name: string, exported: readonly Named[], unread: string): string {
   return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${unread}.`;
+}
+
+/**
+ * The files a published entry or an import by path already answers the name
+ * from: the declaration each entry reaches, the entry file that passes it on,
+ * and the file each import by path names it from.
+ */
+export function answeredBy(help: Help, name: string, found: readonly (readonly [Documented, Opening, Entry])[], byPath: readonly PathSite[]): ReadonlySet<string> {
+  return new Set([
+    ...found.flatMap(([, opening, entry]) => [entry.at, opening.source]),
+    ...byPath.flatMap((site) => [site.held.to ?? declaration(help, name, site)?.at].filter((at): at is string => at !== undefined)),
+  ]);
 }

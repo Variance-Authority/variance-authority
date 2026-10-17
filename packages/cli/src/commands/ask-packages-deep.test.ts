@@ -265,6 +265,22 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(out).toMatch(/^ {2}apps\/app\/src\/total\.ts:1 — @acme\/app, deep import of @acme\/lib\/src\/internal\/math$/m);
   });
 
+  it('answers `uses` for a name imported by a deep path apart from a same-named export of another file, each with its own imports', async () => {
+    checkout({
+      'packages/kit/src/money/tax.ts': 'export const addTax = (amount: number): number => amount;\n',
+      'packages/kit/src/money/billed.ts': "import { addTax } from './tax.js';\nexport const billed = addTax(1);\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'addTax']);
+    expect(code).toBe(EXIT_CLEAN);
+    const apart = out.indexOf('`addTax` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/tax.ts:1.');
+    expect(apart).toBeGreaterThan(0);
+    expect(out.slice(0, apart)).toMatch(/^apps\/app\/src\/total\.ts:1\b/m);
+    expect(out.slice(0, apart)).not.toMatch(/billed\.ts/u);
+    expect(out.slice(apart)).toMatch(/^packages\/kit\/src\/money\/billed\.ts:1\b/m);
+  });
+
   it('lists a package that declares no entry by what other packages import from it, public or private, and none of it as deep', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

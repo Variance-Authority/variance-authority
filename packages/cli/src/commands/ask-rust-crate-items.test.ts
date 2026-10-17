@@ -82,7 +82,10 @@ describe('variance ask about a Rust item its crate keeps to itself', () => {
     expect(pick).not.toMatch(/origin\.rs/u);
     // A glob `use` is not read by path, and the answer says so rather than guessing.
     expect(pick).not.toMatch(/glob\.rs/u);
-    expect(pick).toContain('In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer\'s find-references has those.');
+    // Said once, last, after every declaration the answer read.
+    const unread = 'In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer\'s find-references has those.';
+    expect(out).toContain(`\n\n${unread}\nSnapshot `);
+    expect(out.split(unread)).toHaveLength(2);
     expect(about(out, 'Reached', 'packages/walk/src/update.rs')).toMatch(/^packages\/walk\/src\/update\.rs:3\b/m);
 
     const settle = await run(['ask', 'uses', '--name', 'settle']);
