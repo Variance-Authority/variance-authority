@@ -80,9 +80,15 @@ export interface World {
  * be answering a smaller question — a leak through a shared browser process is
  * rarer than a leak through a shared document and it is the harder one to find
  * by hand, so the reading that costs a launch is the one worth having.
+ *
+ * `alongside` is not part of the recipe, because it changes nothing the world's
+ * own page is served or shown: it is handed that page before its first
+ * navigation, to start work on the same browser while the preview boots. The
+ * run's world reads every story's parameters there; a worker's world and an
+ * isolated one have nothing to start.
  */
-export async function openWorld(recipe: WorldRecipe): Promise<World> {
-  const { harness, network } = await createObservedHarness(recipe.harness, recipe.network);
+export async function openWorld(recipe: WorldRecipe, alongside?: (page: Harness['page']) => void): Promise<World> {
+  const { harness, network } = await createObservedHarness(recipe.harness, recipe.network, alongside);
 
   return {
     page: harness.page,

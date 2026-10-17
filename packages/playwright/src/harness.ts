@@ -203,10 +203,16 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
  * The observation is the caller's to close, before the harness: it outlives the
  * harness's `prepare`, which is where it has to start, because a watcher
  * installed after `goto` has missed every asset the document pulled in.
+ *
+ * `alongside` is handed the page once it is watched and before it navigates,
+ * for work that should run on the same browser while the first document loads
+ * rather than after it. It is not awaited: what it starts is the caller's to
+ * finish, and to close.
  */
 export async function createObservedHarness(
   options: Omit<HarnessOptions, 'prepare'>,
   network: NetworkOptions | undefined,
+  alongside?: (page: Page) => void,
 ): Promise<{ readonly harness: Harness; readonly network?: NetworkObservation }> {
   let observation: NetworkObservation | undefined;
   const harness = await createHarness({
@@ -214,6 +220,7 @@ export async function createObservedHarness(
     prepare: async (page): Promise<void> => {
       await watchArrivals(page);
       if (network !== undefined) observation = await observeNetwork(page, network);
+      alongside?.(page);
     },
   });
   return observation === undefined ? { harness } : { harness, network: observation };

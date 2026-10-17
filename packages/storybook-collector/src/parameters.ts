@@ -1,6 +1,12 @@
 import type { Viewport } from '@variance-authority/core/format';
-import { widthsOf } from '@variance-authority/playwright';
-import { declarationOf, PARAMETERS_KEY, type ParametersRead } from '@variance-authority/storybook';
+import { widthsOf, type Harness } from '@variance-authority/playwright';
+import {
+  declarationOf,
+  harnessPage,
+  PARAMETERS_KEY,
+  readParameters,
+  type ParametersRead,
+} from '@variance-authority/storybook';
 import type { Plan, PlannedSubject } from './contract.js';
 
 /**
@@ -65,4 +71,33 @@ export function withParameters(plan: Plan, read: ParametersRead, run: Viewport):
   }
 
   return { ...plan, subjects, notObserved };
+}
+
+/**
+ * Every story's parameters, read in a browser context of their own on the
+ * run's browser.
+ *
+ * Reading them imports every story file. On the document the run shows its
+ * stories on, each file's first story would then find its import done and read
+ * a `collect` near 0; loading that document again afterwards costs a preview
+ * boot before the first story. A context of its own costs neither, and is
+ * opened while the run's page boots, so the read overlaps that boot instead of
+ * following it. A context and not a second page in the run's own: that page
+ * held the run's boot back more than a context of its own did.
+ *
+ * The context is a plain one: no viewport, region, clock or agent of the run's.
+ * `extract()` renders nothing, and a parameter is the value its story file
+ * declares.
+ */
+export async function readParametersBeside(run: Harness['page'], url: string): Promise<ParametersRead> {
+  const browser = run.context().browser();
+  if (browser === null) throw new Error("the run's page has no browser to open a context on");
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: 'load' });
+    return await readParameters(harnessPage({ page }));
+  } finally {
+    await context.close();
+  }
 }

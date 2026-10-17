@@ -161,7 +161,10 @@ the page, not the harness.
 
 `createObservedHarness(options, network)` is that hook already written: it
 starts `observeNetwork` in `prepare` when `network` is given, and returns the
-harness with the observation, which you close before the harness.
+harness with the observation, which you close before the harness. Its third
+argument, `alongside`, is handed the watched page just before that navigation,
+for work that should run on the same browser while the first document loads,
+such as reading something on a second page. It is not awaited.
 
 ## What the page was actually served
 

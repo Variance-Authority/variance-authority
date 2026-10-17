@@ -233,10 +233,17 @@ live('where the browser spent each story', () => {
     }
   }, 120_000);
 
-  it("gives a file's import to its first story when the run read every story's parameters first", async () => {
+  it("gives a file's import to its first story when every story's parameters were read beside it", async () => {
+    // Where a run reads them: a context of its own on the same browser, so the
+    // stories' page never imports a story file for the reading.
+    const aside = await browser.newContext();
     const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
 
     try {
+      const reading = await aside.newPage();
+      await reading.goto(`${baseUrl}/iframe.html`, { waitUntil: 'load' });
+      expect('parameters' in (await readParameters(reading))).toBe(true);
+
       await page.addInitScript({ path: COLLECTOR_AGENT });
       // A story file that takes as long to arrive as a module with heavy top-level
       // work takes to evaluate: the import a story's `collect` is for, made slow
@@ -246,19 +253,14 @@ live('where the browser spent each story', () => {
         await route.continue();
       });
       await page.goto(`${baseUrl}/iframe.html`, { waitUntil: 'load' });
-
-      // What a run does before its first story: read every story's parameters,
-      // which has Storybook import every story file.
-      expect('parameters' in (await readParameters(page))).toBe(true);
       const outcomes = await collectStories(page, [FIRST, CARD], { baseUrl });
       const [, card] = outcomes.map((outcome) => outcome.timing ?? {});
 
       expect(outcomes.map((outcome) => outcome.status)).toEqual(['rendered', 'rendered']);
-      // The card file was imported to read its parameters, and its first story
-      // still holds that import: the story meets a document that has not.
       expect(card.collect).toBeGreaterThanOrEqual(SLOW_IMPORT_MS);
     } finally {
       await page.close();
+      await aside.close();
     }
   }, 120_000);
 });

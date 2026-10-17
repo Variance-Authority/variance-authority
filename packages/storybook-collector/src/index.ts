@@ -6,8 +6,8 @@ import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/
 import { recipeToDrive, type Recipe } from '@variance-authority/core/format';
 import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { createStoryRecorder } from './execution.js';
-import { harnessPage, readParameters } from '@variance-authority/storybook';
-import { withParameters } from './parameters.js';
+import type { ParametersRead } from '@variance-authority/storybook';
+import { readParametersBeside, withParameters } from './parameters.js';
 import type { StorybookCollectorOptions } from './options.js';
 import { readStory, type Reading } from './read.js';
 import { openWorld, type World, type WorldRecipe } from './world.js';
@@ -169,9 +169,8 @@ export function storybookCollector(
     // the two worlds, because there is only one of each. See `world.ts`.
     //
     // Pointed at the preview, so `collectStory` finds itself already there and
-    // does not navigate: no navigation per story is the saving ADR-0009 rests
-    // on, and it is easiest to keep by never taking one. The only load after
-    // the first is `readParameters` leaving the document it imported on. The
+    // does not navigate: one navigation for a whole run is the saving ADR-0009
+    // rests on, and it is easiest to keep by never taking a second one. The
     // isolated world opens on the same address for a second reason — the preview
     // shell is not a subject, so landing on it is not something having run first.
     const recipe: WorldRecipe = {
@@ -198,9 +197,18 @@ export function storybookCollector(
           }),
     };
 
+    // Every story's parameters, read on a context of their own while the run's
+    // page boots: not on the run's page, which would hand each file's first
+    // story an import already done, and not after its boot, which `plan()`
+    // would wait for. See `readParametersBeside`.
+    let parameters: Promise<ParametersRead> | undefined;
     let world: World;
     try {
-      world = await openWorld(recipe);
+      world = await openWorld(recipe, (page) => {
+        parameters = readParametersBeside(page, recipe.harness.url);
+        // Awaited by `plan()`; a run closed before it asks has nothing to say.
+        parameters.catch(() => undefined);
+      });
     } catch (error) {
       await served?.close();
       throw error;
@@ -247,7 +255,8 @@ export function storybookCollector(
         if (plan === undefined) {
           throw operatorError(WRONG_KIND);
         }
-        return withParameters(plan, await readParameters(harnessPage({ page: world.page })), config.viewport);
+        if (parameters === undefined) throw new Error('the run opened its world without reading parameters');
+        return withParameters(plan, await parameters, config.viewport);
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {

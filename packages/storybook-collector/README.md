@@ -454,10 +454,10 @@ start. `collect` is importing the story's file and everything it loads, and then
 unmounting the story shown before it: Storybook does that in between and signals
 nothing for it. `cases` is the render, from loaders through the play function to
 `afterEach`, or to the phase it ended on when it errored or was aborted.
-Reading every story's parameters before the first story imports every story
-file, so the run loads that document again before any story is shown on it: a
-file's first story carries the file's import whichever page shows it, and the
-reading itself is in no story's row. Each
+Reading every story's parameters imports every story file, so the run reads
+them on a document of its own, in a browser context opened while the stories'
+page boots: a file's first story carries the file's import whichever page shows
+it, the reading is in no story's row, and the stories' page loads once. Each
 width a story is read at is its own row, with its own figures.
 
 ## When integration fails
