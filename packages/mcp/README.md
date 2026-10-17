@@ -61,7 +61,7 @@ When that report is not on disk, `variance serve` answers from the report CI
 published to the share for your branch or mainline, and every report answer
 opens with the line and commit it was read from. The CLI's page says [which
 record it reads and what it
-prints](../cli/README.md#a-checkout-with-no-run-of-its-own).
+prints](https://variance-authority.dev/reference/packages/cli#a-checkout-with-no-run-of-its-own).
 `variance-authority-mcp` reads only the path it is given.
 
 Install this package when you want the server without the CLI, or when the
@@ -359,7 +359,7 @@ It is a subject of its own rather than a report because the times a reader
 wants are usually the mainline's, which cover the whole suite, and no report
 anybody has open holds them. `variance serve` reads them from the share, and
 `variance ask costs` calls the same tool from a shell; see
-[the CLI](../cli/README.md).
+[the CLI](https://variance-authority.dev/reference/packages/cli).
 
 ```js
 import { COSTS_TOOLS } from '@variance-authority/mcp/tools';
@@ -392,7 +392,7 @@ token, which reads what review settled and never decides, so an agent holding
 this connection cannot approve or reject anything. Keep the token in an
 environment variable that the share declaration names:
 `"token": { "env": "VARIANCE_SHARE_TOKEN" }`. `variance ask decisions` calls the
-same tool from a shell; see [the CLI](../cli/README.md).
+same tool from a shell; see [the CLI](https://variance-authority.dev/reference/packages/cli).
 
 ```js
 import { REVIEW_TOOLS } from '@variance-authority/mcp/tools';
