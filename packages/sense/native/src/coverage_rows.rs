@@ -18,9 +18,7 @@ use std::ops::Range;
 
 use crate::journey_columns::{self, Decoded};
 use crate::case_shard::{decode_set, strings};
-
-/// The layouts this reads: `FORMAT`, `UNCASED_FORMAT` and `UNTIMED_FORMAT` in `format-layout.ts`.
-const VERSIONS: [u8; 3] = [10, 9, 8];
+use crate::record_layout::LAYOUT;
 /// `BLOCK_KINDS` in `format-layout.ts`.
 pub(crate) const MODULE: u32 = 0;
 pub(crate) const FUNCTION: u32 = 1;
@@ -67,7 +65,7 @@ pub(crate) struct CoverageRows {
 impl CoverageRows {
     pub fn read(bytes: &[u8]) -> Result<CoverageRows, String> {
         let (version, decoded) = journey_columns::decode_wanted(bytes, &COLUMNS)?;
-        if !VERSIONS.contains(&version) {
+        if !LAYOUT.coverage.readable(version) {
             return Err(format!("unsupported test coverage version: {version}"));
         }
         // None of the coverage is absent coverage; some of it is a broken record.

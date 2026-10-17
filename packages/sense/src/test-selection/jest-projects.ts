@@ -8,6 +8,7 @@
 import journalFormat from './journal-format.cjs';
 import journalNames from './jest-journal-name.cjs';
 import { readNamed, type ReadJournal } from './instrumented-modules.js';
+import { summedPhases } from './reported-time.js';
 import type { CoverageTest } from './index.js';
 
 /** A test file's journal, and the project whose sandbox wrote it; no project for one without a name. */
@@ -45,7 +46,7 @@ export function journalsOf(journals: readonly ProjectJournal[], project: string 
  * One row per test file, however many projects ran it, as `oneRowPerFile` folds
  * Vitest's: the record's unit is a path, so a file is whole only where every
  * project that ran it was, its preconditions are each project's, and its cost is
- * the sum, unknown when any project did not say.
+ * the sum, unknown when any project did not say, phase by phase as a whole.
  */
 export function oneTestPerFile(tests: readonly CoverageTest[]): CoverageTest[] {
   const byFile = new Map<string, CoverageTest>();
@@ -65,6 +66,7 @@ export function oneTestPerFile(tests: readonly CoverageTest[]): CoverageTest[] {
       complete: seen.complete && test.complete,
       preconditions: [...preconditions.values()],
       ...(duration === undefined ? {} : { duration }),
+      ...summedPhases(seen.phases, test.phases),
     });
   }
   return [...byFile.values()];

@@ -478,6 +478,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.path` | the test file path, sorted by code unit |
 | tests | `tests.complete` | one byte, `1` when every case in the file ran and passed |
 | tests | `tests.duration` | the whole milliseconds the test runner reported for the file, `0xffffffff` when it reported none |
+| tests | `tests.phases` | five words a file, the whole milliseconds of its prepare, environment, setup, collect and cases phases, `0xffffffff` for a phase the runner did not time |
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
@@ -498,6 +499,18 @@ duration, Playwright's `testInfo.duration` summed over the file's tests, or the
 nothing for stores the sentinel, and a reader answers it as
 absent, not as zero. When two projects record the same file, its duration is
 their sum, and it is absent if either is.
+
+**Phases.** `tests.phases` splits a file's time into what is part of a test
+and what is not: readying the file in its worker, the test environment, the
+setup files, collecting the file — importing it and everything it loads — and
+running its cases with their hooks. Vitest reports all five. Jest's `perfStats`
+times the environment and the setup files, and the setup module marks where
+collecting ended — when jest-circus starts the file's run, before any hook — on
+a clock the test's fake timers do not replace, so the rest splits into collect
+and cases there; Jest readies no file apart from those, so its prepare is
+absent. A mark outside the file's own span splits nothing, and the file has no
+collect or cases. Phases are summed across projects as durations are. A record
+written before phases were kept opens with every file unphased.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
@@ -859,13 +872,14 @@ increment and writes the ordinals out as the gaps between them, so a worker pays
 one pass over each array and the reporter reads bytes.
 
 ```
-journal  "VAJRN" | version | test file | modules | module | module | …
+journal  "VAJRN" | version | test file | collected | modules | module | module | …
 module   1 | id | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
-A module is written as `1 | id`, and a reader refuses any other tag as a
-damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
+`collected` is the moment, in epoch milliseconds as an eight-byte double, the
+file finished collecting, and zero where nothing marked it. A module is written
+as `1 | id`, and a reader refuses any other tag as a damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
 rise within a module, so a region costs one byte. A run of eight thousand test
 files over two hundred thousand modules reports sixteen million module rows. As
 frames each row is its module's id and its ordinals as gaps, which is under

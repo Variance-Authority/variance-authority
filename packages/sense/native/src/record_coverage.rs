@@ -3,13 +3,20 @@
 //! and its case parts as bytes. Nothing is turned into objects; a string is a
 //! slice of the record's own dictionary.
 //!
-//! The layouts read are the current one and the one before `tests.duration`,
-//! which the JVM agent writes and which reads as a run whose runner reported no
-//! durations. Every shard of a combine was written by one build, so a record
+//! The layouts read are the current one, the ones before `tests.phases` and
+//! before the case parts, which read as a run whose runner reported no phases,
+//! and the one before `tests.duration`, which the JVM agent writes and which
+//! reads as a run whose runner reported no durations. Every shard of a combine was written by one build, so a record
 //! at any other version is refused by its version.
 
 use crate::journey_columns::{self, Decoded};
 use crate::record_layout::LAYOUT;
+
+/// How many phases a test file holds a word each of: `phaseNames` in `record-layout.json`.
+pub(crate) const PHASES: usize = 5;
+
+/// A test file's phases, `coverage.no_duration` for one its runner did not report.
+pub(crate) type Phases = [u32; PHASES];
 
 pub(crate) struct Coverage {
     blob: Vec<u8>,
@@ -21,6 +28,8 @@ pub(crate) struct Coverage {
     pub test_preconditions: Vec<u32>,
     /// `None` for the untimed layout, which holds no durations.
     pub test_duration: Option<Vec<u32>>,
+    /// `PHASES` words a test; `None` for a layout before `tests.phases`.
+    pub test_phases: Option<Vec<u32>>,
     pub precondition_name: Vec<u32>,
     pub precondition_digest: Vec<u32>,
     pub module_path: Vec<u32>,
@@ -87,7 +96,7 @@ fn readable(version: u8) -> Result<(), String> {
     if layout.readable(version) {
         return Ok(());
     }
-    Err(format!("unsupported record version: {version}; this build reads versions {}, {} and {}", layout.untimed, layout.uncased, layout.format))
+    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.format))
 }
 
 /// The test files a record's coverage holds, read off its header alone: the
@@ -112,6 +121,7 @@ pub(crate) struct Head {
 fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
     let decoded = &mut decoded;
     let timed = version != LAYOUT.coverage.untimed;
+    let phased = version == LAYOUT.coverage.format;
     let one = |name: &str, values: Vec<u32>, empty: bool| -> Result<Option<u32>, String> {
         match values.as_slice() {
             [value] => Ok(Some(*value)),
@@ -128,6 +138,7 @@ fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
         test_complete: decoded.take_bytes("tests.complete")?,
         test_preconditions: decoded.take_words("tests.preconditions")?,
         test_duration: if timed { Some(decoded.take_words(&LAYOUT.coverage.duration)?) } else { None },
+        test_phases: if phased { Some(decoded.take_words(&LAYOUT.coverage.phases)?) } else { None },
         precondition_name: decoded.take_words("preconditions.name")?,
         precondition_digest: decoded.take_words("preconditions.digest")?,
         module_path: decoded.take_words("modules.path")?,
@@ -230,6 +241,20 @@ impl Coverage {
         self.module_blocks[module] as usize..self.module_blocks[module + 1] as usize
     }
 
+    /// The duration of test `test`, `coverage.no_duration` where none was reported.
+    pub fn duration(&self, test: usize) -> u32 {
+        self.test_duration.as_ref().map_or(LAYOUT.coverage.no_duration, |duration| duration[test])
+    }
+
+    /// The phases of test `test`; each `coverage.no_duration` where none was reported.
+    pub fn phases(&self, test: usize) -> Phases {
+        let mut held = [LAYOUT.coverage.no_duration; PHASES];
+        if let Some(phases) = &self.test_phases {
+            held.copy_from_slice(&phases[test * PHASES..(test + 1) * PHASES]);
+        }
+        held
+    }
+
     /// The preconditions of test `test`, as a range of precondition rows.
     pub fn preconditions(&self, test: usize) -> std::ops::Range<usize> {
         self.test_preconditions[test] as usize..self.test_preconditions[test + 1] as usize
@@ -250,6 +275,9 @@ impl Coverage {
         rows("tests.preconditions", self.test_preconditions.len(), tests + 1)?;
         if let Some(duration) = &self.test_duration {
             rows(&LAYOUT.coverage.duration, duration.len(), tests)?;
+        }
+        if let Some(phases) = &self.test_phases {
+            rows(&LAYOUT.coverage.phases, phases.len(), tests * PHASES)?;
         }
         bounds("tests.preconditions", &self.test_preconditions, preconditions)?;
         rows("preconditions.digest", self.precondition_digest.len(), preconditions)?;

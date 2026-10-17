@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BlockKind } from '../instrument/index.js';
-import { BLOCK_KINDS, DURATION, FORMAT, NAMES, NO_DURATION, NO_OWNER } from './format-layout.js';
+import { BLOCK_KINDS, DURATION, FORMAT, NAMES, NO_DURATION, NO_OWNER, PHASES } from './format-layout.js';
 import { LAYOUT, type RecordLayout } from './record-layout.js';
 
 describe('the record layout both sides read', () => {
@@ -17,7 +17,7 @@ describe('the record layout both sides read', () => {
 
   it('is where the format constants come from', () => {
     expect(FORMAT).toBe(LAYOUT.coverage.format);
-    expect([...NAMES, DURATION].sort()).toEqual([...LAYOUT.coverage.sections].sort());
+    expect([...NAMES, DURATION, PHASES].sort()).toEqual([...LAYOUT.coverage.sections].sort());
     expect([NO_OWNER, NO_DURATION]).toEqual([0xffff_ffff, 0xffff_ffff]);
   });
 
@@ -31,8 +31,8 @@ describe('the record layout both sides read', () => {
       codecs: { raw: true, zstd: true },
       levels: { numbers: true, text: true },
       coverage: {
-        model: true, format: true, uncased: true, untimed: true, noOwner: true, noDuration: true, noLine: true,
-        sections: true, duration: true, parts: true, blockKinds: true,
+        model: true, format: true, unphased: true, uncased: true, untimed: true, noOwner: true, noDuration: true, noLine: true,
+        sections: true, duration: true, phases: true, phaseNames: true, parts: true, blockKinds: true,
       },
       sets: { list: true, bits: true, runs: true, narrow: true },
       cases: { format: true, loadedSets: true, duration: true, lines: true, linesOffsets: true },

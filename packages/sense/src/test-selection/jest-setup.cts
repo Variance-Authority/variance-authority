@@ -67,6 +67,7 @@ beforeAll(() => {
   loaded = collector.seal(testFile);
 });
 
+const collected = markCollected();
 if (collector.scoped) openCaseScopes();
 skipTheCut();
 
@@ -83,7 +84,7 @@ afterAll(() => {
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
   const { modules, frames } = collector.finish(testFile);
   fs.mkdirSync(runDirectory, { recursive: true });
-  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded));
+  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded, collected.at));
 
   const outlived = collector.runaways();
   if (outlived.length > 0) {
@@ -193,6 +194,34 @@ function skipTheCut(): void {
       walk(state.rootDescribeBlock, []);
     },
   );
+}
+
+/**
+ * When collecting ended: jest-circus's `run_start`, after the file's tests are
+ * declared and before any hook runs, the project's own setup files' included.
+ * The reporter splits the file's time into its collect and its cases there.
+ * Read from the clock Jest's own `perfStats` stamps read: the `Date.now` Jest
+ * keeps under `jest-native-now` before anything can fake it, taken here, as
+ * jest-circus takes it, before the project's setup files run. Unmarked where
+ * the runner is not jest-circus.
+ */
+function markCollected(): { at?: number } {
+  const mark: { at?: number } = {};
+  const native = (globalThis as { [key: symbol]: unknown })[Symbol.for('jest-native-now')];
+  const now = typeof native === 'function' ? (native as () => number) : Date.now.bind(Date);
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return mark;
+  }
+  const register = circus.addEventHandler;
+  if (typeof register !== 'function') return mark;
+  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+    if (event.name !== 'run_start') return;
+    mark.at = now();
+  });
+  return mark;
 }
 
 /**

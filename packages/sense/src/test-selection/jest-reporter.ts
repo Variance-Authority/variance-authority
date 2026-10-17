@@ -26,7 +26,8 @@ import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
-import { noteAnEmptyRecord, reportedDuration } from './finished-files.js';
+import { noteAnEmptyRecord } from './finished-files.js';
+import { jestPhases, reportedDuration, type JestPerfStats } from './reported-time.js';
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { landRun } from './commit-runs.js';
@@ -81,8 +82,7 @@ export interface JestRunResults {
       readonly fullName?: string;
       readonly duration?: number | null;
     }>;
-    /** `runtime` is the milliseconds Jest measured for the file. */
-    readonly perfStats?: { readonly runtime?: number };
+    readonly perfStats?: JestPerfStats;
   }>;
 }
 
@@ -295,11 +295,15 @@ async function coverageTest(
   // counts as a usable outcome below, and carries no record of the modules its
   // collection did enter. Recorded whole, that empty reach excludes the file
   // from every diff there will ever be. `journals` are this result's project's
-  // own: another project's journal for the same path is not this one's.
+  // own: another project's journal for the same path is not this one's, as far
+  // as the projects' names tell them apart. Unnamed projects share their
+  // journals, so the marks go to `jestPhases`, which keeps the run's own.
   let recorded = false;
+  const marks: number[] = [];
   for (const journal of journals) {
     if (projectPath(config.root, journal.testFile) !== file) continue;
     recorded = true;
+    if (journal.collected !== undefined) marks.push(journal.collected);
     for (const entered of journal.modules) {
       const module = modules.get(entered.id);
       if (module === undefined) placed = false;
@@ -324,9 +328,14 @@ async function coverageTest(
     result.testResults.every(
       (assertion) => assertion.status === 'passed' || assertion.status === 'pending' || assertion.status === 'todo',
     );
-  return { file, complete, preconditions, ...reportedDuration(result.perfStats?.runtime) };
+  return {
+    file,
+    complete,
+    preconditions,
+    ...reportedDuration(result.perfStats?.runtime),
+    ...jestPhases(result.perfStats, marks),
+  };
 }
-
 
 /**
  * The setup and environment files one Jest project rests on, as Jest resolved

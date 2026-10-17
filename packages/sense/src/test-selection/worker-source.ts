@@ -281,6 +281,16 @@ const tree = (task) => ({
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
+// A file's phases, under the record's names, as the runner measured them; the
+// reader keeps the ones that are durations. Its cases are the file's own result.
+const phases = (file) => ({
+  prepare: file.prepareDuration,
+  environment: file.environmentLoad,
+  setup: file.setupDuration,
+  collect: file.collectDuration,
+  cases: file.result?.duration,
+});
+
 const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
 // The declaration path under the file, which is what a reader recognises a
 // case by. The runner's own \`test.id\` is unique and is carried beside it,
@@ -354,7 +364,7 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, phases: phases(file), ...tree(file) }))),
     );
   }
 
