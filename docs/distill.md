@@ -221,7 +221,7 @@ it, and `unentered` names the declarations the test never reached.
 Loaded but not covered: 1 module(s).
   src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
     never covered: HeavyChart (lines 5-8)
-    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it
+    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it. Stand in for what it exports: an automock loads the module to read its shape
 ```
 
 This is a stronger reading than an opportunity and still not a verdict. Mocking

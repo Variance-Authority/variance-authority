@@ -114,7 +114,8 @@ function regionLines(modules: readonly EnteredModule[]): readonly string[] {
           `  ${module.file} — the import ran its top level and this test covered nothing below it`,
           `    never covered: ${module.unentered.map(named).join(', ')}`,
           // The module and why; how to write its mock is the test file's runner's.
-          `    substitution to try: mock ${module.file} in this test's file; loading it is all this test used of it`,
+          `    substitution to try: mock ${module.file} in this test's file; loading it is all this test used of it. ` +
+            'Stand in for what it exports: an automock loads the module to read its shape',
         ])),
     ...(partial.length === 0 ? [] : [
       `Covered in part: ${partial.length} module(s).`,
