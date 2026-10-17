@@ -52,9 +52,8 @@ export interface Members {
    */
   readonly used: readonly { readonly declared: Use; readonly uses: readonly (Use & { readonly how: string })[] }[];
   /**
-   * Each declaration on a named container, in `declared`'s order, whose
-   * file's reader records no member uses, so its uses are not measured, which
-   * is not none.
+   * Each declaration, in `declared`'s order, whose file's reader records no
+   * member uses, so its uses are not measured, which is not none.
    */
   readonly unrecorded: readonly Use[];
   /** Why the declarations were not read, when they were not. */

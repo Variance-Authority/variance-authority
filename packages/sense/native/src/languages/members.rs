@@ -112,6 +112,7 @@ fn enclosing(node: Node, source: &str) -> Option<String> {
 fn type_named(node: Node, source: &str) -> String {
     match node.kind() {
         // Swift writes an extension's type as a `user_type`, its last part the type's own name.
+        // FIXME: two same-named types of different modules merge here, as the path that tells them apart is dropped.
         "user_type" => named_children(node).into_iter().last().map_or_else(|| text_of(node, source).to_owned(), |last| text_of(last, source).to_owned()),
         _ => text_of(node, source).to_owned(),
     }

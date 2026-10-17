@@ -129,4 +129,7 @@ describe('variance ask symbol about a member', () => {
       expect(out).toContain(`a member of \`Agent\`, declared at packages/kit/src/dev/kit/Agent.java:${line}`);
     }
   });
+
+  // FIXME: Kotlin and Swift members are pinned by the native reader's tests alone, not through `ask symbol`.
+  it.todo('answers a Kotlin companion function and a Swift extension method through ask symbol');
 });

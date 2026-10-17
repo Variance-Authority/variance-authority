@@ -32,7 +32,7 @@ export const symbol: Tool<Help> = {
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
     'name a file declares at its top level and does not export, answered with where it is written, a ' +
     'name an import binds with `as`, answered with that import and the original it names, a ' +
-    'member of a TypeScript or JavaScript interface, type literal or class, a Java, Kotlin or Swift ' +
+    'member of a TypeScript interface or type literal, a TypeScript or JavaScript class, a Java, Kotlin or Swift ' +
     'type, or a Python class, answered with its container and where it is declared, beside any ' +
     'top-level declaration of the same name, and ' +
     'installed third-party declarations when the API catalogue is ' +
