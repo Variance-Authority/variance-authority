@@ -493,8 +493,8 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
-second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
-duration, Playwright's `testInfo.duration` summed over the file's tests, or the
+second clock: Vitest's file result, which is its cases alone, Jest's
+`perfStats.runtime`, which is the whole file, Rstest's file duration, Playwright's `testInfo.duration` summed over the file's tests, or the
 `duration` you pass to `startRecording().finish()`. A file the runner reported
 nothing for stores the sentinel, and a reader answers it as
 absent, not as zero. When two projects record the same file, its duration is
@@ -517,6 +517,16 @@ is the render through `afterEach`, or to the phase it ended on when it errored,
 was aborted or was read before `afterEach` finished. Phases are summed across
 projects and readings as durations are. A record written before phases were kept
 opens with every file unphased.
+
+**A file's cost.** What running a file cost is the larger of its duration and
+its phases summed. Both are spans of the same run, each counting part of it:
+Jest's runtime holds every phase and the gaps between them, and Vitest's
+duration is only the last of its five phases. So a Vitest file that spends
+5.4 s importing and 33 ms in its cases costs 5.4 s, not 33 ms, and a Jest file
+costs its runtime. A file without phases costs its duration, and a file with
+neither is untimed. Two projects' figures are summed before the larger is taken,
+so the cost is that of both runs. `variance ask slowest-tests` ranks files by
+this cost and a sharded run places them by it.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
