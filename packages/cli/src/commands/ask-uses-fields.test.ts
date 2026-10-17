@@ -104,6 +104,10 @@ describe('variance ask uses over a field of an interface or a type', () => {
     // A named container no line types is named once; a type literal has no name a line could write, so it is not.
     expect(out).toContain('No line uses `size` through a value whose type is written as `Spare` at packages/lib/src/shapes/props.ts:11.');
     expect(out).not.toContain('written as `a type literal`');
+    // Four declarations: TypeScript is asked at the one the reader means.
+    expect(out).toContain(
+      "Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line.",
+    );
   });
 
   it('answers a field used through a barrel that passes its type on with `export type { … } from`', async () => {

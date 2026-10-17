@@ -1,0 +1,22 @@
+---
+'@variance-authority/help': patch
+'@variance-authority/cli': patch
+---
+
+`ask uses` on a member says which uses it lists, and asks TypeScript for the rest
+
+`variance ask uses --name <member>` and `docs_uses` list a use of `Props.size`
+only where the line writes the value's type. The answer now ends with two lines
+that say so: a use through an inferred value, a generic, a subtype by `extends`
+or `implements`, a JSX attribute, a utility type or an inline type literal is
+not listed, because no type checker runs. The second line names the
+declaration's `file:line` for your TypeScript language service's
+find-references, or, with several declarations, asks for the one you mean from
+the list above. These two lines replace the `docs_grep` route the answer used
+to end with; `variance ask grep --to <declaring file>` still finds the name as
+text. Which uses are listed has not changed, and an answer with no member
+prints neither line.
+
+The skill reference tells an agent to use both tools: `variance` for
+declarations, imports, the module graph and the recording, TypeScript for
+anything that needs a value's type.

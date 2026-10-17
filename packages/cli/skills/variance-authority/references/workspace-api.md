@@ -105,8 +105,15 @@ This is a module graph, not a call graph. A site is an import. Never turn it
 into a claim that one function calls another; open the file or ask a language
 server. A member of an interface, a type literal or a class is never imported,
 so `uses` names its declarations, after any imports, the lines that use each
-one through a value whose type they write, and the `grep --to` that finds the
-rest.
+one through a value whose type they write, and the declaration to ask
+TypeScript about for the rest.
+
+Use the two tools together. `variance` answers from declarations, imports, the
+module graph and the recording, and runs no type checker. Anything that needs a
+value's type is TypeScript's: which type an inferred value has, a generic, a
+subtype, the props a JSX attribute sets. Take the `file:line` `variance` prints
+for a declaration to your TypeScript language service, and ask it for
+find-references or go-to-definition there.
 
 ## The verbs
 
@@ -258,9 +265,13 @@ src/shapes/use.ts:8 — @acme/shop, destructure
 
 No line uses `size` through a value whose type is written as `Other` at src/shapes/props.ts:7.
 
-A use through a value whose type is not written, or is written as no named container, is text in the files that import a declaration: docs_grep with `query` `\bsize\b` and `to` the file that declares the container you mean (`package` narrows the declarations to one package).
-That search matches text, as no type checker runs: it lists comments, strings, a call by key such as `entry('name')` and same-named members of other types in those files, and misses a value whose type comes in through a file that does not import the declaration.
+A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
+Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line.
 ```
+
+The last two lines close every member answer, whatever it lists. With one
+declaration, the second line names it, such as `` `Props.size` at
+src/shapes/props.ts:2 ``. An answer with no member prints neither.
 
 A use is a line that reads the member (`props.size`, `props['size']`,
 `props?.size`), writes it (`props.size = 1`, `+=`, `++`, a key of an object
@@ -279,13 +290,15 @@ named through a namespace (`ns.Props`). Nor is what the line does not write as
 a value of the type: a JSX attribute (`<Box size={2} />`), an object literal
 passed to an annotated parameter, `this.size`, a field inherited through
 `extends` or `&`, and a type imported by another name than its declaration's,
-as a default export or one renamed where it is declared. Those are the `grep` route's: `variance ask grep --query '\bsize\b'
---to src/shapes/props.ts` searches the files that import the
-declaration, at any depth. A name that an export has as well, such as a wrapper
-function named like the member, lists the wrapper's imports first, then
+as a default export or one renamed where it is declared. Those are TypeScript's:
+its find-references on the declaration `uses` prints lists them, proven against
+that one type. `variance ask grep --query '\bsize\b' --to src/shapes/props.ts`
+finds the name as text in the files that import the declaration, at any depth,
+with comments, strings and same-named members of other types among them. A name
+that an export has as well, such as a wrapper function named like the member,
+lists the wrapper's imports first, then
 `` `prepareJourneys` is a member too, declared in 2 places: `` and the
-declarations with their uses and route. Ask a language server when you need
-every use proven against one type.
+declarations with their uses.
 
 **`uses --from` sorts; `search --from` narrows.** On `uses`, `--from` is the
 file you are editing, and every site still comes back, ordered by the leading

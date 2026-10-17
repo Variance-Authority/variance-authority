@@ -76,10 +76,11 @@ names where a member by that name is declared, after any imports, and under
 each declaration the lines that read, write or destructure it through a value
 whose type the line writes, joined to that declaration through the import that
 binds the type's name. A line whose value's type a checker would infer, or a JSX
-attribute, is not in that list; `variance ask grep --query '\b<name>\b' --to <declaring file>` finds
-it as text in the files that import the declaration. The graph
-does not record that one function called another at runtime; open the named
-file or use a language server for that question.
+attribute, is not in that list, and the answer ends by saying so and naming the
+declaration's `file:line` for your TypeScript language service's
+find-references, which lists those uses. The graph does not record that one
+function called another at runtime; open the named file or use a language
+server for that question.
 
 No graph database service sits on the answer path. The producer publishes a
 compact graph beside the names and materializes both directions, so walking

@@ -14,11 +14,12 @@
  * binds it, so each use is listed under the one declaration it belongs to,
  * whatever other container shares the member's name.
  *
- * A value whose type is not written — inferred from a call, a generic, a
- * mapped type — is text read near a declaration: `docs_grep` with `to` set to
- * a declaring file runs ripgrep over the files that import it, at any depth,
- * which is where a value of that type can come from. That search owns those,
- * so this answer routes to it rather than holding a second one.
+ * A value whose type the line does not write — inferred from a call, a
+ * generic, a subtype, a JSX attribute, a utility type — has the type a type
+ * checker gives it, and none runs here. Type resolution is TypeScript's, so the
+ * answer says where its own reading stops and names the declaration to ask
+ * TypeScript's find-references about, rather than copying a type rule or
+ * passing a text search off as the uses.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -26,12 +27,6 @@
 import type { Use } from '@variance-authority/package/help';
 import { memberDeclarationsOf } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
-
-/** What a text match for the callers lets in and what it misses, said once under the route. */
-export const BY_NAME =
-  'That search matches text, as no type checker runs: it lists comments, strings, a call by key such as ' +
-  "`entry('name')` and same-named members of other types in those files, and misses a value whose type comes in " +
-  'through a file that does not import the declaration.';
 
 /** The declarations of a member by one name. */
 export interface Members {
@@ -72,22 +67,25 @@ export function membersOf(root: string | undefined, name: string, wanted: string
   return { declared, used };
 }
 
+/** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
+export const TYPED =
+  "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends` or `implements`, " +
+  "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
+
 /**
- * Where the callers of member `name` are read: the one declaring file, or,
- * when several declare it, the one whose container the caller means, which
- * `package` narrows to when the list is cut.
+ * Where the uses no line types are found: TypeScript's find-references on the
+ * one declaration of member `name`, or, when several declare it, on the one
+ * the reader means among those the answer lists.
  */
 export function routes(name: string, members: Members): readonly string[] {
-  const files = new Set(members.declared.map((site) => site.at));
-  const to =
-    files.size === 1
-      ? `\`${[...files][0]}\``
-      : 'the file that declares the container you mean (`package` narrows the declarations to one package)';
-  return [
-    '',
-    `A use through a value whose type is not written, or is written as no named container, is text in the files that import a declaration: docs_grep with \`query\` \`\\b${name}\\b\` and \`to\` ${to}.`,
-    BY_NAME,
-  ];
+  const only = members.declared.length === 1 ? members.declared[0]! : undefined;
+  // A container with a name is one `used` lists; one without is named by the member alone.
+  const named = members.used.some(({ declared }) => declared === only);
+  const at =
+    only === undefined
+      ? 'the declaration you mean, each listed above with its file and line'
+      : `\`${named ? `${only.by}.${name}` : name}\` at ${only.at}:${only.line}`;
+  return ['', TYPED, `Ask TypeScript for those: its language service's find-references on ${at}.`];
 }
 
 /** `N places`, in words a sentence takes. */
