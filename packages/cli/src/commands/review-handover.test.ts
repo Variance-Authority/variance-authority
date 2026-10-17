@@ -66,6 +66,17 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(text.out).toContain('\n- Not in the record, so not counted: src/walk.rs.\n');
   });
 
+  it('names a file not in the record only when no suite read holds it, as many as twelve by name', () => {
+    const outside = Array.from({ length: 14 }, (_, at) => ({ file: `src/w${String(at).padStart(2, '0')}.rs`, recorded: false, indexed: true }));
+    const at = (files: readonly object[]): Review => ({ from: 'a'.repeat(40), record: 'before', base: 'since', files } as unknown as Review);
+    // The second suite holds the first file, so only the other thirteen are outside every record.
+    const out = formatHandover([{ suite: 'unit', review: at(outside) }, { suite: 'browser', review: at([{ ...outside[0], recorded: true, regions: [] }, ...outside.slice(1)]) }]);
+
+    expect(out).toContain('<summary>🧭 Coverage of the changed area: no changed function in the record, 13 changed files not in it</summary>');
+    const named = outside.slice(1, 13).map(({ file }) => `\`${file}\``).join(', ');
+    expect(out).toContain(`\nNot in the record, so no function in them is named: ${named} and 1 more.\n`);
+  });
+
   it('stays a handful of lines however many functions the change touched, absences first', () => {
     const region = (name: string, reach: ReviewRegion['reach'], tests: readonly string[]): ReviewRegion => ({
       kind: 'function', name, startLine: 1, endLine: 2, reach, edit: 'modified', changedLineCases: tests.length, cases: tests.length, tests, called: [],
