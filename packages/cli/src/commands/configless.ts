@@ -188,13 +188,14 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview }] = await Promise.all([
+      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
         import('./review-text.js'),
       ]);
       if (parsed.fromRun !== undefined) {
-        streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
+        const kept = await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root });
+        await writePieces(reviewPieces(kept, parsed.format), streams);
         return EXIT_CLEAN;
       }
       if (parsed.format === 'handover') {
@@ -206,11 +207,12 @@ export async function answerConfigless(
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
         // FIXME: review.json is unbounded — every moved region carries its cases in full, and a change that moves
-        // most of a suite's regions writes hundreds of megabytes (430 MB on a pull request's CI run).
-        await writeFile(join(parsed.out, 'review.json'), formatReview(answer, 'json'));
+        // most of a suite's regions writes hundreds of megabytes (430 MB on a pull request's CI run), and past V8's string
+        // limit `--from-run` cannot read it back.
+        await writeFile(join(parsed.out, 'review.json'), reviewPieces(answer, 'json'));
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
-      streams.out(formatReview(answer, parsed.format));
+      await writePieces(reviewPieces(answer, parsed.format), streams);
       return EXIT_CLEAN;
     }
 
