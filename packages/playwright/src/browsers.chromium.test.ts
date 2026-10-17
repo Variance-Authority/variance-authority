@@ -68,3 +68,10 @@ describe.skipIf(!BROWSER_AVAILABLE)('leaseContext', () => {
     }
   });
 });
+
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\n@variance-authority/playwright (browsers): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
