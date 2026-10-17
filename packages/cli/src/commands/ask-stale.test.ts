@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
 /**
@@ -91,15 +91,16 @@ describe('variance ask about a name written after the source index', () => {
     expect(out).toContain('state-kit');
   });
 
-  it('refuses under `--just-answer` with when the index was published and that the checkout was not compared with it', async () => {
+  it('answers a name it does not find under `--just-answer` with when the index was published and that the checkout was not compared with it', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     write(root, KEPT);
 
-    const { code, err } = await run(['ask', 'symbol', '--name', 'keptOf', '--just-answer']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('`keptOf` is not published by this workspace');
-    expect(err).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'keptOf', '--just-answer']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(err).toBe('');
+    expect(out).toContain('`keptOf` is not published by this workspace');
+    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
   });
 
   it('says `search` read an index it did not compare with the checkout, since it reads the published one at any age', async () => {
