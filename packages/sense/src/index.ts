@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense` — the file graph, read off a disk.
  *
- * [`core/relate`](../../core/src/relate) holds the structure and answers the
+ * [`core/relate`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/core/src/relate) holds the structure and answers the
  * questions; it performs no I/O and depends on nothing (ADR-0006). This is the
  * half that opens files: an `oxc` parse for the module record, a resolver for
  * turning a specifier into a path, and a walk that follows what it finds.
@@ -34,7 +34,7 @@ export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependenc
  * alternative is a caller carrying its own extension list that drifts from this
  * one the first time a language is added.
  */
-export { LANGUAGES, READABLE, languageOf, grainOf, type LanguageId } from './language.js';
+export { LANGUAGES, READABLE, languageOf, grainOf, readsMembers, type LanguageId } from './language.js';
 
 /**
  * One module's component index, read off its tree: where each component it
@@ -224,6 +224,7 @@ export {
   type EncodedSearch,
   type HelpPublish,
   type HelpReading,
+  type MemberDeclarations,
   type MemberSite,
   type PassedOnDeclaration,
   type PublishedRows,

@@ -421,7 +421,7 @@ function byCodeUnit(a: string, b: string): number {
  * Whether a changed path lies under one of the scanned roots.
  *
  * Re-exported rather than written again: the same boundary decides what the
- * harness walk stops at ([`before.ts`](../../../core/src/relate/before.ts)),
+ * harness walk stops at ([`before.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/relate/before.ts)),
  * and two spellings of *is this path under that directory* would disagree the
  * day one of them was fixed.
  */

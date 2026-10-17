@@ -54,7 +54,7 @@ no generation to read. `search` opens a published search at any age, with or
 without the flag. When none is published it reads the checkout and publishes
 one, unless you passed `--just-answer`: then it refuses and names that flag. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
-index](https://variance-authority.dev/docs/agent-workspace-api#choose-the-cheapest-entrance).
+index](https://variance-authority.dev/agents/workspace-api#choose-the-cheapest-entrance).
 
 It answers two different questions about a name. What the name is supposed to be
 comes off the declaration — its signature and the block comment above it. How
@@ -560,4 +560,4 @@ sections and labels which is which.
 
 ---
 
-**[@variance-authority/help](https://variance-authority.dev/reference/packages/help)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/help](https://variance-authority.dev/reference/packages/help)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/help) · MIT

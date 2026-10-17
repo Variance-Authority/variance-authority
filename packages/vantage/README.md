@@ -485,4 +485,4 @@ above.
 
 ---
 
-**[@variance-authority/vantage](https://variance-authority.dev/reference/packages/vantage)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/vantage](https://variance-authority.dev/reference/packages/vantage)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/vantage) · MIT

@@ -388,11 +388,11 @@ it wrote, or pass one shared `renderer` to the plugin so laptop and CI paint on
 the same machine.
 
 Full walkthrough:
-[add one baseline comparison to a Vitest browser-mode test](https://variance-authority.dev/docs/start-vitest-browser).
+[add one baseline comparison to a Vitest browser-mode test](https://variance-authority.dev/start/vitest-browser).
 How a region resolves to a component and a line:
 [attribution](https://variance-authority.dev/docs/attribution). Where the bytes
 live: [baseline placement](https://variance-authority.dev/docs/placement).
 
 ---
 
-**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/vitest-browser) · MIT

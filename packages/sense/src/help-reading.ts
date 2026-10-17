@@ -97,6 +97,12 @@ export interface MemberSite {
   readonly uses?: readonly MemberUseSite[];
 }
 
+/** The declarations of a member by one name, and the extensions of the files the index holds. */
+export interface MemberDeclarations {
+  readonly sites: readonly MemberSite[];
+  readonly extensions: readonly string[];
+}
+
 /** One member a container declares: its name and its line. */
 export interface ContainerMember {
   readonly name: string;
@@ -142,7 +148,7 @@ export interface NativeHelp {
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
-  memberDeclarationsOf?(root: string, index: string, name: string): MemberSite[] | null;
+  memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
   declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
   aliasesOf?(root: string, index: string, local: string): Alias[] | null;
@@ -211,11 +217,13 @@ export function importersOf(
  * Every declaration of a member named `name` the index at `index` records: a
  * property or method signature, a class method, property or accessor, or a
  * constructor parameter property, each on its interface, type alias or class.
- * The scan records them with each file's parse. Ordered by file in code
- * units, then by line; `undefined` when no index was published. Throws when
- * the index does not read.
+ * The scan records them with each file's parse, for the languages
+ * `readsMembers` names, so beside them are the distinct extensions of the
+ * files the index holds, dot included, in code units, which `languageOf`
+ * names. Ordered by file in code units, then by line; `undefined` when no
+ * index was published. Throws when the index does not read.
  */
-export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly MemberSite[] | undefined {
+export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): MemberDeclarations | undefined {
   return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
 }
 

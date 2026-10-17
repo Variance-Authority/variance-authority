@@ -45,7 +45,7 @@ import { decodeFacts, encodeFacts, factVocabulary, listColumns, listReader } fro
  * subject that holds them: component names, roles, files, tokens. In JSON every
  * occurrence is a fresh quoted copy, and the repetition *is* the payload. Interned
  * once and referenced by number, it stops being one —
- * [`core/segment`](../../core/src/segment/index.ts) is the arithmetic, shared with
+ * [`core/segment`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/segment/index.ts) is the arithmetic, shared with
  * the source index, which reached the same conclusion about the same kind of data.
  *
  * The argument the report file makes for its own format is about the file being
@@ -57,7 +57,7 @@ import { decodeFacts, encodeFacts, factVocabulary, listColumns, listReader } fro
  *
  * The index carries the commit it was written at and nothing else about where it
  * is, which is the rule
- * [`sense`'s selection index](../../sense/src/test-selection/commit.ts) already
+ * [`sense`'s selection index](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/test-selection/commit.ts) already
  * settled: a commit answers *what changed since this was written* exactly, and a
  * timestamp says when a machine was rather than where a tree was. An index with
  * no commit is the honest record of a run that could not name itself, and a reader

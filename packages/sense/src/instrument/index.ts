@@ -5,7 +5,7 @@
  * the execution boundaries are ([`spliced.ts`](./spliced.ts)), and splices a
  * recording call in front of each one. No disk, no runner, no index. That is
  * deliberate — this is the only part of
- * [spec 0027](../../../../docs/specs/0027-a-test-is-selected-by-what-it-executed.md)
+ * [spec 0027](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0027-a-test-is-selected-by-what-it-executed.md)
  * that *manufactures* an artifact, so it is the first thing to build and the
  * cheapest thing to refute.
  *
@@ -36,7 +36,7 @@
  * evaluating bit, to the log in [`probe-log.cts`](probe-log.cts).
  * `packages/sense/scripts/probe-write.mjs` prices the logged hit at 1.2 ns at 4
  * and 16 regions and 3.2 ns at 64, on the machine
- * [`docs/context`](../../../../docs/context/README.md) names.
+ * [`docs/context`](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/README.md) names.
  *
  * `__vaS` is its own function so that `__va` stays small enough to inline at
  * every site. Folded into `__va`, the same logic measures slower at 16 regions
@@ -157,7 +157,7 @@ export interface InstrumentOptions {
  * bit. The collectors report such an ordinal as shared. A module that throws
  * before its end leaves the depth raised, and every later region that bucket
  * logs is then shared — over-including, in the direction
- * [`selecting.md`](../../../../docs/selecting.md) argues for.
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) argues for.
  */
 export const EVALUATING = 0x80000000;
 
@@ -197,7 +197,7 @@ export interface Instrumented {
  *
  * `undefined` when the source could not be parsed or holds a lone surrogate, and
  * that is the whole reason it is not an exception: a file this cannot read is a
- * file whose blocks are unknown, and [ADR-0008](../../../../docs/context/adr/0008-per-profile-expectations.md)
+ * file whose blocks are unknown, and [ADR-0008](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0008-per-profile-expectations.md)
  * says the honest report is *not instrumented*, never *not executed*. A caller
  * that swallowed a throw here would produce the second. The one throw is a
  * missing addon, which would leave every module uninstrumented.

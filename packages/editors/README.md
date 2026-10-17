@@ -58,3 +58,7 @@ them from source against the IDE you have.
 
 Both plugins carry this package's version, so the version you install is the
 version of the CLI release it shipped with.
+
+---
+
+**[@variance-authority/editors](https://variance-authority.dev/reference/packages/editors)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/editors) · MIT

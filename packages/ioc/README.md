@@ -220,4 +220,4 @@ MIT © Machine Garden
 
 ---
 
-**[@variance-authority/ioc](https://variance-authority.dev/reference/packages/ioc)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/ioc](https://variance-authority.dev/reference/packages/ioc)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/ioc) · MIT

@@ -20,7 +20,7 @@
  * user can ship a taint as a JSON file next to the repository and never touch
  * the scan ({@link taintFile}). And the same records can be viewed under
  * several taints at once, or none, without a second walk — the join is the
- * only thing that changes ([ADR-0041](../../../../docs/context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)).
+ * only thing that changes ([ADR-0041](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)).
  *
  * ## A plus is an edge, a minus is a node
  *
@@ -41,7 +41,7 @@
  * graph gains a node nobody read. A node with no edges of its own reads as *a
  * file that imports nothing*, and the truth is *nobody looked* — the absence
  * the graph must never spell as an empty set
- * ([ADR-0002](../../../../docs/context/adr/0002-observation-profiles.md)). So
+ * ([ADR-0002](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0002-observation-profiles.md)). So
  * such a file arrives with {@link FileRecord.unknown} set, which is what the
  * scan already does for a file it could not read: the reason is recorded for
  * whoever reports on the scan, the file contributes no edges of its own, and

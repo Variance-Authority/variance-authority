@@ -58,7 +58,7 @@ export const REPORTS: Served<RunReport> = {
   instructions: () =>
     'This connection reads a completed RunReport; it does not run or reconstruct the comparison. ' +
     'Produce one with `variance run` and a configured `report` path. ' +
-    'Guide: https://variance-authority.dev/start-cli',
+    'Guide: https://variance-authority.dev/start/cli',
 };
 
 /** The MCP surface for agents asking which named tests exercise source. */
@@ -113,7 +113,7 @@ export const PRESENTATIONS: Served<readonly PresentationReport[]> = {
   instructions: () =>
     'This connection reads full PresentationReport graphs. Acquire them from the live subject ' +
     'with `@variance-authority/presentation/playwright`; a durable presentation signal inside a ' +
-    'RunReport is a different, smaller reading. Guide: https://variance-authority.dev/presentation',
+    'RunReport is a different, smaller reading. Guide: https://variance-authority.dev/docs/presentation',
 };
 
 /** The MCP surface for retained scenario executions. */

@@ -35,7 +35,7 @@ export interface Approval {
    * machine or in CI and has no identity to offer that would mean anything.
    * A review service that does know one records it, which is where the question
    * "who approved this" becomes answerable at all — and until identity exists at
-   * all ([spec 0014](../../../docs/specs/0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)),
+   * all ([spec 0014](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)),
    * an absent value is the honest one.
    */
   readonly by?: string;

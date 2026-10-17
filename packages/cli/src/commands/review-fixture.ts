@@ -62,6 +62,8 @@ export async function changed(options: {
   readonly indexed?: TotalLines;
   /** The probes the run's record says cut it, the fixture's own unless given. */
   readonly instrumentation?: string;
+  /** Files beside `src/total.ts` that no run recorded, by path: their text at the base, then in the tree. */
+  readonly others?: Readonly<Record<string, readonly [string, string]>>;
 } = {}): Promise<{ root: string; first: string; against: string }> {
   const tree = options.tree ?? AFTER;
   const lines = options.lines ?? AFTER_LINES;
@@ -75,6 +77,7 @@ export async function changed(options: {
   await writeFile(join(root, 'src/total.ts'), BEFORE);
   await writeFile(join(root, 'test/total.test.ts'), TEST);
   await writeFile(join(root, 'config.json'), '{}\n');
+  for (const [file, [base]] of Object.entries(options.others ?? {})) await writeFile(join(root, file), base);
   if (options.suites !== undefined) {
     const suites = Object.fromEntries(options.suites.map((name) => [name, { kind: 'unit' }]));
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites }));
@@ -86,6 +89,7 @@ export async function changed(options: {
   await writeFile(join(root, 'src/total.ts'), tree);
   await writeFile(join(root, 'test/total.test.ts'), `${TEST}it('rounds', () => {});\n`);
   await writeFile(join(root, 'config.json'), '{ "strict": true }\n');
+  for (const [file, [, now]] of Object.entries(options.others ?? {})) await writeFile(join(root, file), now);
   process.chdir(root);
   // A test the run recorded and the tree no longer holds, so the import graph has no node for it.
   const extra = options.gone === true ? ['test/round.test.ts'] : [];

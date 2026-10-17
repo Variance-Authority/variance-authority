@@ -489,4 +489,4 @@ happens.
 
 ---
 
-**[@variance-authority/jsx-source](https://variance-authority.dev/reference/packages/jsx-source)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/jsx-source](https://variance-authority.dev/reference/packages/jsx-source)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/jsx-source) · MIT

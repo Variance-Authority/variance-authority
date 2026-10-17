@@ -441,7 +441,7 @@ snapshots that have none yet, which is an absence and not an approval.
 
 An Rstest test that runs in `node` or `jsdom` and starts no browser is the other
 adoption: it writes a capture with
-[`@variance-authority/unit-test`](../unit-test/README.md) and a later CLI run
+[`@variance-authority/unit-test`](https://variance-authority.dev/reference/packages/unit-test) and a later CLI run
 paints it. Nothing in this package is on that path.
 
 `materialization` selects how pixels are produced; its `kind` field picks the
@@ -500,7 +500,7 @@ during the statement that replaced it.
 `pushState` and hash changes keep the same document and lose nothing. A context
 the spec creates for itself with `browser.newContext()` is not read: open pages
 from the test's own `context`, or hand one to `createVariance`.
-[`cases/playwright-storybook-case`](../../cases/playwright-storybook-case/README.md)
+[`cases/playwright-storybook-case`](https://github.com/Variance-Authority/variance-authority/blob/main/cases/playwright-storybook-case/README.md)
 runs each of these shapes against a built Storybook.
 
 ### Fold what the workers recorded
@@ -587,7 +587,7 @@ shards and each shard would record part of the file. Each file goes to one
 shard, by the time it took on the last recorded run. When the record has no
 times, every file is priced the same, so the shards are balanced by file count.
 Every shard computes the same placement from
-the same record, as [sharding](../../docs/sharding.md) shows for Vitest and Jest,
+the same record, as [sharding](https://variance-authority.dev/docs/sharding) shows for Vitest and Jest,
 and prints one line on stderr before the first test:
 
 ```text
@@ -638,7 +638,7 @@ Playwright 1.62, and Playwright splits its shards test by test.
 A case's crossings name the regions its test reached, not the statement that
 reached each one. Under `withTestSelection` every case also records, for each
 region, the line of the spec whose statement first reached it: the
-[lines Sense records](../sense/README.md#record-which-test-line-reached-a-region)
+[lines Sense records](https://variance-authority.dev/reference/packages/sense#record-which-test-line-reached-a-region)
 under every other runner, read by the same answers.
 
 `withTestSelection` adds a Babel plugin to the `babelPlugins` Playwright
@@ -701,7 +701,7 @@ its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 A snapshot taken with `variance(locator)` names the case it was taken in: the
 spec file, the declaration path and `testInfo.testId`, the case id the record
 keeps. It also carries the preconditions the case had recorded with
-[`variancePrecondition`](../sense#record-the-state-each-test-ran-under) by then,
+[`variancePrecondition`](https://variance-authority.dev/reference/packages/sense#record-the-state-each-test-ran-under) by then,
 each with the `file:line` of the call that recorded it. A call after the
 snapshot is on the case's row and not on the snapshot.
 
@@ -1082,4 +1082,4 @@ followed by a later renderer, use `@variance-authority/unit-test`.
 
 ---
 
-**[@variance-authority/playwright-test](https://variance-authority.dev/reference/packages/playwright-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/playwright-test](https://variance-authority.dev/reference/packages/playwright-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/playwright-test) · MIT

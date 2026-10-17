@@ -264,6 +264,8 @@ export interface TapOptions {
  * requests have all settled and whose components are still rendering is still
  * read at whichever commit the raster reaches. The evidence exists in the test
  * chronology; making it a capture refusal remains collector policy.
+ *
+ * @see https://variance-authority.dev/docs/framework-reference#tapcommits-and-awaitquiet
  */
 export function tapCommits(options: TapOptions = {}): CommitTap {
   const scope = options.scope ?? (globalThis as unknown as Record<string, unknown>);

@@ -55,3 +55,7 @@ code --install-extension variance-authority.vsix
 
 `variance.command` names a different CLI when the workspace's own
 `node_modules/.bin/variance` is not the one to ask.
+
+---
+
+**[Variance Authority for VS Code](https://variance-authority.dev/reference/packages/editors)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/editors/vscode) · MIT

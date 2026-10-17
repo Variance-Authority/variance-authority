@@ -23,7 +23,7 @@ use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_members::{member_declarations, members_on, ContainerMember, MemberSite};
+use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_passed_on, PassedOnDeclaration};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
@@ -113,10 +113,11 @@ pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Op
 }
 
 /// Every declaration of a member named `name` the chain at `index` records,
-/// ordered by file in code units, then by line; `None` when there is no index.
+/// ordered by file in code units, then by line, beside the extensions of the
+/// files the chain holds; `None` when there is no index.
 #[napi]
-pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<MemberSite>>> {
-    opened_chain(&index, |layers| member_declarations(&root, layers, &name))
+pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<MemberDeclarations>> {
+    opened_chain(&index, |layers| MemberDeclarations { sites: member_declarations(&root, layers, &name), extensions: indexed_extensions(layers) })
 }
 
 /// Every member the interface, type alias or class named `on` declares in
