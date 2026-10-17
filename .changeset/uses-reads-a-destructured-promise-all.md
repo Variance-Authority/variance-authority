@@ -28,12 +28,15 @@ An assignment destructures an `import()` as a declaration does:
 `b`.
 
 A name read off the module's `default`, as in
-`const { a } = (await import('./x')).default`, is listed as a use of `a`
-"through `default`", one level deep, beside the use of `default` itself: under
-CommonJS interop `default` is the module, and the reader cannot tell which one
-it is. `default` read off it again is the same level. The `default` moving on,
-as in `const { default: Page } = await import('./page')`, is a use of `default`
-and no more.
+`const { a } = (await import('./x')).default`, is listed as a site of `a`
+"through `default`: may read it", one level deep, beside the use of `default`
+itself: `default` holds `a` only when the module is CommonJS, and the reader
+cannot tell which one it is. It is counted apart from the imports, in an
+entry's new `throughDefault` of the Help value, as the package graph, the roles
+check and the dependency orientation skip it. `default` read off it again is
+the same level. The `default` moving on, as in
+`const { default: Page } = await import('./page')`, is a use of `default` and
+no more.
 
 A module held whole that leaves the reader's sight — passed to a call,
 returned, assigned to a property, stored in an array, read by a key the reader
@@ -43,9 +46,15 @@ reuses its name is another value; assigning the holder, reading its type with
 `typeof`, and `.catch` or `.finally` on the `import()` are not the module going
 on. `variance ask uses` lists such a line as a site that may read the name,
 marked "passed on whole: may read it", and counts it apart from the imports:
-it is not in `usedBy`, `uses` or `sites` of the Help value but in an entry's
-new `escapes`, and the package graph, the roles check and the dependency
-orientation each read it as every name of the module.
+it is not in `usedBy`, `uses` or `sites` of the Help value but in the new
+`whole` of the subpath that opens the module, and the package graph, the roles
+check and the dependency orientation each read it as every name of the module.
+
+A published name no other package imports by name, and one of these may read,
+is no longer listed as unused: `docs_symbol`, the catalogue page and `llms.txt`
+say it is not imported by name and where it may be read, so whether it is used
+is unknown.
 
 The source index format moves to version 32, so the first `variance index`
-after upgrading reads every file again.
+after upgrading reads every file again, and the workspace snapshot to version
+8, so a snapshot written before it is read again rather than opened.

@@ -5,14 +5,17 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Help } from '@variance-authority/package/help';
 import { readWorkspace } from './read.js';
+import { symbol } from './tools/symbol.js';
 import { uses } from './tools/uses.js';
 
 /**
  * A module held whole that leaves the file's sight — passed to a call — is a
  * read the source index cannot follow, and a name read off its `default` is a
  * read through `default`. Neither stays silent: the answer names the site and
- * says what the reading could not see. A module passed on whole is no use of a
- * name, and no count holds it; it is listed as a site that may read one.
+ * says what the reading could not see. Neither is a use of a name, and no count
+ * holds it: `default` holds the name only when the module is CommonJS, and a
+ * module passed on whole may read any name of it. Each is listed as a site that
+ * may read the name, and a name with nothing else is unknown, not unused.
  */
 
 const FILES: Readonly<Record<string, string>> = {
@@ -69,18 +72,31 @@ afterAll(async () => {
 });
 
 describe('a module held whole that the reading cannot follow', () => {
-  it('names a name read off its default as a read through `default`', () => {
-    expect(uses.run(help, { name: 'narrow' })).toContain('packages/beta/src/index.ts:2 — beta (import() on line 2, through `default`)');
+  it('names a name read off its default as a read through `default` that may read it', () => {
+    expect(uses.run(help, { name: 'narrow' })).toContain('packages/beta/src/index.ts:2 — beta (import() on line 2, through `default`: may read it)');
   });
 
-  it('keeps a module passed on whole out of every count, as an uncertain fact of its own', () => {
+  it('keeps a module passed on whole out of every count, once for its module', () => {
+    const [opening] = help.packages.find((published) => published.name === 'alpha')?.openings ?? [];
+    expect(opening?.whole.map((use) => `${use.at}:${use.line}`)).toEqual(['packages/gamma/src/index.ts:3']);
+    const widen = opening?.entries.find((entry) => entry.name === 'widen');
+    expect(widen).toMatchObject({ usedBy: [], uses: 0, sites: [], throughDefault: [] });
+  });
+
+  it('keeps a read through `default` out of every count, as an uncertain fact of the name', () => {
     const entries = help.packages.find((published) => published.name === 'alpha')?.openings.flatMap((opening) => opening.entries) ?? [];
-    const widen = entries.find((entry) => entry.name === 'widen');
-    expect(widen).toMatchObject({ usedBy: [], uses: 0, sites: [] });
-    expect(widen?.escapes.map((use) => `${use.at}:${use.line}`)).toEqual(['packages/gamma/src/index.ts:3']);
     const narrow = entries.find((entry) => entry.name === 'narrow');
-    expect(narrow).toMatchObject({ usedBy: ['beta'], uses: 1 });
-    expect(narrow?.sites.map((use) => `${use.at}:${use.line}`)).toEqual(['packages/beta/src/index.ts:2']);
+    expect(narrow).toMatchObject({ usedBy: [], uses: 0, sites: [] });
+    expect(narrow?.throughDefault.map((use) => `${use.at}:${use.line}`)).toEqual(['packages/beta/src/index.ts:2']);
+  });
+
+  it('says the catalogue entry of a name it may read is unknown, not unused', () => {
+    expect(symbol.run(help, { name: 'widen' })).toContain(
+      'not imported by name outside its own package; it may be read in 1 place: 1 passing the module on whole, so whether it is used is unknown',
+    );
+    expect(symbol.run(help, { name: 'narrow' })).toContain(
+      "not imported by name outside its own package; it may be read in 2 places: 1 off the module's `default`, 1 passing the module on whole, so whether it is used is unknown",
+    );
   });
 
   it('lists a module passed on whole as a site that may read the name', () => {
@@ -89,7 +105,7 @@ describe('a module held whole that the reading cannot follow', () => {
     expect(widen).toContain('packages/gamma/src/index.ts:3 — gamma (import() on line 2, passed on whole: may read it)');
     const narrow = uses.run(help, { name: 'narrow' });
     expect(narrow).toContain(
-      'imported in 1 place, 1 through import(), which loads the module when the call runs. 1 more passes the module on whole, where this reading does not follow it, and may read `narrow`.',
+      "is imported by name nowhere. 1 place reads it off the module's `default`, which holds `narrow` only when the module is CommonJS. 1 more passes the module on whole, where this reading does not follow it, and may read `narrow`.",
     );
     expect(narrow).toContain('packages/gamma/src/index.ts:3 — gamma (import() on line 2, passed on whole: may read it)');
   });

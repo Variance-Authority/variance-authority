@@ -47,6 +47,7 @@ import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   ownership,
+  passedOn,
   reachedFrom,
   readWorkspaceManifests,
   type Help,
@@ -394,6 +395,7 @@ export function joinUsage(documented: Help, offerings: readonly Offering[], usag
     ...published,
     openings: published.openings.map((opening) => ({
       ...opening,
+      whole: passedOn(usage, `${published.name} ${opening.subpath}`),
       entries: opening.entries
         .map((entry) => ({
           ...entry,
