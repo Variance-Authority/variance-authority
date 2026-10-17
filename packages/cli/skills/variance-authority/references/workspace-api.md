@@ -105,15 +105,17 @@ This is a module graph, not a call graph. A site is an import. Never turn it
 into a claim that one function calls another; open the file or ask a language
 server. A member of an interface, a type literal or a class is never imported,
 so `uses` names its declarations, after any imports, the lines that use each
-one through a value whose type they write, and the declaration to ask
-TypeScript about for the rest.
+one through a value whose type they write, and the declaration to ask its
+language's type checker about for the rest.
 
 Use the two tools together. `variance` answers from declarations, imports, the
 module graph and the recording, and runs no type checker. Anything that needs a
-value's type is TypeScript's: which type an inferred value has, a generic, a
-subtype, the props a JSX attribute sets. Take the `file:line` `variance` prints
-for a declaration to your TypeScript language service, and ask it for
-find-references or go-to-definition there.
+value's type is the type checker's of the declaration's language: which type
+an inferred value has, a generic, a subtype, the props a JSX attribute sets.
+Take the `file:line` `variance` prints for a declaration to that language's
+tooling (TypeScript's language service for JavaScript and TypeScript, the
+language's own language server for any other) and ask it for find-references
+or go-to-definition there.
 
 ## The verbs
 
@@ -271,7 +273,11 @@ Ask TypeScript for those: its language service's find-references on the declarat
 
 The two lines close the members of every member answer, whatever they list. With one
 declaration, the second line names it, such as `` `Props.size` at
-src/shapes/props.ts:2 ``. An answer with no member prints neither.
+src/shapes/props.ts:2 ``. The second line names TypeScript's language
+service for a declaration in JavaScript or TypeScript, the declaration's own
+language server for one in another language, and each declaration's own type
+checker when they are written in more than one. An answer with no member
+prints neither.
 
 A use is a line that reads the member (`props.size`, `props['size']`,
 `props?.size`), writes it (`props.size = 1`, `+=`, `++`, a key of an object

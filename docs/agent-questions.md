@@ -45,12 +45,13 @@ each declaration the lines that read, write or destructure it through a value
 whose type the line writes, such as `props: Props` or `value as Props`. A line
 whose value's type a checker would infer, `const p = getProps(); p.size`, or
 a JSX attribute such as `<Box size={2} />`, is not in that list, and the answer
-says so in two lines after the members. Those uses are TypeScript's: the answer names the
-declaration's `file:line`, or with several the one you mean from those it
-lists, and your TypeScript language service's find-references on it lists
-them. Use `variance` for declarations, imports, the
-module graph and the recording, and TypeScript for anything that needs a
-value's type.
+says so in two lines after the members. Those uses are the type checker's of
+the declaration's language: the answer names the declaration's `file:line`, or
+with several the one you mean from those it lists, and find-references on it
+in that language's tooling lists them, TypeScript's language service for
+JavaScript and TypeScript. Use `variance` for declarations, imports, the module
+graph and the recording, and the language's type checker for anything that
+needs a value's type.
 
 `variance ask` with no question lists every report, watcher and source question
 and its arguments. The source questions read the checkout under the working

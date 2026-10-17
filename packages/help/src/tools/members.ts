@@ -16,16 +16,17 @@
  *
  * A value whose type the line does not write — inferred from a call, a
  * generic, a subtype, a JSX attribute, a utility type — has the type a type
- * checker gives it, and none runs here. Type resolution is TypeScript's, so the
+ * checker gives it, and none runs here. Type resolution is the checker's of the
+ * declaration's language, TypeScript's for JavaScript and TypeScript, so the
  * answer says where its own reading stops and names the declaration to ask
- * TypeScript's find-references about, rather than copying a type rule or
+ * that checker's find-references about, rather than copying a type rule or
  * passing a text search off as the uses.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import type { Use } from '@variance-authority/package/help';
-import { memberDeclarationsOf } from '@variance-authority/sense';
+import { languageOf, memberDeclarationsOf } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
 
 /** The declarations of a member by one name. */
@@ -73,10 +74,13 @@ export const TYPED =
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
 
 /**
- * Where the uses no line types are found: TypeScript's find-references on the
- * one declaration of member `name`, or, when several declare it, on the one
- * the reader means among those the answer lists, which `package` narrows to
- * when the list is cut.
+ * Where the uses no line types are found: find-references on the one
+ * declaration of member `name`, or, when several declare it, on the one the
+ * reader means among those the answer lists, which `package` narrows to when
+ * the list is cut. It is asked of the type checker of the language the
+ * declarations are written in: TypeScript's language service for JavaScript
+ * and TypeScript, that language's own language server for any other, and each
+ * declaration's own when they are written in more than one.
  */
 export function routes(name: string, members: Members): readonly string[] {
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
@@ -86,7 +90,14 @@ export function routes(name: string, members: Members): readonly string[] {
     only === undefined
       ? 'the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package)'
       : `\`${named ? `${only.by}.${name}` : name}\` at ${only.at}:${only.line}`;
-  return ['', TYPED, `Ask TypeScript for those: its language service's find-references on ${at}.`];
+  const languages = new Set(members.declared.map((site) => languageOf(site.at)));
+  const ask =
+    languages.size > 1
+      ? "Ask the declaration's own language's type checker for those: its find-references"
+      : languages.has('module')
+        ? "Ask TypeScript for those: its language service's find-references"
+        : "Ask the declaration's own language for those: its language server's find-references";
+  return ['', TYPED, `${ask} on ${at}.`];
 }
 
 /** `N places`, in words a sentence takes. */

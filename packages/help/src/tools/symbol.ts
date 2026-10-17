@@ -212,7 +212,7 @@ function memberBlocks(root: string | undefined, name: string, members: Members):
       [
         name,
         `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
-        "docs_uses names the lines that use it through a value written as its container, and the declaration to ask TypeScript's find-references about for the rest.",
+        "docs_uses names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
       ].join('\n'),
     ),
     ...('refused' in read ? [] : unreadLine(read.unread)),
