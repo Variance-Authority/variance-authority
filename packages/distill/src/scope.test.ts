@@ -247,6 +247,32 @@ describe('where the time of a scope went', () => {
       .toEqual([{ file: A, collect: 8, cases: 2 }]);
   });
 
+  it('names the load-bound files longest loading first, and files that load alike by name', () => {
+    const times = {
+      [A]: { phases: { collect: 8, cases: 2 } },
+      [B]: { phases: { collect: 20, cases: 2 } },
+      [C]: { phases: { collect: 8, cases: 1 } },
+    };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound).toEqual([
+      { file: B, collect: 20, cases: 2 },
+      { file: A, collect: 8, cases: 2 },
+      { file: C, collect: 8, cases: 1 },
+    ]);
+  });
+
+  it('is absent over a record written before phases were recorded', () => {
+    const { record: bytes } = record(MODULES, { times: TIMES });
+    const length = Buffer.from(bytes).readUInt32LE(0);
+    const header = Buffer.from(bytes).toString('utf8', 4, 4 + length);
+    const version = (JSON.parse(header.replace(/\0+$/, '')) as { version: number }).version;
+    // The layout before phases is the one numbered just below; its readers ignore the section.
+    const older = Buffer.from(bytes);
+    older.write(header.replace(`"version":${version}`, `"version":${version - 1}`), 4, 'utf8');
+
+    expect(distillScope({ records: [{ record: older }], relations }).time).toBeUndefined();
+  });
+
   it('leaves out a phase no timed test file reported, as Jest reports no prepare', () => {
     const jest = {
       [A]: { phases: { environment: 3, setup: 1, collect: 60, cases: 4 } },

@@ -163,6 +163,12 @@ describe('a journal as bytes', () => {
     expect(() => decodeJournal(frame.subarray(0, frame.byteLength - 1))).toThrow(/not a/);
   });
 
+  it('refuses a frame that ends inside the moment its test file finished collecting', () => {
+    const frame = encodeJournal('src/a.test.ts', new Map(), new Map(), 1_760_000_000_123);
+    // The moment is the eight bytes before the module count, the frame's last byte.
+    expect(() => decodeJournal(frame.subarray(0, frame.byteLength - 5))).toThrow(/not a/);
+  });
+
   it('refuses a frame with bytes after the end of it', () => {
     const frame = encodeJournal('src/a.test.ts', new Map([['src/cart.ts', counters([1])]]));
 
