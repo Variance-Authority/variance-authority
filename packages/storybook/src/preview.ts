@@ -63,8 +63,7 @@ import { takeStoryTiming } from './story-timing-read.js';
  */
 export { PREVIEW_PATH, previewUrl } from './preview-url.js';
 export { showStory } from './show-story.js';
-export { beginFinishWatch, markFinishAbsent, readFinishRecord, waitFinishRecord } from './story-finished.js';
-export { enterTestEnvironment } from './story-test-environment.js';
+export { beginFinishWatch, markFinishAbsent, readFinishRecord } from './story-finished.js';
 export { applyGlobals } from './preview-globals.js';
 export {
   DEFAULT_PREVIEW_GLOBALS,
@@ -72,15 +71,12 @@ export {
   STORYBOOK_ERROR_OVERLAY,
   STORYBOOK_EVENTS,
   STORY_ROOT_SELECTORS,
-  TEST_ENVIRONMENT,
 } from './preview-protocol.js';
 export type {
   ErrorOverlay,
   FinishRecord,
   FinishRequest,
-  FinishWatch,
   GlobalsRequest,
-  TestEnvironmentRequest,
   PreviewGlobals,
   Readiness,
   ShowEvents,
