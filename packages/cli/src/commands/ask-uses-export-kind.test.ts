@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -34,6 +34,21 @@ describe('variance ask uses names the kind of the declaration an export binds', 
     const orphan = await run(['ask', 'uses', '--name', 'orphan']);
     expect(orphan.code).toBe(EXIT_CLEAN);
     expect(orphan.out).toContain('`orphan` [const] is exported, without being published, at packages/kit/src/orphan.ts:1');
+  });
+
+  it('names each declaration of a name declared twice, each export by its own line', async () => {
+    const root = checkout({ 'packages/kit/src/shade.ts': "export const Shade = 'dark';\nexport type Shade = typeof Shade;\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const first = await run(['ask', 'uses', '--name', 'Shade']);
+    expect(first.out).toContain('`Shade` [const, type] is exported');
+
+    // An edit that keeps the exported set refreshes the value from the index,
+    // the source index's own reader this time, and it answers alike.
+    writeFileSync(join(root, 'packages/kit/src/shade.ts'), "export const Shade = 'light';\nexport type Shade = typeof Shade;\n");
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const refreshed = await run(['ask', 'uses', '--name', 'Shade']);
+    expect(refreshed.code).toBe(EXIT_CLEAN);
+    expect(refreshed.out).toContain('`Shade` [const, type] is exported');
   });
 
   it('names it for a published name', async () => {
