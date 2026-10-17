@@ -1881,17 +1881,21 @@ default, which that flag would otherwise replace.
 an agent, and it says why each test file runs. `ground` names the reading:
 `read` when the record answered, or the reason it could not: `no-journal`,
 `no-coverage`, `no-diff`, `no-install`, or `before` when the diff moved what
-the suite rests on, with the changed files under `rests`. When the record
-narrowed, `selected` lists each test file the change reached with the
-positions of its reasons in `reasons`, which names each reason once however
-many test files it selected. A reason is a changed `region` the test file
-entered, a changed `precondition` it declared, a `reader` of a value the change
-moved, or an `importer` trail from a changed file the record did not measure to
-the file whose tests answered for it. A journey file names the tests it reached
+the suite rests on, with the changed files under `rests`. `widened` is present
+whenever every test file runs, under `read` too when the record holds no whole
+observation. When the record narrowed, `selected` lists each test file the
+change reached with the positions of its reasons in `reasons`, which names each
+reason once however many test files it selected. A reason is a changed
+`region` the test file entered, a changed `precondition` it declared, a
+`reader` of a value the change moved, or an `importer` trail from a changed
+file the record did not measure to the file whose tests answered for it. A
+region of a file under `install.files` is one a bump or a moved manifest made
+the reading treat as changed whole, which the diff never touched; `through` is
+the chain from the bumped package. A journey file names the tests it reached
 and not why, so a reading of one carries neither list. `incomplete`, when the
 record keeps one, lists the recorded test files whose observation was not
 whole, which run whatever changed. With `selected` present, a test file in no
-list is one the record never saw, and runs too:
+list is one the record never saw, and runs too. An excerpt:
 
 ```json
 {
