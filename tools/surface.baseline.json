@@ -3218,6 +3218,7 @@
         "textAtRecording": "function",
         "textsAt": "function",
         "textsOf": "function",
+        "timeBeforeCases": "function",
         "unmeasuredOf": "function",
         "valued": "function",
         "wholeEntry": "const",

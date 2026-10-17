@@ -329,26 +329,27 @@ Where the time went, as the runner timed 6 of the 6 test file(s): 3964 ms.
   setup files: 119 ms, 3%
   collect, importing the test file and everything it loads: 3447 ms, 87%
   cases: 156 ms, 4%
-Loading took longer than the cases in 6 test file(s): 3447 ms against 156 ms.
-  packages/distill/src/charge.test.ts: 575 ms loading, 34 ms in its cases
-  packages/distill/src/file.test.ts: 575 ms loading, 24 ms in its cases
-  packages/distill/src/mocks.test.ts: 575 ms loading, 14 ms in its cases
-  packages/distill/src/own.test.ts: 575 ms loading, 33 ms in its cases
-  packages/distill/src/scope.test.ts: 575 ms loading, 35 ms in its cases
+Loading took longer than the cases in 6 test file(s): 3808 ms against 156 ms.
+  packages/distill/src/charge.test.ts: 635 ms loading, 34 ms in its cases
+  packages/distill/src/file.test.ts: 635 ms loading, 24 ms in its cases
+  packages/distill/src/mocks.test.ts: 635 ms loading, 14 ms in its cases
+  packages/distill/src/own.test.ts: 635 ms loading, 33 ms in its cases
+  packages/distill/src/scope.test.ts: 635 ms loading, 35 ms in its cases
   and 1 more
 ```
 
 Only `cases` is your tests: the cases and their hooks. `collect` is importing
-the test file and running its top level, which is where its modules load, and
-"loading" in the last lines means `collect` alone. Vitest reports all five
+the test file and running its top level, which is where its modules load.
+"Loading" in the last lines is everything before the first case: `prepare`,
+`environment`, `setup` and `collect` summed. Vitest reports all five
 phases. Jest reports the environment and the setup files, and the recording
 marks the moment jest-circus starts each file's run, so a Jest file has every phase
 but `prepare`. A phase no file reported is left out rather than shown as zero,
 and a file without both a `collect` and a `cases` time is left out of every
 sum, which is why the head says how many of the files were timed.
 
-A test file whose `collect` took longer than its cases spends most of its time
-in what it imports. Each one is named, the longest loading first, the line
+A test file whose loading took longer than its cases spends most of its time
+before it tests anything, and usually in what it imports. Each one is named, the longest loading first, the line
 before the names sums them, and the next reading says which imports those are.
 Files that load side by side wait on one another's imports, so in a parallel
 run their `collect` times come out close together, as they do above.
