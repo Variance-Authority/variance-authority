@@ -62,6 +62,23 @@ describe('variance ask uses over what a name names', () => {
     expect(out.indexOf('packages/tool/src/read.ts:1')).toBeLessThan(out.indexOf('is a member too'));
   }, 120_000);
 
+  it('names a declaration the file keeps unexported among the ones it answers', async () => {
+    checkout({
+      ...TOOL,
+      'packages/tool/src/local.ts': 'function reachedFrom(): string[] {\n  return [];\n}\nexport const local = reachedFrom();\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'reachedFrom']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n').slice(0, 4)).toEqual([
+      '`reachedFrom` names 3 declarations, each answered below:',
+      '  function, published, at packages/pkg/src/help.ts:1',
+      '  function, declared, not exported, at packages/tool/src/local.ts:1',
+      '  member of `Tree` at packages/tool/src/tree.ts:2',
+    ]);
+  }, 120_000);
+
   it('answers a name an installed package declares with the imports of it', async () => {
     checkout(TOOL);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
