@@ -126,7 +126,7 @@ export interface BrowserHarness {
  * Drive the page a harness already owns.
  *
  * The harness holds the browser, the viewport, the injected collector, and the
- * one navigation this adapter is allowed. Wrapping rather than passing the page
+ * navigation that opened the preview. Wrapping rather than passing the page
  * straight through keeps the interface above small enough to fake, and pins
  * `waitUntil` at the same `load` the harness itself uses.
  */
@@ -410,9 +410,19 @@ export async function collectStories(
  * story module, and after that the answer does not change until the build does.
  * A preview that cannot answer returns why, and the caller decides what a run
  * without parameters means.
+ *
+ * The page is loaded again at its own address before this returns, so the
+ * stories shown after it meet a document that has imported none of their
+ * files. Left on the document `extract()` used, every file's first story would
+ * find its import already done and read a `collect` near 0 on this page and its
+ * full import on any other, and the reading itself belongs to no story. One
+ * load per session is what that costs, against a story file evaluated twice on
+ * this page: once to be read and once by its story.
  */
 export async function readParameters(page: StoryPage): Promise<ParametersRead> {
-  return page.evaluate(readStoryParameters, PARAMETERS_KEY);
+  const read = await page.evaluate(readStoryParameters, PARAMETERS_KEY);
+  await page.goto(page.url());
+  return read;
 }
 
 /**

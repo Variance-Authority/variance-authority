@@ -514,7 +514,10 @@ start until the preview is ready, navigation included, which only the first
 story read on the document pays, so every later one reads 0; `collect` is
 importing the story's file and unmounting the story shown before it; and `cases`
 is the render through `afterEach`, or to the phase it ended on when it errored,
-was aborted or was read before `afterEach` finished. Phases are summed across
+was aborted or was read before `afterEach` finished. Reading every story's
+parameters imports every story file, so the run does it on a document it then
+loads again, and a file's first story holds that file's import on every page,
+whichever page shows it. Phases are summed across
 projects and readings as durations are. A record written before phases were kept
 opens with every file unphased.
 
