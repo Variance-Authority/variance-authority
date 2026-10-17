@@ -97,7 +97,8 @@ function blank(byte: number): boolean {
  * element at a time, so the object may weigh more than V8 holds in one string
  * as long as no one element does. The reverse of {@link jsonPieces}. A list is
  * split in the object's own members only; an element past the limit throws
- * `ERR_STRING_TOO_LONG`, as `JSON.parse` of the whole would.
+ * `ERR_STRING_TOO_LONG`. It reads what `jsonPieces` writes; it is not a
+ * validator, and a malformed separator between members may pass unremarked.
  */
 export function jsonOfBytes(bytes: Buffer): Record<string, unknown> {
   const text = (from: number, to: number): string => bytes.toString('utf8', from, to);
@@ -114,7 +115,7 @@ export function jsonOfBytes(bytes: Buffer): Record<string, unknown> {
   const finish = (at: number): void => {
     if (colon < 0) return;
     const key = JSON.parse(text(member, colon)) as string;
-    value[key] = list ?? JSON.parse(text(colon + 1, at));
+    Object.defineProperty(value, key, { value: list ?? JSON.parse(text(colon + 1, at)), enumerable: true, writable: true, configurable: true });
     colon = -1;
     valueSeen = false;
     list = undefined;
@@ -134,6 +135,7 @@ export function jsonOfBytes(bytes: Buffer): Record<string, unknown> {
     }
     if (blank(byte)) continue;
     if (finished) throw new SyntaxError(`Unexpected text after the JSON object at byte ${at}`);
+    if (depth === 0 && byte !== OPEN_OBJECT) throw new SyntaxError(`Expected a JSON object at byte ${at}`);
     if (depth === 1 && colon >= 0 && !valueSeen) {
       valueSeen = true;
       if (byte === OPEN_LIST) {
@@ -145,7 +147,6 @@ export function jsonOfBytes(bytes: Buffer): Record<string, unknown> {
     }
     if (byte === QUOTE) quoted = true;
     else if (byte === OPEN_LIST || byte === OPEN_OBJECT) {
-      if (depth === 0 && byte !== OPEN_OBJECT) throw new SyntaxError('A review.json holds a JSON object');
       depth += 1;
       if (depth === 1) member = at + 1;
     } else if (byte === CLOSE_LIST || byte === CLOSE_OBJECT) {

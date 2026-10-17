@@ -93,6 +93,11 @@ describe('a review.json read back', () => {
     expect(reviewOfJson(JSON.parse(JSON.stringify(before)))).toEqual(before);
   });
 
+  it('names the version it cannot read rather than misread a newer one', () => {
+    const newer = { ...reviewJson(hub(1, 1, 1)), version: 3 };
+    expect(() => reviewOfJson(newer as never)).toThrow(/version 3, written by a newer variance/);
+  });
+
   it('places the cases by file, title and id, so the same cases take the same places in every review', () => {
     const twin = (id: string): ReviewCase => ({ id, file: 'test/a.test.ts', name: 'twice' });
     const region = { kind: 'function', startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 0, tests: ['test/a.test.ts'] } as const;

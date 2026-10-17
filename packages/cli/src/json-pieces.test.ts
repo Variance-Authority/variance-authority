@@ -67,4 +67,16 @@ describe('jsonOfBytes', () => {
     expect(jsonOfBytes(Buffer.from('{}'))).toEqual({});
     expect(jsonOfBytes(Buffer.from('{"a":[1,[2]],"b":{"c":[]}}\n'))).toEqual({ a: [1, [2]], b: { c: [] } });
   });
+
+  it('keeps a member named `__proto__` as a member, as `JSON.parse` does', () => {
+    const read = jsonOfBytes(Buffer.from('{"__proto__":{"polluted":true}}'));
+    expect(Object.getPrototypeOf(read)).toBe(Object.prototype);
+    expect(read).toEqual(JSON.parse('{"__proto__":{"polluted":true}}'));
+  });
+
+  it('refuses text that is not one JSON object', () => {
+    expect(() => jsonOfBytes(Buffer.from('junk{"a":1}'))).toThrow(SyntaxError);
+    expect(() => jsonOfBytes(Buffer.from('[1]'))).toThrow(SyntaxError);
+    expect(() => jsonOfBytes(Buffer.from('{"a":1'))).toThrow(SyntaxError);
+  });
 });

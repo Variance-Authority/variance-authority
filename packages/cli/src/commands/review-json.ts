@@ -18,6 +18,7 @@
  */
 
 import { codeUnitOrder as order } from '@variance-authority/core/segment';
+import { OperatorError } from '../exit.js';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** The shape `review.json` is written in. A file without the field is the shape before it: version 1. */
@@ -72,7 +73,8 @@ export function reviewJson(review: Review): ReviewJson {
  */
 export function reviewOfJson(kept: Review | ReviewJson): Review {
   if (!('version' in kept)) return kept;
-  const { version: _version, cases, files, ...rest } = kept;
+  const { version, cases, files, ...rest } = kept;
+  if (version !== REVIEW_JSON_VERSION) throw new OperatorError(`This review.json is version ${String(version)}, written by a newer variance than this one, which reads up to version ${REVIEW_JSON_VERSION}: upgrade @variance-authority/cli, or read the review.md beside it.`);
   return {
     ...rest,
     files: files.map(({ regions, ...file }) => regions === undefined ? file : {
