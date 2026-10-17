@@ -58,7 +58,8 @@ pub struct Member {
 /// `requests` are the ones the module record states; a member read through an
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
 /// read through an `import m = require()` as if `loads.required` followed those.
-pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
+/// `dynamic` is whether the module record lists any `import()`.
+pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &[Request], dynamic: bool) -> (Vec<Member>, Loads<'l>) {
     let namespaces: Vec<(&str, u32)> = requests
         .iter()
         .enumerate()
@@ -67,7 +68,7 @@ pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &
         .map(|(index, binding)| (binding.local.as_str(), index as u32))
         .collect();
     // Scopes are resolved only for a file that holds a module whole.
-    let built = (!namespaces.is_empty() || loads_any(program)).then(|| SemanticBuilder::new().build(program));
+    let built = (!namespaces.is_empty() || dynamic || requires_any(program)).then(|| SemanticBuilder::new().build(program));
     let scoping = built.as_ref().map(|built| built.semantic.scoping());
     let mut holders = HashMap::new();
     if let Some(scoping) = scoping {
@@ -130,8 +131,8 @@ impl Held {
 
     /// The module's `default`. Interop nests one level, so the `default` of
     /// a `default` is the same level: `ns.default.default.x` reads `x` through it.
-    fn default(self) -> Option<Self> {
-        Some(Held { via: self.via, off: true })
+    fn default(self) -> Self {
+        Held { via: self.via, off: true }
     }
 }
 
@@ -167,7 +168,7 @@ impl Walker<'_, '_> {
                 self.followed.insert(it.span.start);
                 Some(held)
             }
-            Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object)?.default(),
+            Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).map(Held::default),
             _ => None,
         }
     }
@@ -272,20 +273,21 @@ fn handed_on<'e, 'a>(expression: &'e Expression<'a>) -> &'e Expression<'a> {
     expression
 }
 
-/// Whether a file calls `import()` or writes `import m = require()` anywhere.
-fn loads_any(program: &Program) -> bool {
-    struct Finds(bool);
-    impl<'a> Visit<'a> for Finds {
-        fn visit_import_expression(&mut self, _: &ImportExpression<'a>) {
-            self.0 = true;
-        }
-        fn visit_ts_import_equals_declaration(&mut self, _: &TSImportEqualsDeclaration<'a>) {
-            self.0 = true;
-        }
-    }
-    let mut finds = Finds(false);
-    finds.visit_program(program);
-    finds.0
+/// Whether a file writes `import m = require()`, which the module record does
+/// not list. TypeScript allows one only at a module's top level, bare or
+/// exported, and an ambient module's body never runs.
+fn requires_any(program: &Program) -> bool {
+    program.body.iter().any(|statement| {
+        let declaration = match statement {
+            Statement::TSImportEqualsDeclaration(it) => it,
+            Statement::ExportDeclaration(it) => match &it.declaration {
+                Declaration::TSImportEqualsDeclaration(it) => it,
+                _ => return false,
+            },
+            _ => return false,
+        };
+        declaration.module_reference.is_external()
+    })
 }
 
 /// The array of `Promise.all([...])`.
@@ -324,6 +326,22 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
             }
         }
         walk::walk_assignment_expression(self, it);
+    }
+
+    // An exported holder is the module handed to every importer of this file,
+    // where the walk does not follow it: it goes on whole at its binding.
+    fn visit_export_declaration(&mut self, it: &ExportDeclaration<'a>) {
+        walk::walk_export_declaration(self, it);
+        let bindings = match &it.declaration {
+            Declaration::VariableDeclaration(declaration) => declaration.declarations.iter().flat_map(|it| it.id.get_binding_identifiers()).collect(),
+            Declaration::TSImportEqualsDeclaration(declaration) => vec![&declaration.id],
+            _ => Vec::new(),
+        };
+        for binding in bindings {
+            if let Some(held) = binding.symbol_id.get().and_then(|symbol| self.holders.get(&symbol).copied()) {
+                self.add(held, WHOLE, binding.span.start);
+            }
+        }
     }
 
     fn visit_expression_statement(&mut self, it: &ExpressionStatement<'a>) {

@@ -30,7 +30,7 @@ fn findings(members: &str) -> Vec<(String, String, u32)> {
 #[test]
 fn a_name_read_off_the_default_of_a_held_module_is_not_a_name_of_the_module() {
     // `ns.make; ns.default.helper`: the default's `helper` is not the module's.
-    let members = r#"[{"request": 0, "name": "make", "line": 2}, {"request": 0, "name": "helper", "line": 3, "throughDefault": true}]"#;
+    let members = r#"[{"request": 0, "name": "make", "line": 2}, {"request": 0, "name": "default", "line": 3}, {"request": 0, "name": "helper", "line": 3, "throughDefault": true}]"#;
     assert_eq!(findings(members), []);
 }
 

@@ -20,8 +20,8 @@ impl Walker<'_, '_> {
                         continue;
                     };
                     self.add(held, &name, property.span.start);
-                    if let Some(default) = held.default().filter(|_| name == "default") {
-                        self.bind(&property.value, default);
+                    if name == "default" {
+                        self.bind(&property.value, held.default());
                     }
                 }
                 if let Some(rest) = &it.rest {
@@ -58,7 +58,8 @@ impl Walker<'_, '_> {
         }
     }
 
-    /// `bind` for an assignment, whose target is a reference rather than a declaration.
+    /// `bind` for an assignment, whose target is a reference rather than a
+    /// declaration, or a property, where the module goes on whole.
     pub(super) fn assign(&mut self, target: &AssignmentTarget, held: Held) {
         match target {
             AssignmentTarget::AssignmentTargetIdentifier(it) => {
@@ -76,8 +77,8 @@ impl Walker<'_, '_> {
                                 continue;
                             };
                             self.add(held, &name, it.span.start);
-                            if let (Some(default), Some(target)) = (held.default().filter(|_| name == "default"), target_of(&it.binding)) {
-                                self.assign(target, default);
+                            if let Some(target) = target_of(&it.binding).filter(|_| name == "default") {
+                                self.assign(target, held.default());
                             }
                         }
                     }
@@ -87,7 +88,8 @@ impl Walker<'_, '_> {
                 }
             }
             AssignmentTarget::ArrayAssignmentTarget(it) => self.add(held, WHOLE, it.span.start),
-            _ => {}
+            // A property, `o.rest`, stores the module where the walk does not follow it.
+            other => self.add(held, WHOLE, oxc_span::GetSpan::span(other).start),
         }
     }
 

@@ -408,3 +408,37 @@ fn the_default_of_a_module_moving_is_a_use_of_default_not_the_module_passed_on()
             .map(|(value, name, off)| (value.to_owned(), name.to_owned(), off))
     );
 }
+
+#[test]
+fn a_module_goes_on_whole_where_the_walk_does_not_follow_it() {
+    // A promise held in a name is not the module, so awaiting it later is not
+    // followed and the `import()` is the module going on whole; so is an
+    // awaited `import()` handed to a call, an exported holder, and a rest
+    // written to a property. A parameter that reuses a holder's name is
+    // another value, so its read is no read of the module.
+    let source = concat!(
+        "const p = import('./promised');\n",
+        "const { a } = await p;\n",
+        "register(await import('./registered'));\n",
+        "const mod = await import('./mod');\n",
+        "xs.map((mod) => mod.z);\n",
+        "export const exported = await import('./exported');\n",
+        "({ b, ...o.rest } = await import('./rest'));\n",
+        "const named = await import('./named');\n",
+        "export { named };\n",
+    );
+    assert_eq!(
+        members(source),
+        [("./promised", "*"), ("./registered", "*"), ("./exported", "*"), ("./rest", "*"), ("./rest", "b"), ("./named", "*")]
+            .map(|(value, name)| (value.to_owned(), name.to_owned()))
+    );
+}
+
+#[test]
+fn a_file_whose_only_holders_are_import_equals_resolves_them() {
+    // The module record lists no `import m = require()`, so a file with no
+    // `import()` and no namespace still resolves the holders it writes, bare
+    // or exported; exported, the module goes on whole to every importer.
+    let source = concat!("import bare = require('./bare');\n", "export import kept = require('./kept');\n", "bare.a;\n", "kept.b;\n");
+    assert_eq!(members(source), [("./bare", "a"), ("./kept", "*"), ("./kept", "b")].map(|(value, name)| (value.to_owned(), name.to_owned())));
+}

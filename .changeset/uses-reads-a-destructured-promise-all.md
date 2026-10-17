@@ -39,8 +39,8 @@ the same level. The `default` moving on, as in
 no more.
 
 A module held whole that leaves the reader's sight — passed to a call,
-returned, assigned to a property, stored in an array, read by a key the reader
-cannot spell, or loaded lazily — is recorded at that line as the module going
+returned, exported, assigned to a property or as a rest target, stored in an
+array, read by a key the reader cannot spell, or loaded lazily — is recorded at that line as the module going
 on whole. A holder is the binding the scope resolves, so a parameter that
 reuses its name is another value; assigning the holder, reading its type with
 `typeof`, and `.catch` or `.finally` on the `import()` are not the module going
@@ -49,6 +49,8 @@ marked "passed on whole: may read it", and counts it apart from the imports:
 it is not in `usedBy`, `uses` or `sites` of the Help value but in the new
 `whole` of the subpath that opens the module, and the package graph, the roles
 check and the dependency orientation each read it as every name of the module.
+A file whose only holders are `import m = require('./x')` now has them
+resolved, where before their reads were not listed.
 
 A published name no other package imports by name, and one of these may read,
 is no longer listed as unused: `docs_symbol`, the catalogue page and `llms.txt`

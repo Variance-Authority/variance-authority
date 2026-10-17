@@ -37,8 +37,8 @@ fn taken(package: &str, names: &[&str]) -> (String, Vec<String>) {
 #[test]
 fn a_name_read_off_the_default_of_a_held_package_is_not_a_name_the_package_is_taken_for() {
     // `_.map; _.default.chunk`: `chunk` is the default's, and `React.useState`.
-    let members = r#"[{"request": 0, "name": "map", "line": 2}, {"request": 0, "name": "chunk", "line": 3, "throughDefault": true}, {"request": 1, "name": "useState", "line": 4}]"#;
-    assert_eq!(names(members), [taken("lodash", &["map"]), taken("react", &["useState"])]);
+    let members = r#"[{"request": 0, "name": "map", "line": 2}, {"request": 0, "name": "default", "line": 3}, {"request": 0, "name": "chunk", "line": 3, "throughDefault": true}, {"request": 1, "name": "useState", "line": 4}]"#;
+    assert_eq!(names(members), [taken("lodash", &["default", "map"]), taken("react", &["useState"])]);
 }
 
 #[test]

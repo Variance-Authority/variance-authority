@@ -312,7 +312,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     }));
 
     let mut reasons = Vec::new();
-    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests);
+    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests, !record.dynamic_imports.is_empty());
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);
