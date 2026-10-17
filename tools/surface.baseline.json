@@ -2691,6 +2691,8 @@
         "OrientPackage": "interface",
         "OrientShare": "interface",
         "Orientation": "interface",
+        "OutsideImports": "interface",
+        "OutsideUse": "interface",
         "PackageLayer": "interface",
         "PackageLayers": "interface",
         "PackagesAround": "interface",

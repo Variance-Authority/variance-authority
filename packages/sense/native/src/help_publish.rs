@@ -25,8 +25,8 @@ use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_passed_on, PassedOnDeclaration};
-use crate::help_third_party::third_party_importers;
-use crate::help_usage::{importers, usage, Importers, IndexedUsage, NameUse, NamedExport};
+use crate::help_third_party::{third_party_importers, OutsideImports};
+use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
 
@@ -107,10 +107,11 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
 
 /// Every import of `name` out of a package no manifest of the workspace
 /// declares, by any file of the chain at `index`, ordered by the importing file
-/// in code units, then by line; `None` when there is no index. A use's `key`
-/// is the specifier as the importing file wrote it.
+/// in code units, then by line, and the files whose imports were not read;
+/// `None` when there is no index. A use's `key` is the specifier as the
+/// importing file wrote it.
 #[napi]
-pub fn third_party_importers_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<NameUse>>> {
+pub fn third_party_importers_of(root: String, index: String, name: String) -> napi::Result<Option<OutsideImports>> {
     opened_chain(&index, |layers| third_party_importers(&root, layers, &name))
 }
 

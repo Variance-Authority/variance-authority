@@ -227,6 +227,8 @@ export {
   type HelpReading,
   type MemberDeclarations,
   type MemberSite,
+  type OutsideImports,
+  type OutsideUse,
   type PassedOnDeclaration,
   type PublishedRows,
   type SearchGeneration,

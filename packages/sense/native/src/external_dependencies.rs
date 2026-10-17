@@ -280,24 +280,12 @@ pub(crate) struct Request {
 /// index holds but could not read, or whose parse is not among `layers`: the caller counts it unread, or reads
 /// more layers. Both the orientation and the lexicon's incremental refresh ask this, so the two never disagree.
 pub(crate) fn requests_of(layers: &[Layer], crossing: &Crossing, internal: &HashSet<&str>) -> Result<Vec<Request>, ()> {
-    let (record_layer, record_row) = crossing.at;
-    let (stored, records) = (&layers[record_layer].stored, &layers[record_layer].records);
-    let indexed = records.indexed(stored, record_row);
-    let packages: HashSet<&str> = indexed.record.packages.as_deref().unwrap_or(&[]).iter().map(|edge| edge.to.as_str()).collect();
-    if indexed.record.unknown.is_some() { return Err(()); }
-    if packages.is_empty() { return Ok(Vec::new()); }
-    if indexed.targets.is_none() { return Err(()); }
-    let Some((parse_layer, parse_row)) = crossing.parse else { return Err(()) };
+    let external = external_requests(layers, crossing, internal)?;
+    let Some((parse_layer, parse_row)) = crossing.parse else { return Ok(Vec::new()) };
     let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
-    let requests = parses.requests.range(parse_row);
-    let targets = records.targets.range(record_row);
-    if requests.len() != targets.len() { return Err(()); }
     let mut found = Vec::new();
-    for (request, target) in requests.zip(targets) {
-        if stored.optional(records.target_path.at(target)).is_some() { continue; }
+    for (request, package) in external {
         let specifier = text.text(parses.request_value.at(request));
-        let Some(package) = request_of(specifier).and_then(|name| package_of(name, &HashSet::new())) else { continue };
-        if !packages.contains(package) || internal.contains(package) { continue; }
         let mut names: HashSet<String> = parses.request_bindings.range(request)
             .map(|binding| text.text(parses.binding_imported.at(binding)).to_owned())
             .collect();
@@ -316,6 +304,40 @@ pub(crate) fn requests_of(layers: &[Layer], crossing: &Crossing, internal: &Hash
             package: package.to_owned(), specifier: specifier.to_owned(),
             kind: text.text(parses.request_kind.at(request)).to_owned(), line: parses.request_line.at(request), names,
         });
+    }
+    Ok(found)
+}
+
+/// Which of one crossing's requests are for a package outside the checkout, each as its index among the parse's
+/// requests and that package, in source order: a request the scan did not resolve to a file, out of a package the
+/// record says the file imports and `internal` does not name. `Err` as [`requests_of`], which reads these.
+pub(crate) fn external_requests<'l>(layers: &'l [Layer], crossing: &Crossing, internal: &HashSet<&str>) -> Result<Vec<(usize, &'l str)>, ()> {
+    Ok(unresolved_requests(layers, crossing)?.into_iter().filter(|(_, package)| !internal.contains(package)).collect())
+}
+
+/// [`external_requests`] before the workspace's own packages are told apart: every request the scan did not resolve
+/// to a file, out of a package the record says the file imports. It reads no manifest, so a caller that asks of few
+/// files reads the manifests only for what this returns.
+pub(crate) fn unresolved_requests<'l>(layers: &'l [Layer], crossing: &Crossing) -> Result<Vec<(usize, &'l str)>, ()> {
+    let (record_layer, record_row) = crossing.at;
+    let (stored, records) = (&layers[record_layer].stored, &layers[record_layer].records);
+    let indexed = records.indexed(stored, record_row);
+    let packages: HashSet<&str> = indexed.record.packages.as_deref().unwrap_or(&[]).iter().map(|edge| edge.to.as_str()).collect();
+    if indexed.record.unknown.is_some() { return Err(()); }
+    if packages.is_empty() { return Ok(Vec::new()); }
+    if indexed.targets.is_none() { return Err(()); }
+    let Some((parse_layer, parse_row)) = crossing.parse else { return Err(()) };
+    let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
+    let requests = parses.requests.range(parse_row);
+    let targets = records.targets.range(record_row);
+    if requests.len() != targets.len() { return Err(()); }
+    let mut found = Vec::new();
+    for (request, target) in requests.zip(targets) {
+        if stored.optional(records.target_path.at(target)).is_some() { continue; }
+        let specifier = text.text(parses.request_value.at(request));
+        let Some(package) = request_of(specifier).and_then(|name| package_of(name, &HashSet::new())) else { continue };
+        if !packages.contains(package) { continue; }
+        found.push((request, package));
     }
     Ok(found)
 }

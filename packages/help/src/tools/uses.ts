@@ -7,7 +7,7 @@ import { FoundNothing, entriesNamed, isPackage, nowhere } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
 import { type Members, membersOf, places, routes } from './members.js';
 import { SHOWN, type Site, kinds, listed, order } from './sites.js';
-import { bindingLines, carriers, outsideLines, outsideOf } from './uses-names.js';
+import { bindingLines, carriers, importsUnread, outsideLines, outsideOf } from './uses-names.js';
 import { originOf, passesOn } from './passed-on.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
@@ -187,11 +187,12 @@ export const uses: Tool<Help> = {
     const limit = limitOf(input, SHOWN);
     const answer = usesOf(help, input, invocation?.root);
     const { name, outside } = answer;
-    const away = 'sites' in outside ? outside.packages : [];
-    const head = carriers({ ...answer, members: answer.members.declared }, away, limit);
+    const head = carriers({ ...answer, members: answer.members.declared }, outside, limit);
     const own = workspaceAnswer(answer, from, limit);
     const where = [...answer.found.map(([, , entry]) => entry.at), ...answer.exported.map((one) => one.at), ...answer.kept.map((one) => one.at), ...answer.members.declared.map((one) => one.at)];
-    return [...head, ...(own === undefined ? [] : [own]), ...outsideLines(name, outside, own === undefined, from, limit), ...bindingLines(where)].join('\n');
+    // Alone, the imports from outside end with what of the workspace was not read, as `nowhere` would have.
+    const unread = { declarations: answer.undeclared, members: answer.members.unread };
+    return [...head, ...(own === undefined ? [] : [own]), ...outsideLines(name, outside, own === undefined, from, limit, unread), ...bindingLines(where)].join('\n');
   },
 
   // Every file importing the name, at each line that does, or every file
@@ -376,7 +377,8 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
       return { name, found, exported, byPath, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], members, kept, keptSites, keptInFile, undeclared, origin: undefined, outside };
     }
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
-    throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined));
+    // A file whose imports were not read may import it out of an installed package.
+    throw new FoundNothing([nowhere(help, name, wanted, root, members, undefined), ...importsUnread(outside)].join(' '));
   }
   // A published name is read from its entry file as well as its declaration:
   // an entry that renames it, `export { greet as salute }`, passes on a name

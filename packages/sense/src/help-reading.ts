@@ -148,7 +148,7 @@ export interface NativeHelp {
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
-  thirdPartyImportersOf?(root: string, index: string, name: string): NativeNameUse[] | null;
+  thirdPartyImportersOf?(root: string, index: string, name: string): OutsideImports | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
   declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
@@ -214,15 +214,33 @@ export function importersOf(
   return entry('importersOf')(root, index, [...files], name) ?? undefined;
 }
 
+/** One import of a name out of an installed package. */
+export interface OutsideUse {
+  /** The package the specifier names. */
+  package: string;
+  /** The request is an `export … from`, which passes the name on. */
+  passesOn: boolean;
+  site: NativeNameUse;
+}
+
+/** Every import of a name out of the packages a workspace installs, and the files whose imports were not read. */
+export interface OutsideImports {
+  uses: OutsideUse[];
+  /** Files the index holds whose imports do not read, in code-unit order; any of them may import the name. */
+  unread: string[];
+}
+
 /**
  * Every import of `name` out of a package no manifest of the workspace
  * declares, by any file the index at `index` holds: a request the scan did not
  * resolve to a file, whose specifier names a package the file's record says it
- * imports. Each use's `key` is the specifier as written. Ordered by the
+ * imports, the rule the external-dependency orientation keeps. An
+ * `export … from` that passes the name on is one; an `export *` names no name
+ * and is none. Each use's `key` is the specifier as written. Ordered by the
  * importing file in code units, then by line; `undefined` when no index was
  * published. Throws when the index does not read.
  */
-export function thirdPartyImportersOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly NativeNameUse[] | undefined {
+export function thirdPartyImportersOf(root: string, name: string, index: string = sourceIndexPath(root)): OutsideImports | undefined {
   return entry('thirdPartyImportersOf')(root, index, name) ?? undefined;
 }
 
