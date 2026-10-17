@@ -42,8 +42,10 @@ the first argument is positional.
   lexicon could not be built says the installed packages were not compared. `--just-answer` uses the
   last generation without inspecting the checkout and refuses when none exists;
   its answers and refusals say the checkout was not compared, and JSON carries
-  `compared: false`. When no changed files are named, `search` always reads
-  that way, with or without the flag, says so too, and never scans.
+  `compared: false`. When no changed files are named, `search` reads a
+  published search that way, with or without the flag, and says so too. When
+  none is published it reads the checkout and publishes one; only
+  `--just-answer` refuses, and the refusal names that flag.
 - **Working directory.** `variance ask` reads the checkout under the working
   directory, so run it from the workspace root; it refuses `--root`.
   `variance-authority-help` takes `--root <dir>`.
@@ -326,8 +328,9 @@ checkout that publishes nothing, that is the final answer. The two sections that
 follow an empty answer — names and files holding at least half of your words
 by stem, in any order, in the name or its doc, whether published, exported,
 declared and not exported, or a file by its name and the doc it opens with, the
-ones holding the most of your words first and then the ones whose doc writes
-your phrase; then names your words reach loosely, exported or not — are
+ones holding the most of your words first, then the ones holding more of them
+in the name, then the ones whose doc writes your phrase; then names your words
+reach loosely, exported or not — are
 suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as

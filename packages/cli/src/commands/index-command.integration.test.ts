@@ -221,7 +221,7 @@ describe('variance index', () => {
     expect(read.stdout).toBe('src/unit.ts\nsrc/widget.ts\n');
   });
 
-  it('leaves a fresh checkout answering `ask search`, which never scans', async () => {
+  it('leaves a fresh checkout answering `ask search` from what `index` published', async () => {
     const root = checkout();
     // A workstation, whatever runs this suite: `CI=false` is the one answer every vendor's variable yields to.
     const env = { ...process.env, CI: 'false' };

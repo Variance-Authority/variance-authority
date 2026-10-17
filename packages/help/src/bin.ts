@@ -148,8 +148,9 @@ if (asking(verb) && verb !== undefined) {
     const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
     const justAnswer = args.includes('--just-answer');
     // `search` opens the file published for it rather than the whole value, at
-    // any age, so it is never compared with the checkout; `discover` reads no
-    // workspace value, only the tree and its names.
+    // any age, so it is compared with the checkout only when nothing was
+    // published and the checkout was read; `discover` reads no workspace
+    // value, only the tree and its names.
     const answering = async (current: boolean): Promise<Answering> => {
       let tree: Tree | undefined;
       const reading: Reading = {
@@ -158,8 +159,8 @@ if (asking(verb) && verb !== undefined) {
         ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
       };
       if (tool === search) {
-        const index = await readSearchForAnswer(root, reading);
-        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, true), at: index.generation?.generatedAt };
+        const { index, compared, unopened } = await readSearchForAnswer(root, reading);
+        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened), at: index.generation?.generatedAt };
       }
       if (tool === discover) {
         const named = await readNamedTree(root, inputFrom(tool, ownArgs));

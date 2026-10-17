@@ -1,3 +1,4 @@
+import { wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 
@@ -124,6 +125,18 @@ export function matchingTerms(index: Dictionary, term: string, edits: number): R
   }
   if (edits > 0) for (const id of withinEdits(index, term, edits)) found.add(id);
   return found;
+}
+
+/**
+ * Per stem, the dictionary terms that reduce to it, by the dependency
+ * lexicon's stemmer: the terms under the stem are read once and kept only
+ * where they reduce to it, so `modul` admits `module` and not `modular`.
+ */
+export function termsOfStems(index: Dictionary, stems: readonly string[]): readonly (readonly number[])[] {
+  const under = stems.map((stem) => [...matchingTerms(index, stem, 0)]);
+  const reduced = wordStemsNative(under.flat().map((term) => index.term(term)));
+  let at = 0;
+  return under.map((terms, position) => terms.filter(() => reduced[at++] === stems[position]));
 }
 
 /**

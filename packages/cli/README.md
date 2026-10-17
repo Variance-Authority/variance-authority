@@ -222,10 +222,11 @@ again, the refusal says it was not compared with the generation, and why; when
 the lexicon cannot be built, it says the installed packages were not compared,
 and why. An injected
 `AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
-named, `search` is the exception: it always reads the published generation,
-whatever its age, never scans, and says so on the same line. It refuses when
-nothing is published. `--changed-file` and `--taint-file` still ask it for a
-new generation by name.
+named, `search` is the exception: it reads the published generation, whatever
+its age, and says so on the same line. When nothing is published it reads the
+checkout and publishes the search, unless you passed `--just-answer`, which
+refuses and names that flag. `--changed-file` and `--taint-file` still ask it
+for a new generation by name.
 
 A library host that injects `AskRequest.source` receives `SourceReadOptions`.
 Its `current` field is true when a question was refused from a generation

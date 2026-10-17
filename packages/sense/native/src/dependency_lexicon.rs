@@ -116,7 +116,9 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
     let base = chain.as_ref().map_or(0, |chain| chain.len().saturating_sub(working));
     let held_catalogue = fs::read(&path).ok();
     let held_sites = fs::read(&sites_path).ok();
-    let catalogue = held_catalogue.as_deref().and_then(|bytes| Catalogue::open(bytes).ok());
+    let catalogue = held_catalogue.as_deref().and_then(|bytes| Catalogue::open(bytes).ok())
+        // An older catalogue answers questions, but nothing in it is reused: its stems were cut another way.
+        .filter(|catalogue| catalogue.older().is_none());
     let state = held_sites.as_deref().and_then(State::read);
     let based = |state: &State| chain.as_ref().is_some_and(|chain| state.base.iter().copied().eq(chain[..base].iter().map(String::as_str)));
     let seen = |state: &State| chain.as_ref().is_some_and(|chain|

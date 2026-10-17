@@ -13,8 +13,12 @@ import { searched, searchedFiles } from './search-answer.js';
  * `docs_search` — the name for a thing somebody can only describe.
  *
  * Substring, case-insensitive, over the name and over what was written about
- * it. A match there is a fact about the text, so it is reported first, whole,
- * and in the order it has always been in.
+ * it; and several words, over the words a name is written in, each word
+ * matching one that starts with it or shares its stem. A match there is a fact
+ * about the text, so it is reported first and whole, ordered first by where it
+ * was found — the name, the doc's opening paragraph, the rest of the doc — and
+ * then by who imports it: a name holding the word is that thing, and a doc
+ * saying it three paragraphs down only mentions it.
  *
  * ## Two halves, because most code is not published
  *
@@ -67,9 +71,10 @@ import { searched, searchedFiles } from './search-answer.js';
  * since what a file is for is said once at its top and by no one declaration
  * in it. Its order is counts, written next to each row as the words it holds:
  * a caller can check `[holds: file, tests]`, and could not check a score.
- * Between two that hold as many, the one whose doc writes more of the
- * question's adjacent word pairs adjacent comes first. It prints first, so a
- * name it holds is not offered again by the loose pass.
+ * Between two that hold as many, the one whose name holds more of them comes
+ * first, then the one whose doc writes more of the question's adjacent word
+ * pairs adjacent. It prints first, so a name it holds is not offered again by
+ * the loose pass.
  *
  * ## Where the substring stops being enough
  *
@@ -168,7 +173,9 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   ];
   const described = third?.described ?? [];
   const describedSection =
-    described.length === 0
+    third?.describedUnread !== undefined
+      ? ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
+      : described.length === 0
       ? []
       : [
           '',
@@ -196,7 +203,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       : [
           '',
           `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} at least half the words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held at all, then the phrase its doc writes, then the words in the name.',
+            'read by stem as the packages are, best first: the words held at all, then the words in the name, then the phrase its doc writes.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
@@ -285,8 +292,10 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find names whose name or documentation contains a string, case-insensitive. Published names ' +
-    'come first, ordered by how many packages import them, each carrying the import specifier it ' +
+    'Find names whose name or documentation contains a string, case-insensitive, or whose words ' +
+    'start with or share the stem of every word you typed. Published names come first, a name holding ' +
+    'your words before a doc opening with them before a doc saying them later, then by how many ' +
+    'packages import them, each carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
     'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
@@ -295,7 +304,7 @@ export const search: Tool<Help> = {
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
     'repository holds the query as written, its own names and files holding at least half of your words, ' +
     'read by stem, come before any installed package, a file by its name and the doc it opens with, best ' +
-    'first by the words held, then by how much of your phrase its doc writes, then by the words in the name, ' +
+    'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
     'each labelled with the words it holds; names that match loosely — your words apart, or within a ' +
     'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +

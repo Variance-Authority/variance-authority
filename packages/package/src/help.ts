@@ -294,7 +294,7 @@ export function undocumented(help: Help): readonly Entry[] {
  * two live one import apart rather than one package apart: rendering needs
  * nothing a reading does not already need.
  */
-export { opening, writeGaps, writeIndex, writeLlms } from './write.js';
+export { opening, PARAGRAPH_BREAK, writeGaps, writeIndex, writeLlms } from './write.js';
 export type { Page } from './write.js';
 export { gatheringUsage, kindOf, usageFrom } from './use.js';
 export { readUsage } from './read-usage.js';

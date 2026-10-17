@@ -85,7 +85,7 @@ describe('a file is described by its name and the doc it opens with', () => {
 });
 
 describe('the words a description is asked by', () => {
-  it('puts a doc that writes the question\'s phrase before a name that holds the same words', async () => {
+  it('puts a name that holds the question\'s words before a doc that writes them as its phrase', async () => {
     const said = await ask(
       {
         'src/symbol.ts': '/** `docs_symbol` — what a name is and where it is declared, in full. */\nexport const symbol = 1;\n',
@@ -98,8 +98,8 @@ describe('the words a description is asked by', () => {
     expect(lines.every((line) => !/\[holds: .*\b(what|where)\b/.test(line))).toBe(true);
     const symbol = lines.findIndex((line) => /^symbol .*\[holds: declared, name\]$/.test(line));
     const declaredName = lines.findIndex((line) => line.startsWith('declaredName'));
-    expect(symbol).toBeGreaterThan(-1);
-    expect(declaredName).toBeGreaterThan(symbol);
+    expect(declaredName).toBeGreaterThan(-1);
+    expect(symbol).toBeGreaterThan(declaredName);
   });
 
   it('puts the doc that writes the phrase first when two docs hold every word', async () => {

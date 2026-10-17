@@ -17,9 +17,9 @@
  * out of a file.
  *
  * Last it publishes the value `variance ask` answers from, the search beside it
- * included. `search` is a lookup that never scans, so without this a fresh
- * checkout — every agent's first session — ran `index`, asked `search`, and was
- * refused until some other question happened to publish one.
+ * included. `search` opens a published search at any age, so without this a
+ * fresh checkout — every agent's first session — would read the whole checkout
+ * again on its first `search`.
  *
  * Only the index is made before the prompt comes back on a workstation: the
  * map, the journeys, the lexicon and the value are handed to a process of their
