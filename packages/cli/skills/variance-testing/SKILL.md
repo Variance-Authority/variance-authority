@@ -143,7 +143,9 @@ variance distill --suite unit --file src/cart.test.ts --test "cart > removes the
 The file reading names the modules the test file loaded that no case, or only
 some cases, entered. For a module no case entered, it names the import that
 brought it in: delete it, mock it with a factory when nothing behind it is
-used, or import past the barrel; never mock the listed path. For one only some cases entered, make it lazy in the code that uses
+used, or import past the barrel; never mock the listed path. A proposed mock
+names the module and the values it exports, not a call: write it the way the
+test file's runner mocks a module. For one only some cases entered, make it lazy in the code that uses
 it, or move those cases to a file of their own. Rerun the file and read it
 again: the module is gone from the list, and every case passes. It is withheld
 when a case stopped; run the file again.
