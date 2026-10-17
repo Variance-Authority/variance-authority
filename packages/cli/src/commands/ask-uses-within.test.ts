@@ -47,7 +47,7 @@ describe('variance ask over the imports of a name within its own package', () =>
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`greet` is imported in 5 places.');
+    expect(out).toContain('`greet` [function] is imported in 5 places.');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
     expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib$/m);
     expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2 — @acme\/lib$/m);
@@ -134,7 +134,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(out.split('\n')).toContain(
-      '`greet` is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
+      '`greet` [function] is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
     );
   });
 

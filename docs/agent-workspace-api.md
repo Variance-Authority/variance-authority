@@ -382,7 +382,8 @@ says it is not exported, when the name or its documentation holds the query, and
 only when its file is in the area `from` or `to` names.
 
 The file that declares a name uses it without importing it, so `docs_uses` lists
-those lines too, after the imports, under `Used in the file that declares it`:
+those lines too, after the imports, under `Used in <file>, which declares it`,
+one heading for each file that declares it:
 a call, a read, a type, a Rust `self::name` path or a test module's
 `use super::*`, in a TypeScript, JavaScript or Rust file, for a name it exports
 and for one it keeps. The lines follow the language's scope, so a parameter, a

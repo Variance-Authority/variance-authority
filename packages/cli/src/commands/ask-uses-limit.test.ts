@@ -42,7 +42,7 @@ describe('variance ask uses --limit', () => {
     const { code, out, err } = await run(['ask', 'uses', '--name', 'greet', '--limit', '2']);
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`greet` is imported in 5 places');
+    expect(out).toContain('`greet` [function] is imported in 5 places');
     expect(sites(out)).toEqual(sites(all.out).slice(0, 2));
     expect(out).toContain('… 3 more not shown; a higher `limit` shows them.');
   });
@@ -88,7 +88,7 @@ describe('variance ask uses --limit', () => {
 
     const own = (out: string): readonly string[] => {
       const lines = out.split('\n');
-      const at = lines.indexOf('Used in the file that declares it:');
+      const at = lines.indexOf('Used in packages/lib/src/greet.ts, which declares it:');
       if (at === -1) return [];
       const after = lines.slice(at + 2);
       const end = after.findIndex((line) => !/^\S+:\d+ — /.test(line));

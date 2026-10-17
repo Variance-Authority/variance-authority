@@ -53,9 +53,13 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
         if (published.exported !== undefined) {
           // The TypeScript reader spans an export's doc on the export; the
           // others span it on the declaration the export binds, by its name.
-          const span = published.doc ?? (published.from === undefined
-            ? parsed.symbols?.find((symbol) => symbol.name === published.local)?.doc
-            : undefined);
+          // One name may be declared twice, `const Kind` and `type Kind`: an
+          // export takes the declaration on its own line, else the first.
+          const named = published.from === undefined
+            ? (parsed.symbols ?? []).filter((symbol) => symbol.name === published.local)
+            : [];
+          const bound = named.find((symbol) => symbol.line === published.line) ?? named[0];
+          const span = published.doc ?? bound?.doc;
           if (span !== undefined) text ??= readFileSync(join(root, at), 'utf8');
           const doc = text === undefined ? undefined : docOf(text, span);
           usage.exported.push({
@@ -65,6 +69,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
             line: published.line,
             type: published.type,
             kind,
+            ...(bound === undefined ? {} : { declaration: bound.kind }),
             ...(doc === undefined ? {} : { doc }),
           });
         }

@@ -147,6 +147,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
       model: journals.encodeJournal(FILE, counters(model.current), counters(sealedModel)),
       frames: [undefined, undefined],
       stories: undefined,
+      registered: [collector.registered(), loaded.map((module) => module.id)] as const,
     };
   }
 
@@ -200,6 +201,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model: journals.encodeJournal(FILE, counters(union), counters(sealedModel)),
     frames: [journals.packFrames(done.frames ?? []), journals.packFrames(frames)],
     stories: [new Map([...written].map(([key, bytes]) => [key, spoken(bytes)])), told] as const,
+    registered: [collector.registered(), loaded.map((module) => module.id)] as const,
   };
 }
 
@@ -241,6 +243,17 @@ describe('the recording a file writes', () => {
       // A case entered some module both while one evaluated and after, so the
       // frames carry the second row that says so.
       if (mode !== 'flat') expect(twice).toBeGreaterThan(0);
+    },
+  );
+
+  it.each(['flat', 'sequential', 'continuations'] as const)(
+    'registers every module whose probes ran, once, whichever bucket it wrote into: %s',
+    (mode) => {
+      for (const seed of [1, 7, 42]) {
+        const [registered, loaded] = drive(mode, seed).registered;
+        expect(new Set(registered), `seed ${seed}`).toEqual(new Set(loaded));
+        expect(registered.length, `seed ${seed}`).toBe(new Set(registered).size);
+      }
     },
   );
 

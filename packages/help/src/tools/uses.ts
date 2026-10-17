@@ -267,9 +267,33 @@ export const uses: Tool<Help> = {
   },
 };
 
-/** The lines of the files declaring the name that use it there, which no import names. */
+/**
+ * The lines of each file declaring the name that use it there, which no import
+ * names, under that file: a line of one declaring file is another file's name.
+ */
 function ownLines(inFile: readonly Use[], name: string, limit: number): readonly string[] {
-  return listed(inFile, 'Used in the file that declares it:', name, limit);
+  const byFile = new Map<string, Use[]>();
+  for (const use of inFile) {
+    const lines = byFile.get(use.at);
+    if (lines === undefined) byFile.set(use.at, [use]);
+    else lines.push(use);
+  }
+  return [...byFile].flatMap(([at, uses]) => listed(uses, `Used in ${at}, which declares it:`, name, limit));
+}
+
+/**
+ * The kinds of the declarations the name is published or exported as, as the
+ * index holds them, in brackets after the name; nothing when it holds none.
+ */
+function declaredAs(answer: ReturnType<typeof usesOf>): string {
+  const held = answer.found.length > 0 ? answer.found.map(([, , entry]) => entry.kind) : answer.exported.map((one) => one.declaration);
+  return bracketed(held);
+}
+
+/** Kinds in brackets after a name, each once and sorted; nothing when none is held. */
+function bracketed(held: readonly (string | undefined)[]): string {
+  const kinds = [...new Set(held.filter((kind) => kind !== undefined))].sort();
+  return kinds.length === 0 ? '' : ` [${kinds.join(', ')}]`;
 }
 
 /**
@@ -283,7 +307,7 @@ function keptLine(name: string, kept: readonly DeclaredName[]): string {
   // A Rust item inside an inline module answers to its own name, and is
   // declared on its module path: the path is said where it is not the name.
   const named = (one: DeclaredName): string => (one.name === name ? '' : ` as \`${one.name}\``);
-  const kind = (one: DeclaredName): string => ` [${one.kind}]`;
+  const kind = (one: DeclaredName): string => bracketed([one.kind]);
   if (kept.length === 1) {
     const one = kept[0]!;
     return `\`${name}\`${kind(one)} is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}.`;
@@ -329,14 +353,15 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
   const { name, found, exported, sites, unread, within, origin } = answer;
   // An export that only passes the name on is followed to the declaration.
   const passed = origin === undefined ? '' : `, which ${passesOn(origin)}`;
+  const named = `\`${name}\`${declaredAs(answer)}`;
   if (sites.length === 0 && exported.length > 0) {
-    return [`\`${name}\` is exported, without being published, at ${exportedAt(exported)}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
+    return [`${named} is exported, without being published, at ${exportedAt(exported)}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
   }
   if (sites.length === 0 && unread !== undefined) {
-    return `\`${name}\` is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
+    return `${named} is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
   }
   if (sites.length === 0) {
-    return [`\`${name}\` is published and nothing in this workspace imports it; ${UNCOUNTED}. docs_symbol has its signature and what is written above it.`, ...own].join('\n');
+    return [`${named} is published and nothing in this workspace imports it; ${UNCOUNTED}. docs_symbol has its signature and what is written above it.`, ...own].join('\n');
   }
 
   const nearest =
@@ -349,7 +374,7 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
   const published =
     found.length > 0 ? '' : exported.length > 0 ? `, and no entry publishes it; it is exported at ${exportedAt(exported)}${passed}` : ', and no entry publishes it';
   return [
-    `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
+    `${named} is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
     nearest,
     ...kinds(sites, from, name, limit),
     ...own,

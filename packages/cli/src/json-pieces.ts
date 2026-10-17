@@ -3,22 +3,20 @@
  * so a large answer is written as it serializes rather than held whole as one
  * string beside the value it spells.
  *
- * The value and the lists and objects it holds are walked; whatever those
- * hold is one piece each, stringified as a whole. The same text is promised
+ * The value and the lists and objects it holds are walked `walked` levels
+ * deep, the answer and its lists unless given; whatever lies below is one
+ * piece each, stringified as a whole. The same text is promised
  * for plain data only — objects, lists, strings, numbers, booleans and
  * `null`, which is all a distillation holds. A boxed primitive, a `toJSON`
  * on the value itself that returns `undefined`, or one whose result has a
  * `toJSON` of its own may write other text.
  */
-export function* jsonPieces(value: object): Generator<string, void, undefined> {
-  yield* pieces(prepared(value, ''), '', 0);
+export function* jsonPieces(value: object, walked = 2): Generator<string, void, undefined> {
+  yield* pieces(prepared(value, ''), '', 0, walked);
 }
 
-/** How deep the walk goes before a value is one piece: the answer, then its lists. */
-const WALKED = 2;
-
-function* pieces(value: unknown, indent: string, depth: number): Generator<string, void, undefined> {
-  if (depth >= WALKED || value === null || typeof value !== 'object') {
+function* pieces(value: unknown, indent: string, depth: number, walked: number): Generator<string, void, undefined> {
+  if (depth >= walked || value === null || typeof value !== 'object') {
     yield JSON.stringify(value, null, 2).replaceAll('\n', `\n${indent}`);
     return;
   }
@@ -29,7 +27,7 @@ function* pieces(value: unknown, indent: string, depth: number): Generator<strin
       yield `${at === 0 ? '[' : ','}\n${inner}`;
       const child = prepared(value[at], String(at));
       if (omitted(child)) yield 'null';
-      else yield* pieces(child, inner, depth + 1);
+      else yield* pieces(child, inner, depth + 1, walked);
     }
     return yield `\n${indent}]`;
   }
@@ -39,7 +37,7 @@ function* pieces(value: unknown, indent: string, depth: number): Generator<strin
     if (omitted(child)) continue;
     yield `${first ? '{' : ','}\n${inner}${JSON.stringify(key)}: `;
     first = false;
-    yield* pieces(child, inner, depth + 1);
+    yield* pieces(child, inner, depth + 1, walked);
   }
   yield first ? '{}' : `\n${indent}}`;
 }

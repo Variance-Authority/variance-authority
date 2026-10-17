@@ -166,7 +166,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
 variance prune
-variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
@@ -2766,6 +2766,14 @@ instead of naming them:
     SHARED: ${{ steps.carry.outputs.shared-suites }}
   run: for suite in $SHARED; do npx variance share --suite "$suite"; done
 ```
+
+`variance share --suite <name> --format github` prints `commit=<sha>`, the
+commit the mainline's record of that suite was made at, and `commit=` when the
+mainline has none; the `record of "<name>":` line goes to stderr. A pull
+request merged with that commit, rather than with the base tip, is measured
+from the record alone:
+[Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
+has the steps.
 
 With a config, `--format github` also prints `project=<segment>`: the config's
 `project` as one path segment that a git ref and an Actions artifact name both
