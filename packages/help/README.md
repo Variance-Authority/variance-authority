@@ -560,4 +560,4 @@ sections and labels which is which.
 
 ---
 
-**[@variance-authority/help](https://variance-authority.dev/reference/packages/help)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/help](https://variance-authority.dev/reference/packages/help)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/help) · MIT

@@ -516,4 +516,4 @@ database, the socket, and the row-to-answer arithmetic every backend shares.
 
 ---
 
-**[@variance-authority/server](https://variance-authority.dev/reference/packages/server)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/server](https://variance-authority.dev/reference/packages/server)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/server) · MIT

@@ -246,4 +246,4 @@ a modal is open or closed, and an opening dialog reads as unchanged.
 
 ---
 
-**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/dom) · MIT

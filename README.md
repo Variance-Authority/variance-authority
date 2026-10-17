@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="docs/visual-guidelines.md">
+  <a href="https://variance-authority.dev">
     <img src="assets/brand/variance-authority-logo.svg" alt="Variance Authority logo" width="800">
   </a>
 </p>

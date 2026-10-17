@@ -523,4 +523,4 @@ and [Presentation evidence reference](https://variance-authority.dev/docs/presen
 
 ---
 
-**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/presentation) · MIT

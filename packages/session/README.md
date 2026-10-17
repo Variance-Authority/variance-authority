@@ -390,4 +390,4 @@ subject's pixels change.
 
 ---
 
-**[@variance-authority/session](https://variance-authority.dev/reference/packages/session)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/session](https://variance-authority.dev/reference/packages/session)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/session) · MIT

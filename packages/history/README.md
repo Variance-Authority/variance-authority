@@ -309,4 +309,4 @@ churn, flakiness, reach, or drift questions across runs.
 
 ---
 
-**[@variance-authority/history](https://variance-authority.dev/reference/packages/history)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/history](https://variance-authority.dev/reference/packages/history)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/history) · MIT
