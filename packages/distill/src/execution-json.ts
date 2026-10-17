@@ -1,5 +1,5 @@
 // compass: variance-authority/runtime/attention
-import type { ExecutionIndex, ExecutionTest } from '@variance-authority/sense/test-selection';
+import { saidAcross, type ExecutionIndex, type ExecutionTest } from '@variance-authority/sense/test-selection';
 
 /** Validate the runner-independent execution JSON accepted by the CLI. */
 export function parseExecutionIndex(value: unknown): ExecutionIndex {
@@ -33,10 +33,10 @@ export function parseExecutionIndex(value: unknown): ExecutionIndex {
   return { tests, modules };
 }
 
-/** The preconditions as a frame field spells them, `[[name, value, site, level], …]`; the writer orders them. */
+/** The preconditions as a frame field spells them, `[[name, value, site, level], …]`, joined by the addon as every writer joins them. */
 function parsePreconditions(value: unknown, testAt: number): NonNullable<ExecutionTest['said']> {
   if (!Array.isArray(value)) throw new Error(`execution test ${testAt} preconditions must be an array`);
-  return JSON.stringify(value.map((value, at) => {
+  const items = JSON.stringify(value.map((value, at) => {
     const where = `execution test ${testAt} precondition ${at}`;
     const said = object(value, where);
     const held = said['value'];
@@ -50,6 +50,7 @@ function parsePreconditions(value: unknown, testAt: number): NonNullable<Executi
       integer(said['level'], `${where} level`, true),
     ];
   }));
+  return saidAcross(items, undefined).said!;
 }
 
 function parseBlock(

@@ -3198,6 +3198,7 @@
         "rootConfig": "function",
         "rowOf": "function",
         "runsAsBefore": "function",
+        "saidAcross": "function",
         "seedTestCoverage": "function",
         "selectJourneyFile": "function",
         "selectTestFiles": "function",

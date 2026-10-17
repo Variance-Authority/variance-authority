@@ -17,7 +17,8 @@ contradiction, and a value said at several sites is printed at the first.
 Two runs, two shards or two frames of one case now give the same row whichever
 arrived first. Before, a value said at two sites could print either site, and a
 fraction could print as `0.000001` or `1e-6`, depending on which writer laid
-the record.
+the record. A contradiction's values now print in the code-unit order of their
+JSON text.
 
 A record written by an earlier release opens with every case unmeasured: `variance
 covering --where` counts them as such until the suite is recorded again.

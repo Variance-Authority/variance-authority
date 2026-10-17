@@ -54,9 +54,8 @@ export function saidJoined(root: string | undefined, said: readonly (Said | unde
 
 /** What two frames, observations or runs of one case said, as one spread: `{}` where neither was listened to. */
 export function saidAcross(held: Said | undefined, said: Said | undefined): { readonly said?: Said } {
-  if (held === undefined && said === undefined) return {};
-  if (held === undefined || said === undefined) return { said: (held ?? said)! };
-  return { said: saidJoined(undefined, [held, said])! };
+  const joined = saidJoined(undefined, [held, said]);
+  return joined === undefined ? {} : { said: joined };
 }
 
 /** A call site named from the checkout at `root`, as every row names it. */

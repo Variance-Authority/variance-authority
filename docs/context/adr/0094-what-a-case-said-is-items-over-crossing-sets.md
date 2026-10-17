@@ -68,8 +68,8 @@ or resolves it. TypeScript captures in the realm and calls Rust for the rest.**
 | Operation | How | Cost |
 |---|---|---|
 | join a case's frames | union of their items | O(items) |
-| merge shards | remap case ids, union equal items' sets | O(items + set bytes) |
-| lay a layer | a case the run recorded again takes its items from the run; a carried case keeps its own | O(items + set bytes) |
+| merge shards | remap case ids, union equal items' sets | O(items + set bytes); today each case is read out and laid again, O(cases × items) |
+| lay a layer | a case the run recorded again takes its items from the run; a carried case keeps its own | O(items + set bytes); today O(cases × items), as a merge |
 | one case's row | membership of the case in each item's set, then resolve | O(items × log set) |
 | `--where name[=value]` | each case's resolved row, filtered | O(cases × items) |
 | unmeasured count | the complement of the measured set | O(set) |

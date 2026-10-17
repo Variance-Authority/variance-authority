@@ -206,7 +206,7 @@ describe('distill', () => {
   });
 
   it('carries what each case said it arranged, and leaves an unheard case without any', () => {
-    // The JSON spells each item as an object; the index holds them as the frame does, unresolved, in the order given.
+    // The JSON spells each item as an object; the index holds them as the frame does, unresolved, in the order every writer joins them to.
     const spelled = { ...EXECUTION, tests: [
       { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', preconditions: [
         { name: 'network', value: 'mocked', site: 'test/pay.test.ts:4', level: 1 },
@@ -221,9 +221,9 @@ describe('distill', () => {
 
     expect(parsed).toEqual({ ...EXECUTION, tests: [
       { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', said: JSON.stringify([
+        ['flaky', true, 'test/pay.test.ts:9', 65535],
         ['network', 'mocked', 'test/pay.test.ts:4', 1],
         ['retries', 3, 'test/pay.test.ts:5', 0],
-        ['flaky', true, 'test/pay.test.ts:9', 65535],
       ]) },
       { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', said: '[]' },
       { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
