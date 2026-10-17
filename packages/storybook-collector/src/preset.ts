@@ -30,8 +30,10 @@
  */
 
 import {
+  afterHook,
   testSelectionProbes,
   testSelectionRule,
+  type HookedPlugin,
   type TestSelectionRuleOptions,
 } from '@variance-authority/sense/journal';
 
@@ -107,14 +109,6 @@ const REMOVE_PROBES = 'remove your testSelectionProbes(); the addon places it';
  */
 const PREVIEW_REWRITE = 'storybook:mock-loader-preview';
 
-type Transform = (this: unknown, code: string, id: string, ...rest: unknown[]) => unknown;
-
-/** A plugin as Vite resolves it, as far as this reads one. */
-interface ResolvedPlugin {
-  readonly name: string;
-  transform?: unknown;
-}
-
 /** What Vite hands a `transform` as `this`, as far as this reads it. */
 interface Parsing {
   parse(code: string): unknown;
@@ -130,38 +124,45 @@ interface Node {
 /**
  * Swaps {@link PREVIEW_REWRITE}'s `transform` handler for one that makes the
  * same edit in place. An object hook keeps its `filter` and `order`. A config
- * without the plugin, a Storybook before 9.1 or one with no preview file, is
- * left as it is.
+ * without the plugin is left as it is.
  */
-function rewritePreviewInPlace(plugins: readonly ResolvedPlugin[]): void {
+function rewritePreviewInPlace(plugins: readonly HookedPlugin[]): void {
   const plugin = plugins.find(({ name }) => name === PREVIEW_REWRITE);
-  const hook = plugin?.transform;
   if (plugin === undefined) return;
-  if (typeof hook === 'function') {
-    plugin.transform = inPlace(hook as Transform);
-  } else if (typeof hook === 'object' && hook !== null && typeof (hook as { handler?: unknown }).handler === 'function') {
-    plugin.transform = { ...hook, handler: inPlace((hook as { handler: Transform }).handler) };
-  }
+  afterHook(plugin, 'transform', inPlace);
 }
 
 /**
- * Storybook's `handler` still decides which module is the preview: it returns
+ * Storybook's handler still decides which module is the preview: it returns
  * text for that one alone, and nothing where it could not parse it. Where it
  * returns text, the text is dropped and the same calls are edited in place.
+ * The edit has to leave as many `sb.mock('x')` calls as Storybook's text
+ * holds; a Storybook that rewrites more than this edits stops the build,
+ * rather than shipping a mock that no longer mocks.
  */
-function inPlace(storybook: Transform): Transform {
-  return function (this: unknown, code, id, ...rest) {
-    return settled(storybook.call(this, code, id, ...rest), (rewritten) => {
-      if (rewritten === null || rewritten === undefined) return rewritten;
-      const written = blankMockImports(code, (this as Parsing).parse(code) as Node);
-      return written === code ? null : { code: written, map: null };
-    });
-  };
+function inPlace(this: object, rewritten: unknown, [code, id]: readonly unknown[]): unknown {
+  if (rewritten === null || rewritten === undefined) return rewritten;
+  const text = code as string;
+  const preview = `the preview ${String(id)}`;
+  const written = blankMockImports(text, parsed(this, text, preview));
+  const storybook = typeof rewritten === 'string' ? rewritten : (rewritten as { code?: unknown }).code;
+  const theirs = mockCalls(parsed(this, String(storybook), `\`${PREVIEW_REWRITE}\`'s text for ${preview}`));
+  const ours = mockCalls(parsed(this, written, `${preview} as the addon edited it`));
+  if (theirs !== ours) {
+    throw new Error(
+      `@variance-authority/storybook-collector: \`${PREVIEW_REWRITE}\` rewrote ${theirs} \`sb.mock()\` ${theirs === 1 ? 'call' : 'calls'} ` +
+        `in ${preview}, and the addon's edit in place leaves ${ours}: this Storybook rewrites calls the addon does not know.`,
+    );
+  }
+  return written === text ? null : { code: written, map: null };
 }
 
-function settled(result: unknown, then: (value: unknown) => unknown): unknown {
-  if (typeof (result as PromiseLike<unknown> | undefined)?.then === 'function') return (result as PromiseLike<unknown>).then(then);
-  return then(result);
+function parsed(context: object, code: string, what: string): Node {
+  try {
+    return (context as Parsing).parse(code) as Node;
+  } catch (error) {
+    throw new Error(`@variance-authority/storybook-collector: could not parse ${what}: ${(error as Error).message}`, { cause: error });
+  }
 }
 
 /**
@@ -173,12 +174,7 @@ function settled(result: unknown, then: (value: unknown) => unknown): unknown {
 function blankMockImports(code: string, program: Node): string {
   const spans: [number, number][] = [];
   visit(program, (node) => {
-    const callee = node.callee as Node | undefined;
-    const first = (node.arguments as Node[] | undefined)?.[0];
-    if (node.type !== 'CallExpression' || callee?.type !== 'MemberExpression' || callee.computed === true) return;
-    const object = callee.object as Node;
-    const property = callee.property as Node;
-    if (object.type !== 'Identifier' || object.name !== 'sb' || property.type !== 'Identifier' || property.name !== 'mock') return;
+    const first = mockArgument(node);
     if (first?.type !== 'ImportExpression' || (first.options ?? null) !== null) return;
     const source = first.source as Node;
     if (source.type !== 'Literal' || typeof source.value !== 'string') return;
@@ -191,6 +187,31 @@ function blankMockImports(code: string, program: Node): string {
     at = end;
   }
   return written + code.slice(at);
+}
+
+/** How many `sb.mock('x')` calls, with a string as their first argument, `program` holds. */
+function mockCalls(program: Node): number {
+  let count = 0;
+  visit(program, (node) => {
+    const first = mockArgument(node);
+    if (first?.type === 'Literal' && typeof first.value === 'string') count++;
+  });
+  return count;
+}
+
+/**
+ * The first argument of a call Storybook reads as `sb.mock()`: `sb.mock`
+ * named directly, and neither `sb?.mock()` nor `sb.mock?.()`, which Storybook
+ * leaves alone.
+ */
+function mockArgument(node: Node): Node | undefined {
+  if (node.type !== 'CallExpression' || node.optional === true) return undefined;
+  const callee = node.callee as Node;
+  if (callee.type !== 'MemberExpression' || callee.computed === true || callee.optional === true) return undefined;
+  const object = callee.object as Node;
+  const property = callee.property as Node;
+  if (object.type !== 'Identifier' || object.name !== 'sb' || property.type !== 'Identifier' || property.name !== 'mock') return undefined;
+  return (node.arguments as Node[])[0];
 }
 
 function visit(node: unknown, each: (node: Node) => void): void {
@@ -217,7 +238,7 @@ function addonPlugin(added: boolean) {
     name: ADDON_PLUGIN,
     configResolved: {
       order: 'pre' as const,
-      handler(config: { readonly plugins: readonly ResolvedPlugin[] }): void {
+      handler(config: { readonly plugins: readonly HookedPlugin[] }): void {
         const probes = config.plugins.filter((plugin) => plugin.name === PROBES_PLUGIN).length;
         if (probes > 1) {
           const remedy = added

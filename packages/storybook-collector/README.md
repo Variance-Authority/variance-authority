@@ -388,15 +388,6 @@ config `@storybook/addon-vitest` loads your presets for, inside Vitest, gets
 nothing from the addon either: that run is a Vitest run, and the Vitest seam
 records it where you configured one.
 
-Your `.storybook/preview` file is probed like any other source file, so its
-decorators and loaders are recorded where you wrote them. Under Vite, Storybook
-9.1 and later rewrite each `sb.mock(import('../lib/api'))` in that file to
-`sb.mock('../lib/api')` by printing the whole file again, which leaves no map
-back to your lines. The addon has that rewrite edit the file in place instead:
-`import(` and its closing parenthesis become spaces, so every other character
-keeps its line and column, and the call Storybook sees is the one it would
-have written.
-
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
 `include` decides which modules are your source, every file outside

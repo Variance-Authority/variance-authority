@@ -98,6 +98,9 @@ export {
 export type { ModuleId };
 export { moduleId } from './captured-modules.js';
 
+/** Replacing one hook of a resolved Vite plugin, keeping its `order` and `filter`. */
+export { afterHook, type AfterHook, type HookedPlugin } from './plugin-hooks.js';
+
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
 

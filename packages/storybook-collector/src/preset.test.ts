@@ -220,8 +220,12 @@ describe('viteFinal', () => {
 
 describe('Storybook\'s preview rewrite, under the addon', () => {
   const PREVIEW = '/project/.storybook/preview.js';
-  /** Storybook's `storybook:mock-loader-preview`: it reprints the preview, and no other module, with no map. */
-  const reprint = (code: string, id: string) => (id === PREVIEW ? `// reprinted\n${code.replace(/\n\n/g, '\n')}` : null);
+  /**
+   * Storybook's `storybook:mock-loader-preview`: it reprints the preview, and
+   * no other module, with no map, naming the module of each `sb.mock(import())`.
+   */
+  const reprint = (code: string, id: string) =>
+    id === PREVIEW ? `// reprinted\n${code.replace(/\n\n/g, '\n').replace(/sb\.mock\(\s*import\(\s*(['"][^'"]*['"])\s*\)/g, 'sb.mock($1')}` : null;
   /** What Vite hands a `transform` as `this`. */
   const context = { parse: (code: string) => parseAst(code) };
 
@@ -261,6 +265,29 @@ describe('Storybook\'s preview rewrite, under the addon', () => {
     const { hook, transform } = await rewritten({ filter, order: 'pre', handler: reprint });
     expect(hook).toMatchObject({ filter, order: 'pre' });
     expect(transform("sb.mock(import('./a'));\n", PREVIEW)).toEqual({ code: "sb.mock(       './a' );\n", map: null });
+  });
+
+  it('waits for a Storybook that answers a promise', async () => {
+    const { transform } = await rewritten(async (code: string, id: string) => reprint(code, id));
+    await expect(transform("sb.mock(import('./a'));\n", PREVIEW)).resolves.toEqual({ code: "sb.mock(       './a' );\n", map: null });
+  });
+
+  it('leaves `sb?.mock()` and `sb.mock?.()` as written, as Storybook does', async () => {
+    const { transform } = await rewritten(reprint);
+    expect(transform("sb?.mock(import('./a'));\nsb.mock?.(import('./b'));\n", PREVIEW)).toBeNull();
+  });
+
+  it('stops the build where Storybook rewrote a call the edit in place does not', async () => {
+    const widened = (code: string, id: string) => reprint(code.replace('sb?.mock(', 'sb.mock('), id);
+    const { transform } = await rewritten(widened);
+    expect(() => transform("sb?.mock(import('./a'));\n", PREVIEW)).toThrow(
+      `\`storybook:mock-loader-preview\` rewrote 1 \`sb.mock()\` call in the preview ${PREVIEW}, and the addon's edit in place leaves 0`,
+    );
+  });
+
+  it('names the preview it could not parse', async () => {
+    const { transform } = await rewritten(reprint);
+    expect(() => transform("sb.mock(import('./a');\n", PREVIEW)).toThrow(`could not parse the preview ${PREVIEW}: `);
   });
 });
 
