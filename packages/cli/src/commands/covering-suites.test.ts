@@ -133,12 +133,12 @@ describe('a line asked of a repository that declares suites', () => {
     expect(answer.out.indexOf('checkout (e2e): nothing is recorded')).toBeLessThan(answer.out.indexOf('Not loaded by'));
   });
 
-  it('explains every suite in full when the only one holding the file refuses the line, since none answered', async () => {
+  it('answers a line the only suite holding the file has no region for, and gathers the rest', async () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '3', '--root', root]);
 
-    expect(answer.out).toMatch(/^unit \(unit\): line 3 of `src\/pay\.ts` is outside every recorded region/mu);
-    expect(answer.out).toMatch(/^stories \(visual\): `src\/pay\.ts` is not in the index at/mu);
-    expect(answer.out).not.toContain('Not loaded by');
+    expect(answer.out.startsWith('unit (unit):\n  No named test covered line 3 of src/pay.ts.\n'
+      + '  Line 3 is outside every recorded region, so no case can be said to have run it.\n')).toBe(true);
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
   });
 
   it('explains every suite in full when none of them loaded the file, since that is the whole answer', async () => {

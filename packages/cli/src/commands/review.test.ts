@@ -425,6 +425,14 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const written = casesOf(await review(parse(['--since', first, '--root', root])));
 
     expect(written?.cases).toEqual({ added: ['counts'], removed: [] });
+
+    // A runs record that cannot be read leaves the named base, and no word on which files the runs wrote.
+    await writeFile(commitRunsFile(testCoverageFile(root)), '{not json');
+    const runsUnread = await review(parse(['--since', first, '--root', root]));
+
+    expect(runsUnread).toMatchObject({ base: 'since', from: first });
+    expect(runsUnread.runs).toBeUndefined();
+    expect(casesOf(runsUnread)?.cases).toBeUndefined();
   });
 
   it('writes the answer beside what it prints when given a directory', async () => {

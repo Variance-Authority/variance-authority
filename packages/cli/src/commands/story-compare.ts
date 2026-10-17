@@ -32,7 +32,7 @@ export function labelled(entry: StoryEntry): string {
 /** The two sides `compare` names among one case's readings, newest first, compared. */
 export function compareStory(root: string, readings: readonly StoryEntry[], compare: StoryCompare): Comparison {
   if (compare === 'last') {
-    if (readings.length < 2) throw new OperatorError(`--compare last needs two readings of this case, and ${readings.length} is kept; run it again`);
+    if (readings.length < 2) throw new OperatorError(`--compare last needs two readings of this case, and ${readings.length} is kept, so there is nothing to compare it with`);
     return compareReadings(root, { name: 'newest', readings: [readings[0]!] }, { name: 'the one before', readings: [readings[1]!] });
   }
   if (compare === 'outcome') {
@@ -40,8 +40,8 @@ export function compareStory(root: string, readings: readonly StoryEntry[], comp
     const threw = readings.filter((entry) => entry.stopped === true);
     if (passed.length === 0 || threw.length === 0) {
       throw new OperatorError(
-        `--compare outcome needs readings that passed and readings that threw, and of ${readings.length} kept ${passed.length} passed and ${threw.length} threw;`
-          + ' run the case until it has done both',
+        `--compare outcome needs readings that passed and readings that threw, and of ${readings.length} kept ${passed.length} passed and ${threw.length} threw,`
+          + ` so there is no side that ${passed.length === 0 ? 'passed' : 'threw'}`,
       );
     }
     return compareReadings(root, { name: 'passed', readings: passed }, { name: 'threw', readings: threw });

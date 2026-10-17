@@ -7,6 +7,7 @@ import {
   writeTestCoverage,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -39,7 +40,7 @@ const INDEX: ExecutionIndex = {
 async function ask(argv: readonly string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-hops-'));
   const execution = join(root, 'coverage.bin');
-  await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+  await writeTestCoverage(execution, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeExecutionIndex(INDEX),
   });
   return covering(parseCoveringArgs(readFlags(

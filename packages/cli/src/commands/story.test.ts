@@ -65,6 +65,13 @@ const APP: Route = {
 const PACKAGES = { 'src/cart.test.ts': 'app', 'src/app.ts': 'app', 'ui/src/button.ts': '@acme/ui' };
 
 describe('a story read as a route', () => {
+  it('names the files it drew as the file alone, and what it lacks for them, with nothing to run', () => {
+    const text = formatStory({ route: { ...ROUTE, unresolved: ['src/tax.ts'] } }, 'text');
+
+    expect(text).toContain('\n  1 file is drawn as the file alone: the recording holds no regions for it at this text\n');
+    expect(text).not.toMatch(/next run|run of the suite/);
+  });
+
   it('reads a short route step by step, with the arms each stop went into drawn as the code nests them and how many times a loop went round', () => {
     expect(formatStory({ route: ROUTE }, 'text')).toBe(
       [

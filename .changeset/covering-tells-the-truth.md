@@ -40,13 +40,21 @@ to run the suite or record it again:
 - `covering --where` over a record that holds no case's preconditions keeps
   none and counts every case as unmeasured. It used to exit `2` with
   `{"refused":"unmeasured"}`.
-- `covering --line` on lines your edit wrote says that no case has run them,
-  rather than refusing.
+- `covering --line` on lines no recorded region holds, such as a blank line or
+  an import, or on lines your edit wrote, answers with no case and says which
+  each line is, rather than refusing. Under `--format json` the answer carries
+  `outside` and `written`.
 - `covering --hops` and `--at-distance` beside a coverage snapshot from another
   run than the per-case index list the test files with no hops, and say why.
-- The refusals that stay now say what they cannot read and why an answer past
-  it would mislead, and name `--since <ref>` where a base answers them: an
-  unreadable or malformed runs record, a journal that names no commit, an
-  unreadable execution journal, `--cases last` over runs that name no case, and
-  a record another build wrote. A merged report that drops the composition says
-  that each shard's report still holds its own.
+- `review --since <ref>` beside a runs record that cannot be read answers from
+  the named base and names no case as moved, since which test files the runs
+  wrote cannot be read. With no base named it is still refused, and the
+  refusal names `--since <ref>`.
+- `story --compare last` and `--compare outcome` say which side there is
+  nothing to compare with, rather than asking for another run.
+- The refusals that stay say what they cannot read and why an answer past it
+  would mislead: an unreadable or malformed runs record, a journal that names
+  no commit, an unreadable execution journal, and `--cases last` over runs that
+  name no case. Where a base answers them they name `--since <ref>`. A merged
+  report that drops the composition says that each shard's report still holds
+  its own, and a record another build wrote is left as it was.

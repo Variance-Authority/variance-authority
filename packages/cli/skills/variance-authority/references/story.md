@@ -193,7 +193,7 @@ not show, it names in the header:
 
 - *drawn as the file alone* — the recording does not have that file's
   functions as the test ran them: the file changed since, or was never
-  recorded. Run the test again with the variable.
+  recorded. The route still shows each step in it, without its functions.
 - *the recording filled up* — the visits after the limit are not on the route.
 - *another test's work ran in the middle of this one* — under a runner that
   tracks tests through async context, that work is left out.

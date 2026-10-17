@@ -37,8 +37,9 @@ answer says so with `At file grain`, `grain: "file"` under `--format json`. In
 a run of lines, the lines held at file grain are named in `fileGrain`, and the
 lines no region holds, such as imports, types or blank lines, in `outside`.
 Lines of a run your edit wrote are named in `written` and left out; when your
-edit wrote every line asked, the answer says that no case has run them. A run
-whose lines no recorded region holds is refused.
+edit wrote every line asked, the answer says that no case has run them. When
+no line asked is in a recorded region, the answer names no case and says, for
+each line, whether your edit wrote it or no region holds it.
 
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
   It needs `--line` or `--function`, and a run of lines or any `--function` is
@@ -70,7 +71,7 @@ nearest kind first: unit, integration, e2e, visual. Once any suite answers, the
 answers come first, then any suite with no recording yet. A suite whose record
 was made at a commit that did not hold the file says so in full, with that
 commit, refused as `older` under `--format json`: the record is older than the
-file, and the next run of the suite answers it. When git cannot read that commit
+file, so it has no answer for it. When git cannot read that commit
 — a shallow clone — the suite says so instead of claiming either. Suites that
 never loaded the file are named together on the last line,
 `Not loaded by <suite> (<kind>): …`: no answer from them, which is not *no test

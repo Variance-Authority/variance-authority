@@ -106,7 +106,7 @@ export class OperatorError extends Error {
  * read here — a review that would report its other evidence fails on this one
  * instead of leaving it out.
  * `older`: the record holds no row for the file because the commit it was made
- * at did not hold the file, so the next run of the suite answers it.
+ * at did not hold the file: a record older than the file.
  */
 export type RefusalKind = 'unrecorded' | 'unloaded' | 'undiffed' | 'older';
 

@@ -87,10 +87,10 @@ describe('readings of one case compared', () => {
 
   it('names what a side is missing before reading anything', () => {
     expect(() => compareStory('/checkout', [entry(undefined, false)], 'last')).toThrow(
-      '--compare last needs two readings of this case, and 1 is kept; run it again',
+      '--compare last needs two readings of this case, and 1 is kept, so there is nothing to compare it with',
     );
     expect(() => compareStory('/checkout', [entry(undefined, false), entry(undefined, false)], 'outcome')).toThrow(
-      '--compare outcome needs readings that passed and readings that threw, and of 2 kept 2 passed and 0 threw; run the case until it has done both',
+      '--compare outcome needs readings that passed and readings that threw, and of 2 kept 2 passed and 0 threw, so there is no side that threw',
     );
     expect(() => compareStory('/checkout', [entry('slow'), entry(undefined)], { labels: ['slow', 'fast'] })).toThrow(
       'no reading of this case is labelled fast; the labels kept are 1, slow',

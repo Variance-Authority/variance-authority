@@ -720,8 +720,8 @@ variance covering --file src/checkout/total.ts --text - --format json < buffer.t
 
 `--text <path>` reads the held text from a file, and `--text -` reads it from
 standard input, which is how an editor queries a buffer you have not saved.
-`--line` then names a line in that text. A line the edit wrote is refused
-rather than answered, because no case has run it yet.
+`--line` then names a line in that text. A line the edit wrote is answered
+with no case, and the answer says the edit wrote it.
 
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number

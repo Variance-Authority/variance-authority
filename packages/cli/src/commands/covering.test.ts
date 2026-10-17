@@ -216,11 +216,12 @@ describe('asking which tests entered a line', () => {
     await expect(asked).rejects.toHaveProperty('kind', 'unloaded');
   });
 
-  it('separates a line nothing recorded from a line nothing covered', async () => {
+  it('separates a line nothing recorded from a line nothing covered, and answers it', async () => {
     const execution = await indexFile();
+    const answer = await covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution]));
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution])))
-      .rejects.toThrow(/outside every recorded region/);
+    expect(answer).toMatchObject({ tests: [], outside: [{ startLine: 2, endLine: 2 }] });
+    expect(formatCovering(answer, 'text')).toContain('Line 2 is outside every recorded region, so no case can be said to have run it.');
   });
 
   it('refuses a line and a function together, and a line that is not one', () => {

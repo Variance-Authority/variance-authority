@@ -263,7 +263,7 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
   if (route.unresolved.length > 0) {
     lines.push(
       `  ${route.unresolved.length} ${route.unresolved.length === 1 ? 'file is' : 'files are'} drawn as the file alone:`
-        + ' the recording holds no regions for them at this text, and the next run of the suite records them',
+        + ` the recording holds no regions for ${route.unresolved.length === 1 ? 'it' : 'them'} at this text`,
     );
   }
   return lines;

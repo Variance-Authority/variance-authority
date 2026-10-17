@@ -71,11 +71,19 @@ export async function coveringAt(
     const held = request.lines ?? { startLine: request.line!, endLine: request.line! };
     const lines = recordedLines(held, module, placement);
     asked = request.lines === undefined ? { line: held.startLine } : { lines: held };
-    if (lines.written.length === held.endLine - held.startLine + 1) {
-      // Every asked line is new: no case has run any of it, and that is the answer, not a gap.
-      return { file, target: asked, tests: [], written: runsOf(lines.written), ...(placement === undefined ? {} : { frame: placement.frame }), from, ...countOf(near, 0, 0) };
+    if (lines.lines.length === 0) {
+      // No asked line is in a recorded region: each is new, or has none to be covered, and saying which is the answer.
+      return {
+        file,
+        target: asked,
+        tests: [],
+        ...(lines.outside.length === 0 ? {} : { outside: runsOf(lines.outside) }),
+        ...(lines.written.length === 0 ? {} : { written: runsOf(lines.written) }),
+        ...(placement === undefined ? {} : { frame: placement.frame }),
+        from,
+        ...countOf(near, 0, 0),
+      };
     }
-    if (lines.lines.length === 0) throw outsideEveryRegion(file, held);
     target = request.lines === undefined ? { file, line: lines.lines[0]! } : { file, lines: lines.lines };
     const whole = lines.fileGrain.length === lines.lines.length;
     grain = {
@@ -161,17 +169,6 @@ function recordedLines(held: HeldLines, module: ExecutionModule, placement: Plac
     if (grain === 'file') fileGrain.push(at);
   }
   return { lines, fileGrain, outside, written };
-}
-
-/** Why no asked line has an answer: none is in a recorded region. */
-function outsideEveryRegion(file: string, held: HeldLines): OperatorError {
-  const one = held.startLine === held.endLine;
-  const asked = one ? `line ${held.startLine}` : `lines ${held.startLine}-${held.endLine}`;
-  return new OperatorError(
-    `${one ? asked : `every line of ${asked}`} of \`${file}\` is outside every recorded region. A blank line, an ` +
-      'import or a type declaration has no region to be covered, so there is no list to ' +
-      'print — which again is not the same as nobody covering it.',
-  );
 }
 
 /** A name no recorded function has, and no recorded function is under. */

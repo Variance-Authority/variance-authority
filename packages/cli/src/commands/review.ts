@@ -236,9 +236,17 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // The runs are always this checkout's own: a base it did not record, the mainline's or the
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
   const own = await landingRecord(root, request.suite);
+  // A runs record that cannot be read says neither where the change starts nor
+  // which test files the runs wrote. A named base answers the first; the second
+  // stays open, so no case is said to have moved.
+  let unread = false;
   const runs = await readCommitRuns(own).catch((error: unknown) => {
+    if (request.since !== undefined) {
+      unread = true;
+      return undefined;
+    }
     const why = 'It records where this change starts, and a review that read it as absent would start from a guess';
-    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${why}.`, { cause: error });
+    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${why}. Name the base with \`--since <ref>\`.`, { cause: error });
   }).then((listed) => (listed?.runs === 0 ? undefined : listed));
   const given = request.since ?? (await runsBase(root, runs, own));
   // Runs that name no start (`runsBase`), and no base named: a suite given to a
@@ -300,7 +308,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // and it is theirs only for the test files a run at this commit wrote to the
   // case index; for any other file it holds an earlier commit's cases.
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
-  const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
+  const comparable = (file: string): boolean => against !== undefined || (!unread && (wrote === undefined || ('compared' in wrote && wrote.compared.has(file))));
 
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
@@ -326,7 +334,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
     ? await motionAgainst(from, against, ref, root)
-    : wrote === undefined
+    : wrote === undefined || unread
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 

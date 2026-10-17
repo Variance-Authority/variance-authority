@@ -9,6 +9,7 @@ import {
   type ExecutionTest,
   type Placement,
 } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -18,7 +19,7 @@ import { covering, formatCovering } from './covering.js';
  * A file edited since the recording, whose recorded text is in neither git nor
  * the kept texts: no recorded line is a place in what is held. Framing it end
  * to end needs a record whose commit git does not hold, so the frame is stood
- * in for here; `covering-frame.integration.test.ts` frames a real one.
+ * in for.
  */
 const STALE: Placement = { frame: 'stale', at: '0123456789abcdef', place: () => undefined, recordedLine: () => undefined };
 
@@ -52,7 +53,7 @@ const INDEX: ExecutionIndex = {
 async function ask(argv: readonly string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-stale-'));
   const execution = join(root, 'coverage.bin');
-  await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+  await writeTestCoverage(execution, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeExecutionIndex(INDEX),
   });
   await writeFile(join(root, 'variance.config.json'), JSON.stringify({ names: { axes: [{ axis: 'flag', values: ['ff-off', 'ff-on'] }] } }));
