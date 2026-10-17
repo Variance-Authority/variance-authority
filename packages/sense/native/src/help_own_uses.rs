@@ -23,6 +23,7 @@ use oxc_syntax::symbol::SymbolId;
 use serde::Serialize;
 
 use crate::read::Lines;
+use crate::top_level::top_level;
 
 /// One line that uses a name the module declares at its top level.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
@@ -34,9 +35,12 @@ pub struct OwnUse {
 /// Every line `program` uses one of its top-level names on, once per name and
 /// line, by line and then by name in code units.
 pub(crate) fn own_uses_in(program: &Program<'_>, lines: &Lines) -> Vec<OwnUse> {
-    // A file that declares nothing at its top level has nothing to use, and no
-    // scope tree is built for it.
-    if !program.body.iter().any(|statement| statement.is_declaration() || matches!(statement, Statement::ExportNamedDeclaration(_) | Statement::ExportDefaultDeclaration(_))) {
+    // A file whose own statements bind no name has nothing to use, and no
+    // scope tree is built for it. Which statement binds a name is
+    // `top_level`'s answer, the one every reader of the declarations takes.
+    let mut binds = false;
+    top_level(program, |_| binds = true);
+    if !binds {
         return Vec::new();
     }
     let built = SemanticBuilder::new().build(program);
