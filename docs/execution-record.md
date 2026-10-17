@@ -193,7 +193,7 @@ they return are the ones this page describes.
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
 | `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `landedCoverage`, `combineRecords`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CombinedRecord`, `CombinedShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
-| `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
+| `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `afterHook`, `EXECUTION_GLOBAL`; types `AfterHook`, `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `HookedPlugin`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
 Nothing else on this page is importable. Where the sections below describe the
@@ -493,12 +493,13 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
-second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
-duration, Playwright's `testInfo.duration` summed over the file's tests, or the
+second clock: Vitest's file result, which is its cases alone, Jest's
+`perfStats.runtime`, which spans the file's run, Rstest's file duration,
+Playwright's `testInfo.duration` summed over the file's tests, or the
 `duration` you pass to `startRecording().finish()`. A file the runner reported
-nothing for stores the sentinel, and a reader answers it as
-absent, not as zero. When two projects record the same file, its duration is
-their sum, and it is absent if either is.
+nothing for stores the sentinel, and a reader answers it as absent, not as
+zero. When two projects record the same file, its duration is their sum, and it
+is absent if either is.
 
 **Phases.** `tests.phases` splits a file's time into what is part of a test
 and what is not: readying the file in its worker, the test environment, the
@@ -520,6 +521,16 @@ is shown on, and a file's first story holds that file's import whichever page
 shows it. Phases are summed across
 projects and readings as durations are. A record written before phases were kept
 opens with every file unphased.
+
+**A file's cost.** What running a file cost is the larger of its duration and
+its phases summed. Each counts part of the same run: Jest's runtime spans the
+file's run with the gaps between phases, and Vitest's duration is only the last
+of its five phases. So a Vitest file that spends 5.4 s importing and 33 ms in
+its cases costs 5.4 s, not 33 ms, and a Jest file costs its runtime unless its
+phases add up to more. A file without phases costs its duration, and a file
+with neither is untimed. Two projects' figures are summed before the larger is
+taken, so the cost is that of both runs. `variance ask slowest-tests` ranks
+files by this cost and a sharded run places them by it.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
