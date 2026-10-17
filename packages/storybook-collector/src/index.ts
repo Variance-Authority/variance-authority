@@ -205,7 +205,7 @@ export function storybookCollector(
     let world: World;
     try {
       world = await openWorld(recipe, (page) => {
-        parameters = readParametersBeside(page, recipe.harness.url);
+        parameters = readParametersBeside(page, recipe.harness);
         // Awaited by `plan()`; a run closed before it asks has nothing to say.
         parameters.catch(() => undefined);
       });

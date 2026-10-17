@@ -1,5 +1,5 @@
 import type { Viewport } from '@variance-authority/core/format';
-import { widthsOf, type Harness } from '@variance-authority/playwright';
+import { pinnedRegion, widthsOf, type Harness, type HarnessOptions } from '@variance-authority/playwright';
 import {
   declarationOf,
   harnessPage,
@@ -85,14 +85,24 @@ export function withParameters(plan: Plan, read: ParametersRead, run: Viewport):
  * following it. A context and not a second page in the run's own: that page
  * held the run's boot back more than a context of its own did.
  *
- * The context is a plain one: no viewport, region, clock or agent of the run's.
- * `extract()` renders nothing, and a parameter is the value its story file
- * declares.
+ * The context is opened at the run's viewport, colour scheme, timezone and
+ * locale, so a parameter a preview computes from one of them reads what it
+ * reads on the run's page. It carries no clock or agent of the run's:
+ * `extract()` renders nothing.
  */
-export async function readParametersBeside(run: Harness['page'], url: string): Promise<ParametersRead> {
+export async function readParametersBeside(
+  run: Harness['page'],
+  harness: Pick<HarnessOptions, 'url' | 'viewport' | 'timezoneId' | 'locale'>,
+): Promise<ParametersRead> {
   const browser = run.context().browser();
   if (browser === null) throw new Error("the run's page has no browser to open a context on");
-  const context = await browser.newContext();
+  const { viewport, url } = harness;
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+    deviceScaleFactor: viewport.deviceScaleFactor,
+    colorScheme: viewport.colorScheme,
+    ...pinnedRegion(harness),
+  });
   try {
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'load' });
