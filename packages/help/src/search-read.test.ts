@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { access, cp, mkdtemp, rm, stat } from 'node:fs/promises';
+import { access, cp, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch } from './ask.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath } from './read.js';
-import { readSearchForAnswer } from './search-read.js';
+import { readSearchForAnswer, unopenedLine } from './search-read.js';
 import { workspaceSearchPath } from './snapshot.js';
 
 /**
@@ -98,6 +98,33 @@ describe('search from its published file', () => {
     expect(compared).toBe(true);
     expect(askSearch(search, ['--query', 'measure'])).toContain('measure');
     await expect(access(workspaceSearchPath(empty))).resolves.toBeUndefined();
+  });
+
+  it('says nothing failed to open when nothing was published', async () => {
+    const reading = await readSearchForAnswer(root, { index: join(root, '.absent') });
+    expect(reading.unopened).toBeUndefined();
+  });
+
+  it('says which published search did not open, why, and that the checkout was read instead', async () => {
+    const broken = join(root, '.broken');
+    await writeFile(workspaceSearchPath(broken), 'not a search');
+
+    const reading = await readSearchForAnswer(root, { index: broken });
+
+    expect(reading.compared).toBe(true);
+    expect(reading.unopened).toEqual([{ published: 'search', at: workspaceSearchPath(broken), reason: expect.stringMatching(/\S/u) }]);
+    const line = unopenedLine(reading.unopened, reading.compared);
+    expect(line?.startsWith(`The published search at ${workspaceSearchPath(broken)} did not open (`)).toBe(true);
+    expect(line?.endsWith('); the checkout was read instead.')).toBe(true);
+    await expect(readSearchForAnswer(root, { index: broken })).resolves.toMatchObject({ compared: false });
+  });
+
+  it('names the published search that did not open in the refusal `--just-answer` makes', async () => {
+    const broken = join(root, '.broken-refused');
+    await writeFile(workspaceSearchPath(broken), 'not a search');
+    await expect(readSearchForAnswer(root, { index: broken, justAnswer: true })).rejects.toThrow(
+      `the published search at ${workspaceSearchPath(broken)} did not open`,
+    );
   });
 
   it('refuses under `--just-answer` when nothing is published, names that flag, and publishes nothing', async () => {

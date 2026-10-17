@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
@@ -65,6 +66,21 @@ describe('variance ask on a checkout with no index', () => {
     expect(answered.out).toContain('shim');
     expect(answered.out).toContain('\nSnapshot ');
     expect(answered.out).not.toContain('not compared with the checkout');
+  });
+
+  it('search says which published search did not open, and that it read the checkout instead', async () => {
+    const root = cold();
+    const at = `${sourceIndexPath(root)}.help-search.bin`;
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, 'not a search');
+    const answered = await run(['ask', 'search', '--query', 'shim']);
+    expect(answered.code).toBe(EXIT_CLEAN);
+    expect(answered.out).toContain(`The published search at ${at} did not open (`);
+    expect(answered.out).toContain('the checkout was read instead.');
+
+    writeFileSync(at, 'not a search');
+    const json = JSON.parse((await run(['ask', 'search', '--query', 'shim', '--format', 'json'])).out) as { unopened?: readonly { at: string }[] };
+    expect(json.unopened?.map((one) => one.at)).toEqual([at]);
   });
 
   it('search --format json from a read of the checkout carries its generation without `compared: false`', async () => {

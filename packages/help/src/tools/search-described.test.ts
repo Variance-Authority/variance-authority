@@ -1,11 +1,12 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
-import { refreshDependencyLexicon } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { answerSearch, searchIndexOf } from './search.js';
 
 /**
@@ -53,6 +54,29 @@ it('answers a description with the repository\'s own names first, and the packag
   // Neither the phrase nor every word is in the name, so only the words held answer it.
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
   expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('react @1.0.0'));
+});
+
+it('answers from a catalogue of the version before, names the described packages it cannot compare, and rebuilds it at refresh', async () => {
+  const root = await inventedWorkspace(INVENTED_PACKAGES, ['react']);
+  const catalogue = join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin');
+  const bytes = readFileSync(catalogue);
+  const header = bytes.subarray(0, 4 + bytes.readUInt32LE(0));
+  const at = header.indexOf('"version":2');
+  expect(at).toBeGreaterThan(-1);
+  // Version 1 holds the same columns; only the stems of what a package says were cut another way.
+  bytes.write('"version":1', at);
+  writeFileSync(catalogue, bytes);
+  const said = (): string => answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
+
+  const older = said();
+  expect(older).toContain('Third-party names searched: 1 package under package.json.');
+  expect(older).not.toContain('package describes');
+  expect(older).toContain('The dependency lexicon was written at version 1, whose stems this release does not compare, so no package was asked whether it describes `state management`; `variance index` rebuilds it.');
+
+  await refreshDependencyLexicon(root);
+  expect(said()).toContain('1 package describes `state management`');
+  expect(queryDependencyLexicon(root, 'state management')).toMatchObject({ describedTotal: 1 });
+  expect(queryDependencyLexicon(root, 'state management')).not.toHaveProperty('describedUnread');
 });
 
 describe('which names the described section holds, and in what order', () => {

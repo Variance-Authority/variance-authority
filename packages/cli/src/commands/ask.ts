@@ -6,7 +6,7 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
-import { caughtUp, snapshotLine } from '@variance-authority/help';
+import { caughtUp, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -283,8 +283,9 @@ export async function askSource(request: SourceRequest): Promise<string> {
     // A reading nothing compared with the checkout says so under its refusal,
     // and one that could not be compared says why.
     const caught = unseen ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
-    const footer = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
-    const said = footer === undefined ? '' : `\n\n${footer}`;
+    const dated = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
+    const footer = [dated, unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
+    const said = footer === '' ? '' : `\n\n${footer}`;
     if (caught?.subject === undefined) throw refused(refusal, said);
     try {
       return rendered(request, caught.subject, false);
@@ -321,10 +322,13 @@ function rendered(request: SourceRequest, answering: Answering, unseen: boolean)
     // The generation is carried as a field rather than a footer line, and is
     // absent when the reading could not say when it was made.
     const data = answering.data?.();
-    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }) }, undefined, 2)}\n`;
+    const unopened = answering.unopened === undefined ? {} : { unopened: answering.unopened };
+    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...unopened }, undefined, 2)}\n`;
   }
   const answer = answering.answer();
-  return `${at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`}\n`;
+  const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+  const said = unopenedLine(answering.unopened, !unseen);
+  return `${said === undefined ? dated : `${dated}\n${said}`}\n`;
 }
 
 /**

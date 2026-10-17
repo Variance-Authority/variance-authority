@@ -17,7 +17,12 @@ or agent ending, so a word and its forms share one stem: `instrument`,
 and `placed`. An ending needs four letters left, so `comment` stays apart from
 `come` and `generation` from `gene`. An `s` after `s` or `u` and an `ed`
 after `e` are not inflections, so `process` stays apart from `proceed`. The
-dependency lexicon's catalogue is built again once, because it stores stems.
+dependency lexicon's catalogue is built again at the next `variance index`,
+because it stores stems. Until then a catalogue of the version before still
+answers every question; only the packages that describe a question by words
+are left out, and the answer says so and names `variance index`. A question
+by words also reports how many packages describe it when more are held than
+shown, which it read under the wrong field name before.
 
 A published or exported match is ordered by where it holds the question
 first: in its name, then in its doc's opening paragraph, then later in its
@@ -37,3 +42,9 @@ no longer says the checkout was not compared.
 the checkout, `{ index, compared }`, instead of the search alone. Only under
 `--just-answer` does it refuse, and the refusal names that flag and
 `variance index` as the command that publishes one.
+
+A published search or published value that is there and does not open is no
+longer passed over in silence. The answer names each one it tried, why it did
+not open, and that it read the checkout instead; under `--json` it is
+`unopened`, one `{ published, at, reason }` per file. A file that is not there
+is still absence, and says nothing.

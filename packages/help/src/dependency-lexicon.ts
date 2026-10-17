@@ -57,6 +57,8 @@ export interface LexiconMatches {
   /** Present on a question by words: the packages that describe it, best first, under a lexicon that recorded what packages say. */
   readonly described?: readonly DescribedPackage[];
   readonly describedTotal?: number;
+  /** Present instead of `described` when the lexicon cannot compare the question's words: why, as a sentence's opening. */
+  readonly describedUnread?: string;
 }
 
 /** Return names the native lexicon found, or absence when it is unpublished. */

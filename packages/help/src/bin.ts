@@ -159,8 +159,8 @@ if (asking(verb) && verb !== undefined) {
         ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
       };
       if (tool === search) {
-        const { index, compared } = await readSearchForAnswer(root, reading);
-        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared), at: index.generation?.generatedAt };
+        const { index, compared, unopened } = await readSearchForAnswer(root, reading);
+        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened), at: index.generation?.generatedAt };
       }
       if (tool === discover) {
         const named = await readNamedTree(root, inputFrom(tool, ownArgs));

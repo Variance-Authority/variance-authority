@@ -173,7 +173,9 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   ];
   const described = third?.described ?? [];
   const describedSection =
-    described.length === 0
+    third?.describedUnread !== undefined
+      ? ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
+      : described.length === 0
       ? []
       : [
           '',
