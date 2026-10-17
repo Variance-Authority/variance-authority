@@ -19,7 +19,11 @@ use super::Owner;
 
 const FORMAT: &str = "variance-authority-dependency-catalogue";
 /// 2: a purpose holds stems cut to a fixed point, so a catalogue of one-pass stems is read again.
-const VERSION: u8 = 2;
+/// 3: an owner is every named manifest, not only a member the root's `workspaces` list, so a catalogue whose owners
+/// were cut by `workspaces` is made again.
+const VERSION: u8 = 3;
+/// The version whose stems this release compares: a catalogue written before it answers no described question.
+const STEMS: u8 = 2;
 /// The oldest version still read: 1 lays its columns out as 2 does, so every question but a described one answers
 /// from it, and a refresh writes it again whole.
 const OLDEST: u8 = 1;
@@ -209,6 +213,9 @@ impl<'a> Catalogue<'a> {
     pub fn summary(&self) -> [u32; 4] { [0, 1, 2, 3].map(|at| self.summary.at(at)) }
 
     /// The version this catalogue was written at, when it is older than the one this release writes: its columns
-    /// read the same, and the stems of what a package says do not compare with a question's.
+    /// read the same, and a refresh reuses nothing in it.
     pub fn older(&self) -> Option<u8> { (self.written < VERSION).then_some(self.written) }
+
+    /// The version this catalogue was written at, when its stems were cut another way than this release cuts them.
+    pub fn stems_older(&self) -> Option<u8> { (self.written < STEMS).then_some(self.written) }
 }

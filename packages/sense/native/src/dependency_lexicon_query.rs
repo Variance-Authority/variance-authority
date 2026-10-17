@@ -166,7 +166,7 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
     shown.sort_by(|a, b| b.imported.cmp(&a.imported)
         .then_with(|| (&a.specifier, &a.name, &a.kind).cmp(&(&b.specifier, &b.name, &b.kind))));
     shown.truncate(limit as usize);
-    let older = lexicon.catalogue.older();
+    let older = lexicon.catalogue.stems_older();
     let described_unread = older.filter(|_| !exact)
         .map(|version| format!("The dependency lexicon was written at version {version}, whose stems this release does not compare"));
     let words = if exact || older.is_some() { None } else { described(&query, read.iter().copied(), limit as usize) };

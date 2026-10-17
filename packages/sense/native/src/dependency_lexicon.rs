@@ -117,7 +117,7 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
     let held_catalogue = fs::read(&path).ok();
     let held_sites = fs::read(&sites_path).ok();
     let catalogue = held_catalogue.as_deref().and_then(|bytes| Catalogue::open(bytes).ok())
-        // An older catalogue answers questions, but nothing in it is reused: its stems were cut another way.
+        // An older catalogue answers questions, but nothing in it is reused: its owners or its stems were cut another way.
         .filter(|catalogue| catalogue.older().is_none());
     let state = held_sites.as_deref().and_then(State::read);
     let based = |state: &State| chain.as_ref().is_some_and(|chain| state.base.iter().copied().eq(chain[..base].iter().map(String::as_str)));
@@ -141,8 +141,10 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
     let kept = catalogue.as_ref().filter(|catalogue| !manifest_moved && catalogue.manifests().iter().copied().eq(listed.iter().map(String::as_str)));
     let (owners, internal): (Vec<Owner>, Vec<String>) = match kept {
         Some(catalogue) => (catalogue.owners(), catalogue.internal().into_iter().map(str::to_owned).collect()),
-        None => (wanted::owners(root_path, &listed),
-            crate::package_owners::owners(&root, &listed).packages.into_iter().map(|package| package.name).collect()),
+        None => {
+            let packages = crate::package_owners::owners(&root, &listed).packages;
+            (wanted::owners(root_path, &packages), packages.into_iter().map(|package| package.name).collect())
+        }
     };
     let internal_names: HashSet<&str> = internal.iter().map(String::as_str).collect();
     let digest = sites::internal_digest(&internal_names.iter().copied().collect::<Vec<_>>());

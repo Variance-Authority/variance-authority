@@ -61,7 +61,7 @@ it('answers from a catalogue of the version before, names the described packages
   const catalogue = join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin');
   const bytes = readFileSync(catalogue);
   const header = bytes.subarray(0, 4 + bytes.readUInt32LE(0));
-  const at = header.indexOf('"version":2');
+  const at = header.indexOf('"version":3');
   expect(at).toBeGreaterThan(-1);
   // Version 1 holds the same columns; only the stems of what a package says were cut another way.
   bytes.write('"version":1', at);
