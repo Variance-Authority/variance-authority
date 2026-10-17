@@ -127,6 +127,16 @@ describe('reading a workspace through the source index', () => {
     expect(doc(indexed)).toBe(doc(walked));
   });
 
+  it('names the kind of the declaration each export binds, the same both ways', () => {
+    const kinds = (help: Help) =>
+      help.exported
+        .filter((name) => name.at.endsWith('/kinds.ts'))
+        .map(({ name, line, declaration }) => [name, line, declaration])
+        .sort((a, b) => Number(a[1]) - Number(b[1]));
+    expect(kinds(walked)).toEqual([['Shade', 2, 'const'], ['Shade', 3, 'type'], ['default', 5, 'function']]);
+    expect(kinds(indexed)).toEqual(kinds(walked));
+  });
+
   it('answers a second time from the index it just wrote', async () => {
     // Not a timing assertion — a timing assertion measures the machine. What is
     // checked is that the second reading is the same reading, because a cache
