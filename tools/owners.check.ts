@@ -110,6 +110,32 @@ describe('the owners reader', () => {
     ).toEqual([]);
   });
 
+  it('finds a wait on the clock, on the platform or on the page', () => {
+    expect(
+      idioms(
+        'packages/playwright/src/a.ts',
+        [
+          'export const one = () => new Promise((done) => setTimeout(done, 100));',
+          'export const two = (view: Window) => view.setInterval(() => {}, 50);',
+          'export const three = (page: Page) => page.waitForTimeout(500);',
+        ].join('\n'),
+      ),
+    ).toEqual(['timer one', 'timer two', 'timer three']);
+  });
+
+  it('finds a page thrown away: a reload, a new page, a new context', () => {
+    expect(
+      idioms(
+        'packages/playwright/src/a.ts',
+        [
+          'export const one = (page: Page) => page.reload();',
+          'export const two = (context: BrowserContext) => context.newPage();',
+          'export const three = (browser: Browser) => browser.newContext();',
+        ].join('\n'),
+      ),
+    ).toEqual(['fresh-page one', 'fresh-page two', 'fresh-page three']);
+  });
+
   it('leaves the owner of each idiom alone', () => {
     const digest = "import { createHash } from 'node:crypto';\nexport const d = (t: string) => createHash('sha256').update(t);";
     const order = 'export const o = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);';
@@ -132,7 +158,7 @@ describe('the owners reader', () => {
     expect(() => sitesIn('packages/cli/src/a.ts', 'const = ;')).toThrow('packages/cli/src/a.ts');
   });
 
-  it.todo('reads the Rust addon, which writes atomically in eight files — needs a Rust reader for the three idioms');
+  it.todo('reads the Rust addon, which writes atomically in eight files — needs a Rust reader for the idioms');
 });
 
 describe('answers with an owner', () => {

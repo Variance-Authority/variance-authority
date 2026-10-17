@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# The rules CodeRabbit reviews against live in AGENTS.md, `.agents/references/`
+# and `.compass/`; this file points it at them and adds the one check a reviewer
+# that reads only the diff can still answer: is the change's shape ours.
+language: en-US
+reviews:
+  profile: assertive
+  pre_merge_checks:
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+    docstrings:
+      mode: "off"
+    custom_checks:
+      - name: Alignment
+        mode: error
+        instructions: |
+          Fail when any of these holds, quoting the hunk:
+          1. It computes an answer the repository already computes elsewhere, under any name: a second implementation, a fallback beside a reader, a fast path beside the general one.
+          2. It adds setTimeout, setInterval, waitForTimeout, a page reload, newPage or newContext, a per-case cost where per-file would do, or a pass over the whole repository.
+          3. It answers a question .compass/COMPASS.md "Not ours" gives to TypeScript, git, oxc, a test runner, Chromium or a bundler.
+          4. Code outside a runner integration (jest*, vitest*, rstest*, packages named for a runner) imports one runner, or a feature lands for Vitest only without saying at the site which runners wait.
+          5. A flag switching between two behaviours, an option no task asked for, or an abstraction with one caller.
+          6. Logic in a shell (argument parsing, printing) or I/O in a pure decision function.
+          A reason in the PR body clears an item only with a measurement or a failing case.
+  path_instructions:
+    - path: "packages/*/package.json"
+      instructions: >-
+        A new dependency needs a reason in the PR body: what it owns that no
+        existing dependency or engine (oxc, git, TypeScript, Chromium) already
+        answers. Flag a second package that does what an existing one does.
+    - path: "packages/{core,sense,cli}/src/**"
+      instructions: >-
+        Runner-neutral code. Flag any import of vitest, jest, @rstest or
+        @playwright/test, and any branch on which runner is in use, outside a
+        file whose name starts with that runner.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - ".agents/references/*.md"
+      - ".compass/**/*.md"

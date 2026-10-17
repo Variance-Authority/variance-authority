@@ -82,7 +82,7 @@ distance not measured or only while its module loaded, with the test file to
 open, and counts the rest. After a rebase, run it again and paste the new
 block over the one between its markers.
 
-Before anything is pushed, three subagents review the change, and a fourth when
+Before anything is pushed, four subagents review the change, and a fifth when
 the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your
 worktree and `origin/main`, never from local `main`:
@@ -102,15 +102,22 @@ worktree and `origin/main`, never from local `main`:
    `refactor` PR it passes on both sides instead. For a top-layer page, does each fact the brief puts off the
    spine sit in the file it names, and does that file say it? Does each fact
    marked *nowhere* carry the reason it was left out?
+4. **Alignment** — the `alignment` agent, given the task sentence, the worktree
+   and the path of the body file. It designs the change from the task and the
+   compass before it reads the diff, then reports each gap against the code
+   rules: a second implementation, a wait or a reload, a neighbour's question,
+   a runner favoured, complexity in the wrong layer. It reads the body last,
+   and a reason clears a finding only with evidence. Direction asks whether the
+   change should happen; Alignment asks whether its shape is ours.
 
-When the change writes or rewrites a top-layer page, a fourth runs first:
+When the change writes or rewrites a top-layer page, a fifth runs first:
 
-4. **Flow** — the `content-flow` agent, given each changed page alone with the
+5. **Flow** — the `content-flow` agent, given each changed page alone with the
    brief's reader and question, never its expected readback. It reports what it
    understood, and you compare that with the brief, as
    [content flow](content-flow.md) says. A verdict of *no spine*, a *stalls at*
    that is not a named and linked prerequisite, or a readback that differs from
-   the brief, is blocking, and the other three
+   the brief, is blocking, and the other four
    wait until it passes: a review of facts on a page whose structure will change
    is spent twice.
 

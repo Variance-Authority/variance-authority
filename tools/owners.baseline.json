@@ -30,12 +30,22 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/evidence-fixture.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/cli/src/commands/history-rows.ts",
     "count": 1
   },
   {
     "idiom": "atomic-write",
+    "at": "packages/cli/src/commands/index-follow-ups.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
     "at": "packages/cli/src/commands/index-follow-ups.ts",
     "count": 1
   },
@@ -92,6 +102,16 @@
   {
     "idiom": "code-unit-order",
     "at": "packages/cli/src/commands/select-leg.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/ticker-clock.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/watch.ts",
     "count": 1
   },
   {
@@ -160,6 +180,11 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/core/src/format/waits.ts",
+    "count": 2
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/core/src/judge/docket.ts",
     "count": 1
@@ -200,6 +225,11 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/event/src/log.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/help/src/read.ts",
     "count": 1
@@ -227,6 +257,11 @@
   {
     "idiom": "code-unit-order",
     "at": "packages/help/src/tools/uses.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/history/src/client.ts",
     "count": 1
   },
   {
@@ -275,6 +310,36 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/playwright-test/src/documents.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/playwright-test/src/in-place.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/playwright-test/src/vantage.ts",
+    "count": 2
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright/src/harness.ts",
+    "count": 3
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/playwright/src/network.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright/src/renderer.ts",
+    "count": 2
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/presentation/src/compare.ts",
     "count": 1
@@ -290,9 +355,34 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/react/src/arrival.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/react/src/hydration.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/react/src/quiet.ts",
     "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/react/src/quiet.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/remote/src/batch.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/remote/src/transport.ts",
+    "count": 2
   },
   {
     "idiom": "code-unit-order",
@@ -302,6 +392,11 @@
   {
     "idiom": "code-unit-order",
     "at": "packages/report/src/cluster.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/route-collector/src/page-agent.ts",
     "count": 1
   },
   {
@@ -322,6 +417,11 @@
   {
     "idiom": "code-unit-order",
     "at": "packages/sense/src/emitted.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/index-turn.ts",
     "count": 1
   },
   {
@@ -460,6 +560,11 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/index-lock.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/instrumented-modules.ts",
     "count": 1
@@ -470,8 +575,18 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/journey-driver.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/journey-native.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/journey-parts.ts",
     "count": 1
   },
   {
@@ -540,9 +655,29 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/store/src/share.ts",
+    "count": 1
+  },
+  {
     "idiom": "atomic-write",
     "at": "packages/store/src/share.ts",
     "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/storybook/src/finish-wait.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/storybook/src/preview-fake.ts",
+    "count": 9
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/storybook/src/show-story.ts",
+    "count": 2
   },
   {
     "idiom": "atomic-write",
@@ -560,13 +695,53 @@
     "count": 1
   },
   {
+    "idiom": "fresh-page",
+    "at": "packages/tribunal/src/ui/change.tsx",
+    "count": 2
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/tribunal/src/ui/docket.tsx",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/tribunal/src/ui/subject.tsx",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/tribunal/src/ui/variations.tsx",
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/tribunal/src/ui/viewer.tsx",
+    "count": 1
+  },
+  {
     "idiom": "digest",
     "at": "packages/tribunal/src/worker-auth.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/vantage/src/watch.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/wire/src/index.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "tools/glyph-atlas.mjs",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "tools/released.mjs",
     "count": 1
   },
   {

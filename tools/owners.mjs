@@ -15,6 +15,10 @@ import { parseSync } from 'oxc-parser';
  * the same five tokens. So this reads the parse tree for the shape of each idiom
  * and names the owner.
  *
+ * A timer and a fresh page joined them for the same reason: a wait on the clock
+ * and a page thrown away each look like a fix where they are written, and each
+ * was kept out only by somebody reading every diff.
+ *
  * A ratchet, like `documented.mjs`. What is here today is recorded per file, a
  * new site fails, and a site that moved to its owner tightens the baseline.
  *
@@ -30,6 +34,8 @@ export const BASELINE = join(ROOT, 'tools/owners.baseline.json');
  *
  * Atomic writing has no owner across packages. The message says so and names
  * the writer the same package already has, which is the nearest thing to one.
+ * A timer and a fresh page have no owner file either: what owns them is a
+ * rule, readiness by signal and one page per session, so the message names it.
  */
 export const IDIOMS = {
   digest: {
@@ -47,7 +53,23 @@ export const IDIOMS = {
     owner: 'no shared owner yet; call the writer this package already has',
     owns: [],
   },
+  timer: {
+    owner:
+      'the signal that says the thing is ready: an event, a promise, `aria-busy`, the harness hook. A timer ' +
+      'is a deadline that names what never answered, never a wait for something to settle',
+    owns: [],
+  },
+  'fresh-page': {
+    owner:
+      'the page the session already holds, switched in place through the harness API (ADR-0009); ' +
+      'a reload or a new page or context per subject is the isolation that was measured and rejected',
+    owns: [],
+  },
 };
+
+// Each call that waits on the clock, and each call that throws the page away.
+const TIMERS = new Set(['setTimeout', 'setInterval', 'waitForTimeout']);
+const FRESH_PAGES = new Set(['reload', 'newPage', 'newContext']);
 
 /**
  * Production sources: what ships, and the tools that write what ships.
@@ -92,6 +114,8 @@ export function sitesIn(file, text) {
     if (node.type === 'CallExpression' && isHashCall(node)) found('digest', node, scope.name);
     if (node.type === 'ConditionalExpression' && isCodeUnitOrder(node)) found('code-unit-order', node, scope.name);
     if (isFunction(node) && writesThenRenames(node)) found('atomic-write', node, nameOf(node, scope));
+    if (node.type === 'CallExpression' && TIMERS.has(calleeName(node.callee))) found('timer', node, scope.name);
+    if (node.type === 'CallExpression' && FRESH_PAGES.has(calleeName(node.callee))) found('fresh-page', node, scope.name);
   });
 
   return sites;

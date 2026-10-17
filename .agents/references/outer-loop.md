@@ -74,6 +74,11 @@ findings are:
 gh api --paginate repos/{owner}/{repo}/pulls/<n>/comments --jq '.[] | select(.user.login == "coderabbitai[bot]") | "\(.path):\(.line)\n\(.body)\n"'
 ```
 
+Its walkthrough also carries the pre-merge checks `.coderabbit.yaml` declares.
+An **Alignment** check that reads failed is red, like a failing CI check: the
+same questions as the `alignment` reviewer, asked of the pushed diff. Classify
+its finding like a comment; one that is real goes back to the inner loop.
+
 **What CI says the change does.** `check.yml` posts two comments: a coverage
 report, compared with the unit suite's base record when one was restored, and
 "What this change might do", which names the cases that stood on the changed
