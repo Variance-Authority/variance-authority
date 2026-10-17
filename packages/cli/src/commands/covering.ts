@@ -53,13 +53,15 @@ import {
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
+import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { listedIn, namesAt, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { coveringAt, countOf, fileGraph } from './covering-at.js';
@@ -120,6 +122,8 @@ export interface Covering {
   readonly tests?: readonly CoveringTest[];
   /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */
   readonly files?: readonly CoveringFile[];
+  /** Under `--hops`, when no distance could be measured: why. */
+  readonly hopsGap?: string;
   /**
    * Present with `tests`, when it could be told: the cases that could have
    * reached the line or function and stopped before entering it. With no
@@ -138,13 +142,18 @@ export interface Covering {
    * change to it selects whole (`covering-unloaded.ts`).
    */
   readonly preconditionOf?: readonly string[];
+  /** With `preconditionOf`: whether the run loaded the file uninstrumented, or only the suite declares it (a native source no probe reaches). */
+  readonly held?: 'loaded' | 'declared';
+  /** With `preconditionOf`: how many test files the reading holds, so that every one of them is said as that. */
+  readonly among?: number;
   /**
    * Where the line numbers stand, when the file could be framed against the
    * snapshot: `recorded` when the held text is the one the suite ran over,
    * `mapped` when it differs and the recorded text was found, so every range is
    * carried to where it stands now, and `stale` when it differs and the
    * recorded text was not found — then no range is given, because none of them
-   * is a place in anything held. Absent when nothing held a digest to check.
+   * is a place in anything held, and `tests` names the cases that ran code in
+   * the file. Absent when nothing held a digest to check.
    */
   readonly frame?: 'recorded' | 'mapped' | 'stale';
   /** Where the index was read, so an empty answer can be checked against a path. */
@@ -171,6 +180,12 @@ export interface Covering {
     readonly of: number;
     readonly notes: readonly string[];
   };
+  /**
+   * Present when the record was cut under probes this build does not place:
+   * the answer is the record's, and this says what the difference leaves
+   * open, for the asked file when one was asked (`probes-gap.ts`).
+   */
+  readonly probes?: ProbesGap & { readonly cut?: CutGap; readonly note: string };
 }
 
 /**
@@ -200,27 +215,60 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     where = kept.where;
     return { index: kept.index, files: read.files, before: index };
   };
-  const answer = await ask(request, reader, (tests) => {
-    reached = tests;
-  });
+  let answer: Covering;
+  try {
+    answer = await ask(request, reader, (tests) => {
+      reached = tests;
+    });
+  } catch (error) {
+    // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
+    // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
+    if (!(error instanceof OperatorError) || !RECORD_SHAPED.has(error.kind ?? '')) throw error;
+    // The refusal is the answer; a record that cannot be found again only leaves it without a note.
+    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
+    if (from === undefined) throw error;
+    const probes = await gapOf(request, from, undefined);
+    if (probes === undefined) throw error;
+    throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
+  }
   // Twins and counts are read among every case the question reached before `--where` narrowed it.
   const listed = listedIn(answer);
   const twins = names === undefined ? undefined : caseTwins(listed, reached ?? listed, names);
-  if (where !== undefined) where = placesNoCase(answer) ? undefined : whereOver(where, listed, reached ?? listed, names);
+  if (where !== undefined) where = whereOver(where, listed, reached ?? listed, names);
   const motion = await motionFor(request, answer.from, scope, full);
-  const files = answer.tests === undefined || whole === undefined
-    ? undefined
-    : coveringFiles(answer.tests, whole, request.since === undefined && request.hops === true
-      ? await hopsToTests(request)
-      : undefined);
+  const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
+  const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
+  const probes = await gapOf(request, answer.from, whole);
   return {
     ...answer,
+    ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
+    ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
     ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
+}
+
+/** The refusals that say what the record holds of the file, and so are answered from it with its gap beside them. */
+const RECORD_SHAPED: ReadonlySet<string> = new Set(['older', 'unloaded']);
+
+/**
+ * The probes gap of the record `from`, with, for one asked file the record
+ * holds, how its regions there stand against this build's cut.
+ */
+async function gapOf(request: ParsedCovering, from: string, index: ExecutionIndex | undefined): Promise<Covering['probes']> {
+  const gap = await probesGap(from, request.root, request.suite);
+  if (gap === undefined) return undefined;
+  // `covering --file` is where a note sends a reader for one file's cut, so when it compared none it says why, not where to ask.
+  const module = index?.modules.find((candidate) => candidate.file === request.file);
+  const cut: CutGap | undefined = request.file === undefined
+    ? undefined
+    : module === undefined
+      ? { file: request.file, unread: 'the record holds no region of it' }
+      : await cutGap(request.root, await recordedCommit(from), module.file, module.blocks);
+  return { ...gap, ...(cut === undefined ? {} : { cut }), note: probesNote(gap, cut, '--execution') };
 }
 
 /**
@@ -272,7 +320,10 @@ async function ask(
     const asked = request.cases === undefined && request.where === undefined
       ? undefined
       : new Set(index.tests.map((test) => test.file));
-    if (loaded !== undefined) return { file, preconditionOf: asked === undefined ? loaded : loaded.filter((test) => asked.has(test)), from };
+    if (loaded !== undefined) {
+      const preconditionOf = asked === undefined ? loaded : loaded.filter((test) => asked.has(test));
+      return { file, preconditionOf, held: held?.loaded.has(file) === true ? 'loaded' : 'declared', among: asked?.size ?? held?.tests ?? 0, from };
+    }
     // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
     // Git says whether the commit the record was made at held the file: a
@@ -290,9 +341,7 @@ async function ask(
   const placement = await placementFor(request, from);
   const frame = placement === undefined ? {} : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
-    // No range is a place in the held text, so none is given: painted at its
-    // recorded numbers it would land on whatever code holds them now.
-    return { file, ...frame, from, ...(placement.at === undefined ? {} : { at: placement.at }) };
+    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, near, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
   const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near }, reach);

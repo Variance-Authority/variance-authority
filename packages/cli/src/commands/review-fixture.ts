@@ -13,6 +13,7 @@ import {
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 /**
  * A change a review reads: `main` at the base, the change in the working tree,
@@ -59,6 +60,8 @@ export async function changed(options: {
   readonly tree?: string;
   readonly lines?: TotalLines;
   readonly indexed?: TotalLines;
+  /** The probes the run's record says cut it, the fixture's own unless given. */
+  readonly instrumentation?: string;
 } = {}): Promise<{ root: string; first: string; against: string }> {
   const tree = options.tree ?? AFTER;
   const lines = options.lines ?? AFTER_LINES;
@@ -88,6 +91,7 @@ export async function changed(options: {
   const extra = options.gone === true ? ['test/round.test.ts'] : [];
 
   await recordTotal(testCoverageFile(root, { suite: options.suites?.[0] }), {
+    ...(options.instrumentation === undefined ? {} : { instrumentation: options.instrumentation }),
     commit: first,
     text: options.text ?? tree,
     lines,
@@ -106,7 +110,7 @@ export async function changed(options: {
 
   // The base's record, copied aside before the run the way a pipeline does it.
   const against = join(await mkdtemp(join(tmpdir(), 'variance-review-base-')), 'coverage.bin');
-  await writeTestCoverage(against, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
+  await writeTestCoverage(against, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeAsSetExecutionIndex({
       tests: [DISCOUNTS],
       modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
@@ -140,6 +144,7 @@ export async function roundedBy(root: string, first: string, suite: string, text
  * function, and `index` is the case index the run wrote into it.
  */
 export async function recordTotal(coverageFile: string, record: {
+  readonly instrumentation?: string;
   readonly commit: string;
   readonly text?: string;
   readonly lines?: TotalLines;
@@ -151,7 +156,7 @@ export async function recordTotal(coverageFile: string, record: {
   await mkdir(dirname(coverageFile), { recursive: true });
   await writeTestCoverage(coverageFile, {
     version: 3,
-    instrumentation: 'fixture',
+    instrumentation: record.instrumentation ?? INSTRUMENTATION_ID,
     commit: record.commit,
     tests: record.tests,
     modules: [{

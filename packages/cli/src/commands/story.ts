@@ -50,7 +50,13 @@ export type StoryAnswer =
     /** The package each file on the route and the test's own file is in, by its manifest; a file under none is absent. */
     readonly packages?: Readonly<Record<string, string>>;
     /** Which reading of the case this is, and how many are kept. */
-    readonly reading?: { readonly of: number; readonly label?: string; readonly written?: number };
+    readonly reading?: {
+      readonly of: number;
+      readonly label?: string;
+      readonly written?: number;
+      /** Why `--compare` drew this reading alone: the side it names that holds none. */
+      readonly unmatched?: string;
+    };
   }
   | { readonly comparison: Comparison }
   | { readonly stories: readonly StoryEntry[] };
@@ -78,8 +84,9 @@ export function story(parsed: ParsedStory): StoryAnswer {
   // Readings are listed newest first within a case, so a case's first is its newest.
   const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));
   if (cases.size > 1) return { stories: matching };
-  if (parsed.compare !== undefined) return { comparison: compareStory(parsed.root, matching, parsed.compare) };
-  const newest = matching[0]!;
+  const compared = parsed.compare === undefined ? undefined : compareStory(parsed.root, matching, parsed.compare);
+  if (compared !== undefined && !('alone' in compared)) return { comparison: compared };
+  const newest = compared?.alone ?? matching[0]!;
   const route = readRoute(parsed.root, newest.path);
   const packages: Record<string, string> = {};
   for (const file of [route.file, ...route.files]) {
@@ -90,6 +97,7 @@ export function story(parsed: ParsedStory): StoryAnswer {
     of: matching.length,
     ...(newest.label === undefined ? {} : { label: newest.label }),
     ...(newest.written === undefined ? {} : { written: newest.written }),
+    ...(compared === undefined ? {} : { unmatched: compared.unmatched }),
   };
   return { route, packages, reading, ...(zoom === undefined ? {} : { zoom }) };
 }
@@ -152,7 +160,7 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
     const never = 'lines' in reading ? drawnUntaken(reading.lines, route.untaken) : [];
     return `${JSON.stringify({
       ...head, ...(own === undefined ? {} : { package: own }),
-      ...(answer.reading === undefined ? {} : { readings: answer.reading.of, label: answer.reading.label, written: answer.reading.written }),
+      ...(answer.reading === undefined ? {} : { readings: answer.reading.of, label: answer.reading.label, written: answer.reading.written, unmatched: answer.reading.unmatched }),
       steps, reading: shown, ...(never.length === 0 ? {} : { untaken: never }),
       ...(finer === undefined ? {} : { finer }),
     }, null, 2)}\n`;
@@ -248,8 +256,9 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
   if (reading !== undefined && reading.of > 1) {
     const label = reading.label === undefined ? '' : `, labelled ${reading.label}`;
     const written = reading.written === undefined ? '' : `, written ${new Date(reading.written).toISOString()}`;
-    lines.push(`  the newest of ${reading.of} readings${label}${written}; set them against each other with --compare`);
+    lines.push(`  the newest of ${reading.of} readings${label}${written}${reading.unmatched === undefined ? '; set them against each other with --compare' : ''}`);
   }
+  if (reading?.unmatched !== undefined) lines.push(`  ${reading.unmatched}`);
   if (route.stopped === true) lines.push('  the test threw or rejected, so the route ends where it stopped');
   if (route.untaped > 0) lines.push(`  the recording filled up, and ${route.untaped} later visits are not on this route`);
   if (route.interleaved > 0) {
@@ -263,7 +272,7 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
   if (route.unresolved.length > 0) {
     lines.push(
       `  ${route.unresolved.length} ${route.unresolved.length === 1 ? 'file is' : 'files are'} drawn as the file alone:`
-        + ' the recording holds no regions for them at this text, and the next run of the suite records them',
+        + ` the recording holds no regions for ${route.unresolved.length === 1 ? 'it' : 'them'} at this text`,
     );
   }
   return lines;

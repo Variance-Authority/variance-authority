@@ -371,9 +371,9 @@ function unmergeable(shards: readonly Shard[]): readonly string[] {
     `composition dropped: ${composed} of ${shards.length} shard(s) compared their subjects to ` +
       'each other, and that comparison does not survive a split — two subjects sharing a ' +
       'rendering are the finding, and a pair that landed in different shards is in neither ' +
-      'report. Each subject\'s structure rows go with it. Run the suite unsharded to ask ' +
-      'for the component graph or one subject\'s composition; the lexicon is per subject ' +
-      'and is carried.',
+      'report. Each subject\'s structure rows go with it. Each shard\'s own report still holds ' +
+      'its composition over the subjects it rendered; the component graph, or one subject\'s ' +
+      'composition across shards, is in none of them. The lexicon is per subject and is carried.',
   ];
 }
 

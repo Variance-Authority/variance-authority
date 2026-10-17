@@ -151,7 +151,7 @@ export async function layeredOver(
 export function anotherBuilds(file: string, error: unknown): Error {
   return new Error(
     `this run cannot be laid over the record at ${file}: ${error instanceof Error ? error.message : String(error)}. ` +
-      'It was written by another build; delete it and run again.',
+      'It was written by another build, so it is left as it was and this run lays nothing over it; deleting it is the operator\'s.',
     { cause: error },
   );
 }

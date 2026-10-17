@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { formatCoveringAnswer } from './covering-suites.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const SUITES = {
   suites: { unit: { kind: 'unit' }, stories: { kind: 'visual' }, checkout: { kind: 'e2e' } },
@@ -53,7 +54,7 @@ async function recordIn(at: string, suite: string, index: unknown, commit?: stri
   const file = testCoverageFile(at, { suite });
   await mkdir(dirname(file), { recursive: true });
   const made = commit === undefined ? {} : { commit };
-  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', ...made, tests: [], modules: [] }, {
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, ...made, tests: [], modules: [] }, {
     index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
   });
 }
@@ -132,12 +133,12 @@ describe('a line asked of a repository that declares suites', () => {
     expect(answer.out.indexOf('checkout (e2e): nothing is recorded')).toBeLessThan(answer.out.indexOf('Not loaded by'));
   });
 
-  it('explains every suite in full when the only one holding the file refuses the line, since none answered', async () => {
+  it('answers a line the only suite holding the file has no region for, and gathers the rest', async () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '3', '--root', root]);
 
-    expect(answer.out).toMatch(/^unit \(unit\): line 3 of `src\/pay\.ts` is outside every recorded region/mu);
-    expect(answer.out).toMatch(/^stories \(visual\): `src\/pay\.ts` is not in the index at/mu);
-    expect(answer.out).not.toContain('Not loaded by');
+    expect(answer.out.startsWith('unit (unit):\n  No named test covered line 3 of src/pay.ts.\n'
+      + '  Line 3 is outside every recorded region, so no case can be said to have run it.\n')).toBe(true);
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
   });
 
   it('explains every suite in full when none of them loaded the file, since that is the whole answer', async () => {
@@ -288,12 +289,12 @@ describe('a file added after the commit a suite recorded at', () => {
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
 
-  it('is said in full as a record older than the file, with the commit and the run that records it', async () => {
+  it('is said in full as a record older than the file, with the commit, and names no run', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at]);
 
     expect(answer.out).toMatch(new RegExp(
       `^unit \\(unit\\): \`src/refund\\.ts\` did not exist at ${then.slice(0, 12)}, the commit the record at \`[^\`]+/suites/unit/[^\`]+\` was made at, ` +
-        'so that record has no answer for it: run the suite and ask again\\.$',
+        'so that record has no answer for it\\.$',
       'mu',
     ));
     expect(answer.out).not.toContain('Not loaded by');
@@ -339,5 +340,7 @@ describe('a repository whose declared suites have none of them run', () => {
     expect(answer.code).toBe(2);
     expect(JSON.parse(answer.out)).toEqual({ refused: 'unrecorded' });
     expect(answer.err).toContain('none of the suites it declares, "checkout", "stories", "unit", has a per-case index');
+    // A whole run is often impossible where the question is asked, so the refusal sends nobody to one.
+    expect(answer.err).not.toMatch(/\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i);
   });
 });

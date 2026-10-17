@@ -423,10 +423,41 @@ precondition of every test file that loaded it, and `variance select` selects
 all of them on a change to it, so `covering` names those files and no case:
 
 ```text
-src/format/stabilize.ts is a precondition of 4 test files, and a change to it selects every one: the run loaded it without instrumenting it, or the suite declares it, so no line of it has a recorded case.
+src/format/stabilize.ts is a precondition of 4 test files, and a change to it selects every one: the run loaded it without instrumenting it, so no line of it has a recorded case.
   src/render-cache.test.ts
   …
 ```
+
+A file the suite declares a precondition, such as a native source no probe
+reaches, is said to be one rather than met by each test file:
+
+```text
+native/src/lib.rs is not instrumented: the suite declares it a precondition of every one of the 212 test files these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.
+```
+
+Over a whole module that many test files import, each range names the cases
+that ran it and counts the rest, the ones that ran it only while their file
+imported the module:
+
+```text
+src/format/index.ts — 3 recorded ranges, 4 named tests, and 180 more that ran it only while their file imported it
+lines 1-40
+  src/format/index.test.ts
+    formats a total
+  and 180 cases in 96 test files ran it only while their file imported the module
+…
+```
+
+A record cut under probes this build does not place still answers: what ran,
+and which cases ran it, is read from the record as it holds it, at its own
+commit. The answer opens with both probes and the question the difference leaves
+open, which is whether a region this build cuts and those probes did not ran.
+For the file asked about, `covering` compares the regions the record holds, and
+their lines, with the ones this build's presence walk cuts in the text the
+record was made over, and names any that differ. An equal cut does not show that
+a hit means the same under both probes, and the note says so. When this machine holds the mainline's record cut under this
+build's probes beneath the one read, the note names its path, which
+`--execution` reads.
 
 When the root `variance.config.json` declares
 [suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
@@ -631,9 +662,9 @@ The count is out of the cases that covered what you asked about, before
 `--where` narrowed them. `--where prices` keeps every value of `prices`, and
 every repeated `--where` must hold. Two values recorded at one level print as a
 contradiction, and match a `--where` naming either. A record made before cases
-recorded preconditions answers `unmeasured` rather than an empty list, and a
-case from a runner that does not record preconditions is counted apart from the
-cases that recorded nothing. When `--where` keeps none of the cases that covered
+recorded preconditions keeps none and counts every case as unmeasured, rather
+than answering that no test covered it, and a case from a runner that does not
+record preconditions is counted apart from the cases that recorded nothing. When `--where` keeps none of the cases that covered
 a line or function, the answer prints that the filter left none of them and how
 many there were, rather than that no test covered it. The state of a line,
 function, range or changed region, and the cases that stopped before it, are
@@ -680,7 +711,8 @@ stand in:
   stand now. A range an edit touched is marked `moved`.
 - `stale`: the text changed, and the text the suite ran over could not be found.
   No ranges are printed, because ranges at the wrong numbers would be read as
-  real.
+  real. The answer names the cases that ran code in the file, and says that
+  which of them ran the line you asked about cannot be said.
 
 ```bash
 variance covering --file src/checkout/total.ts --text - --format json < buffer.ts
@@ -688,8 +720,8 @@ variance covering --file src/checkout/total.ts --text - --format json < buffer.t
 
 `--text <path>` reads the held text from a file, and `--text -` reads it from
 standard input, which is how an editor queries a buffer you have not saved.
-`--line` then names a line in that text. A line the edit wrote is refused
-rather than answered, because no case has run it yet.
+`--line` then names a line in that text. A line the edit wrote is answered
+with no case, and the answer says the edit wrote it.
 
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number

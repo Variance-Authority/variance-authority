@@ -126,10 +126,10 @@ export function asOperator<T>(read: () => T): T {
 export function nothingRecorded(root: string, suites?: readonly string[]): OperatorError {
   return new OperatorError(
     suites === undefined
-      ? `nothing is recorded in \`${root}\`: no run left a per-case index. Run the suite with \`withTestSelection\` and ask again.`
+      ? `nothing is recorded in \`${root}\`: no run left a per-case index, so no case can be named.`
       : `nothing is recorded in \`${root}\`: none of the suites it declares, ${
           suites.map((name) => `"${name}"`).join(', ')
-        }, has a per-case index. Run a suite with \`withTestSelection\` and ask again.`,
+        }, has a per-case index, so no case can be named.`,
     { kind: 'unrecorded' },
   );
 }

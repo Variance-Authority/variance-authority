@@ -177,6 +177,8 @@ describe('distill over a scope of test files', () => {
 
     expect(answer.code).toBe(EXIT_OPERATOR);
     expect(answer.err).toContain('none of the suites it declares, "e2e", "unit", has a per-case index');
+    // A whole run is often impossible where the question is asked, so the refusal sends nobody to one.
+    expect(answer.err).not.toMatch(/\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i);
   });
 
   it('refuses a record `--execution` names where nothing is recorded', async () => {

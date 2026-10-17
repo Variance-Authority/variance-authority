@@ -3102,6 +3102,7 @@
         "encodeExecutionIndex": "function",
         "encodeTestCoverage": "function",
         "finalizeJestJourneys": "function",
+        "findModules": "function",
         "followRows": "function",
         "followRowsIn": "function",
         "foreignProbes": "function",

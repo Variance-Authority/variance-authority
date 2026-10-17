@@ -13,7 +13,8 @@ import type { CoveringTest, ExecutionTest } from '@variance-authority/sense/test
 import { runsText, targetText } from './covering-at.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
-import { narrowedText, scopeText, staleText } from './covering-text.js';
+import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
+import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
 import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
 import { caseNameOf, twinText, whereText } from './covering-where.js';
@@ -23,17 +24,27 @@ type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
 /** Say the answer with every case numbered once. */
 export function formatCoveringRefs(answer: Covering): string {
   const table = new Table(everyCase(answer), answer.twins);
-  const body = answer.frame === 'stale' ? [staleText(answer)] : bodyOf(answer, table);
+  const body = answer.frame === 'stale' ? staleBody(answer, table) : bodyOf(answer, table);
   // Numbered before the table is read, which is when it knows every case it holds.
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
+    ...probesText(answer),
     ...scopeText(answer),
     ...whereText(answer),
     ...body,
     ...narrowedText(answer),
+    ...hopsText(answer),
     ...table.lines(),
     ...motion,
   ].join('\n')}\n`;
+}
+
+/** What the record cannot place, then the cases that ran code in the file. */
+function staleBody(answer: Covering, table: Table): readonly string[] {
+  const { gone, header } = staleLines(answer);
+  const tests = answer.tests ?? [];
+  if (header === undefined) return [gone];
+  return [gone, tests.length === 0 ? header : `${header}: ${table.refs(tests)}`];
 }
 
 function bodyOf(answer: Covering, table: Table): readonly string[] {
@@ -54,8 +65,11 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
     return lines;
   }
   if (answer.preconditionOf !== undefined) {
-    const of = answer.preconditionOf.length === 0 ? 'no test file of these cases' : answer.preconditionOf.join(', ');
-    return [`${answer.file} precondition of: ${of}; no recorded line`];
+    const every = answer.held === 'declared' && answer.preconditionOf.length > 0 && answer.preconditionOf.length === answer.among;
+    const of = answer.preconditionOf.length === 0
+      ? 'no test file of these cases'
+      : every ? `every test file (${answer.among})` : answer.preconditionOf.join(', ');
+    return [`${answer.file} ${answer.held === 'declared' ? 'declared ' : ''}precondition of: ${of}; no recorded line`];
   }
   if (answer.ranges !== undefined) {
     return [

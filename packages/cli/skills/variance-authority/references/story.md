@@ -176,6 +176,9 @@ compare  src/checkout.test.ts > saves the total it charges
 - The last line counts what differs between readings of one side too. It is
   not the cause; do not read it as one, and do not report the order changing
   between runs as a flake.
+- *nothing to compare it with* means a side holds no reading: the route
+  printed is the newest reading of the other, and the line names the side that
+  is missing. Record that side before you compare.
 - *one reading on a side* means the comparison cannot separate the side from the
   run. `last` always prints it. Record the test again under each side before you
   conclude.
@@ -193,7 +196,7 @@ not show, it names in the header:
 
 - *drawn as the file alone* — the recording does not have that file's
   functions as the test ran them: the file changed since, or was never
-  recorded. Run the test again with the variable.
+  recorded. The route still shows each step in it, without its functions.
 - *the recording filled up* — the visits after the limit are not on the route.
 - *another test's work ran in the middle of this one* — under a runner that
   tracks tests through async context, that work is left out.

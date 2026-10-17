@@ -46,6 +46,7 @@ import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
+import { probesGap, probesNote } from './probes-gap.js';
 import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
@@ -223,6 +224,10 @@ export interface Review {
   /** Each package `beyond` names, followed to the files here that depend on it. Absent with `beyond`, or when it could not be compared. */
   readonly packages?: readonly PackageReach[];
   readonly motion?: CoveringMotion;
+  /** What a record cut under probes this build does not place leaves open, said beside the answer read from it (`probes-gap.ts`). */
+  readonly probes?: string;
+  /** Why no case is said to have moved, when the runs record could not be read and `--since` named the base. */
+  readonly runsUnread?: string;
 }
 
 /** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
@@ -233,9 +238,17 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // The runs are always this checkout's own: a base it did not record, the mainline's or the
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
   const own = await landingRecord(root, request.suite);
+  // A runs record that cannot be read says neither where the change starts nor
+  // which test files the runs wrote. A named base answers the first; the second
+  // stays open, so no case is said to have moved, and the answer says why.
+  let unread: string | undefined;
   const runs = await readCommitRuns(own).catch((error: unknown) => {
-    const remedy = 'It records where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
-    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${remedy}.`, { cause: error });
+    if (request.since !== undefined) {
+      unread = error instanceof Error ? error.message : String(error);
+      return undefined;
+    }
+    const why = 'It records where this change starts, and a review that read it as absent would start from a guess';
+    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${why}. Name the base with \`--since <ref>\`.`, { cause: error });
   }).then((listed) => (listed?.runs === 0 ? undefined : listed));
   const given = request.since ?? (await runsBase(root, runs, own));
   // Runs that name no start (`runsBase`), and no base named: a suite given to a
@@ -248,7 +261,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     throw new OperatorError(
       (runs === undefined
         ? `no run has listed itself beside \`${own}\`, so nothing records where this change starts. ` +
-            'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
+            'Name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} name no start ` +
             'they descend from, so nothing records where this change starts. Name the base with `--since <ref>`.') +
         (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),
@@ -297,7 +310,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // and it is theirs only for the test files a run at this commit wrote to the
   // case index; for any other file it holds an earlier commit's cases.
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
-  const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
+  const comparable = (file: string): boolean => against !== undefined || (unread === undefined && (wrote === undefined || ('compared' in wrote && wrote.compared.has(file))));
 
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
@@ -323,7 +336,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
     ? await motionAgainst(from, against, ref, root)
-    : wrote === undefined
+    : wrote === undefined || unread !== undefined
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 
@@ -332,6 +345,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // A change with no recorded module ran nothing yet.
   const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured, changedCases)).size === measured.length ? 'ran' : 'before';
   const head = await reviewedCommit(point.repository);
+  const gap = await probesGap(from, root, request.suite);
   return {
     ...(head === undefined ? {} : { head }),
     from: point.base,
@@ -348,7 +362,16 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(beyond === undefined ? {} : { beyond }),
     ...(packages === undefined ? {} : { packages }),
     ...(motion === undefined ? {} : { motion }),
+    ...(gap === undefined ? {} : { probes: probesNote(gap) }),
+    ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
   };
+}
+
+/** What an unreadable runs record leaves open beside an answer from a named base. */
+function runsUnreadNote(message: string, compared: boolean): string {
+  return `${message.charAt(0).toUpperCase()}${message.slice(1).replace(/\.$/u, '')}, so which test files the runs wrote cannot be said, and ${
+    compared ? 'the cases are compared with the named base\'s alone' : 'no case is said to have moved'
+  }.`;
 }
 
 async function prefetch(
