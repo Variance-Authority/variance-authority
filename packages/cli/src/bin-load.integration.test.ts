@@ -77,6 +77,11 @@ describe('what the program loads before it answers', () => {
     expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
+  it('loads no pixel package for `ask search --query x`', async () => {
+    const loaded = await packagesLoaded(['ask', 'search', '--query', 'x']);
+    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
+  });
+
   // FIXME: parsing `--at-distance` loads `@variance-authority/sense/test-selection` whole, about 30 ms, for `distanceRange`.
   it.todo('loads no package outside the CLI to print its version — needs `distanceRange` reachable without the selection barrel');
 });

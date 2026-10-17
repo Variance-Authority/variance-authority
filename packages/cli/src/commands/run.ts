@@ -56,7 +56,9 @@ import { suitePartOf } from './suite-part.js';
  * what may never widen), `shard.ts` (which subjects are this run's),
  * `resources.ts` (decoder, store, disk) and `run-report.ts` (the artifact's
  * shape and its reader). Every public name any of them exports is
- * re-exported below, so `commands/run.js` is still the one import path.
+ * re-exported below, so a caller of the loop has one import path. A caller that
+ * only reads a report imports `run-report.js` itself: this file loads the
+ * observer, the decoder and the store, and `ask` must answer without them.
  */
 
 export { matchesGlob, collectorPath, loadCollector, planFor, planList, planStorybook } from './collector.js';
