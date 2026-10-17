@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jsonPieces, writePieces } from './json-pieces.js';
+import { jsonOfBytes, jsonPieces, writePieces } from './json-pieces.js';
 
 describe('jsonPieces', () => {
   it.each([
@@ -36,5 +36,35 @@ describe('writePieces', () => {
     });
     expect(written.join('')).toBe(`${piece.repeat(3)}end`);
     expect([written.length, waits]).toEqual([2, 1]);
+  });
+});
+
+describe('jsonOfBytes', () => {
+  /** Bytes that refuse to spell more than `longest` characters at once, as V8 refuses past its string limit. */
+  function held(value: unknown, longest: number): Buffer {
+    const bytes = Buffer.from(JSON.stringify(value, undefined, 2));
+    const spell = bytes.toString.bind(bytes);
+    bytes.toString = ((encoding?: BufferEncoding, start = 0, end = bytes.length) => {
+      if (end - start > longest) throw Object.assign(new Error('Cannot create a string longer than that'), { code: 'ERR_STRING_TOO_LONG' });
+      return spell(encoding, start, end);
+    }) as typeof bytes.toString;
+    return bytes;
+  }
+
+  it('reads an object no one string could spell, a member and an element of a list at a time', () => {
+    const value = {
+      version: 2,
+      quoted: 'a "}," and a \\ in text, [ { ] }',
+      cases: Array.from({ length: 50 }, (_, at) => ({ id: `case ${at}`, said: ['é', '"'] })),
+      files: Array.from({ length: 50 }, (_, at) => ({ file: `src/${at}.ts`, regions: [{ called: [at, at + 1] }] })),
+      empty: [],
+      none: null,
+    };
+    expect(jsonOfBytes(held(value, 200))).toEqual(value);
+  });
+
+  it('reads an empty object and a compact one', () => {
+    expect(jsonOfBytes(Buffer.from('{}'))).toEqual({});
+    expect(jsonOfBytes(Buffer.from('{"a":[1,[2]],"b":{"c":[]}}\n'))).toEqual({ a: [1, [2]], b: { c: [] } });
   });
 });
