@@ -170,31 +170,34 @@ The name is matched **exactly**. `--package` takes a package name or a
 specifier, and only narrows: it answers from that package instead of from every
 specifier that publishes the name.
 
-A miss is a refusal on stderr. `variance ask` exits `2`;
-`variance-authority-help` exits `1`:
+A name nothing declares is answered on stdout, exit `0`: what was read and
+declares nothing, and where else the name may be written. Unless you pass
+`--just-answer`, a generation reused from earlier is asked again with one made
+now before the answer is given:
 
 ```
-`NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either.
+`NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.
 ```
 
-When the dependency lexicon is not published, the refusal still says what the
+When the dependency lexicon is not published, the answer still says what the
 workspace holds, and that the installed dependencies were not checked:
 ``Whether an installed dependency publishes it is not known: the dependency
 lexicon is not published, and `variance index` publishes it.`` When the source
-index did not read some files' declarations, the refusal says no file *it read*
+index did not read some files' declarations, the answer says no file *it read*
 declares the name, and names those files last.
 
 Members are read from JavaScript and TypeScript files only. When the source
-index holds files of another language, the refusal says what was read, names
+index holds files of another language, the answer says what was read, names
 those languages and sends you to their language server:
 
 ```
-`scan_things` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `scan_things` at its top level, and no JavaScript or TypeScript file declares it as a member. No installed dependency publishes it either. Members are read from JavaScript and TypeScript files only, and this workspace's Python and Rust files were not read for them: if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration.
+`scan_things` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `scan_things` at its top level, and no JavaScript or TypeScript file declares it as a member. No installed dependency publishes it either. Members are read from JavaScript and TypeScript files only, and this workspace's Python and Rust files were not read for them: if `scan_things` is a member there, ask their language server's workspace symbols for it, then its find-references on the declaration. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.
 ```
 
-`uses` ends its refusal of such a name with the same last sentence, and a
-member answer of `symbol` or `uses` ends with it as well, saying the member may
-be declared ``there too``.
+`uses` answers such a name with the same sentences, less the one about
+installed dependencies. A member answer of `symbol` or `uses` ends with the
+sentence about other languages as well, saying the member may be declared
+``there too``.
 
 A name no entry publishes, but that another package imports by the path of its
 file, is answered rather than refused: where it is declared, why nothing
@@ -212,12 +215,12 @@ any export of the same name in another file. A name an import binds with `as`
 is answered with that import and the original it names. A member of an
 interface, a type literal or a class, when nothing else declares or binds the
 name, is answered with its container and the file and line that declare it, one
-block per declaration. A name nothing declares is refused.
+block per declaration.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
 resolved to. When nothing in the workspace imports the specifier, the file it
-names is not known, and the name is refused with that reason.
+names is not known, and the answer says so.
 
 An interface, a type alias or a class is followed by `Members:`, one row per
 line that declares a member, as the checkout holds it. A member of a type

@@ -32,11 +32,12 @@ describe('variance-authority-help about a name written after the published gener
     expect(out).toContain('packages/kit/src/kept.ts');
   });
 
-  it('refuses under `--just-answer` with when the generation was published and that the checkout was not compared with it', async () => {
-    const { code, err } = await bin(await fixture.published(), ['symbol', '--name', 'keptOf', '--just-answer']);
-    expect(code).toBe(1);
-    expect(err).toContain('keptOf');
-    expect(err).toMatch(UNCOMPARED);
+  it('answers a name it does not find under `--just-answer` with when the generation was published and that the checkout was not compared with it', async () => {
+    const { code, out, err } = await bin(await fixture.published(), ['symbol', '--name', 'keptOf', '--just-answer']);
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    expect(out).toContain('`keptOf` is not published by this workspace');
+    expect(out).toMatch(UNCOMPARED);
   });
 
   it('says `search --format json` was not compared with the checkout', async () => {
