@@ -72,3 +72,7 @@ One attribute per element you name. It is markup, so the document's digest
 moves once when you add it. The structure Variance Authority compares keeps
 only the attributes it names, and this is not one of them, so no comparison
 shows it.
+
+---
+
+**[@variance-authority/reads](https://variance-authority.dev/reference/packages/reads)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/reads) · MIT

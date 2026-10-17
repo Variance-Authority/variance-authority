@@ -392,4 +392,4 @@ finished leaves whether or not something is still talking. There is no flush: a
 
 ---
 
-**[@variance-authority/wire](https://variance-authority.dev/reference/packages/wire)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/wire](https://variance-authority.dev/reference/packages/wire)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/wire) · MIT

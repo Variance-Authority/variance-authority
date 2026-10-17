@@ -304,4 +304,4 @@ const target = snapshotNode(document.querySelector('button')!);
 
 ---
 
-**[@variance-authority/eyes](https://variance-authority.dev/reference/packages/eyes)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/eyes](https://variance-authority.dev/reference/packages/eyes)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/eyes) · MIT

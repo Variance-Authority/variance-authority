@@ -13,3 +13,7 @@ more slowly.
 
 Recording a test run needs this binary: it places the probes, and without it
 the run stops at its first module.
+
+---
+
+**[@variance-authority/sense-darwin-arm64](https://variance-authority.dev/reference/packages/sense)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/sense/npm/darwin-arm64) · MIT

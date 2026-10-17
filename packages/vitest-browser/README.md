@@ -395,4 +395,4 @@ live: [baseline placement](https://variance-authority.dev/docs/placement).
 
 ---
 
-**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/vitest-browser) · MIT
