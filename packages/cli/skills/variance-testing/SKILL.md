@@ -112,21 +112,22 @@ changes.
 variance covering --file src/cart.ts --suite unit
 ```
 
-Every recorded range of the file has a state. Line coverage calls the last
-three covered or not; the record tells them apart:
+Every recorded range of the file has a state; `walked`, two or more cases, needs
+nothing. Line coverage reads the other four as covered or not covered; the
+record tells them apart:
 
 | state | what it means for a test |
 |---|---|
 | `unwalked` | no case ran it, and every case that could have finished: write one |
-| `loaded` | it ran only while the module was imported; no case called it, though line coverage counts it |
+| `loaded` | it ran only while the module was imported, and line coverage counts it: assert on what it set up, or leave it |
 | `alone` | one case is the only one that fails for it: a second case, if the line matters |
 | `hole` | a case stopped before it could; run the file again before you read it |
 
 Each declared suite answers on its own, so a range one suite never walked may
 be walked by another; `--suite` names the suite you will write the test in.
 For a long file, `--format json` and
-`jq -r '.suites[] | .ranges[]? | select(.state != "walked")'` keep the ranges
-to read. Write each test as the previous section does, and break the line to
+`jq -c '.ranges[] | select(.state != null and .state != "walked")'` keep the
+ranges to read; a range with no state is one the record cannot rank. Write each test as the previous section does, and break the line to
 see it fail.
 [covering](../variance-authority/references/covering.md)
 
@@ -138,18 +139,23 @@ variance distill --suite unit --file src/cart.test.ts --test "cart > removes the
 ```
 
 The file reading names the modules the test file loaded that no case, or only
-some cases, entered, with the import that brought each in: change that import,
-never mock the listed path. It is withheld when a case stopped; run the file
-again. The case reading names the files the test ran without addressing
-anything in them, from the Eyes journal of a component test; each is a
-candidate, not permission to mock it.
+some cases, entered. For a module no case entered, it names the import that
+brought it in: delete that import or import past the barrel, never mock the
+listed path. For one only some cases entered, make it lazy in the code that uses
+it, or move those cases to a file of their own. Rerun the file and read it
+again: the module is gone from the list, and every case passes. It is withheld
+when a case stopped; run the file again.
 
-Take one candidate at a time: substitute it at one boundary, rerun the exact
-test, distill again, and compare the `assert:` targets and sources and the
-update initiators with the first reading. Keep the edit only when they are what
-they were and no initiator newly appears outside; revert it otherwise, and when
-a reading is unavailable. Two candidates in one rerun do not show which one was
-safe.
+The case reading names the files one test ran without addressing anything in
+them, from the Eyes journal of a component test; each is a candidate, not
+permission to mock it. A record with no journal names the source the test ran
+and calls the candidates unavailable: the loop below needs a journal, and the
+file reading does not. Take one at a time: substitute it at one boundary, rerun
+the exact test, distill again, and compare the `assert:` targets and sources and
+the update initiators with the first reading. Keep the edit only when they are
+what they were and no initiator newly appears outside; revert it otherwise, and
+when a reading is unavailable. Two candidates in one rerun do not show which one
+was safe.
 [distill](../variance-authority/references/distill.md)
 
 ## Rules
