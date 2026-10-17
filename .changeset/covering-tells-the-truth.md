@@ -42,18 +42,22 @@ to run the suite or record it again:
   `{"refused":"unmeasured"}`.
 - `covering --line` on lines no recorded region holds, such as a blank line or
   an import, or on lines your edit wrote, answers with no case and says which
-  each line is, rather than refusing. Under `--format json` the answer carries
-  `outside` and `written`.
+  each line is, rather than refusing. Under `--format json` that answer, which
+  holds no recorded line, carries `outside` and `written` as answers with one
+  already did.
 - `covering --hops` and `--at-distance` beside a coverage snapshot from another
   run than the per-case index list the test files with no hops, and say why.
 - `review --since <ref>` beside a runs record that cannot be read answers from
-  the named base and names no case as moved, since which test files the runs
-  wrote cannot be read. With no base named it is still refused, and the
-  refusal names `--since <ref>`.
-- `story --compare last` and `--compare outcome` say which side there is
-  nothing to compare with, rather than asking for another run.
+  the named base and says, beside the answer and under `runsUnread` in JSON,
+  that the record could not be read, so no case is said to have moved unless
+  `--against` names the base's cases. With no base named it is still refused,
+  and the refusal names `--since <ref>`.
+- `story --compare` with a side that holds no reading draws the newest reading
+  of the other and says which side is missing, rather than refusing; JSON
+  carries it as `unmatched`. A comparison with one reading on a side says so
+  and no longer asks for another run.
 - The refusals that stay say what they cannot read and why an answer past it
-  would mislead: an unreadable or malformed runs record, a journal that names
+  would mislead: an unreadable runs record, a journal that names
   no commit, an unreadable execution journal, and `--cases last` over runs that
   name no case. Where a base answers them they name `--since <ref>`. A merged
   report that drops the composition says that each shard's report still holds

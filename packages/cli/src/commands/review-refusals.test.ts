@@ -8,6 +8,7 @@ import { OperatorError } from '../exit.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { changed } from './review-fixture.js';
+import { formatReview } from './review-text.js';
 import { review } from './review.js';
 
 function parse(argv: readonly string[]) {
@@ -52,6 +53,20 @@ describe('a review that cannot be made', () => {
       expect(answer.runs).toBeUndefined();
       expect(answer.motion).toBeUndefined();
       expect(answer.files.map((file) => file.file)).toContain('src/total.ts');
+      expect(answer.files.every((file) => file.cases === undefined)).toBe(true);
+    });
+
+    it('says beside the answer that the record could not be read, and what that leaves open', async () => {
+      const { root, first } = await changed();
+      const runs = commitRunsFile(testCoverageFile(root));
+      await mkdir(runs, { recursive: true });
+
+      const answer = await review(parse(['--since', first, '--root', root]));
+      const gap = `The runs record at ${runs} could not be read`;
+
+      expect(answer.runsUnread).toMatch(new RegExp(`^${gap.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}.*so which test files the runs wrote cannot be said, and no case is said to have moved\\.$`, 'su'));
+      expect(formatReview(answer, 'text')).toContain(`\n\n${answer.runsUnread}\n`);
+      expect(formatReview(answer, 'markdown')).toContain(`<sub>${answer.runsUnread}</sub>`);
     });
   });
 

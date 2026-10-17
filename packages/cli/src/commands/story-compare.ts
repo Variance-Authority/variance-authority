@@ -18,7 +18,6 @@ import {
   type PlaceDifference,
   type StoryEntry,
 } from '@variance-authority/sense/story';
-import { OperatorError } from '../exit.js';
 import type { StoryCompare } from '../story-args.js';
 
 /** What a run with the variable set to `1` is called, when a comparison names it. */
@@ -29,20 +28,33 @@ export function labelled(entry: StoryEntry): string {
   return entry.label ?? UNLABELLED;
 }
 
-/** The two sides `compare` names among one case's readings, newest first, compared. */
-export function compareStory(root: string, readings: readonly StoryEntry[], compare: StoryCompare): Comparison {
+/**
+ * A reading drawn on its own, because one side `--compare` names holds none,
+ * and the sentence that says which side is missing.
+ */
+export interface Unmatched {
+  readonly alone: StoryEntry;
+  readonly unmatched: string;
+}
+
+/**
+ * The two sides `compare` names among one case's readings, newest first,
+ * compared. When a side holds no reading, the newest of the other is drawn
+ * alone, with what is missing said beside it.
+ */
+export function compareStory(root: string, readings: readonly StoryEntry[], compare: StoryCompare): Comparison | Unmatched {
+  const alone = (side: readonly StoryEntry[], missing: string): Unmatched => ({ alone: (side[0] ?? readings[0])!, unmatched: `nothing to compare it with: ${missing}` });
   if (compare === 'last') {
-    if (readings.length < 2) throw new OperatorError(`--compare last needs two readings of this case, and ${readings.length} is kept, so there is nothing to compare it with`);
+    if (readings.length < 2) return alone(readings, 'this is the only reading of this case kept');
     return compareReadings(root, { name: 'newest', readings: [readings[0]!] }, { name: 'the one before', readings: [readings[1]!] });
   }
   if (compare === 'outcome') {
     const passed = readings.filter((entry) => entry.stopped === false);
     const threw = readings.filter((entry) => entry.stopped === true);
     if (passed.length === 0 || threw.length === 0) {
-      throw new OperatorError(
-        `--compare outcome needs readings that passed and readings that threw, and of ${readings.length} kept ${passed.length} passed and ${threw.length} threw,`
-          + ` so there is no side that ${passed.length === 0 ? 'passed' : 'threw'}`,
-      );
+      const [had, none] = passed.length === 0 ? ['threw', 'passed'] : ['passed', 'threw'];
+      const every = readings.length === 1 ? 'the one reading kept' : `every one of the ${readings.length} readings kept`;
+      return alone(passed.length === 0 ? threw : passed, `${every} ${had}, and none ${none}`);
     }
     return compareReadings(root, { name: 'passed', readings: passed }, { name: 'threw', readings: threw });
   }
@@ -50,7 +62,8 @@ export function compareStory(root: string, readings: readonly StoryEntry[], comp
   const empty = sides.filter((side) => side.readings.length === 0).map((side) => side.name);
   if (empty.length > 0) {
     const kept = [...new Set(readings.map(labelled))].sort();
-    throw new OperatorError(`no reading of this case is labelled ${empty.join(' or ')}; the labels kept are ${kept.join(', ')}`);
+    const held = sides.find((side) => side.readings.length > 0)?.readings ?? [];
+    return alone(held, `no reading of this case is labelled ${empty.join(' or ')}; the labels kept are ${kept.join(', ')}`);
   }
   return compareReadings(root, sides[0]!, sides[1]!);
 }
@@ -70,8 +83,7 @@ export function formatComparison(comparison: Comparison, format: 'text' | 'json'
   ];
   if (comparison.single) {
     text.push(
-      '  one reading on a side: what differs below may be a run that went another way, not the side;',
-      '  run the case again under each label, or until it has passed and thrown more than once',
+      '  one reading on a side: what differs below may be a run that went another way, not the side',
     );
   }
   let found = false;

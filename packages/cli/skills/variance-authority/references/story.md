@@ -176,6 +176,9 @@ compare  src/checkout.test.ts > saves the total it charges
 - The last line counts what differs between readings of one side too. It is
   not the cause; do not read it as one, and do not report the order changing
   between runs as a flake.
+- *nothing to compare it with* means a side holds no reading: the route
+  printed is the newest reading of the other, and the line names the side that
+  is missing. Record that side before you compare.
 - *one reading on a side* means the comparison cannot separate the side from the
   run. `last` always prints it. Record the test again under each side before you
   conclude.

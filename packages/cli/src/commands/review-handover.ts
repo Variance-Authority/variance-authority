@@ -89,8 +89,10 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
   lines.push(...shown.map((crumb) => crumbLine(crumb, tagged, mixed)));
   if (rest.length > 0) lines.push(...(shown.length === 0 ? [] : ['']), remainder(rest, shown.length > 0, mixed));
   for (const section of sections) {
-    if ('review' in section && section.review.probes !== undefined) {
-      lines.push('', `${section.suite === undefined ? 'The record' : `\`${section.suite}\``}: ${section.review.probes}`);
+    if ('review' in section) {
+      for (const note of [section.review.probes, section.review.runsUnread]) {
+        if (note !== undefined) lines.push('', `${section.suite === undefined ? 'The record' : `\`${section.suite}\``}: ${note}`);
+      }
     }
     if ('missed' in section) {
       const why = section.unrecorded === true ? 'this checkout holds no case-level record of it' : firstSentence(section.missed);

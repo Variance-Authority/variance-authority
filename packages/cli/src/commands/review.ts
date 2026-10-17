@@ -226,6 +226,8 @@ export interface Review {
   readonly motion?: CoveringMotion;
   /** What a record cut under probes this build does not place leaves open, said beside the answer read from it (`probes-gap.ts`). */
   readonly probes?: string;
+  /** Why no case is said to have moved, when the runs record could not be read and `--since` named the base. */
+  readonly runsUnread?: string;
 }
 
 /** `motion: false` leaves out the cases moved against the base, for a reading made before CI that reports none. */
@@ -238,11 +240,11 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const own = await landingRecord(root, request.suite);
   // A runs record that cannot be read says neither where the change starts nor
   // which test files the runs wrote. A named base answers the first; the second
-  // stays open, so no case is said to have moved.
-  let unread = false;
+  // stays open, so no case is said to have moved, and the answer says why.
+  let unread: string | undefined;
   const runs = await readCommitRuns(own).catch((error: unknown) => {
     if (request.since !== undefined) {
-      unread = true;
+      unread = error instanceof Error ? error.message : String(error);
       return undefined;
     }
     const why = 'It records where this change starts, and a review that read it as absent would start from a guess';
@@ -308,7 +310,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // and it is theirs only for the test files a run at this commit wrote to the
   // case index; for any other file it holds an earlier commit's cases.
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
-  const comparable = (file: string): boolean => against !== undefined || (!unread && (wrote === undefined || ('compared' in wrote && wrote.compared.has(file))));
+  const comparable = (file: string): boolean => against !== undefined || (unread === undefined && (wrote === undefined || ('compared' in wrote && wrote.compared.has(file))));
 
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
@@ -334,7 +336,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
     ? await motionAgainst(from, against, ref, root)
-    : wrote === undefined || unread
+    : wrote === undefined || unread !== undefined
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 
@@ -361,7 +363,15 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(packages === undefined ? {} : { packages }),
     ...(motion === undefined ? {} : { motion }),
     ...(gap === undefined ? {} : { probes: probesNote(gap) }),
+    ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
   };
+}
+
+/** What an unreadable runs record leaves open beside an answer from a named base. */
+function runsUnreadNote(message: string, compared: boolean): string {
+  return `${message.charAt(0).toUpperCase()}${message.slice(1).replace(/\.$/u, '')}, so which test files the runs wrote cannot be said, and ${
+    compared ? 'the cases are compared with the named base\'s alone' : 'no case is said to have moved'
+  }.`;
 }
 
 async function prefetch(

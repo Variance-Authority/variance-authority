@@ -286,6 +286,13 @@ describe('a story read as a route', () => {
     ]);
   });
 
+  it('says, in place of the --compare hint, which side a reading drawn alone has nothing to compare with', () => {
+    const unmatched = 'nothing to compare it with: every one of the 2 readings kept passed, and none threw';
+    const text = formatStory({ route: ROUTE, reading: { of: 2, unmatched } }, 'text').split('\n');
+    expect(text.slice(0, 4)).toEqual([...HEAD.slice(0, 2), '  the newest of 2 readings', `  ${unmatched}`]);
+    expect(JSON.parse(formatStory({ route: ROUTE, reading: { of: 2, unmatched } }, 'json'))).toMatchObject({ readings: 2, unmatched });
+  });
+
   it('gives the reading, its level and the numbered steps as json', () => {
     const { before: _before, route: _route, untaken: _untaken, ...head } = ROUTE;
     expect(JSON.parse(formatStory({ route: ROUTE, zoom: { around: 5 } }, 'json'))).toEqual({

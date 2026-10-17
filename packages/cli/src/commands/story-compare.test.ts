@@ -77,24 +77,33 @@ describe('readings of one case compared', () => {
     expect(formatComparison(none, 'text').split('\n')).toEqual([
       'compare  src/cart.test.ts > cart > removes the last item',
       '  slow (1 reading) against fast (2 readings, 1 threw)',
-      '  one reading on a side: what differs below may be a run that went another way, not the side;',
-      '  run the case again under each label, or until it has passed and thrown more than once',
+      '  one reading on a side: what differs below may be a run that went another way, not the side',
       '',
       '  nothing separates the sides: whatever differs between them differs between readings of one side too',
       '',
     ]);
   });
 
-  it('names what a side is missing before reading anything', () => {
-    expect(() => compareStory('/checkout', [entry(undefined, false)], 'last')).toThrow(
-      '--compare last needs two readings of this case, and 1 is kept, so there is nothing to compare it with',
-    );
-    expect(() => compareStory('/checkout', [entry(undefined, false), entry(undefined, false)], 'outcome')).toThrow(
-      '--compare outcome needs readings that passed and readings that threw, and of 2 kept 2 passed and 0 threw, so there is no side that threw',
-    );
-    expect(() => compareStory('/checkout', [entry('slow'), entry(undefined)], { labels: ['slow', 'fast'] })).toThrow(
-      'no reading of this case is labelled fast; the labels kept are 1, slow',
-    );
+  it('draws the side there is when the other holds no reading, and says which is missing', () => {
+    const passed = entry(undefined, false);
+    const slow = entry('slow');
+    expect(compareStory('/checkout', [passed], 'last')).toEqual({
+      alone: passed,
+      unmatched: 'nothing to compare it with: this is the only reading of this case kept',
+    });
+    expect(compareStory('/checkout', [passed, entry(undefined, false)], 'outcome')).toEqual({
+      alone: passed,
+      unmatched: 'nothing to compare it with: every one of the 2 readings kept passed, and none threw',
+    });
+    const threw = entry(undefined, true);
+    expect(compareStory('/checkout', [threw], 'outcome')).toEqual({
+      alone: threw,
+      unmatched: 'nothing to compare it with: the one reading kept threw, and none passed',
+    });
+    expect(compareStory('/checkout', [entry(undefined), slow], { labels: ['slow', 'fast'] })).toEqual({
+      alone: slow,
+      unmatched: 'nothing to compare it with: no reading of this case is labelled fast; the labels kept are 1, slow',
+    });
   });
 
   it('takes the sides from --compare, and refuses a zoom or a label beside it', () => {
