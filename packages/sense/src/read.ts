@@ -274,6 +274,9 @@ export interface Read {
 
   /** Every line of a Rust file that uses a field or a variant through a type it names. Absent when there are none. */
   readonly memberUses?: readonly MemberUse[];
+
+  /** The module's own doc comment, inside its marks, as `Parsed.doc` says. */
+  readonly doc?: TextSpan;
 }
 
 /** Extensions the module reader claims. Everything else is somebody else's. */

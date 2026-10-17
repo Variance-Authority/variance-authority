@@ -26,6 +26,9 @@ import { tokensOf } from '../search-index.js';
  * holds the two to the same sets.
  */
 
+/** Sorted terms, by their UTF-8 bytes: the search file's dictionary, or any other kept by the same rule. */
+export type Dictionary = Pick<SearchIndex, 'termCount' | 'term' | 'termBytes'>;
+
 /** The most edits a term may be from what was asked: one character. */
 const MAX_FUZZY = 1;
 
@@ -112,7 +115,7 @@ export function admittedBy(
 }
 
 /** Dictionary terms equal to `term`, starting with it, or within `edits` of it. */
-export function matchingTerms(index: SearchIndex, term: string, edits: number): ReadonlySet<number> {
+export function matchingTerms(index: Dictionary, term: string, edits: number): ReadonlySet<number> {
   const found = new Set<number>();
   const wanted = Buffer.from(term, 'utf8');
   for (let id = lowerBound(index, wanted, 0); id < index.termCount; id += 1) {
@@ -131,7 +134,7 @@ export function matchingTerms(index: SearchIndex, term: string, edits: number): 
  * already exceeds the budget cannot recover, so every term under it is skipped
  * with one binary search — the walk a trie would make, over a sorted array.
  */
-function withinEdits(index: SearchIndex, term: string, edits: number): readonly number[] {
+function withinEdits(index: Dictionary, term: string, edits: number): readonly number[] {
   const width = term.length + 1;
   const rows: Int32Array[] = [Int32Array.from({ length: width }, (_, j) => j)];
   const found: number[] = [];
@@ -189,7 +192,7 @@ function startsWith(bytes: Buffer, prefix: Buffer): boolean {
 }
 
 /** The first term at or after `from` whose bytes are not below `wanted`. */
-function lowerBound(index: SearchIndex, wanted: Buffer, from: number): number {
+function lowerBound(index: Dictionary, wanted: Buffer, from: number): number {
   let low = from;
   let high = index.termCount;
   while (low < high) {
@@ -201,7 +204,7 @@ function lowerBound(index: SearchIndex, wanted: Buffer, from: number): number {
 }
 
 /** The first term after `from` that does not start with `prefix`; `from` does. */
-function pastPrefix(index: SearchIndex, prefix: Buffer, from: number): number {
+function pastPrefix(index: Dictionary, prefix: Buffer, from: number): number {
   let low = from + 1;
   let high = index.termCount;
   while (low < high) {
