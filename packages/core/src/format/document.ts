@@ -335,7 +335,7 @@ export interface Raster {
    * change from the components the change merely moved needs both revisions, and
    * a stored baseline is an image: without this, a run has one document and ranks
    * by area — which
-   * [journal 0013](../../../../docs/context/journal/0013-observability.md)
+   * [journal 0013](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/journal/0013-observability.md)
    * measured as backwards.
    *
    * Text, and small: one line per component boundary. It rides in the sidecar

@@ -22,7 +22,7 @@ import type { ExecutedModule } from './probes.js';
  * every journey depends on it and none records it. The same is true of a
  * background timer started outside any request. Those are folded into
  * **every** subject by {@link stitchJourneys} — over-including, in the
- * direction [`selecting.md`](../../../../docs/selecting.md) argues for, rather
+ * direction [`selecting.md`](https://variance-authority.dev/docs/selecting) argues for, rather
  * than pretending a process can name a caller it never had. The leading space
  * keeps it out of the space a driver mints from: a UUID has none.
  */

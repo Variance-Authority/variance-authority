@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense` — the file graph, read off a disk.
  *
- * [`core/relate`](../../core/src/relate) holds the structure and answers the
+ * [`core/relate`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/core/src/relate) holds the structure and answers the
  * questions; it performs no I/O and depends on nothing (ADR-0006). This is the
  * half that opens files: an `oxc` parse for the module record, a resolver for
  * turning a specifier into a path, and a walk that follows what it finds.

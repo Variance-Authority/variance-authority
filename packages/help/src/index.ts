@@ -10,10 +10,10 @@
  *
  * Three parts, and the split is the design:
  *
- * - The reading is [`@variance-authority/package`](../package), which owns every
+ * - The reading is [`@variance-authority/package`](https://variance-authority.dev/reference/packages/package), which owns every
  *   decision about what a workspace publishes and what reaches for it. Nothing
  *   here re-derives any of it.
- * - The framing is [`@variance-authority/mcp`](../mcp), whose protocol half is
+ * - The framing is [`@variance-authority/mcp`](https://variance-authority.dev/reference/packages/mcp), whose protocol half is
  *   generic in what it serves. A JSON-RPC line is a JSON-RPC line whether the
  *   subject is a visual-difference report or an API.
  * - What is left, and what is in this package, is the five questions worth

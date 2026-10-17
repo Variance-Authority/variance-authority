@@ -1,7 +1,7 @@
 /**
  * What the repository imports and exports, read from the index the scan keeps.
  *
- * [`use.ts`](../../package/src/use.ts) can answer this by itself: walk every
+ * [`use.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/use.ts) can answer this by itself: walk every
  * directory, parse every module, collect every specifier. On this repository
  * that is 1336 files and about half a second, and the half second is paid again
  * on the next question about the same unchanged checkout. A repository ten times
@@ -9,7 +9,7 @@
  * to re-learn a tree where almost nothing moved.
  *
  * Nothing about the reading justifies the cost, because the reading is already
- * done. [`sense`](../../sense) keeps a durable, content-keyed index of exactly
+ * done. [`sense`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/sense) keeps a durable, content-keyed index of exactly
  * these bytes: git names each file's content without opening it, the digest
  * names what parsing that content produced, and a scan of an unchanged tree
  * costs a map lookup per file. What was missing was not a cache but a door —
@@ -253,7 +253,7 @@ async function scanIndexed(
 /**
  * A workspace, read with the index doing the expensive third of the work.
  *
- * The same value [`readHelp`](../../package/src/help.ts) returns and the same
+ * The same value [`readHelp`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/help.ts) returns and the same
  * reading behind it — the manifests say which doors exist, the source behind
  * them says what is on the other side, and the repository says what it reaches
  * for. Only the third one changes: it comes from the source index rather than

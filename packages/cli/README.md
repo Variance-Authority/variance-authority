@@ -61,7 +61,7 @@ export default storybookCollector({
 `@variance-authority/route-collector` is configured the same way from its own
 options. A collector you write yourself is a factory the CLI calls once per run,
 returning `plan`, `collect` and `close`;
-[run visual review from the command line](https://variance-authority.dev/docs/start-cli)
+[run visual review from the command line](https://variance-authority.dev/start/cli)
 spells out the full shape, and `Collector`, `CollectorContext`, `Plan`,
 `PlannedSubject`, `Collected` and `SubjectSource` are type-only exports of this
 package. A module whose default export is not a function is refused by path
@@ -644,7 +644,7 @@ the commit before.
 
 Coverage records which cases ran the code you asked about. A case that
 records the state it ran under with
-[`variancePrecondition`](../sense#record-the-state-each-test-ran-under) has it
+[`variancePrecondition`](https://variance-authority.dev/reference/packages/sense#record-the-state-each-test-ran-under) has it
 on its row, and every case `covering` lists prints each value with the call
 that recorded it. `--where` keeps the covering cases that ran under a
 precondition, in every form of the question:
@@ -1834,12 +1834,12 @@ VARIANCE_AUTHORITY_SINCE= jest
 variance select              # the same reading, printed
 ```
 
-[The seam's own page](../sense/README.md#let-the-runner-skip-them) says what
+[The seam's own page](https://variance-authority.dev/reference/packages/sense#let-the-runner-skip-them) says what
 the run prints and when it does not select.
 
-The journal is what [`@variance-authority/sense`](../sense/README.md) wrote the
+The journal is what [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense) wrote the
 last time that suite ran: its seams record Vitest, Jest and Rstest, and
-[`@variance-authority/sense/runner`](../sense/README.md#record-a-runner-this-package-has-no-seam-for)
+[`@variance-authority/sense/runner`](https://variance-authority.dev/reference/packages/sense#record-a-runner-this-package-has-no-seam-for)
 records any other runner.
 
 When the root `variance.config.json` declares
@@ -2060,7 +2060,7 @@ milliseconds without expanding it in JavaScript.
 
 A Vitest or Jest config wrapped by `withTestSelection` places the files of
 `--shard k/n` by the time each took on the last recorded run, so the shards
-finish close together; [sharding](../../docs/sharding.md) shows a build that
+finish close together; [sharding](https://variance-authority.dev/docs/sharding) shows a build that
 does it. `variance shards` says what `n` to start, from the same record and
 what one shard spends before its first test:
 
@@ -2102,7 +2102,7 @@ are counted. With nothing recorded the answer is `1 shard` and says so, unless
 count could not weigh. A pull request's build can start its
 matrix from it; the push to your mainline runs without `--since`, so its shards'
 records fold into the one the next build is placed by, as
-[sharding](../../docs/sharding.md#start-only-what-the-change-needs) shows:
+[sharding](https://variance-authority.dev/docs/sharding#start-only-what-the-change-needs) shows:
 
 ```yaml
 # a pull_request workflow

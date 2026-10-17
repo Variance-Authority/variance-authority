@@ -16,7 +16,7 @@ import { RasterStoreError, type BaselineKey } from '@variance-authority/raster';
  * ADR-0090 already reads it from.
  *
  * The template decides nothing about a verdict
- * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
+ * ([ADR-0016](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
  * every function here answers *which path*.
  */
 

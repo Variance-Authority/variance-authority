@@ -12,7 +12,7 @@ import { applySchema } from './schema.js';
  * flow and nothing else: the schema, the indexes, the append-only triggers, the
  * `ON CONFLICT` clause and every `ORDER BY` would be strings nobody executed.
  * D1 *is* SQLite, and `node:sqlite` is already a dependency of
- * [`@variance-authority/server`](../../server), so the double below runs the real
+ * [`@variance-authority/server`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/server), so the double below runs the real
  * statements against a real engine. What the tests then verify is the SQL, not a
  * paraphrase of it.
  *
@@ -20,7 +20,7 @@ import { applySchema } from './schema.js';
  * ceilings, quotas, consistency between two Workers writing at once, and whether
  * D1's `batch` is transactional in the way this package needs — none of those are
  * measured, here or anywhere else in this repository. They are stated as unmet in
- * [ADR-0023](../../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md) and the checkpoint rather than
+ * [ADR-0023](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0023-a-service-is-named-for-what-it-is.md) and the checkpoint rather than
  * implied to be fine by a green suite.
  *
  * Exported as `@variance-authority/tribunal/testing` because it is also the

@@ -31,7 +31,7 @@ import {
  * was derived from a tree and can be derived again, so the default is *nowhere*,
  * turning it on costs a rebuild at worst, and an operator who misconfigures it
  * gets a slow run rather than a wrong one
- * ([`sharing.md`](../../../docs/sharing.md)).
+ * ([`sharing.md`](https://variance-authority.dev/docs/sharing)).
  *
  * Three kinds, one layout: the latest record of each mainline and each branch,
  * and every image once by digest. `directory` is a path, which is what

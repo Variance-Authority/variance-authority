@@ -40,7 +40,7 @@ export interface ExecutionCrossing {
    *
    * A module initializes once per realm and its initialization is attributed to
    * every test that consumed the module, which is what
-   * [`selecting.md`](../../../../docs/selecting.md) asks for: over-include, so a
+   * [`selecting.md`](https://variance-authority.dev/docs/selecting) asks for: over-include, so a
    * change cannot skip a test. A reader asking what a test *exercised* needs the
    * opposite direction, and cannot recover it from a crossing that does not say
    * which of the two it was. `CoverageBlock.loadedBy` records the same fact for

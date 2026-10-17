@@ -21,7 +21,7 @@
  * ## What is deliberately not a decision
  *
  * Ternaries, `&&`, `||`, `??` and `?.` belong to the region that contains them
- * ([spec 0028](../../../../docs/specs/0028-the-instrument.md)). For
+ * ([spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md)). For
  * `if (order.isPremium && order.total > 100)` the fact worth recording is which
  * branch ran, not which operand short-circuited, and a change to either operand
  * still reaches every test that evaluated the condition — through the region the

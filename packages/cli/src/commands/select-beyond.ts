@@ -2,7 +2,7 @@
 /**
  * The install, as the commands hand it to the stages after it.
  *
- * [`beyondReach`](../../../core/src/relate/beyond.ts) reads a bump and a moved
+ * [`beyondReach`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/relate/beyond.ts) reads a bump and a moved
  * manifest back into the repository files they change; this is that reading
  * for an `InstallDiff`, and the patch every reader of a change is then handed:
  * the diff, with each traced file changed whole. No reader of the patch is told
