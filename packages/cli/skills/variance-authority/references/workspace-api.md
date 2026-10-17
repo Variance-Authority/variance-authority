@@ -295,7 +295,7 @@ When the source index holds files of those languages, a third line names them
 and sends you to their language server, as under `symbol`.
 
 A use is a line that reads the member (`props.size`, `props['size']`,
-`props?.size`), writes it (`props.size = 1`, `+=`, `++`, a key of an object
+`props?.size`, a call `props.size()`), writes it (`props.size = 1`, `+=`, `++`, a key of an object
 literal written as the type), or destructures it (`({ size }: Props) =>`,
 `const { size } = props`). It is tied to a declaration only where the line
 writes the value's type: a parameter's or a variable's annotation, alone or

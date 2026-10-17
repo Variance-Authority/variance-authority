@@ -14,8 +14,8 @@ not listed, because no type checker runs. The second line names the
 declaration's `file:line` for find-references in the declaration's own
 language's tooling (TypeScript's language service for JavaScript and
 TypeScript, its language server for any other), or, with several
-declarations, asks for the one you mean from the list above. These two lines replace the `docs_grep` route the answer used
-to end with; `variance ask grep --to <declaring file>` still finds the name as
+declarations, asks for the one you mean from the list above. These two lines
+replace the `docs_grep` route the answer used to end with; `variance ask grep --to <declaring file>` still finds the name as
 text. Which uses are listed has not changed, and an answer with no member
 prints neither line.
 
