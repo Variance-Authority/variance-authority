@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
-import { type Parses, bindingsIn, parseFile } from './declare.js';
+import { type Parses, everyBindingIn, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
 import { readImportTargets } from './manifest.js';
 import { type Bound, type Exported, type Recorded, type Usage, type UsageOptions, usageFrom } from './use.js';
@@ -132,8 +132,13 @@ export function readUsage(
     const publishes: Exported[] = [];
     // `export { x }` has no comment of its own: its doc is above what it binds,
     // and its kind is that declaration's.
-    let declared: ReturnType<typeof bindingsIn> | undefined;
-    const bound = (local: string | null) => (local === null ? undefined : (declared ??= bindingsIn(source)).get(local));
+    // One name may be declared twice, `const Kind` and `type Kind`: an export
+    // takes the declaration on its own line, else the first.
+    let declared: ReturnType<typeof everyBindingIn> | undefined;
+    const bound = (local: string | null, line: number) => {
+      const named = local === null ? undefined : (declared ??= everyBindingIn(source)).get(local);
+      return named?.find((one) => one.line === line) ?? named?.[0];
+    };
     for (const statement of source.parsed.module.staticExports) {
       const line = lineAt(source.writing, statement.start);
       const above = source.writing.docs.get(statement.start);
@@ -141,7 +146,7 @@ export function readUsage(
         // `export * from './x'` names nothing here: the set is whatever the other
         // file publishes, and inventing a name would claim one never written.
         const exported = nameOf(entry.exportName.kind, entry.exportName.name);
-        const binds = entry.moduleRequest === null ? bound(entry.localName.name) : undefined;
+        const binds = entry.moduleRequest === null ? bound(entry.localName.name, line) : undefined;
         const doc = above ?? binds?.doc;
         if (exported !== undefined) {
           publishes.push({

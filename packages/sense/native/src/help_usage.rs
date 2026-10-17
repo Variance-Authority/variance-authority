@@ -180,7 +180,11 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
             // The TypeScript reader spans an export's doc on the export; the
             // others span it on the declaration the export binds, by its name.
             let bound = text.optional(parses.export_local.at(export)).filter(|_| text.optional(parses.export_from.at(export)).is_none()).and_then(|local| {
-                parses.symbols.range(row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == local)
+                // One name may be declared twice, `const Kind` and `type Kind`: an
+                // export takes the declaration on its own line, else the first.
+                let line = parses.export_line.at(export);
+                let named = || parses.symbols.range(row).filter(move |&symbol| text.text(parses.symbol_name.at(symbol)) == local);
+                named().find(|&symbol| parses.symbol_line.at(symbol) == line).or_else(|| named().next())
             });
             let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());
             let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol))).and_then(|span| {
