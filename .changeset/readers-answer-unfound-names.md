@@ -1,6 +1,6 @@
 ---
-'@variance-authority/mcp': patch
-'@variance-authority/help': patch
+'@variance-authority/mcp': minor
+'@variance-authority/help': minor
 '@variance-authority/cli': patch
 ---
 
