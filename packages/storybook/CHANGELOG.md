@@ -1,5 +1,12 @@
 # @variance-authority/storybook
 
+## 0.16.0
+
+### Minor Changes
+
+- d7f8b72: A story's execution record now says where the browser spent it, timed by the page: `prepare` for the preview's load, paid by the first story read on a document and 0 for every later one; `collect` for importing the story's file and unmounting the story before it; `cases` for the render through `afterEach`. `collectStory` returns them as `timing`, and `watchStoryTiming` starts the page's watch; the collector's page agent runs it.
+- 2bfc647: A story is ready only when Storybook says so. The markup-quiescence fallback is gone, and with it the `markup-quiescent` readiness: markup that stopped changing cannot see a story still waiting on a fetch, a font or an image. The story the URL selected is read from Storybook's `currentRender`, so one still loading or playing is waited for rather than called `already-rendered`. A story with no `storyRendered` within `timeoutMs` is a `timeout` naming it, and a preview with no Storybook channel refuses every story unless `readySelector` is configured.
+
 ## 0.15.0
 
 ### Patch Changes

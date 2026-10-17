@@ -1,5 +1,107 @@
 # @variance-authority/storybook-collector
 
+## 0.16.0
+
+### Minor Changes
+
+- d7f8b72: A story's execution record now says where the browser spent it, timed by the page: `prepare` for the preview's load, paid by the first story read on a document and 0 for every later one; `collect` for importing the story's file and unmounting the story before it; `cases` for the render through `afterEach`. `collectStory` returns them as `timing`, and `watchStoryTiming` starts the page's watch; the collector's page agent runs it.
+- bd4243a: An image, font or media request still unanswered when the network wait runs
+  out refuses the subject, naming the URL. The subject used to be read without
+  it, with a `network-not-quiet` warning. `NetworkObservation.settle()` now
+  resolves that refusal, or `undefined` once nothing is in flight; a caller that
+  ignores it reads a subject whose bytes nobody hashed.
+  Only the requests a subject started count against it: one still open from an
+  earlier subject on the same page was named in that subject's refusal.
+  One the read itself asks for and never gets makes `acquireFromAgent` throw
+  `UnansweredAssets`, which both collectors turn into that subject's refusal.
+- 8b189b9: Place the probes ahead of your transforms with `placement: 'before-transforms'`
+
+  The probes go in after your transforms by default, so a compiler that reads
+  syntax never reads one. That costs a second parse and the map back to each
+  file. A unit-test run whose transforms only strip types or JSX can skip both:
+  `placement: 'before-transforms'` places the probes in the file as read, with
+  one parse and no map. It means the same on the Vitest, Jest and Rstest
+  `withTestSelection`, on `testSelectionProbes` and `testSelectionRule`, and as an
+  option of the Storybook addon. With Compiled, React Compiler or another compiler
+  that reads syntax in the run, keep the default: nothing detects them for you.
+- 7ff6d4b: Record what each story executed under Rspack and Webpack too
+
+  Add `@variance-authority/storybook-collector` to your Storybook's `addons`, and
+  the preview build carries the probes `tests` reads, whichever builder runs it:
+  `testSelectionProbes()` under Vite, the `testSelectionRule()` loader under
+  Rspack and Webpack 5. The probes go in after every compiler the build runs, so a
+  Storybook built by Rspack with `@compiled/react` records its stories. The
+  addon's options are the probes' own: `root`, `mode`, `include` and `placement`.
+
+  The addon probes only the builds the collector records: `storybook build
+  --test` and a dev server. Any other `storybook build`, the one a team
+  publishes, gets nothing from it, so build the recorded Storybook with `--test`.
+  The collector's `tests` is read in a later process, after the build, so the
+  build cannot ask it; Storybook's own `--test` is how a build says it is for
+  testing.
+
+  Under Rspack and Webpack, where the build writes no source map the loaders can
+  read, as `storybook build --test` does, the addon hands the loaders their maps
+  and the build still writes no `.map` file. `devtool` stays as you set it.
+
+  Storybook runs an addon's builder hooks before the ones in your `main.js`, so
+  the addon places the rule from a plugin, once the config is final: a post
+  loader your own `webpackFinal` or `rsbuildFinal` adds still runs ahead of the
+  probes. If you added `testSelectionProbes()` or `testSelectionRule()` to the
+  Storybook's builder config yourself, remove it and add the addon instead: a
+  second one stops the build with "remove your testSelectionRule(); the addon
+  places it", or the same of `testSelectionProbes()`, wherever the rule sits,
+  in `oneOf` or nested `rules` too, and whether it names the loader by its path
+  or as `@variance-authority/sense/probes-loader`. One your `vite.config` lists is
+  kept, and the addon adds no second one; if the addon was also given a `mode`,
+  `include` or `placement` that differs from it, the build stops and names the
+  option. The Vite config `@storybook/addon-vitest` loads your presets for,
+  inside Vitest, gets nothing from the addon. Under Rsbuild, an `rsbuildFinal` of
+  yours that assigns `tools.rspack` outright, rather than adding to it, drops the
+  addon's plugin, and the build runs unprobed.
+
+  When `tests` is on and the preview has no probes, the run's stderr now says to
+  add the addon and build with `storybook build --test`, where it named
+  `testSelectionProbes()`. The `tests` option's documentation says the same.
+
+### Patch Changes
+
+- 8d1bcc1: A link in a doc comment opens from `node_modules`
+
+  Doc comments linked to documentation by repository paths such as
+  `../../../../docs/flakiness.md`, which resolve to nothing in an installed
+  package. They now link to the page on variance-authority.dev, or to the file on
+  GitHub when the site does not publish it, so the link works on hover in your
+  editor and in what `variance ask symbol` prints.
+
+  The MCP server's instructions and its observability answer linked to
+  `/start-cli` and `/presentation`, which the site does not serve. They now link
+  to `/start/cli` and `/docs/presentation`, and the `@variance-authority/cli`,
+  `@variance-authority/help`, `@variance-authority/mcp` and
+  `@variance-authority/vitest-browser` READMEs link to the guides where the site
+  publishes them.
+
+  `variancePrecondition`, `wiringOf`, `tapCommits` and `provenanceOf` carry an
+  `@see` link to the section of the guide that documents them.
+- c3c8e61: An absolute `source.dirs` entry is walked
+
+  Both collectors joined every `source.dirs` entry onto the working directory, so
+  an absolute path such as `/repo/packages/ui/src` was looked for under that
+  directory, matched nothing, and the run was refused for having no source files.
+  An absolute entry is now walked as written, and a relative one is still resolved
+  against the working directory. File names in the index stay relative to that
+  directory either way. When no entry matches any file, the refusal lists each
+  directory by the absolute path it walked, in place of the entries as spelled
+  followed by `(from <root>)`.
+- e6afc58: One recorder for every visual subject
+
+  `@variance-authority/sense/journal` exports `createSubjectRecorder`, which keeps
+  one row per subject of a visual run with the page and every head joined, and
+  `driveJourneys`, the driver's listener, cookies and settling wait. The
+  Storybook collector records through the first, the Playwright fixture through
+  the second, so a story, a page and a test file record their journeys the same
+  way.
+
 ## 0.15.0
 
 ### Minor Changes

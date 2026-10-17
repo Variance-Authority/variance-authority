@@ -1,5 +1,165 @@
 # @variance-authority/playwright
 
+## 0.16.0
+
+### Minor Changes
+
+- 0d280fc: A route waits for hydration only while something can still finish it, and says when hydration changed it
+
+  No clock decides how long a route waits for React to hydrate it: the route
+  collector's `hydrationTimeoutMs` option and its two-second default are gone. React's own record decides: the collector
+  waits while a root has a render React can do or a commit has effects React has
+  not run, and, while React is stuck on a promise or has no root yet, for as long
+  as anything the page requested is still arriving. A route React stops
+  hydrating with nothing left arriving is refused at once, and the refusal says
+  React had no work it could do and nothing was arriving to give it some. A slow
+  route is waited for however long its responses take; a route held on a timer
+  or on a promise nothing settles is refused without waiting.
+
+  A route React never loaded on is read once no script it requested is still
+  arriving, because only a script brings a renderer, so a long poll on such a page
+  holds nothing: the route agent taps React's commits from before the page's first
+  script, so it knows no React came, and its `react-root-absent` warning says
+  React had not loaded and suggests `wiring: false`.
+
+  A route that hydrates is now compared. The commit tap copies the markup in
+  React's hydration commit, inert, and it is compared with the markup once React
+  has nothing left to do, so a fast machine and a slow one give the same answer.
+  A difference is reported as a `hydration-changed-markup` warning that quotes
+  the markup at the hydration commit and the client's around the change, and
+  names the components that committed after hydrating in the roots that reach
+  the subject. The route is
+  still read as it ended.
+
+  `awaitHydration` takes `tap`, a `tapCommits` tap, and `outstanding(of)`, a
+  function that resolves `true` once something the page requested has arrived and
+  `false` when nothing is in flight. `of` is an `AwaitedArrival`: `'script'` when
+  the tap saw no React load, so only scripts count, and `'any'` otherwise; without it, a root stuck on a promise is returned as
+  `hydrating` at once. Its `timeoutMs` option is gone. Its settlement carries
+  `loaded: false` when the tap saw no React load, and `changed`, a
+  `MarkupChange`, when the markup moved. A `tapCommits` tap gains
+  `effectsPending(root?)`, true while a commit's passive effects have not run on
+  that root, or on any without one, and `hydration(root)`, a `RootHydration`: the
+  markup copied at that root's hydration commit and the commits since. The tap
+  reads React 18's passive-effect flags as React 18 sets them, so a React 18 root
+  is no longer held busy by flags React 18 never clears. `detectReactVersion`
+  reads the hook through the same reader as the tap.
+
+  `watchArrivals(page)`, exported by the Playwright package, answers
+  `outstanding` from the page's own requests, leaving out event streams,
+  WebSockets and media, which are open by design, and fonts and images, which
+  React waits on neither and the asset stages wait for and name. The Playwright harness installs
+  it, and its page agent by init script before the first navigation, so the first
+  document gets the agent ahead of its own scripts, as every later one already
+  did. A page agent that fails while a request is still arriving fails naming
+  that request, with Playwright's error as the cause.
+- b7b793d: A prefetch never leaves the page
+
+  `observeNetwork` refuses a request the page sends on speculation: one marked
+  `Sec-Purpose: prefetch` or `Purpose: prefetch`, as `<link rel="prefetch">` and
+  speculation rules send it, or `Next-Router-Prefetch: 1`, as the Next.js App
+  Router and routers reproducing it send for every link in view. What the page
+  guesses it shows next is not what it shows. Served, a prefetch renders another
+  page's code under this page's journey, and when it is sent depends on what
+  scrolled into view.
+- 8605b15: A subject longer than 16,384 device pixels is refused, not photographed
+
+  A subject longer than 16,384 device pixels on either side, Chromium's largest
+  texture side, is neither captured nor clipped. The run records it as failed,
+  with its size, and names the fix: bound it with tighter roots, or leave the page
+  out.
+- bd4243a: An image, font or media request still unanswered when the network wait runs
+  out refuses the subject, naming the URL. The subject used to be read without
+  it, with a `network-not-quiet` warning. `NetworkObservation.settle()` now
+  resolves that refusal, or `undefined` once nothing is in flight; a caller that
+  ignores it reads a subject whose bytes nobody hashed.
+  Only the requests a subject started count against it: one still open from an
+  earlier subject on the same page was named in that subject's refusal.
+  One the read itself asks for and never gets makes `acquireFromAgent` throw
+  `UnansweredAssets`, which both collectors turn into that subject's refusal.
+
+### Patch Changes
+
+- 18c70d3: A run collects in parallel by default, and the report says where each subject's time went
+
+  Without `workers` in the config, a run collected in one browser world, so a
+  route suite read its pages one after another on any machine. It now collects in
+  half the machine's logical cores, at least one and never more worlds than there
+  are files: two on a 4-vCPU CI runner, eight on a 16-core laptop. A `concurrency`
+  you set holds it lower, since every world keeps a page and a subject in flight.
+  A `workers` you set still wins over both. Set `workers: 1` for a server under
+  test that cannot take concurrent pages. A collector with no `openWorker` still
+  collects in one world, and the run warns about it only when you set `workers`. Verdicts and the order
+  of observations do not depend on the count, and the report's new `workers` field
+  records it. `variance collect` takes the same width.
+
+  A changed subject read in a second world is now run alone like one read in the
+  first. A worker opens no clean world of its own, so the run asked the worker and
+  reported "not re-run alone: collector has no `collectAlone`"; it now asks the
+  collector that can open one.
+
+  The `alone.limit` budget now goes to the first subjects to change in the order
+  the run takes them. It went to whichever changed subjects reached it first, so
+  with more changed subjects than the limit, which ones carried `again` and
+  `alone` evidence depended on the number of worlds and on timing.
+
+  Each observation in the report also carries `steps` beside `costMs`: every
+  phase the subject went through, in the order it ran, with its wall time. The
+  collector's phases are named `collect.*` (`collect.navigate`,
+  `collect.wait-for-fonts`, `collect.capture`), the run's own are `compose`,
+  `inspect`, `settle`, `baseline`, `cache.get`, `cache.put`, `decode`, `compare`,
+  `write`, `again.collect` and `alone.collect`, and a painted subject adds the
+  renderer's under `render.*`. The report's `steps` sums each phase over the
+  subjects that ran it and counts them. A phase a subject skipped is absent, not
+  zero. Timings are part of no digest, so images, records and baselines do not
+  move when only timing does.
+
+  `settleRecipe`, `stabilizeForObservation`, `compareRasters` and the raster
+  `Renderer.render` take an optional step clock and report the steps they ran on
+  it. The route page agent and `readRoute` always return the steps they took.
+  `stepClock`, `timeOn` and `totalsOf` are exported from
+  `@variance-authority/core/format`.
+
+  A run that is not sharded now reads the mainline's subject costs at every
+  width, as a sharded run always did, and takes its slowest files first. One
+  world takes its subjects in the same order as several, so the budget above
+  reaches the same subjects.
+
+  `concurrency` is split evenly across the worlds and rounded up, at least one
+  per world, so by default the raster tier is as wide as the number of worlds.
+
+  The frame above a subject carries its classes in code-unit order. Storybook
+  swaps its layout class on a page it reuses, so their order said which story the
+  page showed before, and a run in parallel lanes gave the same story a different
+  document, and a render-cache miss, with the same pixels.
+- 8c64aa2: Each width of a subject is named apart
+
+  A subject read at several widths already became one subject per width, with
+  `@375` on its id. Its name now carries the width the same way, so a baseline
+  path filed by title and name writes one file per width.
+- 406dffd: The capture harness now starts Chromium with the same text settings the renderer paints with (`--font-render-hinting=none`, `--disable-lcd-text`). On Linux, a page laid out with hinting and painted without it wrapped lines differently, so its painted image came out a different height from the layout it was read from.
+- 98d19d2: A subject set in a web font is painted in it, and a change to the font file changes its key
+
+  Pruning kept only the rules that match an element, and an `@font-face` matches
+  none, so a render document named a family it never declared and every render
+  painted the fallback. `acquireDocument` now carries each face whose family
+  appears in a computed `font-family` inside the subject or in a box its
+  frame generates, such as `body::before`, with its `url()`s
+  rewritten against the page, and `referencedAssets` adds the face's files to the
+  asset key. A face the subject is not set in is still pruned. Under jsdom, which
+  drops a face's `src`, the face is not carried and `acquireDocument` reports
+  `unreadable-font-face`.
+
+  The Playwright renderer paints a document on `about:blank`, where a face its
+  page served from its own origin is a cross-origin font that the browser refuses
+  without CORS headers. For a document that is not resource-closed and carries a
+  face, the renderer now fetches font requests itself and answers them with
+  `access-control-allow-origin: *`, as it already does for a closed document.
+
+  Baselines of subjects set in a web font move on the first run after upgrading:
+  the image is painted in the face rather than the fallback, and the key holds
+  the face's file. Review them and accept them once.
+
 ## 0.15.0
 
 ### Minor Changes

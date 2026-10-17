@@ -1,5 +1,97 @@
 # @variance-authority/distill
 
+## 0.16.0
+
+### Minor Changes
+
+- add7c98: A recording keeps where each test file's time went, and `variance distill` shows it
+
+  Beside its duration, each test file now carries the time it spent in five
+  phases: readying the file in its worker, the test environment, the setup
+  files, collecting the file — importing it and everything it loads — and its
+  cases. Vitest reports all five. Under Jest, `perfStats` times the environment
+  and the setup files, and the setup module marks where collecting ended, so the
+  rest splits into collect and cases.
+
+  `variance distill` over a folder, a suite or the repository sums the phases of
+  the test files it reads, gives each its share, and names the files whose
+  loading took over ten times as long as their cases: the files where what a
+  test imports, not what it checks, is what the run pays for.
+- 1741299: Distill reads its records in the native addon
+
+  `variance distill` over a whole suite read every test file's coverage rows and
+  case index as objects, which a suite of tens of thousands of test files cannot
+  afford: one of about 30k test files ran for most of a minute and several
+  gigabytes of memory, and a larger one did not finish. The sense addon now reads
+  each record once into what the question needs — per test file the modules it
+  loaded, per module how many of its cases entered it — and answers the scope,
+  one test file, and the import behind each module no case entered, in columns.
+  On a synthetic suite of that shape a whole-suite reading takes a few seconds
+  in place of most of a minute, and every output there is the same, byte for
+  byte. Outputs change only where a function is run while its module loads, as
+  the fix below says. `--file` still opens the whole record, a fifth of a second there, and reads the
+  file graph, about a second more, only when a module no case entered needs its
+  import named.
+
+  Breaking: `distillFile` and `distillScope` take the record's bytes as `record`
+  and the file graph as `relations`, in place of the decoded `coverage` and
+  `execution` and the `imports`, `lazy` and `republishes` callbacks; drop
+  `execution`, since the cases and the regions a charge reads come from `record`.
+  `scopeRows` reads the scope, and refuses one it cannot read, when it is called,
+  and makes each row as it is reached. They require the addon, and throw naming
+  why where it did not install.
+
+  Fixed: an import referenced in a function the importer calls while it loads
+  is read as one used at load, and never proposed as a `jest.mock`. Over a record
+  whose case index is in the set spelling, such a function was charged as if no
+  case ran it, since that spelling keeps a run at load as a flag that names no
+  case, and distill could propose a mock that breaks the test; the same held
+  over the row spelling where only another test file's case ran it while
+  loading. A run at load is now read as this test file's, whichever file's case
+  made it.
+
+  A record whose case index is in the row spelling, which no current writer
+  emits, is converted to the set spelling as it is read, and needs nothing from
+  you. Which spelling is written does not change. A record whose module says it was instrumented and has no regions, or
+  the other way round, is refused, as reading its coverage already refused it.
+
+  `readDistillRecords` and `rankDistillCauses` are exported from
+  `@variance-authority/sense/test-selection`. The records answer `cases` and
+  `regions` for one test file, and `NativeDistillRegion` is the region they
+  answer; `rankDistillCauses` orders a test file's load causes as a scope's
+  reading orders them, so one test file's reading and a scope's rank them alike.
+
+  `variance distill --format jsonl` makes each row as it writes it, and `json`
+  writes its answer as it serializes it, a piece at a time. A reader that closes
+  the pipe early, `| head`, ends the command quietly with exit 0.
+
+### Patch Changes
+
+- 8bab581: A refusal names what is missing instead of asking you to run the suite again
+
+  Running a whole suite again to refresh a record is rarely yours to do, so no
+  message tells you to. Where something can still be answered, it is:
+
+  - `variance_composition {subject}` against a report with no per-subject
+    structure lists the components the census holds in that subject and the
+    renderings it shares, and says the report holds no order, depth, mount or
+    count within it.
+  - `variance_locate` with `under`, `above` or another spatial relation, against
+    a run that resolved no layout, prints where the anchor is on each surface that
+    says it, and says the run cannot tell what sits in that relation to it.
+  - `variance_composition` against a report merged from shards says each shard's
+    report still holds its composition, and the suite index the build composes
+    from every shard's part holds the census across them.
+
+  Where nothing can be answered, the refusal stays and names the condition, not a
+  rerun: shards that started from, or chose their tests from, different records
+  are not combined, and the record before the build stands; shards written by
+  another version, or of which only some kept cases, are not combined;
+  `variance shards --unrecorded 0` says a matrix of none starts no job; a Vitest
+  run whose `--reporter` replaced the recording reporter says the record is as it
+  was; a distill reading withheld for an incomplete coverage row, and a missing
+  unit-test capture directory, name what is missing.
+
 ## 0.15.0
 
 ### Minor Changes
