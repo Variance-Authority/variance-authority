@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { collectStories } from '@variance-authority/storybook';
+import { collectStories, readParameters } from '@variance-authority/storybook';
 
 /**
  * The end of a render, against a Storybook that has one.
@@ -202,6 +202,11 @@ live('a story that is still busy when the next one is asked for', () => {
   }, 120_000);
 });
 
+/** The first story of a file nothing before it on the page imports. */
+const CARD = 'case-surface--card-with-actions';
+/** How long the card file takes to arrive, in milliseconds. */
+const SLOW_IMPORT_MS = 300;
+
 /** The collector's page agent, which watches each document from its start. */
 const COLLECTOR_AGENT = join(process.cwd(), 'packages', 'storybook-collector', 'dist', 'page-agent.bundle.js');
 
@@ -223,6 +228,36 @@ live('where the browser spent each story', () => {
       // The busy story's `afterEach` holds its render open for two seconds,
       // and that hook is the story's own time.
       expect(busy.cases).toBeGreaterThanOrEqual(2_000);
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+
+  it("gives a file's import to its first story when the run read every story's parameters first", async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+
+    try {
+      await page.addInitScript({ path: COLLECTOR_AGENT });
+      // A story file that takes as long to arrive as a module with heavy top-level
+      // work takes to evaluate: the import a story's `collect` is for, made slow
+      // without a story that slows every other run of this case.
+      await page.route('**/assets/card.stories-*.js', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, SLOW_IMPORT_MS));
+        await route.continue();
+      });
+      await page.goto(`${baseUrl}/iframe.html`, { waitUntil: 'load' });
+
+      // What a run does before its first story: read every story's parameters,
+      // which has Storybook import every story file.
+      expect('parameters' in (await readParameters(page))).toBe(true);
+      const outcomes = await collectStories(page, [FIRST, CARD], { baseUrl });
+      const [first, card] = outcomes.map((outcome) => outcome.timing ?? {});
+
+      expect(outcomes.map((outcome) => outcome.status)).toEqual(['rendered', 'rendered']);
+      // The parameters' reading is nobody's story: the first story's figures are
+      // a fresh document's, and the card file's import is its first story's own.
+      expect(first.ready).toBeGreaterThan(0);
+      expect(card.collect).toBeGreaterThanOrEqual(SLOW_IMPORT_MS);
     } finally {
       await page.close();
     }

@@ -453,7 +453,11 @@ preview switched to reads 0, as the second test in one file pays no worker
 start. `collect` is importing the story's file and everything it loads, and then
 unmounting the story shown before it: Storybook does that in between and signals
 nothing for it. `cases` is the render, from loaders through the play function to
-`afterEach`, or to the phase it ended on when it errored or was aborted. Each
+`afterEach`, or to the phase it ended on when it errored or was aborted.
+Reading every story's parameters before the first story imports every story
+file, so the run loads that document again before any story is shown on it: a
+file's first story carries the file's import whichever page shows it, and the
+reading itself is in no story's row. Each
 width a story is read at is its own row, with its own figures.
 
 ## When integration fails
