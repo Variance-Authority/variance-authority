@@ -96,6 +96,19 @@ fn a_name_two_stars_answer_and_a_default_behind_a_star_reach_no_declaration() {
 }
 
 #[test]
+fn a_name_behind_a_star_to_no_file_of_the_checkout_reaches_no_declaration() {
+    let graph = graph(&[
+        ("a.ts", "import { run, own } from './barrel';\nrun();\nown();\n"),
+        ("barrel.ts", "export * from 'package';\nexport * from './b';\nexport { own } from './b';\n"),
+        ("b.ts", "export function run() {}\nexport function own() {}\n"),
+    ]);
+    let parsed = graph.parsed(0).unwrap();
+    let targets: Vec<Target> = parsed.calls.iter().map(|call| graph.target_of(0, call.from, &call.callee, call.callback)).collect();
+    assert!(matches!(targets[0], Target::External), "a star the checkout cannot read may export the name too: {:?}", targets[0]);
+    assert!(matches!(targets[1], Target::Fn { file: 2, func: 1, how: How::Import }), "a named `export … from` decides before the stars: {:?}", targets[1]);
+}
+
+#[test]
 fn a_local_name_resolves_to_the_declaration_whose_scope_holds_the_call() {
     let graph = graph(&[("a.ts", "function f() {}\nfunction g() {\n  function f() {}\n  f();\n}\nf();\n")]);
     let parsed = graph.parsed(0).unwrap();
