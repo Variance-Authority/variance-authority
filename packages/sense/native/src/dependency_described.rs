@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use napi_derive::napi;
 use serde::Serialize;
 
-use super::purposes::{stem, stems};
+use super::purposes::{code_stems, near, stem, stems};
 use super::view::Row;
 use super::Api;
 
@@ -41,19 +41,27 @@ pub(super) struct Described {
     description: Option<String>,
 }
 
-/// The question's distinct stems, each with the word it was written as.
-fn asked(query: &str) -> BTreeMap<String, String> {
+/// The question's distinct stems by the rule `cut`, each with the word it was written as.
+fn asked(query: &str, cut: fn(&str) -> Vec<String>) -> BTreeMap<String, String> {
     let mut asked = BTreeMap::new();
     for word in query.split(|ch: char| !ch.is_alphanumeric()) {
-        for stem in stems(word) { asked.entry(stem).or_insert_with(|| word.to_lowercase()); }
+        for stem in cut(word) { asked.entry(stem).or_insert_with(|| word.to_lowercase()); }
     }
     asked
 }
 
-/// The question's distinct stems as `[stem, word]` pairs, for the repository's own names to be asked by the same words as a package.
+/// The question's distinct stems as `[stem, word]` pairs, for the repository's
+/// own names: cut as a package's words are, less the stopwords only a package
+/// says, since code is named in `package`, `module` and `use`.
 #[napi(js_name = "describedWords")]
 pub fn described_words(query: String) -> Vec<Vec<String>> {
-    asked(&query).into_iter().map(|(stem, word)| vec![stem, word]).collect()
+    asked(&query, code_stems).into_iter().map(|(stem, word)| vec![stem, word]).collect()
+}
+
+/// Per text, how many of the adjacent word pairs of `query` it writes adjacent.
+#[napi(js_name = "nearOf")]
+pub fn near_of(query: String, texts: Vec<String>) -> Vec<u32> {
+    texts.iter().map(|text| near(&query, text)).collect()
 }
 
 /// Each word reduced to its stem, in order: which of a dictionary's terms a stem of `describedWords` stands for.
@@ -64,7 +72,7 @@ pub fn word_stems(words: Vec<String>) -> Vec<String> {
 
 /// The packages in `rows` that describe `query`, best first; `None` when the question has no word to describe.
 pub(super) fn described<'a>(query: &str, rows: impl Iterator<Item = (&'a Row<'a>, &'a Api)>, limit: usize) -> Option<(u32, Vec<Described>)> {
-    let asked = asked(query);
+    let asked = asked(query, stems);
     if asked.is_empty() { return None; }
     let needed = asked.len().div_ceil(2);
     let mut best = BTreeMap::<(String, String), Described>::new();

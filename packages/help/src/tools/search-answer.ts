@@ -5,7 +5,8 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms } from './loose.js';
-import { describedDeclarations, describedNames, describedOrder } from './described.js';
+import { describedDeclarations, describedNames, describedOrder, fileMatch } from './described.js';
+import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches } from './declared.js';
 import { docRows, exported, first } from './exported-matches.js';
@@ -116,9 +117,19 @@ export interface DeclaredMatch {
   readonly line: number;
 }
 
-/** A name of this repository a description reached, and which of its words it holds. */
-export type DescribedMatch = (PublishedMatch | ExportedMatch | DeclaredMatch) & {
-  /** The question's words the name or its documentation holds, as the question wrote them. */
+/** A file of this repository, described by its name and the doc it opens with. */
+export interface FileMatch {
+  readonly source: 'file';
+  readonly at: string;
+  /** The package that holds it; absent at the repository root. */
+  readonly package?: string;
+  /** The first paragraph of the doc the file opens with, on one line; absent when it opens with none. */
+  readonly summary?: string;
+}
+
+/** A name or a file of this repository a description reached, and which of its words it holds. */
+export type DescribedMatch = (PublishedMatch | ExportedMatch | DeclaredMatch | FileMatch) & {
+  /** The question's words the name, the file's name or the documentation holds, as the question wrote them. */
   readonly words: readonly string[];
 };
 
@@ -162,10 +173,13 @@ export interface SearchAnswer {
     /** Files whose declarations the index holds none of, since none were read: unknown, not empty. */
     readonly unread: readonly string[];
   };
-  /** Present only when the exact sections are empty, which is when it runs. */
-  readonly loose?: Matches<PublishedMatch | ExportedMatch>;
   /**
-   * This repository's names holding at least half of the question's words.
+   * Present only when the exact sections are empty, which is when it runs: the
+   * published and exported names first, then the ones a file keeps to itself.
+   */
+  readonly loose?: Matches<PublishedMatch | ExportedMatch | DeclaredMatch>;
+  /**
+   * This repository's names and files holding at least half of the question's words.
    * `loose` holds none of them. Present when `loose` ran, which is when it runs;
    * absent too when the question has no word to describe it by.
    */
@@ -355,6 +369,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const told = described === undefined ? undefined : first(described, DESCRIBED_CAP, describedOrder)
     .flatMap((held): DescribedMatch[] => {
       if ('match' in held) return [{ ...held.match, words: held.words }];
+      if ('file' in held) return [{ ...fileMatch(root, held.file), words: held.words }];
       const row = published(index, surface(index, index.publishedOf(held.name), area, within), 1).shown[0] ??
         exported(index, [held.name], new Set(), within, held.through === undefined ? undefined : new Map([[held.name, new Set([held.through])]])).head(1)[0];
       return row === undefined ? [] : [{ ...row, words: held.words }];
@@ -371,8 +386,13 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
   const alsoFound = published(index, alsoHits, LOOSE_CAP);
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, viaDoc);
-  const shown = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
-  const loosely: SearchAnswer = { ...answer, loose: { total: alsoFound.total + alsoRest.total, shown } };
+  // A name its file keeps to itself is in no dictionary row: the source index
+  // answers for it, by the same rule, after every name that is.
+  const describedHere = new Set((described ?? []).flatMap((held) => ('match' in held ? [declaredKey(held.match)] : [])));
+  const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
+  const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
+  const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length)];
+  const loosely: SearchAnswer = { ...answer, loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
   if (described === undefined || told === undefined) return { answer: loosely, area };
   return { answer: { ...loosely, described: { total: described.length, shown: told } }, area };
 }

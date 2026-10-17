@@ -268,6 +268,9 @@ export interface Read {
 
   /** How big the module is. */
   readonly size?: SourceSize;
+
+  /** The module's own doc comment, inside its marks, as `Parsed.doc` says. */
+  readonly doc?: TextSpan;
 }
 
 /** Extensions the module reader claims. Everything else is somebody else's. */

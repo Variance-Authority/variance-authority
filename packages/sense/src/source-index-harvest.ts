@@ -14,6 +14,8 @@ export interface HarvestReader {
   symbols(row: number): readonly SourceSymbol[];
   exportSignature(row: number): TextSpan | undefined;
   exportDoc(row: number): TextSpan | undefined;
+  /** The module's own doc comment, inside its marks, of one parse row. */
+  moduleDoc(row: number): TextSpan | undefined;
 }
 
 /** Validate and open the declaration columns of one generation. */
@@ -37,10 +39,13 @@ export function openHarvest(
   const exportSignatureEnd = opened.u32('exports.signature-end');
   const exportDocStart = opened.u32('exports.doc-start');
   const exportDocEnd = opened.u32('exports.doc-end');
+  const moduleDocStart = opened.u32('parses.doc-start');
+  const moduleDocEnd = opened.u32('parses.doc-end');
 
   validateOffsets(parseSymbols, symbolName.length, parseCount, reject);
   sameLength(symbolName.length, [symbolKind, symbolLine, signatureStart, signatureEnd, docStart, docEnd, symbolReach], reject);
   sameLength(exportCount, [exportSignatureStart, exportSignatureEnd, exportDocStart, exportDocEnd], reject);
+  sameLength(parseCount, [moduleDocStart, moduleDocEnd], reject);
 
   const span = (starts: Uint32Array, ends: Uint32Array, row: number): TextSpan | undefined => {
     const start = starts[row];
@@ -70,5 +75,6 @@ export function openHarvest(
     }),
     exportSignature: (row) => span(exportSignatureStart, exportSignatureEnd, row),
     exportDoc: (row) => span(exportDocStart, exportDocEnd, row),
+    moduleDoc: (row) => span(moduleDocStart, moduleDocEnd, row),
   };
 }
