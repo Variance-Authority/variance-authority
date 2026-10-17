@@ -60,7 +60,7 @@ import { uses } from './tools/uses.js';
  * the names it printed.
  *
  * `docs_slowest_tests` is about the suite rather than the source: which test
- * files the latest recorded run says took longest, as the runner reported them.
+ * files the latest recorded run says took longest, as the runner timed them.
  * It sits here because it reads the same recording `docs_orient` reads.
  * `docs_journey_map` reads it too, around one file: the code the tests that
  * entered that file went on to enter, nearest first. `docs_test_composition`

@@ -253,8 +253,11 @@ three inputs and keeps its own part:
   read of such a shard, and its output names the shard.
 - **The number of shards**, from `--shard k/n`.
 
-The same inputs give the same split on every machine. Each file goes in turn,
-longest first, to the shard with the least time so far; ties are broken by the
+The same inputs give the same split on every machine. A file's time is what
+running it cost, its environment, setup files and import before its first case
+included, as the [execution record](execution-record.md) reads it: a file that
+spends seconds importing weighs seconds, however quick its cases. Each file goes
+in turn, longest first, to the shard with the least time so far; ties are broken by the
 file's path, so nothing depends on the order a shard read its files in. With no
 times, every file is priced the same, as
 [when nothing is recorded](#when-nothing-is-recorded) shows. The runner's own

@@ -226,7 +226,7 @@ describe('where the time of a scope went', () => {
       setup: 2,
       collect: 70,
       cases: 34,
-      loadBound: [{ file: A, collect: 60, cases: 4 }],
+      loadBound: [{ file: A, loading: 63, cases: 4 }],
     });
   });
 
@@ -234,7 +234,7 @@ describe('where the time of a scope went', () => {
     const times = { ...TIMES, [C]: { phases: { prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5 } } };
 
     expect(distillScope({ within: 'packages/lib', records: [record(MODULES, { times })], relations }).time)
-      .toEqual({ timed: 1, prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5, loadBound: [] });
+      .toEqual({ timed: 1, prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5, loadBound: [{ file: C, loading: 6, cases: 5 }] });
   });
 
   it('names a test file load-bound once its loading outlasts its cases, and not at parity', () => {
@@ -244,7 +244,19 @@ describe('where the time of a scope went', () => {
     };
 
     expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound)
-      .toEqual([{ file: A, collect: 8, cases: 2 }]);
+      .toEqual([{ file: A, loading: 8, cases: 2 }]);
+  });
+
+  it('counts as loading everything before the first case, the worker, the environment and the setup files with the import', () => {
+    const times = {
+      [A]: { phases: { prepare: 125, environment: 979, setup: 15, collect: 4258, cases: 33 } },
+      [B]: { phases: { prepare: 10, environment: 40, setup: 5, collect: 20, cases: 30 } },
+    };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound).toEqual([
+      { file: A, loading: 5377, cases: 33 },
+      { file: B, loading: 75, cases: 30 },
+    ]);
   });
 
   it('names the load-bound files longest loading first, and files that load alike by name', () => {
@@ -255,9 +267,9 @@ describe('where the time of a scope went', () => {
     };
 
     expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound).toEqual([
-      { file: B, collect: 20, cases: 2 },
-      { file: A, collect: 8, cases: 2 },
-      { file: C, collect: 8, cases: 1 },
+      { file: B, loading: 20, cases: 2 },
+      { file: A, loading: 8, cases: 2 },
+      { file: C, loading: 8, cases: 1 },
     ]);
   });
 
@@ -280,7 +292,7 @@ describe('where the time of a scope went', () => {
     };
     const time = distillScope({ records: [record(MODULES, { times: jest })], relations }).time;
 
-    expect(time).toEqual({ timed: 2, environment: 5, setup: 2, collect: 70, cases: 34, loadBound: [{ file: A, collect: 60, cases: 4 }] });
+    expect(time).toEqual({ timed: 2, environment: 5, setup: 2, collect: 70, cases: 34, loadBound: [{ file: A, loading: 64, cases: 4 }] });
     expect(formatScopeDistillation(distillScope({ records: [record(MODULES, { times: jest })], relations })))
       .not.toContain('prepare');
   });
@@ -307,8 +319,8 @@ describe('where the time of a scope went', () => {
       '  setup files: 2 ms, 2%',
       '  collect, importing the test file and everything it loads: 70 ms, 64%',
       '  cases: 34 ms, 31%',
-      'Loading took longer than the cases in 1 test file(s): 60 ms against 4 ms.',
-      `  ${A}: 60 ms loading, 4 ms in its cases`,
+      'Loading took longer than the cases in 1 test file(s): 63 ms against 4 ms.',
+      `  ${A}: 63 ms loading, 4 ms in its cases`,
       '',
     ]);
   });

@@ -2,10 +2,11 @@
  * `docs_slowest_tests` — which recorded test files, and which test cases, took
  * longest, anywhere or somewhere.
  *
- * The duration is the one the test runner reported when the run was recorded:
- * for a file, Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
- * duration; for a case, Vitest's task result, Jest's assertion result, Rstest's
- * test result. Nothing here times anything, and a file or case whose runner
+ * The duration is read from what the test runner reported when the run was
+ * recorded: for a file, what running it cost, the larger of its duration and
+ * its phases summed (`fileCost`), so the time before its first case counts; for
+ * a case, Vitest's task result, Jest's assertion result, Rstest's test result.
+ * Nothing here times anything, and a file or case whose runner
  * reported no duration is counted apart rather than ranked as instant.
  *
  * *Slowest* means little without *where*, so a question may narrow it: `from`
@@ -65,7 +66,8 @@ export const slowestTests: Tool<unknown> = {
   name: 'docs_slowest_tests',
   description:
     'The test files, then the test cases, that took longest in the latest recorded run, slowest first, with ' +
-    'the duration the test runner reported for each; a case row names its file and its declaration path. ' +
+    'what each took as its test runner timed it, a file\'s time including its environment, setup files and import ' +
+    'before its first case; a case row names its file and its declaration path. ' +
     '`from` keeps the tests declared under the paths given, `to` the tests the recording says entered code ' +
     'in them, and the two combine. Counts are within that scope, a path the recording has no row for is ' +
     'named as unrecorded, and files and cases whose runner reported no duration are counted, not ranked. ' +
