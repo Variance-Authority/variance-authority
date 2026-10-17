@@ -126,7 +126,7 @@ export interface BrowserHarness {
  * Drive the page a harness already owns.
  *
  * The harness holds the browser, the viewport, the injected collector, and the
- * one navigation this adapter is allowed. Wrapping rather than passing the page
+ * navigation that opened the preview. Wrapping rather than passing the page
  * straight through keeps the interface above small enough to fake, and pins
  * `waitUntil` at the same `load` the harness itself uses.
  */

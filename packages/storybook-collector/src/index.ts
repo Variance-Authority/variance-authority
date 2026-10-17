@@ -169,8 +169,9 @@ export function storybookCollector(
     // the two worlds, because there is only one of each. See `world.ts`.
     //
     // Pointed at the preview, so `collectStory` finds itself already there and
-    // does not navigate: one navigation for a whole run is the saving ADR-0009
-    // rests on, and it is easiest to keep by never taking a second one. The
+    // does not navigate: no navigation per story is the saving ADR-0009 rests
+    // on, and it is easiest to keep by never taking one. The only load after
+    // the first is `readParameters` leaving the document it imported on. The
     // isolated world opens on the same address for a second reason — the preview
     // shell is not a subject, so landing on it is not something having run first.
     const recipe: WorldRecipe = {

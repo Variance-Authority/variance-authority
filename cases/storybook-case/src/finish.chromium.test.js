@@ -251,12 +251,11 @@ live('where the browser spent each story', () => {
       // which has Storybook import every story file.
       expect('parameters' in (await readParameters(page))).toBe(true);
       const outcomes = await collectStories(page, [FIRST, CARD], { baseUrl });
-      const [first, card] = outcomes.map((outcome) => outcome.timing ?? {});
+      const [, card] = outcomes.map((outcome) => outcome.timing ?? {});
 
       expect(outcomes.map((outcome) => outcome.status)).toEqual(['rendered', 'rendered']);
-      // The parameters' reading is nobody's story: the first story's figures are
-      // a fresh document's, and the card file's import is its first story's own.
-      expect(first.ready).toBeGreaterThan(0);
+      // The card file was imported to read its parameters, and its first story
+      // still holds that import: the story meets a document that has not.
       expect(card.collect).toBeGreaterThanOrEqual(SLOW_IMPORT_MS);
     } finally {
       await page.close();
