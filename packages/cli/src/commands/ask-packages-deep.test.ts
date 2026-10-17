@@ -274,7 +274,7 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const { code, out } = await run(['ask', 'uses', '--name', 'addTax']);
     expect(code).toBe(EXIT_CLEAN);
-    const apart = out.indexOf('`addTax` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/tax.ts:1.');
+    const apart = out.indexOf('`addTax` [const] is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/tax.ts:1.');
     expect(apart).toBeGreaterThan(0);
     expect(out.slice(0, apart)).toMatch(/^apps\/app\/src\/total\.ts:1\b/m);
     expect(out.slice(0, apart)).not.toMatch(/billed\.ts/u);
