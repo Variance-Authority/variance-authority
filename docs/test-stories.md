@@ -4,7 +4,10 @@ A **test story** is the order one test ran its code in, written out as
 numbered steps: each function the test ran, the branch it took at each `if`,
 how many times each loop ran, and the lines the code printed. Every run already
 records which code each test ran. A story adds the order, the counts and the
-printed lines, and you read it from top to bottom.
+printed lines, and you read it from top to bottom. When a test fails only on
+some runs, you compare the stories of runs that passed with runs that failed,
+and print the value you suspect from the code under test, never from the test,
+to see what separates them.
 
 If you need the test statement that first ran a region,
 [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
@@ -162,8 +165,10 @@ async function reprice(order: Order): Promise<void> {
 }
 ```
 
-A story lists each line the code prints under the step that printed it, after
-`»`. This is the end of the story of a run that failed:
+The two `console.log` lines were added to `checkout.ts` to see what each run
+held; the test is unchanged. A story lists each line the code prints under the
+step that printed it, after `»`. This is the end of the story of a run that
+failed:
 
 ```text
    8  save  checkout.ts:18-22
@@ -238,8 +243,8 @@ The comparison can also answer in three other ways:
 - **`nothing separates the sides`** means the runs ran the same code,
   printed the same lines, and ran in the same order wherever every run had
   one order. The difference is in a value nothing prints, or in code that is not
-  recorded, such as a dependency. Print the value you suspect with
-  `console.log`, and record again.
+  recorded, such as a dependency. Print the value you suspect with a
+  `console.log` in the code under test, not in the test, and record again.
 - **With one reading in a group**, the comparison cannot distinguish what the
   group does from what that one run happened to do, and it prints that under its
   first line. Record the test again. The runs you made earlier still count.
@@ -413,6 +418,16 @@ prints are what give the values, and three sources write them under their step:
 So when you need to know which value a call got, add a `console.log` that
 prints it, record the test again, and read the line at its step. A step shows
 its first 5 lines and counts the rest.
+
+The line goes in the code under test, not in the test. The test checks what it
+checked before; the log only makes this run say what it held, which is what
+site reliability engineering calls white-box monitoring: the system reports
+its internal state, where black-box monitoring sees only what a user would. To
+find the value behind a test that fails on some runs, print it, record runs
+that pass and runs that throw, and [compare them](#compare-readings-of-one-test):
+a line every run on one side printed, and no run on the other, is listed with
+the step that printed it.
+Take the `console.log` out before you change the code.
 
 ## What a story does not show
 
