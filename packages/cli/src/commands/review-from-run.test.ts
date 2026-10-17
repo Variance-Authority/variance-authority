@@ -28,6 +28,8 @@ describe('the review a CI run kept', () => {
     expect(calls).toEqual([['gh', 'run', 'download', '7', '--name', 'variance-review', '--dir', expect.any(String), '--repo', 'acme/shop']]);
   });
 
+  it.todo('reads a review.json past the longest string V8 holds, which `review --out` writes for a large change — needs each case written once and named by id, or a parse that streams');
+
   it('says gh is missing rather than that the run is', async () => {
     const missing = Object.assign(new Error('spawn gh ENOENT'), { code: 'ENOENT' });
     await expect(reviewFromRun({ run: '7', artifact: REVIEW_ARTIFACT, root: process.cwd() }, () => Promise.reject(missing))).rejects.toThrow(/`gh` is not on the PATH/);

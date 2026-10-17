@@ -52,6 +52,8 @@ export async function reviewFromRun(request: RunRequest, exec: Exec = run): Prom
     } catch (error) {
       throw new OperatorError(downloadFailed(error, `gh ${args.slice(0, 5).join(' ')}`));
     }
+    // FIXME: a review.json past V8's string limit, which `review --out` writes for a change that moves most of a
+    // suite's regions, reads as no string at all, and the catch below says the artifact holds none.
     let text: string;
     try {
       text = await readFile(join(into, 'review.json'), 'utf8');

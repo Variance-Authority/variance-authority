@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -47,7 +47,8 @@ describe('review --format json', () => {
 
   it('saves the same answer it prints when given a directory', async () => {
     answer.current = hub(40, 5, 60);
-    const out = join(await mkdtemp(join(tmpdir(), 'variance-review-json-')), 'review');
+    const kept = await mkdtemp(join(tmpdir(), 'variance-review-json-'));
+    const out = join(kept, 'review');
     let printed = '';
 
     const code = await main(['review', '--since', 'cc25d6a6', '--format', 'json', '--out', out], { out: (text) => (printed += text), err: () => {} });
@@ -55,5 +56,6 @@ describe('review --format json', () => {
     expect(code).toBe(0);
     expect(await readFile(join(out, 'review.json'), 'utf8')).toBe(printed);
     expect(JSON.parse(printed)).toEqual(answer.current);
+    await rm(kept, { recursive: true, force: true });
   });
 });
