@@ -17,7 +17,9 @@ describe('a review that cannot be made', () => {
   it('is refused as unrecorded when no run listed itself and no base is named', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-review-bare-'));
 
-    await expect(review(parse(['--root', root]))).rejects.toThrow(/no run has listed itself/);
+    const refused = review(parse(['--root', root]));
+    await expect(refused).rejects.toThrow(/no run has listed itself.*nothing records where this change starts\. Name the base with `--since <ref>`\./su);
+    await expect(refused).rejects.not.toThrow(/[Rr]un the suite/);
   });
 
   it('refuses a runs record that is there and cannot be read, as an operator error naming it', async () => {
@@ -29,7 +31,8 @@ describe('a review that cannot be made', () => {
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow(`the runs record at ${runs} could not be read`);
-    await expect(refused).rejects.toThrow('run the suite, which rewrites it; delete it first only if it is a directory.');
+    await expect(refused).rejects.toThrow(/It records where this change starts, and a review that read it as absent would start from a guess\.$/);
+    await expect(refused).rejects.not.toThrow(/run the suite|delete it/i);
   });
 
   it('refuses a format it does not write', () => {

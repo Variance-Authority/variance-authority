@@ -101,8 +101,6 @@ export class OperatorError extends Error {
  * an editor stops asking instead of starting a process per keystroke.
  * `unloaded`: the record holds no row for the file because the run never loaded
  * it, which is a statement about the suite, not about the file's tests.
- * `unmeasured`: the record holds no case's preconditions, so a `--where` has
- * nothing to read — which is not the same as no case having said it.
  * `undiffed`: a base's regions are paired with the current ones only through
  * the diff from the commit the base was recorded at, and that diff cannot be
  * read here — a review that would report its other evidence fails on this one
@@ -110,7 +108,7 @@ export class OperatorError extends Error {
  * `older`: the record holds no row for the file because the commit it was made
  * at did not hold the file, so the next run of the suite answers it.
  */
-export type RefusalKind = 'unrecorded' | 'unloaded' | 'unmeasured' | 'undiffed' | 'older';
+export type RefusalKind = 'unrecorded' | 'unloaded' | 'undiffed' | 'older';
 
 /**
  * Whether an error is a statement about the operator's configuration.

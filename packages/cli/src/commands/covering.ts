@@ -60,7 +60,8 @@ import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './c
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { listedIn, namesAt, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { coveringAt, countOf, fileGraph } from './covering-at.js';
@@ -121,6 +122,8 @@ export interface Covering {
   readonly tests?: readonly CoveringTest[];
   /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */
   readonly files?: readonly CoveringFile[];
+  /** Under `--hops`, when no distance could be measured: why. */
+  readonly hopsGap?: string;
   /**
    * Present with `tests`, when it could be told: the cases that could have
    * reached the line or function and stopped before entering it. With no
@@ -149,7 +152,8 @@ export interface Covering {
    * `mapped` when it differs and the recorded text was found, so every range is
    * carried to where it stands now, and `stale` when it differs and the
    * recorded text was not found — then no range is given, because none of them
-   * is a place in anything held. Absent when nothing held a digest to check.
+   * is a place in anything held, and `tests` names the cases that ran code in
+   * the file. Absent when nothing held a digest to check.
    */
   readonly frame?: 'recorded' | 'mapped' | 'stale';
   /** Where the index was read, so an empty answer can be checked against a path. */
@@ -230,18 +234,16 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   // Twins and counts are read among every case the question reached before `--where` narrowed it.
   const listed = listedIn(answer);
   const twins = names === undefined ? undefined : caseTwins(listed, reached ?? listed, names);
-  if (where !== undefined) where = placesNoCase(answer) ? undefined : whereOver(where, listed, reached ?? listed, names);
+  if (where !== undefined) where = whereOver(where, listed, reached ?? listed, names);
   const motion = await motionFor(request, answer.from, scope, full);
-  const files = answer.tests === undefined || whole === undefined
-    ? undefined
-    : coveringFiles(answer.tests, whole, request.since === undefined && request.hops === true
-      ? await hopsToTests(request)
-      : undefined);
+  const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
+  const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
   const probes = await gapOf(request, answer.from, whole);
   return {
     ...answer,
     ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
+    ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
     ...(twins === undefined || twins.length === 0 ? {} : { twins }),
@@ -339,9 +341,7 @@ async function ask(
   const placement = await placementFor(request, from);
   const frame = placement === undefined ? {} : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
-    // No range is a place in the held text, so none is given: painted at its
-    // recorded numbers it would land on whatever code holds them now.
-    return { file, ...frame, from, ...(placement.at === undefined ? {} : { at: placement.at }) };
+    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, near, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
   const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near }, reach);

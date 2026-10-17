@@ -118,7 +118,7 @@ export async function recordedExecutionFile(
  * record is a run of the suite, which is often impossible where the question
  * is asked, and which the reader knows of already.
  */
-async function fetchable(root: string, suite: string | undefined): Promise<string> {
+export async function fetchable(root: string, suite: string | undefined): Promise<string> {
   const { declaredSuites } = await import('@variance-authority/sense/test-selection');
   let declared: ReturnType<typeof declaredSuites>;
   try {

@@ -21,7 +21,6 @@ import { parseNames } from '../config-names.js';
 import { ConfigError, messageOf } from '../config-values.js';
 import { said } from '../here.js';
 import { DEFAULT_CONFIG } from '../usage.js';
-import { OperatorError } from '../exit.js';
 import {
   heldValues,
   outsideVocabulary,
@@ -73,9 +72,10 @@ export async function namesAt(root: string): Promise<NameGrammar | undefined> {
 /**
  * The index cut to the cases that said every condition.
  *
- * A record with no precondition column is refused as unmeasured rather than
- * answered with no case: an empty list would read as *nothing here mocks the
- * network*, which the record never measured.
+ * A case on a row with no precondition column is kept by no condition and
+ * counted as unmeasured, so a record made before cases said anything answers
+ * that every case is unmeasured rather than *nothing here mocks the network*,
+ * which the record never measured.
  */
 export function whereCases(
   index: ExecutionIndex,
@@ -84,14 +84,6 @@ export function whereCases(
 ): { readonly index: ExecutionIndex; readonly where: CoveringWhere } {
   const asked = where.map((condition) => condition.value === undefined ? condition.name : `${condition.name}=${condition.value}`);
   const unmeasured = index.tests.filter((test) => test.preconditions === undefined).length;
-  if (index.tests.length > 0 && unmeasured === index.tests.length) {
-    throw new OperatorError(
-      `\`--where ${asked.join(' --where ')}\` is unmeasured here: the record holds no case's preconditions. ` +
-        'It was made before preconditions were recorded, or by a runner that does not record them. ' +
-        'Record the suite again to read them.',
-      { kind: 'unmeasured' },
-    );
-  }
   const kept = index.tests.filter((test) => test.preconditions !== undefined
     && where.every((condition) => holds(test.preconditions!, condition, names)));
   return {
@@ -176,18 +168,9 @@ export function caseNameOf(id: string): string {
   return at === -1 ? id : id.slice(at + 3);
 }
 
-/**
- * Over text the record cannot place, a file answer lists no case, and *none
- * covered it* would be a claim the record never made. A function is still found
- * by name there, and its cases are listed and counted.
- */
-export function placesNoCase(answer: Pick<Covering, 'frame' | 'tests'>): boolean {
-  return answer.frame === 'stale' && answer.tests === undefined;
-}
-
 export function whereText(answer: Covering): readonly string[] {
   const where = answer.where;
-  if (where === undefined || placesNoCase(answer)) return [];
+  if (where === undefined) return [];
   const asked = where.asked.join(' and ');
   const target = coveredText(answer);
   const cases = `case${where.of === 1 ? '' : 's'}`;
@@ -217,6 +200,7 @@ function noneSaid(where: CoveringWhere, asked: string): string {
 function coveredText(answer: Covering): string {
   if (answer.changed !== undefined) return answer.since === undefined ? 'the change' : `the change since ${answer.since}`;
   const target = answer.target;
-  if (target === undefined) return answer.file ?? '';
+  // Over text the record cannot place, the cases are the ones that ran code in the file, not on the line asked.
+  if (target === undefined || (answer.frame === 'stale' && !('function' in target))) return answer.file ?? '';
   return `${targetText(target)} of ${answer.file ?? ''}`;
 }

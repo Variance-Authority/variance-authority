@@ -239,8 +239,7 @@ export async function recordAgainst(
     if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return undefined;
     throw new OperatorError(
       `the recorded execution journal at ${said(file)} could not be read: ${messageOf(error)}. ` +
-        'Delete it and run once without `--since` to record a new one; a run that ignored it ' +
-        'would look exactly like a run that never had one.',
+        'A run that ignored it would look exactly like a run that never had one.',
       { cause: error },
     );
   }
@@ -300,8 +299,7 @@ export async function recordedJourneys(
     if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return { at: file };
     throw new OperatorError(
       `the recorded execution journal at ${file} could not be read: ${messageOf(error)}. ` +
-        'Delete it and run once to record a new one; a reading that skipped it would look ' +
-        'exactly like a repository that never recorded anything.',
+        'A reading that skipped it would look exactly like a repository that never recorded anything.',
       { cause: error },
     );
   }

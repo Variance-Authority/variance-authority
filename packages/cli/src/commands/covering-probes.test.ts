@@ -219,10 +219,10 @@ describe('a record cut under probes this build does not place', () => {
   it('says nothing of probes beside a refusal the probes do not bear on', async () => {
     const execution = await recorded(RETIRED);
 
-    const refusal = await covering(parse(['--file', 'src/total.ts', '--execution', execution, '--where', 'network'])).catch((error: unknown) => error);
+    const refusal = await covering(parse(['--file', 'src/total.ts', '--execution', execution, '--function', 'nowhere'])).catch((error: unknown) => error);
 
     expect(refusal).toBeInstanceOf(OperatorError);
-    expect((refusal as OperatorError).kind).toBe('unmeasured');
+    expect((refusal as OperatorError).message).toContain('`nowhere` is not a recorded function or scope of `src/total.ts`');
     expect((refusal as OperatorError).message).not.toContain('was cut under the probes');
   });
 

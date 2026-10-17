@@ -30,3 +30,23 @@ met it. A file the run loaded without instrumenting keeps the old wording.
 `covering` on a whole module many test files import names the cases that ran a
 range and counts, per range, the ones that ran it only while their file
 imported the module, instead of listing all of them.
+
+A reader no longer refuses what it can partly answer, and no message asks you
+to run the suite or record it again:
+
+- `covering` over a file whose recorded text could not be found names the cases
+  that ran code in the file, and says that which of them ran the asked line
+  cannot be said. It used to refuse.
+- `covering --where` over a record that holds no case's preconditions keeps
+  none and counts every case as unmeasured. It used to exit `2` with
+  `{"refused":"unmeasured"}`.
+- `covering --line` on lines your edit wrote says that no case has run them,
+  rather than refusing.
+- `covering --hops` and `--at-distance` beside a coverage snapshot from another
+  run than the per-case index list the test files with no hops, and say why.
+- The refusals that stay now say what they cannot read and why an answer past
+  it would mislead, and name `--since <ref>` where a base answers them: an
+  unreadable or malformed runs record, a journal that names no commit, an
+  unreadable execution journal, `--cases last` over runs that name no case, and
+  a record another build wrote. A merged report that drops the composition says
+  that each shard's report still holds its own.

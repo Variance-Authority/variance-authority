@@ -237,8 +237,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
   const own = await landingRecord(root, request.suite);
   const runs = await readCommitRuns(own).catch((error: unknown) => {
-    const remedy = 'It records where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
-    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${remedy}.`, { cause: error });
+    const why = 'It records where this change starts, and a review that read it as absent would start from a guess';
+    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${why}.`, { cause: error });
   }).then((listed) => (listed?.runs === 0 ? undefined : listed));
   const given = request.since ?? (await runsBase(root, runs, own));
   // Runs that name no start (`runsBase`), and no base named: a suite given to a
@@ -251,7 +251,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     throw new OperatorError(
       (runs === undefined
         ? `no run has listed itself beside \`${own}\`, so nothing records where this change starts. ` +
-            'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
+            'Name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} name no start ` +
             'they descend from, so nothing records where this change starts. Name the base with `--since <ref>`.') +
         (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),

@@ -20,13 +20,20 @@ import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
 import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
 import { caseNameOf, twinText, whereText } from './covering-where.js';
+import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion)].join('\n')}\n`;
+}
+
+/** Why `--hops` printed no distance, said under the files it would have measured. */
+export function hopsText(answer: Covering): readonly string[] {
+  const gap = answer.hopsGap;
+  return gap === undefined ? [] : [`${gap.charAt(0).toUpperCase()}${gap.slice(1)}.`];
 }
 
 /** A block that says nothing is left out, not printed as an empty line. */
@@ -45,6 +52,11 @@ function text(answer: Covering): string {
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
     return narrowedText(answer).join('\n');
+  }
+  if (tests.length === 0 && newlyWritten(answer)) {
+    // Every asked line is new since the recording: *no named test covered* is true, and the reason is the whole answer.
+    const [one, verb, it] = single(answer.written!) ? ['Line', 'was', 'it'] : ['Lines', 'were', 'them'];
+    return [`${one} ${runsText(answer.written!)} of ${answer.file} ${verb} written since the recording, so no case has run ${it}.`, ...narrowedText(answer)].join('\n');
   }
   if (tests.length === 0) {
     return [
@@ -86,6 +98,14 @@ function grainText(answer: Covering, where: string): readonly string[] {
   return lines;
 }
 
+/** Whether every line the question asked was written since the recording. */
+function newlyWritten(answer: Covering): boolean {
+  const target = answer.target;
+  if (answer.written === undefined || target === undefined || 'function' in target) return false;
+  const asked = 'line' in target ? 1 : target.lines.endLine - target.lines.startLine + 1;
+  return answer.written.reduce((sum, run) => sum + run.endLine - run.startLine + 1, 0) === asked;
+}
+
 function single(runs: readonly HeldLines[]): boolean {
   return runs.length === 1 && runs[0]!.startLine === runs[0]!.endLine;
 }
@@ -116,12 +136,19 @@ export function scopeText(answer: Covering): readonly string[] {
 
 /**
  * The file was edited since the recording and the recorded text is not in
- * history, so there is no line to give.
+ * history, so there is no line to give: the cases that ran code in the file,
+ * and the reading the gap takes away.
  */
-export function staleText(answer: Covering): string {
-  return `${answer.file} is not the text the suite ran over${
-    answer.at === undefined ? '' : ` at ${answer.at.slice(0, 12)}`
-  }, and that text could not be found, so no recorded line is a place in it. Run the suite to record it again.`;
+function staleText(answer: Covering): string {
+  const { gone, header } = staleLines(answer);
+  const tests = answer.tests ?? [];
+  return [
+    gone,
+    ...header === undefined ? [] : [tests.length === 0 ? header : `${header}:`],
+    ...caseLines(tests, '  ', answer.files, answer.twins),
+    ...legend(tests),
+    ...narrowedText(answer),
+  ].join('\n');
 }
 
 /**

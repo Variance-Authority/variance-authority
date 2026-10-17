@@ -74,15 +74,16 @@ describe('a file answered in the text somebody holds', () => {
     expect(formatCovering(answer, 'text')).toContain('placed in the text as it is now');
   });
 
-  it('asks a held line as the line it was, and refuses one the edit wrote', async () => {
+  it('asks a held line as the line it was, and answers that the edit wrote one', async () => {
     const held = await edited();
     const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '7']));
 
     // Held line 7 is `if (value === 'gamma') {`: the case that fell through evaluated it too.
     expect(answer.tests?.map((test) => test.name)).toEqual(['decide > falls through to B', 'decide > takes the gamma branch']);
     expect(answer.target).toEqual({ line: 7 });
-    await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1'])))
-      .rejects.toThrow(/written since the recording/);
+    const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1']));
+    expect(written).toMatchObject({ target: { line: 1 }, tests: [], written: [{ startLine: 1, endLine: 1 }] });
+    expect(formatCovering(written, 'text')).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n`);
   });
 
   it('answers a held run of lines from the lines it was, and names the lines the edit wrote', async () => {
@@ -97,8 +98,10 @@ describe('a file answered in the text somebody holds', () => {
     );
     expect(formatCovering(answer, 'text')).toContain('Lines 1-2 were written since the recording, so no case has run them.');
     expect(formatCovering(answer, 'refs')).toContain('; written since 1-2');
-    await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2'])))
-      .rejects.toThrow(/lines 1-2 of .* were written since the recording/);
+    const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2']));
+    expect(written).toMatchObject({ tests: [], written: [{ startLine: 1, endLine: 2 }] });
+    expect(formatCovering(written, 'text')).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n`);
+    expect(formatCovering(written, 'refs')).not.toMatch(/[Rr]un the suite/);
   });
 });
 

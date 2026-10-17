@@ -90,7 +90,8 @@ describe('a test read alone', () => {
     const asked = covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     await expect(asked).rejects.toThrow(OperatorError);
-    await expect(asked).rejects.toThrow(`from the record \`${execution}\`, and it names none.`);
+    await expect(asked).rejects.toThrow(`from the record \`${execution}\`, and it names none, so which of its cases the last run wrote is not recorded. Without \`--cases\`, the answer reads every case the record holds.`);
+    await expect(asked).rejects.not.toThrow(/run a test file|ask again/);
   });
 
   it('renumbers the crossings of the cases it keeps', () => {

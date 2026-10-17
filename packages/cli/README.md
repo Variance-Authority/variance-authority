@@ -662,9 +662,9 @@ The count is out of the cases that covered what you asked about, before
 `--where` narrowed them. `--where prices` keeps every value of `prices`, and
 every repeated `--where` must hold. Two values recorded at one level print as a
 contradiction, and match a `--where` naming either. A record made before cases
-recorded preconditions answers `unmeasured` rather than an empty list, and a
-case from a runner that does not record preconditions is counted apart from the
-cases that recorded nothing. When `--where` keeps none of the cases that covered
+recorded preconditions keeps none and counts every case as unmeasured, rather
+than answering that no test covered it, and a case from a runner that does not
+record preconditions is counted apart from the cases that recorded nothing. When `--where` keeps none of the cases that covered
 a line or function, the answer prints that the filter left none of them and how
 many there were, rather than that no test covered it. The state of a line,
 function, range or changed region, and the cases that stopped before it, are
@@ -711,7 +711,8 @@ stand in:
   stand now. A range an edit touched is marked `moved`.
 - `stale`: the text changed, and the text the suite ran over could not be found.
   No ranges are printed, because ranges at the wrong numbers would be read as
-  real.
+  real. The answer names the cases that ran code in the file, and says that
+  which of them ran the line you asked about cannot be said.
 
 ```bash
 variance covering --file src/checkout/total.ts --text - --format json < buffer.ts

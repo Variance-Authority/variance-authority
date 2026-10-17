@@ -354,11 +354,11 @@ preconditions, and the test recorded none. A row with no `preconditions` field
 was recorded by a runner that does not, and whether that test set any state is
 unmeasured. Unmeasured is never read as none.
 
-When no row in the record has the field, `--where` is refused with exit `2`
-rather than answered with no test, and under `--format json` stdout is
-`{"refused":"unmeasured"}`. Record the suite again to read the preconditions.
-When only some rows lack it, the answer counts them apart, in a line under
-`Kept`:
+When no row in the record has the field, `--where` keeps none of the cases
+and says that none of them was recorded with preconditions, never that no test
+covered the line. Under `--format json`, `where.unmeasured` equals `where.of`.
+When only some rows lack it, the answer counts them apart. Either way the count
+is a line under `Kept`:
 
 ```text
 3 cases were recorded without preconditions, so whether they ran under any of that is unmeasured.

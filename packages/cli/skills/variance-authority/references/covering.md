@@ -36,8 +36,9 @@ charges to the module too. Its cases are the ones that loaded the file, and the
 answer says so with `At file grain`, `grain: "file"` under `--format json`. In
 a run of lines, the lines held at file grain are named in `fileGrain`, and the
 lines no region holds, such as imports, types or blank lines, in `outside`.
-Lines of a run your edit wrote are named in `written` and left out; a run with
-no recorded line is refused.
+Lines of a run your edit wrote are named in `written` and left out; when your
+edit wrote every line asked, the answer says that no case has run them. A run
+whose lines no recorded region holds is refused.
 
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
   It needs `--line` or `--function`, and a run of lines or any `--function` is
@@ -47,7 +48,7 @@ no recorded line is refused.
   file>` from the ones that test file declares.
 - `--where <name>[=<value>]` keeps the cases that recorded that precondition
   with `variancePrecondition`. Reading the state each case ran under, its twin
-  and an `unmeasured` refusal is in [case preconditions](case-preconditions.md).
+  and a record that holds no preconditions is in [case preconditions](case-preconditions.md).
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
   costs one table, not eleven names per range. It is the shortest answer to hand
@@ -148,11 +149,13 @@ The answer's `frame` names the coordinates its numbers are in:
 - `recorded` — the recording's, and the text matches it.
 - `mapped` — every range was carried into your text; ranges an edit touched are
   marked `moved`.
-- `stale` — the recorded text could not be found, so no ranges are given. Run
-  the suite.
+- `stale` — the recorded text could not be found, so no ranges are given. The
+  answer names the cases that ran code in the file and says that which of them
+  ran your line cannot be said.
 
-A `--line` your edit wrote is refused, because no case has run it, and in a
-run of lines it is named in `written` and left out. Do not read that as a gap.
+A `--line` your edit wrote is answered with no case, because no case has run
+it, and in a run of lines it is named in `written` and left out. Do not read
+that as a gap.
 
 ## Ask about the whole change at review time
 

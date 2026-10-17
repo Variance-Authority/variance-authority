@@ -385,7 +385,7 @@ describe('a browser run records what it executed', () => {
         subjects: [{ owner: 'story:price--premium', journal }],
       });
 
-      await expect(recording).rejects.toThrow(new RegExp(`${coverageFile}.*delete it and run again`, 'su'));
+      await expect(recording).rejects.toThrow(new RegExp(`${coverageFile}.*It was written by another build, so it is left as it was and this run lays nothing over it; deleting it is the operator's\\.$`, 'su'));
       expect(await readFile(coverageFile, 'utf8')).toBe('half a copy of something else');
     });
   });
