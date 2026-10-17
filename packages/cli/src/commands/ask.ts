@@ -6,7 +6,7 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
-import { FoundNothing, caughtUp, snapshotLine, unopenedLine } from '@variance-authority/help';
+import { FoundNothing, caughtUp, foundNothingFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -290,13 +290,13 @@ export async function askSource(request: SourceRequest): Promise<string> {
     const said = footer === '' ? '' : `\n\n${footer}`;
     if (caught?.subject === undefined) {
       // A name not found is an answer, dated like any other, once nothing newer can be read.
-      if (refusal instanceof FoundNothing) return foundNothing(refusal, dated ?? dateOf(answering.at, unseen), unopenedLine(answering.unopened, !unseen));
+      if (refusal instanceof FoundNothing) return foundNothing(refusal, foundNothingFooter(caught, answering.at, unseen), unopenedLine(answering.unopened, !unseen));
       throw refused(refusal, said);
     }
     try {
       return rendered(request, caught.subject, false);
     } catch (still) {
-      if (still instanceof FoundNothing) return foundNothing(still, caught.footer ?? dateOf(caught.subject.at, false), unopenedLine(caught.subject.unopened, true));
+      if (still instanceof FoundNothing) return foundNothing(still, foundNothingFooter(caught, caught.subject.at, false), unopenedLine(caught.subject.unopened, true));
       throw refused(still, said);
     }
   }
@@ -309,10 +309,6 @@ function refused(refusal: unknown, footer: string): OperatorError {
 /** A name the last reading did not find, written as `rendered` writes an answer: the text, then the lines under it. */
 function foundNothing(answer: FoundNothing, dated: string | undefined, said: string | undefined): string {
   return `${[answer.message, dated, said].filter((line) => line !== undefined).join('\n')}\n`;
-}
-
-function dateOf(at: string | undefined, unseen: boolean): string | undefined {
-  return at === undefined ? undefined : snapshotLine(at, unseen);
 }
 
 /** The reader each source question is answered from. */

@@ -137,7 +137,8 @@ export function unfound(help: Help, name: string, within: string | undefined): s
  * may be written. It is thrown, not returned, so every surface that reads a
  * reused generation asks the question again of a current one before the
  * absence is believed, as it does for a refusal; the last reading's
- * `FoundNothing` is then given as the answer, on stdout and with a clean exit.
+ * `FoundNothing` is then given as the answer: `variance ask` and
+ * `variance-authority-help` print it on stdout and exit cleanly.
  */
 export class FoundNothing extends Error {
   override readonly name = 'FoundNothing';

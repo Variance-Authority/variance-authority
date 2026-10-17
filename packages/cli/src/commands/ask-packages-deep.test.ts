@@ -227,6 +227,11 @@ describe('variance ask over a private app that reaches into another package', ()
       expect(unwritten.out).toContain('No file in this workspace declares `neverWritten`, at its top level or as a member.');
       expect(unwritten.out).toContain('A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.');
       expect(unwritten.out).not.toContain('See the skill');
+      // Dated with the generation it was read from, as every answer is.
+      expect(unwritten.out).toMatch(/^Snapshot \S+\.$/mu);
+      // `uses` asks nothing of the installed dependencies; `symbol` says what they publish.
+      if (verb === 'uses') expect(unwritten.out).not.toContain('installed dependency');
+      else expect(unwritten.out).toContain('installed dependency');
     }
   });
 

@@ -2,7 +2,7 @@
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson, inputFrom, toolNamed, verbs } from './ask.js';
-import { caughtUp, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
@@ -188,9 +188,10 @@ if (asking(verb) && verb !== undefined) {
         answer = caught.subject.answer();
       } catch (still) {
         // A name not found is an answer once nothing newer can be read, dated as any other.
-        const at = caught?.subject?.at ?? first.at;
-        const dated = footer ?? (at === undefined ? undefined : snapshotLine(at, false));
-        if (still instanceof FoundNothing) answer = dated === undefined ? still.message : `${still.message}\n${dated}`;
+        if (still instanceof FoundNothing) {
+          const dated = foundNothingFooter(caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);
+          answer = dated === undefined ? still.message : `${still.message}\n${dated}`;
+        }
         else {
           if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
           throw still;

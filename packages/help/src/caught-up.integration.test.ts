@@ -25,7 +25,7 @@ function bin(root: string, args: readonly string[]): Promise<{ code: number; out
 }
 
 describe('variance-authority-help about a name written after the published generation', () => {
-  it('reads the checkout again before answering that `symbol` found nothing', async () => {
+  it('reads the checkout again before refusing `symbol`', async () => {
     const { code, out, err } = await bin(await fixture.published(), ['symbol', '--name', 'keptOf']);
     expect(err).toBe('');
     expect(code).toBe(0);
