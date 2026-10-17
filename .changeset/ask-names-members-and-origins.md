@@ -27,6 +27,12 @@ names that declaration after the export line, and `ask symbol` shows its line
 and its members too. Files that only pass a name to each other name no
 declaration, and neither does a namespace or a star asked for `default`.
 
+Journeys resolve a call through a barrel the same way. A name two `export *`
+reach in different files, and `default` behind an `export *`, used to land in
+the first star's declaration; the call now names no function, as ECMAScript
+resolves neither. Neither does a name behind a star whose request resolved
+to no file of the checkout, since that star may export it too.
+
 `ask symbol` for a name an import binds with `as` answers its original the
 same way: followed to the declaration a file passes on, with its members.
 

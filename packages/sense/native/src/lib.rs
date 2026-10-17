@@ -146,6 +146,7 @@ mod record_layout;
 mod record_parts;
 mod record_start;
 mod resolve;
+mod resolve_export;
 mod seed;
 mod segment;
 mod side_effects;

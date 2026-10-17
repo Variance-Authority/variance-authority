@@ -10,21 +10,19 @@
 //! which name each import binds, and the file's record says which file each
 //! request resolved to.
 //!
-//! The walk is ECMAScript's export resolution: a file's own export of the
-//! name decides first, then a named `export … from`, and only then its stars.
-//! What the index cannot read — a request to no file of the checkout, a file
-//! with no parse or no export list, a namespace — leaves the name undecided
-//! rather than letting another star answer for it.
+//! The walk is ECMAScript's export resolution (`resolve_export.rs`), run over
+//! the index's parses.
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use napi_derive::napi;
 
 use crate::compact::Layer;
 use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
 use crate::package_owners::NO_OWNER;
+use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes};
 
 /// The declaration an export passes on: the file that declares it, the name
 /// it has there, and the line of that declaration.
@@ -45,111 +43,35 @@ pub struct PassedOnDeclaration {
 /// name, back at a file it already passed through, or at stars that reach
 /// different declarations.
 pub(crate) fn declaration_passed_on(layers: &[Layer], file: &str, name: &str) -> Option<PassedOnDeclaration> {
-    let folded = fold(layers);
-    let start = Parsed::of(layers, &folded, file)?;
-    let mut passed = HashSet::from([(file.to_owned(), name.to_owned())]);
-    let reached = match start.exports_locally(name) {
-        None => walk(layers, &folded, &start, name, &mut passed),
-        Some(Bound::Imported(to, imported)) => follow(layers, &folded, to, imported, &mut passed),
-        Some(Bound::Declared(..) | Bound::Unbound) => return None,
-    };
-    match reached {
-        Reached::Declaration(found) => Some(found),
-        Reached::Undecided | Reached::Nothing => None,
+    let index = Index { layers, folded: fold(layers) };
+    let (&file, _) = index.folded.get_key_value(file)?;
+    if let Exports::Own(Bound::Declared(_) | Bound::Unbound) = index.exports(&file, name) {
+        return None;
     }
+    resolve_export(&index, &file, name).declaration()
 }
 
-/// How a file's own export list binds a name.
-enum Bound<'a> {
-    /// A top-level declaration of the file: its name there and its line.
-    Declared(String, u32),
-    /// An import the file exports again: the file its request resolved to,
-    /// `None` for no file of the checkout, and the name it has there.
-    Imported(Option<&'a str>, String),
-    /// A namespace import, or a binding the parse holds neither a declaration
-    /// nor an import of.
-    Unbound,
+/// The source index's layers, folded to each file's newest record.
+struct Index<'a> {
+    layers: &'a [Layer<'a>],
+    folded: HashMap<&'a str, At>,
 }
 
-/// Where a walk ends. Undecided is kept apart from nothing because it carries
-/// upward: a star that cannot say what it exports under the name makes the
-/// file passing it on undecided too, where a star that does not export the
-/// name is passed over.
-#[derive(Debug, PartialEq, Eq)]
-enum Reached {
-    Declaration(PassedOnDeclaration),
-    /// Two stars reach different declarations, or the walk reaches what the
-    /// index cannot read or a binding that is no declaration.
-    Undecided,
-    /// The file does not export the name, or the walk already passed through it.
-    Nothing,
-}
+impl<'a> Modules for Index<'a> {
+    type File = &'a str;
+    type Declaration = PassedOnDeclaration;
 
-/// What `from` passes `name` on from: its named `export … from` of the name
-/// decides whatever it reaches, and its stars are read only when there is none;
-/// no star passes `default`; two stars that reach different declarations, or
-/// one that is undecided, leave the name undecided.
-fn walk(layers: &[Layer], folded: &HashMap<&str, At>, from: &Parsed, name: &str, passed: &mut HashSet<(String, String)>) -> Reached {
-    let Some(Passes { named, stars }) = from.passes(name) else { return Reached::Undecided };
-    if let Some(hop) = named {
-        return match hop {
-            Some((to, imported)) => step(layers, folded, to, imported, passed),
-            None => Reached::Undecided,
-        };
-    }
-    if name == "default" {
-        return Reached::Nothing;
-    }
-    let mut reached: Option<PassedOnDeclaration> = None;
-    for star in stars {
-        let Some(to) = star else { return Reached::Undecided };
-        match step(layers, folded, to, name.to_owned(), passed) {
-            Reached::Nothing => {}
-            Reached::Undecided => return Reached::Undecided,
-            Reached::Declaration(found) => {
-                if reached.as_ref().is_some_and(|first| *first != found) {
-                    return Reached::Undecided;
-                }
-                reached = Some(found);
-            }
+    /// A file whose parse never recorded its export list answers by its
+    /// top-level declarations alone, and passes nothing on.
+    fn exports(&self, file: &&'a str, name: &str) -> Exports<&'a str, PassedOnDeclaration> {
+        let Some(parsed) = Parsed::of(self.layers, &self.folded, file) else { return Exports::Unread };
+        match parsed.exports_locally(name) {
+            Some(Bound::Declared((local, line))) => Exports::Own(Bound::Declared(PassedOnDeclaration { at: (*file).to_owned(), name: local, line })),
+            Some(Bound::Imported(to, imported)) => Exports::Own(Bound::Imported(to, imported)),
+            Some(Bound::Unbound) => Exports::Own(Bound::Unbound),
+            None => parsed.passes(name).map_or(Exports::Unread, Exports::Passes),
         }
     }
-    reached.map_or(Reached::Nothing, Reached::Declaration)
-}
-
-/// The declaration `to` binds `name` to, or what `to` passes it on from;
-/// nothing when the walk already passed through `to` under that name.
-fn step(layers: &[Layer], folded: &HashMap<&str, At>, to: &str, name: String, passed: &mut HashSet<(String, String)>) -> Reached {
-    if !passed.insert((to.to_owned(), name.clone())) {
-        return Reached::Nothing;
-    }
-    let Some(next) = Parsed::of(layers, folded, to) else { return Reached::Undecided };
-    match next.exports_locally(&name) {
-        Some(Bound::Declared(local, line)) => Reached::Declaration(PassedOnDeclaration { at: to.to_owned(), name: local, line }),
-        Some(Bound::Imported(from, imported)) => follow(layers, folded, from, imported, passed),
-        Some(Bound::Unbound) => Reached::Undecided,
-        None => walk(layers, folded, &next, &name, passed),
-    }
-}
-
-/// Where an import a file exports again leads: undecided when its request
-/// resolved to no file of the checkout.
-fn follow(layers: &[Layer], folded: &HashMap<&str, At>, to: Option<&str>, name: String, passed: &mut HashSet<(String, String)>) -> Reached {
-    match to {
-        Some(to) => step(layers, folded, to, name, passed),
-        None => Reached::Undecided,
-    }
-}
-
-/// What one file passes a name on from.
-struct Passes<'a> {
-    /// Its named `export … from` of the name: the file the request resolved to
-    /// and the name it has there, or `None` when that is nothing the walk can
-    /// follow, a namespace (`export * as`) or a request to no file of the checkout.
-    named: Option<Option<(&'a str, String)>>,
-    /// The file each `export *` resolved to, `None` for one that resolved to
-    /// no file of the checkout.
-    stars: Vec<Option<&'a str>>,
 }
 
 /// One file's newest record joined to its parse.
@@ -190,10 +112,10 @@ impl<'a> Parsed<'a> {
     /// How the file's own export list binds `name`, as [`Bound`] says; `None`
     /// when no export of it without a `from` names it. A file whose parse never
     /// recorded its export list answers by its top-level declarations alone.
-    fn exports_locally(&self, name: &str) -> Option<Bound<'a>> {
+    fn exports_locally(&self, name: &str) -> Option<Bound<&'a str, (String, u32)>> {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
         if parses.exports_present[self.row] != 1 {
-            return self.declares(name).map(|line| Bound::Declared(name.to_owned(), line));
+            return self.declares(name).map(|line| Bound::Declared((name.to_owned(), line)));
         }
         let export = parses
             .exports
@@ -201,7 +123,7 @@ impl<'a> Parsed<'a> {
             .find(|&export| text.optional(parses.export_from.at(export)).is_none() && text.optional(parses.export_exported.at(export)) == Some(name))?;
         let Some(local) = text.optional(parses.export_local.at(export)) else { return Some(Bound::Unbound) };
         Some(match self.declares(local) {
-            Some(line) => Bound::Declared(local.to_owned(), line),
+            Some(line) => Bound::Declared((local.to_owned(), line)),
             None => self.imports(local),
         })
     }
@@ -209,7 +131,7 @@ impl<'a> Parsed<'a> {
     /// The import that binds `local` in the file: the file its request
     /// resolved to and the name it has there, or unbound for a namespace
     /// import and for a name no import binds.
-    fn imports(&self, local: &str) -> Bound<'a> {
+    fn imports(&self, local: &str) -> Bound<&'a str, (String, u32)> {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
         let first = parses.requests.at(self.row) as usize;
         for request in parses.requests.range(self.row) {
@@ -229,7 +151,7 @@ impl<'a> Parsed<'a> {
 
     /// What the file passes `name` on from, as [`Passes`] holds it; `None`
     /// when its parse never recorded its export list.
-    fn passes(&self, name: &str) -> Option<Passes<'a>> {
+    fn passes(&self, name: &str) -> Option<Passes<&'a str>> {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
         if parses.exports_present[self.row] != 1 {
             return None;
