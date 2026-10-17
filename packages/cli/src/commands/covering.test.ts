@@ -12,6 +12,7 @@ import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@varianc
 import { covering, formatCovering } from './covering.js';
 import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const INDEX = {
   tests: [
@@ -58,7 +59,7 @@ async function recordFile(): Promise<string> {
   const held = (name: string) => ({ name, digest: digestString(name) });
   await writeTestCoverage(file, {
     version: 3,
-    instrumentation: 'fixture-instrumentation',
+    instrumentation: INSTRUMENTATION_ID,
     tests: [
       { file: 'total.test.ts', complete: true, preconditions: [held('total.test.ts'), held('src/stabilize.ts')] },
       { file: 'flow.test.tsx', complete: true, preconditions: [held('flow.test.tsx')] },
@@ -169,7 +170,7 @@ describe('asking which tests entered a line', () => {
     expect(answer.preconditionOf).toEqual(['total.test.ts']);
     expect(formatCovering(answer, 'text')).toBe(
       'src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
-        'without instrumenting it, or the suite declares it, so no line of it has a recorded case.\n  total.test.ts\n',
+        'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n',
     );
     expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
   });
@@ -185,7 +186,7 @@ describe('asking which tests entered a line', () => {
     expect(formatCovering(other, 'text')).toBe(
       'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
         'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
-        'it, or the suite declares it, so no line of it has a recorded case.\n',
+        'it, so no line of it has a recorded case.\n',
     );
     expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
   });
@@ -215,11 +216,12 @@ describe('asking which tests entered a line', () => {
     await expect(asked).rejects.toHaveProperty('kind', 'unloaded');
   });
 
-  it('separates a line nothing recorded from a line nothing covered', async () => {
+  it('separates a line nothing recorded from a line nothing covered, and answers it', async () => {
     const execution = await indexFile();
+    const answer = await covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution]));
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution])))
-      .rejects.toThrow(/outside every recorded region/);
+    expect(answer).toMatchObject({ tests: [], outside: [{ startLine: 2, endLine: 2 }] });
+    expect(formatCovering(answer, 'text')).toContain('Line 2 is outside every recorded region, so no case can be said to have run it.');
   });
 
   it('refuses a line and a function together, and a line that is not one', () => {

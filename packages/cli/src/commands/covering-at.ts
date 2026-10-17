@@ -5,9 +5,9 @@
  * is painted as.
  *
  * Split from the command because the question about a place inside a file has
- * its own refusals — a line the edit wrote, a line no region holds, a name no
- * recorded function has — and the answer about the whole file and about a diff
- * has none of them.
+ * its own readings — a line the edit wrote, a line no region holds, a name no
+ * recorded function has — and the answer about the whole file and about a
+ * diff has none of them.
  *
  * Which regions a place lands on is the record's reading in
  * `source-target.ts`, shared with selection's line rule. What this module adds
@@ -70,9 +70,21 @@ export async function coveringAt(
   if (request.line !== undefined || request.lines !== undefined) {
     const held = request.lines ?? { startLine: request.line!, endLine: request.line! };
     const lines = recordedLines(held, module, placement);
-    if (lines.lines.length === 0) throw nothingRecorded(file, held, lines);
-    target = request.lines === undefined ? { file, line: lines.lines[0]! } : { file, lines: lines.lines };
     asked = request.lines === undefined ? { line: held.startLine } : { lines: held };
+    if (lines.lines.length === 0) {
+      // No asked line is in a recorded region: each is new, or has none to be covered, and saying which is the answer.
+      return {
+        file,
+        target: asked,
+        tests: [],
+        ...(lines.outside.length === 0 ? {} : { outside: runsOf(lines.outside) }),
+        ...(lines.written.length === 0 ? {} : { written: runsOf(lines.written) }),
+        ...(placement === undefined ? {} : { frame: placement.frame }),
+        from,
+        ...countOf(near, 0, 0),
+      };
+    }
+    target = request.lines === undefined ? { file, line: lines.lines[0]! } : { file, lines: lines.lines };
     const whole = lines.fileGrain.length === lines.lines.length;
     grain = {
       ...(whole ? { grain: 'file' as const } : {}),
@@ -157,24 +169,6 @@ function recordedLines(held: HeldLines, module: ExecutionModule, placement: Plac
     if (grain === 'file') fileGrain.push(at);
   }
   return { lines, fileGrain, outside, written };
-}
-
-/** Why no asked line has an answer: every one was written since, or none is in a recorded region. */
-function nothingRecorded(file: string, held: HeldLines, read: ReadLines): OperatorError {
-  const one = held.startLine === held.endLine;
-  const asked = one ? `line ${held.startLine}` : `lines ${held.startLine}-${held.endLine}`;
-  if (read.written.length === held.endLine - held.startLine + 1) {
-    const it = one ? 'it' : 'them';
-    return new OperatorError(
-      `${asked} of \`${file}\` ${one ? 'was' : 'were'} written since the recording, so the record has nothing ` +
-        `to say about ${it} yet: no case has run ${it}. Run the suite to record ${it}.`,
-    );
-  }
-  return new OperatorError(
-    `${one ? asked : `every line of ${asked}`} of \`${file}\` is outside every recorded region. A blank line, an ` +
-      'import or a type declaration has no region to be covered, so there is no list to ' +
-      'print — which again is not the same as nobody covering it.',
-  );
 }
 
 /** A name no recorded function has, and no recorded function is under. */

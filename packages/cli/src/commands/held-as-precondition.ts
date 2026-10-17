@@ -9,7 +9,7 @@
  * `review` counts them from this one reading rather than two.
  */
 
-import { askCoverageFile, testsGovernedBy } from '@variance-authority/sense/test-selection';
+import { askCoverageFile, findModules, testsGovernedBy } from '@variance-authority/sense/test-selection';
 
 /** What the record says about the asked files as preconditions. */
 export interface HeldAsPrecondition {
@@ -21,6 +21,13 @@ export interface HeldAsPrecondition {
    * precondition of itself, and is not named for that.
    */
   readonly of: ReadonlyMap<string, readonly string[]>;
+  /**
+   * The asked files the run loaded: each has a module row in the record, with
+   * blocks or, loaded without instrumenting it, with none. An asked file some test file holds and that is
+   * not here is held only because the suite declares it, which is a statement
+   * about the suite rather than a load anybody measured.
+   */
+  readonly loaded: ReadonlySet<string>;
 }
 
 /**
@@ -44,7 +51,8 @@ export function heldAsPrecondition(record: string, files: readonly string[]): He
         }
       }
       for (const tests of of.values()) tests.sort();
-      return { tests: coverage.testPath.length, of };
+      const loaded = new Set(files.filter((file) => findModules(coverage, file).length > 0));
+      return { tests: coverage.testPath.length, of, loaded };
     });
   } catch {
     return undefined;

@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
 import { ConfigError } from '../config-values.js';
 import { parseCoveringArgs } from '../covering-args.js';
-import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
   encodeExecutionIndex,
@@ -122,13 +121,17 @@ describe('a case read by what it said', () => {
     expect(() => parse(['--file', 'src/cart.ts', '--where', '=mocked'])).toThrow(/`--where` takes a precondition's name/);
   });
 
-  it('answers unmeasured, never an empty list, from a record made before cases said anything', async () => {
+  it('answers every case unmeasured, never an empty list, from a record made before cases said anything', async () => {
     const record = await recorded(MEASURED.map(({ preconditions: _, ...test }) => test));
 
-    const refused = await ask(['network=mocked'], record).catch((error: unknown) => error);
-    expect(refused).toBeInstanceOf(OperatorError);
-    expect((refused as OperatorError).kind).toBe('unmeasured');
-    expect((refused as Error).message).toMatch(/unmeasured/);
+    const answer = await ask(['network=mocked'], record);
+    const text = formatCovering(answer, 'text');
+
+    expect(answer.tests).toEqual([]);
+    expect(answer.where).toMatchObject({ kept: 0, of: 6, unmeasured: 6 });
+    expect(text).toContain('Kept none of the 6 cases that covered line 2 of src/cart.ts: none of them was recorded with preconditions.\n');
+    expect(text).toContain('6 cases were recorded without preconditions, so whether they ran under any of that is unmeasured.');
+    expect(text).not.toMatch(/No named test covered|[Rr]ecord the suite|[Rr]un the suite/);
   });
 
   it('counts the cases nobody listened to rather than reading them as having said nothing', async () => {

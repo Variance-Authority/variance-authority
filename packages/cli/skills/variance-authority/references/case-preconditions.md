@@ -149,16 +149,18 @@ it('applies the discount', async () => {
   record, with a warning.
 - It only takes effect in a recorded run; record the suite again before asking.
 
-## The answer prints unmeasured — what now
+## The answer keeps none, unmeasured — what now
 
 ```text
-`--where prices=discounted` is unmeasured here: the record holds no case's preconditions. …
+Kept none of the 6 cases that covered line 2 of src/cart.ts: none of them was recorded with preconditions.
+6 cases were recorded without preconditions, so whether they ran under any of that is unmeasured.
 ```
 
-Exit `2`, `{"refused":"unmeasured"}` under `--format json`. No row in the
+`where.unmeasured` equals `where.of` under `--format json`. No row in the
 record has a `preconditions` field: it was recorded by a runner without the
 precondition recording. Do not read it as *no test ran with discounted prices*.
-Record the suite again; asking again changes nothing.
+Asking again changes nothing; only a record made with the precondition
+recording answers it.
 
 `N cases were recorded without preconditions, so whether they ran under any of
 that is unmeasured.` under `Kept` is the partial form: the kept list is right

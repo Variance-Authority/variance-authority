@@ -54,6 +54,8 @@ import { withCases } from './select-cases.js';
 import { handedDiff, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
+import { probesGap, probesNote } from './probes-gap.js';
+import { fetchable } from './execution-input.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
@@ -168,8 +170,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     await journeyAgainst(request.root, '', undefined, at);
     throw new OperatorError(
       `the execution journal at ${at} names no commit, so there is no coordinate to measure a ` +
-        'diff from. Pass `--since <ref>` to name one, or record the suite again from a git ' +
-        'checkout so the journal carries its own; a selection measured from a guess would skip ' +
+        'diff from. Pass `--since <ref>` to name one; a selection measured from a guess would skip ' +
         'test files for lines nobody changed.',
     );
   }
@@ -194,10 +195,16 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const top = await topLevel(request.root);
   const here = top ?? request.root;
   const own = at === (await landingRecord(request.root, request.suite));
-  const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, own);
+  const whose = own ? '' : " It is another checkout's record, read here because this checkout holds none of its own.";
+  const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, async () => `${whose}${await fetchable(request.root, request.suite)}`);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
-  const standing =
-    stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!);
+  // A record cut under other probes is selected from as it holds it, and the first note says what that leaves open.
+  const gap = await probesGap(at, request.root, request.suite);
+  const standing = [
+    // A note in this list is a clause the reader ends, so the sentence's own period goes.
+    ...(gap === undefined ? [] : [probesNote(gap, undefined, '--execution').replace(/\.$/, '')]),
+    ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
+  ];
   const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
@@ -333,7 +340,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
  * it say, with the files changed since each stand named from the top of
  * `repository`, as the journal names them. `undefined` for a journal
  * that names no commit. A runs record that cannot be read is refused, with the reader's sentence
- * naming the file: every test would otherwise be read from a guess, and a guess
+ * naming the file, then `whose` saying whose record it is and where another can be fetched: every test would otherwise be read from a guess, and a guess
  * can skip a test that should run. Under `--diff` the record feeds only a note,
  * so the note says it could not be read and nothing is refused.
  */
@@ -341,7 +348,7 @@ async function standsOf(
   at: string,
   repository: string,
   handed: boolean,
-  own: boolean,
+  whose: () => Promise<string>,
 ): Promise<{ readonly reading: StandReading; readonly stands: readonly Stand[] } | { readonly unread: string } | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   let runs: CommitRuns | undefined;
@@ -352,13 +359,10 @@ async function standsOf(
     if (handed) {
       return { unread: `${why}, so whether a test file last ran before the journal's commit is not said; a patch handed in with \`--diff\` is read as the whole change either way` };
     }
-    // One case per place a journal is read from: this checkout's own, or another's it reads until it has run.
-    const remedy = own
-      ? 'Run the suite, which rewrites it; delete it first only if it is a directory.'
-      : "It is another checkout's record: run the suite here, which writes this checkout's own.";
+    // Whose record it is, and where the mainline's can be fetched, are what the reader can act on; a run often is not.
     throw new OperatorError(
       `${why}. It says where each test in the journal last ran, and a selection that guessed would skip ` +
-        `tests that should run. ${remedy}`,
+        `tests that should run.${await whose()}`,
       { cause: error },
     );
   }

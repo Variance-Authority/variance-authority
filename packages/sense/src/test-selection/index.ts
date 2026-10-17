@@ -179,7 +179,7 @@ export { openTestCoverage, type TestCoverageView } from './format-view.js';
 // What a landing of shards reads of the record they combined into, and the coverage it lands.
 export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
 export { BLOCK_KINDS } from './format-layout.js';
-export { sharedPreconditions, testsGovernedBy } from './lookup.js';
+export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.
 export { withIndexLock } from './index-lock.js';

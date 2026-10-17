@@ -278,6 +278,7 @@ export async function selectionFor(
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
     notes: [
+      ...(journal?.probes === undefined ? [] : [journal.probes]),
       ...notesFor(
         ref,
         { ...answer, skipped, kept },
@@ -354,7 +355,7 @@ async function journalOf(
   relations: Relations | undefined,
   install: Extract<InstallDiff, { readonly moved: unknown }> | undefined,
   dirs: readonly string[],
-): Promise<ExecutionNarrowing | undefined> {
+): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined> {
   const read = async (graph?: Relations) => {
     const beyond = beyondOf(graph, install);
     const narrowing = await deps.readJourney?.(withWhole(diff, beyond.files), graph);

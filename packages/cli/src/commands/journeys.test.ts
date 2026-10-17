@@ -168,7 +168,7 @@ describe('the recorded partings a run can reach', () => {
     );
     expect(fallback.pool).toContain('no report at .variance/report.json');
     expect(fallback.pool).toContain('a deleted subject still counts');
-    expect(fallback.pool).toContain('run once to narrow it to this run, or pass --all');
+    expect(fallback.pool).toMatch(/a deleted subject still counts$/);
   });
 
   it('says how stale the record is, or that it cannot say', () => {
@@ -260,7 +260,7 @@ describe('formatLanding', () => {
     expect(lines({ unanswered: '/tmp/coverage.bin', shards: ['/ci/shard-1.bin'], removed: true })).toEqual([
       '  case index removed at /tmp/coverage.bin: /ci/shard-1.bin ran a test file to the end, and ' +
         'its record keeps no case index this build can read, so no index can say which of ' +
-        "that file's cases run a line. Record cases in the runs that write the shards, or run the suite here, to write one.",
+        "that file's cases run a line.",
     ]);
   });
 

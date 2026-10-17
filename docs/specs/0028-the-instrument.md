@@ -303,7 +303,9 @@ have returned.
 
 **Identity.** `INSTRUMENTATION_ID` at `packages/sense/src/instrument/index.ts`
 is `sense:instrument/presence-v6`. Every module record, journal, account and
-coverage file names it, and every reader refuses one that names another. A
+coverage file names it. A run is never laid over a record that names another,
+and a reader answers from such a record as it holds it, at its own commit, and
+names both identities and the regions the difference leaves unanswered. A
 change to how a module is cut into regions or to what a hit means mints a new
 id. Where in the output a region's probe sits does not: a record made with the
 probes before the transforms names the same regions by the same ordinals, and a

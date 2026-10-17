@@ -44,6 +44,7 @@ describe('an answer with every case named once', () => {
 
     expect(text).toContain(`lines 1-5 — walked\n  ${RESET}\n    configure > honours a second driver\n`);
     expect(text).toContain('line 62 — walked\n  the same 3 named tests as lines 1-5\n');
-    expect(text.split(RESET).length - 1).toBe(3);
+    expect(text).toContain('lines 70-72 — loaded\n  1 case in 1 test file ran it only while their file imported the module\n');
+    expect(text.split(RESET).length - 1).toBe(2);
   });
 });

@@ -227,7 +227,7 @@ function poolSentence(pool: JourneyPool, recorded: RecordedJourneys): string {
       return pool.report === undefined
         ? `${whole}: the whole journal, because \`--suite\` reads no project config and has no report to narrow it by; a deleted subject still counts`
         : `${whole}: the whole journal, because there is no report at ${pool.report}, so a ` +
-            'deleted subject still counts; run once to narrow it to this run, or pass --all';
+            'deleted subject still counts';
   }
 }
 
@@ -354,8 +354,7 @@ function casesLine(cases: CaseLanding): string {
     : `${cases.shards.slice(0, -1).join(', ')} and ${cases.shards.at(-1)} ran test files to the end, and ` +
       'their records keep no case index this build can read';
   return cases.removed
-    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line. ` +
-        'Record cases in the runs that write the shards, or run the suite here, to write one.'
+    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line.`
     : `  no case index at ${cases.unanswered}: ${why}`;
 }
 
