@@ -149,10 +149,13 @@ export interface HelpOptions extends OfferingOptions, UsageOptions {
  * `uses`. Both halves of that are deliberate: a package's own tests import its
  * barrel constantly, so counting them as consumers would make every name look
  * load-bearing, and dropping them entirely would lose the fact that the name is
- * exercised at all.
+ * exercised at all. A module a file passes on whole, recorded as `*`, is a
+ * site of every name, since what it reads there is not recorded.
  */
-function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites'> {
-  const uses = usage.names.get(key)?.get(name) ?? [];
+export function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites'> {
+  // A module that escapes whole, as `*`, may be read for any name of it.
+  const held = usage.names.get(key);
+  const uses = [...(held?.get(name) ?? []), ...(name === '*' ? [] : (held?.get('*') ?? []))];
   const by: string[] = [];
   for (const use of uses) {
     if (use.by !== owner && !by.includes(use.by)) by.push(use.by);

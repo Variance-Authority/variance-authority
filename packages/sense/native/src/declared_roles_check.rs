@@ -161,9 +161,12 @@ fn facts<'a>(layers: &'a [Layer], crossing: &Crossing<'a>) -> Facts<'a> {
             }
         }
         for member in parses.members.range(row) {
-            if parses.member_request.at(member) as usize == request - first {
+            // A name off the module's `default` is that value's; the `default` read is the use.
+            if parses.member_request.at(member) as usize == request - first && parses.member_through_default[member] == 0 {
                 let name = text.text(parses.member_name.at(member));
-                facts.uses.push(Use { target, name: Some(name), local: Some(name), line: parses.member_line.at(member) });
+                // `*` is the module escaping whole, which runs every name of it.
+                let name = (name != "*").then_some(name);
+                facts.uses.push(Use { target, name, local: name, line: parses.member_line.at(member) });
             }
         }
         if kind == "reexports" && parses.request_bindings.range(request).is_empty() {

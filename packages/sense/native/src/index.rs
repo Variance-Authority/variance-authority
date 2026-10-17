@@ -118,7 +118,7 @@ impl ParseRow for Read {
         }
         into.mock(self.mocks.minus.iter().map(|value| id(value)), self.mocks.plus.iter().map(|value| id(value)));
         for member in &self.members {
-            into.member(member.request, id(&member.name), member.line);
+            into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
             into.member_declaration(id(&declared.name), declared.line, id(&declared.on));

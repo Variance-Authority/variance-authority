@@ -85,6 +85,7 @@ pub struct ParseColumns {
     member_request: Vec<u32>,
     member_name: Vec<u32>,
     member_line: Vec<u32>,
+    member_through_default: Vec<u8>,
     member_declarations: Vec<u32>,
     member_declaration_name: Vec<u32>,
     member_declaration_line: Vec<u32>,
@@ -198,10 +199,11 @@ impl ParseColumns {
         self.mock_plus.extend(plus);
     }
 
-    pub fn member(&mut self, request: u32, name: u32, line: u32) {
+    pub fn member(&mut self, request: u32, name: u32, line: u32, through_default: bool) {
         self.member_request.push(request);
         self.member_name.push(name);
         self.member_line.push(line);
+        self.member_through_default.push(u8::from(through_default));
     }
 
     pub fn member_declaration(&mut self, name: u32, line: u32, on: u32) {
@@ -286,6 +288,7 @@ impl ParseColumns {
             u32s("members.request", self.member_request),
             u32s("members.name", self.member_name),
             u32s("members.line", self.member_line),
+            u8s("members.through-default", self.member_through_default),
             u32s("parses.member-declarations", self.member_declarations),
             u32s("member-declarations.name", self.member_declaration_name),
             u32s("member-declarations.line", self.member_declaration_line),

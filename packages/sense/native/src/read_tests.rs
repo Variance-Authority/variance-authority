@@ -178,6 +178,109 @@ fn a_destructured_import_call_takes_each_name_it_destructures() {
             ("./rested", "f"),
             ("./cast", "g"),
             ("./then", "h"),
+            // Past a spread no position is known, and `allSettled` wraps each
+            // module in a result: either holds it whole where the walk cannot follow.
+            ("./after-spread", "*"),
+            ("./settled", "*"),
+        ]
+            .map(|(value, name)| (value.to_owned(), name.to_owned()))
+    );
+}
+
+#[test]
+fn an_assignment_destructures_an_import_call_as_a_declaration_does() {
+    let source = concat!(
+        "let a, b, local, held;\n",
+        "({ a } = await import('./assigned'));\n",
+        "({ d: local } = await import('./renamed'));\n",
+        "[{ b }] = await Promise.all([import('./all')]);\n",
+        "held = await import('./held');\n",
+        "held.c;\n",
+    );
+    assert_eq!(
+        members(source),
+        [("./assigned", "a"), ("./renamed", "d"), ("./all", "b"), ("./held", "c")].map(|(value, name)| (value.to_owned(), name.to_owned()))
+    );
+}
+
+/// Each `(value, name, through default)` a read takes, in the order of the parse.
+fn members_off(source: &str) -> Vec<(String, String, bool)> {
+    let read = read_module("a.ts", source, &Allocator::default(), false);
+    read.members
+        .iter()
+        .map(|member| (read.requests[member.request as usize].value.clone(), member.name.clone(), member.through_default))
+        .collect()
+}
+
+#[test]
+fn a_name_read_off_the_default_of_an_import_call_is_read_through_default() {
+    // Under interop the `default` of a CommonJS module is its `module.exports`:
+    // the names off it are the module's, and the read says it went through
+    // `default`, one level deep; a name off one of those is a value's.
+    let source = concat!(
+        "const { a } = (await import('./off')).default;\n",
+        "const { default: { b, c: local } } = await import('./keyed');\n",
+        "(await import('./read')).default.d.deeper;\n",
+        "const held = (await import('./held')).default;\n",
+        "held.e;\n",
+        "const { f } = (await import('./cast')).default as typeof import('./cast');\n",
+    );
+    let off = |value: &str, name: &str, through: bool| (value.to_owned(), name.to_owned(), through);
+    assert_eq!(
+        members_off(source),
+        [
+            off("./off", "a", true),
+            off("./off", "default", false),
+            off("./keyed", "b", true),
+            off("./keyed", "c", true),
+            off("./keyed", "default", false),
+            off("./read", "d", true),
+            off("./read", "default", false),
+            off("./held", "default", false),
+            off("./held", "e", true),
+            off("./cast", "default", false),
+            off("./cast", "f", true),
+        ]
+    );
+}
+
+#[test]
+fn a_module_held_whole_that_escapes_is_a_read_of_star() {
+    // Passed, returned, stored or read by a key the reader cannot spell, the
+    // module is read whole where it goes, so the names it reads are not
+    // recorded: `*` says so at the line it escapes. A discarded `import()` is
+    // a side effect, and a read off the promise is the promise's.
+    let source = concat!(
+        "import * as ns from './ns';\n",
+        "import * as kept from './kept';\n",
+        "use(ns);\n",
+        "kept.a;\n",
+        "kept[key];\n",
+        "const m = await import('./held');\n",
+        "store.m = m;\n",
+        "export const lazy = () => import('./lazy');\n",
+        "this.x = await import('./member');\n",
+        "import('./effect');\n",
+        "await import('./awaited-effect');\n",
+        "const p = import('./promise');\n",
+        "import('./passed').then(load);\n",
+        "import('./used').then(() => done());\n",
+        "const all = await Promise.all([import('./array')]);\n",
+        "const [first, ...others] = await Promise.all([import('./first'), import('./other')]);\n",
+    );
+    assert_eq!(
+        members(source),
+        [
+            ("./ns", "*"),
+            ("./kept", "*"),
+            ("./kept", "a"),
+            ("./held", "*"),
+            ("./lazy", "*"),
+            ("./member", "*"),
+            ("./promise", "*"),
+            ("./passed", "*"),
+            ("./array", "*"),
+            ("./other", "*"),
         ]
             .map(|(value, name)| (value.to_owned(), name.to_owned()))
     );

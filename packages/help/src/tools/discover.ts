@@ -293,8 +293,10 @@ function sitesOf(uses: readonly IndexedUse[]): ReadonlyMap<string, readonly Evid
   const lines = new Map<string, Evidence[]>();
   for (const use of uses) {
     const through = use.through === undefined ? '' : use.through.kind === 'dynamic' ? ' through import()' : ' through a namespace';
+    const off = use.through?.throughDefault === true ? ' off its `default`' : '';
+    const whole = use.through?.whole === true ? ', passed on whole: what it reads is not recorded' : '';
     const list = lines.get(use.at) ?? [];
-    list.push({ line: use.line, text: `imports ${use.name} from ${use.specifier}${through}` });
+    list.push({ line: use.line, text: `imports ${use.name} from ${use.specifier}${through}${off}${whole}` });
     lines.set(use.at, list);
   }
   return lines;

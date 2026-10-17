@@ -70,6 +70,12 @@ pub struct NameUse {
     /// `dynamic` or `namespace` with the request's line, when no import named it.
     pub through: Option<String>,
     pub through_line: u32,
+    /// The name is read off the module's `default`, which under interop is a
+    /// CommonJS module's `module.exports`.
+    pub through_default: bool,
+    /// The module goes, whole, somewhere the reader does not follow: this line
+    /// may read the name, and what it reads is not recorded.
+    pub whole: bool,
 }
 
 #[napi(object)]
@@ -151,12 +157,14 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
         if imported == "*" { continue; }
         let local = text.text(parses.binding_local.at(binding));
         let renamed = (local != imported).then(|| local.to_owned());
-        names.push((NameUse { key: key.to_owned(), name: imported.to_owned(), local: renamed, by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0 }, local));
+        names.push((NameUse { key: key.to_owned(), name: imported.to_owned(), local: renamed, by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0, through_default: false, whole: false }, local));
     }
     let through = if text.text(parses.request_kind.at(request)) == "dynamic" { "dynamic" } else { "namespace" };
     for member in parses.members.range(row) {
         if parses.member_request.at(member) as usize != request - first { continue; }
-        names.push((NameUse { key: key.to_owned(), name: text.text(parses.member_name.at(member)).to_owned(), local: None, by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line }, ""));
+        let name = text.text(parses.member_name.at(member));
+        let (through_default, whole) = (parses.member_through_default[member] == 1, name == "*");
+        names.push((NameUse { key: key.to_owned(), name: name.to_owned(), local: None, by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line, through_default, whole }, ""));
     }
     names
 }
@@ -434,11 +442,16 @@ fn importers_of(
                 if parses.request_republishes[request] != 1 {
                     let written = text.text(parses.request_value.at(request));
                     for (mut taken, local) in taken(&layers[layer], row, request, written, by, crossing.file, kind) {
-                        let Some(origins) = names.get(&taken.name) else { continue };
+                        // A module that escapes whole may be read for any name wanted out of it.
+                        let asked: Vec<(&String, &HashMap<usize, bool>)> =
+                            if taken.whole { names.iter().collect() } else { names.get_key_value(&taken.name).into_iter().collect() };
                         let written_type = taken.r#type;
-                        for (&origin, &typed) in origins {
-                            taken.r#type = written_type || typed;
-                            found.push(Taken { origin, taken: taken.clone(), local: local.to_owned() });
+                        for (name, origins) in asked {
+                            taken.name.clone_from(name);
+                            for (&origin, &typed) in origins {
+                                taken.r#type = written_type || typed;
+                                found.push(Taken { origin, taken: taken.clone(), local: local.to_owned() });
+                            }
                         }
                     }
                     continue;

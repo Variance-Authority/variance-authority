@@ -47,6 +47,7 @@ import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   ownership,
+  reachedFrom,
   readWorkspaceManifests,
   type Help,
   type HelpOptions,
@@ -387,19 +388,6 @@ function sameExportedSurface(read: Pick<WorkspaceScan, 'changed'>, exported: Usa
   const before = keys(documented.exported);
   const after = keys(exported);
   return before.size === after.size && [...before].every((key) => after.has(key));
-}
-
-function reachedFrom(usage: Usage, key: string, name: string, owner: string): {
-  readonly usedBy: readonly string[];
-  readonly uses: number;
-  readonly sites: readonly Use[];
-} {
-  const sites = usage.names.get(key)?.get(name) ?? [];
-  const usedBy: string[] = [];
-  for (const use of sites) {
-    if (use.by !== owner && !usedBy.includes(use.by)) usedBy.push(use.by);
-  }
-  return { usedBy, uses: sites.length, sites };
 }
 
 export function joinUsage(documented: Help, offerings: readonly Offering[], usage: Usage): Help {
