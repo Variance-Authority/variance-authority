@@ -164,7 +164,9 @@ starts `observeNetwork` in `prepare` when `network` is given, and returns the
 harness with the observation, which you close before the harness. Its third
 argument, `alongside`, is handed the watched page just before that navigation,
 for work that should run on the same browser while the first document loads,
-such as reading something on a second page. It is not awaited.
+such as reading something in a second context. It is not awaited.
+`newPinnedContext(browser, viewport, region)` opens that context at the same
+viewport, colour scheme, timezone and locale the harness opened its own at.
 
 ## What the page was actually served
 

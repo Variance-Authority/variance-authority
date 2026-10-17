@@ -13,6 +13,7 @@ first story there found its import already done and read a `collect` near
 story's figures depended on which page took its file. The Storybook collector
 now reads the parameters on a document of its own, in a browser context it
 opens on the run's browser while the stories' page boots, so the reading is in
-no story's row and the stories' page still loads once. `createObservedHarness`
+no story's `collect` and the stories' page still loads once. `createObservedHarness`
 takes an optional third argument, called with the page once its observers are
-in and before it navigates, for work that should overlap the boot.
+in and before it navigates, for work that should overlap the boot, and
+`newPinnedContext` opens a context the way a harness opens its own.

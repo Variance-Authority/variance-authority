@@ -135,7 +135,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
 
   try {
     const region = pinnedRegion(options);
-    const context = await newContext(browser, options.viewport, region);
+    const context = await newPinnedContext(browser, options.viewport, region);
     const page = await context.newPage();
 
     // A bundle that throws leaves the agent global undefined, and the failure
@@ -247,7 +247,12 @@ export async function captureOnce(
   }
 }
 
-async function newContext(
+/**
+ * A browser context opened at a declared viewport, colour scheme and region,
+ * as a harness opens its page's: a second context of a run's, opened this way,
+ * evaluates the same page code the run's page does.
+ */
+export async function newPinnedContext(
   browser: Browser,
   viewport: Viewport,
   region: Required<PageRegion>,

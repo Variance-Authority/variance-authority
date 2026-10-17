@@ -1,5 +1,5 @@
 import type { Viewport } from '@variance-authority/core/format';
-import { pinnedRegion, widthsOf, type Harness, type HarnessOptions } from '@variance-authority/playwright';
+import { newPinnedContext, pinnedRegion, widthsOf, type Harness, type HarnessOptions } from '@variance-authority/playwright';
 import {
   declarationOf,
   harnessPage,
@@ -87,8 +87,10 @@ export function withParameters(plan: Plan, read: ParametersRead, run: Viewport):
  *
  * The context is opened at the run's viewport, colour scheme, timezone and
  * locale, so a parameter a preview computes from one of them reads what it
- * reads on the run's page. It carries no clock or agent of the run's:
- * `extract()` renders nothing.
+ * reads on the run's page. It carries none of the run's stabilizing drivers,
+ * network observation or agent, on purpose: `extract()` renders nothing, and
+ * the story files' imports it makes are no story's, so the run's network
+ * record does not hold them either.
  */
 export async function readParametersBeside(
   run: Harness['page'],
@@ -96,16 +98,10 @@ export async function readParametersBeside(
 ): Promise<ParametersRead> {
   const browser = run.context().browser();
   if (browser === null) throw new Error("the run's page has no browser to open a context on");
-  const { viewport, url } = harness;
-  const context = await browser.newContext({
-    viewport: { width: viewport.width, height: viewport.height },
-    deviceScaleFactor: viewport.deviceScaleFactor,
-    colorScheme: viewport.colorScheme,
-    ...pinnedRegion(harness),
-  });
+  const context = await newPinnedContext(browser, harness.viewport, pinnedRegion(harness));
   try {
     const page = await context.newPage();
-    await page.goto(url, { waitUntil: 'load' });
+    await page.goto(harness.url, { waitUntil: 'load' });
     return await readParameters(harnessPage({ page }));
   } finally {
     await context.close();
