@@ -269,7 +269,7 @@ A use is listed here only where its line writes the value's type. A use through 
 Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package).
 ```
 
-The last two lines close every member answer, whatever it lists. With one
+The two lines close the members of every member answer, whatever they list. With one
 declaration, the second line names it, such as `` `Props.size` at
 src/shapes/props.ts:2 ``. An answer with no member prints neither.
 
