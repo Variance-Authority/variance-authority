@@ -81,19 +81,27 @@ describe('the phases Jest reported for a test file', () => {
   };
 
   it('reads the environment and the setup files from `perfStats`, and splits the rest where collection ended', () => {
-    expect(jestPhases(perfStats, 1600)).toEqual({ phases: { environment: 30, setup: 9, collect: 555, cases: 100 } });
+    expect(jestPhases(perfStats, [1600])).toEqual({ phases: { environment: 30, setup: 9, collect: 555, cases: 100 } });
   });
 
   it('times no collect and no cases when the file never said where collection ended, and never a prepare', () => {
-    expect(jestPhases(perfStats, undefined)).toEqual({ phases: { environment: 30, setup: 9 } });
+    expect(jestPhases(perfStats, [])).toEqual({ phases: { environment: 30, setup: 9 } });
   });
 
   it('splits nothing at a mark outside the file\'s own span, rather than give one half the other\'s time', () => {
-    expect(jestPhases(perfStats, 0)).toEqual({ phases: { environment: 30, setup: 9 } });
-    expect(jestPhases(perfStats, 1800)).toEqual({ phases: { environment: 30, setup: 9 } });
+    expect(jestPhases(perfStats, [0])).toEqual({ phases: { environment: 30, setup: 9 } });
+    expect(jestPhases(perfStats, [1800])).toEqual({ phases: { environment: 30, setup: 9 } });
+  });
+
+  it('splits at the one mark inside the file\'s span, where another project left its own for the same path', () => {
+    expect(jestPhases(perfStats, [0, 1600])).toEqual({ phases: { environment: 30, setup: 9, collect: 555, cases: 100 } });
+  });
+
+  it('splits nothing when two marks fall inside the file\'s span, since either could be this run\'s', () => {
+    expect(jestPhases(perfStats, [1600, 1650])).toEqual({ phases: { environment: 30, setup: 9 } });
   });
 
   it('is absent when Jest timed nothing', () => {
-    expect(jestPhases(undefined, 1600)).toEqual({});
+    expect(jestPhases(undefined, [1600])).toEqual({});
   });
 });

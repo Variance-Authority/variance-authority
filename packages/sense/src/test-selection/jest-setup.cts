@@ -36,7 +36,6 @@
 import globals = require('@jest/globals');
 import fs = require('node:fs');
 import crypto = require('node:crypto');
-import perfHooks = require('node:perf_hooks');
 import install = require('./jest-globals.cjs');
 import journalNames = require('./jest-journal-name.cjs');
 import caseOwner = require('./case-owner.cjs');
@@ -201,12 +200,15 @@ function skipTheCut(): void {
  * When collecting ended: jest-circus's `run_start`, after the file's tests are
  * declared and before any hook runs, the project's own setup files' included.
  * The reporter splits the file's time into its collect and its cases there.
- * Epoch milliseconds, as Jest's `perfStats` reads them, from the process's own
- * clock: `node:perf_hooks` is the outer realm's, which the sandbox's fake
- * timers do not replace. Unmarked where the runner is not jest-circus.
+ * Read from the clock Jest's own `perfStats` stamps read: the `Date.now` Jest
+ * keeps under `jest-native-now` before anything can fake it, taken here, as
+ * jest-circus takes it, before the project's setup files run. Unmarked where
+ * the runner is not jest-circus.
  */
 function markCollected(): { at?: number } {
   const mark: { at?: number } = {};
+  const native = (globalThis as { [key: symbol]: unknown })[Symbol.for('jest-native-now')];
+  const now = typeof native === 'function' ? (native as () => number) : Date.now.bind(Date);
   let circus: { addEventHandler?: unknown };
   try {
     circus = require('jest-circus') as { addEventHandler?: unknown };
@@ -217,8 +219,7 @@ function markCollected(): { at?: number } {
   if (typeof register !== 'function') return mark;
   (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
     if (event.name !== 'run_start') return;
-    const { performance } = perfHooks;
-    mark.at = performance.timeOrigin + performance.now();
+    mark.at = now();
   });
   return mark;
 }

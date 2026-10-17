@@ -237,6 +237,16 @@ describe('where the time of a scope went', () => {
       .toEqual({ timed: 1, prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5, loadBound: [] });
   });
 
+  it('names a test file load-bound once its loading outlasts its cases, and not at parity', () => {
+    const times = {
+      [A]: { phases: { collect: 8, cases: 2 } },
+      [B]: { phases: { collect: 5, cases: 5 } },
+    };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound)
+      .toEqual([{ file: A, collect: 8, cases: 2 }]);
+  });
+
   it('leaves out a phase no timed test file reported, as Jest reports no prepare', () => {
     const jest = {
       [A]: { phases: { environment: 3, setup: 1, collect: 60, cases: 4 } },
@@ -271,7 +281,7 @@ describe('where the time of a scope went', () => {
       '  setup files: 2 ms, 2%',
       '  collect, importing the test file and everything it loads: 70 ms, 64%',
       '  cases: 34 ms, 31%',
-      'Loading took over ten times as long as the cases in 1 test file(s): 60 ms against 4 ms.',
+      'Loading took longer than the cases in 1 test file(s): 60 ms against 4 ms.',
       `  ${A}: 60 ms loading, 4 ms in its cases`,
       '',
     ]);

@@ -505,9 +505,10 @@ and what is not: readying the file in its worker, the test environment, the
 setup files, collecting the file — importing it and everything it loads — and
 running its cases with their hooks. Vitest reports all five. Jest's `perfStats`
 times the environment and the setup files, and the setup module marks where
-collecting ended on the same clock, so the rest splits into collect and cases
-there; Jest readies no file apart from those, so its prepare is absent. A Jest
-file whose every case was skipped runs no hook, leaves no mark, and has no
+collecting ended — when jest-circus starts the file's run, before any hook — on
+a clock the test's fake timers do not replace, so the rest splits into collect
+and cases there; Jest readies no file apart from those, so its prepare is
+absent. A mark outside the file's own span splits nothing, and the file has no
 collect or cases. Phases are summed across projects as durations are. A record
 written before phases were kept opens with every file unphased.
 
@@ -871,13 +872,14 @@ increment and writes the ordinals out as the gaps between them, so a worker pays
 one pass over each array and the reporter reads bytes.
 
 ```
-journal  "VAJRN" | version | test file | modules | module | module | …
+journal  "VAJRN" | version | test file | collected | modules | module | module | …
 module   1 | id | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
-A module is written as `1 | id`, and a reader refuses any other tag as a
-damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
+`collected` is the moment, in epoch milliseconds as an eight-byte double, the
+file finished collecting, and zero where nothing marked it. A module is written
+as `1 | id`, and a reader refuses any other tag as a damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
 rise within a module, so a region costs one byte. A run of eight thousand test
 files over two hundred thousand modules reports sixteen million module rows. As
 frames each row is its module's id and its ordinals as gaps, which is under

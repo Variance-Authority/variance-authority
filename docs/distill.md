@@ -323,29 +323,35 @@ variance distill --from packages/distill
 ```text
 packages/distill in suite unit: 6 test file(s), each read.
 
-Where the time went, as the runner timed 6 of the 6 test file(s): 2189 ms.
-  prepare, the worker readying the file: 270 ms, 12%
+Where the time went, as the runner timed 6 of the 6 test file(s): 3964 ms.
+  prepare, the worker readying the file: 242 ms, 6%
   environment: 0 ms, 0%
-  setup files: 65 ms, 3%
-  collect, importing the test file and everything it loads: 1568 ms, 72%
-  cases: 286 ms, 13%
-Loading took over ten times as long as the cases in 2 test file(s): 597 ms against 34 ms.
-  packages/distill/src/index.test.ts: 395 ms loading, 17 ms in its cases
-  packages/distill/src/mocks.test.ts: 202 ms loading, 17 ms in its cases
+  setup files: 119 ms, 3%
+  collect, importing the test file and everything it loads: 3447 ms, 87%
+  cases: 156 ms, 4%
+Loading took longer than the cases in 6 test file(s): 3447 ms against 156 ms.
+  packages/distill/src/charge.test.ts: 575 ms loading, 34 ms in its cases
+  packages/distill/src/file.test.ts: 575 ms loading, 24 ms in its cases
+  packages/distill/src/mocks.test.ts: 575 ms loading, 14 ms in its cases
+  packages/distill/src/own.test.ts: 575 ms loading, 33 ms in its cases
+  packages/distill/src/scope.test.ts: 575 ms loading, 35 ms in its cases
+  and 1 more
 ```
 
 Only `cases` is your tests: the cases and their hooks. `collect` is importing
 the test file and running its top level, which is where its modules load, and
 "loading" in the last lines means `collect` alone. Vitest reports all five
 phases. Jest reports the environment and the setup files, and the recording
-marks the moment each file finished collecting, so a Jest file has every phase
+marks the moment jest-circus starts each file's run, so a Jest file has every phase
 but `prepare`. A phase no file reported is left out rather than shown as zero,
 and a file without both a `collect` and a `cases` time is left out of every
 sum, which is why the head says how many of the files were timed.
 
-A test file whose `collect` took over ten times as long as its cases spends
-its time in what it imports. Each one is named, the line before the names sums
-them, and the next reading says which imports those are.
+A test file whose `collect` took longer than its cases spends most of its time
+in what it imports. Each one is named, the longest loading first, the line
+before the names sums them, and the next reading says which imports those are.
+Files that load side by side wait on one another's imports, so in a parallel
+run their `collect` times come out close together, as they do above.
 
 ## Imports a folder, a suite or the repository loads for nothing
 
@@ -356,11 +362,11 @@ command reads every test file on its own, as `--file` would, and after the time
 gathers what each loaded for nothing under the import that brought it in:
 
 ```text
-Loaded, and entered by no case of the test file that loaded it: 951 module load(s), 198402 line(s).
+Loaded, and entered by no case of the test file that loaded it: 951 module load(s), 198296 line(s).
   packages/sense/src/test-selection/kept-install.ts imports packages/sense/src/lock/read.ts: 6 module(s) in 6 test file(s), 4476 line(s)
   packages/sense/src/test-selection/index.ts imports packages/sense/src/test-selection/select.ts: 3 module(s) in 6 test file(s), 4218 line(s)
   ...
-  No one import brings these in alone: 103 module(s) in 6 test file(s), 119366 line(s)
+  No one import brings these in alone: 103 module(s) in 6 test file(s), 119268 line(s)
 ```
 
 An import's lines count once in every test file it reaches, because each file

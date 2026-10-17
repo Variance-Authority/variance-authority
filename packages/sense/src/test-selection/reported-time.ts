@@ -67,23 +67,28 @@ export interface JestPerfStats {
 
 /**
  * A Jest file's phases: the environment and both kinds of setup file from
- * `perfStats`, and the rest split at `collected`, the moment the setup module
- * saw jest-circus start the file's run, on the same clock. Jest readies no file
- * apart from these, so it reports no `prepare`; without the mark, or with one
- * outside the file's span, it reports no collect or cases.
+ * `perfStats`, and the rest split where the setup module saw jest-circus start
+ * the file's run, in epoch milliseconds. `marks` are every such moment recorded
+ * for the file's path: two Jest projects running one file each leave one, and
+ * only the run's own falls inside its span. Jest readies no file apart from
+ * these, so it reports no `prepare`; without exactly one mark inside the span
+ * it reports no collect or cases.
  */
 export function jestPhases(
   perfStats: JestPerfStats | undefined,
-  collected: number | undefined,
+  marks: readonly number[],
 ): ReturnType<typeof reportedPhases> {
   if (perfStats === undefined) return {};
   // A missing stamp is `undefined`, and arithmetic on it a `NaN` that
   // `reportedPhases` leaves out, as it leaves out anything negative.
   const between = (start?: number, end?: number): number => (end ?? Number.NaN) - (start ?? Number.NaN);
   const { setupFilesStart, setupFilesEnd, setupAfterEnvStart, setupAfterEnvEnd, end } = perfStats;
-  // A mark outside the file's own span is on some other clock, and splits
-  // nothing: both halves go, never one with the other's time in it.
-  const split = collected !== undefined && between(setupAfterEnvEnd, collected) >= 0 && between(collected, end) >= 0;
+  // A mark outside the file's own span is another run's, and two inside it
+  // cannot be told apart: either way both halves go, never one with the
+  // other's time in it.
+  const inside = marks.filter((mark) => between(setupAfterEnvEnd, mark) >= 0 && between(mark, end) >= 0);
+  const collected = inside.length === 1 ? inside[0] : undefined;
+  const split = collected !== undefined;
   return reportedPhases({
     environment: between(perfStats.loadTestEnvironmentStart, perfStats.loadTestEnvironmentEnd),
     setup: between(setupFilesStart, setupFilesEnd) + between(setupAfterEnvStart, setupAfterEnvEnd),

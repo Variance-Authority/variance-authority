@@ -40,7 +40,7 @@ A scope reading opens with where its time went, from the phases the runner
 timed for each test file: `prepare`, `environment`, `setup`, `collect` and
 `cases`, summed in milliseconds. `collect` — importing the test file and every
 module it loads — is the part that is not a test. Jest records no `prepare`. A
-file whose `collect` is over ten times its `cases` is listed as load-bound;
+file whose `collect` is longer than its `cases` is listed as load-bound;
 start there, because what it imports costs more than what it tests. In
 `--format json` this is `time`, with every load-bound file in `loadBound`.
 

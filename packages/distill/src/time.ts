@@ -20,12 +20,9 @@ export interface ScopeTime {
   readonly collect: number;
   /** Running the cases and their hooks. */
   readonly cases: number;
-  /** Files whose loading took over {@link LOAD_BOUND} times as long as their cases, the longest loading first. */
+  /** Files whose loading took longer than their cases, the longest loading first. */
   readonly loadBound: readonly { readonly file: string; readonly collect: number; readonly cases: number }[];
 }
-
-/** How many times its cases' time a file's loading has to take before loading is what the file costs. */
-export const LOAD_BOUND = 10;
 
 type Phase = (typeof PHASE_NAMES)[number];
 
@@ -70,7 +67,7 @@ export function scopeTime(
     });
     const collect = own[PHASE_NAMES.indexOf('collect')]!;
     const cases = own[PHASE_NAMES.indexOf('cases')]!;
-    if (collect > LOAD_BOUND * cases) loadBound.push({ file, collect, cases });
+    if (collect > cases) loadBound.push({ file, collect, cases });
   }
   if (timed === 0) return undefined;
   const phases: Partial<Record<Phase, number>> = {};
@@ -105,7 +102,7 @@ export function formatScopeTime(time: ScopeTime, files: number): readonly string
     ...(bound.length === 0
       ? []
       : [
-        `Loading took over ten times as long as the cases in ${bound.length} test file(s): ` +
+        `Loading took longer than the cases in ${bound.length} test file(s): ` +
           `${duration(sum('collect'))} against ${duration(sum('cases'))}.`,
         ...bound.slice(0, LOAD_BOUND_SHOWN).map((file) =>
           `  ${file.file}: ${duration(file.collect)} loading, ${duration(file.cases)} in its cases`),

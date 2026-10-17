@@ -295,13 +295,15 @@ async function coverageTest(
   // counts as a usable outcome below, and carries no record of the modules its
   // collection did enter. Recorded whole, that empty reach excludes the file
   // from every diff there will ever be. `journals` are this result's project's
-  // own: another project's journal for the same path is not this one's.
+  // own: another project's journal for the same path is not this one's, as far
+  // as the projects' names tell them apart. Unnamed projects share their
+  // journals, so the marks go to `jestPhases`, which keeps the run's own.
   let recorded = false;
-  let collected: number | undefined;
+  const marks: number[] = [];
   for (const journal of journals) {
     if (projectPath(config.root, journal.testFile) !== file) continue;
     recorded = true;
-    collected = journal.collected;
+    if (journal.collected !== undefined) marks.push(journal.collected);
     for (const entered of journal.modules) {
       const module = modules.get(entered.id);
       if (module === undefined) placed = false;
@@ -331,7 +333,7 @@ async function coverageTest(
     complete,
     preconditions,
     ...reportedDuration(result.perfStats?.runtime),
-    ...jestPhases(result.perfStats, collected),
+    ...jestPhases(result.perfStats, marks),
   };
 }
 

@@ -95,7 +95,7 @@ describe('the Jest integration', () => {
       [at('test/gamma.case.ts'), true],
     ]);
     // Jest times the environment and the setup files; the setup module marks
-    // where collecting ended, and a file it ran no hook in has no such mark.
+    // where collecting ended, when jest-circus started the file's run.
     expect(coverage.tests.map((test) => [test.file, Object.keys(test.phases ?? {}).sort()])).toEqual([
       [at('test/alpha.case.ts'), ['cases', 'collect', 'environment', 'setup']],
       [at('test/beta.case.ts'), ['cases', 'collect', 'environment', 'setup']],

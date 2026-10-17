@@ -41,7 +41,7 @@ import java.util.UUID;
  */
 public final class Parts {
   static final String RECIPE = "jvm:presence/methods-v1";
-  private static final byte[] PART_MAGIC = {0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02};
+  private static final byte[] PART_MAGIC = {0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x03};
   private static final byte[] RECORD_MAGIC = {0x56, 0x41, 0x52, 0x45, 0x43, 0x00, 0x00, 0x01};
   private static final int NAMED = 1;
   // Every frame names its module by the path, the first string of its dictionary.
@@ -168,6 +168,8 @@ public final class Parts {
     out.write(PART_MAGIC, 0, PART_MAGIC.length);
     // No case, no settling, then the journey: `packJourney` in sense's case-owner.cts.
     text(out, "\0\0\0\0" + journey);
+    // When a test file finished collecting, which a service has none of: eight zero bytes.
+    out.write(new byte[8], 0, 8);
     List<Coverage.Module> entered = new ArrayList<>();
     List<List<Integer>> hits = new ArrayList<>();
     for (Coverage.Module module : modules) {
