@@ -54,7 +54,6 @@ import {
   type ImportTargets,
   type Offering,
   type Usage,
-  type Use,
   type WorkspaceManifests,
 } from '@variance-authority/package/help';
 import { collectingUsage } from './collect-usage.js';
