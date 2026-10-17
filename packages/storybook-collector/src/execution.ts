@@ -20,9 +20,10 @@ import {
   createSubjectRecorder,
   preconditionOf,
   type EvaluatingPage,
+  type SubjectNote,
   type SubjectRecording,
 } from '@variance-authority/sense/journal';
-import { parseStoryIndex } from '@variance-authority/storybook';
+import { parseStoryIndex, type StoryTiming } from '@variance-authority/storybook';
 import { storyIdOf } from './parameters.js';
 
 /**
@@ -40,8 +41,17 @@ export interface StoryRecorder {
    * `complete` is false for a story this run refused. A refused story still
    * executed code, so its crossings are kept — what it may never do is justify
    * excluding itself from a later run.
+   *
+   * `timing` is where the page spent the story: the preview's load is the
+   * story's `prepare`, 0 for a story the preview switched to, its file's
+   * import its `collect`, its render its `cases`.
    */
-  readonly note: (page: EvaluatingPage, subjectId: string, complete: boolean) => Promise<void>;
+  readonly note: (
+    page: EvaluatingPage,
+    subjectId: string,
+    complete: boolean,
+    timing?: StoryTiming,
+  ) => Promise<void>;
   /**
    * Merge the run into the index, or say on stderr why it could not.
    *
@@ -74,7 +84,7 @@ export async function createStoryRecorder(
   const storyFiles = await storyFilesFrom(index, ran, root);
 
   return {
-    note: async (page, subjectId, complete) => {
+    note: async (page, subjectId, complete, timing) => {
       // A story read at several widths is one declaration and several cases:
       // each width executed the story on its own, and a hook that reads the
       // width took a different branch at each.
@@ -105,10 +115,22 @@ export async function createStoryRecorder(
                 id: widened,
               },
             }),
+        ...phasesOf(timing),
       });
     },
     close: recorder.close,
   };
+}
+
+/** A story's timing under the names the record gives a test file's phases. */
+function phasesOf(timing: StoryTiming | undefined): Pick<SubjectNote, 'phases'> {
+  if (timing === undefined) return {};
+  const phases = {
+    ...(timing.ready === undefined ? {} : { prepare: timing.ready }),
+    ...(timing.collect === undefined ? {} : { collect: timing.collect }),
+    ...(timing.cases === undefined ? {} : { cases: timing.cases }),
+  };
+  return Object.keys(phases).length === 0 ? {} : { phases };
 }
 
 /**
