@@ -1637,6 +1637,7 @@
         "fetchModules": "function",
         "freezeGif": "function",
         "imageSize": "function",
+        "newPinnedContext": "function",
         "observeNetwork": "function",
         "pinnedRegion": "function",
         "unresizable": "function",
