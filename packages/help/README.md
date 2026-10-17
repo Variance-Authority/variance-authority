@@ -537,15 +537,18 @@ It does not serve source. `uses` names the story, the test and the file, with
 the line to open; reading them is your job, against the file as it is rather
 than as it was when the reading was taken.
 
-It does not rank on prose. `search` is a case-insensitive substring match over
-names and docs, so a match is a fact about the text rather than an opinion about
-the query. When it matches nothing, the names holding at least half of the
-query's words, stemmed as installed packages are, in any order across the name
-and its doc, follow under their own heading, each with the words it holds. A
-name its file declares and does not export is among them, and so is a file, by
-its own name and the doc it opens with. They are ordered by how many of the
-words each holds, then by how many of the query's adjacent word pairs its doc
-writes adjacent, then by how many its name holds: counts, never a score.
+It does not rank on prose. `search` matches the query case-insensitively as a
+substring of a name or its doc, and a name also matches when it is written in
+every word of the query, each word by its start or its stem, so `instrumenting`
+reaches `instrumentModule`. A match is a fact about the text rather than an
+opinion about the query. When it matches nothing, the names holding at least
+half of the query's words, stemmed as installed packages are, in any order
+across the name and its doc, follow under their own heading, each with the
+words it holds. A name its file declares and does not export is among them, and
+so is a file, by its own name and the doc it opens with. They are ordered by
+how many of the words each holds, then by how many of them its name holds, then
+by how many of the query's adjacent word pairs its doc writes adjacent: counts,
+never a score.
 The words every package says about itself — `package`, `module`, `use`,
 `tool`, `get` and the like — are stopwords for an installed package and words
 for your own code, which is named in them.

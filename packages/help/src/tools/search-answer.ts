@@ -411,17 +411,15 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
 }
 
 /**
- * Names a query of several words reaches through the words names are written
- * in, ascending: every word of the query is a word of the name, the start of
- * one, or one that shares its stem, so `select test files` is
- * `selectTestFiles` and `instrumenting modules` is `instrumentModule`. The
- * stem is the dependency lexicon's, admitted the way the described section
- * admits it.
- * A query of one word is the substring's alone.
+ * Names a query reaches through the words names are written in, ascending:
+ * every word of the query is a word of the name, the start of one, or one that
+ * shares its stem, so `select test files` is `selectTestFiles` and
+ * `instrumenting` is `instrumentModule`. The stem is the dependency lexicon's,
+ * admitted the way the described section admits it.
  */
 function namesOfWords(index: SearchIndex, query: string): readonly number[] {
   const words = tokensOf(query);
-  if (words.length < 2) return [];
+  if (words.length === 0) return [];
 
   const stemmed = termsOfStems(index, wordStemsNative(words));
   let held: ReadonlySet<number> | undefined;

@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
@@ -52,11 +52,6 @@ const UNPUBLISHED = [
 
 let index: SearchIndex;
 let root: string;
-const cache = process.env['VARIANCE_AUTHORITY_CACHE'];
-afterEach(() => {
-  if (cache === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
-  else process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
-});
 
 beforeAll(async () => {
   root = await inventedWorkspace([], [], {
@@ -82,6 +77,10 @@ describe('the names a question puts first', () => {
   it('reaches a name written in the stem of an inflected word, as an exact match', () => {
     expect(publishedFirst('instrumenting modules')).toEqual(['instrumentModule']);
     expect(publishedFirst('instrumented module')).toEqual(['instrumentModule']);
+  });
+
+  it('reaches a name written in the stem of a question of one inflected word', () => {
+    expect(publishedFirst('instrumenting')).toEqual(['instrumentModule']);
   });
 
   it('puts a name holding the word before a doc opening with it, and that before a doc saying it later', () => {

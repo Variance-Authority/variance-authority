@@ -1,5 +1,5 @@
 ---
-'@variance-authority/help': patch
+'@variance-authority/help': minor
 '@variance-authority/sense': patch
 '@variance-authority/cli': patch
 '@variance-authority/package': patch
@@ -10,12 +10,13 @@ Search ranks a name by where it holds the words, reaches a name through a word's
 `variance ask search --query 'instrumenting modules'` found nothing named
 `instrumentModule`, because a word of the question had to start a word of the
 name as written. Now a word also reaches a name word that shares its stem, so
-`instrumenting modules` and `instrumented module` answer `instrumentModule`
-as an exact match. The stemmer takes one inflection off and then every noun
+`instrumenting modules`, `instrumented module` and `instrumenting` alone
+answer `instrumentModule` as an exact match. The stemmer takes one inflection off and then every noun
 or agent ending, so a word and its forms share one stem: `instrument`,
 `instrumenting` and `instrumentation` meet, and so do `placement`, `place`
 and `placed`. An ending needs four letters left, so `comment` stays apart from
-`come` and `generation` from `gene`, and `process` from `proceed`. The
+`come` and `generation` from `gene`. An `s` after `s` or `u` and an `ed`
+after `e` are not inflections, so `process` stays apart from `proceed`. The
 dependency lexicon's catalogue is built again once, because it stores stems.
 
 A published or exported match is ordered by where it holds the question
@@ -31,6 +32,8 @@ holds none. The phrase the doc writes settles the order after that.
 With no published search, `search` refused and told you to drop
 `--just-answer`, even when you had not passed it. Now it reads the checkout
 and publishes the search, the way every other question does, and the answer
-no longer says the checkout was not compared. Only under
+no longer says the checkout was not compared.
+`readSearchForAnswer` now returns the search with whether it was read from
+the checkout, `{ index, compared }`, instead of the search alone. Only under
 `--just-answer` does it refuse, and the refusal names that flag and
 `variance index` as the command that publishes one.

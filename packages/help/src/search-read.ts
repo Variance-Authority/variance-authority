@@ -33,13 +33,14 @@ export interface SearchReading {
  *
  * Changed paths or taints are the one exception, because they ask for a new
  * generation by name: that reading is {@link readWorkspaceForAnswer}'s, and it
- * publishes the search it answers from.
+ * publishes the search it answers from; under `--just-answer` it reads nothing
+ * new, so that search is not compared with the checkout either.
  */
 export async function readSearchForAnswer(root: string, options: AnsweringOptions = {}): Promise<SearchReading> {
   const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;
   const index = reading.index ?? sourceIndexPath(resolve(root));
   if (reading.changed !== undefined || reading.taints !== undefined) {
-    return { index: await searchOf(await readWorkspaceForAnswer(root, options), index), compared: true };
+    return { index: await searchOf(await readWorkspaceForAnswer(root, options), index), compared: !justAnswer };
   }
 
   try {
