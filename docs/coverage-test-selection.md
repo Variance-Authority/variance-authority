@@ -455,7 +455,7 @@ unmodified fork with one commit of setup:
 | Test files | 202 | 188 |
 | One-line edit, package graph | 201 files | 168 files, from `nx affected` |
 | One-line edit, test files that load the changed module | 197 files | 149 files |
-| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 10 files, 4.4 s instead of 12.7 s |
+| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 9 files, 758 of 4,523 tests |
 | Test file runs skipped over sixty commits | 57% | 93% |
 | Recording cost, at most | 1.02× | 1.08× |
 

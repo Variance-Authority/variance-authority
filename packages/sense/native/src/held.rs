@@ -134,6 +134,8 @@ pub struct HeldParse {
     unknown: Option<String>,
     #[serde(default)]
     size: Option<crate::source_size::Size>,
+    #[serde(default)]
+    doc: Option<HeldSpan>,
 }
 
 /// Both ends, each `NONE` where JavaScript's `optional` would write it.
@@ -238,5 +240,9 @@ impl ParseRow for HeldParse {
 
     fn size(&self) -> Option<crate::source_size::Size> {
         self.size
+    }
+
+    fn doc(&self) -> Span {
+        span(self.doc)
     }
 }

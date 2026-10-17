@@ -153,7 +153,7 @@ stays available without taking space from the first answer.
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Twelve sites of each kind, unless `limit` says more |
-| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the ones holding half its words by stem and the ones only a looser reading finds |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding half its words by stem and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
@@ -252,7 +252,8 @@ promoted, demoted or removed by it, a name they already returned can never
 appear in it, and when it has nothing to add it prints nothing — so an answer to
 a word that was written stays exactly as short as it was. It obeys `from` and
 `to` as they are: the looser reading runs over the files the area allows, so it
-can find a name you did not type and never a file you ruled out.
+can find a name you did not type and never a file you ruled out. A name its file
+declares and does not export is reached the same way, after every exported one.
 
 Inside it the order is the order above — by how many packages import the name,
 then by name. Membership is the only decision the looser reading makes, because
@@ -539,9 +540,13 @@ names and docs, so a match is a fact about the text rather than an opinion about
 the query. When it matches nothing, the names holding at least half of the
 query's words, stemmed as installed packages are, in any order across the name
 and its doc, follow under their own heading, each with the words it holds. A
-name its file declares and does not export is among them. They are ordered by
-how many of the words each holds and then how many its name holds: counts,
-never a score.
+name its file declares and does not export is among them, and so is a file, by
+its own name and the doc it opens with. They are ordered by how many of the
+words each holds, then by how many of the query's adjacent word pairs its doc
+writes adjacent, then by how many its name holds: counts, never a score.
+The words every package says about itself — `package`, `module`, `use`,
+`tool`, `get` and the like — are stopwords for an installed package and words
+for your own code, which is named in them.
 
 It does not stop at what a manifest publishes. Most code in any checkout was
 never meant to be published — 1,826 names are published in this repository and
