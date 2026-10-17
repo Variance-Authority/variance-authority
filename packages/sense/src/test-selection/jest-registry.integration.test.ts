@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
+import { decodeTestCoverage } from './format.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -18,7 +19,7 @@ afterEach(async () => {
 });
 
 describe("a Jest file whose journal loses a module Jest's registry holds", () => {
-  it('fails, names the module, and writes no journal', async () => {
+  it('fails, names the module, and leaves the file incomplete in the record', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-registry-'));
     temporary.push(directory);
     const coverageFile = resolve(directory, 'coverage.bin');
@@ -39,7 +40,11 @@ describe("a Jest file whose journal loses a module Jest's registry holds", () =>
     expect(failed?.code).toBe(1);
     expect(failed?.stderr).toContain('variance-authority recorded none of these modules');
     expect(failed?.stderr).toContain('packages/sense/test/fixtures/external-jest/src/decide.ts');
-    const journals = await readdir(resolve(directory), { recursive: true });
-    expect(journals.filter((name) => name.endsWith('.va'))).toEqual([]);
+    // No journal, so the record holds the file as incomplete: evidence of
+    // nothing, run whatever changes.
+    const recorded = decodeTestCoverage(await readFile(coverageFile)).tests;
+    expect(recorded.map((test) => [test.file, test.complete])).toEqual([
+      ['packages/sense/test/fixtures/external-jest/test/alpha.case.ts', false],
+    ]);
   });
 });

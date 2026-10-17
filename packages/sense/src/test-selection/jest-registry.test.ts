@@ -29,7 +29,7 @@ describe("Jest's registry, held against what the file entered", () => {
     expect(registry.unentered(root, [at('test/a.test.ts'), at('setup.ts'), '/elsewhere/lib.js'], [], [])).toEqual([]);
   });
 
-  it('holds nothing against an entered module the registry no longer holds: reset, isolated or automocked', () => {
-    expect(registry.unentered(root, [], ['src/once.ts@11'], ['src/once.ts@11'])).toEqual([]);
+  it('holds nothing against a registered module the registry no longer holds: reset, isolated or automocked', () => {
+    expect(registry.unentered(root, [], ['src/once.ts@11'], [])).toEqual([]);
   });
 });
