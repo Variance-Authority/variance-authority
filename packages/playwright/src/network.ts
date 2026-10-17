@@ -274,7 +274,9 @@ export async function observeNetwork(
   const unresolved = new Map<string, string>();
   let idle: (() => void) | undefined;
 
-  const unpause = await (options.cache === true ? pauseByProtocol : pauseByRoute)(page, handle);
+  const unpause = await (options.cache === true
+    ? pauseByProtocol(page, handle, (message) => diagnostics.push({ severity: 'warn', code: 'target-not-observed', message }))
+    : pauseByRoute(page, handle));
 
   return {
     assets,

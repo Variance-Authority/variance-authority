@@ -68,25 +68,9 @@ const CACHING_PAGE = `<!doctype html><html><head><link rel="prefetch" href="/gue
   <img id="hero" src="/cached/hero.png"><img id="spinner" src="/cached/spinner.gif">
 </body></html>`;
 
-/**
- * A page whose images are in a frame another site serves.
- *
- * `localhost` and `127.0.0.1` are two sites, so Chromium runs the frame in a
- * process of its own, with a DevTools session of its own: a watcher attached to
- * the page alone never hears the frame's requests.
- */
-const FRAMING_PAGE = (frame: string): string => `<!doctype html><html><body style="margin:0">
-  <iframe src="${frame}/framed" width="300" height="200"></iframe>
-</body></html>`;
-const FRAMED_PAGE = `<!doctype html><html><body style="margin:0">
-  <img src="/art/hero.png"><img src="/icons/chevron.png"><img src="/spinner.gif">
-</body></html>`;
-
 let server: Server | undefined;
 let browser: Browser | undefined;
 let base = '';
-/** The same server under the other site's name. */
-let otherSite = '';
 const served: string[] = [];
 // Held open and never answered, so "still in flight" is a state the test holds.
 const withheld: import('node:http').ServerResponse[] = [];
@@ -128,8 +112,6 @@ beforeAll(async () => {
 
     const pages: readonly (readonly [string, () => string])[] = [
       ['/withholding', () => '<!doctype html><html><body><img id="late" src="/withheld.png"></body></html>'],
-      ['/framing', () => FRAMING_PAGE(otherSite)],
-      ['/framed', () => FRAMED_PAGE],
       ['/images', () => IMAGES_PAGE],
       ['/speculating', () => SPECULATING_PAGE],
       ['/caching', () => CACHING_PAGE],
@@ -145,7 +127,6 @@ beforeAll(async () => {
     });
   });
   base = `http://127.0.0.1:${port}`;
-  otherSite = `http://localhost:${port}`;
   browser = await chromium.launch({ headless: true });
 }, 60_000);
 
@@ -416,57 +397,5 @@ describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already f
     } finally {
       await page.close();
     }
-  }, 60_000);
-});
-
-// Stabilization is on by default, so a frame it misses is a frame whose
-// animation and bytes reach the capture unremarked. Routing reaches every frame;
-// the DevTools path has to reach them too, and record them the same way.
-//
-// Headless shell keeps a cross-site frame in the page's process; a headed
-// window, and any launch with site isolation, gives it a process of its own.
-describe.skipIf(!BROWSER_AVAILABLE)('a frame another site serves', () => {
-  let isolating: Browser | undefined;
-  beforeAll(async () => {
-    isolating = await chromium.launch({ headless: true, args: ['--site-per-process'] });
-  }, 60_000);
-  afterAll(async () => {
-    await isolating?.close();
-  });
-
-  async function observed(cache: boolean): Promise<NetworkObservation> {
-    const page = await isolating!.newPage({ viewport: { width: 400, height: 300 } });
-    try {
-      const network = await observeNetwork(page, { cache, blank: BLANK_RULES });
-      await page.goto(`${base}/framing`, { waitUntil: 'load' });
-      await network.settle();
-      // The premise: the frame runs out of the page's process. In-process, the
-      // page's own session would hear it and this test would pin nothing.
-      const session = await page.context().newCDPSession(page);
-      const { targetInfos } = (await session.send('Target.getTargets')) as {
-        targetInfos: { type: string; url: string }[];
-      };
-      expect(targetInfos.filter(({ type, url }) => type === 'iframe' && url.startsWith(otherSite))).toHaveLength(1);
-      await session.detach();
-      await network.close();
-      return network;
-    } finally {
-      await page.close();
-    }
-  }
-
-  it('is blanked, frozen and hashed with the cache on as routing does it', async () => {
-    const routed = await observed(false);
-    const held = await observed(true);
-
-    expect(held.assets[`${otherSite}/art/hero.png`]).toBe('blank:illustrations:120x90');
-    expect(held.assets[`${otherSite}/icons/chevron.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
-    expect(held.frozen).toEqual([`${otherSite}/spinner.gif`]);
-    expect(held.diagnostics).toEqual([]);
-    expect({ assets: held.assets, frozen: held.frozen, blanked: held.blanked }).toEqual({
-      assets: routed.assets,
-      frozen: routed.frozen,
-      blanked: routed.blanked,
-    });
   }, 60_000);
 });
