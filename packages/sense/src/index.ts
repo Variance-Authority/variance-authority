@@ -216,6 +216,7 @@ export {
   memberDeclarationsOf,
   membersOn,
   readHelp,
+  thirdPartyImportersOf,
   type Alias,
   type ContainerMember,
   type DeclaredName,

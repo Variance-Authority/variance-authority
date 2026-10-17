@@ -141,7 +141,7 @@ impl Targets<'_> {
 /// with the name it binds in the file, empty for a member read: every binding
 /// but `*`, and every member read off the module the request holds whole,
 /// through `import()` or `import * as`.
-fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, at: &str, kind: &str) -> Vec<(NameUse, &'a str)> {
+pub(crate) fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, at: &str, kind: &str) -> Vec<(NameUse, &'a str)> {
     let (text, parses) = (&layer.stored, &layer.parses);
     let first = parses.requests.at(row) as usize;
     let line = parses.request_line.at(request);

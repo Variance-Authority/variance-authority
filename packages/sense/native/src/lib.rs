@@ -67,6 +67,7 @@ mod help_origin;
 mod help_own_uses;
 mod help_publish;
 mod help_search;
+mod help_third_party;
 mod help_usage;
 mod index;
 mod index_chain;
