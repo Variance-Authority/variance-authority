@@ -284,7 +284,7 @@ describe('variance ask about a name declared and not exported', () => {
     ].join('\n'));
   });
 
-  it('answers `uses` for a Rust module and the function it declares under the same name as two declarations, each named as what it is', async () => {
+  it('answers `uses` for a Rust module apart from the function of the same name it declares: the importers under the export, the module named as a module', async () => {
     checkout({
       'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
       'packages/kit/src/lib.rs': 'mod walk;\n\nuse crate::walk::walk;\n\npub fn run() {\n    walk();\n}\n',
@@ -294,6 +294,9 @@ describe('variance ask about a name declared and not exported', () => {
 
     const { out } = await run(['ask', 'uses', '--name', 'walk']);
     expect(out).toContain('it is exported at packages/kit/src/walk.rs:1');
+    const [exported, kept] = out.split('`walk` [module]');
+    expect(exported).toContain('packages/kit/src/lib.rs:3 — @acme/kit');
+    expect(kept).not.toContain('lib.rs:3');
     expect(out).toContain('`walk` [module] is declared, not exported, at packages/kit/src/lib.rs:1, so only its module and the modules inside it can name it.');
   });
 
