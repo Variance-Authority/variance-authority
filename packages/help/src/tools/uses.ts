@@ -1,11 +1,12 @@
 import type { FileSet, Tool } from '@variance-authority/mcp/tools';
-import { limitOf, notShown, stringArg } from '@variance-authority/mcp/tools';
+import { limitOf, stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
 import { type Members, membersOf, places, routes } from './members.js';
+import { SHOWN, type Site, kinds, listed, order } from './sites.js';
 import { originOf, passesOn } from './passed-on.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
@@ -94,56 +95,6 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  * declaration to ask it about.
  */
 
-/**
- * A site, how it names the module it imports when that is a file path, and
- * the name it takes when that is known.
- */
-type Site = Use & { readonly how?: string; readonly name?: string };
-
-/** How many leading path segments two files share. */
-export function sharedSegments(left: string, right: string): number {
-  const a = left.split('/');
-  const b = right.split('/');
-
-  let shared = 0;
-  while (shared < a.length && shared < b.length && a[shared] === b[shared]) shared += 1;
-  return shared;
-}
-
-/** Sites of one kind shown when `limit` is not said: how many are worth naming before the list stops being read. */
-const SHOWN = 12;
-
-function order(sites: readonly Site[], from: string | undefined): readonly Site[] {
-  return [...sites].sort(
-    (a, b) =>
-      (from === undefined ? 0 : sharedSegments(from, b.at) - sharedSegments(from, a.at)) ||
-      (a.at < b.at ? -1 : a.at > b.at ? 1 : 0) ||
-      a.line - b.line,
-  );
-}
-
-/**
- * The first `limit` sites of `name` under `heading`, each marked with the name
- * its file knows it by when that is another: the one its import binds it to
- * with `as`, or else the one a re-export renamed it to.
- */
-function listed(sites: readonly Site[], heading: string, name: string, limit: number): readonly string[] {
-  if (sites.length === 0) return [];
-
-  const shown = sites.slice(0, limit);
-  const rest = sites.length - shown.length;
-  const renamed = (use: Site): string => {
-    const known = use.local ?? use.name;
-    return known === undefined || known === name ? '' : ` (as ${known})`;
-  };
-  return [
-    '',
-    heading,
-    '',
-    ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}`),
-    ...(rest > 0 ? [`… ${notShown(rest)}`] : []),
-  ];
-}
 
 /**
  * Whether a use the source index resolved is one `wanted` answers for. Asked
@@ -158,13 +109,6 @@ function throughDoor(use: IndexedUse, wanted: string | undefined): boolean {
   return ownerOf(use.specifier) !== owner || use.specifier === wanted;
 }
 
-/** Where a name read off a module held whole was loaded, and when. */
-function held(use: Use): string {
-  if (use.through === undefined) return '';
-  return use.through.kind === 'dynamic'
-    ? ` (import() on line ${use.through.line})`
-    : ` (namespace, line ${use.through.line})`;
-}
 
 /**
  * Every site of one name, across every door it is published from, without
@@ -372,15 +316,6 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
   ].join('\n');
 }
 
-/** The sites of a name, nearest first when `from` is said, stories and tests apart. */
-function kinds(sites: readonly Site[], from: string | undefined, name: string, limit: number): readonly string[] {
-  const sorted = order(sites, from);
-  return [
-    ...listed(sorted.filter((use) => use.kind === 'story'), 'Stories:', name, limit),
-    ...listed(sorted.filter((use) => use.kind === 'test'), 'Tests:', name, limit),
-    ...listed(sorted.filter((use) => use.kind === 'source'), 'Source:', name, limit),
-  ];
-}
 
 /**
  * Every site of the name, and what was read to find them, or the refusal.
