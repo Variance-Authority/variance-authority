@@ -110,11 +110,13 @@ recording's commit. The body itself is never copied.
 
 ## What is recorded
 
-A case-level precondition is `{ name, value, site }`, its name the
-`(dimension, key)` pair, laid on the case rows of
-the record (spec 0094) beside `stopped` and `duration`, through the string
-table every other section uses. It is layered, seeded, sharded and shared with
-the coverage the same run recorded, by the same code. It travels in the journal beside the case frame, which is a
+A case-level precondition is `{ name, value, site, level }`, its name the
+`(dimension, key)` pair, its value the JSON text the realm wrote. Each distinct
+one is an item, and the cases that said it are a set in the record's
+crossing-set pool, as ADR-0094 lays it in the case index's `tests.said`
+section. Every item is kept, an overridden one too; a case's row is resolved
+when it is read. It is layered, seeded, sharded and shared with the coverage
+the same run recorded, by the same code. It travels in the journal beside the case frame, which is a
 change to the journal format, and is not part of the case key, so a case's
 identity does not move when its preconditions do. A case that named a
 precondition has a row even when it crossed nothing: a passing case that only

@@ -509,8 +509,10 @@ handed what to ask again and, when the checkout could not be compared, the line
 its refusal ends with; `snapshotLine` dates an answer. A name nothing declares
 is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
 message is the answer: what was read, and where else the name may be written.
-`variance ask` and `variance-authority-help` print it on stdout and exit `0`,
-under the lines `foundNothingFooter` gives.
+`foundNothingAnswer` is that answer, under the lines `foundNothingFooter`
+gives: `variance ask` and `variance-authority-help` print it on stdout and exit
+`0`, and this server and `variance serve` return it as a result, not an error.
+A server of your own passes it as `serve`'s `answered`.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';

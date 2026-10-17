@@ -542,6 +542,17 @@ under the file where the runner gives none. A path the file declares twice
 cannot be matched to one of the two cases, so neither is timed. A case index
 written before cases carried durations opens with every case untimed.
 
+The case index also carries what each case said, its
+[case preconditions](case-preconditions.md), in a `tests.said` section. Each
+distinct `(name, value, site, level)` is one item, and the cases that said it are
+a set in the same pool the crossings use, so a value every case of a file says
+costs one item and a set the record usually holds already. The section stores
+every item, an overridden one too, and a case's row is resolved when it is read.
+One more set names the cases a recorder listened to: a case outside it is
+unmeasured, a case inside it and under no item said nothing. A case index
+without the section, including one written before it existed, opens with every
+case unmeasured.
+
 A Storybook run is its own runner, so its figure is the time the run spent on
 each story, from its first collection to its decision: the same time
 `variance ask costs` answers from and the next run balances its shards on. It is

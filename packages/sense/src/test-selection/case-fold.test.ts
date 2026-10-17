@@ -9,6 +9,7 @@ import { foldCaseRun, freshCases, inspectCaseRun } from './case-fold.js';
 import { layCases, lastCaseRunOf } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { AMBIENT, packCase, packFrames } from './cases.js';
+import { rowOf } from './case-said.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
@@ -255,7 +256,12 @@ describe('the bounded case fold', () => {
         entered: ['test/pay.test.ts > flips', 'test/pay.test.ts > mocked', 'test/pay.test.ts > silent', 'test/pay.test.ts > unheard'],
       },
     });
-    expect(Object.fromEntries(folded.tests.map((test) => [test.name, test.preconditions]))).toEqual({
+    // Every item is kept, the overridden one too, each site named from the checkout.
+    expect(folded.tests.find((test) => test.name === 'mocked')?.said).toBe(JSON.stringify([
+      ['network', 'live', 'test/pay.test.ts:3', 0],
+      ['network', 'mocked', 'test/pay.test.ts:9', level],
+    ]));
+    expect(Object.fromEntries(folded.tests.map((test) => [test.name, rowOf(test)]))).toEqual({
       flips: [
         { name: 'flag', value: 'ff-off', site: 'test/pay.test.ts:12', level },
         { name: 'flag', value: 'ff-on', site: 'test/pay.test.ts:12', level },

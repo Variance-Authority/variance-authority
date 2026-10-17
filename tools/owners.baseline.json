@@ -426,11 +426,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/case-preconditions.cts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/deviation.ts",
     "count": 1
   },

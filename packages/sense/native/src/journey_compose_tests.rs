@@ -53,7 +53,7 @@ fn masks_of(names: &[&str], file: impl Fn(usize) -> String, modules: &[Module], 
     let tests: Vec<Test> = names
         .iter()
         .enumerate()
-        .map(|(case, name)| Test { id: format!("t{case}"), file: file(case), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, preconditions: None })
+        .map(|(case, name)| Test { id: format!("t{case}"), file: file(case), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, said: None })
         .collect();
     let mut sets = SetPool::new(tests.len());
     let called: Vec<Vec<_>> = entered.iter().map(|blocks| blocks.iter().map(|members| sets.intern(members)).collect()).collect();
@@ -63,7 +63,7 @@ fn masks_of(names: &[&str], file: impl Fn(usize) -> String, modules: &[Module], 
         .enumerate()
         .map(|(at, module)| EncodedModule { module, called: &called[at], loaded: &loaded[at] })
         .collect();
-    let bytes = encode(&tests, &CaseExtras::default(), &encoded, &sets, None).unwrap();
+    let bytes = encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap();
     JourneyMasks::of(Journey::of("recorded", bytes).unwrap()).unwrap()
 }
 
@@ -140,12 +140,12 @@ fn a_test_is_named_by_its_file_and_a_word_of_its_name() {
 fn several_tests_in_a_file_are_named_rather_than_chosen() {
     let tests: Vec<Test> = ["first", "second"]
         .iter()
-        .map(|name| Test { id: (*name).to_owned(), file: "x.test.ts".to_owned(), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, preconditions: None })
+        .map(|name| Test { id: (*name).to_owned(), file: "x.test.ts".to_owned(), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, said: None })
         .collect();
     let module = Module { id: "src/x.ts".to_owned(), file: "src/x.ts".to_owned(), blocks: Vec::new(), owners: None };
-    let sets = SetPool::new(tests.len());
+    let mut sets = SetPool::new(tests.len());
     let encoded = [EncodedModule { module: &module, called: &[], loaded: &[] }];
-    let mut masks = JourneyMasks::of(Journey::of("two", encode(&tests, &CaseExtras::default(), &encoded, &sets, None).unwrap()).unwrap()).unwrap();
+    let mut masks = JourneyMasks::of(Journey::of("two", encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap()).unwrap()).unwrap();
     assert_eq!(
         compose(&mut masks, "x.test.ts", None).unwrap().not_recorded.unwrap(),
         "x.test.ts declares 2 recorded tests; name one of them:\n  first\n  second"

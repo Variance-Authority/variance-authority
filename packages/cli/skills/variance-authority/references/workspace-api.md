@@ -171,7 +171,8 @@ specifier, and only narrows: it answers from that package instead of from every
 specifier that publishes the name.
 
 A name nothing declares is answered on stdout, exit `0`: what was read and
-declares nothing, and where else the name may be written. Unless you pass
+declares nothing, and where else the name may be written. Over MCP it is the
+same text, as a result rather than an error. Unless you pass
 `--just-answer`, a generation reused from earlier is asked again with one made
 now before the answer is given:
 
@@ -498,6 +499,10 @@ question answers a file without a line. It shows 50; `--limit` shows more, and
 the count is always of all of them. `--changed-file`, `--taint-file` and
 `--just-answer` are said once, after `intersection`, outside the quotes: every
 question is answered over one reading.
+
+A question about a name nothing declares answers no file: the answer says so
+beside that question, with what was read, and that no file is in all of them,
+on stdout with exit `0`, as the question alone would.
 
 A question whose answer is not a set of files — `packages`, `stack`, another
 `intersection` — is refused with the questions that are, and so is a question
