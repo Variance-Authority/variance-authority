@@ -10,7 +10,7 @@ import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from 
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { DECLARED_CAP, declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
-import { type Members, membersOf } from './members.js';
+import { containerOf, type Members, membersOf } from './members.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
@@ -218,7 +218,7 @@ function memberBlocks(root: string | undefined, name: string, members: Members):
     ...members.declared.slice(0, DECLARED_CAP).map((site) =>
       [
         name,
-        `a member of ${/^a (?:type literal|class|companion object)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}${site.package === '' ? '' : ` by ${site.package}`}`,
+        `a member of ${containerOf(site.by)}, declared at ${site.at}:${site.line}${site.package === '' ? '' : ` by ${site.package}`}`,
         ...(root === undefined ? [] : lineAt(root, site.at, site.line, name)),
         members.unrecorded.includes(site)
           ? 'docs_uses names the search that finds the lines that use it, as text: no reader of this file records them.'

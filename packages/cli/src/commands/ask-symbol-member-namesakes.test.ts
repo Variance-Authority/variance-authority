@@ -105,6 +105,19 @@ describe('variance ask symbol about a member', () => {
     }
   });
 
+  it('answers the first five member declarations and counts the rest', async () => {
+    checkout({ 'packages/kit/kit/sizes.py': ['One', 'Two', 'Three', 'Four', 'Five', 'Six'].map((on) => `class ${on}:\n    size = 0\n`).join('\n') });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'size']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.match(/^a member of `/gmu)).toHaveLength(5);
+    expect(out).toContain('a member of `Five`, declared at packages/kit/kit/sizes.py:14');
+    expect(out).not.toContain('a member of `Six`');
+    expect(out).toContain('1 more member declaration of `size` not shown; docs_uses lists every one.');
+  });
+
   it('answers a method and a field of a Java class', async () => {
     checkout(JAVA);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

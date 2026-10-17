@@ -67,8 +67,7 @@ pub struct MemberSite {
     pub on: String,
     /// Every use of the member through a value whose type is written as its
     /// container, ordered by file in code units, then by line; absent for a
-    /// container with no name, which no line can write, and for a file whose
-    /// reader records no member uses (`UNRECORDED`).
+    /// container with no name, which no line can write.
     pub uses: Option<Vec<MemberUseSite>>,
 }
 
@@ -138,15 +137,6 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
     found
 }
 
-/// The extensions of the files whose reader records the members a file
-/// declares and none of the lines that use one: the Java, Kotlin, Swift and
-/// Python readers (`languages/members.rs`).
-const UNRECORDED: [&str; 6] = ["java", "kt", "kts", "swift", "py", "pyi"];
-
-fn unrecorded(path: &str) -> bool {
-    path.rsplit_once('.').is_some_and(|(_, extension)| UNRECORDED.contains(&extension))
-}
-
 /// Each declaration of `name` on a named container given its uses: the
 /// member-use rows of member `name` whose type is written as the container, in
 /// the declaring file, or as the name an import of it binds, in a file that
@@ -156,9 +146,7 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     let mut origins: Vec<(String, String)> = Vec::new();
     let mut of: Vec<Option<usize>> = Vec::new();
     for site in found.iter() {
-        // A declaration a reader read that records no member uses has none
-        // measured, which is not none found.
-        if site.on == A_TYPE_LITERAL || site.on == A_CLASS || unrecorded(&site.at) { of.push(None); continue; }
+        if site.on == A_TYPE_LITERAL || site.on == A_CLASS { of.push(None); continue; }
         let origin = origins.iter().position(|(at, on)| *at == site.at && *on == site.on).unwrap_or_else(|| {
             origins.push((site.at.clone(), site.on.clone()));
             origins.len() - 1

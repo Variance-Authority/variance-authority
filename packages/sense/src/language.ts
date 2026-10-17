@@ -149,3 +149,16 @@ export function grainOf(id: LanguageId): 'file' | 'target' {
 export function carriesCode(id: LanguageId): boolean {
   return id !== 'style';
 }
+
+/**
+ * Whether this language's reader records the lines that use a member through
+ * a value of its type, beside the members a file declares.
+ *
+ * Only `module`: the `oxc` reader records a binding's written type and the
+ * member it reads. The tree-sitter readers record a type's members and none of
+ * their uses, so a member they declare has its uses unmeasured, which is not
+ * none.
+ */
+export function recordsMemberUses(id: LanguageId): boolean {
+  return id === 'module';
+}

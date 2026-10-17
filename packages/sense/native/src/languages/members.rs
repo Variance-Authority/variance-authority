@@ -27,8 +27,8 @@ use super::{children_for_field, line_of, named_children, text_of};
 use crate::grammar::Grammar;
 use crate::help_members::MemberDeclaration;
 
-/// What a member on a Kotlin companion object with no name is said to be on.
-const A_COMPANION: &str = "a companion object";
+/// The name Kotlin gives a companion object written without one.
+const COMPANION: &str = "Companion";
 
 /// Every member `tree` declares on a container, containers in source order and
 /// each one's members in theirs.
@@ -69,7 +69,13 @@ fn container<'tree>(grammar: Grammar, node: Node<'tree>, source: &str) -> Option
             (named("name")?, held)
         }
         (Grammar::Kotlin, "class_declaration" | "object_declaration" | "companion_object") => {
-            let on = named("name").unwrap_or_else(|| A_COMPANION.to_owned());
+            // A companion is written through its class, `Agent.Companion` or `Agent.Factory`.
+            let on = if node.kind() == "companion_object" {
+                let own = named("name").unwrap_or_else(|| COMPANION.to_owned());
+                enclosing(node, source).map_or(own.clone(), |outer| format!("{outer}.{own}"))
+            } else {
+                named("name")?
+            };
             // A primary constructor's `val` and `var` parameters come first, as they are written.
             let held = named_children(node)
                 .into_iter()
@@ -87,6 +93,18 @@ fn container<'tree>(grammar: Grammar, node: Node<'tree>, source: &str) -> Option
     };
     bodies.retain(|body| !body.is_missing());
     Some((on, bodies))
+}
+
+/// The name of the class or object a Kotlin companion object is declared in.
+fn enclosing(node: Node, source: &str) -> Option<String> {
+    let mut at = node.parent();
+    while let Some(parent) = at {
+        if matches!(parent.kind(), "class_declaration" | "object_declaration") {
+            return parent.child_by_field_name("name").map(|name| text_of(name, source).to_owned());
+        }
+        at = parent.parent();
+    }
+    None
 }
 
 /// A type as its members are said to be on: its own name, without the path

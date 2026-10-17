@@ -36,6 +36,11 @@ export const BY_NAME =
 /** What the source index says a member is on when its container has no name, which no line can write as a type. */
 const ANONYMOUS: ReadonlySet<string> = new Set(['a type literal', 'a class']);
 
+/** The container a member is on, as a sentence writes it: a name in backticks, a container with none in words. */
+export function containerOf(on: string): string {
+  return ANONYMOUS.has(on) ? on : `\`${on}\``;
+}
+
 /** The declarations of a member by one name. */
 export interface Members {
   /** Each declaration, `by` the container it is on, in the `package` that holds its file (empty when none does). */

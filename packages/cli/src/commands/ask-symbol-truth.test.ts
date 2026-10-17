@@ -149,6 +149,8 @@ describe('variance ask symbol says what is true of a name', () => {
   it.todo('names a file written after the source index as one whose declarations were not read — needs the unread list to compare the checkout against what the chain parsed');
   // FIXME: a Rust struct field is no member until the scan records Rust fields and variants as members.
   it.todo('answers a Rust struct field with the struct it is a member of — needs the scan to record Rust fields and variants as members (#424)');
-  // FIXME: members are looked up only when nothing else declares the name, so a name that is also exported or declared at a file's top level loses its members; `ask uses` says "is a member too".
-  it.todo('answers the members of a name that a file also declares at its top level — needs members looked up beside the other declarations, not only when they find nothing');
+  // FIXME: a method of a Rust `impl` or a trait is no member, so `ask symbol` says no file declares it.
+  it.todo('answers a method of a Rust `impl` or trait with the type it is on — needs the Rust member reader (#424) to record `impl` and trait items');
+  // FIXME: a Python attribute assigned on `self` in a method is a statement, not a declaration, so `ask symbol` says no file declares it.
+  it.todo('answers a Python attribute assigned on `self` with the class it is on — needs the Python reader to record assignments to `self` in a method');
 });

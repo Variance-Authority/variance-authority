@@ -20,7 +20,7 @@ left out.
 `ask symbol` answers every member declaration after the name's other answers,
 whichever comes first: its container, the file and line, the package, and the
 line as the checkout writes it, the first five and a count of the rest. The
-source index format moves to version 27, so the next `variance index` reads
+source index format moves to version 30, so the next `variance index` reads
 these files again rather than keep the parses that held no members.
 
 `ask uses` lists these declarations with the TypeScript ones. These readers

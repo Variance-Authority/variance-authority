@@ -56,7 +56,7 @@ fn a_kotlin_type_holds_its_properties_functions_and_entries() {
         read(Grammar::Kotlin, &source),
         [
             "held on Agent at 1", "count on Agent at 2", "run on Agent at 3",
-            "make on a companion object at 5",
+            "make on Agent.Companion at 5",
             "call on Hook at 9", "find on Registry at 12",
             "ONE on Mode at 15", "TWO on Mode at 15",
         ]
