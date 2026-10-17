@@ -31,15 +31,21 @@ A name read off the module's `default`, as in
 `const { a } = (await import('./x')).default`, is listed as a use of `a`
 "through `default`", one level deep, beside the use of `default` itself: under
 CommonJS interop `default` is the module, and the reader cannot tell which one
-it is.
+it is. `default` read off it again is the same level. The `default` moving on,
+as in `const { default: Page } = await import('./page')`, is a use of `default`
+and no more.
 
 A module held whole that leaves the reader's sight — passed to a call,
 returned, assigned to a property, stored in an array, read by a key the reader
-cannot spell, or loaded lazily — is recorded at that line as a read of the
-whole module. `variance ask uses` lists the site for every name of the module,
-marked "passed on whole: what it reads is not recorded", and the headline says
-how many of the sites are of this kind, where it used to say nothing imported
-the name.
+cannot spell, or loaded lazily — is recorded at that line as the module going
+on whole. A holder is the binding the scope resolves, so a parameter that
+reuses its name is another value; assigning the holder, reading its type with
+`typeof`, and `.catch` or `.finally` on the `import()` are not the module going
+on. `variance ask uses` lists such a line as a site that may read the name,
+marked "passed on whole: may read it", and counts it apart from the imports:
+it is not in `usedBy`, `uses` or `sites` of the Help value but in an entry's
+new `escapes`, and the package graph, the roles check and the dependency
+orientation each read it as every name of the module.
 
 The source index format moves to version 32, so the first `variance index`
 after upgrading reads every file again.

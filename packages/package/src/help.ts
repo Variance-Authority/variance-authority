@@ -62,6 +62,15 @@ export interface Entry {
    */
   readonly sites: readonly Use[];
   /**
+   * Every place a module that publishes it goes on whole, where the reading
+   * does not follow it: each may read this name, and none is known to.
+   *
+   * Kept apart from `sites`, and counted in neither `usedBy` nor `uses`: a
+   * module passed on whole is a site of every name it has, and counting it as
+   * a use of each would make every name of the module look used.
+   */
+  readonly escapes: readonly Use[];
+  /**
    * Where the nearest README names this, for a name with no doc comment.
    *
    * Present only when `doc` is absent and the prose exists. Never merged into
@@ -152,21 +161,21 @@ export interface HelpOptions extends OfferingOptions, UsageOptions {
  * exercised at all. A module a file passes on whole, recorded as `*`, is a
  * site of every name, since what it reads there is not recorded.
  */
-export function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites'> {
-  // A module that escapes whole, as `*`, may be read for any name of it.
+export function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites' | 'escapes'> {
   const held = usage.names.get(key);
-  const uses = [...(held?.get(name) ?? []), ...(name === '*' ? [] : (held?.get('*') ?? []))];
+  const uses = held?.get(name) ?? [];
   const by: string[] = [];
   for (const use of uses) {
     if (use.by !== owner && !by.includes(use.by)) by.push(use.by);
   }
-  return { usedBy: by, uses: uses.length, sites: uses };
+  // A module that escapes whole, as `*`, may be read for any name of it.
+  return { usedBy: by, uses: uses.length, sites: uses, escapes: name === '*' ? [] : (held?.get('*') ?? []) };
 }
 
 function entryOf(
   name: string,
   kinds: ReadonlyMap<string, Declaration>,
-  reached: Pick<Entry, 'usedBy' | 'uses' | 'sites'>,
+  reached: Pick<Entry, 'usedBy' | 'uses' | 'sites' | 'escapes'>,
   found: (at: string) => Mention | undefined,
 ): Entry {
   // The kinds of one name are one thing declared once — an interface merged with

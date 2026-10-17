@@ -393,9 +393,10 @@ site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
 loading. A name read off the module's `default` is marked "through `default`":
 under CommonJS interop `default` is the module itself. A module your code passes
-on whole — to a call, a property or a return — is a site of every name it
-exports, marked as one whose reads are not recorded, because what the receiver
-reads is out of the file's sight.
+on whole — to a call, a property or a return — may read any name it exports,
+because what the receiver reads is out of the file's sight. It is listed as a
+site that may read the name, marked "passed on whole", and counted apart: it is
+no import of the name, so it never makes a name look used.
 
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.

@@ -116,6 +116,7 @@ const WORKSPACE: Help = {
               usedBy: ['@example/beta'],
               uses: 1,
               sites: [],
+              escapes: [],
             },
           ],
         },

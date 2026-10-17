@@ -42,7 +42,9 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  * A name read off `import()` or off `import * as` is a site like any other, and
  * it is marked, because the line that reads the name is not the line that loads
  * it. An `import()` loads the module when that call runs, so whether the name
- * is there at all can depend on a path the program takes.
+ * is there at all can depend on a path the program takes. A module passed on
+ * whole, where this reading does not follow it, is listed as a site that may
+ * read the name and counted apart from the imports: it is no use of it.
  *
  * ## An import by path is a site
  *
@@ -167,7 +169,7 @@ function held(use: Use): string {
   if (use.through === undefined) return '';
   const loaded = use.through.kind === 'dynamic' ? `import() on line ${use.through.line}` : `namespace, line ${use.through.line}`;
   const off = use.through.throughDefault === true ? ', through `default`' : '';
-  const whole = use.through.whole === true ? ', passed on whole: what it reads is not recorded' : '';
+  const whole = use.through.whole === true ? ', passed on whole: may read it' : '';
   return ` (${loaded}${off}${whole})`;
 }
 
@@ -188,7 +190,7 @@ function sitesOf(
   const through = passing !== undefined && 'through' in passing ? new Set(passing.through) : new Set<string>();
   const indexed = new Set(passing !== undefined && 'uses' in passing ? passing.uses.map((use) => `${use.at}:${use.line}`) : []);
 
-  const recorded = [...found.flatMap(([, , entry]) => entry.sites), ...byPath];
+  const recorded = [...found.flatMap(([, , entry]) => [...entry.sites, ...entry.escapes]), ...byPath];
   for (const [index, use] of [...recorded, ...within].entries()) {
     const key = `${use.at}:${use.line}`;
     if (seen.has(key) || (index < recorded.length && through.has(use.at) && !indexed.has(key))) continue;
@@ -362,14 +364,21 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
       ? 'Path order; `from` sorts nearest first.'
       : `Nearest to ${from} first.`;
 
-  const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
+  // A module passed on whole is no use of the name: it is listed, as a site that may read it, and counted apart.
+  const certain = sites.filter((use) => use.through?.whole !== true);
+  const whole = sites.length - certain.length;
+  const dynamic = certain.filter((use) => use.through?.kind === 'dynamic').length;
   const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
-  const whole = sites.filter((use) => use.through?.whole === true).length;
-  const unsure = whole === 0 ? '' : ` ${whole === 1 ? `1 of them passes` : `${whole} of them pass`} the module on whole, where this reading does not follow it, and may not read \`${name}\` at all.`;
+  const passes = certain.length === 0 ? `${whole} ${whole === 1 ? 'place passes' : 'places pass'}` : `${whole} more ${whole === 1 ? 'passes' : 'pass'}`;
+  const may = whole === 0 ? '' : ` ${passes} the module on whole, where this reading does not follow it, and may read \`${name}\`.`;
   const published =
     found.length > 0 ? '' : exported.length > 0 ? `, and no entry publishes it; it is exported at ${exportedAt(exported)}${passed}` : ', and no entry publishes it';
+  const taken =
+    certain.length === 0
+      ? `${named} is imported by name nowhere${published}.`
+      : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${published}${loaded}`;
   return [
-    `${named} is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}${unsure}`,
+    `${taken}${may}`,
     nearest,
     ...kinds(sites, from, name, limit),
     ...own,
