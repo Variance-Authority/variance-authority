@@ -45,7 +45,7 @@ Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
 commands reuse a generation for one hour before refreshing it, and a name a
-reused generation refuses is looked for again in one made from the checkout
+reused generation does not hold is looked for again in one made from the checkout
 now, so a function you just wrote is answered rather than reported missing.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
@@ -506,7 +506,11 @@ the same one-hour policy and asks a refused call again of a generation made
 now, or serves only the recorded generation when `justAnswer` is true. A host
 of its own asks `caughtUp` whether a refusal is worth asking again, and is
 handed what to ask again and, when the checkout could not be compared, the line
-its refusal ends with; `snapshotLine` dates an answer.
+its refusal ends with; `snapshotLine` dates an answer. A name nothing declares
+is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
+message is the answer: what was read, and where else the name may be written.
+`variance ask` and `variance-authority-help` print it on stdout and exit `0`,
+under the lines `foundNothingFooter` gives.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';

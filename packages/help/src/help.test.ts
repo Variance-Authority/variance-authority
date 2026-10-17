@@ -8,6 +8,7 @@ import { readHelp } from '@variance-authority/package/help';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
+import { FoundNothing } from './tools/find.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 const READING = readHelp(WORKSPACE);
@@ -148,7 +149,8 @@ describe('one name in full', () => {
     );
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(FoundNothing);
     expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `search`/);
   });
 
@@ -214,7 +216,8 @@ describe('where the repository already writes a name', () => {
     );
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(FoundNothing);
     expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `search`/);
   });
 });

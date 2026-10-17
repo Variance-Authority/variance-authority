@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { checkout, commit, paragraph, run } from './ask-packages-fixture.js';
 
 /**
@@ -188,7 +188,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(imported.out).not.toContain('packages/lib/src/other.ts');
   });
 
-  it('refuses `symbol` and `uses` asked with the specifier of one file nothing imports, and says the file is not known', async () => {
+  it('answers `symbol` and `uses` asked with the specifier of one file nothing imports by saying the file is not known', async () => {
     // Which file a specifier names is the resolver's answer for one importer,
     // and with none there is no answer: `src/other` is not `src/other.ts` for
     // ending like it.
@@ -197,9 +197,10 @@ describe('variance ask over a private app that reaches into another package', ()
 
     for (const verb of ['symbol', 'uses']) {
       const { code, out, err } = await run(['ask', verb, '--name', 'roundTax', '--package', '@acme/lib/src/other']);
-      expect(code).toBe(EXIT_OPERATOR);
-      expect(out).not.toContain('packages/lib/src/other.ts');
-      expect(err).toContain('no import of `@acme/lib/src/other` in this workspace resolved to a file, so the file it names is not known');
+      expect(err).toBe('');
+      expect(code).toBe(EXIT_CLEAN);
+      expect(out).toMatch(/^`roundTax` is not published by `@acme\/lib\/src\/other`; /u);
+      expect(out).toContain('no import of `@acme/lib/src/other` in this workspace resolved to a file, so the file it names is not known');
     }
   });
 
@@ -214,14 +215,23 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(out).not.toContain('export const unrelated');
   });
 
-  it('keeps refusing a name nothing exports', async () => {
+  it('answers a name nothing declares on stdout, with what it read and where else the name may be written', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     for (const verb of ['uses', 'symbol']) {
       const unwritten = await run(['ask', verb, '--name', 'neverWritten']);
-      expect(unwritten.code).toBe(EXIT_OPERATOR);
-      expect(unwritten.err).toContain('`neverWritten` is not published by this workspace, and no published name contains it');
+      expect(unwritten.err).toBe('');
+      expect(unwritten.code).toBe(EXIT_CLEAN);
+      expect(unwritten.out).toContain('`neverWritten` is not published by this workspace, and no published name contains it');
+      expect(unwritten.out).toContain('No file in this workspace declares `neverWritten`, at its top level or as a member.');
+      expect(unwritten.out).toContain('A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.');
+      expect(unwritten.out).not.toContain('See the skill');
+      // Dated with the generation it was read from, as every answer is.
+      expect(unwritten.out).toMatch(/^Snapshot \S+\.$/mu);
+      // `uses` asks nothing of the installed dependencies; `symbol` says what they publish.
+      if (verb === 'uses') expect(unwritten.out).not.toContain('installed dependency');
+      else expect(unwritten.out).toContain('installed dependency');
     }
   });
 
