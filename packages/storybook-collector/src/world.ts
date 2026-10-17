@@ -95,8 +95,11 @@ export async function openWorld(recipe: WorldRecipe): Promise<World> {
     ...(network !== undefined ? { network } : {}),
     driven: harness.driven,
     async close(): Promise<void> {
-      await network?.close();
-      await harness.close();
+      try {
+        await network?.close();
+      } finally {
+        await harness.close();
+      }
     },
   };
 }

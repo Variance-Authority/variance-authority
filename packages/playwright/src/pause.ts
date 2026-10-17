@@ -76,6 +76,77 @@ interface PausedEvent {
   readonly responseHeaders?: readonly { readonly name: string; readonly value: string }[];
 }
 
+/** The parts of `Target.attachedToTarget` read here. */
+interface AttachedEvent {
+  readonly sessionId: string;
+  readonly targetInfo: { readonly type: string };
+}
+
+/**
+ * One target's DevTools session: the page's own, or a frame's reached through it.
+ *
+ * The page's session is Playwright's `CDPSession`. A frame's is not one
+ * Playwright hands out, so its messages travel inside the page's, as
+ * `Target.sendMessageToTarget` and `Target.receivedMessageFromTarget`.
+ */
+interface Channel {
+  send(method: string, params?: object): Promise<any>;
+  on(event: string, listener: (params: any) => void): void;
+}
+
+/** A child target's session, carried inside its parent's. */
+class Carried implements Channel {
+  readonly #parent: Channel;
+  readonly #sessionId: string;
+  readonly #pending = new Map<number, { resolve(result: unknown): void; reject(error: Error): void }>();
+  readonly #listeners = new Map<string, ((params: any) => void)[]>();
+  #next = 0;
+
+  constructor(parent: Channel, sessionId: string) {
+    this.#parent = parent;
+    this.#sessionId = sessionId;
+  }
+
+  send(method: string, params: object = {}): Promise<any> {
+    const id = ++this.#next;
+    return new Promise((resolve, reject) => {
+      this.#pending.set(id, { resolve, reject });
+      const message = JSON.stringify({ id, method, params });
+      this.#parent.send('Target.sendMessageToTarget', { sessionId: this.#sessionId, message }).catch((error: Error) => {
+        this.#pending.delete(id);
+        reject(error);
+      });
+    });
+  }
+
+  on(event: string, listener: (params: any) => void): void {
+    this.#listeners.set(event, [...(this.#listeners.get(event) ?? []), listener]);
+  }
+
+  receive(raw: string): void {
+    const message = JSON.parse(raw) as {
+      id?: number;
+      method?: string;
+      params?: unknown;
+      result?: unknown;
+      error?: { message: string };
+    };
+    if (message.id !== undefined) {
+      const waiter = this.#pending.get(message.id);
+      this.#pending.delete(message.id);
+      if (message.error !== undefined) waiter?.reject(new Error(message.error.message));
+      else waiter?.resolve(message.result);
+      return;
+    }
+    for (const listener of this.#listeners.get(message.method ?? '') ?? []) listener(message.params);
+  }
+
+  detached(): void {
+    for (const waiter of this.#pending.values()) waiter.reject(new Error('the frame was detached'));
+    this.#pending.clear();
+  }
+}
+
 /**
  * Hold every request through the DevTools protocol, with the HTTP cache left on.
  *
@@ -84,58 +155,112 @@ interface PausedEvent {
  * cancelled while its answer is awaited never pauses a second time, so the wait
  * also ends on the network's own word that it failed.
  *
- * Chromium only. The page's session does not reach a cross-origin frame, which
- * runs in a process of its own.
+ * A frame another site serves can run in a process of its own, with a session
+ * of its own that the page's never hears. So every such frame is attached as it
+ * appears, held before its first request, given the same interception, and only
+ * then let go; a frame inside it is reached the same way. That is the reach
+ * Playwright's routing has.
+ *
+ * Chromium only.
  */
 export async function pauseByProtocol(page: Page, handle: (request: Paused) => Promise<void>): Promise<Unpause> {
   const session: CDPSession = await page.context().newCDPSession(page);
-  // Answers awaited, by the paused request's id; and that id by the one the
-  // network's own events name the request by.
-  const awaiting = new Map<string, { resolve(event: PausedEvent): void; reject(error: Error): void }>();
-  const byNetworkId = new Map<string, string>();
+  const stops: (() => void)[] = [];
+  const children: Carried[] = [];
 
-  session.on('Fetch.requestPaused', (event: PausedEvent) => {
-    if (event.responseStatusCode !== undefined || event.responseErrorReason !== undefined) {
-      const waiter = awaiting.get(event.requestId);
-      if (waiter !== undefined) waiter.resolve(event);
-      else void session.send('Fetch.continueRequest', { requestId: event.requestId }).catch(() => {});
-      return;
-    }
-    void handle(pausedRequest(event));
-  });
-  session.on('Network.loadingFailed', (event: { requestId: string; errorText: string }) => {
-    const requestId = byNetworkId.get(event.requestId);
-    if (requestId !== undefined) awaiting.get(requestId)?.reject(new Error(event.errorText));
-  });
-
-  // The network's events only for that failure; no body is kept by them.
-  await session.send('Network.enable', { maxPostDataSize: 0 });
-  await session.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+  await intercept(session);
 
   return async () => {
-    for (const waiter of awaiting.values()) waiter.reject(new Error('the observation was closed'));
+    for (const stop of stops) stop();
+    await Promise.all(children.map((child) => child.send('Fetch.disable').catch(() => {})));
     await session.send('Fetch.disable').catch(() => {});
     await session.detach().catch(() => {});
   };
 
-  function pausedRequest(event: PausedEvent): Paused {
+  async function intercept(channel: Channel): Promise<void> {
+    // Answers awaited, by the paused request's id; and that id by the one the
+    // network's own events name the request by. Each target numbers its own.
+    const awaiting = new Map<string, { resolve(event: PausedEvent): void; reject(error: Error): void }>();
+    const byNetworkId = new Map<string, string>();
+    const carried = new Map<string, Carried>();
+    stops.push(() => {
+      for (const waiter of awaiting.values()) waiter.reject(new Error('the observation was closed'));
+    });
+
+    channel.on('Fetch.requestPaused', (event: PausedEvent) => {
+      if (event.responseStatusCode !== undefined || event.responseErrorReason !== undefined) {
+        const waiter = awaiting.get(event.requestId);
+        if (waiter !== undefined) waiter.resolve(event);
+        else void channel.send('Fetch.continueRequest', { requestId: event.requestId }).catch(() => {});
+        return;
+      }
+      void handle(pausedRequest(channel, event, awaiting, byNetworkId));
+    });
+    channel.on('Network.loadingFailed', (event: { requestId: string; errorText: string }) => {
+      const requestId = byNetworkId.get(event.requestId);
+      if (requestId !== undefined) awaiting.get(requestId)?.reject(new Error(event.errorText));
+    });
+    channel.on('Target.attachedToTarget', (event: AttachedEvent) => {
+      const child = new Carried(channel, event.sessionId);
+      carried.set(event.sessionId, child);
+      void adopt(channel, child, event);
+    });
+    channel.on('Target.receivedMessageFromTarget', (event: { sessionId: string; message: string }) => {
+      carried.get(event.sessionId)?.receive(event.message);
+    });
+    channel.on('Target.detachedFromTarget', (event: { sessionId: string }) => {
+      carried.get(event.sessionId)?.detached();
+      carried.delete(event.sessionId);
+    });
+
+    // The network's events only for that failure. No body is buffered for
+    // them: the answer is read from the paused request, never from here.
+    await channel.send('Network.enable', { maxTotalBufferSize: 0, maxResourceBufferSize: 0, maxPostDataSize: 0 });
+    await channel.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+    // Every child target is held at its start until it is let go below.
+    await channel.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: false });
+  }
+
+  async function adopt(parent: Channel, child: Carried, event: AttachedEvent): Promise<void> {
+    try {
+      // A worker's requests were never routed either; it is only let go.
+      if (event.targetInfo.type === 'iframe') {
+        children.push(child);
+        await intercept(child);
+      }
+    } catch {
+      // A frame gone before it was reached has nothing left to hold.
+    } finally {
+      await child.send('Runtime.runIfWaitingForDebugger').catch(() => {});
+      if (event.targetInfo.type !== 'iframe') {
+        await parent.send('Target.detachFromTarget', { sessionId: event.sessionId }).catch(() => {});
+      }
+    }
+  }
+
+  function pausedRequest(
+    channel: Channel,
+    event: PausedEvent,
+    awaiting: Map<string, { resolve(event: PausedEvent): void; reject(error: Error): void }>,
+    byNetworkId: Map<string, string>,
+  ): Paused {
     const { requestId, networkId } = event;
     return {
       url: event.request.url,
       resourceType: event.resourceType.toLowerCase(),
       headers: lowerCased(Object.entries(event.request.headers)),
       abort: async () => {
-        await session.send('Fetch.failRequest', { requestId, errorReason: 'Aborted' });
+        await channel.send('Fetch.failRequest', { requestId, errorReason: 'Aborted' });
       },
       continue: async () => {
-        await session.send('Fetch.continueRequest', { requestId });
+        await channel.send('Fetch.continueRequest', { requestId });
       },
       async fetch() {
         const answered = new Promise<PausedEvent>((resolve, reject) => awaiting.set(requestId, { resolve, reject }));
         if (networkId !== undefined) byNetworkId.set(networkId, requestId);
         let answer: PausedEvent;
         try {
-          await session.send('Fetch.continueRequest', { requestId, interceptResponse: true });
+          await channel.send('Fetch.continueRequest', { requestId, interceptResponse: true });
           answer = await answered;
         } finally {
           awaiting.delete(requestId);
@@ -145,16 +270,19 @@ export async function pauseByProtocol(page: Page, handle: (request: Paused) => P
         const status = answer.responseStatusCode ?? 200;
         if (status >= 300 && status < 400) {
           // The target is paused again as a request of its own, and read there.
-          await session.send('Fetch.continueRequest', { requestId });
+          await channel.send('Fetch.continueRequest', { requestId });
           return null;
         }
-        const read = await session.send('Fetch.getResponseBody', { requestId });
+        const read = (await channel.send('Fetch.getResponseBody', { requestId })) as {
+          body: string;
+          base64Encoded: boolean;
+        };
         const listed = answer.responseHeaders ?? [];
         return {
           body: Buffer.from(read.body, read.base64Encoded ? 'base64' : 'utf8'),
           headers: lowerCased(listed.map(({ name, value }) => [name, value])),
           fulfill: async (served) => {
-            await session.send('Fetch.fulfillRequest', {
+            await channel.send('Fetch.fulfillRequest', {
               requestId,
               responseCode: status,
               // The length and the encoding described the bytes that arrived;
@@ -164,12 +292,12 @@ export async function pauseByProtocol(page: Page, handle: (request: Paused) => P
             });
           },
           pass: async () => {
-            await session.send('Fetch.continueResponse', { requestId });
+            await channel.send('Fetch.continueResponse', { requestId });
           },
         };
       },
       serve: async (contentType, body) => {
-        await session.send('Fetch.fulfillRequest', {
+        await channel.send('Fetch.fulfillRequest', {
           requestId,
           responseCode: 200,
           responseHeaders: [{ name: 'content-type', value: contentType }],

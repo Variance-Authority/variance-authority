@@ -1,8 +1,8 @@
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
-import { crc32, deflateSync } from 'node:zlib';
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { animatedGif, solidPng } from './network.fixture.js';
 import { observeNetwork, type NetworkObservation } from './network.js';
 
 /**
@@ -29,121 +29,7 @@ if (!BROWSER_AVAILABLE) {
   );
 }
 
-/**
- * Four frames, 8×8, alternating solid black and solid white.
- *
- * Solid and large enough that a screenshot difference is unmissable — the
- * failure this guards against is a freeze that *nearly* works, and a two-pixel
- * image would let one pass. The LZW payload is real: a browser decodes this.
- * With a two-colour table the minimum code size is 2, so clear is 4 and end is
- * 5, and 64 pixels of one index compress to a run of that index's code.
- */
-function animatedGif(): Buffer {
-  const side = 8;
-
-  const header = [
-    0x47, 0x49, 0x46, 0x38, 0x39, 0x61,
-    side, 0x00, side, 0x00,
-    0x80, 0x00, 0x00,
-    0x00, 0x00, 0x00, // index 0: black
-    0xff, 0xff, 0xff, // index 1: white
-  ];
-
-  // NETSCAPE2.0, loop forever — so the browser is genuinely animating rather
-  // than resting on a last frame, which would let a broken freeze look correct.
-  const loop = [
-    0x21, 0xff, 0x0b, 0x4e, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2e, 0x30,
-    0x03, 0x01, 0x00, 0x00, 0x00,
-  ];
-
-  const frame = (index: number): readonly number[] => {
-    // Real LZW, and the fiddly part is the code width. With a minimum code size
-    // of 2 the stream starts at 3 bits, `clear` is 4, `end` is 5, and the next
-    // free dictionary slot is 6 — so after two data codes the next slot is 8 and
-    // the decoder switches to 4-bit codes. Emitting everything at 3 bits
-    // produces a file that decodes to nothing, which is the failure mode that
-    // matters here: a GIF that never paints makes *both* arms of this suite
-    // pass, the frozen one vacuously.
-    //
-    // Re-clearing every two codes keeps the width at 3 forever. It compresses
-    // nothing, which is the right trade for a fixture whose bit packing a reader
-    // has to be able to check by hand.
-    const codes: number[] = [];
-    for (let pixel = 0; pixel < side * side; pixel += 2) {
-      codes.push(4, index, index);
-    }
-    codes.push(5);
-
-    const bytes: number[] = [];
-    let bits = 0;
-    let width = 0;
-    for (const code of codes) {
-      bits |= code << width;
-      width += 3;
-      while (width >= 8) {
-        bytes.push(bits & 0xff);
-        bits >>>= 8;
-        width -= 8;
-      }
-    }
-    if (width > 0) bytes.push(bits & 0xff);
-
-    const subBlocks: number[] = [];
-    for (let at = 0; at < bytes.length; at += 255) {
-      const slice = bytes.slice(at, at + 255);
-      subBlocks.push(slice.length, ...slice);
-    }
-    subBlocks.push(0x00);
-
-    return [
-      0x21, 0xf9, 0x04, 0x00, 0x06, 0x00, 0x00, 0x00, // 60ms per frame
-      0x2c, 0x00, 0x00, 0x00, 0x00, side, 0x00, side, 0x00, 0x00,
-      0x02,
-      ...subBlocks,
-    ];
-  };
-
-  return Buffer.from([...header, ...loop, ...frame(0), ...frame(1), ...frame(0), ...frame(1), 0x3b]);
-}
-
 const GIF = animatedGif();
-
-/**
- * An opaque PNG, written here rather than imported from the thing under test.
- *
- * `blankPng` could produce these in one line and the blanking suite would then
- * be comparing its own output against itself — a substitution that changed
- * nothing would pass. So this writes its own: same one-bit palette, no `tRNS`,
- * palette entry 0 set to solid black, so every pixel paints.
- */
-function solidPng(width: number, height: number): Buffer {
-  const stride = Math.ceil(width / 8);
-  const raw = Buffer.alloc(height * (stride + 1));
-
-  const chunk = (type: string, data: Buffer): Buffer => {
-    const head = Buffer.alloc(8);
-    head.writeUInt32BE(data.length, 0);
-    head.write(type, 4, 'ascii');
-    const tail = Buffer.alloc(4);
-    tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
-    return Buffer.concat([head, data, tail]);
-  };
-
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header.writeUInt8(1, 8);
-  header.writeUInt8(3, 9);
-
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', header),
-    chunk('PLTE', Buffer.from([0, 0, 0])),
-    chunk('IDAT', deflateSync(raw)),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
 const HERO = solidPng(120, 90);
 const ICON = solidPng(16, 16);
 
@@ -182,9 +68,25 @@ const CACHING_PAGE = `<!doctype html><html><head><link rel="prefetch" href="/gue
   <img id="hero" src="/cached/hero.png"><img id="spinner" src="/cached/spinner.gif">
 </body></html>`;
 
+/**
+ * A page whose images are in a frame another site serves.
+ *
+ * `localhost` and `127.0.0.1` are two sites, so Chromium runs the frame in a
+ * process of its own, with a DevTools session of its own: a watcher attached to
+ * the page alone never hears the frame's requests.
+ */
+const FRAMING_PAGE = (frame: string): string => `<!doctype html><html><body style="margin:0">
+  <iframe src="${frame}/framed" width="300" height="200"></iframe>
+</body></html>`;
+const FRAMED_PAGE = `<!doctype html><html><body style="margin:0">
+  <img src="/art/hero.png"><img src="/icons/chevron.png"><img src="/spinner.gif">
+</body></html>`;
+
 let server: Server | undefined;
 let browser: Browser | undefined;
 let base = '';
+/** The same server under the other site's name. */
+let otherSite = '';
 const served: string[] = [];
 // Held open and never answered, so "still in flight" is a state the test holds.
 const withheld: import('node:http').ServerResponse[] = [];
@@ -224,19 +126,16 @@ beforeAll(async () => {
       return;
     }
 
-    response
-      .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-      .end(
-        path.startsWith('/withholding')
-          ? '<!doctype html><html><body><img id="late" src="/withheld.png"></body></html>'
-          : path.startsWith('/images')
-            ? IMAGES_PAGE
-            : path.startsWith('/speculating')
-              ? SPECULATING_PAGE
-              : path.startsWith('/caching')
-                ? CACHING_PAGE
-                : PAGE,
-      );
+    const pages: readonly (readonly [string, () => string])[] = [
+      ['/withholding', () => '<!doctype html><html><body><img id="late" src="/withheld.png"></body></html>'],
+      ['/framing', () => FRAMING_PAGE(otherSite)],
+      ['/framed', () => FRAMED_PAGE],
+      ['/images', () => IMAGES_PAGE],
+      ['/speculating', () => SPECULATING_PAGE],
+      ['/caching', () => CACHING_PAGE],
+    ];
+    const html = pages.find(([prefix]) => path.startsWith(prefix))?.[1]() ?? PAGE;
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html);
   });
 
   const port = await new Promise<number>((resolve) => {
@@ -246,6 +145,7 @@ beforeAll(async () => {
     });
   });
   base = `http://127.0.0.1:${port}`;
+  otherSite = `http://localhost:${port}`;
   browser = await chromium.launch({ headless: true });
 }, 60_000);
 
@@ -480,6 +380,26 @@ describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already f
     }
   }, 60_000);
 
+  // The control: the same two pages with the wire watched through routing. If
+  // this fetched once too, the test above would show nothing about the cache.
+  it('is fetched again by every page when routing holds the requests', async () => {
+    const context = await browser!.newContext({ viewport: { width: 200, height: 200 } });
+    const before = served.filter((path) => path === '/cached/hero.png').length;
+
+    try {
+      for (const page of [await context.newPage(), await context.newPage()]) {
+        const network = await observeNetwork(page);
+        await page.goto(`${base}/caching`, { waitUntil: 'load' });
+        await network.settle();
+        await network.close();
+      }
+
+      expect(served.filter((path) => path === '/cached/hero.png').length - before).toBe(2);
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
   it('names an image the server never answers, and closes with it still open', async () => {
     const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
 
@@ -496,5 +416,57 @@ describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already f
     } finally {
       await page.close();
     }
+  }, 60_000);
+});
+
+// Stabilization is on by default, so a frame it misses is a frame whose
+// animation and bytes reach the capture unremarked. Routing reaches every frame;
+// the DevTools path has to reach them too, and record them the same way.
+//
+// Headless shell keeps a cross-site frame in the page's process; a headed
+// window, and any launch with site isolation, gives it a process of its own.
+describe.skipIf(!BROWSER_AVAILABLE)('a frame another site serves', () => {
+  let isolating: Browser | undefined;
+  beforeAll(async () => {
+    isolating = await chromium.launch({ headless: true, args: ['--site-per-process'] });
+  }, 60_000);
+  afterAll(async () => {
+    await isolating?.close();
+  });
+
+  async function observed(cache: boolean): Promise<NetworkObservation> {
+    const page = await isolating!.newPage({ viewport: { width: 400, height: 300 } });
+    try {
+      const network = await observeNetwork(page, { cache, blank: BLANK_RULES });
+      await page.goto(`${base}/framing`, { waitUntil: 'load' });
+      await network.settle();
+      // The premise: the frame runs out of the page's process. In-process, the
+      // page's own session would hear it and this test would pin nothing.
+      const session = await page.context().newCDPSession(page);
+      const { targetInfos } = (await session.send('Target.getTargets')) as {
+        targetInfos: { type: string; url: string }[];
+      };
+      expect(targetInfos.filter(({ type, url }) => type === 'iframe' && url.startsWith(otherSite))).toHaveLength(1);
+      await session.detach();
+      await network.close();
+      return network;
+    } finally {
+      await page.close();
+    }
+  }
+
+  it('is blanked, frozen and hashed with the cache on as routing does it', async () => {
+    const routed = await observed(false);
+    const held = await observed(true);
+
+    expect(held.assets[`${otherSite}/art/hero.png`]).toBe('blank:illustrations:120x90');
+    expect(held.assets[`${otherSite}/icons/chevron.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
+    expect(held.frozen).toEqual([`${otherSite}/spinner.gif`]);
+    expect(held.diagnostics).toEqual([]);
+    expect({ assets: held.assets, frozen: held.frozen, blanked: held.blanked }).toEqual({
+      assets: routed.assets,
+      frozen: routed.frozen,
+      blanked: routed.blanked,
+    });
   }, 60_000);
 });

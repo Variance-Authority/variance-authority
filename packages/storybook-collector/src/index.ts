@@ -186,7 +186,10 @@ export function storybookCollector(
         // Every world of the run in one context, which is where the browser
         // keeps its HTTP cache: a worker's preview boots from what the first
         // world fetched. The pages share cookies and storage with it, as stories
-        // in one preview already share a document.
+        // in one preview already share a document. Across workers what a story
+        // finds left behind depends on scheduling: which worker read which story
+        // before it decides the cookies, storage and service workers, msw's
+        // among them, that it meets.
         warm: true,
       },
       // Installed in `prepare`, which runs before the first navigation: an

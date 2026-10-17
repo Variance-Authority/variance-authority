@@ -131,8 +131,11 @@ export async function openWorld(recipe: RouteWorldRecipe): Promise<RouteWorld> {
     driven: harness.driven,
 
     async close(): Promise<void> {
-      await network?.close();
-      await harness.close();
+      try {
+        await network?.close();
+      } finally {
+        await harness.close();
+      }
     },
   };
 }

@@ -146,7 +146,7 @@ export interface NetworkOptions {
    * already filled is answered from it, and every answer still passes here. An
    * image the same page already shows does not — it is drawn again without a
    * request — so only a caller that never calls `reset` may turn this on.
-   * Chromium only, and blind to cross-origin frames; see `pause.ts`.
+   * Chromium only; see `pause.ts`.
    */
   readonly cache?: boolean;
 }

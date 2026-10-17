@@ -7,9 +7,10 @@ import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
  * A run opens a collector world, a world per worker and a renderer, and each of
  * them used to launch a Chromium of its own: four launches for a run of three
  * workers, and four processes that share no cache. The process is the expensive
- * part — a launch costs more than a hundred captures — and nothing a world or a
- * renderer does needs a process to itself: each one owns its pages and its
- * contexts, and a browser only hosts them.
+ * part — `docs/better-tests.md` measures a capture that launches a browser first
+ * at about 205 ms against about 7.5 ms into an open page, some 27 captures — and
+ * nothing a world or a renderer does needs a process to itself: each one owns
+ * its pages and its contexts, and a browser only hosts them.
  *
  * So a browser is leased, not launched. The first lease launches it, every
  * later lease with the same launch options gets the same one, and the last

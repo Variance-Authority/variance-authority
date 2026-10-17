@@ -120,10 +120,16 @@ beforeAll(async () => {
   }
 }, 120_000);
 
-afterAll(async () => {
-  for (const worker of workers) await worker.close();
+/** Closes what is still open: the last tests close in order, and a failure stops them. */
+async function closeRun() {
+  for (const worker of workers.splice(0)) await worker.close();
   await collector?.close();
+  collector = undefined;
+}
+
+afterAll(async () => {
   await renderer?.close();
+  await closeRun();
   vi.restoreAllMocks();
 });
 
@@ -150,5 +156,16 @@ live('a run with two workers and a renderer', () => {
     expect(fetched.size).toBeGreaterThan(0);
     const repeated = [...fetched].filter(([, count]) => count > 1);
     expect(repeated).toEqual([]);
+  });
+
+  it('keeps the browser while anything still holds it', async () => {
+    await renderer.close();
+    renderer = undefined;
+    expect(launched[0].isConnected()).toBe(true);
+  });
+
+  it('closes the browser once the last holder lets go', async () => {
+    await closeRun();
+    expect(launched[0].isConnected()).toBe(false);
   });
 });

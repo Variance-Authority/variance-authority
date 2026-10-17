@@ -235,10 +235,12 @@ subject document.
 A parallel run starts one Chromium. Each worker is another page in it, in one
 browser context with the first, so its preview boots from the HTTP cache rather
 than fetching the bundle again; the pages share cookies and storage, as stories
-in one preview already share a document. When you let the collector serve the
-build, it answers with `cache-control: immutable` so every asset stays cached
-for the run. A story read again to rule out its neighbours gets a browser of its
-own.
+in one preview already share a document. Across workers, what a story finds left
+behind depends on scheduling: which worker read which story before it decides the
+cookies, storage and service workers, msw's among them, that it meets. When you
+let the collector serve the build, it answers with `cache-control: immutable` so
+every asset stays cached for the run. A story read again to rule out its
+neighbours gets a browser of its own.
 
 ## Readiness and loading
 

@@ -341,8 +341,11 @@ export async function createPlaywrightRenderer(
       async close(): Promise<void> {
         // Its own contexts, then its hold on the browser: another holder may
         // still be painting in it.
-        await pool.close();
-        await held.release();
+        try {
+          await pool.close();
+        } finally {
+          await held.release();
+        }
       },
     };
   } catch (error) {
