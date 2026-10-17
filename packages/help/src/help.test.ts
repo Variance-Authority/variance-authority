@@ -154,6 +154,11 @@ describe('one name in full', () => {
     expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `search`/);
   });
 
+  it('answers the files of an unknown name as found nothing, as its answer is', () => {
+    const symbol = HELP_TOOLS.find((tool) => tool.name === 'docs_symbol')!;
+    expect(() => symbol.files!(READING, { name: 'nope' })).toThrow(FoundNothing);
+  });
+
   it('refuses an empty name rather than answering about the first thing it finds', () => {
     expect(() => call('docs_symbol', {})).toThrow(/`name` is required/);
   });

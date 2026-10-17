@@ -1,6 +1,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { readsNames } from './discover.js';
+import { FoundNothing } from './find.js';
 import { limitOf, notShown } from '@variance-authority/mcp/tools';
 
 /**
@@ -20,10 +21,18 @@ import { limitOf, notShown } from '@variance-authority/mcp/tools';
  * question answered with, or the file whole when the question answers files
  * without a line. What a question could not read is said beside that question,
  * so an answer short of files does not read as complete.
+ *
+ * A question about a name nothing declares answers no file, and says so beside
+ * itself: no file is then in all of them, and that answer is thrown as a
+ * {@link FoundNothing}, as its question's own is, so a surface reading a reused
+ * generation asks it again before the empty set is believed.
  */
 
 /** Files shown when `limit` is not said; every one is counted. */
 const SHOWN = 50;
+
+/** One question's files, and the sentence it answered with when it found no name. */
+type Crossed = FileSet & { readonly unfound?: string };
 
 interface Question {
   readonly question: string;
@@ -143,10 +152,12 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
         return { question, which, files: operand.files.bind(operand) };
       });
 
-      const sets = asked.map(({ question, which, files }): FileSet => {
+      // Every question is asked, so each one that found nothing is named.
+      const sets = asked.map(({ question, which, files }): Crossed => {
         try {
           return files(subject, question.input, invocation);
         } catch (refusal) {
+          if (refusal instanceof FoundNothing) return { files: new Map(), unfound: refusal.message };
           throw new Error(`${which}: ${refusal instanceof Error ? refusal.message : String(refusal)}`);
         }
       });
@@ -157,10 +168,14 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
 
       const lines = questions.map((question, at) => {
         const set = sets[at]!;
-        const unread = set.unread === undefined || set.unread.length === 0 ? '' : ` — ${set.unread.join('; ')}`;
-        return `${at + 1}. \`${spelled(question)}\`: ${counted(set.files.size)}${unread}`;
+        const said = [...(set.unfound === undefined ? [] : [set.unfound]), ...(set.unread ?? [])];
+        return `${at + 1}. \`${spelled(question)}\`: ${counted(set.files.size)}${said.length === 0 ? '' : ` — ${said.join('; ')}`}`;
       });
-      if (common.length === 0) return [...lines, '', 'No file is in all of them.'].join('\n');
+      if (common.length === 0) {
+        const none = [...lines, '', 'No file is in all of them.'].join('\n');
+        if (sets.some((set) => set.unfound !== undefined)) throw new FoundNothing(none);
+        return none;
+      }
 
       lines.push('', `${counted(common.length)} in all of them.`, '');
       for (const file of common.slice(0, limit)) {

@@ -199,7 +199,7 @@ export const symbol: Tool<Help> = {
     at.push(...localNames(help, invocation?.root, name, wanted).files);
     const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
     if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
-    if (at.length === 0) throw new Error(nowhere(help, name, wanted, invocation?.root, members, undefined));
+    if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {
       const lines = files.get(file) ?? [];
