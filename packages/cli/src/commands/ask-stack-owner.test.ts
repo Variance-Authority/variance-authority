@@ -6,8 +6,8 @@ import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
 /**
- * `variance ask stack` judges a file's imports against the manifest nearest
- * above it, as Node resolves them and as ADR-0082 defines the owning manifest.
+ * `variance ask stack` judges a file's imports against the named manifest
+ * nearest above it, the owning manifest of ADR-0082.
  * `site/` is a project of its own, with its own manifest and its own install,
  * and the root's `workspaces` do not list it: its files were read against the
  * root manifest, so every package it declares read as imported and not

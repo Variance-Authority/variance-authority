@@ -19,10 +19,10 @@ only the workspace that declares a package can import it.
 ## Ask what a file can already use
 
 Run `variance index` once to build the [source index](source-index.md). It also
-records every package each `package.json` in your checkout declares, whether the
-root's `workspaces` list it or not, resolved to what is installed. A file is
-read against the nearest one above it that has a `name`. Then ask from the file
-you are about to edit:
+records every package the root `package.json` and each named `package.json`
+tracked in your checkout declare, whether the root's `workspaces` list it or
+not, resolved to what is installed. A file is read against the nearest of those
+above it. Then ask from the file you are about to edit:
 
 ```bash
 variance ask stack --from src/env.ts
