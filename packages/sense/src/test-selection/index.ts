@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
+import type { FilePhases } from './reported-time.js';
 import { deviationFromView } from './deviation.js';
 import {
   journeyDivergences,
@@ -178,7 +179,8 @@ export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFil
 export { openTestCoverage, type TestCoverageView } from './format-view.js';
 // What a landing of shards reads of the record they combined into, and the coverage it lands.
 export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
-export { BLOCK_KINDS } from './format-layout.js';
+export { BLOCK_KINDS, NO_DURATION, PHASE_NAMES } from './format-layout.js';
+export type { FilePhases } from './reported-time.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.
@@ -295,6 +297,11 @@ export interface CoverageTest {
    * millisecond.
    */
   readonly duration?: number;
+  /**
+   * Where the file's time went, phase by phase, as the runner timed it.
+   * Absent when it reported none of them.
+   */
+  readonly phases?: FilePhases;
 }
 
 /**

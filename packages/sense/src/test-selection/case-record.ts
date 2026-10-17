@@ -3,7 +3,7 @@ import { isMissing } from './instrumented-modules.js';
 import { descriptor } from './coverage-file.js';
 import { decodeRecordedEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { invalid } from './format-validation.js';
-import { DURATION, FORMAT, framedHeader, NAMES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
+import { DURATION, FORMAT, framedHeader, NAMES, PHASES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
 import type { Bytes } from './columns.js';
 import { LAYOUT } from './record-layout.js';
 
@@ -42,7 +42,7 @@ export interface CaseSections {
 
 const PARTS = Object.fromEntries(LAYOUT.coverage.parts) as Readonly<Record<keyof CaseSections, string>>;
 const ALL = Object.keys(PARTS) as readonly (keyof CaseSections)[];
-const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, ...Object.values(PARTS)]);
+const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, PHASES, ...Object.values(PARTS)]);
 
 /**
  * The case sections of a record held in memory.

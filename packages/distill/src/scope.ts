@@ -3,6 +3,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import { readDistillRecords, type DistillRecords, type NativeDistillScope } from '@variance-authority/sense/test-selection';
 import { withheldOf } from './file.js';
 import { importOf, SHARED, UNSEEN } from './own.js';
+import { formatScopeTime, scopeTime, type ScopeTime } from './time.js';
 
 /** One record a scope is read from, and the suite it belongs to when one is declared. */
 export interface ScopeRecord {
@@ -61,6 +62,8 @@ export interface ScopeDistillation {
   readonly lines: number;
   /** Imports heaviest first, then the shared and the unseen; with no file graph given, modules heaviest first. */
   readonly spills: readonly Spill[];
+  /** Where the scope's worker time went, phase by phase. Absent when no test file of it reported its phases. */
+  readonly time?: ScopeTime;
 }
 
 const read = new WeakMap<readonly ScopeRecord[], DistillRecords>();
@@ -141,8 +144,10 @@ export function distillScope(input: ScopeDistillInput): ScopeDistillation {
   // One pass over the rows, none of them kept: what the answer holds is their tally and the withheld.
   const withheld: { file: string; suite?: string; reason: string }[] = [];
   const suites = new Set<string>();
+  const timed: { record: number; file: string }[] = [];
   let files = 0;
   for (const { suite, file, withheld: reason } of readingsOf(input, scope)) {
+    timed.push({ record: scope.readings.record[files]!, file });
     files += 1;
     if (suite !== undefined) suites.add(suite);
     if (reason !== undefined) withheld.push({ file, ...(suite === undefined ? {} : { suite }), reason });
@@ -157,7 +162,13 @@ export function distillScope(input: ScopeDistillInput): ScopeDistillation {
     loads: scope.loads,
     lines: scope.lines,
     spills,
+    ...timeOf(input.records, timed),
   };
+}
+
+function timeOf(records: readonly ScopeRecord[], files: readonly { record: number; file: string }[]): { time?: ScopeTime } {
+  const time = scopeTime(records.map(({ record }) => record), files);
+  return time === undefined ? {} : { time };
 }
 
 /** One test file of a scope: what it loaded, and what of that no case of it entered. */
@@ -224,6 +235,7 @@ export function formatScopeDistillation(result: ScopeDistillation): string {
   return [
     head,
     '',
+    ...(result.time === undefined ? [] : [...formatScopeTime(result.time, result.files), '']),
     `Loaded, and entered by no case of the test file that loaded it: ${result.loads} module load(s), ${result.lines} line(s).`,
     ...imports.slice(0, SPILLS_SHOWN).map((spill) => `  ${headOf(spill)}: ${size([spill])}`),
     ...(folded.length === 0 ? [] : [`  and ${folded.length} more: ${size(folded)}`]),

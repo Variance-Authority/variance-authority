@@ -18,6 +18,7 @@ export interface RecordLayout {
     /** The `version` a decoded `TestCoverage` carries, which the record's own format number does not. */
     readonly model: 3;
     readonly format: number;
+    readonly unphased: number;
     readonly uncased: number;
     readonly untimed: number;
     readonly noOwner: number;
@@ -28,6 +29,10 @@ export interface RecordLayout {
     readonly sections: readonly string[];
     /** The section the untimed layout lacks. */
     readonly duration: string;
+    /** The section the unphased layout lacks: one word a phase, {@link phaseNames} a test. */
+    readonly phases: string;
+    /** The phases a runner spends on a test file, its cases last, in the order `phases` holds them. */
+    readonly phaseNames: readonly ('prepare' | 'environment' | 'setup' | 'collect' | 'cases')[];
     /** The case parts, `[part, section]`, in the order a record holds them after the coverage. */
     readonly parts: readonly (readonly [string, string])[];
     /** A kind's position is the byte `blocks.kind` holds for it; the list is append-only. */

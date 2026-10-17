@@ -484,13 +484,6 @@
   },
   {
     "files": [
-      "packages/sense/src/test-selection/jest-setup.cts",
-      "packages/sense/src/test-selection/runner.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/sense/src/test-selection/journey-parts.ts",
       "packages/sense/src/test-selection/journey.ts"
     ],

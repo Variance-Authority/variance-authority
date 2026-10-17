@@ -347,7 +347,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         match row {
             Row::Current(test) => {
                 let inputs = settled(current, cs, test).into_iter().map(|(name, digest)| (now[name as usize], now[digest as usize]));
-                out.test(path, u8::from(current.test_complete[test] == 1), duration(current, test), inputs);
+                out.test(path, u8::from(current.test_complete[test] == 1), current.duration(test), current.phases(test), inputs);
             }
             Row::Previous(test) => {
                 let inputs: Vec<(u32, u32)> = if ascending(previous, test) {
@@ -356,7 +356,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                     settled(previous, ps, test)
                 };
                 let complete = previous.test_complete[test] == 1 && !stale[test];
-                out.test(path, u8::from(complete), duration(previous, test), inputs.into_iter().map(|(name, digest)| (before[name as usize], before[digest as usize])));
+                out.test(path, u8::from(complete), previous.duration(test), previous.phases(test), inputs.into_iter().map(|(name, digest)| (before[name as usize], before[digest as usize])));
             }
         }
     }
@@ -370,10 +370,6 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
 enum Row {
     Current(usize),
     Previous(usize),
-}
-
-fn duration(coverage: &Coverage, test: usize) -> u32 {
-    coverage.test_duration.as_ref().map_or(LAYOUT.coverage.no_duration, |duration| duration[test])
 }
 
 /// A test's preconditions as text, compared as a set.

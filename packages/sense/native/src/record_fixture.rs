@@ -15,6 +15,8 @@ pub struct Test {
     pub file: &'static str,
     pub complete: bool,
     pub duration: Option<u32>,
+    /// Its phases, written only in the current layout; `None` for a runner that reported none.
+    pub phases: Option<record_coverage::Phases>,
     pub preconditions: Vec<(&'static str, &'static str)>,
 }
 
@@ -50,7 +52,7 @@ pub struct Spec {
 }
 
 pub fn test(file: &'static str) -> Test {
-    Test { file, complete: true, duration: Some(file.len() as u32), preconditions: Vec::new() }
+    Test { file, complete: true, duration: Some(file.len() as u32), phases: None, preconditions: Vec::new() }
 }
 
 pub fn block(ordinal: u32, called: &[u32]) -> Block {
@@ -138,6 +140,10 @@ pub fn write(spec: &Spec) -> Vec<u8> {
     if spec.version != LAYOUT.coverage.untimed {
         columns.push(words(&LAYOUT.coverage.duration, spec.tests.iter().map(|test| test.duration.unwrap_or(LAYOUT.coverage.no_duration)).collect()));
     }
+    if spec.version == LAYOUT.coverage.format {
+        let none = [LAYOUT.coverage.no_duration; record_coverage::PHASES];
+        columns.push(words(&LAYOUT.coverage.phases, spec.tests.iter().flat_map(|test| test.phases.unwrap_or(none)).collect()));
+    }
     columns.extend([
         words("preconditions.name", names),
         words("preconditions.digest", digests),
@@ -170,6 +176,13 @@ pub fn write(spec: &Spec) -> Vec<u8> {
 
 /// One region as read back: its ordinal, and the files of the tests that called and loaded it.
 pub type Region = (u32, Vec<String>, Vec<String>);
+
+/// Each test's file and phases, in the order the record holds them.
+pub fn phases(bytes: &[u8]) -> Vec<(String, record_coverage::Phases)> {
+    let coverage = record_coverage::read(bytes).unwrap().coverage.unwrap();
+    let strings = coverage.strings().unwrap();
+    (0..coverage.tests()).map(|at| (strings[coverage.test_path[at] as usize].to_owned(), coverage.phases(at))).collect()
+}
 
 /// A record's coverage as plain values: `(file, complete, duration)` a test, and `(file, instrumented, regions)` a module.
 pub fn read(bytes: &[u8]) -> (Vec<(String, bool, Option<u32>)>, Vec<(String, bool, Vec<Region>)>) {
