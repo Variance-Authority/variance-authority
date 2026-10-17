@@ -1,0 +1,57 @@
+name: merge-baseline
+description: >-
+  Check out a pull request's head merged with the commit the mainline's record
+  was made at, rather than with the base branch's tip.
+
+# A selection measures a change from the commit the record it reads was made
+# at. GitHub checks a pull request out as its head merged into the base tip,
+# and the record is made after the tip's own run: every commit `main` gained
+# since the record was made is then in the diff, charged to the pull request,
+# and a commit there that touches a file every test enters runs every test.
+# Merged with the record's commit instead, the first parent is that commit and
+# the diff from it is the pull request's change alone.
+#
+# The merge is the same commit in every job of a run: the same parents, tree,
+# identity, date and message. The date is the later parent's, so the merge is
+# never older than what it merges. A head that already holds the commit is
+# merged too: the tree is the head's, and the first parent is still the
+# record's commit, which the review diffs from. A merge that conflicts is
+# aborted and the checkout goes back to GitHub's merge; `on-conflict` says
+# whether that is the answer (the job that decides the run's base) or an error
+# (a job told the merge already worked once). `expect` is the merge that job
+# made: a job whose git made another commit fails rather than record at it.
+
+inputs:
+  commit:
+    description: The commit of the mainline's record. Empty merges nothing.
+    required: true
+  head:
+    description: The pull request's head commit.
+    required: true
+  on-conflict:
+    description: '`stay` on GitHub''s merge, or `fail` the job.'
+    default: fail
+  expect:
+    description: The commit the job that decided the merge made. Empty checks nothing.
+    default: ''
+
+outputs:
+  merged:
+    description: '`true` when the checkout is the head merged with `commit`.'
+    value: ${{ steps.merge.outputs.merged }}
+  checkout:
+    description: The merge commit, when `merged` is `true`.
+    value: ${{ steps.merge.outputs.checkout }}
+
+runs:
+  using: composite
+  steps:
+    - name: merge with the record's commit
+      id: merge
+      shell: bash
+      env:
+        COMMIT: ${{ inputs.commit }}
+        HEAD_COMMIT: ${{ inputs.head }}
+        ON_CONFLICT: ${{ inputs.on-conflict }}
+        EXPECT: ${{ inputs.expect }}
+      run: bash "$GITHUB_ACTION_PATH/merge.sh"

@@ -239,6 +239,11 @@ jobs:
     outputs:
       handed: ${{ steps.hand.outputs.artifact-id != '' }}
       carried: ${{ steps.carry.outputs.artifact-id != '' }}
+      # The commit every job of a pull request's run merges its head with: the
+      # one the mainline's records were made at, when the head merged with it,
+      # and the merge commit this job made, which every other job's must be.
+      baseline: ${{ steps.merge.outputs.merged == 'true' && steps.read.outputs.commit || '' }}
+      checkout: ${{ steps.merge.outputs.checkout }}
 
     steps:
       # Every commit, because the read says how far behind HEAD the record was
@@ -268,23 +273,44 @@ jobs:
       # was not asked about, because this environment names no mainline or
       # lacks the share's credential, leaves nothing, and a job asking finds
       # the same.
+      #
+      # The read also names the commit the records were made at, which a pull
+      # request's head is merged with below: one commit, or none when the suites'
+      # records were made at different commits. `tools/read-mainline.mjs`.
       - name: read the mainline once
         id: read
         shell: bash
+        run: node tools/read-mainline.mjs
+
+      # Tried here once for the run, and its answer handed on: a head that
+      # conflicts with the record's commit stays merged with the base tip in
+      # every job, and the others are told which commit this merge made.
+      - uses: ./.github/actions/merge-baseline
+        id: merge
+        if: github.event_name == 'pull_request'
+        with:
+          commit: ${{ steps.read.outputs.commit }}
+          head: ${{ github.event.pull_request.head.sha }}
+          on-conflict: stay
+
+      # The pointers handed on are asked at the merge base the other jobs will
+      # stand on: the merged checkout's, past the record's commit when the head
+      # already held it. Behind it, the read just made reads the same record
+      # without asking the line. Past it, the line can answer with a record
+      # nearer the merge base, which the jobs read while standing on the merge
+      # made with the first: a wider run, not a narrower one, and said here.
+      - name: read the mainline at the merge
+        id: reread
+        if: steps.merge.outputs.merged == 'true'
+        shell: bash
+        env:
+          MERGED_WITH: ${{ steps.read.outputs.commit }}
         run: |
-          read=$(node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const selection = await import('@variance-authority/sense/test-selection');
-            const root = process.cwd();
-            for (const { name, carry } of selection.declaredSuites(root) ?? []) {
-              if (carry !== 'share') continue;
-              const base = await cli.suiteBase(root, { suite: name });
-              if (base.from === 'mainline') console.error(cli.mainlineRead(base.mainline));
-              else if ('missed' in base && base.missed !== undefined) console.error(cli.mainlineMissed(base.missed));
-            }
-            process.stdout.write(selection.cacheRootFor(root) + '/share/read');
-          ")
-          echo "dir=$read" >> "$GITHUB_OUTPUT"
+          node tools/read-mainline.mjs
+          read=$(sed -n 's/^commit=//p' "$GITHUB_OUTPUT" | tail -n 1)
+          if [ "$read" != "$MERGED_WITH" ]; then
+            echo "::notice::The head is merged with $MERGED_WITH, and the mainline read at that merge answered ${read:-no single commit}: the run measures the commits between them as well."
+          fi
 
       - name: hand the read on
         id: hand
@@ -318,10 +344,12 @@ jobs:
           restore-keys: variance-pr-${{ github.event.pull_request.number }}-
 
       # The record names the commits its tests last ran at, the merge commits
-      # of earlier pushes, which no ref holds any more: `tools/take-carried.mjs`
-      # fetches each by name. A suite whose commits the remote no longer has is
-      # not handed on, and reads `main`'s record; checked once here, so every
-      # job reads the same.
+      # of earlier pushes, which no ref holds: `tools/take-carried.mjs` reads
+      # a merge with the record's commit from the bundle the `record` job left
+      # beside the records, and fetches GitHub's own merge by name. A suite
+      # whose commits cannot be had is not handed on, and reads `main`'s
+      # record; checked once here, so every job reads the same. The bundle is
+      # a file, not a suite's directory, and travels with the records.
       - name: check what the last push ran
         if: github.event_name == 'pull_request'
         shell: bash
@@ -417,6 +445,16 @@ jobs:
       - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # The head merged with the commit the mainline's record was made at, as
+      # `base` merged it, so the selection measures the pull request's change
+      # alone. Before the install and the build, which read the sources.
+      - uses: ./.github/actions/merge-baseline
+        if: github.event_name == 'pull_request'
+        with:
+          commit: ${{ needs.base.outputs.baseline }}
+          head: ${{ github.event.pull_request.head.sha }}
+          expect: ${{ needs.base.outputs.checkout }}
 
       - name: install
         shell: bash
@@ -575,8 +613,9 @@ jobs:
 
     steps:
       # Every commit, because the review below diffs from a base it does not
-      # choose: the base tip on a pull request, and on `main` the commit the
-      # previous push left, which can be any number of commits back. No trees,
+      # choose: on a pull request the commit the mainline's record was made at,
+      # or the base tip when the head conflicts with it, and on `main` the
+      # commit the previous push left, which can be any number of commits back. No trees,
       # for the reason written at the checkout in `rules`. Nothing here pushes,
       # so the token is not left in the clone beside the install scripts and
       # the build; the comment step hands its own token to the script that
@@ -586,6 +625,15 @@ jobs:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
+
+      # The checkout the suite jobs ran, for the reason written at the same
+      # step in `suite`.
+      - uses: ./.github/actions/merge-baseline
+        if: github.event_name == 'pull_request'
+        with:
+          commit: ${{ needs.base.outputs.baseline }}
+          head: ${{ github.event.pull_request.head.sha }}
+          expect: ${{ needs.base.outputs.checkout }}
 
       # Node 24, for the reason written at the same step in `rules`.
       - uses: actions/setup-node@v4
@@ -605,8 +653,9 @@ jobs:
       # repository's own git remote.
       #
       # The base: on a pull request the checkout is the merge of its head into
-      # the base, and the merge's first parent is the base tip, so the change is
-      # the pull request's own. On a push it is the commit the push replaced.
+      # the commit the mainline's record was made at, or else into the base
+      # tip, and the merge's first parent is that commit, so the change is the
+      # pull request's own. On a push it is the commit the push replaced.
       - name: what to carry
         id: carry
         shell: bash
@@ -776,13 +825,18 @@ jobs:
       # step `what the last push ran` in `base` says why. A red suite is kept
       # too, since the files it left incomplete are what the next push reruns.
       # Saved only when the copy finished: a part-copied record is not one.
+      # A checkout merged with the record's commit is a commit no remote
+      # holds, so it is bundled beside the records, with every commit it
+      # needs that `main` does not have.
       - name: keep what this push ran
         id: stage
         if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.records.outputs.dir != '' }}
         shell: bash
         env:
           RECORDS: ${{ steps.records.outputs.dir }}
-        run: rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
+        run: |
+          rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
+          node tools/bundle-carried.mjs .variance-carry refs/remotes/origin/main
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         uses: actions/cache/save@v4
