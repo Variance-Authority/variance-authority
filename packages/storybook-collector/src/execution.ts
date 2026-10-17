@@ -44,7 +44,7 @@ export interface StoryRecorder {
    *
    * `timing` is where the page spent the story: the preview's load is the
    * story's `prepare`, its file's import its `collect`, its render its
-   * `cases`. Kept from a story's first reading only, as its duration is.
+   * `cases`.
    */
   readonly note: (
     page: EvaluatingPage,

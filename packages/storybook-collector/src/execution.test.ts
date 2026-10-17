@@ -117,10 +117,8 @@ describe('a Storybook run records what each story executed', () => {
     await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
       const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile });
       // The first story on a document carries the preview's load; a story the
-      // preview switched to carries none. A second reading adds nothing: the
-      // phases are the first reading's, as the duration is noted once.
+      // preview switched to carries none.
       await recorder.note(pageReporting(journal(0)), 'story:price--premium', true, { ready: 900, collect: 40, cases: 12 });
-      await recorder.note(pageReporting(journal(0)), 'story:price--premium', true, { ready: 700, collect: 30, cases: 10 });
       await recorder.note(pageReporting(journal(1)), 'story:price--plain', true, { collect: 5, cases: 3 });
       await recorder.close();
 

@@ -512,8 +512,9 @@ absent. A mark outside the file's own span splits nothing, and the file has no
 collect or cases. A story is timed by its page: `prepare` is the document's
 start until the preview is ready, carried only by the first story read on the
 document, `collect` is importing the story's file, and `cases` is the render
-through `afterEach`. Phases are summed across projects as durations are. A record
-written before phases were kept opens with every file unphased.
+through `afterEach`. A test file's phases are summed across projects as
+durations are. A record written before phases were kept opens with every file
+unphased.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion

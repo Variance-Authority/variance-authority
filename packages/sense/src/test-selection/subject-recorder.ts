@@ -61,8 +61,8 @@ export interface SubjectNote {
   /** The case this reading is, where the subject has a file to be a case in. */
   readonly case?: Omit<ObservedCase, 'journal' | 'stopped'>;
   /**
-   * Where the driver saw this reading's time go. Kept from the first reading
-   * of the subject that carries any: the run's time covers every reading.
+   * Where the driver saw this reading's time go. Where one subject is noted
+   * twice, the run's join keeps the first reading's.
    */
   readonly phases?: FilePhases;
 }
@@ -132,7 +132,6 @@ export function createSubjectRecorder(
   const observed: ObservedSubject[] = [];
   // Each case with the subject it was noted for, so the run's time finds it.
   const cases: { readonly subject: string; readonly observed: ObservedCase }[] = [];
-  const phased = new Set<string>();
   let seen = false;
 
   return {
@@ -154,14 +153,12 @@ export function createSubjectRecorder(
       const journal = await drainExecution(page);
       if (journal === undefined) return;
       seen = true;
-      const phases = noted.phases === undefined || phased.has(subjectId) ? undefined : noted.phases;
-      if (phases !== undefined) phased.add(subjectId);
       observed.push({
         owner: subjectId,
         journal,
         complete,
         ...(noted.preconditions === undefined ? {} : { preconditions: noted.preconditions }),
-        ...(phases === undefined ? {} : { phases }),
+        ...(noted.phases === undefined ? {} : { phases: noted.phases }),
       });
       if (noted.case !== undefined) {
         cases.push({ subject: subjectId, observed: { ...noted.case, stopped: !complete, journal } });
