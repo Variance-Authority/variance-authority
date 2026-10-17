@@ -3573,10 +3573,12 @@
       "./lfs": {
         "CommandResult": "interface",
         "CommandRunner": "type",
+        "LFS_POINTER_HEAD_BYTES": "const",
         "LfsStore": "interface",
         "LfsStoreOptions": "interface",
         "LfsTracking": "interface",
         "createLfsStore": "function",
+        "isLfsPointer": "function",
         "runCommand": "const"
       },
       "./share": {

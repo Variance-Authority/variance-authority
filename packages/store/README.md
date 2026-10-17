@@ -345,8 +345,14 @@ un-smudged clone does not read as a passing run.
 
 That last case is the one worth naming. An un-smudged checkout — LFS not
 installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you about 130 bytes of text
-where a PNG should be, and comparing two of those reports `unchanged` for every
-subject in the suite. The store refuses a pointer file read as an image.
+where a PNG should be, and comparing two of those would report `unchanged` for
+every subject in the suite. The store refuses a pointer file read as an image,
+by the subject's name. A subject whose document did not move is settled from its
+`.json` sidecar without the image being read, so that subject passes on such a
+checkout; `npx variance doctor --baselines` reads the head of every image in
+the root, counts the pointers, names the first and exits 2 before any run, and
+the composite action asks it before every run. `isLfsPointer(head)` is the test both use,
+and `LFS_POINTER_HEAD_BYTES` is how many leading bytes it needs.
 
 `createLfsStore` takes:
 

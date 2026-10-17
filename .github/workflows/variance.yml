@@ -17,11 +17,17 @@ name: variance
 # photographed it. `site` observes variance-authority.dev, [`site/`](../../site):
 # its catalog and component pages, since every markdown page excludes itself.
 #
+# The case is observed twice more, once for each other place a baseline can be
+# kept: `lfs` commits its baselines to the pull request's branch through
+# git-LFS, and `tribunal-service` keeps them on a review service this workflow
+# deploys. Each runs the answer an adopter would copy, on this repository's own
+# pull requests, rather than on a fixture of one.
+#
 # ## Where the baselines come from, since nothing here is committed
 #
 # That is a choice, `VARIANCE_REVIEW` below, and this section describes the
-# `cache` answer this repository runs. The other two, `git` and `tribunal`, are
-# described where they are chosen.
+# `cache` answer the two subjects run. The other two, `git` and `tribunal`, are
+# described where they are chosen, and each has its job below.
 #
 # `.variance/` is ignored, on purpose: a record changes whenever the document
 # does, so records beside their images would make a diff out of every edit that
@@ -180,7 +186,8 @@ permissions:
 #   store and a `review` section, and `VARIANCE_INGEST_TOKEN` is a secret.
 #
 # `cache` here, because the case writes its store under `.variance/`, which
-# this repository ignores.
+# this repository ignores. The `lfs` and `tribunal-service` jobs run the other
+# two with their own configs, and set what they need themselves.
 env:
   VARIANCE_REVIEW: cache
   VARIANCE_IMAGES: refs/variance/project
@@ -625,6 +632,298 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.project }}-files
+          path: |
+            ${{ steps.variance.outputs.report }}
+            ${{ steps.variance.outputs.images }}
+          include-hidden-files: true
+          if-no-files-found: warn
+
+  # `VARIANCE_REVIEW: git` with an `lfs` store, run here rather than described:
+  # the case's twelve stories again, under `variance.lfs.config.json`, whose
+  # baselines are committed to `cases/storybook-case/baselines` through
+  # git-LFS. A pull request is the same one every other job here judges, so
+  # the commit-back lands on a real contributor's branch, through the real
+  # clean filter, and the merge takes the images to `main` with the code.
+  #
+  # Its own label, `variance: accept lfs`, and its own comment and image ref,
+  # both keyed by the config's `project`. The label is the only way it accepts:
+  # a push to `main` compares and promotes nothing, because under `git` the
+  # images arrived in the merge, and a dispatch has no branch to commit to.
+  #
+  # It also asserts what a checkout without git-lfs does, because that is the
+  # failure an adopter meets first: once baselines are committed, a checkout
+  # that skipped the LFS fetch holds pointers where images should be, and
+  # `doctor --baselines` must exit 2 on them before git-lfs is installed.
+  lfs:
+    if: >-
+      github.event.action != 'closed' &&
+      (github.event.action != 'labeled' ||
+      github.event.label.name == 'variance: accept lfs')
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    concurrency:
+      group: variance-lfs-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+
+    steps:
+      # The pull request's own branch, which the accept commits to; `main` on a
+      # push. `lfs: false` is the default, spelled out: the image has no
+      # git-lfs yet, and the step after the build asserts what that checkout
+      # holds. The token is `VARIANCE_PUSH_TOKEN` when it is set, so the
+      # commit-back starts the run that checks it; `GITHUB_TOKEN` otherwise,
+      # whose push lands and starts nothing.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.head_ref || '' }}
+          token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
+          lfs: false
+
+      # The Playwright image runs as a user that does not own the checkout, and
+      # git refuses a directory it does not trust. Everything after this asks
+      # git something: the build names the native scanner's tree by it, and a
+      # tree it cannot name restores another commit's scanner.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: decide whether this run accepts
+        id: accept
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VARIANCE_ACCEPT_LABEL: 'variance: accept lfs'
+          # Not `inputs.accept`: a dispatch has no pull request branch to commit
+          # to, and the script refuses one under `git`. The dispatch accepts the
+          # other jobs' stores; this one compares.
+          VARIANCE_DISPATCH_ACCEPT: 'false'
+          VARIANCE_REVIEW: git
+          VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
+        run: node .github/scripts/variance-accept.mjs
+
+      - shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      # Exit 2 when a baseline is committed and exit 0 when none is: a checkout
+      # without git-lfs holds pointers, and doctor names them before anything
+      # compares. Either other answer fails the job, a 0 over pointers most of
+      # all, since that is a gate that passes until somebody edits a component.
+      # A refusing `ls-files` fails the step rather than reading as "nothing
+      # committed", which would expect the wrong code.
+      - name: refuse the pointers a checkout without git-lfs holds
+        shell: bash
+        run: |
+          set -uo pipefail
+          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.png') || exit 1
+          if [ -n "$committed" ]; then expected=2; else expected=0; fi
+          # `shell: bash` runs with -e, so the exit is read in the condition.
+          if node packages/cli/dist/bin.js doctor \
+            --config cases/storybook-case/variance.lfs.config.json --baselines; then
+            code=0
+          else
+            code=$?
+          fi
+          if [ "$code" != "$expected" ]; then
+            echo "::error::doctor --baselines exited $code on a checkout without git-lfs; $expected was expected"
+            exit 1
+          fi
+
+      # The bytes back through the smudge filter, and `fsck` checks each one
+      # against the digest its pointer names: what the commit-back cleaned is
+      # what this checkout reads.
+      - name: fetch the baselines through git-lfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends git-lfs
+          git lfs install --local
+          git lfs pull
+          git lfs fsck
+
+      - name: build the Storybook this run observes
+        shell: bash
+        run: yarn workspace @variance-authority/case-storybook build-storybook
+
+      - id: variance
+        uses: ./.github/actions/variance
+        with:
+          config: cases/storybook-case/variance.lfs.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          comment: ${{ github.event_name == 'pull_request' }}
+          adopt-unkeyed-comment: 'false'
+          intent: ${{ steps.accept.outputs.intent }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          report-page: 'true'
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
+          to-accept: 'check the report, then add the **variance: accept lfs** label. The accepted images are committed to this branch through git-LFS, and the next run compares against them.'
+          commit-baselines: ${{ steps.accept.outputs.promote == 'true' }}
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lfs-files
+          path: |
+            ${{ steps.variance.outputs.report }}
+            ${{ steps.variance.outputs.images }}
+          include-hidden-files: true
+          if-no-files-found: warn
+
+  # `VARIANCE_REVIEW: tribunal`, run here rather than described: this commit's
+  # review service, deployed to workers.dev from
+  # `cases/storybook-case/tribunal/wrangler.jsonc`, with the case's stories
+  # compared against the baselines it holds and the build pushed to it. The
+  # job then asks the service for the build it was sent, so a push that the
+  # service answered and did not file is a red check.
+  #
+  # Nobody approves here. The service is where a person would, and this job
+  # proves the service received what they would decide on; an approval made
+  # by the job itself would be the recorder the header warns about.
+  #
+  # One deployment for every run, so the runs take turns: a pull request's
+  # deploy replaces the service `main` deployed, and the next run on `main`
+  # deploys `main`'s back. GitHub keeps one pending run per concurrency group,
+  # so when a third run arrives while one waits, the waiting one is cancelled. The two tokens are minted for each
+  # deploy and never stored, so the only secret is `CLOUDFLARE_API_TOKEN`; a
+  # run without it fails, rather than passing on a service it never reached.
+  # Not on a fork's pull request, which gets no secrets and could not deploy.
+  tribunal-service:
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.action != 'labeled' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    concurrency:
+      group: variance-tribunal-service
+      cancel-in-progress: false
+
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # The Playwright image runs as a user that does not own the checkout, and
+      # git refuses a directory it does not trust. Everything after this asks
+      # git something: the build names the native scanner's tree by it, and a
+      # tree it cannot name restores another commit's scanner.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      # Migrated before it is deployed, so the deployed build never meets a
+      # schema older than the one it expects. `npx` with a pinned version keeps
+      # wrangler and its runtime out of the install every other job pays for;
+      # it also runs wrangler from the nearest `package.json`, the case's, so the
+      # descriptor is named rather than found.
+      - name: deploy this commit's review service
+        shell: bash
+        working-directory: cases/storybook-case/tribunal
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set; this job deploys the review service it pushes to, and cannot without it"
+            exit 1
+          fi
+          ingest=$(node -p 'require("node:crypto").randomBytes(24).toString("hex")')
+          review=$(node -p 'require("node:crypto").randomBytes(24).toString("hex")')
+          echo "::add-mask::$ingest"
+          echo "::add-mask::$review"
+          secrets="$RUNNER_TEMP/tribunal-secrets.json"
+          trap 'rm -f "$secrets"' EXIT
+          printf '{"INGEST_TOKEN":"%s","REVIEW_TOKEN":"%s"}' "$ingest" "$review" > "$secrets"
+          npx --yes wrangler@4.131.1 d1 migrations apply variance-tribunal-ci --remote --config "$PWD/wrangler.jsonc"
+          npx --yes wrangler@4.131.1 deploy --config "$PWD/wrangler.jsonc" --secrets-file "$secrets"
+          {
+            echo "VARIANCE_INGEST_TOKEN=$ingest"
+            echo "VARIANCE_REVIEW_TOKEN=$review"
+          } >> "$GITHUB_ENV"
+
+      - name: build the Storybook this run observes
+        shell: bash
+        run: yarn workspace @variance-authority/case-storybook build-storybook
+
+      # Compared against what the service holds as approved, which is nothing:
+      # the review token is minted for this run and never handed to a person,
+      # so nobody approves on this deployment and every subject reads `new`.
+      # What the job proves is the deploy, the run, the push and the filing.
+      - id: variance
+        uses: ./.github/actions/variance
+        with:
+          config: cases/storybook-case/variance.tribunal.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          comment: ${{ github.event_name == 'pull_request' }}
+          adopt-unkeyed-comment: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          report-page: 'true'
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
+          to-accept: 'nothing to accept: this deployment has no reviewer, and the job checks only that the service files the build.'
+
+      - if: >-
+          ${{
+            !cancelled() &&
+            (steps.variance.outputs.exit-code == '0' || steps.variance.outputs.exit-code == '1')
+          }}
+        id: push
+        name: put the build in front of a reviewer
+        shell: bash
+        env:
+          VARIANCE_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          node packages/cli/dist/bin.js push \
+            --config cases/storybook-case/variance.tribunal.config.json \
+            --branch "$VARIANCE_BRANCH"
+
+      # The build by the id `variance push` files it under, asked for with the
+      # review token, which the push never holds: what a reviewer opening the
+      # service would get, rather than the push's own word that it was sent.
+      - if: ${{ !cancelled() && steps.push.outcome == 'success' }}
+        name: the service filed the build
+        shell: bash
+        run: |
+          # shellcheck disable=SC2016 # the template literals are JavaScript's
+          node --input-type=module -e '
+            const build = `github-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`;
+            const response = await fetch(
+              `https://variance-tribunal-ci.machine-garden.workers.dev/review/builds/${build}`,
+              { headers: { authorization: `Bearer ${process.env.VARIANCE_REVIEW_TOKEN}` } },
+            );
+            if (!response.ok) {
+              console.error(`the service answered ${response.status} for build ${build}: ${await response.text()}`);
+              process.exit(1);
+            }
+          '
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tribunal-service-files
           path: |
             ${{ steps.variance.outputs.report }}
             ${{ steps.variance.outputs.images }}

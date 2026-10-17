@@ -1,0 +1,24 @@
+{
+  "project": "storybook-case-tribunal",
+  "profile": "chromium",
+  "viewport": { "width": 1024, "height": 768, "deviceScaleFactor": 1, "colorScheme": "light" },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "collector/index.mjs",
+    "excludeTags": ["no-variance"]
+  },
+  "baselines": {
+    "kind": "remote",
+    "endpoint": "https://variance-tribunal-ci.machine-garden.workers.dev",
+    "token": { "env": "VARIANCE_INGEST_TOKEN" }
+  },
+  "review": {
+    "endpoint": "https://variance-tribunal-ci.machine-garden.workers.dev",
+    "token": { "env": "VARIANCE_INGEST_TOKEN" }
+  },
+  "fonts": ["ui-sans-serif/400/normal/sha256-case-system-stack"],
+  "report": ".variance/tribunal/run.json",
+  "images": ".variance/tribunal/images"
+}

@@ -5192,6 +5192,7 @@ __metadata:
     "@variance-authority/react": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
     "@variance-authority/storybook-collector": "workspace:^"
+    "@variance-authority/tribunal": "workspace:^"
     esbuild: "npm:^0.25.0"
     playwright: "npm:^1.49.0"
     react: "npm:^19"
