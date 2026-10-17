@@ -3220,6 +3220,7 @@
         "textAtRecording": "function",
         "textsAt": "function",
         "textsOf": "function",
+        "timeBeforeCases": "function",
         "unmeasuredOf": "function",
         "valued": "function",
         "wholeEntry": "const",
@@ -3237,6 +3238,7 @@
         "cacheRootFor": "function"
       },
       "./journal": {
+        "AfterHook": "type",
         "CasePrecondition": "interface",
         "EXECUTION_GLOBAL": "const",
         "EnteredModules": "interface",
@@ -3245,6 +3247,7 @@
         "ExecutionCollector": "interface",
         "ExecutionJournal": "interface",
         "ExecutionRecord": "interface",
+        "HookedPlugin": "interface",
         "InstrumentMode": "type",
         "InstrumentingPlugin": "interface",
         "JourneyCookie": "interface",
@@ -3269,6 +3272,7 @@
         "TestSelectionProbeOptions": "interface",
         "TestSelectionRule": "interface",
         "TestSelectionRuleOptions": "interface",
+        "afterHook": "function",
         "closeStage": "function",
         "createSubjectRecorder": "function",
         "drainExecution": "function",
