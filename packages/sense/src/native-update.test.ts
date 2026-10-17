@@ -14,7 +14,9 @@ import { gitTreeOf } from './tree.js';
 
 /**
  * The addon's warm update and the JavaScript one are asked the same thing from
- * the same chain, and what they publish is compared record for record.
+ * the same chain, and what they publish is compared record for record, each
+ * parse with the declarations it harvested: `symbol` and `uses` read those
+ * for a changed file off the working layer.
  */
 describe('the native warm update', () => {
   let root: string;

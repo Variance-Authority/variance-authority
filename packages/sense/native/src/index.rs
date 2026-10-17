@@ -150,6 +150,10 @@ impl ParseRow for Read {
     fn size(&self) -> Option<crate::source_size::Size> {
         self.size
     }
+
+    fn doc(&self) -> crate::parse_columns::Span {
+        self.doc.map(|doc| (doc.start, doc.end))
+    }
 }
 
 /// What the path says about reading it: `parseWay` and the second half of

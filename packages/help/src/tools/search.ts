@@ -5,7 +5,7 @@ import type { SearchIndex } from '../search-index.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
-import type { ExportedMatch, PublishedMatch } from './search-answer.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
 import { searched, searchedFiles } from './search-answer.js';
 
@@ -63,9 +63,13 @@ import { searched, searchedFiles } from './search-answer.js';
  * runs the reading the installed packages already get — the question cut into
  * stems, stopwords dropped, and a name answering when it holds half of them —
  * so the repository's own names answer before any package that says the same
- * words. Its order is counts, written next to each row as the words it holds:
+ * words. A file answers beside them, by its own name and the doc it opens with,
+ * since what a file is for is said once at its top and by no one declaration
+ * in it. Its order is counts, written next to each row as the words it holds:
  * a caller can check `[holds: file, tests]`, and could not check a score.
- * It prints first, so a name it holds is not offered again by the loose pass.
+ * Between two that hold as many, the one whose doc writes more of the
+ * question's adjacent word pairs adjacent comes first. It prints first, so a
+ * name it holds is not offered again by the loose pass.
  *
  * ## Where the substring stops being enough
  *
@@ -111,13 +115,23 @@ function exportedLine(match: ExportedMatch): string {
   return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}${said}`;
 }
 
-const matchLine = (match: PublishedMatch | ExportedMatch): string =>
-  match.source === 'published' ? publishedLine(match) : exportedLine(match);
+/** One described file: the path, who holds it, and what the doc it opens with says first. */
+function fileLine(match: FileMatch): string {
+  return `${match.at} [file] — ${match.package ?? 'the repository'}${match.summary === undefined ? '' : ` — ${match.summary}`}`;
+}
+
+const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>
+  match.source === 'published' ? publishedLine(match) : match.source === 'exported' ? exportedLine(match) : declaredLine(match);
+
+const describedRow = (match: DescribedMatch): string =>
+  `${match.source === 'file' ? fileLine(match) : matchLine(match)} [holds: ${match.words.join(', ')}]`;
 
 /*
  * The loose pass — names the words reach when they are allowed apart and
- * allowed one character off — is `looseNames` in `loose.ts`, and what it
- * found is the `loose` section of the answer `search-answer.ts` builds.
+ * allowed one character off — is `looseNames` in `loose.ts` for the names a
+ * row holds and `looseDeclarations` in `loose-declared.ts` for the ones a file
+ * keeps to itself, and what they found is the `loose` section of the answer
+ * `search-answer.ts` builds.
  */
 
 const encoded = new WeakMap<Help, SearchIndex>();
@@ -181,10 +195,10 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       ? []
       : [
           '',
-          `${held.total} ${held.total === 1 ? 'name in this repository holds' : 'names in this repository hold'} at least half the words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held at all, then the words in the name.',
+          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} at least half the words of \`${query}\`, ` +
+            'read by stem as the packages are, best first: the words held at all, then the phrase its doc writes, then the words in the name.',
           '',
-          ...held.shown.map((match) => `${match.source === 'declared' ? declaredLine(match) : matchLine(match)} [holds: ${match.words.join(', ')}]`),
+          ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
         ];
   // This repository's own names before any installed package's: the question
@@ -279,10 +293,11 @@ export const search: Tool<Help> = {
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
-    'repository holds the query as written, its own names holding at least half of your words, read by ' +
-    'stem, come before any installed package, best first by the words in the name, each labelled with ' +
-    'the words it holds; names that match loosely — your words apart, or within a character of the ' +
-    'ones written — follow them. Neither is mixed into the sections above. On a large ' +
+    'repository holds the query as written, its own names and files holding at least half of your words, ' +
+    'read by stem, come before any installed package, a file by its name and the doc it opens with, best ' +
+    'first by the words held, then by how much of your phrase its doc writes, then by the words in the name, ' +
+    'each labelled with the words it holds; names that match loosely — your words apart, or within a ' +
+    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
     'answers with published names imported by the files that path reaches; `to` does the same ' +
