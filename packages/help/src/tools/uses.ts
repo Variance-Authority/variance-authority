@@ -7,7 +7,7 @@ import { entriesNamed, isPackage, unfound } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
 import { type Members, membersOf, membersStop, places, routes } from './members.js';
 import { originOf, passesOn } from './passed-on.js';
-import { type IndexedUse, UNCOUNTED, type Within, answeredBy, declaringExports, exportedAt, exportsApart, exportsNamed, importsOf, indexMissing, rustUnread } from './unpublished.js';
+import { type IndexedUse, UNCOUNTED, type Within, answeredBy, declaringExports, declaringFiles, exportedAt, exportsApart, exportsNamed, importsOf, indexMissing, rustUnread } from './unpublished.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -336,20 +336,6 @@ function apartLines(name: string, held: readonly Named[], within: Within, wanted
   return imported({ name, found: [], exported: held, sites, unread: undefined, within: uses, origin }, from, ownLines(within.inFile, name, limit), limit);
 }
 
-/**
- * The declaring exports of a name by the file that holds them: an import takes
- * a name from a file, so `const Shade` and `type Shade` of one file are one
- * answer, with that file's imports, and each kind in its heading.
- */
-function byFile(declaring: readonly (readonly [Named, Within])[]): readonly (readonly [readonly Named[], Within])[] {
-  const files = new Map<string, [Named[], Within]>();
-  for (const [held, within] of declaring) {
-    const file = files.get(held.at);
-    if (file === undefined) files.set(held.at, [[held], within]);
-    else file[0].push(held);
-  }
-  return [...files.values()];
-}
 
 /** The imports of an exported name, as `uses` has always answered them. */
 function imported(answer: Pick<ReturnType<typeof usesOf>, 'name' | 'found' | 'exported' | 'sites' | 'unread' | 'within' | 'origin'>, from: string | undefined, own: readonly string[], limit: number): string {
@@ -452,7 +438,7 @@ function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: stri
   // is answered as the name and the rest apart.
   const answered = answeredBy(help, name, found, pathSites);
   const others = exportsApart(help, root, name, wanted, answered);
-  const declaring = byFile(declaringExports(name, others, root));
+  const declaring = declaringFiles(declaringExports(name, others, root));
   const exported: readonly Named[] =
     found.length > 0 ? [] : byPath.length > 0 ? exportsNamed(help, name, wanted).filter((held) => !others.includes(held)) : (declaring[0]?.[0] ?? []);
   const apart = found.length > 0 || byPath.length > 0 ? declaring : declaring.slice(1);

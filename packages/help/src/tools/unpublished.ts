@@ -71,6 +71,21 @@ export function declaringExports(name: string, exported: readonly Named[], root:
 }
 
 /**
+ * The declaring exports of a name by the file that holds them: an import takes
+ * a name from a file, so `const Shade` and `type Shade` of one file are one
+ * answer, with that file's imports, and each kind in its heading.
+ */
+export function declaringFiles(declaring: readonly (readonly [Named, Within])[]): readonly (readonly [readonly Named[], Within])[] {
+  const files = new Map<string, [Named[], Within]>();
+  for (const [held, within] of declaring) {
+    const file = files.get(held.at);
+    if (file === undefined) files.set(held.at, [[held], within]);
+    else file[0].push(held);
+  }
+  return [...files.values()];
+}
+
+/**
  * Whether `within`, a specifier past `held`'s package name, names `held`'s file:
  * whether an import of exactly `within` resolved to it. Which file a specifier
  * names is the resolver's answer for an importer, so a specifier nothing
