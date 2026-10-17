@@ -94,7 +94,10 @@ Playwright does for its CLI skills, is not listed. `search` does not list skills
 ## `slowest-tests`
 
 The test files, then the test cases, that the latest recorded run spent longest
-in, with the duration the runner reported. Nothing is timed here. A file or case
+in. A file's time is what running it cost: the larger of the duration its
+runner reported and its phases summed, so the environment, setup files and
+import before its first case count, as Vitest's own file duration does not.
+Nothing is timed here. A file or case
 with no reported duration is counted apart and never ranked as fast. `--from`
 keeps the tests declared under the paths you give. `--to` keeps the tests that,
 in the recording, ran code in those paths, the same reading `variance covering`
