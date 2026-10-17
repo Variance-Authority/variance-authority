@@ -70,7 +70,7 @@ describe('variance ask uses over the paths a Rust file names an item by', () => 
 
     const { code, out } = await run(['ask', 'uses', '--name', 'flag']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`flag` is declared, not exported, at packages/kit/src/lexicon.rs:6');
+    expect(out).toContain('`flag` [function] is declared, not exported, at packages/kit/src/lexicon.rs:6');
     expect(out).toMatch(/^packages\/kit\/src\/lexicon_view\.rs:2\b/m);
   });
 
@@ -84,7 +84,7 @@ describe('variance ask uses over the paths a Rust file names an item by', () => 
 
     const { code, out } = await run(['ask', 'uses', '--name', 'flag']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`flag` is declared, not exported, at packages/kit/src/lexicon.rs:6');
+    expect(out).toContain('`flag` [function] is declared, not exported, at packages/kit/src/lexicon.rs:6');
     expect(out).toMatch(/^packages\/kit\/src\/lexicon_view\.rs:2\b/m);
   });
 
