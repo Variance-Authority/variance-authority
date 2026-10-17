@@ -147,13 +147,14 @@ export async function suiteShare(
   return { lines: [`commit=${commit}`], notes: [said], exit: EXIT_CLEAN };
 }
 
-/** `variance share --suite <name>`, from the directory it was run in. */
+/** `variance share --suite <name>`, from the directory it was run in: the lines to `out`, and what is said beside them to `err`. */
 export async function runSuiteShare(
   options: SuiteShareOptions,
   streams: { readonly out: (text: string) => void; readonly err: (text: string) => void },
   root: string = process.cwd(),
+  here: Here = {},
 ): Promise<ExitCode> {
-  const done = await suiteShare(root, options);
+  const done = await suiteShare(root, options, here);
   streams.out(`${done.lines.join('\n')}\n`);
   if (done.notes !== undefined) streams.err(`${done.notes.join('\n')}\n`);
   return done.exit;

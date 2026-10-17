@@ -22,7 +22,7 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, mainlinePassedOver, suiteBase } from './suite-base.js';
-import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
+import { publishSuite, runSuiteShare, suiteShare, suiteShareLines } from './suite-share.js';
 import { suiteTimes } from './suite-times.js';
 
 /**
@@ -320,6 +320,21 @@ describe('`variance share --suite unit`', () => {
       lines: [`commit=${ci.first}`],
       notes: [expect.stringMatching(/^record of "unit": read from mainline main, published at /u)],
       exit: EXIT_CLEAN,
+    });
+  });
+
+  it("prints the commit alone for `$GITHUB_OUTPUT`, and says the read on stderr", async () => {
+    const ci = await mainline();
+    const { worktree } = await laptop(ci.origin, ci.first);
+    const out: string[] = [];
+    const err: string[] = [];
+
+    const exit = await runSuiteShare({ suite: 'unit', publish: false, format: 'github' }, { out: (text) => out.push(text), err: (text) => err.push(text) }, worktree, { env: LOCAL });
+
+    expect({ exit, out, err }).toEqual({
+      exit: EXIT_CLEAN,
+      out: [`commit=${ci.first}\n`],
+      err: [expect.stringMatching(/^record of "unit": read from mainline main, published at .*\n$/su)],
     });
   });
 
