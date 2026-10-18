@@ -144,9 +144,12 @@ class JestCoverageReporter {
     const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
+    process.env[ROOT_VARIABLE] = this.#config.root;
+    // Under `loads` a module is marked as its file loads it, before any case
+    // opens: with no case directory the setup file keeps one bucket per file.
+    if (this.#config.mode === 'loads') return;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
-    process.env[ROOT_VARIABLE] = this.#config.root;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
     const stories = askedForStories(recordFile);
     if (stories !== undefined) process.env[STORY_DIRECTORY_VARIABLE] = stories;

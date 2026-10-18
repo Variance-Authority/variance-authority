@@ -308,6 +308,7 @@ export function withTestSelection(
           continuations: options.continuations === true,
           scope,
           story: askedForStories(coverageFile),
+          cases: mode !== 'loads',
         }),
       ),
       ...setupFiles,

@@ -202,8 +202,11 @@ export function withTestSelection(
   const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
-  const continuations = options.continuations === true;
-  const story = askedForStories(coverageFile);
+  // Under `loads` a module is marked as its file loads it, before any case
+  // opens: the file keeps one bucket, and nothing follows a case.
+  const cases = mode !== 'loads';
+  const continuations = cases && options.continuations === true;
+  const story = cases ? askedForStories(coverageFile) : undefined;
   return {
     ...config,
     plugins: [...array(config.plugins), ...plugins],
@@ -219,7 +222,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases }),
         ),
         ...setupFiles,
       ],

@@ -73,6 +73,11 @@ export interface SetupShim {
   readonly story?: string | undefined;
   /** The checkout the record names files against; given, the case scope keeps Eyes journals. */
   readonly root?: string;
+  /**
+   * Whether a bucket is kept per case. `false` keeps one for the file, opens no
+   * case scope and writes no case frame: what a run under `loads` records.
+   */
+  readonly cases?: boolean;
 }
 
 export function setupSource(
@@ -86,17 +91,19 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
-    shim.continuations === true
-  }, ${
-    shim.story === undefined
-      ? 'undefined'
-      : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
-  }, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)});
+const collector = ${shim.cases === false
+    ? `createRequire(${JSON.stringify(HERE)})('./collectors.cjs').flat(globalThis)`
+    : `createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
+      shim.continuations === true
+    }, ${
+      shim.story === undefined
+        ? 'undefined'
+        : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
+    }, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)})`};
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
-${shim.scope ?? ''}
+${shim.cases === false ? '' : shim.scope ?? ''}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the

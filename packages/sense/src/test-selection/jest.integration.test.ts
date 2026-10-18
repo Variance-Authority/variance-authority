@@ -9,7 +9,7 @@ import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { lineAt, linesOf } from './case-lines.js';
-import { recordedCases } from './case-record.js';
+import { caseSectionsOf, recordedCases } from './case-record.js';
 import { journeyGaps, openSetColumns } from './execution-set-format.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
@@ -30,6 +30,37 @@ afterEach(async () => {
 });
 
 describe('the Jest integration', () => {
+  it('records which files each test loaded under the loads recipe, with one bucket per file and no case index', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    const env = {
+      ...process.env,
+      VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+      VARIANCE_AUTHORITY_CACHE: directory,
+      FIXTURE_MODE: 'loads',
+    };
+    for (const testFile of ['test/alpha.case.ts', 'test/beta.case.ts', 'test/delta.case.ts']) {
+      await execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', testFile], { cwd: fixture, env });
+    }
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.modules.map((module) => [module.file, module.instrumented, module.blocks])).toEqual([
+      [at('src/decide.ts'), false, []],
+    ]);
+    const { index, before, last } = caseSectionsOf(await readFile(coverageFile));
+    expect({ index, before, last }).toEqual({ index: undefined, before: undefined, last: undefined });
+    const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
+    const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
+    // Every file that loaded the module, whichever line it reached.
+    await expect(selectTestFiles(coverageFile, `--- a/${at('src/decide.ts')}
++++ b/${at('src/decide.ts')}
+@@ -${line},1 +${line},1 @@
+-    return 'A';
++    return 'Alpha';`)).resolves.toEqual([at('test/alpha.case.ts'), at('test/beta.case.ts'), at('test/delta.case.ts')]);
+  }, 60_000);
+
   it('records tests transformed by @swc/jest beside the project\'s own setup file and reporter, and selects the one that covered a changed line', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-'));
     temporary.push(directory);

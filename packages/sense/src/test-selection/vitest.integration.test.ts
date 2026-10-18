@@ -1,3 +1,4 @@
+import { caseSectionsOf } from './case-record.js';
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -229,6 +230,11 @@ describe('the Vitest integration', () => {
     expect(coverage.modules.map((module) => [module.file, module.instrumented, module.blocks])).toEqual([
       [ext('src/decide.ts'), false, []],
     ]);
+    // A file is loaded before its first case opens, so a case of its own says
+    // nothing the file does not: the run keeps one bucket per file and writes
+    // no case index.
+    const { index, before, last, eyes } = caseSectionsOf(await readFile(coverageFile));
+    expect({ index, before, last, eyes }).toEqual({ index: undefined, before: undefined, last: undefined, eyes: undefined });
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
     // Alpha alone took the `A` branch, and beta loaded the file too: nothing

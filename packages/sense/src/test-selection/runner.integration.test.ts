@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CHECKOUT_MARKER } from './cache-layers.js';
 import { lineAt, linesOf } from './case-lines.js';
-import { caseIndexOf } from './case-record.js';
+import { caseIndexOf, caseSectionsOf } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { openSetColumns } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
@@ -54,6 +54,19 @@ async function recordInto(directory: string, ...flags: string[]): Promise<{ cove
 const lineIn = (source: string, text: string): number => source.slice(0, source.indexOf(text)).split('\n').length;
 
 describe('a runner with no seam, through @variance-authority/sense/runner', () => {
+  it('records which files each test file loaded under the loads recipe, with no case index', async () => {
+    const { coverageFile } = await record('--loads');
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.modules.every((module) => !module.instrumented && module.blocks.length === 0)).toBe(true);
+    expect(caseSectionsOf(await readFile(coverageFile)).index).toBeUndefined();
+    const label = await readFile(resolve(fixture, 'src/label.cjs'), 'utf8');
+    const line = lineIn(label, "    return 'took A';");
+    // Both files loaded the module; nothing says which of them reached the line.
+    await expect(selectTestFiles(coverageFile, `--- a/${at('src/label.cjs')}\n+++ b/${at('src/label.cjs')}\n@@ -${line},1 +${line},1 @@\n-    return 'took A';\n+    return 'went A';`))
+      .resolves.toEqual([at('test/alpha.case.mjs'), at('test/beta.case.mjs')]);
+  });
+
   it('records ES modules, CommonJS and TypeScript across processes, and selects the file that covered a changed line', async () => {
     const { coverageFile } = await record();
 
