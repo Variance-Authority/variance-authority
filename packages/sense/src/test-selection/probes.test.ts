@@ -38,6 +38,22 @@ describe('the collector import', () => {
   });
 });
 
+describe('a build under the loads recipe', () => {
+  it('marks each module as loaded after its own text, and probes nothing inside it', async () => {
+    await inRoot(async (root) => {
+      const module = resolve(root, 'Since.js');
+      await writeFile(module, CLIENT, 'utf8');
+
+      const { code } = testSelectionProbes({ root, mode: 'loads' }).transform.handler(CLIENT, module)!;
+
+      expect(code.startsWith(`${CLIENT}\n;`)).toBe(true);
+      expect(code).toContain('.r("Since.js@~');
+      expect(code).not.toMatch(/__va\(\d+\)/);
+      expect(statements(code).some((statement) => statement.type === 'ImportDeclaration' && statement.source?.value === 'variance-authority:execution-collector')).toBe(true);
+    });
+  });
+});
+
 describe('a module the dev server loads, whose file is there and cannot be read', () => {
   it('fails, naming the file and why, rather than probing it as a module no file holds', async () => {
     await inRoot(async (root) => {

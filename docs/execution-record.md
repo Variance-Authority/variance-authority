@@ -887,7 +887,9 @@ test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
 under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
-function and nothing between. A run refuses to fold a journal, or lay itself
+function and nothing between. Under `mode: 'loads'`, `sense:instrument/loads-v1`,
+a module has no ordinals: its id is spelled `path@~digest`, it is recorded with
+no blocks, and its arrival is the only hit it reports. A run refuses to fold a journal, or lay itself
 over a snapshot, cut under another recipe. A reader answers from such a
 snapshot as it holds it, and names both recipes and the regions the difference
 leaves unanswered.

@@ -268,6 +268,10 @@ same suites. At that
 cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
+When a test file is the grain you select at,
+[`mode: 'loads'`](../packages/sense/README.md#record-only-what-each-test-file-loaded)
+records what Ekstazi records: the files each test file loaded, with one line
+added after each module and nothing inside it.
 
 **It records blocks, and names them by position in the tree.** A region is a
 function, a branch arm, a loop body or a handler, and its identity is its
