@@ -65,10 +65,12 @@ a switch it composes, not a policy this package decides.
 
 ## Consequences
 
-- On `query-core` (21 test files, 614 tests, best of five, interleaved): the
-  plain run takes 1.19 s, `presence` 1.48 s, `loads` 1.36 s. Recording adds
-  0.17 s where `presence` adds 0.29 s: what is left is the mark's call per
-  module evaluated and Vite's transform of the marked text.
+- On this repository's unit slice (925 test files, 10,549 tests, 16 cores,
+  two interleaved rounds that agree within half a second): the run takes 66 s
+  unprobed, 74 s under `loads` and 78 s under `presence`. CPU time rises by
+  33 s under `loads` and 54 s under `presence`, on 768 s. `loads` costs about
+  60% of what `presence` costs, and what is left is the mark's call per module
+  evaluated and the seam's transform of every module it marks.
 - Under a shared realm a later test file is charged with every module an
   earlier one loaded, so a change selects more of it than an isolated run would.
 - A `loads` record selects at the file grain and cannot answer which line a

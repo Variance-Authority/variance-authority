@@ -444,8 +444,8 @@ withTestSelection(config, { mode: 'loads' });
 A module is marked as it loads, before any of its file's cases opens, so the
 record keeps one entry per test file and no cases: `continuations`, `cadence`
 and stories do not apply to it. Nothing is parsed or probed, so the run pays
-for one call per module evaluated: on TanStack Query's `query-core`,
-`'presence'` adds 0.29 s to a 1.19 s run, and `'loads'` adds 0.17 s. The mark is one line after the
+for one call per module evaluated: on this repository's unit suite, 925 test
+files that take 66 s, `'presence'` adds 11 s and `'loads'` adds 7 s. The mark is one line after the
 module's own text, the same on every seam, and under the default `placement`
 it is added after your transforms, so every transform in the run reads your
 code as you wrote it. Choose
