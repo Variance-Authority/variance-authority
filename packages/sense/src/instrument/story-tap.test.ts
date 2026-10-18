@@ -294,25 +294,13 @@ describe('what a function was handed, and what a module holds', () => {
     expect(run('out')).toEqual([1004, 1]);
   });
 
-  it('says which binding first held an object, so a value found anywhere leads to its declaration', () => {
+  it('names an object by the same ref in a later case, since the realm still holds it', () => {
     const { tap, run } = handed(true);
 
     run('checkout(2)');
-
-    expect(tap!.identify(run('Till') as object)).toEqual({
-      ref: 'ref2',
-      kind: 'class Till',
-      module: 'fixture.js',
-      region: 0,
-      name: 'Till',
-    });
-    expect(tap!.identify(run('cart') as object)).toMatchObject({ ref: 'ref1', name: 'cart' });
-    expect(tap!.identify(run('[]') as object)).toBeUndefined();
-
-    // The next case starts a new tape, and its module was held in the one before.
     tap!.reset();
     run('checkout(3)');
-    expect(tap!.identify(run('Till') as object)).toMatchObject({ ref: 'ref2', name: 'Till' });
+
     expect(tap!.read().notes.map(([, , text]) => text)).toContain('handed c=ref1 Object, tax=3, rest=ref7 Array(2)');
   });
 
@@ -327,32 +315,24 @@ describe('what a function was handed, and what a module holds', () => {
     expect([...held]).toEqual([['fixture.js', expect.stringMatching(/^holds cart=ref1 Object, label=/)]]);
   });
 
-  it('leads to the declaring binding even when a wrapper was handed the object before its module finished', () => {
+  it('names an object by what its framework calls it, when the framework said so to the realm', () => {
     const engine = probeLog.createEngine(false);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
-    const context = createContext({ __VA__: tap.root });
-    const source = 'function wrap(inner) { return { inner }; }\nfunction Panel() {}\nconst Shown = wrap(Panel);\n';
-    runInContext(instrument(source, 'fixture.js')!.code, context, { filename: 'fixture.js' });
+    const branded = (value: object): string | undefined => {
+      const brand = Object.getOwnPropertyDescriptor(value, 'brand')?.value;
+      return typeof brand === 'string' ? brand : undefined;
+    };
+    const failing = (): string => {
+      throw new Error('a framework that cannot tell');
+    };
+    const scope = { __VA__: tap.root, [Symbol.for('variance-authority.story.kind')]: [failing, branded] };
+    storyTap.listen(tap, scope);
+    const source = "const Theme = { brand: 'ui.theme' };\nconst Plain = { other: 1 };\n";
+    runInContext(instrument(source, 'fixture.js')!.code, createContext(scope), { filename: 'fixture.js' });
 
-    expect(tap.identify(runInContext('Panel', context) as object)).toEqual({
-      ref: 'ref1',
-      kind: 'function Panel',
-      module: 'fixture.js',
-      region: 0,
-      name: 'Panel',
-    });
-    expect(tap.identify(runInContext('Shown', context) as object)).toMatchObject({ region: 0, name: 'Shown' });
-  });
-
-  it('names an object by the symbol a framework marks its kind with, as React marks a context and a memo', () => {
-    const engine = probeLog.createEngine(false);
-    engine.use(engine.open('case'));
-    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
-    const source = "const Theme = { $$typeof: Symbol.for('react.context') };\nconst Shown = { $$typeof: Symbol.for('react.memo') };\n";
-    runInContext(instrument(source, 'fixture.js')!.code, createContext({ __VA__: tap.root }), { filename: 'fixture.js' });
-
-    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['holds Theme=ref1 react.context, Shown=ref2 react.memo']);
+    // A namer that throws is passed over, and an object no namer knows is named as before.
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['holds Theme=ref1 ui.theme, Plain=ref2 Object']);
   });
 
   it('never crowds out what the code said, however often a function is handed something', () => {

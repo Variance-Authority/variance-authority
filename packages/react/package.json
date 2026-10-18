@@ -26,6 +26,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./story": {
+      "types": "./dist/story.d.ts",
+      "default": "./dist/story.js"
     }
   },
   "main": "./dist/index.js",

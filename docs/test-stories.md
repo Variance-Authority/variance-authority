@@ -485,7 +485,10 @@ file, for every test that goes through it:
 A number or a boolean is shown as it is, and a string in quotes, on one line
 and cut to 40 characters. An object is shown as a ref and what it is: `ref5
 Object`, `ref6 Array(3)`, `ref2 function ThemeProvider`, `ref3 react.memo`.
-A story never shows what an object holds, and it calls none of its getters to
+A React context, memo or element is named by React's own word, such as
+`react.context`, when the suite's setup files include
+`@variance-authority/react/story` from [React](../packages/react); without it,
+each is an `Object`. A story never shows what an object holds, and it calls none of its getters to
 say what it is, though a `Proxy` still runs its traps. A string, a number or
 any other primitive is written as it is, so a token a function is handed lands
 in the story file beside the rest. The ref is the object's identity for the
