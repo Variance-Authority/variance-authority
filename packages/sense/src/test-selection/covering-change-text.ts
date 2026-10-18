@@ -1,4 +1,5 @@
 import { heldText } from './case-axes.js';
+import { rowOf } from './case-said.js';
 import type { RangeState } from './range-state.js';
 import type { CoveringChange, CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -77,7 +78,7 @@ export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: stri
 export function formatCoveringChange(
   changed: readonly StatedCoveringChange[],
   heading: CoveringChangeHeading = {},
-  note: CoveringCaseNote = (test) => ({ tail: heldText(test.preconditions), under: [] }),
+  note: CoveringCaseNote = (test) => ({ tail: heldText(rowOf(test)), under: [] }),
 ): string {
   const witness = (test: CoveringTest | ExecutionTest): readonly string[] => {
     const { tail, under } = note(test, '      ');

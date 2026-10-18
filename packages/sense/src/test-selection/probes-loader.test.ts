@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { parseSync } from 'oxc-parser';
 import { afterEach, describe, expect, it } from 'vitest';
 import { decode } from './map-segments.js';
 import probesLoader, { type ProbesLoaderContext } from './probes-loader.js';
@@ -31,6 +32,17 @@ function load(file: string, code: string, map: HandedMap, options: ProbesLoaderO
   };
   probesLoader.call(context, code, map);
   return handed!;
+}
+
+/** What `code` loads through `import`, `import()` and `export … from`, as the parser reads it; a text it cannot parse throws. */
+function imported(code: string): string[] {
+  const { errors, module } = parseSync('handed.js', code, { sourceType: 'module' });
+  if (errors.length > 0) throw new Error(errors.map((error) => error.message).join('\n'));
+  return [
+    ...module.staticImports.map((entry) => entry.moduleRequest.value),
+    ...module.dynamicImports.map((entry) => code.slice(entry.moduleRequest.start, entry.moduleRequest.end)),
+    ...module.staticExports.flatMap((entry) => entry.entries.flatMap((exported) => (exported.moduleRequest ? [exported.moduleRequest.value] : []))),
+  ];
 }
 
 async function checkout(): Promise<string> {
@@ -88,7 +100,7 @@ describe('the probes loader', () => {
     const first = code!.split('\n')[0]!;
     expect(first.startsWith('"use strict";')).toBe(true);
     expect(first.indexOf('require("!!')).toBeLessThan(first.indexOf('var __vaK'));
-    expect(code).not.toMatch(/\bimport\b/);
+    expect(imported(code!)).toEqual([]);
     // The header, which the map maps to the function, is where the map says, past the require.
     const columns = decode((map as { mappings: string }).mappings)[0]!.map((segment) => segment.column);
     expect(columns).toEqual([0, first.indexOf('var __vaK')]);
@@ -125,7 +137,7 @@ describe('the probes loader', () => {
     expect(error).toBeNull();
     expect(code).toMatch(/__vaE\(\);/);
     expect(code!.startsWith(`${written}\n;require("!!`)).toBe(true);
-    expect(code).not.toMatch(/\bimport\b/);
+    expect(imported(code!)).toEqual([]);
   });
 
   it('takes the collector into a module it marks with an import, as into one it probes', async () => {

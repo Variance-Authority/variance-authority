@@ -7,6 +7,7 @@ import {
   encodeAsSetExecutionIndex,
   readTestCoverage,
   recordedEyesAt,
+  rowOf,
   testCoverageFile,
   withCaseSections,
   type ExecutionTest,
@@ -42,7 +43,7 @@ afterEach(async () => {
 });
 
 const MOCKED = { name: 'network', value: 'mocked', site: 'test/total.test.ts:2', level: 1 };
-const SAID: ExecutionTest = { ...DISCOUNTS, preconditions: [MOCKED] };
+const SAID: ExecutionTest = { ...DISCOUNTS, said: JSON.stringify([[MOCKED.name, MOCKED.value, MOCKED.site, MOCKED.level]]) };
 const JOURNAL = { complete: true, attention: [], by: 'ci' };
 const EYES = { watched: [SAID.id], journals: [{ case: SAID.id, attempt: 1, journal: JOURNAL }] };
 
@@ -86,7 +87,9 @@ describe('a record laid from the mainline', () => {
     expect(await layMainline(clone, base.mainline, 'fixture')).toEqual({ laid });
     const ours = await readTestCoverage(made);
     expect((await readTestCoverage(laid)).modules).toEqual(ours.modules);
-    expect((await readExecutionIndex(laid)).tests).toEqual([SAID]);
+    const tests = (await readExecutionIndex(laid)).tests;
+    expect(tests).toEqual([SAID]);
+    expect(tests.map(rowOf)).toEqual([[MOCKED]]);
     expect(recordedEyesAt(laid)).toEqual(EYES);
     const { before, last } = caseSectionsAt(laid);
     expect({ before, last }).toEqual({ before: undefined, last: undefined });

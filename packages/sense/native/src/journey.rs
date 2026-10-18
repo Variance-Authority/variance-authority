@@ -221,7 +221,7 @@ fn fold(
     called_sets.fill(empty);
     if block_count == 0 || run.tests.is_empty() {
         return Ok(Folded {
-            bytes: journey_format::encode(&run.tests, &journey_format::CaseExtras::default(), &[], &sets, Some(gaps))?,
+            bytes: journey_format::encode(&run.tests, &journey_format::CaseExtras::default(), &[], &mut sets, Some(gaps))?,
             modules: 0,
             crossings: 0,
             passes: 0,
@@ -291,7 +291,7 @@ fn fold(
         .collect();
     let module_count = encoded.len() as u32;
     Ok(Folded {
-        bytes: journey_format::encode(&run.tests, &journey_format::CaseExtras::default(), &encoded, &sets, Some(gaps))?,
+        bytes: journey_format::encode(&run.tests, &journey_format::CaseExtras::default(), &encoded, &mut sets, Some(gaps))?,
         modules: module_count,
         crossings,
         passes,

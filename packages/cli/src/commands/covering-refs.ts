@@ -16,10 +16,10 @@ import { motionText } from './covering-motion.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
+import { heldText, rowOf, type CaseTwin } from '@variance-authority/sense/test-selection';
 import { caseNameOf, twinText, whereText } from './covering-where.js';
 
-type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
+type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
 
 /** Say the answer with every case numbered once. */
 export function formatCoveringRefs(answer: Covering): string {
@@ -161,7 +161,7 @@ class Table {
       if (test.file !== file) lines.push((file = test.file));
       lines.push(`  ${this.number.get(test.id)} ${
         test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`
-      }${heldText(test.preconditions)}`);
+      }${heldText(rowOf(test))}`);
       const twin = this.twins.get(test.id);
       if (twin !== undefined) lines.push(twinText(twin, caseNameOf, '      '));
     }

@@ -8,7 +8,7 @@ import { main } from '../bin.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   writeTestCoverage,
   type ExecutionIndex,
   type ExecutionTest,
@@ -26,7 +26,7 @@ import { caseNameOf, twinText } from './covering-where.js';
 function said(file: string, name: string, flag?: string, line = 3): ExecutionTest {
   return {
     id: `${file} > ${name}`, file, name,
-    preconditions: flag === undefined ? [] : [{ name: 'flag', value: flag, site: `${file}:${line}`, level: 1 }],
+    said: JSON.stringify(flag === undefined ? [] : [['flag', flag, `${file}:${line}`, 1]]),
   };
 }
 
@@ -62,7 +62,7 @@ const AXES = JSON.stringify({ names: { axes: [{ axis: 'flag', values: ['ff-off',
 async function record(): Promise<string> {
   const execution = join(await mkdtemp(join(tmpdir(), 'variance-covering-said-')), 'coverage.bin');
   await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-    index: encodeExecutionIndex(INDEX),
+    index: encodeAsSetExecutionIndex(INDEX),
   });
   return execution;
 }

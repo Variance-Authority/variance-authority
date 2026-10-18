@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::case_id::{self, CaseIds};
 use crate::case_owner::{journey_of, project_of, project_path, unpack_case};
-use crate::case_preconditions::{self, Precondition};
+use crate::case_said::{self, Said};
 use crate::order;
 
 const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x03];
@@ -35,8 +35,8 @@ pub struct Test {
     pub runner: Option<String>,
     /// How the case settled: [`UNSETTLED`], [`FINISHED`] or [`STOPPED`].
     pub settled: u8,
-    /// What the case said it arranged, resolved; `None` where nobody listened.
-    pub preconditions: Option<Vec<Precondition>>,
+    /// Everything the case said it arranged, unresolved; `None` where nobody listened.
+    pub said: Option<Said>,
 }
 
 /// The `tests.stopped` column's three states, as `execution-set-format.ts`
@@ -90,8 +90,8 @@ struct Coordinate {
     settled: u8,
     /// Every journey a frame of the case handed out, in replay order.
     journeys: Vec<String>,
-    /// What the case said across its frames, by [`case_preconditions::heard_across`].
-    said: Option<Vec<Precondition>>,
+    /// What the case said across its frames, by [`case_said::join`].
+    said: Option<Said>,
     /// Every frame written under this coordinate, in replay order.
     frames: Vec<usize>,
 }
@@ -131,7 +131,7 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
             project: coordinate.project,
             runner: Some(coordinate.id),
             settled: coordinate.settled,
-            preconditions: coordinate.said.map(case_preconditions::resolve),
+            said: coordinate.said,
         });
     }
     let mut tests_by_file = HashMap::new();
@@ -271,7 +271,7 @@ impl Visitor for InspectVisitor<'_> {
             // A case is written when it settles, so work that outlived it
             // arrives as a second frame under the same coordinate: one case,
             // joined as `inspectCaseRun` joins it.
-            let said = case_preconditions::said_of(packed)?.map(|said| case_preconditions::checkout(self.root, said));
+            let said = case_said::of_frame(packed)?.map(|said| case_said::heard(self.root, said));
             let journey = journey_of(packed);
             let key = (project_path(self.root, file), name.to_owned(), id.to_owned(), project_of(packed).map(str::to_owned));
             match self.at.get(&key) {
@@ -279,7 +279,7 @@ impl Visitor for InspectVisitor<'_> {
                     let coordinate = &mut self.coordinates[held];
                     coordinate.frames.push(self.frame);
                     coordinate.settled = settled_across(coordinate.settled, settled);
-                    coordinate.said = case_preconditions::heard_across(coordinate.said.take(), said);
+                    coordinate.said = case_said::join(coordinate.said.take(), said);
                     if !journey.is_empty() && !coordinate.journeys.iter().any(|known| known == journey) {
                         coordinate.journeys.push(journey.to_owned());
                     }

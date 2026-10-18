@@ -378,7 +378,9 @@ describe('what a case said it arranged', () => {
   const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
   const said = (frame: Uint8Array) => {
     const owner = journals.decodeJournal(frame).testFile;
-    return [caseOwner.unpackCase(owner).name, preconditions.saidOf(owner)?.map(([name, value, , level]) => [name, value, level])];
+    const field = preconditions.saidField(owner);
+    const items = field === undefined ? undefined : JSON.parse(field) as [string, unknown, string, number][];
+    return [caseOwner.unpackCase(owner).name, items?.map(([name, value, , level]) => [name, value, level])];
   };
 
   it('travels in the frame of the case that said it, and a case that only said something still writes one', () => {

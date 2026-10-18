@@ -8,10 +8,8 @@
  * the case body, or in a `beforeEach` running for the case — and throws for a
  * call no case is running, which a `describe` callback, a `beforeAll`, a file's
  * top level and work that outlives its case all are. The case frame carries
- * every call as a sixth field of its owner, beside the journey. The fold
- * resolves them with {@link resolve}: the body overrides a `beforeEach`, an
- * inner `describe`'s `beforeEach` an outer one's, and two values at one level
- * are both kept, because a contradiction is reported and not resolved.
+ * every call as a sixth field of its owner, beside the journey, and the
+ * addon's `case_said.rs` does the rest: it joins, stores and resolves them.
  *
  * A runner tells the recorder where a call stands, because only the runner
  * knows which hook is running: the case scope gains `phase`, for a runner that
@@ -45,16 +43,6 @@ type Said = readonly [name: string, value: Value, site: string, level: number];
 /** The level of a call made from the case body, narrower than any `beforeEach`. */
 const CASE_LEVEL = 0xffff;
 
-/** One precondition on a case's row: what was said, and where. */
-interface CasePrecondition {
-  readonly name: string;
-  readonly value: Value;
-  /** The repository-relative `file:line` of the call that said it. */
-  readonly site: string;
-  /** The level it was said at, as {@link Said} carries it: what a later merge resolves by. */
-  readonly level: number;
-}
-
 /**
  * Where a call stands, as the runner knows it.
  *
@@ -77,14 +65,14 @@ type Where =
  * @param context An async store for {@link within}, where the realm has one:
  * hooks of concurrent cases interleave at every await, and a variable set
  * around one of them is read by the other.
- * @param root The checkout, where the realm knows it: what the recorder warns
- * and throws then names a call site as the row does, from the checkout.
+ * @param siteNamed How a warning names a call site, where the realm can name it as
+ * the row does, from the checkout; as the realm spelled it otherwise.
  */
 function recorder(
   holder: object,
   running: () => string | undefined,
   context?: { run<Result>(store: Where, body: () => Result): Result; getStore(): Where | undefined },
-  root?: string,
+  siteNamed: (site: string) => string = (site) => site,
 ): {
   phase(where: Where | undefined): void;
   within<Result>(where: Where, body: () => Result): Result;
@@ -106,7 +94,6 @@ function recorder(
   const pending = new Map<unknown, Said[]>();
   let phase: Where | undefined;
   const where: { ask?: () => Where | undefined } = {};
-  const told = (site: string): string => root === undefined ? site : checkoutSite(root, site);
 
   const onCase = (key: string, said: readonly Said[]): void => {
     const held = byCase.get(key);
@@ -129,14 +116,14 @@ function recorder(
       }
       case 'after':
         console.warn(
-          `variance-authority: variancePrecondition at ${told(site)} ran after its case and is recorded on no case — ` +
+          `variance-authority: variancePrecondition at ${siteNamed(site)} ran after its case and is recorded on no case — ` +
             'say what a case arranged before it runs',
         );
         return;
       case 'outside':
         throw Object.assign(
           new Error(
-            `variance-authority: variancePrecondition at ${told(site)} ${at.because} — a precondition belongs to the ` +
+            `variance-authority: variancePrecondition at ${siteNamed(site)} ${at.because} — a precondition belongs to the ` +
               'case it arranged, so say it in the case body or in a beforeEach',
           ),
           { [MISPLACED]: true },
@@ -153,7 +140,7 @@ function recorder(
     const entries = entriesOf(named, value);
     if (entries === undefined) {
       console.warn(
-        `variance-authority: variancePrecondition at ${told(site)} takes a record of names to a string, number or boolean; ` +
+        `variance-authority: variancePrecondition at ${siteNamed(site)} takes a record of names to a string, number or boolean; ` +
           'nothing was recorded',
       );
       return;
@@ -247,33 +234,6 @@ function siteOf(called: unknown): string {
 }
 
 /**
- * A site as every other row names a file: a path, a `file:` URL, or a dev
- * server's `/@fs/` URL becomes repository-relative. A site that names no file
- * under the checkout is kept as the realm spelled it.
- *
- * The builtins are looked up when a site is named rather than required at the
- * top: this module is bundled into a Vitest config, where a `require` of a
- * builtin is refused, and it loads in realms that have none.
- */
-function checkoutSite(root: string, site: string): string {
-  const colon = site.lastIndexOf(':');
-  if (colon <= 0) return site;
-  const path = process.getBuiltinModule('node:path');
-  const url = process.getBuiltinModule('node:url');
-  let file = site.slice(0, colon);
-  if (file.startsWith('file:')) file = url.fileURLToPath(file);
-  else if (/^https?:/u.test(file)) {
-    const served = /\/@fs(\/.*)$/u.exec(new URL(file).pathname);
-    // FIXME: a browser realm's site served from the dev server's root, not
-    // `/@fs/`, keeps its URL — needs the server's root to name the file.
-    if (served === null) return site;
-    file = decodeURIComponent(served[1]!);
-  }
-  // `projectPath`'s spelling: relative to the checkout, with `/` on every platform.
-  return path.isAbsolute(file) ? `${path.relative(root, file).split(path.sep).join('/')}${site.slice(colon)}` : site;
-}
-
-/**
  * A packed case coordinate carrying what the case said, as its sixth field.
  *
  * Set at its index, as `case-owner.cts` sets every field after the
@@ -291,59 +251,10 @@ function packSaid(packed: string, said: readonly Said[]): string {
   return fields.join('\u0000');
 }
 
-/** What a frame owner says its case arranged, or nothing when it does not say. */
-function saidOf(packed: string): readonly Said[] | undefined {
+/** A frame owner's sixth field, as the realm wrote it; absent where its writer never listened. */
+function saidField(packed: string): string | undefined {
   const field = packed.split('\u0000')[SAID_FIELD];
-  if (field === undefined || field === '') return undefined;
-  const parsed = JSON.parse(field) as unknown;
-  if (!Array.isArray(parsed)) throw new Error('not a variance-authority case journal');
-  return parsed as Said[];
+  return field === undefined || field === '' ? undefined : field;
 }
 
-/**
- * A case's preconditions from everything said for it, across its frames.
- *
- * Per name, the narrowest level that said it wins. Every distinct value said at
- * that level is kept, at the site of the call that said it first — the calls
- * arrive in the order they were made, a later frame's after an earlier one's.
- * One value is the answer, two are a contradiction the reader reports — a retry
- * that says something else is the same contradiction. Ordered by name, then
- * value, so which names and values a row holds is the same whichever worker
- * wrote first; the site is the earliest call's, so across merged records it is
- * the one from the record passed first.
- */
-function resolve(said: readonly Said[]): CasePrecondition[] {
-  const byName = new Map<string, Said[]>();
-  for (const entry of said) {
-    const held = byName.get(entry[0]);
-    if (held === undefined) byName.set(entry[0], [entry]);
-    else held.push(entry);
-  }
-  const resolved: CasePrecondition[] = [];
-  for (const [name, entries] of byName) {
-    const narrowest = Math.max(...entries.map((entry) => entry[3]));
-    const values = new Map<string, CasePrecondition>();
-    for (const [, value, site, level] of entries) {
-      if (level !== narrowest) continue;
-      const key = `${typeof value}:${String(value)}`;
-      if (!values.has(key)) values.set(key, { name, value, site, level });
-    }
-    resolved.push(...values.values());
-  }
-  return resolved.sort((left, right) =>
-    order(left.name, right.name) || order(`${typeof left.value}:${String(left.value)}`, `${typeof right.value}:${String(right.value)}`));
-}
-
-/** The names said with more than one value at the level that decides them. */
-function contradictions(preconditions: readonly CasePrecondition[]): readonly string[] {
-  const seen = new Set<string>();
-  const twice = new Set<string>();
-  for (const { name } of preconditions) (seen.has(name) ? twice : seen).add(name);
-  return [...twice];
-}
-
-function order(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-export = { PRECONDITION, MISPLACED, CASE_LEVEL, recorder, entriesOf, siteOf, checkoutSite, packSaid, saidOf, resolve, contradictions };
+export = { PRECONDITION, MISPLACED, CASE_LEVEL, recorder, entriesOf, siteOf, packSaid, saidField };

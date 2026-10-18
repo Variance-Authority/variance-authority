@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   writeTestCoverage,
   type ExecutionIndex,
   type ExecutionTest,
@@ -30,7 +30,7 @@ vi.mock('./covering-frame.js', async (original) => ({
 
 function said(name: string, flag?: string): ExecutionTest {
   const file = 'a.test.ts';
-  return { id: `${file} > ${name}`, file, name, preconditions: flag === undefined ? [] : [{ name: 'flag', value: flag, site: `${file}:3`, level: 1 }] };
+  return { id: `${file} > ${name}`, file, name, said: JSON.stringify(flag === undefined ? [] : [['flag', flag, `${file}:3`, 1]]) };
 }
 
 const TESTS: readonly ExecutionTest[] = [said('on', 'ff-on'), said('off', 'ff-off'), said('plain')];
@@ -54,7 +54,7 @@ async function ask(argv: readonly string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-stale-'));
   const execution = join(root, 'coverage.bin');
   await writeTestCoverage(execution, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
-    index: encodeExecutionIndex(INDEX),
+    index: encodeAsSetExecutionIndex(INDEX),
   });
   await writeFile(join(root, 'variance.config.json'), JSON.stringify({ names: { axes: [{ axis: 'flag', values: ['ff-off', 'ff-on'] }] } }));
   return covering(parseCoveringArgs(readFlags(

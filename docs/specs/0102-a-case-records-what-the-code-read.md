@@ -153,11 +153,13 @@ case read, its `(key, value, site)` reads, a value JSON cannot hold marked
 reads made *at load*, which every case of the file carries, and the count of
 reads made where no case was running, with their sites.
 
-A precondition is recorded as spec 0093 lays it, a name, a value and a site per
-key, through the string table. A test that says a whole flag set says every key
-on every case; the size that adds to this repository's recording is measured
-and stated, and holding a shared set once per digest is the lever if it is too
-large.
+A read is recorded as spec 0093 lays a precondition: an item `(name, value,
+site)` and the set of cases that read it, interned in the record's crossing-set
+pool, in a `tests.read` section with the layout and the owner ADR-0094 gives
+`tests.said`. A test that says a whole flag set says every key on every case,
+and those cases share one set per key and value, so the size grows with the
+distinct facts, not with the cases; the size that adds to this repository's
+recording is measured and stated.
 
 Absent is not empty. A record made before this column existed answers
 **unmeasured**. A case from a recording that listened and read nothing answers
