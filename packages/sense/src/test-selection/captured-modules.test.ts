@@ -235,6 +235,18 @@ describe('a module marked as loaded', () => {
     });
   });
 
+  it('is how the loads recipe places a module, which it never probes', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(captureModule(root, file, SOURCE, defaultInclude, 'loads')).toEqual(markModule(root, file, SOURCE, defaultInclude));
+  });
+
+  it('is not marked under the loads recipe when `include` refuses it', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(captureModule(root, file, SOURCE, () => false, 'loads')).toBeUndefined();
+  });
+
   it('is not marked when the predicate refuses it', async () => {
     const { root, file } = await checkout(SOURCE);
 
