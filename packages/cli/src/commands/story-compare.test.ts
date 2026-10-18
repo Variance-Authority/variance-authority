@@ -110,7 +110,7 @@ describe('readings of one case compared', () => {
     expect(parseArgs(['story', '--compare', 'outcome'])).toMatchObject({ command: 'story', compare: 'outcome' });
     expect(parseArgs(['story', '--compare', '1,slow'])).toMatchObject({ compare: { labels: ['1', 'slow'] } });
     expect(parseArgs(['story', '--label', 'slow'])).toMatchObject({ label: 'slow' });
-    expect(() => parseArgs(['story', '--compare', 'slow'])).toThrow('--compare takes last, outcome, or two labels as <a>,<b>, not `slow`');
+    expect(() => parseArgs(['story', '--compare', 'slow'])).toThrow('--compare takes last, outcome, twin, or two labels as <a>,<b>, not `slow`');
     expect(() => parseArgs(['story', '--compare', 'last', '--whole'])).toThrow('--compare reads no route, so --whole has nothing to narrow');
     expect(() => parseArgs(['story', '--compare', 'last', '--label', 'slow'])).toThrow('--label picks the reading to read');
   });

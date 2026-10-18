@@ -5,7 +5,7 @@
  * against reading.
  */
 
-export { askedForStories, storyDirectories, storyDirectory, STORY_VARIABLE } from './directory.js';
+export { askedForStories, recordOfStories, storyDirectories, storyDirectory, STORY_VARIABLE } from './directory.js';
 export { foldSteps, PERIOD, type Step } from './fold.js';
 export { compareReadings, type Comparison, type Moment, type OnlyIn, type PlaceDifference, type Side, type SideSummary } from './compare.js';
 export { drawRoute, listStories, readRoute, type Arm, type Place, type Region, type Route, type Stop, type StoryEntry, type Untaken } from './read.js';

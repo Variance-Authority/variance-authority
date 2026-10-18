@@ -3354,6 +3354,7 @@
         "foldSteps": "function",
         "listStories": "function",
         "readRoute": "function",
+        "recordOfStories": "function",
         "storyDirectories": "function",
         "storyDirectory": "function"
       },

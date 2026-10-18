@@ -18,7 +18,9 @@ import {
   type PlaceDifference,
   type StoryEntry,
 } from '@variance-authority/sense/story';
+import type { CaseTwin } from '@variance-authority/sense/test-selection';
 import type { StoryCompare } from '../story-args.js';
+import { caseNameOf, twinText } from './covering-where.js';
 
 /** What a run with the variable set to `1` is called, when a comparison names it. */
 const UNLABELLED = '1';
@@ -42,7 +44,7 @@ export interface Unmatched {
  * compared. When a side holds no reading, the newest of the other is drawn
  * alone, with what is missing said beside it.
  */
-export function compareStory(root: string, readings: readonly StoryEntry[], compare: StoryCompare): Comparison | Unmatched {
+export function compareStory(root: string, readings: readonly StoryEntry[], compare: Exclude<StoryCompare, 'twin'>): Comparison | Unmatched {
   const alone = (side: readonly StoryEntry[], missing: string): Unmatched => ({ alone: (side[0] ?? readings[0])!, unmatched: `nothing to compare it with: ${missing}` });
   if (compare === 'last') {
     if (readings.length < 2) return alone(readings, 'this is the only reading of this case kept');
@@ -74,11 +76,13 @@ const PAIRS = 5;
 /** Differences of one kind listed on a side before the rest are counted. */
 const LISTED = 12;
 
-export function formatComparison(comparison: Comparison, format: 'text' | 'json'): string {
-  if (format === 'json') return `${JSON.stringify({ comparison }, null, 2)}\n`;
+/** Two sides compared, and the twin the second side was read from when `--compare twin` named it. */
+export function formatComparison(comparison: Comparison, format: 'text' | 'json', twin?: CaseTwin): string {
+  if (format === 'json') return `${JSON.stringify({ comparison, ...(twin === undefined ? {} : { twin }) }, null, 2)}\n`;
   const [a, b] = comparison.sides;
   const text = [
     `compare  ${comparison.file} > ${comparison.name}`,
+    ...(twin === undefined ? [] : [twinText(twin, caseNameOf, '  ')]),
     `  ${sideText(a)} against ${sideText(b)}`,
   ];
   if (comparison.single) {

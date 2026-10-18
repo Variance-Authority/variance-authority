@@ -259,6 +259,7 @@ where only the run differs, or a setup you chose, where you name what differs:
 | `outcome` | the readings that passed | the readings that threw | nothing you chose: the run |
 | `last` | the newest reading | the reading before it | the run, and anything you edited between the two |
 | `<a>,<b>` | the readings labelled `a` | the readings labelled `b` | what you set up differently for each label |
+| `twin` | the test's readings | the readings of its [twin](case-preconditions.md#twins) | the one precondition the two tests recorded differently |
 
 You label a run by setting `VARIANCE_AUTHORITY_STORY` to a name in place of
 `1`. Use labels for a test that passes alone and fails with its file, a feature flag on and off,
@@ -270,6 +271,26 @@ VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the 
 VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
 variance story --name "cart > removes the last item" --compare alone,file
 ```
+
+When two tests in one file differ by a precondition they record, such as a
+flag on and off or one user and another, you do not need labels. Declare the
+axis in `names.axes`, record both tests, and compare one with its
+[twin](case-preconditions.md#twins):
+
+```bash
+VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/checkout.test.ts
+variance story --name "applies the discount" --compare twin
+```
+
+```text
+compare  src/checkout.test.ts > applies the discount
+  twin at discount=off: charges the regular price
+  discount=on (3 readings) against discount=off (3 readings)
+```
+
+The twin is read from the record the stories were written beside, so it is the
+test `covering` would name, looked for among every test of the file rather than
+the ones that covered some code you asked about.
 
 `before the test`, at the top of each story, shows the code the runner ran right before the
 test, such as code another test's `afterEach` called.

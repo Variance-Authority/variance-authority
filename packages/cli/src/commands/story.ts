@@ -33,12 +33,14 @@ import {
   type StoryEntry,
   type Untaken,
 } from '@variance-authority/sense/story';
+import type { CaseTwin } from '@variance-authority/sense/test-selection';
 import { checkoutFile } from '../checkout-file.js';
 import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
 import { compareStory, formatComparison, labelled } from './story-compare.js';
+import { compareTwin } from './story-twin.js';
 import { armTree } from './story-tree.js';
 import { numbered, through, window, type FileVisits, type Gap, type Line } from './story-view.js';
 
@@ -58,11 +60,11 @@ export type StoryAnswer =
       readonly unmatched?: string;
     };
   }
-  | { readonly comparison: Comparison }
+  | { readonly comparison: Comparison; readonly twin?: CaseTwin }
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
-export function story(parsed: ParsedStory): StoryAnswer {
+export async function story(parsed: ParsedStory): Promise<StoryAnswer> {
   const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
   const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
@@ -84,8 +86,10 @@ export function story(parsed: ParsedStory): StoryAnswer {
   // Readings are listed newest first within a case, so a case's first is its newest.
   const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));
   if (cases.size > 1) return { stories: matching };
-  const compared = parsed.compare === undefined ? undefined : compareStory(parsed.root, matching, parsed.compare);
-  if (compared !== undefined && !('alone' in compared)) return { comparison: compared };
+  const compared = parsed.compare === undefined
+    ? undefined
+    : parsed.compare === 'twin' ? await compareTwin(parsed.root, matching, all) : compareStory(parsed.root, matching, parsed.compare);
+  if (compared !== undefined && !('alone' in compared)) return 'twin' in compared ? compared : { comparison: compared };
   const newest = compared?.alone ?? matching[0]!;
   const route = readRoute(parsed.root, newest.path);
   const packages: Record<string, string> = {};
@@ -138,7 +142,7 @@ function partOf(lines: readonly Line[], zoom: StoryZoom | undefined, packageOf: 
 const AROUND = 3;
 
 export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): string {
-  if ('comparison' in answer) return formatComparison(answer.comparison, format);
+  if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.twin);
   if ('stories' in answer) return storiesText(answer.stories, format);
   const { route } = answer;
   const packages = answer.packages ?? {};

@@ -21,10 +21,11 @@ export interface ParsedStory {
 
 /**
  * The two sides of a comparison: the two newest readings, the readings that
- * passed against the ones that threw, or the readings under one label against
- * another's. `1` names the readings a run wrote with the variable set to `1`.
+ * passed against the ones that threw, the case's readings against its twin's
+ * one step toward the base of an axis it said, or the readings under one label
+ * against another's. `1` names the readings a run wrote with the variable set to `1`.
  */
-export type StoryCompare = 'last' | 'outcome' | { readonly labels: readonly [string, string] };
+export type StoryCompare = 'last' | 'outcome' | 'twin' | { readonly labels: readonly [string, string] };
 
 /** One file's part of the route, one package's, the steps near one step, or all of it. */
 export type StoryZoom =
@@ -69,10 +70,10 @@ export function parseStory(flags: Flags): ParsedStory {
 
 function compareOf(value: string | undefined): StoryCompare | undefined {
   if (value === undefined) return undefined;
-  if (value === 'last' || value === 'outcome') return value;
+  if (value === 'last' || value === 'outcome' || value === 'twin') return value;
   const labels = value.split(',');
   if (labels.length !== 2 || labels.some((label) => label === '') || labels[0] === labels[1]) {
-    throw new OperatorError(`--compare takes last, outcome, or two labels as <a>,<b>, not \`${value}\``);
+    throw new OperatorError(`--compare takes last, outcome, twin, or two labels as <a>,<b>, not \`${value}\``);
   }
   return { labels: [labels[0]!, labels[1]!] };
 }

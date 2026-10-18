@@ -333,6 +333,6 @@ describe('a story read as a route', () => {
   it('refuses a checkout with no story by naming the variable that writes one', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-story-'));
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ cacheRoot: 'cache' }));
-    expect(() => story({ command: 'story', root, format: 'text' })).toThrow(/VARIANCE_AUTHORITY_STORY=1/);
+    await expect(story({ command: 'story', root, format: 'text' })).rejects.toThrow(/VARIANCE_AUTHORITY_STORY=1/);
   });
 });
