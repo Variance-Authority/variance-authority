@@ -69,6 +69,12 @@ const CACHING_PAGE = `<!doctype html><html><head><link rel="prefetch" href="/gue
 </body></html>`;
 
 let server: Server | undefined;
+/**
+ * A page or context per test, never per subject. What each test reads is the
+ * network its navigations make, so a load is the subject: the cache tests open
+ * a second page to be answered by the first one's fetches, and the browser is
+ * launched once for the file.
+ */
 let browser: Browser | undefined;
 let base = '';
 const served: string[] = [];

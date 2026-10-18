@@ -34,8 +34,9 @@ export const BASELINE = join(ROOT, 'tools/owners.baseline.json');
  *
  * Atomic writing has no owner across packages. The message says so and names
  * the writer the same package already has, which is the nearest thing to one.
- * A timer and a fresh page have no owner file either: what owns them is a
- * rule, readiness by signal and one page per session, so the message names it.
+ * A timer has no owner file either: what owns it is a rule, readiness by
+ * signal, so the message names it. A fresh page has both: the rule, one page
+ * per session, and the files that lease the session its browser and pages.
  */
 export const IDIOMS = {
   digest: {
@@ -62,8 +63,9 @@ export const IDIOMS = {
   'fresh-page': {
     owner:
       'the page the session already holds, switched in place through the harness API (ADR-0009); ' +
-      'a navigation, a reload, or a new browser, page or context per subject is the isolation that was measured and rejected',
-    owns: [],
+      'a navigation, a reload, or a new browser, page or context per subject is the isolation that was measured and rejected; ' +
+      'a browser, context or page is leased from `browsers.ts` or `PagePool` in `@variance-authority/playwright`',
+    owns: ['packages/playwright/src/browsers.ts', 'packages/playwright/src/page-pool.ts'],
   },
 };
 
