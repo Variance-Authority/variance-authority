@@ -41,7 +41,7 @@ next, so the design can be read apart from what the diff made of it:
    and `yarn restrictions` already fail is not a finding; say only when the diff
    gets past them, as a domain's knowledge spelled with names the check does
    not list, or a package newly called `mixed` that composes nothing. A colour
-   gap is always **blocking**.
+   gap is always **blocking**, and no reason in the PR body clears it.
    A change that adds a check — a ratchet, a fence, a reviewer — is judged the
    same way, and three more questions: what it misses that the rule names, what
    it flags that the rule allows, and whether another check already decides it.

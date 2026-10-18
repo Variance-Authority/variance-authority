@@ -163,13 +163,33 @@ export function sitesIn(file, text, own) {
   return sites;
 }
 
-// `import … from`, `export … from`, `import()`, `require()`.
+// `import … from`, `export … from`, `import()`, `import x = require()`,
+// `declare module`, `import('…').T`, `require()`, `require.resolve()`, and a
+// runner's mock of a module.
+const LOADERS = {
+  require: ['resolve'],
+  vi: ['mock', 'doMock', 'unmock', 'importActual', 'importMock'],
+  jest: ['mock', 'doMock', 'unmock', 'requireActual', 'requireMock'],
+};
+
 function specifierOf(node) {
   const literal = (value) => (value?.type === 'Literal' && typeof value.value === 'string' ? value.value : undefined);
-  if (['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration', 'ImportExpression'].includes(node.type)) {
+  if (['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration', 'ImportExpression', 'TSImportType'].includes(node.type)) {
     return literal(node.source);
   }
-  if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'require') {
+  if (node.type === 'TSImportEqualsDeclaration' && node.moduleReference.type === 'TSExternalModuleReference') {
+    return literal(node.moduleReference.expression);
+  }
+  if (node.type === 'TSModuleDeclaration') return literal(node.id);
+  if (node.type !== 'CallExpression') return undefined;
+  const { callee } = node;
+  if (callee.type === 'Identifier' && callee.name === 'require') return literal(node.arguments[0]);
+  if (
+    callee.type === 'MemberExpression' &&
+    !callee.computed &&
+    callee.object.type === 'Identifier' &&
+    LOADERS[callee.object.name]?.includes(callee.property.name)
+  ) {
     return literal(node.arguments[0]);
   }
   return undefined;

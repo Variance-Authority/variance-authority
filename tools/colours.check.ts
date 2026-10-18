@@ -76,6 +76,20 @@ describe('the colour reader', () => {
     ]);
   });
 
+  it("finds TypeScript's import forms, a resolve and a mock of a domain", () => {
+    expect(
+      read(
+        [
+          "import globals = require('@jest/globals');",
+          "declare module 'react' {}",
+          "type FC = import('react').FC;",
+          "const entry = require.resolve('vitest');",
+          "vi.mock('react-dom');",
+        ].join('\n'),
+      ),
+    ).toEqual(['jest @jest/globals', 'react react', 'react react', 'vitest vitest', 'react react-dom']);
+  });
+
   it('finds an import of a mixed package, which carries every colour it composes', () => {
     expect(read("import { tools } from '@variance-authority/mcp/tools';")).toEqual(['mixed @variance-authority/mcp/tools']);
   });

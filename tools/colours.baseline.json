@@ -12,7 +12,7 @@
   {
     "colour": "jest",
     "at": "packages/sense/src/test-selection/jest-setup.cts",
-    "count": 3
+    "count": 4
   },
   {
     "colour": "vitest",
