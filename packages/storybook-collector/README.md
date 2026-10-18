@@ -462,9 +462,14 @@ pays it once, so only the first story read on it carries it, and a story the
 preview switched to reads 0, as the second test in one file pays no worker
 start. `collect` is importing the story's file and everything it loads, and then
 unmounting the story shown before it: Storybook does that in between and signals
-nothing for it. `cases` is the render, from loaders through the play function to
+nothing for it. No file is imported before its first story comes up — the
+story's parameters are read from the file the preview loads to show it — so the
+first story of each file carries that file's import, and the stories after it
+read only the unmount. `cases` is the render, from loaders through the play function to
 `afterEach`, or to the phase it ended on when it errored or was aborted. Each
-width a story is read at is its own row, with its own figures.
+width a story is read at is its own row, with its own figures; the widths share
+one visit on one page, so the first carries the import and the others are the
+same story shown again at another size.
 
 ## When integration fails
 

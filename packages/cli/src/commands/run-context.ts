@@ -282,6 +282,12 @@ export interface ObserveContext {
    * no clock, and then nothing is timed: the same rule as `costMs`.
    */
   readonly steps?: StepClock;
+  /**
+   * Where a second visit to this subject says what it could not read on the
+   * way. The first visit's warnings are the run's already; a second may say
+   * more, and the run states each once.
+   */
+  readonly said?: (warning: string) => void;
 }
 
 export type Outcome =

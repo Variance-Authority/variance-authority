@@ -360,7 +360,7 @@ sequenceDiagram
   `packages/storybook-collector/src/index.ts` and
   `packages/playwright-test/src/fixture.ts`.
 - Collector to run. `Collector.collect(subject: PlannedSubject):
-  Promise<Collected>` in `packages/cli/src/commands/collector.ts`; `Collected`
+  Promise<Collected | Visit>` in `packages/cli/src/commands/collector.ts`; `Collected`
   is a discriminated union whose failure arm is `{ ok: false, because }` — a
   value, not an exception, so one unreachable subject costs the other subjects
   nothing and is still named. Every collection in this trace, including both

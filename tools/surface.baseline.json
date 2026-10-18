@@ -292,9 +292,11 @@
         "VALUE_RECIPE": "const",
         "ValueShaping": "interface",
         "Viewport": "interface",
+        "Widenable": "interface",
         "Wiring": "interface",
         "accessibilitySnapshot": "function",
         "assetUrl": "function",
+        "atWidth": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",
@@ -339,6 +341,7 @@
         "pointerToken": "function",
         "profileById": "function",
         "propsDigest": "function",
+        "realizes": "function",
         "recipeCss": "function",
         "recipeDigest": "function",
         "recipeOf": "function",
@@ -354,6 +357,7 @@
         "totalsOf": "function",
         "waitForFonts": "const",
         "waitForImages": "const",
+        "widenedFrom": "function",
         "withoutOrigin": "function"
       },
       "./share": {
@@ -3733,6 +3737,8 @@
         "SourceScan": "interface",
         "StoryExecutionOptions": "type",
         "StorybookCollectorOptions": "interface",
+        "Visit": "interface",
+        "VisitedSubject": "interface",
         "storybookCollector": "function"
       },
       "./preset": {

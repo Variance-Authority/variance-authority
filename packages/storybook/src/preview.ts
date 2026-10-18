@@ -18,7 +18,7 @@ import { PARAMETERS_KEY, type ParametersRead } from './parameters.js';
 import { applyGlobals } from './preview-globals.js';
 import { previewUrl } from './preview-url.js';
 import { showStory } from './show-story.js';
-import { readStoryParameters } from './story-parameters.js';
+import { loadStoryParameters } from './story-parameters.js';
 import { beginFinishWatch } from './story-finished.js';
 import { enterTestEnvironment } from './story-test-environment.js';
 import { STORY_TIMING_KEY, type StoryTiming } from './story-timing.js';
@@ -406,15 +406,18 @@ export async function collectStories(
 }
 
 /**
- * Every story's `parameters.variance`, from a preview that is already open.
+ * One story's `parameters.variance`, from a preview that is already open.
  *
- * Asked once per session rather than once per story: `extract()` loads every
- * story module, and after that the answer does not change until the build does.
- * A preview that cannot answer returns why, and the caller decides what a run
- * without parameters means.
+ * Asked when the story is reached, before it is shown: the preview imports the
+ * story's file to answer, which is the import `showStory` would have made, so it
+ * is paid once and charged to this story's `collect`. Nothing else is imported —
+ * a run that reads every story's parameters up front pays for the whole
+ * Storybook before its first story and times every file's import as free. A
+ * preview that cannot answer returns why, and the caller decides what reading
+ * the story without its parameters means.
  */
-export async function readParameters(page: StoryPage): Promise<ParametersRead> {
-  return page.evaluate(readStoryParameters, PARAMETERS_KEY);
+export async function readParameters(page: StoryPage, storyId: string): Promise<ParametersRead> {
+  return page.evaluate(loadStoryParameters, { key: PARAMETERS_KEY, storyId, timingKey: STORY_TIMING_KEY });
 }
 
 /**

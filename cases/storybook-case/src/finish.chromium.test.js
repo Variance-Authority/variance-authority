@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { collectStories, collectStory } from '@variance-authority/storybook';
+import { collectStories, collectStory, harnessPage, readParameters } from '@variance-authority/storybook';
 
 /**
  * The end of a render, against a Storybook that has one.
@@ -295,6 +295,37 @@ live('where the browser spent each story', () => {
       // The busy story's `afterEach` holds its render open for two seconds,
       // and that hook is the story's own time.
       expect(busy.cases).toBeGreaterThanOrEqual(2_000);
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+
+  it("gives a story's file to the first story read from it, when the run reached it over the channel", async () => {
+    // A document of its own, as a run's world is: what is timed is the first
+    // import of the file, and a page that already showed a story from it would
+    // have nothing left to import.
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    const fetches = [];
+    page.on('requestfinished', (request) => {
+      if (/\/button\.stories-[^/]*\.js$/.test(request.url())) fetches.push(request.timing());
+    });
+
+    try {
+      await page.addInitScript({ path: COLLECTOR_AGENT });
+      // Where a run's world opens: the preview with no story selected, so the
+      // preview imports nothing until it is asked for a story.
+      await page.goto(`${baseUrl}/iframe.html`, { waitUntil: 'load' });
+      const driven = harnessPage({ page });
+
+      // The story's parameters, read before it is shown: this is the import.
+      expect(await readParameters(driven, FIRST)).toEqual({});
+      const outcome = await collectStory(driven, FIRST, { baseUrl });
+
+      expect(outcome.status).toBe('rendered');
+      expect(fetches).toHaveLength(1);
+      // The import holds the fetch of the file, so the time that held the
+      // import is at least as long as the wire was.
+      expect(outcome.timing?.collect).toBeGreaterThanOrEqual(fetches[0].responseEnd);
     } finally {
       await page.close();
     }

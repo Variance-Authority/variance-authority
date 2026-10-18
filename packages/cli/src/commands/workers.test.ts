@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { workersOf } from './lanes.js';
 import { mergeReports } from './merge.js';
 import type { Collector, Plan } from './run.js';
+import type { Visit } from './collector.js';
 import { collecting, planOf as storiesOf, rendered } from './evidence-fixture.js';
 import { collectorOf, configOf, documentFor, painter, runWith, storeAnswering, whiteBaselineOf } from './run-fixture.js';
 
@@ -255,6 +256,29 @@ describe('workers', () => {
     // The file a shard places rides with the cost, so the next run can price the group.
     expect(timed.report.observations.map((o) => o.declaredIn)).toEqual(['f0.stories.tsx', 'f1.stories.tsx']);
     expect(untimed.report.observations.every((o) => !('costMs' in o) && !('declaredIn' in o))).toBe(true);
+  });
+
+  // One visit reads every width at once, so the visit's time belongs to the
+  // story. A width that failed, or a glob left out, is no observation to carry
+  // it, and the first width read carries it instead: summed over the story the
+  // cost is still what the visit took, which is what placement prices.
+  it('charges the visit to the first width read when a width before it was not', async () => {
+    let now = 0;
+    const story = 'story:card--default';
+    const visit: Visit = {
+      subjects: [
+        { planned: { subject: { id: `${story}@375`, kind: 'story' } }, collected: { ok: false, because: 'the page threw' } },
+        { planned: { subject: { id: `${story}@800`, kind: 'story' } }, collected: rendered(`${story}@800`) },
+      ],
+    };
+    const { collector } = collecting(storiesOf([[story, 'card.tsx']]), () => {
+      now += 100;
+      return visit;
+    });
+    const { report } = await runWith(configOf({ workers: 1 }), collector, storeAnswering(null), { elapsed: () => (now += 5) });
+
+    expect(report.observations.map((o) => o.subject)).toEqual([`${story}@800`]);
+    expect(report.observations[0]!.costMs).toBeGreaterThanOrEqual(100);
   });
 
   it('hands the collector the time it recorded for each subject as it closes, so a recording carries the same figure', async () => {
