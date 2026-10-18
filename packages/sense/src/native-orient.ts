@@ -397,6 +397,10 @@ export interface NativeNameUse {
   kind: 'story' | 'test' | 'source';
   through?: 'dynamic' | 'namespace' | null;
   throughLine: number;
+  /** Read off the module's `default`, which under interop is a CommonJS module's `module.exports`. */
+  throughDefault: boolean;
+  /** The module goes, whole, somewhere the reader does not follow: the line may read the name. */
+  whole: boolean;
 }
 
 /** Who imports one name out of a set of files, and which files pass it on with `export … from`. */

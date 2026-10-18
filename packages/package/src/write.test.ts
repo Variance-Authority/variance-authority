@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { readHelp } from './help.js';
+import { readHelp, type Entry, type Help, type Opening } from './help.js';
 import { opening, writeGaps, writeIndex, writeLlms } from './write.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
@@ -98,5 +98,40 @@ describe('the first paragraph of a doc', () => {
 
   it('ends at a line of spaces, and keeps no indentation from a wrapped line', () => {
     expect(opening('What it is,\n    indented under it.\n   \nThen a reason.')).toBe('What it is, indented under it.');
+  });
+});
+
+describe('a name the reading cannot decide', () => {
+  // `pass` is read by nobody by name; `other` passes its module on whole, and
+  // `third` reads `read` off the module's `default`. Neither is a use, and
+  // neither leaves the name dead: each page says it is unknown.
+  const passed = { by: 'other', at: 'packages/other/src/index.ts', line: 3, type: false, kind: 'source' as const, through: { kind: 'dynamic' as const, line: 2, whole: true as const } };
+  const offDefault = { by: 'third', at: 'packages/third/src/index.ts', line: 2, type: false, kind: 'source' as const, through: { kind: 'dynamic' as const, line: 2, throughDefault: true as const } };
+  const own = { ...passed, by: 'lib', at: 'packages/lib/src/test.ts' };
+  const entry = (name: string, throughDefault: Entry['throughDefault']): Entry => ({ name, kind: 'function', at: 'packages/lib/src/index.ts', line: 1, usedBy: [], uses: 0, sites: [], throughDefault });
+  const help = (whole: Opening['whole']): Help => ({
+    packages: [{ name: 'lib', declared: {}, entry: true, openings: [{ subpath: '.', source: 'packages/lib/src/index.ts', entries: [entry('pass', []), entry('read', [offDefault])], whole }] }],
+    deep: [],
+    unfollowed: [],
+    byPath: [],
+    exported: [],
+    unreadable: [],
+  });
+
+  it('says on the long page that it is not imported by name and where it may be read', () => {
+    const text = writeIndex(help([passed]), PAGE);
+    expect(text).toContain('— not imported by name anywhere else; it may be read in 1 place: 1 passing the module on whole, so whether it is used is unknown');
+    expect(text).toContain('— not imported by name anywhere else; it may be read in 2 places: 1 off the module\'s `default`, 1 passing the module on whole, so whether it is used is unknown');
+    expect(text).not.toContain('used nowhere else');
+  });
+
+  it('counts it on the short page as unknown, not as unused', () => {
+    expect(writeLlms(help([passed]), PAGE)).toContain(': 2 names, 0 used across a package boundary, 2 unknown, 0 documented');
+  });
+
+  it('is unused when only its own package passes the module on whole', () => {
+    const text = writeIndex(help([own]), PAGE);
+    expect(text).toContain('#### `pass`\n\n`function` — [packages/lib/src/index.ts:1](packages/lib/src/index.ts#L1) — used nowhere else');
+    expect(writeLlms(help([own]), PAGE)).toContain(': 2 names, 0 used across a package boundary, 1 unknown, 0 documented');
   });
 });

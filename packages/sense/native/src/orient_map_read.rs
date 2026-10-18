@@ -397,7 +397,8 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
         return unparsed(targets);
     }
     let mut read: HashMap<usize, Vec<&str>> = HashMap::new();
-    for member in parses.members.range(parse_row) {
+    // A name off the module's `default` is that value's; the `default` read is the use.
+    for member in parses.members.range(parse_row).filter(|&member| parses.member_through_default[member] == 0) {
         read.entry(parses.member_request.at(member) as usize).or_default().push(text.text(parses.member_name.at(member)));
     }
     let requests = range

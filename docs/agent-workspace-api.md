@@ -391,7 +391,14 @@ its imports alone.
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
-loading.
+loading. A name read off the module's `default` is marked "through `default`":
+`default` holds the name only when the module is CommonJS, so the line may read
+it and is counted apart from the imports. A module your code passes on whole —
+to a call, a property or a return — may read any name it exports, because what
+the receiver reads is out of the file's sight. It is listed as a site that may
+read the name, marked "passed on whole", and counted apart too. Neither is an
+import of the name, so neither makes a name look used, and a name with only
+these is unknown rather than unused: the catalogue says where it may be read.
 
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.

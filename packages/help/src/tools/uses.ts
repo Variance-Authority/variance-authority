@@ -42,7 +42,11 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  * A name read off `import()` or off `import * as` is a site like any other, and
  * it is marked, because the line that reads the name is not the line that loads
  * it. An `import()` loads the module when that call runs, so whether the name
- * is there at all can depend on a path the program takes.
+ * is there at all can depend on a path the program takes. A read off the
+ * module's `default`, which holds the name only when the module is CommonJS,
+ * and a module passed on whole, where this reading does not follow it, are each
+ * listed as a site that may read the name and counted apart from the imports:
+ * neither is a use of it.
  *
  * ## An import by path is a site
  *
@@ -158,12 +162,17 @@ function throughDoor(use: IndexedUse, wanted: string | undefined): boolean {
   return ownerOf(use.specifier) !== owner || use.specifier === wanted;
 }
 
-/** Where a name read off a module held whole was loaded, and when. */
+/**
+ * Where a name read off a module held whole was loaded, and when; whether it
+ * was read off the module's `default`; and whether the module went on, whole,
+ * where this reading does not follow it, so the line may read the name.
+ */
 function held(use: Use): string {
   if (use.through === undefined) return '';
-  return use.through.kind === 'dynamic'
-    ? ` (import() on line ${use.through.line})`
-    : ` (namespace, line ${use.through.line})`;
+  const loaded = use.through.kind === 'dynamic' ? `import() on line ${use.through.line}` : `namespace, line ${use.through.line}`;
+  const off = use.through.throughDefault === true ? ', through `default`: may read it' : '';
+  const whole = use.through.whole === true ? ', passed on whole: may read it' : '';
+  return ` (${loaded}${off}${whole})`;
 }
 
 /**
@@ -183,7 +192,7 @@ function sitesOf(
   const through = passing !== undefined && 'through' in passing ? new Set(passing.through) : new Set<string>();
   const indexed = new Set(passing !== undefined && 'uses' in passing ? passing.uses.map((use) => `${use.at}:${use.line}`) : []);
 
-  const recorded = [...found.flatMap(([, , entry]) => entry.sites), ...byPath];
+  const recorded = [...found.flatMap(([, opening, entry]) => [...entry.sites, ...entry.throughDefault, ...opening.whole]), ...byPath];
   for (const [index, use] of [...recorded, ...within].entries()) {
     const key = `${use.at}:${use.line}`;
     if (seen.has(key) || (index < recorded.length && through.has(use.at) && !indexed.has(key))) continue;
@@ -357,12 +366,27 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
       ? 'Path order; `from` sorts nearest first.'
       : `Nearest to ${from} first.`;
 
-  const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
+  // A read off `default` and a module passed on whole are no use of the name: each is listed, as a site that may read it, and counted apart.
+  const certain = sites.filter((use) => use.through?.whole !== true && use.through?.throughDefault !== true);
+  const off = sites.filter((use) => use.through?.throughDefault === true).length;
+  const whole = sites.length - certain.length - off;
+  const dynamic = certain.filter((use) => use.through?.kind === 'dynamic').length;
   const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
+  const reads = certain.length === 0 ? `${off} ${off === 1 ? 'place reads' : 'places read'}` : `${off} more ${off === 1 ? 'reads' : 'read'}`;
+  const before = certain.length + off;
+  const passes = before === 0 ? `${whole} ${whole === 1 ? 'place passes' : 'places pass'}` : `${whole} more ${whole === 1 ? 'passes' : 'pass'}`;
+  const may = [
+    ...(off === 0 ? [] : [` ${reads} it off the module's \`default\`, which holds \`${name}\` only when the module is CommonJS.`]),
+    ...(whole === 0 ? [] : [` ${passes} the module on whole, where this reading does not follow it, and may read \`${name}\`.`]),
+  ].join('');
   const published =
     found.length > 0 ? '' : exported.length > 0 ? `, and no entry publishes it; it is exported at ${exportedAt(exported)}${passed}` : ', and no entry publishes it';
+  const taken =
+    certain.length === 0
+      ? `${named} is imported by name nowhere${published}.`
+      : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${published}${loaded}`;
   return [
-    `${named} is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
+    `${taken}${may}`,
     nearest,
     ...kinds(sites, from, name, limit),
     ...own,
