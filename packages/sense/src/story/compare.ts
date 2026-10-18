@@ -202,7 +202,7 @@ function summary(side: LoadedSide): SideSummary {
 // A ref a story gives an object is the order its run first met it, so one more
 // object early in a run renumbers every ref after it. Across runs a handed
 // value is its kind, and a ref says only that it is an object.
-const REF = /(?<=^(?:handed|holds) (?:.*, )?[\w$]+=)ref\d+(?!\d)/g;
+const REF = /(?<=^(?:handed|holds) (?:.*, )?[\p{ID_Continue}$]+=)ref\d+(?!\d)/gu;
 
 /** What a line said means in another run: a handed object's ref without its number. */
 function acrossRuns(said: string): string {

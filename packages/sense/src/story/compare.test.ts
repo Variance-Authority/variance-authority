@@ -110,13 +110,13 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(0);
   });
 
-  it('leave out the number of a ref a handed line was cut at', () => {
+  it('leave out the number of a ref a handed line was cut at, or one held under a name past ASCII', () => {
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, 'handed cart=ref12…']]), reading([1, 4], [[1, 'handed cart=ref3…']])),
-      threw(reading([1, 4], [], true), reading([1, 4], [], true)),
+      threw(reading([1, 4], [[1, 'holds é=ref1 Object']], true), reading([1, 4], [[1, 'holds é=ref4 Object']], true)),
     ]);
 
-    expect(comparison.only.map((only) => only.said)).toEqual([['handed cart=ref…']]);
+    expect(comparison.only.map((only) => only.said)).toEqual([['handed cart=ref…'], ['holds é=ref Object']]);
     expect(comparison.unsteady.said).toBe(0);
   });
 
