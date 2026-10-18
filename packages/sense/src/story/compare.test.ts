@@ -20,13 +20,13 @@ const CART: Region[] = [
 ];
 
 /** One reading over `cart.ts` (0–4) and `format.ts` (5–6, no regions held), from ordinals and what was said after how many visits. */
-function reading(visits: number[], said: [number, string][] = [], stopped = false): Loaded {
+function reading(visits: number[], said: [number, string][] = [], stopped = false, before: number[] = [], name = 'cart > removes the last item'): Loaded {
   return {
     story: {
       file: '/checkout/src/cart.test.ts',
-      name: 'cart > removes the last item',
+      name,
       rows: [['src/cart.ts', 5], ['src/format.ts', 2]],
-      before: Int32Array.from([]),
+      before: Int32Array.from(before),
       visits: Int32Array.from(visits),
       untaped: 0,
       interleaved: 0,
@@ -155,5 +155,20 @@ describe('three sides of a case', () => {
       after: ['as mike'],
     }]);
     expect(comparison.unsteady.said).toBe(1);
+  });
+});
+
+describe('sides that are different cases', () => {
+  const side = (name: string, before: number[]) => ({ name, readings: [reading([1, 2], [], false, before, name), reading([1, 2], [], false, before, name)] });
+
+  it('leave out what ran before each case, which follows where the case sits in its file', () => {
+    const comparison = compareLoaded(ROOT, [side('first', []), side('second', [4])]);
+    expect(comparison.only).toEqual([]);
+  });
+
+  it('keep it for readings of one case, where what ran before is what the run changed', () => {
+    const one = (name: string, before: number[]) => ({ name, readings: [reading([1, 2], [], false, before), reading([1, 2], [], false, before)] });
+    const comparison = compareLoaded(ROOT, [one('alone', []), one('file', [4])]);
+    expect(comparison.only).toEqual([{ sides: ['file'], places: [expect.objectContaining({ path: 'entry', place: expect.objectContaining({ name: 'price' }) })], said: [] }]);
   });
 });

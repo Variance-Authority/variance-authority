@@ -5,8 +5,10 @@ numbered steps: each function the test ran, the branch it took at each `if`,
 how many times each loop ran, and the lines the code printed. Every run already
 records which code each test ran. A story adds the order, the counts and the
 printed lines, and you read it from top to bottom. When a test fails only on
-some runs, you compare the stories of runs that passed with runs that failed,
-and print the value you suspect from the code under test, never from the test,
+some runs, you compare the stories of runs that passed with runs that failed.
+When one test passes and another fails, such as the same checkout with a
+feature flag off and on, you compare the stories of the two tests. Either way
+you print the value you suspect from the code under test, never from the test,
 to see what separates them.
 
 If you need the test statement that first ran a region,
@@ -251,8 +253,9 @@ The comparison can also answer in three other ways:
 
 ### Choose the sides
 
-The output calls each group a side. A side is either the same test read again,
-where only the run differs, or a setup you chose, where you name what differs:
+The output calls each group a side. A side is the same test read again, where
+only the run differs, a setup you chose and labelled, or
+[another test](#why-does-one-test-pass-and-another-fail):
 
 | `--compare` | One side | The other side | What differs |
 |---|---|---|---|
@@ -275,34 +278,64 @@ VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
 variance story --name "cart > removes the last item" --compare alone,file
 ```
 
-`before the test`, at the top of each story, shows the code the runner ran right before the
-test, such as code another test's `afterEach` called.
+In the stories labelled `file`, `before the test`, at the top of each story,
+shows the code the runner ran right before the test, such as code another
+test's `afterEach` called.
 
 `--compare last` is always one reading against one, so use it to see what an
 edit changed, not to explain a test that fails on some runs.
 
-### Compare tests
+## Why does one test pass and another fail?
 
-The setup you change is often a second test, not a label: one test with the
-flag on and one with it off, one signed in as the default user and one as Mike.
-Name each test with its own `--name`, two or more, and each one is a side:
+Say the same checkout is three tests: one with a feature flag on, one with it
+off, and one signed in as Mike. The test with Mike fails on every run. Each
+test is a side, and the comparison sets the stories of the tests against each
+other the way it sets [readings of one test](#compare-readings-of-one-test)
+against each other.
+
+Record each test twice or more, so a side is never one run. The runner's `-t`
+matches part of a name, so one pattern can record all three; run it twice:
 
 ```bash
-variance story --name "charges" --name "charges with the flag off" --name "charges as mike"
+VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/checkout.test.ts -t "charges"
+```
+
+Then name each test with its own `--name`, two or more:
+
+```bash
+variance story --name "charges with the flag on" --name "charges with the flag off" --name "charges as mike"
 ```
 
 ```text
 compare  src/checkout.test.ts
-  `charges` (2 readings), `charges with the flag off` (2 readings) and `charges as mike` (2 readings, every one threw), against each other
+  `charges with the flag on` (2 readings), `charges with the flag off` (2 readings) and `charges as mike` (2 readings, every one threw), against each other
 
   only in `charges as mike`, on every reading:
     went into  priceFor  src/price.ts:4-12, the then of the if on 7
 ```
 
-Every reading kept of each test counts, so record each test twice or more for
-the same reason as above. `--label` keeps only the readings under one label on
-every side. A name two test files hold is refused; name the file with `--file`,
-or write the name as `<file> > <name>`.
+The tests differ in their setup, and you know how. The comparison lists where
+the code they ran went differently, on every reading. The code the runner ran
+before each test, such as the `afterEach` of the test above it, depends on
+where the test sits in its file, so a comparison of tests leaves it out. A
+test's own code can still follow its place: a module an earlier test loaded
+first, or a cache an earlier test filled, shows up as a difference that
+holds on every reading.
+
+- **A name is matched whole.** `--name "charges"` is the test named
+  `charges`, not every test whose name has the word in it. Write the name as
+  `variance story` lists it, with its `describe` blocks when it has any, or
+  as `<file> > <name>`.
+- **The tests can be in different files.** Record each file with its own run,
+  then name each test; each side is named with its file. A name two test files
+  have is refused until you write it as `<file> > <name>`, or narrow every name
+  to one file with `--file`.
+- **`--label <name>` narrows every side alike**, to the readings recorded
+  under that label. `--compare` compares readings of one test, so it is
+  refused beside several `--name`.
+- **Two tests, or one test under two labels.** When each test sets the flag
+  itself, compare the tests. When one test reads the flag from outside, such as
+  an environment variable, record it under [two labels](#choose-the-sides).
 
 ## Why the journey has no order
 
@@ -359,6 +392,8 @@ story when the code does not answer your question:
   mock and not the code it names.
 - **A test fails on some runs, or fails with its file and passes alone.** Record it both ways
   and [compare the readings](#compare-readings-of-one-test).
+- **One test passes and another fails**, with a flag on and off, or as two
+  users. Record both and [compare the tests](#why-does-one-test-pass-and-another-fail).
 - **You hand one test to an agent to fix or extend.** The story gives it the
   steps in order, each with its file and lines, so it reads those and not the whole package.
 

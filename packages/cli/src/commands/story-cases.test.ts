@@ -14,7 +14,7 @@ const entry = (name: string, at: number, file = PAY, label?: string): StoryEntry
 
 /** Three cases of one file, and a case named like one of them in another file. */
 const WRITTEN: StoryEntry[] = [
-  entry('charges', 0), entry('charges', 1),
+  entry('charges', 0), entry('charges', 1), entry('charges', 2, PAY, 'slow'),
   entry('charges off', 0), entry('charges off', 1, PAY, 'slow'),
   entry('as mike', 0),
   entry('elsewhere', 0, 'src/other.test.ts'),
@@ -51,7 +51,7 @@ describe('cases compared with each other', () => {
     ask('--file', PAY, '--name', 'charges', '--name', 'charges off', '--name', 'as mike');
 
     expect(sidesOf()).toEqual([
-      ['charges', ['/stories/charges.0.story', '/stories/charges.1.story']],
+      ['charges', ['/stories/charges.0.story', '/stories/charges.1.story', '/stories/charges.2.story']],
       ['charges off', ['/stories/charges off.0.story', '/stories/charges off.1.story']],
       ['as mike', ['/stories/as mike.0.story']],
     ]);
@@ -63,9 +63,27 @@ describe('cases compared with each other', () => {
     expect(sidesOf()?.map(([name]) => name)).toEqual([`${PAY} > charges`, 'src/other.test.ts > elsewhere']);
   });
 
-  it('keeps the readings under --label on every side', () => {
-    expect(() => ask('--name', 'charges', '--name', 'charges off', '--label', 'slow')).toThrow(
-      'no story is written for --name charges and --label slow',
+  it('keeps only the readings under --label on every side, and refuses a side it leaves empty', () => {
+    ask('--name', 'charges', '--name', 'charges off', '--label', 'slow');
+
+    expect(sidesOf()).toEqual([
+      ['charges', ['/stories/charges.2.story']],
+      ['charges off', ['/stories/charges off.1.story']],
+    ]);
+    expect(() => ask('--name', 'charges', '--name', `${PAY} > as mike`, '--label', 'slow')).toThrow(
+      `no story is written for --name ${PAY} > as mike and --label slow`,
+    );
+  });
+
+  it('refuses two names for one case', () => {
+    expect(() => ask('--name', 'charges', '--name', `${PAY} > charges`)).toThrow(
+      `--name charges and --name ${PAY} > charges are one case; name each case once`,
+    );
+  });
+
+  it('names --file when a name has no story in the file it narrows to', () => {
+    expect(() => ask('--file', PAY, '--name', 'charges', '--name', 'elsewhere')).toThrow(
+      `no story is written for --name elsewhere and --file ${PAY}`,
     );
   });
 
@@ -90,7 +108,7 @@ describe('cases compared with each other', () => {
 
     expect(formatStory(answer, 'text').split('\n').slice(0, 3)).toEqual([
       `compare  ${PAY}`,
-      '  `charges` (2 readings), `charges off` (2 readings) and `as mike` (1 reading), against each other',
+      '  `charges` (3 readings), `charges off` (2 readings) and `as mike` (1 reading), against each other',
       '  one reading on a side: what differs below may be a run that went another way, not the side',
     ]);
   });
@@ -100,7 +118,7 @@ describe('cases compared with each other', () => {
     const code = await main(['story', '--name', 'charges', '--name', 'charges off', '--root', root], { out: (text) => (out += text), err: () => {} });
 
     expect(code).toBe(0);
-    expect(out.split('\n')[1]).toBe('  `charges` (2 readings) against `charges off` (2 readings)');
+    expect(out.split('\n')[1]).toBe('  `charges` (3 readings) against `charges off` (2 readings)');
   });
 
   it('is asked for by naming two cases or more, and refuses --compare or a zoom beside them', () => {

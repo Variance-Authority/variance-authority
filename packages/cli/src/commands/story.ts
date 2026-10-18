@@ -74,8 +74,7 @@ export function story(parsed: ParsedStory): StoryAnswer {
   }
   const { compare } = parsed;
   if (typeof compare === 'object' && 'cases' in compare) {
-    const inFile = all.filter((entry) => file === undefined || entry.file === file);
-    return compareCases(parsed.root, inFile, compare.cases, parsed.label);
+    return compareCases(parsed.root, all, compare.cases, { file, label: parsed.label });
   }
   const matching = all.filter(
     (entry) =>

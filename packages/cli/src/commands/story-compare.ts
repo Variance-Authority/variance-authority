@@ -78,8 +78,8 @@ export function compareStory(root: string, readings: readonly StoryEntry[], comp
 }
 
 /**
- * Several cases, each side every reading kept of one, under `label` when one
- * is given. A name is a case's whole name, or its file and name as
+ * Several cases, each side every reading kept of one, in `file` and under
+ * `label` when they are given. A name is a case's whole name, or its file and name as
  * `<file> > <name>`; a name two files hold is refused rather than picked, and so
  * is a name with no reading. A side is named by its case, and by its file too
  * when the cases are in more than one.
@@ -88,13 +88,17 @@ export function compareCases(
   root: string,
   stories: readonly StoryEntry[],
   names: readonly string[],
-  label: string | undefined,
+  { file, label }: { readonly file: string | undefined; readonly label: string | undefined },
 ): { readonly comparison: Comparison; readonly cases: readonly ComparedCase[] } {
-  const held = stories.filter((entry) => label === undefined || labelled(entry) === label);
+  const held = stories.filter((entry) => (file === undefined || entry.file === file) && (label === undefined || labelled(entry) === label));
   const found = names.map((asked) => held.filter((entry) => entry.name === asked || `${entry.file} > ${entry.name}` === asked));
   const missing = names.filter((_, at) => found[at]!.length === 0);
   if (missing.length > 0) {
-    const asked = [missing.map((name) => `--name ${name}`).join(' or '), ...(label === undefined ? [] : [`--label ${label}`])];
+    const asked = [
+      missing.map((name) => `--name ${name}`).join(' or '),
+      ...(file === undefined ? [] : [`--file ${file}`]),
+      ...(label === undefined ? [] : [`--label ${label}`]),
+    ];
     throw new OperatorError(`no story is written for ${asked.join(' and ')}; \`variance story\` alone lists the ones written here`);
   }
   const cases = found.map((readings, at) => {

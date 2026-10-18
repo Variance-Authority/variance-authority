@@ -152,7 +152,10 @@ export interface LoadedSide {
 export function compareLoaded(root: string, sides: readonly LoadedSide[]): Comparison {
   const names = new Map<string, PlaceDifference>();
   const moments = new Map<string, Moment>();
-  const reads = sides.map((side) => side.readings.map((loaded) => readReading(root, loaded, names, moments)));
+  // What ran before a case is a difference between readings of one case, and
+  // between different cases only their places in the file.
+  const cases = new Set(sides.flatMap((side) => side.readings.map(({ story }) => `${story.file}\0${story.name}`)));
+  const reads = sides.map((side) => side.readings.map((loaded) => readReading(root, loaded, names, moments, cases.size === 1)));
   const case_ = sides.flatMap((side) => side.readings)[0]?.story;
 
   const places = steady(reads, (read) => read.regions);
@@ -200,7 +203,7 @@ function summary(side: LoadedSide): SideSummary {
  * One reading's regions, lines and first arrivals. Region keys carry the
  * module's region count beside its file, so two texts of one file never meet.
  */
-function readReading(root: string, { story, files, regions }: Loaded, names: Map<string, PlaceDifference>, moments: Map<string, Moment>): Read {
+function readReading(root: string, { story, files, regions }: Loaded, names: Map<string, PlaceDifference>, moments: Map<string, Moment>, before: boolean): Read {
   const shown = files.map((file) => inCheckout(root, file));
   const declarations = regions.map((own, row) => (own === undefined ? undefined : declarationsOf(shown[row]!, own)));
   const bases: number[] = [];
@@ -252,7 +255,7 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
       else arrive(`m\0${place.file}\0${place.name}`, { place });
     }
   };
-  walk(story.before, story.beforeNotes);
+  if (before) walk(story.before, story.beforeNotes);
   walk(story.visits, story.notes);
   return read;
 }
