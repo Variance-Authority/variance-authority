@@ -452,6 +452,13 @@ code as you wrote it. Choose
 it when a test file is the grain you select at, or when a transform in the run
 cannot take probes.
 
+A page reused between stories or test files evaluates a module once, so each
+drain leaves what the page already holds for the next one: every subject on the
+page is recorded as loading it. The mark runs when the module's text has run to
+its end, so two loads go unrecorded: a CommonJS module that returns from its top
+level before the end, and a file the runner loads without a transform, such as
+JSON under Jest. A change to either selects no test file through that file.
+
 ## Record Jest journeys without selecting tests
 
 `withJourneyCoverage` records the source regions entered by each named Jest

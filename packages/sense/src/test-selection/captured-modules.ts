@@ -255,9 +255,12 @@ export function captureAfter(
   const { frame, file, id } = plan;
   const named = projectPath(root, path);
   const unread = { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] };
+  // The mark follows the last line, so no column moves: a map is composed only to carry.
+  if (plan.marked) {
+    const carried = carry ? map?.() : undefined;
+    return { module: unread, code: markLoaded(code, id), ...(carried ? { carried: carried.mappings } : {}) };
+  }
   const composed = map?.();
-  // The mark follows the last line, so no column the map names moves.
-  if (plan.marked) return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
   const texts = handedTexts(disk);
   const rewrote = unmapped.filter((step) => step.loaded === undefined || !texts.includes(step.loaded));
   const source = mapsBack(path, code, composed);

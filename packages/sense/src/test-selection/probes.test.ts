@@ -40,7 +40,7 @@ describe('the collector import', () => {
 });
 
 describe('a build under the loads recipe', () => {
-  it('names its own recipe, and digests only the header it shares with presence', () => {
+  it('names its own recipe, and carries the digest of the presence recipe, which covers the header and the walk', () => {
     const presence = probeRecipe('presence');
     expect(probeRecipe('loads')).toBe(`${instrumentationId('loads')}${presence.slice(presence.indexOf('+'))}`);
   });

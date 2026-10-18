@@ -52,8 +52,9 @@ nothing and probes nothing: every module the run would probe gets the
 4. **A test file claims what its realm already holds.** A realm shared between
    test files — Vitest's `isolate: false`, a reused Storybook page — evaluates
    a module once, so a later file that imports it runs no mark. Each file's
-   bucket opens with every module the realm already loaded, and selection
-   errs toward running a file that imported less.
+   bucket opens with every module the realm already loaded, and a page's
+   collector leaves the same in its bucket after each drain, so selection errs
+   toward running a file that imported less.
 5. **Every seam takes it.** The Vitest plugin, the Jest transform, the Rstest
    loader, the Node loader hooks and `testSelectionProbes` (and with it the
    Storybook addon) all read the same option.

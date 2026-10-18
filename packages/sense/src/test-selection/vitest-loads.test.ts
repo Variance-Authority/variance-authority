@@ -30,6 +30,26 @@ describe('the Vitest seam under the loads recipe', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('composes no source map for a module it marks, since the mark moves no column', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-instrumentation-loads-'));
+    const source = 'export function f(x: number) { return x; }';
+    const compiled = 'export function f(x) { return x; }';
+    try {
+      const configured = withTestSelection({}, { root, coverageFile: resolve(root, 'coverage.bin'), include: () => true, mode: 'loads' });
+      const { plugin } = seamOf(configured);
+      await writeFile(resolve(root, 'f.ts'), source);
+      let composed = 0;
+      const context = { getCombinedSourcemap: () => ((composed += 1), { version: 3, sources: ['f.ts'], names: [], mappings: 'AAAA' }) };
+
+      const placed = plugin.transform.handler.call(context, compiled, resolve(root, 'f.ts'));
+
+      expect(placed!.code.startsWith(`${compiled}\n;`)).toBe(true);
+      expect(composed).toBe(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 /** The probes plugin and the recording reporter of a configuration the seam wrapped. */
