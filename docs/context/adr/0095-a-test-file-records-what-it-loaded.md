@@ -35,10 +35,12 @@ case sections against 0 bytes of blocks.
 nothing and probes nothing: every module the run would probe gets the
 `unprobed` mark, and the run records one bucket per test file and no cases.**
 
-1. **The mark is the whole transform.** `markLoaded` appends
-   `\n;<header>__vaE();` after the text as the seam received it: no parse, no
-   walk, no map. Jest's transformer is never asked for its `senseRecipe`, and
-   the recipe digest is the header's half of the presence recipe.
+1. **The mark is the whole transform.** The seam appends
+   `\n;<header>__vaE();` after the text as it received it: no parse, no walk,
+   no map. Jest's transformer is never asked for its `senseRecipe`. The probe
+   recipe is the `loads` id with the presence recipe's digest, which covers the
+   header and the walk's sources, so a change to the walk keys a cache afresh
+   though the mark did not move.
 2. **The module is recorded with no blocks.** Its id is `path@~digest`, held
    not instrumented, so a change anywhere in the file selects every test file
    that loaded it. A text change that moves no line still selects: the reader
@@ -47,7 +49,12 @@ nothing and probes nothing: every module the run would probe gets the
    take the `flat` collector, as Jest's flat path already did. Continuations,
    cadence and stories are off with it; `variancePrecondition` returns
    silently when no case scope is installed.
-4. **Every seam takes it.** The Vitest plugin, the Jest transform, the Rstest
+4. **A test file claims what its realm already holds.** A realm shared between
+   test files — Vitest's `isolate: false`, a reused Storybook page — evaluates
+   a module once, so a later file that imports it runs no mark. Each file's
+   bucket opens with every module the realm already loaded, and selection
+   errs toward running a file that imported less.
+5. **Every seam takes it.** The Vitest plugin, the Jest transform, the Rstest
    loader, the Node loader hooks and `testSelectionProbes` (and with it the
    Storybook addon) all read the same option.
 
@@ -61,6 +68,8 @@ a switch it composes, not a policy this package decides.
   1.21 s, `presence` 1.50 s with a 374 KB record, `loads` 1.37 s with a 46 KB
   record. Recording costs about half of what `presence` costs, and the record
   is about an eighth its size.
+- Under a shared realm a later test file is charged with every module an
+  earlier one loaded, so a change selects more of it than an isolated run would.
 - A `loads` record selects at the file grain and cannot answer which line a
   test reached, which case covered a region, or what a case said.
 - A record made under `loads` is never laid over one made under another recipe:

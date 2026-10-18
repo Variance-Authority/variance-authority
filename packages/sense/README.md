@@ -374,7 +374,11 @@ rather than a file is not a precondition, since no diff mentions it.
 Under `isolate: false` a run still records every file that consumed a module as
 having covered it. A file consumes a module by running something in it: a module
 of nothing but constants, evaluated once for an earlier file and only read by the
-next, is recorded for the file that evaluated it and not for the reader.
+next, is recorded for the file that evaluated it and not for the reader. Under
+`mode: 'loads'` a file is recorded as loading every module the shared realm
+already held when it started, as well as what it loaded itself, since nothing it
+does tells the module cache apart from a module it imported: no file is missed,
+and a file that imports less is selected by more.
 
 Each file's setup snapshots every counter before its first test runs, so a
 region already covered by then is recorded as **loaded** by that file as well as
@@ -440,9 +444,11 @@ withTestSelection(config, { mode: 'loads' });
 A module is marked as it loads, before any of its file's cases opens, so the
 record keeps one entry per test file and no cases: `continuations`, `cadence`
 and stories do not apply to it. On TanStack Query's `query-core`, the record
-is about an eighth the size of one made under `'presence'`, and recording costs
-about half as much time over the plain run. The mark is the same line on every seam, so a runner,
-bundler or compiler that reads syntax sees your code as you wrote it. Choose
+is about an eighth the size of one made under `'presence'`, and adds about half
+the time `'presence'` adds to the plain run. The mark is one line after the
+module's own text, the same on every seam, and under the default `placement`
+it is added after your transforms, so every transform in the run reads your
+code as you wrote it. Choose
 it when a test file is the grain you select at, or when a transform in the run
 cannot take probes.
 
