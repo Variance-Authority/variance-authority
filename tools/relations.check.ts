@@ -36,12 +36,25 @@ describe('a runner integration', () => {
     expect(verdict(`${SELECTION}/vitest.ts`, `${SELECTION}/jest.ts`)).toBe('restricted');
   });
 
-  it('is a package core, sense and the CLI never read', () => {
-    for (const neutral of ['core', 'sense', 'cli']) {
-      for (const runner of ['vitest-browser', 'playwright-test']) {
-        expect(verdict(`packages/${neutral}/src/a.ts`, `packages/${runner}/src/index.ts`)).toBe('restricted');
-      }
+  it('is closed to the source of every other package', () => {
+    for (const neutral of ['core', 'sense', 'cli', 'mcp', 'playwright-test']) {
+      expect(verdict(`packages/${neutral}/src/a.ts`, 'packages/vitest-browser/src/index.ts')).toBe('restricted');
     }
+    expect(verdict('packages/vitest-browser/src/a.ts', 'packages/playwright-test/src/index.ts')).toBe('restricted');
+    expect(verdict('packages/cli/src/commands/a.ts', `${SELECTION}/jest.ts`)).toBe('restricted');
+    expect(verdict('packages/sense/src/other/a.ts', `${SELECTION}/vitest.ts`)).toBe('restricted');
+    expect(verdict('packages/mcp/src/a.ts', `${SELECTION}/rstest.ts`)).toBe('restricted');
+  });
+
+  it('is closed to the index and the tests beside it, which reach only their own directory', () => {
+    expect(verdict(`${SELECTION}/index.ts`, 'packages/playwright-test/src/index.ts')).toBe('restricted');
+    expect(verdict(`${SELECTION}/case-fold.test.ts`, 'packages/vitest-browser/src/index.ts')).toBe('restricted');
+  });
+
+  it('is open to its own files and to the configurations and cases that use it', () => {
+    expect(verdict('packages/vitest-browser/src/node.ts', 'packages/vitest-browser/src/protocol.ts')).toBe('allowed');
+    expect(verdict('cases/rstest-case/e2e/rstest.config.mjs', 'packages/playwright-test/src/index.ts')).not.toBe('restricted');
+    expect(verdict('vitest.config.mts', `${SELECTION}/vitest.ts`)).not.toBe('restricted');
   });
 });
 

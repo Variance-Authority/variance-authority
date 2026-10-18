@@ -3,7 +3,7 @@
 # The rules CodeRabbit reviews against live in AGENTS.md, `.agents/references/`
 # and `.compass/`; this file points it at them and adds the one check a reviewer
 # that reads only the diff can still answer: is the change's shape ours. What a
-# tool already decides stays with the tool: `yarn owners` holds timers,
+# tool already decides stays with the tool: `tools/owners.check.ts` holds timers,
 # navigations, reloads and new pages, and `yarn restrictions` holds which file
 # may import a runner.
 language: en-US
@@ -19,7 +19,7 @@ reviews:
       - name: Alignment
         mode: error
         instructions: |
-          Judge the diff against the Code rules in .agents/references/change.md and the "Not ours" table in .compass/COMPASS.md; do not restate them, quote the rule you apply. Fail, quoting the hunk and the rule, when the diff breaks "One implementation", "Four roles, and complexity goes down", "Scope stops at a neighbour's answer", "No runner is the default" or "Performance is earned, and isolation is not how it is earned" in a way no tool already reports: yarn owners holds timers, reloads navigations, and new pages, and yarn restrictions holds which file may import a runner. Also fail a flag switching between two behaviours, an option no task asked for, or an abstraction with one caller.
+          Judge the diff against the Code rules in .agents/references/change.md and the "Not ours" table in .compass/COMPASS.md; do not restate them, quote the rule you apply. Fail, quoting the hunk and the rule, when the diff breaks "One implementation", "Four roles, and complexity goes down", "Scope stops at a neighbour's answer", "No runner is the default" or "Performance is earned, and isolation is not how it is earned" in a way no tool already reports: tools/owners.check.ts holds timers, navigations, reloads and new pages, and yarn restrictions holds which file may import a runner. Also fail a flag switching between two behaviours, an option no task asked for, or an abstraction with one caller.
           A reason in the PR body clears a failure only with a measurement or a failing case.
   path_instructions:
     - path: "packages/*/package.json"

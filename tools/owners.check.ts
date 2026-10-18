@@ -123,7 +123,7 @@ describe('the owners reader', () => {
     ).toEqual(['timer one', 'timer two', 'timer three']);
   });
 
-  it('finds a page thrown away: a navigation, a reload, a new page, a new context', () => {
+  it('finds a page thrown away: a navigation, a reload, a new page, a new context, a new browser', () => {
     expect(
       idioms(
         'packages/playwright/src/a.ts',
@@ -132,9 +132,10 @@ describe('the owners reader', () => {
           'export const two = (context: BrowserContext) => context.newPage();',
           'export const three = (browser: Browser) => browser.newContext();',
           'export const four = (page: Page, url: string) => page.goto(url);',
+          'export const five = () => chromium.launch();',
         ].join('\n'),
       ),
-    ).toEqual(['fresh-page one', 'fresh-page two', 'fresh-page three', 'fresh-page four']);
+    ).toEqual(['fresh-page one', 'fresh-page two', 'fresh-page three', 'fresh-page four', 'fresh-page five']);
   });
 
   it('leaves a function of the caller\'s own that is named reload', () => {

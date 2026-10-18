@@ -327,7 +327,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/harness.ts",
-    "count": 3
+    "count": 4
   },
   {
     "idiom": "timer",
@@ -337,7 +337,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/renderer.ts",
-    "count": 3
+    "count": 4
   },
   {
     "idiom": "code-unit-order",
@@ -732,7 +732,7 @@
   {
     "idiom": "fresh-page",
     "at": "tools/glyph-atlas.mjs",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "timer",
@@ -807,12 +807,12 @@
   {
     "idiom": "fresh-page",
     "at": "cases/storybook-case/src/finish.chromium.test.js",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "fresh-page",
     "at": "cases/storybook-case/src/globals.chromium.test.js",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "timer",
@@ -822,7 +822,7 @@
   {
     "idiom": "fresh-page",
     "at": "cases/storybook-case/src/storybook.chromium.test.js",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "timer",
@@ -842,7 +842,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/cli/src/commands/report-page.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "timer",
@@ -862,32 +862,32 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/arranged.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/device-emulation.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/direct.chromium.test.ts",
-    "count": 4
+    "count": 5
   },
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/interaction.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/recipe-rebaseline.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/untouched.chromium.test.ts",
-    "count": 12
+    "count": 13
   },
   {
     "idiom": "timer",
@@ -897,17 +897,17 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/watch.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/capture.chromium.test.ts",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/declarations.chromium.test.ts",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "fresh-page",
@@ -917,7 +917,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/network.chromium.test.ts",
-    "count": 15
+    "count": 16
   },
   {
     "idiom": "timer",
@@ -927,7 +927,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/presentation/src/playwright.chromium.test.ts",
-    "count": 8
+    "count": 9
   },
   {
     "idiom": "timer",
@@ -957,7 +957,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/route-collector/src/form-state.chromium.test.ts",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "timer",
@@ -967,12 +967,12 @@
   {
     "idiom": "fresh-page",
     "at": "packages/route-collector/src/laid-out-size.chromium.test.ts",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "fresh-page",
     "at": "packages/route-collector/src/pseudo-elements.chromium.test.ts",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "timer",

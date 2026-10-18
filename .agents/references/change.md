@@ -161,7 +161,7 @@ the site, CLI output and error messages. Read it before writing any of them.
   names the writer and the selector that connected them, and we guide the fix.
   Rinsing an unstable subject until it looks stable hides the defect and charges
   every other subject for it.
-  A reload, a new page or a new context is a `fresh-page` site, and a
+  A navigation, a reload, a new browser, page or context is a `fresh-page` site, and a
   `setTimeout`, `setInterval` or `waitForTimeout` is a `timer` site:
   `tools/owners.check.ts` holds today's per file, tests included, and a new one
   fails. Readiness

@@ -1,8 +1,42 @@
 [
-  { "from": "core", "to": "vitest-browser", "type": "restricted", "message": "core serves every runner and reads no Vitest integration" },
-  { "from": "core", "to": "playwright-test", "type": "restricted", "message": "core serves every runner and reads no Playwright Test integration" },
-  { "from": "sense", "to": "vitest-browser", "type": "restricted", "message": "sense serves every runner and reads no Vitest integration" },
-  { "from": "sense", "to": "playwright-test", "type": "restricted", "message": "sense serves every runner and reads no Playwright Test integration" },
-  { "from": "cli", "to": "vitest-browser", "type": "restricted", "message": "the CLI serves every runner and reads no Vitest integration" },
-  { "from": "cli", "to": "playwright-test", "type": "restricted", "message": "the CLI serves every runner and reads no Playwright Test integration" }
+  {
+    "from": "vitest-browser",
+    "to": "vitest-browser",
+    "type": "allowed"
+  },
+  {
+    "from": "playwright-test",
+    "to": "playwright-test",
+    "type": "allowed"
+  },
+  {
+    "from": "*/src",
+    "to": "vitest-browser",
+    "type": "restricted",
+    "message": "a package other than the Vitest integration reads none of it; a shared answer moves into a runner-neutral package and the integration calls it"
+  },
+  {
+    "from": "*/src",
+    "to": "playwright-test",
+    "type": "restricted",
+    "message": "a package other than the Playwright Test integration reads none of it; a shared answer moves into a runner-neutral package and the integration calls it"
+  },
+  {
+    "from": "*/src",
+    "to": "sense/src/test-selection/jest*",
+    "type": "restricted",
+    "message": "shipped source outside test selection reads its Jest integration through the package index, never directly; a shared answer moves into a runner-neutral file"
+  },
+  {
+    "from": "*/src",
+    "to": "sense/src/test-selection/rstest*",
+    "type": "restricted",
+    "message": "shipped source outside test selection reads its Rstest integration through the package index, never directly; a shared answer moves into a runner-neutral file"
+  },
+  {
+    "from": "*/src",
+    "to": "sense/src/test-selection/vitest*",
+    "type": "restricted",
+    "message": "shipped source outside test selection reads its Vitest integration through the package index, never directly; a shared answer moves into a runner-neutral file"
+  }
 ]

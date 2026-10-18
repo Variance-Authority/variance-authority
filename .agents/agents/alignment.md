@@ -36,7 +36,7 @@ next, so the design can be read apart from what the diff made of it:
    container its `// compass:` header names, and does the change add a flag
    between two behaviours, an option no task asked for or an abstraction with
    one caller. Whether the change should happen at all is the Direction
-   reviewer's question, not yours. What `yarn owners` and `yarn restrictions`
+   reviewer's question, not yours. What `tools/owners.check.ts` and `yarn restrictions`
    already fail is not a finding; say only when the diff gets past them.
    A change that adds a check — a ratchet, a fence, a reviewer — is judged the
    same way, and three more questions: what it misses that the rule names, what

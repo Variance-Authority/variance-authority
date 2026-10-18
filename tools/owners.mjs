@@ -62,14 +62,14 @@ export const IDIOMS = {
   'fresh-page': {
     owner:
       'the page the session already holds, switched in place through the harness API (ADR-0009); ' +
-      'a navigation, a reload, or a new page or context per subject is the isolation that was measured and rejected',
+      'a navigation, a reload, or a new browser, page or context per subject is the isolation that was measured and rejected',
     owns: [],
   },
 };
 
 // Each call that waits on the clock, and each call that throws the page away.
 const TIMERS = new Set(['setTimeout', 'setInterval', 'waitForTimeout']);
-const FRESH_PAGES = new Set(['goto', 'reload', 'newPage', 'newContext']);
+const FRESH_PAGES = new Set(['goto', 'launch', 'launchPersistentContext', 'newContext', 'newPage', 'reload']);
 
 /**
  * Production sources: what ships, and the tools that write what ships.
@@ -95,7 +95,8 @@ export function sources() {
 }
 
 /**
- * The tests a runner collects, read for waits and fresh pages only.
+ * Test-named files under the roots runners collect from, read for waits and
+ * fresh pages only.
  *
  * A visual test is where a wait on the clock or a reload does its damage: the
  * run gets slower and the pixel it waited for is still not promised. The other
