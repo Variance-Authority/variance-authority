@@ -10,7 +10,7 @@ import {
   writeTestCoverage,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
-import { parseArgs } from '../bin.js';
+import { main, parseArgs } from '../bin.js';
 import { formatStory, story } from './story.js';
 
 let written: StoryEntry[] = [];
@@ -158,6 +158,17 @@ describe('a case compared with its twin', () => {
     expect(await ask(root, 'unrecorded')).toMatchObject({
       reading: { unmatched: 'nothing to compare it with: the record beside its story holds no preconditions for it, so it has no twin' },
     });
+  });
+
+  it('prints the comparison when run as a command', async () => {
+    const root = await checkout();
+    written = [...readings(root, 'charges', 1), ...readings(root, 'charges off', 1)];
+    let out = '';
+
+    const code = await main(['story', '--name', 'charges', '--compare', 'twin', '--root', root], { out: (text) => (out += text), err: () => {} });
+
+    expect(code).toBe(0);
+    expect(out.split('\n').slice(0, 2)).toEqual(['compare  src/pay.test.ts > charges', '  twin at flag=off: charges off']);
   });
 
   it('is asked for as --compare twin', () => {
