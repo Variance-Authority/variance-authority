@@ -61,6 +61,11 @@ self.fonts.add(face);
 face.load().catch(() => {}).then(() => postMessage('done'));`;
 
 let server: Server | undefined;
+/**
+ * A page per test, never per subject. What each test reads is the network of
+ * one navigation, so the load is the subject and a page that has made it is
+ * spent; the browser is launched once for the file.
+ */
 let browser: Browser | undefined;
 let base = '';
 /** The same server under the other site's name. */

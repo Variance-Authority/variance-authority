@@ -326,11 +326,6 @@
   },
   {
     "idiom": "fresh-page",
-    "at": "packages/playwright/src/browsers.ts",
-    "count": 4
-  },
-  {
-    "idiom": "fresh-page",
     "at": "packages/playwright/src/harness.ts",
     "count": 2
   },
@@ -338,11 +333,6 @@
     "idiom": "timer",
     "at": "packages/playwright/src/network.ts",
     "count": 1
-  },
-  {
-    "idiom": "fresh-page",
-    "at": "packages/playwright/src/page-pool.ts",
-    "count": 3
   },
   {
     "idiom": "code-unit-order",

@@ -125,6 +125,7 @@ describe('the end of a render', () => {
     let asked = 0;
     const counting: StoryPage = {
       url: () => page.url(),
+      // Forwarded, not opened: the wrapper counts the asks on the page it was handed.
       goto: (url) => page.goto(url),
       evaluate: (fn, argument) => {
         asked += 1;

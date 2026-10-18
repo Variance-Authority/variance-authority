@@ -100,6 +100,10 @@ export function fakePreview(
    * got. The phases are Storybook's own `StoryRender.phase` values.
    */
   const render: { id?: string; phase?: string } = {};
+  /**
+   * Storybook's own timeline, played back: each timer is when the real preview
+   * would emit, so the driver under test waits on the event and never on these.
+   */
   const pending: ReturnType<typeof setTimeout>[] = [];
   const repeating: ReturnType<typeof setInterval>[] = [];
 
