@@ -32,12 +32,13 @@
     "surface": "node tools/surface.mjs",
     "documented": "node tools/documented.mjs",
     "owners": "node tools/owners.mjs",
+    "restrictions": "variance index && variance restrictions",
     "clones": "node tools/clones.mjs",
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
     "verify:far": "variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test",
     "verify:near": "oxlint && tsc --build && variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test",
-    "verify:rules": "yarn check"
+    "verify:rules": "yarn check && yarn restrictions"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",

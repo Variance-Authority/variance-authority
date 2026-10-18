@@ -27,3 +27,18 @@
 | pixelmatch, pngjs, sharp | `variance-authority.adjudication` | Codecs and comparators; replacing one changes the speed of an answer and not the answer |
 | oxc | `variance-authority.reach` | A parser for source the adopter already owns |
 | nx, turbo | `variance-authority.reach` | Build tools that contribute seeds to a selection and never a selection; the system works with neither installed |
+
+## Not ours
+
+Questions a neighbour already answers. Variance asks the owner and composes the
+answer; it never grows a second one. A change that would answer one of these
+here is a scope decision of its own, not a step inside a feature.
+
+| Question | Owner |
+|---|---|
+| What a type is, whether code type-checks | TypeScript |
+| Which files exist, what changed, what was there before | git |
+| What source text means as syntax | oxc |
+| What an import meant under test, how a case is collected and run | the test runner (Jest, Vitest, Rstest, Playwright) |
+| How a page paints | Chromium |
+| What a build produced and from what | the bundler and its source maps |

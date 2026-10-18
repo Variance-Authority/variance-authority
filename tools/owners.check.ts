@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, IDIOMS, counted, sites, sitesIn, sources } from './owners.mjs';
+import { BASELINE, IDIOMS, counted, sites, sitesIn, sources, tests } from './owners.mjs';
 
 /**
  * Owned answers, computed again outside their owner (ADR-0069).
@@ -110,6 +110,38 @@ describe('the owners reader', () => {
     ).toEqual([]);
   });
 
+  it('finds a wait on the clock, on the platform or on the page', () => {
+    expect(
+      idioms(
+        'packages/playwright/src/a.ts',
+        [
+          'export const one = () => new Promise((done) => setTimeout(done, 100));',
+          'export const two = (view: Window) => view.setInterval(() => {}, 50);',
+          'export const three = (page: Page) => page.waitForTimeout(500);',
+        ].join('\n'),
+      ),
+    ).toEqual(['timer one', 'timer two', 'timer three']);
+  });
+
+  it('finds a page thrown away: a navigation, a reload, a new page, a new context, a new browser', () => {
+    expect(
+      idioms(
+        'packages/playwright/src/a.ts',
+        [
+          'export const one = (page: Page) => page.reload();',
+          'export const two = (context: BrowserContext) => context.newPage();',
+          'export const three = (browser: Browser) => browser.newContext();',
+          'export const four = (page: Page, url: string) => page.goto(url);',
+          'export const five = () => chromium.launch();',
+        ].join('\n'),
+      ),
+    ).toEqual(['fresh-page one', 'fresh-page two', 'fresh-page three', 'fresh-page four', 'fresh-page five']);
+  });
+
+  it('leaves a function of the caller\'s own that is named reload', () => {
+    expect(idioms('packages/tribunal/src/ui/a.tsx', 'export const one = (reload: () => void) => reload();')).toEqual([]);
+  });
+
   it('leaves the owner of each idiom alone', () => {
     const digest = "import { createHash } from 'node:crypto';\nexport const d = (t: string) => createHash('sha256').update(t);";
     const order = 'export const o = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);';
@@ -122,6 +154,27 @@ describe('the owners reader', () => {
     expect((sources() as readonly string[]).filter((file) => /\.(test|spec|check|measure)\.[cm]?tsx?$/.test(file))).toEqual([]);
   });
 
+  it('reads the tests a runner collects for waits and fresh pages only', () => {
+    const text = [
+      "import { createHash } from 'node:crypto';",
+      "const oracle = (t: string) => createHash('sha256').update(t).digest('hex');",
+      'const wait = (page: Page) => page.waitForTimeout(500);',
+      'const again = (page: Page) => page.reload();',
+    ].join('\n');
+
+    expect(tests()).toEqual(
+      expect.arrayContaining([
+        'packages/playwright/src/harness.chromium.test.ts',
+        'cases/storybook-case/src/globals.chromium.test.js',
+        'examples/todomvc/src/entry.test.tsx',
+      ]),
+    );
+    expect((sitesIn('packages/a/src/a.test.ts', text, ['timer', 'fresh-page']) as readonly Site[]).map((site) => site.idiom)).toEqual([
+      'timer',
+      'fresh-page',
+    ]);
+  });
+
   it('reads the JavaScript a package ships beside its TypeScript', () => {
     expect(sources()).toEqual(
       expect.arrayContaining(['packages/editors/src/run.mjs', 'packages/jsx-source/jest-resolver.cjs']),
@@ -132,7 +185,7 @@ describe('the owners reader', () => {
     expect(() => sitesIn('packages/cli/src/a.ts', 'const = ;')).toThrow('packages/cli/src/a.ts');
   });
 
-  it.todo('reads the Rust addon, which writes atomically in eight files — needs a Rust reader for the three idioms');
+  it.todo('reads the Rust addon, which writes atomically in eight files — needs a Rust reader for the idioms');
 });
 
 describe('answers with an owner', () => {
