@@ -45,11 +45,10 @@ const threw = (...readings: Loaded[]) => ({ name: 'threw', readings });
 
 describe('two sides of a case', () => {
   it('are told apart by an arm one side took on every reading and the other on none', () => {
-    const comparison = compareLoaded(
-      ROOT,
+    const comparison = compareLoaded(ROOT, [
       passed(reading([1, 2, 3, 4]), reading([1, 2, 3, 2, 4])),
       threw(reading([1, 2, 4], [], true), reading([1, 2, 2, 4], [], true)),
-    );
+    ]);
 
     expect(comparison).toMatchObject({
       file: 'src/cart.test.ts',
@@ -57,53 +56,54 @@ describe('two sides of a case', () => {
       sides: [{ name: 'passed', readings: 2, stopped: 0 }, { name: 'threw', readings: 2, stopped: 2 }],
       single: false,
     });
-    expect(comparison.places[0].items).toEqual([{
-      place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 },
-      path: 'for#0/body/if#0/then',
-      startLine: 19,
-      endLine: 19,
-      constructLine: 19,
+    expect(comparison.only).toEqual([{
+      sides: ['passed'],
+      places: [{
+        place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 },
+        path: 'for#0/body/if#0/then',
+        startLine: 19,
+        endLine: 19,
+        constructLine: 19,
+      }],
+      said: [],
     }]);
-    expect(comparison.places[1].items).toEqual([]);
   });
 
   it('keep an order both sides hold every time, reversed between them, and count the order that moves within a side', () => {
     // `format.ts` finishes at another point on every run, so every order it is
     // in moves within a side; removeItem before price is the only order each
     // side holds, and they hold it the opposite way.
-    const comparison = compareLoaded(
-      ROOT,
+    const comparison = compareLoaded(ROOT, [
       passed(reading([5, 1, 4]), reading([1, 5, 4])),
       threw(reading([4, 1, 5], [], true), reading([5, 4, 1], [], true)),
-    );
+    ]);
 
-    expect(comparison.reversed).toEqual([[
-      { place: expect.objectContaining({ name: 'removeItem' }) },
-      { place: expect.objectContaining({ name: 'price' }) },
-    ]]);
+    expect(comparison.orders).toEqual([{
+      pair: [{ place: expect.objectContaining({ name: 'removeItem' }) }, { place: expect.objectContaining({ name: 'price' }) }],
+      before: ['passed'],
+      after: ['threw'],
+    }]);
     expect(comparison.unsteady.order).toBe(2);
-    expect(comparison.places.flatMap((side) => side.items)).toEqual([]);
+    expect(comparison.only).toEqual([]);
   });
 
   it('are told apart by a line one side said every time, and not by one whose text changes every run', () => {
-    const comparison = compareLoaded(
-      ROOT,
+    const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, 'console.log stock 1'], [2, 'console.log at 1001']]), reading([1, 4], [[1, 'console.log stock 1'], [2, 'console.log at 1002']])),
       threw(reading([1, 4], [[1, 'console.log stock 0'], [2, 'console.log at 1003']], true), reading([1, 4], [[1, 'console.log stock 0']], true)),
-    );
+    ]);
 
-    expect(comparison.said.map((side) => side.items)).toEqual([['console.log stock 1'], ['console.log stock 0']]);
+    expect(comparison.only.map((only) => [only.sides, only.said])).toEqual([[['passed'], ['console.log stock 1']], [['threw'], ['console.log stock 0']]]);
     expect(comparison.unsteady.said).toBe(3);
   });
 
   it('put a line said in order with the places around it', () => {
-    const comparison = compareLoaded(
-      ROOT,
+    const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, 'eyes click on button "Save"']]), reading([1, 4], [[1, 'eyes click on button "Save"']])),
       threw(reading([1, 4], [[2, 'eyes click on button "Save"']]), reading([1, 4], [[2, 'eyes click on button "Save"']])),
-    );
+    ]);
 
-    expect(comparison.reversed).toEqual([[{ said: 'eyes click on button "Save"' }, { place: expect.objectContaining({ name: 'price' }) }]]);
+    expect(comparison.orders.map((order) => order.pair)).toEqual([[{ said: 'eyes click on button "Save"' }, { place: expect.objectContaining({ name: 'price' }) }]]);
   });
 
   it('name an arm of an `if` by the line its `then` starts on, the `else` an absent one is given as well', () => {
@@ -118,18 +118,42 @@ describe('two sides of a case', () => {
       files: ['src/checkout.ts'],
       regions: [regions],
     });
-    const comparison = compareLoaded(ROOT, passed(checkout([0, 2], false), checkout([0, 2], false)), threw(checkout([0, 1], true), checkout([0, 1], true)));
+    const comparison = compareLoaded(ROOT, [passed(checkout([0, 2], false), checkout([0, 2], false)), threw(checkout([0, 1], true), checkout([0, 1], true))]);
 
     const place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 };
-    expect(comparison.places.map((side) => side.items)).toEqual([
+    expect(comparison.only.map((only) => only.places)).toEqual([
       [{ place, path: 'if#0/else', startLine: 15, endLine: 15, constructLine: 13 }],
       [{ place, path: 'if#0/then', startLine: 13, endLine: 15, constructLine: 13 }],
     ]);
   });
 
   it('say so when a side has one reading, since one run cannot be told apart from a run that went another way', () => {
-    const comparison = compareLoaded(ROOT, passed(reading([1, 4])), threw(reading([4, 1], [], true)));
+    const comparison = compareLoaded(ROOT, [passed(reading([1, 4])), threw(reading([4, 1], [], true))]);
     expect(comparison.single).toBe(true);
-    expect(comparison.reversed).toHaveLength(1);
+    expect(comparison.orders).toHaveLength(1);
+  });
+});
+
+describe('three sides of a case', () => {
+  const side = (name: string, ...readings: Loaded[]) => ({ name, readings });
+
+  it('group what separates them by the sides that hold it on every reading, and count what one side holds only sometimes', () => {
+    const comparison = compareLoaded(ROOT, [
+      side('flag on', reading([1, 2, 3, 4]), reading([1, 2, 3, 2, 4])),
+      side('flag off', reading([1, 2, 4], [[1, 'console.log retry']]), reading([1, 2, 4])),
+      side('as mike', reading([4, 1, 2, 3], [[0, 'console.log mike']]), reading([4, 1, 2, 3], [[0, 'console.log mike']])),
+    ]);
+
+    expect(comparison.sides.map((summary) => summary.name)).toEqual(['flag on', 'flag off', 'as mike']);
+    expect(comparison.only).toEqual([
+      { sides: ['flag on', 'as mike'], places: [expect.objectContaining({ path: 'for#0/body/if#0/then' })], said: [] },
+      { sides: ['as mike'], places: [], said: ['console.log mike'] },
+    ]);
+    expect(comparison.orders).toEqual([{
+      pair: [{ place: expect.objectContaining({ name: 'removeItem' }) }, { place: expect.objectContaining({ name: 'price' }) }],
+      before: ['flag on', 'flag off'],
+      after: ['as mike'],
+    }]);
+    expect(comparison.unsteady.said).toBe(1);
   });
 });

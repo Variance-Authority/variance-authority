@@ -33,11 +33,12 @@ question open:
   with it. Record it alone with `-t` under `VARIANCE_AUTHORITY_STORY=alone`,
   then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
   and ask `story --name <name> --compare alone,file`.
-- **A test fails with a flag on and its twin passes with it off**, or with one
-  user and not another. Record both cases, then ask
-  `story --name <name> --compare twin`: it sets the case against its twin from
-  the record, as `covering` names it (see
-  [case preconditions](case-preconditions.md)), with no labels to set up.
+- **Two tests or more differ in their setup and in their result**: the flag
+  on fails and off passes, the default user passes and Mike fails. Record each
+  under `VARIANCE_AUTHORITY_STORY=1`, twice if you can, and name every one:
+  `story --name <one> --name <other>`. Each case is a side, set against the
+  others as readings of one case are; name a case two files hold as
+  `<file> > <name>`.
 
 Never record:
 
@@ -154,8 +155,8 @@ The answer prints a key for its marks. What the key leaves out:
 ```bash
 variance story --name "saves the total it charges" --compare outcome   # passed against threw
 variance story --name "saves the total it charges" --compare last      # newest against the one before
-variance story --name "saves the total it charges" --compare 1,flag-on # two labels
-variance story --name "applies the discount" --compare twin             # against its twin
+variance story --name "saves the total it charges" --compare 1,flag-on # two labels, or more
+variance story --name "charges" --name "charges as mike" --name "charges with the flag off"   # cases against each other
 ```
 
 ```text
@@ -185,14 +186,6 @@ compare  src/checkout.test.ts > saves the total it charges
 - *nothing to compare it with* means a side holds no reading: the route
   printed is the newest reading of the other, and the line names the side that
   is missing. Record that side before you compare.
-- With `twin`, the sides are named for what each case said, such as
-  `discount=on` against `discount=off`, and a `twin at discount=off: …` line
-  under the header names the cases on the other side. Several twins make one
-  side. The twin is looked for among every case of the file that the record
-  beside the story holds, not only the ones that covered some code. When there
-  is none, *nothing to compare it with* says why: no `names.axes`, nothing
-  recorded of what the case said, a case at the base of every axis, no case at
-  the value below, or a twin with no story yet.
 - *one reading on a side* means the comparison cannot separate the side from the
   run. `last` always prints it. Record the test again under each side before you
   conclude.

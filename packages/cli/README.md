@@ -156,7 +156,7 @@ variance review  [--since <ref>] [--against <record>] [--suite <name>] [--covera
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
-variance story   [--file <path>] [--name <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|twin|<a>,<b>] [--root <path>] [--format text|json]
+variance story   [--file <path>] [--name <name>]... [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
@@ -194,7 +194,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
-| `story` | draws the route one case took through the code: the files and declarations it went through, with the steps it reached each, then the part of the route you ask for, each loop drawn once; with `--compare`, lists what every recorded run on one side did and no run on the other did |
+| `story` | draws the route one case took through the code: the files and declarations it went through, with the steps it reached each, then the part of the route you ask for, each loop drawn once; with `--compare` or several `--name`, lists what every recorded run on some sides did and no run on the others did |
 | `serve` | exposes the last run's report, and the source questions `ask` answers, to an MCP client over stdio |
 | `ask` | the same questions `serve` answers, without an MCP client |
 

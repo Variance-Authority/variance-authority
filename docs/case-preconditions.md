@@ -232,10 +232,6 @@ a test that recorded nothing is read at the base of every axis, so it would be
 the twin of every test that recorded a value. Twins print with or without `--where`,
 in every answer.
 
-A twin tells you which test to read beside this one. To see where the two
-parted, record both with [stories](test-stories.md#choose-the-sides) and run
-`variance story --name "applies the discount" --compare twin`.
-
 ## Reference
 
 ### What `variancePrecondition` takes

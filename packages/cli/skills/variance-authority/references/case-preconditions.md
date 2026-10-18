@@ -92,10 +92,6 @@ variance covering --file src/checkout/total.ts --function total --where discount
   empty `twins` is `no twin recorded`.
 - `discount=half (test/flags.ts:6) is not one of off, on` under the `Kept` line
   is a value outside the axis. The case is kept and has no twin on that axis.
-- To see where a case and its twin part, record both with
-  `VARIANCE_AUTHORITY_STORY=1` and ask
-  `variance story --name "applies the discount" --compare twin`
-  ([story](story.md)).
 
 ## Record the state this test runs under
 

@@ -16,7 +16,8 @@
  * why a step number, and not a caller, is what joins the parts.
  *
  * A case keeps its last readings, and `--compare` sets them against each
- * other: `story-compare.ts` says what that answers and what it leaves out.
+ * other; several `--name` set cases against each other the same way:
+ * `story-compare.ts` says what that answers and what it leaves out.
  *
  * Who runs the case is not this command's business. Any runner with the seam
  * installed writes a story for every case it runs under the variable, and
@@ -33,18 +34,16 @@ import {
   type StoryEntry,
   type Untaken,
 } from '@variance-authority/sense/story';
-import type { CaseTwin } from '@variance-authority/sense/test-selection';
 import { checkoutFile } from '../checkout-file.js';
 import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
-import { compareStory, formatComparison, labelled } from './story-compare.js';
-import { compareTwin } from './story-twin.js';
+import { compareCases, compareStory, formatComparison, labelled, listed, type ComparedCase } from './story-compare.js';
 import { armTree } from './story-tree.js';
 import { numbered, through, window, type FileVisits, type Gap, type Line } from './story-view.js';
 
-/** One route and how much of it to read, two sides of a case compared, or the stories to choose from when the flags name more than one case. */
+/** One route and how much of it to read, sides compared, or the stories to choose from when the flags name more than one case. */
 export type StoryAnswer =
   | {
     readonly route: Route;
@@ -60,11 +59,11 @@ export type StoryAnswer =
       readonly unmatched?: string;
     };
   }
-  | { readonly comparison: Comparison; readonly twin?: CaseTwin }
+  | { readonly comparison: Comparison; readonly cases?: readonly ComparedCase[] }
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
-export async function story(parsed: ParsedStory): Promise<StoryAnswer> {
+export function story(parsed: ParsedStory): StoryAnswer {
   const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
   const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
@@ -72,6 +71,11 @@ export async function story(parsed: ParsedStory): Promise<StoryAnswer> {
     throw new OperatorError(
       `no story in this checkout: run the test you are looking into with ${STORY_VARIABLE}=1, named by its file and the runner's own test-name filter, since every test the run runs writes one`,
     );
+  }
+  const { compare } = parsed;
+  if (typeof compare === 'object' && 'cases' in compare) {
+    const inFile = all.filter((entry) => file === undefined || entry.file === file);
+    return compareCases(parsed.root, inFile, compare.cases, parsed.label);
   }
   const matching = all.filter(
     (entry) =>
@@ -86,10 +90,8 @@ export async function story(parsed: ParsedStory): Promise<StoryAnswer> {
   // Readings are listed newest first within a case, so a case's first is its newest.
   const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));
   if (cases.size > 1) return { stories: matching };
-  const compared = parsed.compare === undefined
-    ? undefined
-    : parsed.compare === 'twin' ? await compareTwin(parsed.root, matching, all) : compareStory(parsed.root, matching, parsed.compare);
-  if (compared !== undefined && !('alone' in compared)) return 'twin' in compared ? compared : { comparison: compared };
+  const compared = compare === undefined ? undefined : compareStory(parsed.root, matching, compare);
+  if (compared !== undefined && !('alone' in compared)) return { comparison: compared };
   const newest = compared?.alone ?? matching[0]!;
   const route = readRoute(parsed.root, newest.path);
   const packages: Record<string, string> = {};
@@ -142,7 +144,7 @@ function partOf(lines: readonly Line[], zoom: StoryZoom | undefined, packageOf: 
 const AROUND = 3;
 
 export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): string {
-  if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.twin);
+  if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.cases);
   if ('stories' in answer) return storiesText(answer.stories, format);
   const { route } = answer;
   const packages = answer.packages ?? {};
@@ -479,10 +481,6 @@ const SHOWN = 3;
 function named(names: readonly string[]): string {
   const shown = names.slice(0, SHOWN).join(', ');
   return `${shown}${names.length > SHOWN ? `, and ${names.length - SHOWN} more` : ''}`;
-}
-
-function listed(names: readonly string[]): string {
-  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 }
 
 function loaded(files: readonly string[]): string {

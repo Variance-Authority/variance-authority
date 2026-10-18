@@ -24,33 +24,30 @@ vi.mock('@variance-authority/sense/story', async (original) => ({
 
 const root = await mkdtemp(join(tmpdir(), 'variance-story-select-'));
 const ask = (asked: Partial<ParsedStory>) => story({ command: 'story', root, format: 'text', ...asked });
-const fileOf = async (answer: ReturnType<typeof story>) => {
-  const read = await answer;
-  return 'route' in read ? read.route.file : read;
-};
+const fileOf = (answer: ReturnType<typeof story>) => ('route' in answer ? answer.route.file : answer);
 
 describe('the story a file and a name select', () => {
-  it('is the file at the path asked, never a file whose path holds it', async () => {
-    expect(await fileOf(ask({ file: 'a.test.ts' }))).toBe('a.test.ts');
+  it('is the file at the path asked, never a file whose path holds it', () => {
+    expect(fileOf(ask({ file: 'a.test.ts' }))).toBe('a.test.ts');
   });
 
-  it('reads the path from the checkout, however it is spelled inside it', async () => {
-    expect(await fileOf(ask({ file: './sub/../a.test.ts' }))).toBe('a.test.ts');
-    expect(await fileOf(ask({ file: join(root, 'a.test.ts') }))).toBe('a.test.ts');
+  it('reads the path from the checkout, however it is spelled inside it', () => {
+    expect(fileOf(ask({ file: './sub/../a.test.ts' }))).toBe('a.test.ts');
+    expect(fileOf(ask({ file: join(root, 'a.test.ts') }))).toBe('a.test.ts');
   });
 
-  it('refuses a path outside the checkout as one', async () => {
-    await expect(ask({ file: '../a.test.ts' })).rejects.toThrow(`../a.test.ts is outside the checkout at ${root}`);
+  it('refuses a path outside the checkout as one', () => {
+    expect(() => ask({ file: '../a.test.ts' })).toThrow(`../a.test.ts is outside the checkout at ${root}`);
   });
 
-  it('is the case with the name asked, never a case whose name holds it', async () => {
-    expect(await fileOf(ask({ name: 'a > adds' }))).toBe('a.test.ts');
-    await expect(ask({ name: 'adds' })).rejects.toThrow('no story is written for --name adds; 2 are written here, and `variance story` alone lists them');
-    await expect(ask({ file: 'A.test.ts' })).rejects.toThrow('no story is written for --file A.test.ts; 2 are written here');
+  it('is the case with the name asked, never a case whose name holds it', () => {
+    expect(fileOf(ask({ name: 'a > adds' }))).toBe('a.test.ts');
+    expect(() => ask({ name: 'adds' })).toThrow('no story is written for --name adds; 2 are written here, and `variance story` alone lists them');
+    expect(() => ask({ file: 'A.test.ts' })).toThrow('no story is written for --file A.test.ts; 2 are written here');
   });
 
-  it('reads the file `--in` names from the checkout, as `--file` is', async () => {
-    expect(await ask({ file: 'a.test.ts', zoom: { in: './sub/../a.test.ts' } })).toMatchObject({ zoom: { in: 'a.test.ts' } });
-    await expect(ask({ zoom: { in: '../a.test.ts' } })).rejects.toThrow(`../a.test.ts is outside the checkout at ${root}`);
+  it('reads the file `--in` names from the checkout, as `--file` is', () => {
+    expect(ask({ file: 'a.test.ts', zoom: { in: './sub/../a.test.ts' } })).toMatchObject({ zoom: { in: 'a.test.ts' } });
+    expect(() => ask({ zoom: { in: '../a.test.ts' } })).toThrow(`../a.test.ts is outside the checkout at ${root}`);
   });
 });

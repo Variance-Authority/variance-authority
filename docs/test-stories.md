@@ -259,7 +259,10 @@ where only the run differs, or a setup you chose, where you name what differs:
 | `outcome` | the readings that passed | the readings that threw | nothing you chose: the run |
 | `last` | the newest reading | the reading before it | the run, and anything you edited between the two |
 | `<a>,<b>` | the readings labelled `a` | the readings labelled `b` | what you set up differently for each label |
-| `twin` | the test's readings | the readings of its [twin](case-preconditions.md#twins) | the one precondition the two tests recorded differently |
+
+Naming more than two labels, as `--compare a,b,c`, makes each label a side.
+Whatever separates them is listed under the sides that hold it, such as `only
+under a and c`.
 
 You label a run by setting `VARIANCE_AUTHORITY_STORY` to a name in place of
 `1`. Use labels for a test that passes alone and fails with its file, a feature flag on and off,
@@ -272,34 +275,34 @@ VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
 variance story --name "cart > removes the last item" --compare alone,file
 ```
 
-When two tests in one file differ by a precondition they record, such as a
-flag on and off or one user and another, you do not need labels. Declare the
-axis in `names.axes`, record both tests, and compare one with its
-[twin](case-preconditions.md#twins):
-
-```bash
-VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/checkout.test.ts
-variance story --name "applies the discount" --compare twin
-```
-
-```text
-compare  src/checkout.test.ts > applies the discount
-  twin at discount=off: charges the regular price
-  discount=on (3 readings) against discount=off (3 readings)
-```
-
-The twin is read from the record the stories were written beside, so it is the
-test `covering` would name, looked for among every test of the file rather than
-the ones that covered some code you asked about. Its readings are the ones
-written beside that record, so both sides come from one suite. The two tests'
-own bodies differ too, so each side lists its own test among the places only it
-went into; the rest is where the code under test parted.
-
 `before the test`, at the top of each story, shows the code the runner ran right before the
 test, such as code another test's `afterEach` called.
 
 `--compare last` is always one reading against one, so use it to see what an
 edit changed, not to explain a test that fails on some runs.
+
+### Compare tests
+
+The setup you change is often a second test, not a label: one test with the
+flag on and one with it off, one signed in as the default user and one as Mike.
+Name each test with its own `--name`, two or more, and each one is a side:
+
+```bash
+variance story --name "charges" --name "charges with the flag off" --name "charges as mike"
+```
+
+```text
+compare  src/checkout.test.ts
+  `charges` (2 readings), `charges with the flag off` (2 readings) and `charges as mike` (2 readings, every one threw), against each other
+
+  only in `charges as mike`, on every reading:
+    went into  priceFor  src/price.ts:4-12, the then of the if on 7
+```
+
+Every reading kept of each test counts, so record each test twice or more for
+the same reason as above. `--label` keeps only the readings under one label on
+every side. A name two test files hold is refused; name the file with `--file`,
+or write the name as `<file> > <name>`.
 
 ## Why the journey has no order
 
