@@ -57,4 +57,24 @@ describe('the Vitest integration under the loads recipe', () => {
 -    return 'A';
 +    return 'Alpha';`)).resolves.toEqual([ext('test/alpha.case.ts'), ext('test/beta.case.ts')]);
   }, 30_000);
+
+  it('records a module for every test file of a shared realm, though the realm evaluated it once', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    // One worker and no isolation: `src/decide.ts` is evaluated for whichever
+    // of the two files runs first, and only read from the module cache by the other.
+    await execute(
+      process.execPath,
+      [vitest, 'run', 'test/alpha.case.ts', 'test/beta.case.ts', '--config', resolve(fixture, 'vitest.loads.config.ts'), '--no-isolate', '--no-file-parallelism'],
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
+    );
+
+    await expect(selectTestFiles(coverageFile, `--- a/${ext('src/decide.ts')}
++++ b/${ext('src/decide.ts')}
+@@ -1,1 +1,1 @@
+-x
++y`)).resolves.toEqual([ext('test/alpha.case.ts'), ext('test/beta.case.ts')]);
+  }, 30_000);
 });

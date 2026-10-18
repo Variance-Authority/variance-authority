@@ -140,13 +140,7 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
   };
 
   const open = (key: string): Bucket => ({
-    L: spare.pop() ?? new Int32Array(1 << 12),
-    n: 0,
-    d: 0,
-    dense: 0,
-    key,
-    open: true,
-    closed: false,
+    L: spare.pop() ?? new Int32Array(1 << 12), n: 0, d: 0, dense: 0, key, open: true, closed: false,
     cuts: cuts === undefined ? null : [],
   });
 
@@ -460,6 +454,10 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
     /** The bucket the probes write into now. */
     current: (): Bucket => current,
     /** Every module whose probes registered in this realm. */ registered: (): readonly ModuleId[] => rowIds,
+    /** Log every module the realm holds as loaded: a realm outliving a test file evaluates none twice. */
+    carry(): void {
+      for (let row = 0; row < rowIds.length; row += 1) if (rowLive[row] === 1) push(rowBase[row]! | EVALUATING);
+    },
     /** The scope's resolver, where the bucket follows an async scope. */
     scope(resolver: () => Bucket): void {
       resolveNow = resolver;
