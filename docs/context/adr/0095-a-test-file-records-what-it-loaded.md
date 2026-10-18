@@ -25,9 +25,9 @@ The `unprobed` option already marked a module as loaded without probing it:
 one line after the module's own text, under the id `path@~digest`.
 
 A module is marked as its test file loads it, which is before any of the
-file's cases opens. Per-case scoping under that recipe recorded only the load
-again in each case: on TanStack Query's `query-core` it wrote about 186 KB of
-case sections against 0 bytes of blocks.
+file's cases opens. Per-case scoping under that recipe opened a scope per case
+and recorded only the load again in each one: work at run time that told
+selection nothing.
 
 ## Decision
 
@@ -65,10 +65,10 @@ a switch it composes, not a policy this package decides.
 
 ## Consequences
 
-- On `query-core` (21 test files, 614 tests, best of five): the plain run takes
-  1.21 s, `presence` 1.50 s with a 374 KB record, `loads` 1.37 s with a 46 KB
-  record. Recording costs about half of what `presence` costs, and the record
-  is about an eighth its size.
+- On `query-core` (21 test files, 614 tests, best of five, interleaved): the
+  plain run takes 1.19 s, `presence` 1.48 s, `loads` 1.36 s. Recording adds
+  0.17 s where `presence` adds 0.29 s: what is left is the mark's call per
+  module evaluated and Vite's transform of the marked text.
 - Under a shared realm a later test file is charged with every module an
   earlier one loaded, so a change selects more of it than an isolated run would.
 - A `loads` record selects at the file grain and cannot answer which line a
