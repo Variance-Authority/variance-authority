@@ -139,6 +139,12 @@ jobs:
         shell: bash
         run: yarn check
 
+      # The import fences in each `.relations.json`: a runner-neutral file that
+      # reads one runner's integration is the first step of bending toward it.
+      - name: restrictions
+        shell: bash
+        run: yarn restrictions
+
       # The native crates' own unit tests, the `#[cfg(test)]` modules under
       # `packages/sense/native`, and one build of the instrumenter crate as a
       # project's Rust pipeline links it, from `node_modules`. `yarn test`
@@ -1252,6 +1258,11 @@ jobs:
         if: matrix.part == 'rules'
         shell: bash
         run: yarn check
+
+      - name: restrictions
+        if: matrix.part == 'rules'
+        shell: bash
+        run: yarn restrictions
 
       # The mainline's records as `plan` read them and counted from, for the
       # reasons written at the same steps in `suite`.

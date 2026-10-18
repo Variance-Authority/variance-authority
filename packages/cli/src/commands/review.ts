@@ -25,9 +25,9 @@ import {
   changedLines,
   readCommitRuns,
   readJourneyChange,
+  type CasePrecondition,
   type CommitRuns,
   type ExecutionIndex,
-  type ExecutionTest,
   type FileReading,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
@@ -110,7 +110,7 @@ export interface ReviewCase {
   /** The title with every `describe` it sits in, joined by ` > `. */
   readonly name: string;
   /** What it said it arranged, as `covering` reads it: empty is heard-nothing, absent is a record that did not listen. */
-  readonly preconditions?: ExecutionTest['preconditions'];
+  readonly preconditions?: readonly CasePrecondition[];
 }
 
 export interface ReviewFile {

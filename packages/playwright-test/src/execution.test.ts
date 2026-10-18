@@ -17,7 +17,7 @@ import {
   testOf,
   type ExecutionRecorder,
 } from './execution.js';
-import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { decodeExecutionIndex, rowOf } from '@variance-authority/sense/test-selection';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import type { PreconditionStanding } from '@variance-authority/sense/journal';
 import { caseKey } from './test-coordinate.js';
@@ -436,9 +436,9 @@ describe('a worker that is one of several', () => {
       await recorder.close();
 
       const index = decodeExecutionIndex(await readFile(coverageFile));
-      expect(index.tests.map((one) => [one.name, one.preconditions?.map(({ name, value, level }) => [name, value, level])]))
+      expect(index.tests.map((one) => [one.name, rowOf(one)?.map(({ name, value, level }) => [name, value, level])]))
         .toEqual([['pays', [['network', 'mocked', 0xffff]]], ['refunds', [['seeded', true, 0xffff]]]]);
-      expect(index.tests[0]!.preconditions![0]!.site).toMatch(/execution\.test\.ts:\d+$/);
+      expect(rowOf(index.tests[0]!)![0]!.site).toMatch(/execution\.test\.ts:\d+$/);
     });
   });
 

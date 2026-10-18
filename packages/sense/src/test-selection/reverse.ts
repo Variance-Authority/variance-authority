@@ -3,7 +3,7 @@ import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
-import type { CasePrecondition } from './case-precondition-column.js';
+import type { Said } from './case-said.js';
 
 /** One recorded case: who it is, where it is declared, and whether its journey ended. */
 export interface ExecutionTest {
@@ -25,8 +25,8 @@ export interface ExecutionTest {
    * which is not zero.
    */
   readonly duration?: number;
-  /** What the case said it arranged, narrowest scope per name; empty is heard-nothing, absent is unheard. */
-  readonly preconditions?: readonly CasePrecondition[];
+  /** Every item the case said it arranged, unresolved; `[]` is heard-nothing, absent is unheard. */
+  readonly said?: Said;
 }
 
 export interface ExecutionCrossing {

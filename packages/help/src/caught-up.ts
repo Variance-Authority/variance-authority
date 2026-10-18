@@ -1,4 +1,5 @@
 import { refreshDependencyLexicon } from './dependency-lexicon.js';
+import { FoundNothing } from './tools/find.js';
 
 /**
  * What a refused source question does before its refusal is believed, for every
@@ -82,6 +83,19 @@ export function foundNothingFooter(caught: CaughtUp<unknown> | undefined, at: st
   const lines = caught?.dated === true ? [caught.footer] : [at === undefined ? undefined : snapshotLine(at, unseen), caught?.footer];
   const said = lines.filter((line) => line !== undefined);
   return said.length === 0 ? undefined : said.join('\n');
+}
+
+/**
+ * The answer a question gives when what it threw is a {@link FoundNothing}, for
+ * every surface that asks one — `variance ask`, `variance serve`, and this
+ * package's binary and server — so a name nothing declares reads the same on
+ * each: what was read and found nothing, then {@link foundNothingFooter}'s
+ * lines. Undefined for any other throw, which stays a refusal.
+ */
+export function foundNothingAnswer(thrown: unknown, caught: CaughtUp<unknown> | undefined, at: string | undefined, unseen: boolean): string | undefined {
+  if (!(thrown instanceof FoundNothing)) return undefined;
+  const dated = foundNothingFooter(caught, at, unseen);
+  return dated === undefined ? thrown.message : `${thrown.message}\n${dated}`;
 }
 
 function messageOf(failure: unknown): string {

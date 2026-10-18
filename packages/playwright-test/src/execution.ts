@@ -25,6 +25,8 @@ import {
   modulesEntered,
   preconditionOf,
   recordExecution,
+  SAID_NOTHING,
+  saidAcross,
   stageExecution,
   stagingDirectory,
   type CasePrecondition,
@@ -215,9 +217,9 @@ export function createExecutionRecorder(
       if (subject !== undefined) {
         const key = caseKey(owner, subject.id);
         if (duration !== undefined) add(key, duration);
-        const said = listener?.take(key) ?? [];
-        if (said.length > 0) {
-          heard.set(key, [...(heard.get(key) ?? []), ...said]);
+        const said = listener?.take(key);
+        if (said !== undefined) {
+          heard.set(key, saidAcross(heard.get(key), said).said!);
           // A case that only said something is still a case.
           caseOf(owner, subject);
         }
@@ -278,7 +280,7 @@ export function createExecutionRecorder(
       const settled = stopped.get(key);
       const duration = spent.get(key);
       const eyes = looked.get(key);
-      const said = listener === undefined ? undefined : (heard.get(key) ?? []);
+      const said = listener === undefined ? undefined : (heard.get(key) ?? SAID_NOTHING);
       const lines = reached.of(key);
       return {
         ...held.of,

@@ -12,7 +12,7 @@ import {
 } from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { caughtUp, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { caughtUp, foundNothingAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { HELP, HELP_TOOLS, UNCOMPARED_HELP, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
@@ -232,6 +232,10 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
         return caughtUp(at, started, root, async (current) => (current ? { ...refused, help: await readHelp(0) } : refused));
       },
     }),
+    // A source question's name nothing declares is the answer once it has
+    // been read again, said as `variance ask` says it.
+    answered: (thrown: unknown, bench: Bench, again) =>
+      foundNothingAnswer(thrown, again, bench.help === undefined ? undefined : workspaceGeneration(bench.help), options.justAnswer === true),
     // Only the report, and the line it came from. `previous` serves the one
     // tool that compares this request with the last one, and it compares
     // reports; cloning a whole workspace reading on every successful call would

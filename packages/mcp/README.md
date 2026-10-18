@@ -673,6 +673,8 @@ composes when the report does not come from a file:
 | `output` | the `Writable` responses leave on |
 | `served` | the `Served<Subject>` name and tools for the subject; use `REPORTS` for a `RunReport` or supply a set for another serializable subject |
 | `subject` | supplies the current subject. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
+| `again` | a subject to ask a refused call of once more, for a host whose subject is a reading it reuses and may predate the file that answers, and a footer for a refusal that still stands |
+| `answered` | the text a well-formed call still refused after `again` answers with instead, as a result rather than an error, given what its tool threw and what your `again` returned; return nothing to let the refusal stand. It runs with or without `again`: a host that reads its subject fresh for every call still says its thrown answers here. A tool that throws an answer so `again` reads it once more, such as a name nothing declares, is answered here |
 
 A `Served` is a name, a version and the tools. It may also include
 `instructions`, a function of the subject whose answer the client puts in front

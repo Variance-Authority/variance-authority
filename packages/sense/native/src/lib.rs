@@ -26,7 +26,8 @@ mod case_fold;
 mod case_id;
 mod case_lines;
 mod case_owner;
-mod case_preconditions;
+mod case_said;
+mod case_said_napi;
 mod case_shard;
 mod compact;
 #[cfg(any(target_os = "macos", target_os = "linux"))]

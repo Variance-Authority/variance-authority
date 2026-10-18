@@ -108,7 +108,43 @@ the site, CLI output and error messages. Read it before writing any of them.
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and
   names each owner, and `tools/clones.check.ts` holds pasted blocks per pair of
-  files. Neither sees a long flow re-typed with new names.
+  files. Neither sees a long flow re-typed with new names; the Alignment
+  reviewer looks for that.
+- **One implementation.** A second way to compute an answer that already has
+  one is a defect, however it is spelled: a new flag beside an old one, a fast
+  path beside the general path, a fallback beside the reader that refused. The
+  change extends, calls or replaces the first; it never sits next to it.
+- **Four roles, and complexity goes down.** Each file plays one of them. A
+  shell imports decisions and mechanisms, a mechanism imports engines, and a
+  decision imports only decisions and types; nothing imports a shell. A role is
+  not a package layer: those are depth in the import graph, from
+  `variance layers`.
+  1. **Engine** — borrowed: oxc parses, git finds files and diffs, TypeScript
+     answers types, Chromium paints, the runner says what an import meant under
+     test. We call an engine; we never re-implement it.
+  2. **Mechanism** — our deep modules: complex inside, a narrow interface out,
+     no policy. The source index, the recording, the comparator.
+  3. **Decision** — pure functions over values a mechanism returned. No I/O,
+     no clock, no process.
+  4. **Shell** — wiring: read arguments, call, print. No branches beyond
+     dispatch.
+
+  A rule that wants a loop over bytes goes down a role into a mechanism; a
+  mechanism that wants a policy takes it as a parameter. Before writing a
+  mechanism, ask whether an engine already answers it. This is Bernhardt's
+  "functional core, imperative shell" with the core split into Ousterhout's
+  deep modules. Nothing checks a role yet: a file does not declare one
+  (`tools/relations.check.ts` holds the marker).
+- **Scope stops at a neighbour's answer.** What another tool owns — the table in
+  [`.compass/COMPASS.md`](../../.compass/COMPASS.md#not-ours) — is asked of that
+  tool, never grown here. A capability that would make variance answer its
+  neighbour's question is a separate decision, not a step inside a feature.
+- **No runner is the default.** Runner-neutral code reads no runner's
+  integration: Jest, Vitest and Rstest are peers, and what two of them share
+  moves into a neutral file they each call. `.relations.json` beside the
+  integrations holds the fence, and `yarn restrictions` (in `verify:rules`)
+  fails an import across it. A feature lands for every runner or says, at the
+  site, which runner it waits for.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a
@@ -125,6 +161,13 @@ the site, CLI output and error messages. Read it before writing any of them.
   names the writer and the selector that connected them, and we guide the fix.
   Rinsing an unstable subject until it looks stable hides the defect and charges
   every other subject for it.
+  A navigation, a reload, a new browser, page or context is a `fresh-page` site, and a
+  `setTimeout`, `setInterval` or `waitForTimeout` is a `timer` site:
+  `tools/owners.check.ts` holds today's per file, tests included, and a new one
+  fails. Readiness
+  is a signal — an event, a promise, `aria-busy`, the harness hook — and a timer
+  is only a deadline that names what never answered. A deadline lands the way
+  any recorded site does: its reason at the site, then `yarn owners --write`.
 - **No magic, and not alone.** Nothing performs an operation the user did not
   ask for, in a place they would not look for it. We never keep the user blind,
   and we never fix an edge case behind their back. Across a boundary we ride what

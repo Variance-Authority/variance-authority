@@ -24,6 +24,7 @@ import { openSetExecutionIndex } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { caseIndexOf } from './case-record.js';
 import preconditions from './case-preconditions.cjs';
+import { rowOf } from './case-said.js';
 import {
   CALLED_WHILE_EVALUATING,
   INITIALIZING,
@@ -363,7 +364,7 @@ describe('a run recorded by more than one process', () => {
               id: 'e2e/price.spec.ts#1',
               stopped,
               duration: 0.1 * (at + 1),
-              said: [['user', attempt, 'e2e/price.spec.ts:3:5', 0]] as [string, string, string, number][],
+              said: JSON.stringify([['user', attempt, 'e2e/price.spec.ts:3:5', 0]]),
               journal,
             },
           ],
@@ -395,20 +396,21 @@ describe('a run recorded by more than one process', () => {
       for (const [journal, said] of [[run.premium, MOCKED], [run.plain, FROZEN]] as const) {
         await stageExecution(directory, {
           subjects: [{ owner: 'e2e/price.spec.ts', journal, complete: true }],
-          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', said: [said], journal }],
+          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', said: JSON.stringify([said]), journal }],
         });
       }
       const staged = await foldStage(directory);
       // Whichever worker's contribution is read first, the case holds both.
       expect(staged.cases!.map((observed) => observed.name)).toEqual(['case a']);
-      expect(staged.cases![0]!.said).toHaveLength(2);
-      expect(staged.cases![0]!.said).toEqual(expect.arrayContaining([MOCKED, FROZEN]));
+      const joined = JSON.parse(staged.cases![0]!.said!) as unknown[];
+      expect(joined).toHaveLength(2);
+      expect(joined).toEqual(expect.arrayContaining([MOCKED, FROZEN]));
       expect(staged.cases![0]).not.toHaveProperty('duration');
 
       await recordExecution({ root, cacheRoot: resolve(root, 'cache'), coverageFile, subjects: staged.subjects, cases: staged.cases! });
       const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(index.tests[0]).not.toHaveProperty('duration');
-      expect(index.tests.map((test) => test.preconditions)).toEqual([[HEARD_FROZEN, HEARD_MOCKED]]);
+      expect(index.tests.map(rowOf)).toEqual([[HEARD_FROZEN, HEARD_MOCKED]]);
       expect(named(index, PREMIUM_LINE)).toEqual(['case a']);
       expect(named(index, PLAIN_LINE)).toEqual(['case a']);
       await closeStage(directory);
@@ -427,8 +429,8 @@ describe('a run recorded by more than one process', () => {
         coverageFile,
         subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }],
         cases: [
-          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 300, said: [MOCKED], journal: run.premium },
-          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 200, said: [FROZEN], journal: run.plain },
+          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 300, said: JSON.stringify([MOCKED]), journal: run.premium },
+          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 200, said: JSON.stringify([FROZEN]), journal: run.plain },
           // Handed over twice and never timed: no time, rather than none summed to zero.
           { file: 'e2e/price.spec.ts', name: 'case b', id: 'b', journal: run.premium },
           { file: 'e2e/price.spec.ts', name: 'case b', id: 'b', journal: run.premium },
@@ -436,7 +438,7 @@ describe('a run recorded by more than one process', () => {
       });
 
       const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
-      expect(index.tests.map(({ name, duration, preconditions }) => ({ name, duration, preconditions }))).toEqual([
+      expect(index.tests.map((test) => ({ name: test.name, duration: test.duration, preconditions: rowOf(test) }))).toEqual([
         { name: 'case a', duration: 500, preconditions: [HEARD_FROZEN, HEARD_MOCKED] },
         { name: 'case b', duration: undefined, preconditions: undefined },
       ]);
