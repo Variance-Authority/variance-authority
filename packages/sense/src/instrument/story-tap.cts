@@ -56,6 +56,24 @@
  * tape and hands it on unchanged. Both happen only in a realm that is recording
  * a story, which somebody asked for by name.
  *
+ * ## What a region was handed
+ *
+ * The walk ends every function's first region, once its parameters are bound,
+ * and every module, once its top level has run, with a call nobody answers:
+ * `__vaL&&__vaL(region, "a,b", a, b)`. `__vaL` is the `V` a root hands a
+ * module when it registers, and only the tap hands one over, so the values
+ * reach a story and nothing else. Each call is a note — `handed c=ref1 Object,
+ * tax=2` for a function, `holds cart=ref1 Object, Till=ref2 class Till` for a
+ * module — said where the region was entered.
+ *
+ * A value is shown as it is when it is a primitive, and a string is cut. An
+ * object is a ref and a word: the ref is its identity, the same wherever it is
+ * handed, so a reader follows one value from a provider to its consumer, and
+ * the word is what it is, read without calling any of its code. What it holds
+ * is never shown. {@link Tap.identify} answers the other way: the ref of an
+ * object found anywhere — a fiber's `type`, a prop — and the binding it was
+ * first seen in, which for a component is the module binding that declared it.
+ *
  * ## Written to be sent as text
  *
  * {@link createTap} closes over everything it uses, like `createEngine`, so a
@@ -78,7 +96,7 @@ interface Tape {
   readonly keys: readonly string[];
   /** Each note: how many visits were taped before it, the bucket it was said in, and the text. */
   readonly notes: readonly (readonly [at: number, key: string, text: string])[];
-  /** Notes past {@link NOTE_LIMIT}, counted and not kept. */
+  /** Notes past either {@link NOTE_LIMIT}, counted and not kept. */
   readonly unnoted: number;
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
 }
@@ -96,14 +114,33 @@ interface Tap {
   read(): Tape;
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
-  /** Start the tape again, keeping what the realm registered. */
+  /**
+   * The ref a handed or held object goes by, and the binding it was first seen
+   * in: where whatever holds it now got it from. Nothing for an object no
+   * region handed over.
+   */
+  identify(value: object): Sighting | undefined;
+  /** Start the tape again, keeping what the realm registered and the refs it gave. */
   reset(): void;
+}
+
+/** An object's ref, what it is, and the first binding it was seen in. */
+interface Sighting {
+  readonly ref: string;
+  readonly kind: string;
+  readonly module: ModuleId;
+  /** The region it was handed to, or 0 for what the module held once it ran. */
+  readonly region: number;
+  readonly name: string;
 }
 
 /** How many visits one tape holds before it stops taping. */
 const TAPE_LIMIT = 1 << 24;
 
-/** How many notes one tape keeps, and how many characters of each. */
+/**
+ * How many notes one tape keeps of what the code said, and as many again of
+ * what its regions were handed; and how many characters of each.
+ */
 const NOTE_LIMIT = 4096;
 const NOTE_LENGTH = 240;
 
@@ -136,8 +173,93 @@ function createTap(engine: Engine, limit: number): Tap {
   let seen = -1;
   let notes: [number, string, string][] = [];
   let unnoted = 0;
+  // How many notes each kind put on the tape: what a region was handed never
+  // crowds out what the code said, however hot the function.
+  let spoken = 0;
+  let handedOver = 0;
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
+
+  // Every object a region handed over, by identity, for as long as the realm
+  // holds it: refs outlive a reset, so a module's bindings, held once when it
+  // ran, still name what a later case is handed. A module's binding outranks a
+  // parameter: `wrap(Panel)` at the top level hands `Panel` over before the
+  // module holds it, and the binding is where it was declared.
+  const sightings = new WeakMap<object, { ref: string; module: ModuleId; region: number; name: string; kind?: string }>();
+  let refs = 0;
+  const describe = Function.prototype.toString;
+
+  // What an object is, in a word, read without running any of its code: no
+  // getter, no proxy trap past the first that throws, no `toString` of its own.
+  const kindOf = (value: object): string => {
+    try {
+      if (typeof value === 'function') {
+        const name = Object.getOwnPropertyDescriptor(value, 'name')?.value;
+        const named = typeof name === 'string' && name !== '' ? ` ${name}` : '';
+        return describe.call(value).startsWith('class') ? `class${named}` : `function${named}`;
+      }
+      if (Array.isArray(value)) return `Array(${value.length})`;
+      const marked = Object.getOwnPropertyDescriptor(value, '$$typeof')?.value;
+      if (typeof marked === 'symbol' && marked.description !== undefined) return marked.description;
+      const prototype = Object.getPrototypeOf(value) as object | null;
+      if (prototype === null) return 'Object';
+      const made = Object.getOwnPropertyDescriptor(prototype, 'constructor')?.value;
+      const name = typeof made === 'function' ? Object.getOwnPropertyDescriptor(made, 'name')?.value : undefined;
+      return typeof name === 'string' && name !== '' ? name : 'Object';
+    } catch {
+      return 'Object';
+    }
+  };
+
+  const shown = (value: unknown, module: ModuleId, region: number, name: string): string => {
+    if (typeof value === 'string') {
+      const cut = value.length > 39 ? `${value.slice(0, 39)}…` : value;
+      // One note is one line: a string's own line breaks are spelled.
+      return `'${cut.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}'`;
+    }
+    if (typeof value === 'bigint') return `${value}n`;
+    if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return String(value);
+    let sighting = sightings.get(value);
+    if (sighting === undefined) {
+      refs += 1;
+      sighting = { ref: `ref${refs}`, module, region, name };
+      sightings.set(value, sighting);
+    } else if (region === 0 && sighting.region !== 0) {
+      sighting.module = module;
+      sighting.region = 0;
+      sighting.name = name;
+    }
+    // A function's kind is its source's first word and its name, which do not change.
+    if (typeof value !== 'function') return `${sighting.ref} ${kindOf(value)}`;
+    sighting.kind ??= kindOf(value);
+    return `${sighting.ref} ${sighting.kind}`;
+  };
+
+  const put = (text: string): void => {
+    const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
+    // Where an async scope decides the bucket, ask it, as a probe would
+    // before it writes: a note said in a case's continuation is the case's.
+    inner.s?.();
+    notes.push([taped, engine.current().key, line]);
+  };
+
+  // What a row's regions hand over: the names the walk wrote, and their values.
+  const handing =
+    (module: ModuleId) =>
+    (region: number, names: string, ...values: unknown[]): void => {
+      // Past the limit nothing is read: a hot function pays for a count.
+      if (handedOver >= NOTE_LIMIT) {
+        unnoted += 1;
+        return;
+      }
+      try {
+        const said = names.split(',').map((name, index) => `${name}=${shown(values[index], module, region, name)}`);
+        handedOver += 1;
+        put(`${region === 0 ? 'holds' : 'handed'} ${said.join(', ')}`);
+      } catch {
+        // What the story could not say never reaches the code that said it.
+      }
+    };
 
   const record = (entry: number): void => {
     const activation = inner.a;
@@ -186,7 +308,7 @@ function createTap(engine: Engine, limit: number): Tap {
         rowCounts.push(count);
         rowBases.push(registered.b);
       }
-      return { f: registered.f, s: registered.s, b: registered.b, p: pass };
+      return { f: registered.f, s: registered.s, b: registered.b, p: pass, V: handing(id) };
     },
     e(): void {
       inner.e();
@@ -208,19 +330,25 @@ function createTap(engine: Engine, limit: number): Tap {
       return { tape, taped, visits, at, keys, notes, unnoted, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
-      if (notes.length >= NOTE_LIMIT) {
+      if (spoken >= NOTE_LIMIT) {
         unnoted += 1;
         return;
       }
-      const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
-      // Where an async scope decides the bucket, ask it, as a probe would
-      // before it writes: a note said in a case's continuation is the case's.
-      inner.s?.();
-      notes.push([taped, engine.current().key, line]);
+      spoken += 1;
+      put(text);
+    },
+    // TODO: a story names the binding behind a fiber's owner — needs a reader in the test's realm that walks a fiber to its `type`
+    identify(value: object): Sighting | undefined {
+      const sighting = sightings.get(value);
+      if (sighting === undefined) return undefined;
+      const { ref, module, region, name } = sighting;
+      return { ref, kind: sighting.kind ?? kindOf(value), module, region, name };
     },
     reset(): void {
       notes = [];
       unnoted = 0;
+      spoken = 0;
+      handedOver = 0;
       taped = 0;
       visits = 0;
       at = [];

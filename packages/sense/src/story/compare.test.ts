@@ -97,6 +97,29 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(3);
   });
 
+  it('are told apart by what a function was handed, and not by the number its run gave an object', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], [[1, 'handed cart=ref2 Object, tax=0']]), reading([1, 4], [[1, 'handed cart=ref3 Object, tax=0']])),
+      threw(reading([1, 4], [[1, 'handed cart=ref2 Object, tax=2']], true), reading([1, 4], [[1, 'handed cart=ref5 Object, tax=2']], true)),
+    ]);
+
+    expect(comparison.only.map((only) => [only.sides, only.said])).toEqual([
+      [['passed'], ['handed cart=ref Object, tax=0']],
+      [['threw'], ['handed cart=ref Object, tax=2']],
+    ]);
+    expect(comparison.unsteady.said).toBe(0);
+  });
+
+  it('leave out the number of a ref a handed line was cut at', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], [[1, 'handed cart=ref12…']]), reading([1, 4], [[1, 'handed cart=ref3…']])),
+      threw(reading([1, 4], [], true), reading([1, 4], [], true)),
+    ]);
+
+    expect(comparison.only.map((only) => only.said)).toEqual([['handed cart=ref…']]);
+    expect(comparison.unsteady.said).toBe(0);
+  });
+
   it('put a line said in order with the places around it', () => {
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, 'eyes click on button "Save"']]), reading([1, 4], [[1, 'eyes click on button "Save"']])),

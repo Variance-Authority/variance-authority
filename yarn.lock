@@ -5748,10 +5748,13 @@ __metadata:
     babel-plugin-react-compiler: "npm:^1.0.0"
     jest: "npm:^30.5.1"
     jest-util: "npm:^30.5.1"
+    jsdom: "npm:^30.0.1"
     magic-string: "npm:^0.30.21"
     oxc-parser: "npm:^0.144.0"
     oxc-resolver: "npm:^11.24.2"
     picomatch: "npm:^4.0.7"
+    react: "npm:^19.0.0"
+    react-dom: "npm:^19.0.0"
     vite: "npm:^6.0.0"
   peerDependencies:
     "@jest/globals": ^30.0.0

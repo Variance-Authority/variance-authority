@@ -2,14 +2,15 @@
 
 A **test story** is the order one test ran its code in, written out as
 numbered steps: each function the test ran, the branch it took at each `if`,
-how many times each loop ran, and the lines the code printed. Every run already
-records which code each test ran. A story adds the order, the counts and the
-printed lines, and you read it from top to bottom. When a test fails only on
+how many times each loop ran, the values each function was handed, and the
+lines the code printed. Every run already records which code each test ran. A
+story adds the order, the counts, the values and the printed lines, and you
+read it from top to bottom. When a test fails only on
 some runs, you compare the stories of runs that passed with runs that failed.
 When one test passes and another fails, such as the same checkout with a
 feature flag off and on, you compare the stories of the two tests. Either way
-you print the value you suspect from the code under test, never from the test,
-to see what separates them.
+what each function was handed is compared with the rest, and any other value
+you suspect you print from the code under test, never from the test.
 
 If you need the test statement that first ran a region,
 [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
@@ -464,10 +465,48 @@ variance story --name "checkout > pays with a saved card" --whole             # 
 When steps inside another workspace package, such as your design system, are
 shown as one line, that line names the package, and `--package` opens it.
 
+## What each function was handed
+
+Every function step lists the values its parameters were bound to, after its
+branches and loops, one line per time it was entered. A module loaded during
+the test lists what its top level declared, once it has run:
+
+```text
+  3  theme.tsx  theme.tsx:1-30
+       » holds Theme=ref1 react.context, ThemeProvider=ref2 function ThemeProvider
+  4  ThemeProvider  theme.tsx:12-20
+       » handed theme=ref5 Object, label='Save'
+  7  Panel  panel.tsx:3-9
+       » handed theme=ref5 Object
+```
+
+A number or a boolean is shown as it is, and a string in quotes, on one line
+and cut to 40 characters. An object is shown as a ref and what it is: `ref5
+Object`, `ref6 Array(3)`, `ref2 function ThemeProvider`, `ref3 react.memo`.
+A story never shows what an object holds, and it calls none of its getters to
+say what it is, though a `Proxy` still runs its traps. A string, a number or
+any other primitive is written as it is, so a token a function is handed lands
+in the story file beside the rest. The ref is the object's identity for the
+whole run, so the same ref at two steps is the same object: here `Panel` read
+the very theme `ThemeProvider` was given. The examples elsewhere on this page leave these
+lines out, so their steps read short.
+
+When you [compare readings](#compare-readings-of-one-test), a handed line is
+compared as a printed one is: a value handed on every reading of one side and
+on no reading of the other is listed with its step. A ref is numbered in the
+order the run first met each object, so across readings it is compared without
+its number: `ref Object`, by kind.
+
+The calls that hand the values over are in the instrumented code on every run,
+but they do nothing unless the run records a story: on any other run each is
+one read of a variable and a branch not taken. A generator is not shown, and
+neither is what a function returned.
+
 ## What the code prints
 
-A step shows which code ran, not the values it had. The lines the code
-prints are what give the values, and three sources write them under their step:
+For any other value — one inside an object, or one no function was handed —
+the lines the code prints are what give it, and three sources write them under
+their step:
 
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`
   or `debug`. The console still prints it.
@@ -477,7 +516,7 @@ prints are what give the values, and three sources write them under their step:
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 
-So when you need to know which value a call got, add a `console.log` that
+So when you need a value the story does not hold, add a `console.log` that
 prints it, record the test again, and read the line at its step. A step shows
 its first 5 lines and counts the rest.
 
@@ -493,8 +532,9 @@ Take the `console.log` out before you change the code.
 
 ## What a story does not show
 
-- **Values the code does not print.** Set a breakpoint at the line the story
-  names, or print the value and record again.
+- **What an object holds, and values never handed to a function.** A ref says
+  which object, not what is in it. Print what you need from it and record
+  again, or set a breakpoint at the line the story names.
 - **Other processes.** A story covers the test's own process. A test run by
   Playwright or in Vitest browser mode writes no story, and neither does code
   the test calls in another process, such as a server.

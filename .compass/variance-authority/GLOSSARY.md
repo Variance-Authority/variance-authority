@@ -752,8 +752,9 @@ source, attributed to the test that entered it.
 The order one test case visited the arrival regions of instrumented source, in
 one realm, read as a route through the declarations those regions belong to.
 Where a **journey** says which regions an execution entered, a story says in
-what order one case went through them. It claims order and nothing else: no
-nesting, no caller, no time.
+what order one case went through them. It claims order, and what each function
+and module was handed, an object only as a ref: no nesting, no caller, no time,
+no return value.
 
 ### Bounded context
 

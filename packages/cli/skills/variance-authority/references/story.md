@@ -52,10 +52,13 @@ Never record:
   prints that the recording filled up, choose another test.
 - **To find which tests run a line.** That is `covering`, from the record every
   run already keeps.
-- **For a value the code does not print.** A story shows only what the code
-  emitted: `console` lines, Eyes queries and events, `vae` announcements. Add a
-  `console.log` of the value in the code under test, not in the test, and record
-  again, or use a debugger at the line it names.
+- **For what an object holds, or a value no function was handed.** A story
+  shows what the code emitted — `console` lines, Eyes queries and events, `vae`
+  announcements — and what each function step was handed: primitives as they
+  are, an object as a ref and its kind, such as `ref5 Object` or
+  `ref3 react.memo`, never its contents. Add a `console.log` of the value in
+  the code under test, not in the test, and record again, or use a debugger at
+  the line it names.
 - **When a stack trace already names the line.** Open that line.
 
 ```bash
@@ -144,8 +147,11 @@ The answer prints a key for its marks. What the key leaves out:
   Test files are not recorded by default, so the hook itself is not a step.
 - `» text` under a step is a line the code emitted at that step: a `console`
   line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments
-  and what it found, a `vae` announcement as `vae …`. Lines emitted before the
-  first step are in the header.
+  and what it found, a `vae` announcement as `vae …`. `» handed a=1, b=ref2
+  Object` is what the function was bound to on entry, and `» holds …` what a
+  module loaded during the test declared. One ref is one object everywhere in
+  the run: the same ref at two steps is the same value handed on. Lines
+  emitted before the first step are in the header.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`
   is what this part leaves out; ask `--around` a step at its edge to read
   further.

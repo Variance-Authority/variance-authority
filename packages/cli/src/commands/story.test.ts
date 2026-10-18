@@ -286,6 +286,29 @@ describe('a story read as a route', () => {
     ]);
   });
 
+  it('keeps what the code printed at a step when a loop handed the function more than the lines a step shows', () => {
+    const handed = Array.from({ length: 6 }, (_, row) => `handed row=${row}`);
+    const said: Route = {
+      ...ROUTE,
+      before: [],
+      route: [{ token: { ...place('src/cart.ts', 'Cart/removeItem', 12, 30).token, said: [...handed, 'console.log removing A1'] } }],
+      files: ['src/cart.ts'],
+      interleaved: 0,
+    };
+    const text = formatStory({ route: said, reading: { of: 1, written: Date.UTC(2026, 8, 27, 12) } }, 'text').split('\n');
+    expect(text.slice(-9)).toEqual([
+      '  1  Cart/removeItem  cart.ts:12-30',
+      '       » handed row=0',
+      '       » handed row=1',
+      '       » handed row=2',
+      '       » handed row=3',
+      '       » handed row=4',
+      '       » console.log removing A1',
+      '       » and 1 more line',
+      '',
+    ]);
+  });
+
   it('says, in place of the --compare hint, which side a reading drawn alone has nothing to compare with', () => {
     const unmatched = 'nothing to compare it with: every one of the 2 readings kept passed, and none threw';
     const text = formatStory({ route: ROUTE, reading: { of: 2, unmatched } }, 'text').split('\n');

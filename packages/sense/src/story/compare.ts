@@ -199,6 +199,16 @@ function summary(side: LoadedSide): SideSummary {
   return { name: side.name, readings: side.readings.length, stopped: side.readings.filter((loaded) => loaded.story.stopped === true).length };
 }
 
+// A ref a story gives an object is the order its run first met it, so one more
+// object early in a run renumbers every ref after it. Across runs a handed
+// value is its kind, and a ref says only that it is an object.
+const REF = /(?<=^(?:handed|holds) (?:.*, )?[\w$]+=)ref\d+(?!\d)/g;
+
+/** What a line said means in another run: a handed object's ref without its number. */
+function acrossRuns(said: string): string {
+  return said.startsWith('handed ') || said.startsWith('holds ') ? said.replace(REF, 'ref') : said;
+}
+
 /**
  * One reading's regions, lines and first arrivals. Region keys carry the
  * module's region count beside its file, so two texts of one file never meet.
@@ -219,7 +229,8 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
     if (!read.first.has(key)) read.first.set(key, clock);
     clock += 1;
   };
-  const hear = (text: string): void => {
+  const hear = (said: string): void => {
+    const text = acrossRuns(said);
     read.said.add(text);
     if (!read.first.has(`s${text}`)) read.first.set(`s${text}`, clock);
     arrive(`m\0said\0${text}`, { said: text });
