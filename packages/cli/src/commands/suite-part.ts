@@ -68,14 +68,21 @@ export function suitePartOf(
   shard?: { readonly index: number; readonly total: number },
 ): SuitePart {
   const subjects: PartSubject[] = [];
-  let read = 0;
-  compositions.forEach((held, position) => {
-    for (const composition of held) {
-      const lexicon = reading?.values[read++];
-      if (lexicon === undefined) return;
-      subjects.push({ position, subject: composition.subject, instances: composition.instances, lexicon });
+  // No reading is no snapshot read, and no subject is composed; a reading is
+  // one value per composition, and one that is not would hand every position
+  // after the gap another subject's names.
+  if (reading !== undefined) {
+    const total = compositions.reduce((sum, held) => sum + held.length, 0);
+    if (reading.values.length !== total) {
+      throw new Error(`suitePartOf was given ${String(reading.values.length)} lexicon values for ${String(total)} compositions`);
     }
-  });
+    let read = 0;
+    compositions.forEach((held, position) => {
+      for (const composition of held) {
+        subjects.push({ position, subject: composition.subject, instances: composition.instances, lexicon: reading.values[read++]! });
+      }
+    });
+  }
   return {
     version: 1,
     ...(commit === undefined ? {} : { commit }),

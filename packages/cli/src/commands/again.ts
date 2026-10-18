@@ -117,10 +117,9 @@ export async function again(
   // Through the collector's one lane, for the reason every other collection goes
   // through it: the world is a single standing page and two collections at once
   // render into the same one.
-  const second = sameSubject(
-    planned,
-    await collecting(async () => timeOn(context.steps, 'again.collect', async () => deps.collector.collect(planned))),
-  );
+  const result = await collecting(async () => timeOn(context.steps, 'again.collect', async () => deps.collector.collect(planned)));
+  if ('subjects' in result) for (const warning of result.warnings ?? []) context.said?.(warning);
+  const second = sameSubject(planned, result);
 
   if (!second.ok) {
     // Not silence, and not a `failed` coverage entry either — the subject *was*
@@ -246,5 +245,5 @@ function sameSubject(planned: PlannedSubject, result: Collected | Visit): Collec
   const own = entries.find((entry) => entry.planned.subject.id === planned.subject.id);
   if (own !== undefined) return own.collected;
   const read = entries.map((entry) => `\`${entry.planned.subject.id}\``).join(', ');
-  return { ok: false, because: `reading it again produced ${read === '' ? 'nothing' : read} and not \`${planned.subject.id}\`` };
+  return { ok: false, because: `reading it again produced ${read} and not \`${planned.subject.id}\`` };
 }

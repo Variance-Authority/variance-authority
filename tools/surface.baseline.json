@@ -292,9 +292,11 @@
         "VALUE_RECIPE": "const",
         "ValueShaping": "interface",
         "Viewport": "interface",
+        "Widenable": "interface",
         "Wiring": "interface",
         "accessibilitySnapshot": "function",
         "assetUrl": "function",
+        "atWidth": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",
@@ -354,6 +356,7 @@
         "totalsOf": "function",
         "waitForFonts": "const",
         "waitForImages": "const",
+        "widenedFrom": "function",
         "withoutOrigin": "function"
       },
       "./share": {

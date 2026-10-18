@@ -113,6 +113,17 @@ describe('a composed suite index', () => {
     expect(composeSuiteIndex([one, two], COMMIT)).toEqual(whole(SUITE));
   });
 
+  // The reading is one value per composition, in order. One that holds fewer
+  // was not read over these compositions, and every position after the gap
+  // would carry another subject's names.
+  it('refuses a reading that is not one value per composition', () => {
+    const [a, b, ...widths] = SUITE;
+    const { reading } = composeReports({ subjects: [a!, b!], observations: [], source: SOURCE });
+
+    expect(() => suitePartOf([[a!], [b!], widths], reading, COMMIT)).toThrow(`2 lexicon values for ${String(SUITE.length)} compositions`);
+    expect(suitePartOf([[a!], [b!], widths], undefined, COMMIT).subjects).toEqual([]);
+  });
+
   it('refuses an unsharded part beside a shard, and two unsharded parts', () => {
     const [one] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
     const { shard: _, ...whole } = one!;

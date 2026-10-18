@@ -55,6 +55,25 @@ describe('unplanned', () => {
     expect(await store.unplanned?.([{ subject: 'home.html' }], MAC)).toEqual([]);
   });
 
+  // A story the run did not visit has widths the run never read. Every width
+  // of it is planned; a story whose id merely shares its prefix, or differs
+  // from it by a digit, is not one of its widths.
+  it('counts any width of a subject whose widths are unknown, and nothing else', async () => {
+    const store = createDurableStore(root);
+    const h1 = (width: number) => ({ subject: `story:heading--h1@${width}`, title: 'Heading', name: `H1 @${width}` });
+    await store.put(h1(375), rasterOf(MAC));
+    await store.put(h1(1280), rasterOf(MAC));
+    await store.put({ subject: 'story:heading--h2@375', title: 'Heading', name: 'H2 @375' }, rasterOf(MAC));
+    await store.put({ subject: 'story:heading--h1-large@375', title: 'Heading', name: 'H1 large @375' }, rasterOf(MAC));
+    await store.put({ subject: 'story:heading--h1', title: 'Heading', name: 'H1' }, rasterOf(MAC));
+
+    expect(await store.unplanned?.([], MAC, [h1])).toEqual([
+      'Heading/H1-chromium',
+      'Heading/H1-large-375-chromium',
+      'Heading/H2-375-chromium',
+    ]);
+  });
+
   // A run of one engine has no opinion about another engine's baselines: a
   // Chromium run planning nothing would otherwise call every Firefox file
   // unwatched.

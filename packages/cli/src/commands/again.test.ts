@@ -305,6 +305,39 @@ describe('a subject that does not read the same way twice', () => {
     expect(report.notObserved).toEqual([]);
   });
 
+  // What a visit could not read on the way is said whichever reading it came
+  // from, and said once however many readings said it.
+  it('carries what the second visit said into the run, once', async () => {
+    let calls = 0;
+    const collector: Collector = {
+      async plan() {
+        return {
+          subjects: [{ subject: { id: 'fixture:a', kind: 'fixture' as const } }],
+          notObserved: [],
+          warnings: [],
+        };
+      },
+      async collect(subject) {
+        calls += 1;
+        const said = calls > 1 ? ['said by both visits', 'said by the second visit'] : ['said by both visits'];
+        return { subjects: [{ planned: subject, collected: { ok: true, document: reading(subject.subject.id, '12:00') } }], warnings: said };
+      },
+      async close() {
+        /* nothing to release */
+      },
+    };
+
+    const { report } = await runWith(configOf(), collector, storeAnswering(baselineOf('fixture:a')), {
+      renderer: painter(),
+    });
+
+    expect(calls).toBe(2);
+    expect(report.warnings?.filter((warning) => warning.startsWith('said by'))).toEqual([
+      'said by both visits',
+      'said by the second visit',
+    ]);
+  });
+
   it('spends the same budget the clean-world pass does, once per subject', async () => {
     // Two passes, one cap. A subject investigated by either has spent one, so
     // `alone.limit` keeps meaning "changed subjects this run will investigate"

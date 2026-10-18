@@ -115,7 +115,7 @@ describe('story timing', () => {
     });
     delete scope.__STORYBOOK_PREVIEW__;
     expect(await loadStoryParameters({ key: 'variance', storyId: 'a', timingKey: STORY_TIMING_KEY })).toEqual({
-      unread: 'the preview has no `__STORYBOOK_PREVIEW__.loadStory`, which Storybook 7 and later provide',
+      unsupported: 'the preview has no `__STORYBOOK_PREVIEW__.loadStory`, which Storybook 7 and later provide',
     });
   });
 

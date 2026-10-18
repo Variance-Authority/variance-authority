@@ -201,9 +201,15 @@ export interface Visit {
   readonly warnings?: readonly string[];
 }
 
-/** The subjects one `collect` produced, as a list whichever shape it answered in. */
+/**
+ * The subjects one `collect` produced, as a list whichever shape it answered in.
+ * A visit that realized nothing is the planned subject failed: the plan holds
+ * it, so the report says what became of it.
+ */
 export function visited(planned: PlannedSubject, result: Collected | Visit): readonly VisitedSubject[] {
-  return 'subjects' in result ? result.subjects : [{ planned, collected: result }];
+  if (!('subjects' in result)) return [{ planned, collected: result }];
+  if (result.subjects.length > 0) return result.subjects;
+  return [{ planned, collected: { ok: false, because: 'the collector visited it and realized no subject' } }];
 }
 
 /**

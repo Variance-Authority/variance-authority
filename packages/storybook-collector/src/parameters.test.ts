@@ -79,6 +79,18 @@ describe('a story realized from its own parameters', () => {
     expect(realized).toMatchObject({ subjects: [planned('button--primary')] });
     expect('warning' in realized && realized.warning).toContain('boom');
   });
+
+  // A preview with no `loadStory` cannot read any story's parameters, so it is
+  // one fact about the run: said once, not once per story.
+  it('says a preview that cannot read parameters in the same words for every story', () => {
+    const read = { unsupported: 'the preview has no `__STORYBOOK_PREVIEW__.loadStory`' };
+    const first = realize(planned('button--primary'), read, RUN);
+    const second = realize(planned('card--receipt'), read, RUN);
+
+    expect(first).toMatchObject({ subjects: [planned('button--primary')] });
+    expect('warning' in first && first.warning).toContain('loadStory');
+    expect('warning' in second && second.warning).toBe('warning' in first && first.warning);
+  });
 });
 
 describe('the story a subject id names', () => {

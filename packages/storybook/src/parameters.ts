@@ -28,10 +28,14 @@ export type StoryDeclaration =
   | { readonly viewport?: Viewport; readonly widths?: readonly number[] };
 
 /**
- * One story's `parameters.variance`, absent when it declares none, or why it
- * could not be read.
+ * One story's `parameters.variance`, absent when it declares none; why this
+ * story's could not be read; or why no story's can be, which is a fact about
+ * the preview and so the same for every story of the run.
  */
-export type ParametersRead = { readonly parameters?: unknown } | { readonly unread: string };
+export type ParametersRead =
+  | { readonly parameters?: unknown }
+  | { readonly unread: string }
+  | { readonly unsupported: string };
 
 const KEYS = ['exclude', 'viewport', 'widths'] as const;
 

@@ -36,7 +36,6 @@ export interface EvidencePlan {
   readonly notObserved: readonly NotObserved[];
 }
 
-/** What became of one owned subject. */
 /**
  * What became of one subject. `of` is the planned subject at `position` when
  * the visit realized this one from it — a story read at one of its widths —

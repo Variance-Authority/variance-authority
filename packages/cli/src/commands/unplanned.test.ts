@@ -1,10 +1,18 @@
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createDurableStore } from '@variance-authority/store/durable';
 import { describe, expect, it } from 'vitest';
+import { keyFor, type Collected, type PlannedSubject, type Visit } from './collector.js';
 import {
   collectorOf,
   configOf,
   documentFor,
+  IDENTITY,
+  rasterFor,
   runWith,
   storeAnswering,
+  VIEWPORT,
 } from './run-fixture.js';
 import type { Plan } from './run.js';
 
@@ -68,4 +76,97 @@ it('reports a store that could not be asked, rather than ending the run', async 
   expect(report.observations).toHaveLength(2);
   expect(report.warnings?.join('\n')).toContain('could not be asked what it holds');
 });
+});
+
+/**
+ * A story's widths are read at its visit, so a run that does not visit it —
+ * narrowed by `--subjects`, `--since` or a shard — never learns them. Its width
+ * baselines are still the story's, and the plan still holds the story.
+ */
+describe('unplanned widths', () => {
+  const STORY: PlannedSubject = {
+    subject: { id: 'story:button--primary', kind: 'story' },
+    title: 'Button',
+    name: 'Primary',
+  };
+  const OTHER: PlannedSubject = {
+    subject: { id: 'story:button--secondary', kind: 'story' },
+    title: 'Button',
+    name: 'Secondary',
+  };
+  const STORIES: Plan = { subjects: [STORY, OTHER], notObserved: [], warnings: [] };
+  const atWidth = (width: number): PlannedSubject => ({
+    ...STORY,
+    subject: { ...STORY.subject, id: `${STORY.subject.id}@${width}` },
+    name: `${STORY.name} @${width}`,
+    viewport: { ...VIEWPORT, width },
+  });
+
+  const visiting = (widths: readonly PlannedSubject[]) => ({
+    ...collectorOf(STORIES, () => ({ ok: true, document: documentFor('x') })),
+    async collect(planned: PlannedSubject): Promise<Collected | Visit> {
+      const subjects = planned.subject.id === STORY.subject.id ? widths : [planned];
+      return {
+        subjects: subjects.map((subject) => ({
+          planned: subject,
+          collected: { ok: true, document: documentFor(subject.subject.id) },
+        })),
+      };
+    },
+  });
+
+  async function holding(...subjects: readonly PlannedSubject[]) {
+    const root = await mkdtemp(join(tmpdir(), 'va-unplanned-widths-'));
+    const store = createDurableStore(root);
+    for (const subject of subjects) {
+      await store.put(keyFor(subject), rasterFor(documentFor(subject.subject.id), IDENTITY));
+    }
+    return store;
+  }
+
+  it('reads a visited story`s width baseline as planned', async () => {
+    const { report } = await runWith(configOf(), visiting([atWidth(375)]), await holding(atWidth(375)));
+
+    expect(report.warnings?.join('\n') ?? '').not.toContain('did not plan');
+  });
+
+  it('reads the width baseline of a story the run skipped as planned', async () => {
+    const { report } = await runWith(configOf(), visiting([atWidth(375)]), await holding(atWidth(375)), {
+      subjects: OTHER.subject.id,
+    });
+
+    expect(report.notObserved?.map((entry) => entry.subject)).toContain(STORY.subject.id);
+    expect(report.warnings?.join('\n') ?? '').not.toContain('did not plan');
+  });
+
+  // Visited, the story said which widths it declares now; a width it dropped
+  // left the suite, which is what this report exists to say.
+  it('names the baseline of a width a visited story no longer declares', async () => {
+    const { report } = await runWith(
+      configOf(),
+      visiting([atWidth(375)]),
+      await holding(atWidth(375), atWidth(768)),
+    );
+
+    expect(report.warnings?.join('\n')).toContain('Button/Primary-768');
+    expect(report.warnings?.join('\n')).not.toContain('Primary-375');
+  });
+
+  // A visit that read nothing learned nothing of the story's widths, whether it
+  // failed or realized no subject at all: the story is as unread as a skipped one.
+  it('reads the width baseline of a story whose visit read nothing as planned', async () => {
+    const failing = (answer: Collected | Visit) => ({
+      ...visiting([]),
+      async collect(planned: PlannedSubject): Promise<Collected | Visit> {
+        return planned.subject.id === STORY.subject.id ? answer : { ok: true, document: documentFor(planned.subject.id) };
+      },
+    });
+
+    for (const answer of [{ ok: false, because: 'the page threw' } as const, { subjects: [] }]) {
+      const { report } = await runWith(configOf(), failing(answer), await holding(atWidth(375)));
+
+      expect(report.notObserved?.map((entry) => entry.kind)).toEqual(['failed']);
+      expect(report.warnings?.join('\n') ?? '').not.toContain('did not plan');
+    }
+  });
 });

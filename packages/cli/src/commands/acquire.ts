@@ -38,7 +38,11 @@ export interface AcquireInput {
   readonly passed: (index: number, entry: NotObserved) => void;
   /** Whether to stop taking subjects; `run` stops once its store has failed. */
   readonly stopped?: () => boolean;
-  /** The subjects the visit to `index` realized, read or not, once it returns. */
+  /**
+   * The subjects the visit to `index` realized, read or not, once it returns
+   * having read at least one: a visit that read none learned nothing of what
+   * the subject realizes, and is reported as no visit.
+   */
   readonly realized?: (index: number, subjects: readonly PlannedSubject[]) => void;
   /** Every index the queue holds, once it is done with, however it ended. */
   readonly settled?: (index: number) => void;
@@ -126,7 +130,7 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
     });
     if ('subjects' in result) for (const warning of result.warnings ?? []) said.add(warning);
     const subjects = visited(planned, result);
-    input.realized?.(index, subjects.map((entry) => entry.planned));
+    if (subjects.some((entry) => entry.collected.ok)) input.realized?.(index, subjects.map((entry) => entry.planned));
 
     for (const { planned: realized, collected } of subjects) {
       const id = realized.subject.id;

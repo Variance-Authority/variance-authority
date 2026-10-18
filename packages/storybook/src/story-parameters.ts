@@ -42,7 +42,7 @@ export const loadStoryParameters = async (request: ParametersRequest): Promise<P
     | undefined;
 
   if (preview?.loadStory === undefined) {
-    return { unread: 'the preview has no `__STORYBOOK_PREVIEW__.loadStory`, which Storybook 7 and later provide' };
+    return { unsupported: 'the preview has no `__STORYBOOK_PREVIEW__.loadStory`, which Storybook 7 and later provide' };
   }
 
   try {

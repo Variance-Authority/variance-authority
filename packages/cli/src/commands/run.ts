@@ -203,6 +203,8 @@ async function observeAll(
   // What each visit realized, so the store is asked about the subjects the run
   // planned once their own parameters had their say.
   const visits: (readonly PlannedSubject[] | undefined)[] = plan.subjects.map(() => undefined);
+  // What a second visit said, in the order it was first said.
+  const resaid = new Set<string>();
 
   // Subjects some other subject declared itself a variation of, plus the
   // variations themselves. Both halves are needed and neither is the whole run:
@@ -294,7 +296,7 @@ async function observeAll(
       }
 
       try {
-        const laned = contextFor({ ...context, budget: budget.of(index) }, lane);
+        const laned = contextFor({ ...context, budget: budget.of(index), said: (warning) => resaid.add(warning) }, lane);
         const outcome = await observeOne(planned, collected, steps === undefined ? laned : { ...laned, steps }, lane.collecting);
         slots[index]!.push(timed(outcome, started, deps.elapsed, planned.declaredIn, steps?.taken));
       } catch (error) {
@@ -326,19 +328,23 @@ async function observeAll(
       }
     },
   });
-  const { compositions, declared, warnings: laneWarnings, workers } = acquired;
+  const { compositions, declared, warnings: visitWarnings, workers } = acquired;
+  // Said once however many readings said it: a second visit mostly repeats the first.
+  const laneWarnings = [...visitWarnings, ...[...resaid].filter((warning) => !visitWarnings.includes(warning))];
 
   if (storeFailure !== undefined) throw storeFailure;
 
   // After the visits, because a story's widths are known only once it has been
-  // read: asked with the plan alone, every width's baseline would read as one
-  // the plan dropped. `plan.subjects` otherwise, never the narrowed list:
-  // `--since` decides what is worth observing now, and this decides whether a
-  // subject left the suite at all.
+  // read: a visited story is asked about by what its visit realized, and one
+  // this run skipped, left to another shard or read nothing of by every width
+  // it may have. The whole plan either way, never the narrowed list: `--since`
+  // decides what is worth observing now, and this decides whether a subject
+  // left the suite.
   const orphaned = await unplannedNotes(
     deps.store,
     plan.subjects.flatMap((planned, index) => visits[index] ?? [planned]),
     (planned) => renderer.identityFor({ viewport: planned.viewport ?? config.viewport }),
+    plan.subjects.filter((_, index) => visits[index] === undefined),
   );
 
   for (const outcome of slots.flat()) {

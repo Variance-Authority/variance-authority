@@ -1,5 +1,9 @@
 ---
 '@variance-authority/cli': minor
+'@variance-authority/core': minor
+'@variance-authority/playwright': patch
+'@variance-authority/raster': minor
+'@variance-authority/store': minor
 '@variance-authority/storybook': minor
 '@variance-authority/storybook-collector': minor
 ---
@@ -17,19 +21,31 @@ file, the import showing the story would have made anyway. That import is
 charged to the story's `collect`, so the first story of each file carries what
 its file costs. A story that excludes itself is still skipped and listed in the
 report with its reason, and a story whose parameters cannot be read is read at
-your run's `viewport` with a warning naming it.
+your run's `viewport` with a warning naming it. A preview too old to read one
+story's parameters says so once per run, not once per story.
 
 A story that declares `widths` is still read as `<story id>@<width>` at each
 width, with its own baseline, and all its widths are read on the same page in
-one visit: nothing is opened, booted or loaded again for a second width.
+one visit: nothing is opened, booted or loaded again for a second width. A
+run that does not read such a story, because `--subjects`, `--since` or a shard
+left it out or because its visit failed, still counts its width baselines as
+planned rather than naming them as baselines your plan no longer holds. A
+shard prices the story at the sum of the widths its last visit read.
 
 If you write a collector, `collect` may now return a `Visit` instead of a
 `Collected`: every subject the visit to the planned one produced, each with its own
-result, each id beginning with the planned id, and any warnings the visit
-raised. The run and `variance collect` report each of them at the position the
-plan gave the planned subject, and evidence parts record the planned id as
-`of`. A `--subjects` glob that names one width, such as `*@375`, now reaches
-the story it comes from.
+result, each id the planned id or the planned id at a width (`<id>@<width>`),
+and any warnings the visit raised. A visit that produced no subject is
+reported as a failed one. The run and `variance collect` report each subject
+at the position the plan gave the planned subject, and evidence parts record
+the planned id as `of`; a merge refuses a part whose subject is neither. A
+`--subjects` glob that names one width, such as `*@375`, now reaches the story
+it comes from, and only a width suffix extends a story id: `button--primary`
+no longer reaches `button--primary-large`.
+
+`@variance-authority/core/format` exports `atWidth`, which writes a subject's
+id and name at a width, and `widenedFrom`, which reads the planned id back
+from a width id.
 
 `readParameters(page)` is now `readParameters(page, storyId)` and returns one
 story's parameters; the up-front read of every story is gone.

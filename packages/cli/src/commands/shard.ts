@@ -1,3 +1,4 @@
+import { widenedFrom } from '@variance-authority/core/format';
 import { longestFirst, place } from '@variance-authority/core/shard';
 import { matchesGlob, type PlannedSubject } from './collector.js';
 import type { Shard } from '../shard-args.js';
@@ -40,6 +41,23 @@ function groupsOf(subjects: readonly PlannedSubject[]): { readonly key: string; 
   return [...byKey.values()];
 }
 
+/**
+ * Costs keyed by planned id. A report records each width a visit read under
+ * its realized id, `<id>@<width>`, and the plan holds the story once, so a
+ * story costs what its widths cost together. A realized id is only ever its
+ * planned id or that id and a width, so nothing else is summed into it.
+ */
+function plannedCosts(subjects: readonly PlannedSubject[], costs: Costs): Map<string, number> {
+  const planned = new Set(subjects.map((subject) => subject.subject.id));
+  const priced = new Map<string, number>();
+  for (const [id, cost] of costs) {
+    const widened = widenedFrom(id);
+    const owner = planned.has(id) ? id : widened !== undefined && planned.has(widened) ? widened : undefined;
+    if (owner !== undefined) priced.set(owner, (priced.get(owner) ?? 0) + cost);
+  }
+  return priced;
+}
+
 export interface Assignment {
   /** Plan indices this shard observes, grouped, in the order workers should take them. */
   readonly queue: readonly (readonly number[])[];
@@ -61,8 +79,9 @@ export function assign(
   costs: Costs | undefined,
 ): Assignment {
   const groups = groupsOf(subjects);
+  const priced = costs === undefined ? undefined : plannedCosts(subjects, costs);
   const placement = place(
-    groups.map(({ key, members }) => ({ key, costs: members.map((index) => costs?.get(subjects[index]?.subject.id ?? '')) })),
+    groups.map(({ key, members }) => ({ key, costs: members.map((index) => priced?.get(subjects[index]?.subject.id ?? '')) })),
     shard?.total ?? 1,
   );
   const here = shard?.index ?? 1;
@@ -122,28 +141,33 @@ export function declinedBy(
 ): NotObserved | undefined {
   const ruledOut = skipped?.get(id);
   if (ruledOut !== undefined) return { subject: id, kind: 'unreached', because: ruledOut };
-  if (glob !== undefined && !matchesGlob(glob, id) && !globCouldExtend(glob, id)) {
+  if (glob !== undefined && !matchesGlob(glob, id) && !globReachesWidth(glob, id)) {
     return { subject: id, kind: 'excluded', because: shardFilterBecause(glob) };
   }
   return undefined;
 }
 
 /**
- * Whether some id beginning with `prefix` matches `pattern`: a subject a visit
- * may widen is declined by a glob only when nothing it can realize is wanted.
+ * Whether `pattern` matches some width of `id`, `<id>@<digits>`: a subject a
+ * visit may widen is declined by a glob only when no width it can realize is
+ * wanted. A width is the only extension a visit makes, so a glob naming another
+ * story whose id begins with this one does not reach it.
  *
  * Walked over the pattern rather than built as a regular expression, because the
- * question is about every extension of the prefix: a position the prefix can
- * still reach is one more characters can carry to the end.
+ * question is about every width at once: the pattern is walked over `<id>@`,
+ * and a position it reaches whose rest can spell a number is one some width
+ * carries to the end.
  */
-function globCouldExtend(pattern: string, prefix: string): boolean {
-  let at = new Set<number>([0]);
+function globReachesWidth(pattern: string, id: string): boolean {
   const close = (positions: Set<number>): Set<number> => {
     for (const position of positions) if (pattern[position] === '*') positions.add(position + 1);
     return positions;
   };
-  at = close(at);
-  for (const character of prefix) {
+  let at = close(new Set<number>([0]));
+  const prefix = `${id}@`;
+  // By code unit, as `matchesGlob`'s `?` reads one.
+  for (let index = 0; index < prefix.length; index++) {
+    const character = prefix[index];
     const next = new Set<number>();
     for (const position of at) {
       const token = pattern[position];
@@ -153,5 +177,5 @@ function globCouldExtend(pattern: string, prefix: string): boolean {
     at = close(next);
     if (at.size === 0) return false;
   }
-  return true;
+  return [...at].some((position) => /^[0-9?*]+$/.test(pattern.slice(position)));
 }

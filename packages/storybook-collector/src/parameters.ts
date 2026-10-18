@@ -40,6 +40,17 @@ export function realize(planned: PlannedSubject, read: ParametersRead, run: View
   const story = `story:${storyId}`;
   const isStory = planned.subject.id === story;
 
+  // Named for no story: every story of the run gets these words, and the run
+  // says a warning once however many visits gave it.
+  if ('unsupported' in read) {
+    return {
+      subjects: [planned],
+      warning:
+        `story parameters were not read — ${read.unsupported}. Every story is read at the run's ` +
+        `viewport, and \`parameters.${PARAMETERS_KEY}\` does not apply to this run`,
+    };
+  }
+
   if ('unread' in read) {
     return {
       subjects: [planned],

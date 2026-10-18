@@ -129,6 +129,18 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     expect(mergeEvidence([{ path: 'evidence.json', part }]).kind).not.toBe('refused');
   });
 
+  // A visit that realized nothing read nothing, and the story the plan holds
+  // must still be accounted for: it failed, at its own position.
+  it('says a story failed when its visit realized no subject', async () => {
+    const story = PLAN.subjects[2]!;
+    const empty: Visit = { subjects: [] };
+    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => (id === story.subject.id ? empty : answer(id)))));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2)).toEqual([
+      { position: 2, subject: story.subject.id, outcome: 'failed', because: 'the collector visited it and realized no subject' },
+    ]);
+  });
+
   it('keeps a collected subject with no snapshot as collected, with no row', async () => {
     const part = await collectEvidence(inputOf(collecting(PLAN, (id) => rendered(id))));
 
