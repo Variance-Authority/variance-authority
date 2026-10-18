@@ -37,7 +37,8 @@ export async function compareTwin(root: string, readings: readonly StoryEntry[],
   const alone = (missing: string): Unmatched => ({ alone: newest, unmatched: `nothing to compare it with: ${missing}` });
   const names = await namesAt(root);
   if (names === undefined || names.axes.length === 0) return alone('the root variance.config.json declares no `names.axes`, so no case has a twin');
-  const tests = recordedCases(recordOfStories(dirname(newest.path)));
+  const beside = dirname(newest.path);
+  const tests = recordedCases(recordOfStories(beside));
   const own = tests.find((test) => test.file === newest.file && test.name === newest.name);
   if (own?.said === undefined) return alone('the record beside its story holds no preconditions for it, so it has no twin');
   const [twin] = caseTwins([own], tests.filter((test) => test.file === own.file), names);
@@ -45,7 +46,8 @@ export async function compareTwin(root: string, readings: readonly StoryEntry[],
   const at = `${twin.axis}=${twin.to}`;
   if (twin.twins.length === 0) return alone(`no case in its file is recorded at ${at}`);
   const others = tests.filter((test) => twin.twins.includes(test.id));
-  const theirs = all.filter((entry) => others.some((test) => test.file === entry.file && test.name === entry.name));
+  // The twin's readings are the ones taped beside the same record, so both sides are one suite's.
+  const theirs = all.filter((entry) => dirname(entry.path) === beside && others.some((test) => test.file === entry.file && test.name === entry.name));
   if (theirs.length === 0) {
     const named = others.map((test) => test.name).join(', ');
     return alone(`its ${twin.twins.length === 1 ? 'twin' : 'twins'} at ${at}, ${named}, ${twin.twins.length === 1 ? 'has' : 'have'} no story here; run ${twin.twins.length === 1 ? 'it' : 'them'} with ${STORY_VARIABLE}=1`);

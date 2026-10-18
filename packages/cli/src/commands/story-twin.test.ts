@@ -114,6 +114,16 @@ describe('a case compared with its twin', () => {
     expect(compared).toBeUndefined();
   });
 
+  it('reads the twin\'s readings beside the same record only, not another suite\'s', async () => {
+    const root = await checkout();
+    const elsewhere = readings(root, 'charges off', 1).map((entry) => ({ ...entry, path: join(root, 'other-suite', 'charges off.0.story') }));
+    written = [...readings(root, 'charges', 1), ...elsewhere];
+
+    expect(await ask(root, 'charges')).toMatchObject({
+      reading: { unmatched: 'nothing to compare it with: its twin at flag=off, charges off, has no story here; run it with VARIANCE_AUTHORITY_STORY=1' },
+    });
+  });
+
   it('draws the case alone when no case of its file stands at the value below, though one in another file does', async () => {
     const root = await checkout();
     written = [...readings(root, 'alone', 1, 'src/alone.test.ts'), ...readings(root, 'elsewhere', 1, 'src/other.test.ts')];

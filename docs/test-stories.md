@@ -290,7 +290,10 @@ compare  src/checkout.test.ts > applies the discount
 
 The twin is read from the record the stories were written beside, so it is the
 test `covering` would name, looked for among every test of the file rather than
-the ones that covered some code you asked about.
+the ones that covered some code you asked about. Its readings are the ones
+written beside that record, so both sides come from one suite. The two tests'
+own bodies differ too, so each side lists its own test among the places only it
+went into; the rest is where the code under test parted.
 
 `before the test`, at the top of each story, shows the code the runner ran right before the
 test, such as code another test's `afterEach` called.
