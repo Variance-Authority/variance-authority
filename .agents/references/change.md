@@ -158,7 +158,10 @@ the site, CLI output and error messages. Read it before writing any of them.
   `verify:rules`) fails a new import or private name of another colour.
   Calling a package `mixed` takes it out of the check, so only a package
   whose job is composing others is `mixed`. A colour finding is never set
-  aside, whoever raises it: a reviewer, CodeRabbit or the check.
+  aside, whoever raises it: a reviewer, CodeRabbit or the check. A recorded
+  site carries a `// FIXME:` saying where its colour belongs. The check sees
+  names and imports, not meaning: a specialist that re-derives another domain
+  under our own names is the reviewers' to catch.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a

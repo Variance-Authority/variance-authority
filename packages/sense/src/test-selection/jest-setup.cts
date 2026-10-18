@@ -189,6 +189,8 @@ interface CircusNode {
 function skipTheCut(): void {
   const cutFile = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CUT'];
   if (cutFile === undefined) return;
+  // FIXME: Jest's colour in `sense`; the integration belongs to a jest-coloured
+  // package that fills the selection's extension point.
   let circus: { addEventHandler?: unknown };
   try {
     circus = require('jest-circus') as { addEventHandler?: unknown };

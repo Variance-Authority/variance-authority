@@ -231,7 +231,9 @@ Look around:
 A red check is yours: reproduce it, fix it on the branch and go back to
 pre-verify. A failure is not called flaky, pre-existing or unrelated without the
 same failure on `main`. A CodeRabbit comment is a signal, not an instruction: fix
-what is real, set aside what is not, and never reply to or resolve a thread.
+what is real, set aside what is not, and never reply to or resolve a thread. A
+colour finding, a specialist package taking on another's domain, is always
+real.
 
 A PR is handed over only when every check but a running `site` is green and
 every finding is classified. The report starts from the task as it was set —
