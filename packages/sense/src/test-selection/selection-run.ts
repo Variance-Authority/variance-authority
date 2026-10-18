@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { defaultInclude, type CapturedModule, type ProbePlacement } from './instrumented-modules.js';
 
 export interface SelectionRun {
@@ -150,7 +151,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     shims: new Set<string>(),
     made: new Set<string>(),
     awaiting: new Set<string>(),
-    cases: mode !== 'loads',
+    cases: probesRegions(mode),
     settled: false,
     watching: false,
     alone: false,

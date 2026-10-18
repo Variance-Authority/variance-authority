@@ -198,15 +198,12 @@ export function withTestSelection(
 
   // Under `loads` no region is probed, so no line of a test can be said to
   // have reached one first: the cut would cost a call per statement for nothing.
-  const cut = options.cadence === false || mode === 'loads' ? undefined : testFiles(config, configRoot);
+  const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
   const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
-  // Under `loads` a module is marked as its file loads it, before any case
-  // opens: the file keeps one bucket, and nothing follows a case.
-  const cases = mode !== 'loads';
-  const continuations = cases && options.continuations === true;
-  const story = cases ? askedForStories(coverageFile) : undefined;
+  const continuations = run.cases && options.continuations === true;
+  const story = run.cases ? askedForStories(coverageFile) : undefined;
   return {
     ...config,
     plugins: [...array(config.plugins), ...plugins],
@@ -222,7 +219,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
         ),
         ...setupFiles,
       ],

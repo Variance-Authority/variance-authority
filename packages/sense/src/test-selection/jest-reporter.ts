@@ -20,6 +20,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
 import { CUT_VARIABLE, cutFiles, removeCut } from './case-cut.js';
 import { freshCases } from './case-fold.js';
@@ -147,7 +148,7 @@ class JestCoverageReporter {
     process.env[ROOT_VARIABLE] = this.#config.root;
     // Under `loads` a module is marked as its file loads it, before any case
     // opens: with no case directory the setup file keeps one bucket per file.
-    if (this.#config.mode === 'loads') return;
+    if (!probesRegions(this.#config.mode)) return;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';

@@ -34,6 +34,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cadence } from '../instrument/cadence.js';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import caseOwner from './case-owner.cjs';
 import { captureModule, markModule } from './captured-modules.js';
 import { saidSite } from './case-said.js';
@@ -149,7 +150,7 @@ export function startRecording(options: RecordingOptions = {}): Recording {
     mode,
     continuations: options.continuations === true,
     // Under `loads` no region is probed for a line of a test to have reached first.
-    cadence: options.cadence !== false && mode !== 'loads',
+    cadence: options.cadence !== false && probesRegions(mode),
   };
   const value = JSON.stringify(carried);
   process.env[RECORDING_VARIABLE] = value;
@@ -341,7 +342,7 @@ export function observeTestFile(file: string): TestFileObserver | undefined {
   // every other host's does, and keeps what Eyes hands each case. Under `loads`
   // a module is marked as the file loads it, before any case opens, so the file
   // keeps one bucket and a case is its body alone.
-  const cases = recording.mode !== 'loads';
+  const cases = probesRegions(recording.mode);
   const collector = cases
     ? collectors.scoped(
       globalThis as { __VA__?: unknown },

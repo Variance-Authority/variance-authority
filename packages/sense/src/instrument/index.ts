@@ -266,8 +266,9 @@ export function probeRuntime(id: ModuleId, count: number): string {
  */
 export function probeRecipe(mode: InstrumentMode = 'presence'): string {
   if (mode !== 'loads') return instrumenter().probeRecipe(mode === 'entries');
-  // A mark is the header and nothing the walk wrote, so the header's half of
-  // the recipe is all it carries.
+  // A mark is the header and nothing the walk wrote. The digest is one over the
+  // header and the walk's sources, so it moves on a change to the walk too: a
+  // cache is keyed afresh more often than the mark needs, never less.
   const recipe = instrumenter().probeRecipe(false);
   return `${instrumentationId('loads')}${recipe.slice(recipe.indexOf('+'))}`;
 }
