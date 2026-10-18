@@ -48,13 +48,15 @@ function said(name: string, held: readonly (readonly [string, string])[], file =
 /**
  * `charges` says the flag on, and `charges off` stands at its base beside it.
  * `as mike` stands at the base too, but said a user, so it is nobody's twin;
- * `elsewhere` stands at the base in another file.
+ * `elsewhere` stands at the base in another file, and `alone` says the flag on
+ * in a file of its own.
  */
 const TESTS = [
   said('charges', [['flag', 'on']]),
   said('charges off', [['flag', 'off']]),
   said('as mike', [['user', 'mike']]),
   said('elsewhere', [], 'src/other.test.ts'),
+  said('alone', [['flag', 'on']], 'src/alone.test.ts'),
 ];
 
 async function checkout(config: object = { names: { axes: [{ axis: 'flag', values: ['off', 'on'] }] } }): Promise<string> {
@@ -68,9 +70,9 @@ async function checkout(config: object = { names: { axes: [{ axis: 'flag', value
 }
 
 /** Readings of `name`, newest first, beside the record that holds what it said. */
-function readings(root: string, name: string, count: number): StoryEntry[] {
+function readings(root: string, name: string, count: number, file = FILE): StoryEntry[] {
   const directory = storyDirectory(testCoverageFile(root));
-  return Array.from({ length: count }, (_, at) => ({ path: join(directory, `${name}.${at}.story`), file: FILE, name, visits: 2, written: 100 - at }));
+  return Array.from({ length: count }, (_, at) => ({ path: join(directory, `${name}.${at}.story`), file, name, visits: 2, written: 100 - at }));
 }
 
 const ask = async (root: string, name: string) =>
@@ -110,6 +112,15 @@ describe('a case compared with its twin', () => {
       reading: { unmatched: 'nothing to compare it with: its twin at flag=off, charges off, has no story here; run it with VARIANCE_AUTHORITY_STORY=1' },
     });
     expect(compared).toBeUndefined();
+  });
+
+  it('draws the case alone when no case of its file stands at the value below, though one in another file does', async () => {
+    const root = await checkout();
+    written = [...readings(root, 'alone', 1, 'src/alone.test.ts'), ...readings(root, 'elsewhere', 1, 'src/other.test.ts')];
+
+    expect(await ask(root, 'alone')).toMatchObject({
+      reading: { unmatched: 'nothing to compare it with: no case in its file is recorded at flag=off' },
+    });
   });
 
   it('draws the case alone when it stands at the base of every declared axis', async () => {
