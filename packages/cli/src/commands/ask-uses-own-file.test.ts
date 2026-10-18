@@ -95,7 +95,7 @@ describe('variance ask uses over the file that declares the name', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'keptAside']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`keptAside` is declared, not exported, at packages/lib/src/kept.ts:1');
+    expect(out).toContain('`keptAside` [function] is declared, not exported, at packages/lib/src/kept.ts:1');
     expect(section(out, own('packages/lib/src/kept.ts'))).toEqual(['packages/lib/src/kept.ts:4 — @acme/lib']);
   });
 
@@ -162,7 +162,7 @@ describe('variance ask uses over the file that declares the name', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'helper']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`helper` is declared, not exported, at packages/kit/src/graph.rs:2');
+    expect(out).toContain('`helper` [function] is declared, not exported, at packages/kit/src/graph.rs:2');
     expect(out).toMatch(/^packages\/kit\/src\/graph\/child\.rs:1 — @acme\/kit$/m);
     expect(section(out, own('packages/kit/src/graph.rs'))).toEqual([
       'packages/kit/src/graph.rs:6 — @acme/kit',
