@@ -74,6 +74,17 @@ describe('unplanned', () => {
     ]);
   });
 
+  // Every template spells {name} or {id}, and a width spells itself in both, so
+  // this is a key that does not: where no path differs by width, no held path is
+  // one of its widths, and nothing is counted beyond what the plan addresses.
+  it('counts no width for a key whose path does not part by width', async () => {
+    const store = createDurableStore(root);
+    const h1 = (width: number) => ({ subject: `story:heading--h1@${width}`, title: 'Heading', name: 'H1' });
+    await store.put(h1(375), rasterOf(MAC));
+
+    expect(await store.unplanned?.([], MAC, [h1])).toEqual(['Heading/H1-chromium']);
+  });
+
   // A run of one engine has no opinion about another engine's baselines: a
   // Chromium run planning nothing would otherwise call every Firefox file
   // unwatched.

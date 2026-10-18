@@ -5,7 +5,7 @@ import {
   type SemanticNode,
 } from '@variance-authority/core/format';
 import type { Collected, Collector, Plan, PlannedSubject, Visit } from './collector.js';
-import { VIEWPORT, documentFor } from './run-fixture.js';
+import { ENVIRONMENT, documentFor } from './run-fixture.js';
 
 /**
  * A plan, a collector over it and the snapshots it answers with, for the
@@ -38,16 +38,7 @@ export function snapshotOf(id: string, nodes: readonly Node[]): SemanticSnapshot
     formatVersion: 1,
     subject: { id, kind: 'story' },
     profile: profileById('chromium'),
-    environment: environmentKey({
-      profile: 'chromium',
-      engine: 'chromium@131',
-      ruleset: 'test',
-      allowlist: 'test',
-      viewport: VIEWPORT,
-      fonts: [],
-      conditions: {},
-      assets: {},
-    }),
+    environment: ENVIRONMENT,
     renderHash: 'v1:r',
     structureHash: 'v1:s',
     styleHash: 'v1:y',

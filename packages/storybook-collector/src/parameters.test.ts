@@ -71,6 +71,9 @@ describe('a story realized from its own parameters', () => {
       refused: 'story `page--home` no longer declares the width `story:page--home@375` reads at; it declares 800',
     });
     expect(realize(planned('page--home@375'), {}, RUN)).toHaveProperty('refused');
+    expect(realize(planned('page--home@375'), { parameters: { widths: [1280, 800, 1280] } }, RUN)).toEqual({
+      refused: 'story `page--home` no longer declares the width `story:page--home@375` reads at; it declares 800, 1280',
+    });
   });
 
   it('says so when the preview could not be asked, and reads the story as planned', () => {

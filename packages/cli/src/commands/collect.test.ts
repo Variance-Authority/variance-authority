@@ -129,6 +129,26 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     expect(mergeEvidence([{ path: 'evidence.json', part }]).kind).not.toBe('refused');
   });
 
+  // The plan names the story and `--subjects` may name one of its widths: the
+  // glob decides on what the visit realized, so the width it names is read and
+  // the other is left out by the same filter that leaves out a story.
+  it('reads only the width a scope names out of a visit that read two', async () => {
+    const story = PLAN.subjects[2]!;
+    const atWidth = (width: number) => ({
+      planned: { ...story, subject: { ...story.subject, id: `${story.subject.id}@${String(width)}` } },
+      collected: answer(`${story.subject.id}@${String(width)}`),
+    });
+    const visit: Visit = { subjects: [atWidth(375), atWidth(800)] };
+    const opened = collecting(PLAN, (id) => (id === story.subject.id ? visit : answer(id)));
+    const part = await collectEvidence(inputOf(opened, { scope: '*@375' }));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2).map((outcome) => [outcome.subject, outcome.outcome])).toEqual([
+      ['card--default@375', 'collected'],
+      ['card--default@800', 'excluded'],
+    ]);
+    expect(part.subjects.map((row) => row.subject)).toEqual(['card--default@375']);
+  });
+
   // A visit that realized nothing read nothing, and the story the plan holds
   // must still be accounted for: it failed, at its own position.
   it('says a story failed when its visit realized no subject', async () => {
