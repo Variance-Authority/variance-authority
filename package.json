@@ -31,6 +31,7 @@
     "unrun": "node tools/unrun.mjs",
     "surface": "node tools/surface.mjs",
     "documented": "node tools/documented.mjs",
+    "colours": "node tools/colours.mjs",
     "owners": "node tools/owners.mjs",
     "restrictions": "variance index && variance restrictions",
     "clones": "node tools/clones.mjs",
