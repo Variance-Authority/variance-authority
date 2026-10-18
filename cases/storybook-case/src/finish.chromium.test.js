@@ -102,6 +102,11 @@ function serveStatic(root) {
 }
 
 let server;
+/**
+ * One browser for the file and a page per test, never per story: each test runs
+ * its stories through one page, which is the session this file is about, and
+ * the next test needs a session of its own to count loads from.
+ */
 let browser;
 let baseUrl = '';
 
