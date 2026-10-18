@@ -161,9 +161,10 @@ export interface VisitedSubject {
  * A plan is made before any subject is visited, and some of what decides how a
  * subject is read is only known at the visit: a story's widths live in its
  * parameters, which are read when its file is loaded. So a visit may realize
- * several subjects — one per width, each its own id beginning with the planned
- * one — or the planned subject at a viewport it declared, and say what it could
- * not read on the way.
+ * several subjects — one per width, each the planned id at that width,
+ * `<id>@<digits>` — or the planned subject at a viewport it declared, and say
+ * what it could not read on the way. A visit that realizes any other id fails
+ * its story.
  */
 export interface Visit {
   readonly subjects: readonly VisitedSubject[];

@@ -170,6 +170,24 @@ describe('unplanned widths', () => {
     }
   });
 
+  // Visited, the story said it is no subject of this run: every baseline it
+  // left, at its own id and at each width, is one the suite no longer holds.
+  it('names every baseline of a story that excluded itself at its visit', async () => {
+    const excluding = {
+      ...visiting([]),
+      async collect(planned: PlannedSubject): Promise<Collected | Visit> {
+        return planned.subject.id === STORY.subject.id
+          ? { ok: false, excluded: true, because: '`parameters.variance.exclude` is true' }
+          : { ok: true, document: documentFor(planned.subject.id) };
+      },
+    };
+
+    const { report } = await runWith(configOf(), excluding, await holding(STORY, atWidth(375)));
+
+    expect(report.notObserved?.map((entry) => entry.kind)).toEqual(['excluded']);
+    expect(report.warnings?.join('\n')).toContain('holds 2 approved baselines this run did not plan');
+  });
+
   // Read, but with its parameters unknown: the story was read at the run's
   // viewport, and which widths it declares is as unknown as for a skipped one.
   it('reads the width baseline of a story read without its parameters as planned', async () => {

@@ -30,6 +30,8 @@ one visit: nothing is opened, booted or loaded again for a second width. A
 run that does not read such a story, because `--subjects`, `--since` or a shard
 left it out, because its visit failed, or because its parameters could not be read, still counts its width baselines as
 planned rather than naming them as baselines your plan no longer holds. A
+story that excludes itself when it is reached holds no subject of the run, so
+every baseline it left, under its own id and at each width, is named. A
 shard prices the story at the sum of the widths its last visit read.
 
 If you write a collector, `collect` may now return a `Visit` instead of a
@@ -38,7 +40,7 @@ result, each id the planned id or the planned id at a width (`<id>@<width>`),
 and any warnings the visit raised. A visit that could not learn every subject
 it realizes, such as a story read without its parameters, says `incomplete: true`.
 A visit that produced no subject is
-reported as a failed one. The run and `variance collect` report each subject
+reported as a failed one, and so is a visit that produced any other id. The run and `variance collect` report each subject
 at the position the plan gave the planned subject, and evidence parts record
 the planned id as `of`; a merge refuses a part whose subject is neither. A
 `--subjects` glob that names one width, such as `*@375`, now reaches the story
@@ -47,7 +49,8 @@ no longer reaches `button--primary-large`.
 
 `@variance-authority/core/format` exports `atWidth`, which writes a subject's
 id and name at a width, and `widenedFrom`, which reads the planned id back
-from a width id.
+from a width id, and `realizes`, which says whether a visit to one id may
+produce another.
 
 `readParameters(page)` is now `readParameters(page, storyId)` and returns one
 story's parameters; the up-front read of every story is gone.

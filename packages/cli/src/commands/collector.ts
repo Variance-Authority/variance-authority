@@ -2,13 +2,14 @@
 
 import { pathToFileURL } from 'node:url';
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
-import type {
-  Diagnostic,
-  RenderDocument,
-  SemanticSnapshot,
-  Step,
-  SubjectRef,
-  Viewport,
+import {
+  realizes,
+  type Diagnostic,
+  type RenderDocument,
+  type SemanticSnapshot,
+  type Step,
+  type SubjectRef,
+  type Viewport,
 } from '@variance-authority/core/format';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
@@ -192,9 +193,10 @@ export interface VisitedSubject {
  * subject is read is known only at the visit: a story's widths live in its
  * parameters, which are read when its file is loaded. So a visit may realize
  * several subjects, or the planned one at a viewport it declared, and say what
- * it could not read on the way. Every realized id begins with the planned id —
- * the story's id, then its width — so a `--subjects` glob decides before the
- * visit whether anything it realizes can be wanted.
+ * it could not read on the way. Every realized id is the planned id or the
+ * planned id at a width, `<id>@<digits>`, so a `--subjects` glob decides before
+ * the visit whether anything it realizes can be wanted. A visit that realizes
+ * any other id fails its story.
  */
 export interface Visit {
   readonly subjects: readonly VisitedSubject[];
@@ -211,10 +213,15 @@ export interface Visit {
 /**
  * The subjects one `collect` produced, as a list whichever shape it answered in.
  * A visit that realized nothing is the planned subject failed: the plan holds
- * it, so the report says what became of it.
+ * it, so the report says what became of it. So is a visit that realized an id
+ * outside {@link Visit}'s contract: the run cannot trust any of it.
  */
 export function visited(planned: PlannedSubject, result: Collected | Visit): readonly VisitedSubject[] {
   if (!('subjects' in result)) return [{ planned, collected: result }];
+  const id = planned.subject.id;
+  const stray = result.subjects.find((entry) => !realizes(id, entry.planned.subject.id))?.planned.subject.id;
+  const because = `the collector realized \`${stray}\`, which is neither \`${id}\` nor one of its widths`;
+  if (stray !== undefined) return [{ planned, collected: { ok: false, because } }];
   if (result.subjects.length > 0) return result.subjects;
   return [{ planned, collected: { ok: false, because: 'the collector visited it and realized no subject' } }];
 }

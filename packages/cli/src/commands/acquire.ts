@@ -42,7 +42,8 @@ export interface AcquireInput {
    * The subjects the visit to `index` realized, read or not, once it returns
    * having read at least one and knowing them all: a visit that read none, or
    * that says it is `incomplete`, learned nothing certain of what
-   * the subject realizes, and is reported as no visit.
+   * the subject realizes, and is reported as no visit. A subject that excluded
+   * itself at its visit realized none, and is reported with an empty list.
    */
   readonly realized?: (index: number, subjects: readonly PlannedSubject[]) => void;
   /** Every index the queue holds, once it is done with, however it ended. */
@@ -133,6 +134,9 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
     const subjects = visited(planned, result);
     const learned = !('subjects' in result && result.incomplete === true) && subjects.some((entry) => entry.collected.ok);
     if (learned) input.realized?.(index, subjects.map((entry) => entry.planned));
+    // Excluded at its visit, the subject said it is none of this run's: it
+    // realizes nothing, and what the store holds of it is left behind.
+    else if (!('subjects' in result) && !result.ok && result.excluded === true) input.realized?.(index, []);
 
     for (const { planned: realized, collected } of subjects) {
       const id = realized.subject.id;

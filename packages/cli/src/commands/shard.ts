@@ -153,29 +153,20 @@ export function declinedBy(
  * wanted. A width is the only extension a visit makes, so a glob naming another
  * story whose id begins with this one does not reach it.
  *
- * Walked over the pattern rather than built as a regular expression, because the
- * question is about every width at once: the pattern is walked over `<id>@`,
- * and a position it reaches whose rest can spell a number is one some width
- * carries to the end.
+ * Answered by {@link matchesGlob} at the one place a width's `@` can fall. The
+ * `@` is spelled by a literal `@` or a `?`, and then what precedes it matches
+ * `id` and what follows can spell a number; or it is swallowed by a `*`, and
+ * then the pattern up to that `*` matches `<id>@` and what follows can spell
+ * the rest of the number, which the `*` may already have taken.
  */
 function globReachesWidth(pattern: string, id: string): boolean {
-  const close = (positions: Set<number>): Set<number> => {
-    for (const position of positions) if (pattern[position] === '*') positions.add(position + 1);
-    return positions;
-  };
-  let at = close(new Set<number>([0]));
-  const prefix = `${id}@`;
-  // By code unit, as `matchesGlob`'s `?` reads one.
-  for (let index = 0; index < prefix.length; index++) {
-    const character = prefix[index];
-    const next = new Set<number>();
-    for (const position of at) {
-      const token = pattern[position];
-      if (token === '*') next.add(position);
-      else if (token === '?' || token === character) next.add(position + 1);
+  for (let at = 0; at < pattern.length; at++) {
+    const token = pattern[at];
+    const rest = pattern.slice(at + 1);
+    if ((token === '@' || token === '?') && /^[0-9?*]+$/.test(rest) && matchesGlob(pattern.slice(0, at), id)) {
+      return true;
     }
-    at = close(next);
-    if (at.size === 0) return false;
+    if (token === '*' && /^[0-9?*]*$/.test(rest) && matchesGlob(pattern.slice(0, at + 1), `${id}@`)) return true;
   }
-  return [...at].some((position) => /^[0-9?*]+$/.test(pattern.slice(position)));
+  return false;
 }

@@ -36,3 +36,12 @@ export function atWidth<S extends Widenable>(subject: S, width: number): S {
 export function widenedFrom(id: string): string | undefined {
   return /^(.+)@\d+$/.exec(id)?.[1];
 }
+
+/**
+ * Whether a visit to `planned` may realize `id`: the planned subject itself, or
+ * it at a width, `<planned>@<digits>`. Nothing else, so a story whose id merely
+ * begins with the planned one is never filed as one of its readings.
+ */
+export function realizes(planned: string, id: string): boolean {
+  return id === planned || widenedFrom(id) === planned;
+}

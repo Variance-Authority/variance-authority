@@ -240,6 +240,8 @@ async function observeAll(
   // a subject nothing looks up. A store across a hop turns the whole suite into
   // one request; a store on a disk refuses two subjects it would file at one
   // path, here rather than after both are painted.
+  // FIXME: declared from the planned subject, so a story read at widths is never
+  // expected under the `@<width>` keys its visit realizes.
   deps.store.expect?.(
     plan.subjects
       .filter((planned, i) => !selected?.skipped.has(planned.subject.id) && !assignment.elsewhere.has(i))

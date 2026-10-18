@@ -141,6 +141,25 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     ]);
   });
 
+  // A visit realizes its story or the story at a width. A story whose id merely
+  // begins with the planned one is another story, and filing it at this
+  // position would be a reading the plan never asked for.
+  it('fails a story whose visit realized a subject that is not it or one of its widths', async () => {
+    const story = PLAN.subjects[2]!;
+    const as = (id: string) => ({ planned: { ...story, subject: { ...story.subject, id } }, collected: answer(id) });
+    const stray: Visit = { subjects: [as(`${story.subject.id}@375`), as(`${story.subject.id}-large`)] };
+    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => (id === story.subject.id ? stray : answer(id)))));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2)).toEqual([
+      {
+        position: 2,
+        subject: story.subject.id,
+        outcome: 'failed',
+        because: `the collector realized \`${story.subject.id}-large\`, which is neither \`${story.subject.id}\` nor one of its widths`,
+      },
+    ]);
+  });
+
   it('keeps a collected subject with no snapshot as collected, with no row', async () => {
     const part = await collectEvidence(inputOf(collecting(PLAN, (id) => rendered(id))));
 
