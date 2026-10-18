@@ -209,35 +209,7 @@ pub fn imported_as(reading: &Reading, exported: &[String]) -> Vec<(String, Strin
     seeds
 }
 
-/// The names a declaration binds at top level, through any destructuring.
-pub fn declared(declaration: &Declaration) -> Vec<String> {
-    let mut names = Vec::new();
-    match declaration {
-        Declaration::VariableDeclaration(it) => it.declarations.iter().for_each(|it| bound(&it.id, &mut names)),
-        Declaration::FunctionDeclaration(it) => names.extend(it.id.as_ref().map(|id| id.name.to_string())),
-        Declaration::ClassDeclaration(it) => names.extend(it.id.as_ref().map(|id| id.name.to_string())),
-        Declaration::TSEnumDeclaration(it) => names.push(it.id.name.to_string()),
-        Declaration::TSNamespaceDeclaration(it) => names.push(it.id.name.to_string()),
-        Declaration::TSImportEqualsDeclaration(it) => names.push(it.id.name.to_string()),
-        _ => {}
-    }
-    names
-}
-
-pub fn bound(pattern: &BindingPattern, names: &mut Vec<String>) {
-    match pattern {
-        BindingPattern::BindingIdentifier(it) => names.push(it.name.to_string()),
-        BindingPattern::ObjectPattern(it) => {
-            it.properties.iter().for_each(|property| bound(&property.value, names));
-            it.rest.iter().for_each(|rest| bound(&rest.argument, names));
-        }
-        BindingPattern::ArrayPattern(it) => {
-            it.elements.iter().flatten().for_each(|element| bound(element, names));
-            it.rest.iter().for_each(|rest| bound(&rest.argument, names));
-        }
-        BindingPattern::AssignmentPattern(it) => bound(&it.left, names),
-    }
-}
+pub use variance_sense_instrument::native::{bound, declared, Erased};
 
 /// One read of a changed value inside a function.
 #[napi(object)]

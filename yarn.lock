@@ -5640,6 +5640,7 @@ __metadata:
     "@types/react": "npm:^19.0.0"
     "@types/react-dom": "npm:^19.0.0"
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     jsdom: "npm:^25.0.1"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"

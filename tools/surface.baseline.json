@@ -2072,6 +2072,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./story": {
+          "types": "./dist/story.d.ts",
+          "default": "./dist/story.js"
         }
       },
       "files": [
@@ -2165,6 +2169,9 @@
         "tapCommits": "function",
         "walkFiberSubtree": "function",
         "wiringOf": "function"
+      },
+      "./story": {
+        "reactKind": "function"
       }
     }
   },

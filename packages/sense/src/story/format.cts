@@ -215,6 +215,14 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
     if (said) notes.push([(entry ?? before) - before, text]);
     else beforeNotes.push([entry ?? 0, text]);
   }
+  // What a module held was said once, when it loaded, and the tape started
+  // again before the first case: every case that went through it opens with it.
+  const told = new Set([...notes, ...beforeNotes].map(([, text]) => text));
+  const holding = rows.flatMap(([id]): [number, string][] => {
+    const line = tape.held.get(id);
+    return line === undefined || told.has(line) ? [] : [[0, line]];
+  });
+  beforeNotes.unshift(...holding);
 
   const { file, name } = caseOwner.unpackCase(key);
   const header = Buffer.from(

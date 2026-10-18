@@ -363,10 +363,13 @@ function linesText(
   });
 }
 
-/** What was said, one `»` line each, the first {@link SAID} and a count of the rest. */
+/** What was said, one `»` line each: the first {@link SAID} printed and the first {@link SAID} handed, counted apart, then a count of the rest. */
 function saidText(said: readonly string[], indent: string): string[] {
-  const shown = said.slice(0, SAID).map((line) => `${indent}» ${line}`);
-  return said.length > SAID ? [...shown, `${indent}» and ${said.length - SAID} more lines`] : shown;
+  const seen = { printed: 0, handed: 0 };
+  const kind = (line: string) => (line.startsWith('handed ') || line.startsWith('holds ') ? 'handed' : 'printed');
+  const shown = said.filter((line) => seen[kind(line)]++ < SAID).map((line) => `${indent}» ${line}`);
+  const rest = said.length - shown.length;
+  return rest > 0 ? [...shown, `${indent}» and ${rest} more ${rest === 1 ? 'line' : 'lines'}`] : shown;
 }
 
 /** The line each arm of each declaration starts on, from every step on the route that took it and every arm it never took. */

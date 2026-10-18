@@ -26,6 +26,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./story": {
+      "types": "./dist/story.d.ts",
+      "default": "./dist/story.js"
     }
   },
   "main": "./dist/index.js",
@@ -44,6 +48,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@variance-authority/sense": "workspace:^",
     "jsdom": "^25.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
