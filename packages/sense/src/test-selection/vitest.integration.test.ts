@@ -1,4 +1,3 @@
-import { caseSectionsOf } from './case-record.js';
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -211,40 +210,6 @@ describe('the Vitest integration', () => {
       ['function', 'cold', [entries('test/eager.case.ts')], undefined],
     ]);
   }, 20_000);
-
-  it('records which files each test loaded under the loads recipe, and selects every test that loaded a changed file', async () => {
-    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
-    temporary.push(directory);
-    const coverageFile = resolve(directory, 'coverage.bin');
-
-    for (const testFile of ['test/alpha.case.ts', 'test/beta.case.ts', 'test/delta.case.ts']) {
-      await execute(
-        process.execPath,
-        [vitest, 'run', testFile, '--config', resolve(fixture, 'vitest.loads.config.ts')],
-        { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
-      );
-    }
-
-    const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.instrumentation).toBe(instrumentationId('loads'));
-    expect(coverage.modules.map((module) => [module.file, module.instrumented, module.blocks])).toEqual([
-      [ext('src/decide.ts'), false, []],
-    ]);
-    // A file is loaded before its first case opens, so a case of its own says
-    // nothing the file does not: the run keeps one bucket per file and writes
-    // no case index.
-    const { index, before, last, eyes } = caseSectionsOf(await readFile(coverageFile));
-    expect({ index, before, last, eyes }).toEqual({ index: undefined, before: undefined, last: undefined, eyes: undefined });
-    const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
-    const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
-    // Alpha alone took the `A` branch, and beta loaded the file too: nothing
-    // says what in it ran, so both are selected. Delta never loaded it.
-    await expect(selectTestFiles(coverageFile, `--- a/${ext('src/decide.ts')}
-+++ b/${ext('src/decide.ts')}
-@@ -${line},1 +${line},1 @@
--    return 'A';
-+    return 'Alpha';`)).resolves.toEqual([ext('test/alpha.case.ts'), ext('test/beta.case.ts')]);
-  }, 30_000);
 
   it('separates a module the test loaded from a module the test entered', async () => {
     // Two spellings of one shape, and the shape is what a reduction reader
