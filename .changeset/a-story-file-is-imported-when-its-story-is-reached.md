@@ -28,14 +28,16 @@ A story that declares `widths` is still read as `<story id>@<width>` at each
 width, with its own baseline, and all its widths are read on the same page in
 one visit: nothing is opened, booted or loaded again for a second width. A
 run that does not read such a story, because `--subjects`, `--since` or a shard
-left it out or because its visit failed, still counts its width baselines as
+left it out, because its visit failed, or because its parameters could not be read, still counts its width baselines as
 planned rather than naming them as baselines your plan no longer holds. A
 shard prices the story at the sum of the widths its last visit read.
 
 If you write a collector, `collect` may now return a `Visit` instead of a
 `Collected`: every subject the visit to the planned one produced, each with its own
 result, each id the planned id or the planned id at a width (`<id>@<width>`),
-and any warnings the visit raised. A visit that produced no subject is
+and any warnings the visit raised. A visit that could not learn every subject
+it realizes, such as a story read without its parameters, says `incomplete: true`.
+A visit that produced no subject is
 reported as a failed one. The run and `variance collect` report each subject
 at the position the plan gave the planned subject, and evidence parts record
 the planned id as `of`; a merge refuses a part whose subject is neither. A

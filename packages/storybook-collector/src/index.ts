@@ -272,7 +272,11 @@ export function storybookCollector(
       for (const subject of realized.subjects) {
         subjects.push({ planned: subject, collected: await withDeclared(await readStory(on, reading, subject, recorder), reader) });
       }
-      return { subjects, ...(realized.warning === undefined ? {} : { warnings: [realized.warning] }) };
+      return {
+        subjects,
+        ...(realized.warning === undefined ? {} : { warnings: [realized.warning] }),
+        ...(realized.incomplete === true ? { incomplete: true as const } : {}),
+      };
     }
 
     const collector: Collector = {

@@ -169,4 +169,25 @@ describe('unplanned widths', () => {
       expect(report.warnings?.join('\n') ?? '').not.toContain('did not plan');
     }
   });
+
+  // Read, but with its parameters unknown: the story was read at the run's
+  // viewport, and which widths it declares is as unknown as for a skipped one.
+  it('reads the width baseline of a story read without its parameters as planned', async () => {
+    const unread = {
+      ...visiting([]),
+      async collect(planned: PlannedSubject): Promise<Collected | Visit> {
+        return {
+          subjects: [{ planned, collected: { ok: true, document: documentFor(planned.subject.id) } }],
+          ...(planned.subject.id === STORY.subject.id
+            ? { warnings: ['the parameters of story `button--primary` were not read'], incomplete: true }
+            : {}),
+        };
+      },
+    };
+
+    const { report } = await runWith(configOf(), unread, await holding(atWidth(375)));
+
+    expect(report.observations?.map((entry) => entry.subject)).toContain(STORY.subject.id);
+    expect(report.warnings?.join('\n') ?? '').not.toContain('did not plan');
+  });
 });

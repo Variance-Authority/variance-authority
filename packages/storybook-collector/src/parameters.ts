@@ -19,7 +19,12 @@ export function storyIdOf(subjectId: string): string {
 export type Realized =
   | { readonly excluded: string }
   | { readonly refused: string }
-  | { readonly subjects: readonly PlannedSubject[]; readonly warning?: string };
+  | {
+      readonly subjects: readonly PlannedSubject[];
+      readonly warning?: string;
+      /** Present when the parameters were not read, so the widths the story declares are unknown. */
+      readonly incomplete?: true;
+    };
 
 /**
  * The subjects a story becomes once its own parameters are known.
@@ -45,6 +50,7 @@ export function realize(planned: PlannedSubject, read: ParametersRead, run: View
   if ('unsupported' in read) {
     return {
       subjects: [planned],
+      incomplete: true,
       warning:
         `story parameters were not read — ${read.unsupported}. Every story is read at the run's ` +
         `viewport, and \`parameters.${PARAMETERS_KEY}\` does not apply to this run`,
@@ -54,6 +60,7 @@ export function realize(planned: PlannedSubject, read: ParametersRead, run: View
   if ('unread' in read) {
     return {
       subjects: [planned],
+      incomplete: true,
       warning:
         `the parameters of story \`${storyId}\` were not read — ${read.unread}. It is read at the run's ` +
         `viewport, and its \`parameters.${PARAMETERS_KEY}\` does not apply to this run`,

@@ -80,6 +80,15 @@ describe('a story realized from its own parameters', () => {
     expect('warning' in realized && realized.warning).toContain('boom');
   });
 
+  // Unread parameters hide the widths the story declares, so the visit cannot
+  // say which subjects the story is: the run must not read its silence as none.
+  it('says the story may be more than it read when its parameters were not read', () => {
+    for (const read of [{ unread: 'boom' }, { unsupported: 'no loadStory' }]) {
+      expect(realize(planned('button--primary'), read, RUN)).toMatchObject({ incomplete: true });
+    }
+    expect(realize(planned('button--primary'), { parameters: {} }, RUN)).not.toHaveProperty('incomplete');
+  });
+
   // A preview with no `loadStory` cannot read any story's parameters, so it is
   // one fact about the run: said once, not once per story.
   it('says a preview that cannot read parameters in the same words for every story', () => {

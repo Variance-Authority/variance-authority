@@ -168,6 +168,13 @@ export interface VisitedSubject {
 export interface Visit {
   readonly subjects: readonly VisitedSubject[];
   readonly warnings?: readonly string[];
+  /**
+   * Present when the visit could not learn every subject the planned one
+   * realizes — a story whose parameters were not read, so its widths are
+   * unknown. The run then treats what the store holds of the planned subject
+   * as it does for a subject it did not visit: planned, not left behind.
+   */
+  readonly incomplete?: true;
 }
 
 export interface CollectorContext {
