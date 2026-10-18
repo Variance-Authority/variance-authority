@@ -33,6 +33,12 @@ question open:
   with it. Record it alone with `-t` under `VARIANCE_AUTHORITY_STORY=alone`,
   then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
   and ask `story --name <name> --compare alone,file`.
+- **Two tests or more differ in their setup and in their result**: the flag
+  on fails and off passes, the default user passes and Mike fails. Record each
+  under `VARIANCE_AUTHORITY_STORY=1`, twice if you can, and name every one:
+  `story --name <one> --name <other>`. Each case is a side, set against the
+  others as readings of one case are; name a case two files hold as
+  `<file> > <name>`.
 
 Never record:
 
@@ -149,7 +155,8 @@ The answer prints a key for its marks. What the key leaves out:
 ```bash
 variance story --name "saves the total it charges" --compare outcome   # passed against threw
 variance story --name "saves the total it charges" --compare last      # newest against the one before
-variance story --name "saves the total it charges" --compare 1,flag-on # two labels
+variance story --name "saves the total it charges" --compare 1,flag-on # two labels, or more
+variance story --name "charges" --name "charges as mike" --name "charges with the flag off"   # cases against each other
 ```
 
 ```text
