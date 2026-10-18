@@ -98,6 +98,11 @@ interface Tape {
   readonly notes: readonly (readonly [at: number, key: string, text: string])[];
   /** Notes past either {@link NOTE_LIMIT}, counted and not kept. */
   readonly unnoted: number;
+  /**
+   * What each module held when it last ran, by module. A module runs once, when
+   * it loads, and the cases that go through it run after: a reset keeps these.
+   */
+  readonly held: ReadonlyMap<ModuleId, string>;
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
 }
 
@@ -177,6 +182,7 @@ function createTap(engine: Engine, limit: number): Tap {
   // crowds out what the code said, however hot the function.
   let spoken = 0;
   let handedOver = 0;
+  const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
 
@@ -235,12 +241,13 @@ function createTap(engine: Engine, limit: number): Tap {
     return `${sighting.ref} ${sighting.kind}`;
   };
 
-  const put = (text: string): void => {
+  const put = (text: string): string => {
     const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
     // Where an async scope decides the bucket, ask it, as a probe would
     // before it writes: a note said in a case's continuation is the case's.
     inner.s?.();
     notes.push([taped, engine.current().key, line]);
+    return line;
   };
 
   // What a row's regions hand over: the names the walk wrote, and their values.
@@ -255,7 +262,8 @@ function createTap(engine: Engine, limit: number): Tap {
       try {
         const said = names.split(',').map((name, index) => `${name}=${shown(values[index], module, region, name)}`);
         handedOver += 1;
-        put(`${region === 0 ? 'holds' : 'handed'} ${said.join(', ')}`);
+        if (region !== 0) put(`handed ${said.join(', ')}`);
+        else held.set(module, put(`holds ${said.join(', ')}`));
       } catch {
         // What the story could not say never reaches the code that said it.
       }
@@ -327,7 +335,7 @@ function createTap(engine: Engine, limit: number): Tap {
     root,
     engine,
     read() {
-      return { tape, taped, visits, at, keys, notes, unnoted, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+      return { tape, taped, visits, at, keys, notes, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
       if (spoken >= NOTE_LIMIT) {

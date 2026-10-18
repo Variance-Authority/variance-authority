@@ -149,7 +149,8 @@ The answer prints a key for its marks. What the key leaves out:
   line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments
   and what it found, a `vae` announcement as `vae …`. `» handed a=1, b=ref2
   Object` is what the function was bound to on entry, and `» holds …` what a
-  module loaded during the test declared. One ref is one object everywhere in
+  module's top level declared: at its step when the test loaded it, in the
+  header for every test that goes through it when it loaded with the file. One ref is one object everywhere in
   the run: the same ref at two steps is the same value handed on. Lines
   emitted before the first step are in the header.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`

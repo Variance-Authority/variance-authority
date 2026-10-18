@@ -468,8 +468,10 @@ shown as one line, that line names the package, and `--package` opens it.
 ## What each function was handed
 
 Every function step lists the values its parameters were bound to, after its
-branches and loops, one line per time it was entered. A module loaded during
-the test lists what its top level declared, once it has run:
+branches and loops, one line per time it was entered. A module lists what its
+top level declared, once it has run: at its step when the test loaded it, and
+in the header, as said before the test began, when it loaded with the test
+file, for every test that goes through it:
 
 ```text
   3  theme.tsx  theme.tsx:1-30

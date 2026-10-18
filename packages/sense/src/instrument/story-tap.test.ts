@@ -316,6 +316,17 @@ describe('what a function was handed, and what a module holds', () => {
     expect(tap!.read().notes.map(([, , text]) => text)).toContain('handed c=ref1 Object, tax=3, rest=ref7 Array(2)');
   });
 
+  it('keeps what each module holds past a reset, since a module runs once and its cases come after', () => {
+    const { tap, run } = handed(true);
+
+    tap!.reset();
+    run('checkout(2)');
+
+    const { held, notes } = tap!.read();
+    expect(notes.map(([, , text]) => text)).not.toContainEqual(expect.stringMatching(/^holds /));
+    expect([...held]).toEqual([['fixture.js', expect.stringMatching(/^holds cart=ref1 Object, label=/)]]);
+  });
+
   it('leads to the declaring binding even when a wrapper was handed the object before its module finished', () => {
     const engine = probeLog.createEngine(false);
     engine.use(engine.open('case'));
@@ -332,6 +343,16 @@ describe('what a function was handed, and what a module holds', () => {
       name: 'Panel',
     });
     expect(tap.identify(runInContext('Shown', context) as object)).toMatchObject({ region: 0, name: 'Shown' });
+  });
+
+  it('names an object by the symbol a framework marks its kind with, as React marks a context and a memo', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const source = "const Theme = { $$typeof: Symbol.for('react.context') };\nconst Shown = { $$typeof: Symbol.for('react.memo') };\n";
+    runInContext(instrument(source, 'fixture.js')!.code, createContext({ __VA__: tap.root }), { filename: 'fixture.js' });
+
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['holds Theme=ref1 react.context, Shown=ref2 react.memo']);
   });
 
   it('never crowds out what the code said, however often a function is handed something', () => {
