@@ -79,6 +79,15 @@ describe('what a wrapped Rstest configuration becomes', () => {
     expect(shim).toContain('wrapCase');
   });
 
+  it('keeps one bucket per test file under the loads recipe, so its setup shim wraps no case', async () => {
+    const directory = await root();
+    const config = withTestSelection({ root: directory }, { coverageFile: resolve(directory, 'coverage.bin'), mode: 'loads' });
+
+    const shim = await readFile((config.setupFiles as readonly string[])[0]!, 'utf8');
+    expect(shim).toContain('.flat(globalThis)');
+    expect(shim).not.toContain('wrapCase');
+  });
+
   it('wraps the registrars a suite imports, which is a configuration without globals', async () => {
     const directory = await root();
     const config = withTestSelection(
@@ -286,5 +295,18 @@ describe('the Rstest loader', () => {
 
   it('leaves a test file as it is when `cadence` is off', async () => {
     expect((await loaded('src/add.test.ts', TEST, {}, {}, { cadence: false })).handed).toBe(TEST);
+  });
+
+  it('leaves a test file as it is under the loads recipe, which cuts nothing', async () => {
+    expect((await loaded('src/add.test.ts', TEST, {}, {}, { mode: 'loads' })).handed).toBe(TEST);
+  });
+
+  it('marks a module as loaded under the loads recipe, and probes nothing in it', async () => {
+    const add = 'export const add = (a, b) => a + b;\n';
+    const { handed, modules } = await loaded('src/add.ts', add, { 'src/add.ts': add }, {}, { mode: 'loads' });
+
+    expect(handed).toMatch(/^export const add = \(a, b\) => a \+ b;\n\n;[^]*__vaE\(\);$/);
+    expect(handed).not.toMatch(/__va\(\d+\)/);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/add.ts', instrumented: false, blocks: [] })]);
   });
 });

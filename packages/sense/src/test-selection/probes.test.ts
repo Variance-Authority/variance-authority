@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { parseSync } from 'oxc-parser';
 import { describe, expect, it } from 'vitest';
+import { instrumentationId, probeRecipe } from '../instrument/index.js';
 import { testSelectionProbes } from './probes.js';
 import { inRoot } from './__fixtures__/browser-page.js';
 
@@ -39,6 +40,11 @@ describe('the collector import', () => {
 });
 
 describe('a build under the loads recipe', () => {
+  it('names its own recipe, and digests only the header it shares with presence', () => {
+    const presence = probeRecipe('presence');
+    expect(probeRecipe('loads')).toBe(`${instrumentationId('loads')}${presence.slice(presence.indexOf('+'))}`);
+  });
+
   it('marks each module as loaded after its own text, and probes nothing inside it', async () => {
     await inRoot(async (root) => {
       const module = resolve(root, 'Since.js');
