@@ -47,8 +47,8 @@ function whole(subjects: readonly SubjectComposition[]) {
 /** Each shard's part, where `owner` places plan position `i` on a shard. */
 function parts(subjects: readonly SubjectComposition[], total: number, owner: (i: number) => number): SuitePart[] {
   return Array.from({ length: total }, (_, k) => {
-    const slots = subjects.map((subject, i) => (owner(i) === k + 1 ? subject : null));
-    const { reading } = composeReports({ subjects: slots, observations: [], source: SOURCE });
+    const slots = subjects.map((subject, i) => (owner(i) === k + 1 ? [subject] : []));
+    const { reading } = composeReports({ subjects: slots.flat(), observations: [], source: SOURCE });
     return suitePartOf(slots, reading, COMMIT, { index: k + 1, total });
   });
 }
@@ -101,6 +101,16 @@ describe('a composed suite index', () => {
     expect(composeSuiteIndex([one!, { ...two!, shard: { index: 1, total: 2 } }], COMMIT)).toBe('shard 2/2 is missing');
     expect(composeSuiteIndex([one!, two!, two!], COMMIT)).toBe('shard 2/2 was given twice');
     expect(composeSuiteIndex([one!, { ...two!, subjects: one!.subjects }], COMMIT)).toMatch(/was composed by two shards/);
+  });
+
+  it('holds every width of a story at the one position the plan gave the story', () => {
+    // The last two subjects as two widths of one planned story, read by shard 2.
+    const [a, b, ...widths] = SUITE;
+    const one = suitePartOf([[a!], [b!], []], composeReports({ subjects: [a!, b!], observations: [], source: SOURCE }).reading, COMMIT, { index: 1, total: 2 });
+    const two = suitePartOf([[], [], widths], composeReports({ subjects: widths, observations: [], source: SOURCE }).reading, COMMIT, { index: 2, total: 2 });
+
+    expect(two.subjects.map((row) => row.position)).toEqual(widths.map(() => 2));
+    expect(composeSuiteIndex([one, two], COMMIT)).toEqual(whole(SUITE));
   });
 
   it('refuses an unsharded part beside a shard, and two unsharded parts', () => {

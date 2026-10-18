@@ -85,6 +85,7 @@ yarn workspace @variance-authority/case-storybook storybook
 | `src/alone.chromium.test.js` | order dependence told apart from a regression |
 | `src/suspense.chromium.test.js` | a never-resolving boundary, declared and undeclared |
 | `src/finish.chromium.test.js` | a story still busy after `storyRendered` |
+| `src/parameters.chromium.test.js` | a story's parameters read when it is reached, with no other story file imported |
 | `src/globals.chromium.test.js` | the a11y addon stood down for a visual pass |
 
 ## What is in the stories
@@ -116,7 +117,7 @@ two are exercised separately.
 | `Suspense — arrives late` | a boundary no marker could cover: the component that would carry one has not rendered |
 | `Suspense — boundary inside a boundary` | a boundary that only exists once the first one resolves, so one clean reading is not enough |
 | `Suspense — never resolves` | a boundary that never resolves, which is a flake source and is refused unless declared in `collector/index.mjs` |
-| `Card — receipt at two widths` | declares `widths: [375, 800]` in its own parameters, which the index does not carry, so it becomes two subjects, `@375` and `@800`, only if the collector asks the running preview |
+| `Card — receipt at two widths` | declares `widths: [375, 800]` in its own parameters, which the index does not carry, so it becomes two subjects, `@375` and `@800`, only once the collector reaches it and asks the running preview; both are read on that one page |
 
 The first five rows are the five a `Button` edit moves. Of the nine subjects below
 them, eight read the same way every time. `Clock — ticking` does not: nothing

@@ -103,7 +103,7 @@ function ownershipRefusal(parts: readonly Named[]): string | undefined {
     const owned = new Set(assignment.queue.flat());
     for (const outcome of part.outcomes) {
       const expected = entries[outcome.position]?.id;
-      if (outcome.subject !== expected) {
+      if ((outcome.of ?? outcome.subject) !== expected) {
         return `${path} names ${outcome.subject} at position ${String(outcome.position)}, where the plan has ${expected ?? 'nothing'}`;
       }
       if (!owned.has(outcome.position)) {

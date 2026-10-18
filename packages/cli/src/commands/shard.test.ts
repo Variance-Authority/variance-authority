@@ -151,4 +151,10 @@ describe('what a shard reports about subjects it did not observe', () => {
     expect(declinedBy('story:b', skipped, 'route:*')?.kind).toBe('excluded');
     expect(declinedBy('story:b', skipped, 'story:*')).toBeUndefined();
   });
+
+  it('reaches a subject a glob names one width of, since only the visit knows its widths', () => {
+    expect(declinedBy('story:card--receipt', undefined, 'story:card--receipt@375')).toBeUndefined();
+    expect(declinedBy('story:card--receipt', undefined, '*@375')).toBeUndefined();
+    expect(declinedBy('story:card--receipt', undefined, 'story:card--plain@375')?.kind).toBe('excluded');
+  });
 });

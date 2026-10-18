@@ -3722,6 +3722,8 @@
         "SourceScan": "interface",
         "StoryExecutionOptions": "type",
         "StorybookCollectorOptions": "interface",
+        "Visit": "interface",
+        "VisitedSubject": "interface",
         "storybookCollector": "function"
       },
       "./preset": {

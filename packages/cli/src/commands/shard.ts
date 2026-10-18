@@ -109,6 +109,11 @@ export function placedElsewhere(
  * Why this shard's own subject is not collected, if it is not: `unreached` when
  * the diff was derived not to arrive — nobody configured that — and `excluded`
  * when `--subjects` left it out, which somebody did.
+ *
+ * A glob leaves a subject out only when no subject its visit can realize could
+ * match either: a story read at two widths is planned once, under its own id,
+ * and `--subjects 'story:card--receipt@375'` asks for one of them. What the
+ * visit realizes is filtered by the glob itself afterwards.
  */
 export function declinedBy(
   id: string,
@@ -117,8 +122,36 @@ export function declinedBy(
 ): NotObserved | undefined {
   const ruledOut = skipped?.get(id);
   if (ruledOut !== undefined) return { subject: id, kind: 'unreached', because: ruledOut };
-  if (glob !== undefined && !matchesGlob(glob, id)) {
+  if (glob !== undefined && !matchesGlob(glob, id) && !globCouldExtend(glob, id)) {
     return { subject: id, kind: 'excluded', because: shardFilterBecause(glob) };
   }
   return undefined;
+}
+
+/**
+ * Whether some id beginning with `prefix` matches `pattern`: a subject a visit
+ * may widen is declined by a glob only when nothing it can realize is wanted.
+ *
+ * Walked over the pattern rather than built as a regular expression, because the
+ * question is about every extension of the prefix: a position the prefix can
+ * still reach is one more characters can carry to the end.
+ */
+function globCouldExtend(pattern: string, prefix: string): boolean {
+  let at = new Set<number>([0]);
+  const close = (positions: Set<number>): Set<number> => {
+    for (const position of positions) if (pattern[position] === '*') positions.add(position + 1);
+    return positions;
+  };
+  at = close(at);
+  for (const character of prefix) {
+    const next = new Set<number>();
+    for (const position of at) {
+      const token = pattern[position];
+      if (token === '*') next.add(position);
+      else if (token === '?' || token === character) next.add(position + 1);
+    }
+    at = close(next);
+    if (at.size === 0) return false;
+  }
+  return true;
 }

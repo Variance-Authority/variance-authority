@@ -4,7 +4,8 @@ import { collecting, onEngine, planOf, rendered, type Opened } from './evidence-
 import { recipeOf, type EvidencePart } from './evidence-part.js';
 import { configOf } from './run-fixture.js';
 import { assign } from './shard.js';
-import type { Collected } from './collector.js';
+import type { Collected, Visit } from './collector.js';
+import { mergeEvidence } from './collect-merge.js';
 
 const PLAN = planOf([
   ['button--primary', 'src/Button.stories.tsx'],
@@ -105,6 +106,27 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
       'page--home',
     ]);
     expect(part.subjects).toHaveLength(2);
+  });
+
+  it('holds every width a visit read at the position the plan gave its story, and says its warning once', async () => {
+    const story = PLAN.subjects[2]!;
+    const atWidth = (width: number) => ({
+      planned: { ...story, subject: { ...story.subject, id: `${story.subject.id}@${String(width)}` } },
+      collected: answer(`${story.subject.id}@${String(width)}`),
+    });
+    const visit: Visit = { subjects: [atWidth(375), atWidth(800)], warnings: ['widths read from a guess'] };
+    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => (id === story.subject.id ? visit : answer(id)))));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2)).toEqual([
+      { position: 2, subject: 'card--default@375', of: 'card--default', outcome: 'collected', snapshot: true },
+      { position: 2, subject: 'card--default@800', of: 'card--default', outcome: 'collected', snapshot: true },
+    ]);
+    expect(part.subjects.filter((row) => row.position === 2).map((row) => row.subject)).toEqual([
+      'card--default@375',
+      'card--default@800',
+    ]);
+    expect(part.diagnostics.filter((diagnostic) => diagnostic.message === 'widths read from a guess')).toHaveLength(1);
+    expect(mergeEvidence([{ path: 'evidence.json', part }]).kind).not.toBe('refused');
   });
 
   it('keeps a collected subject with no snapshot as collected, with no row', async () => {

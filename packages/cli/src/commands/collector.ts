@@ -179,6 +179,33 @@ export type Collected =
       readonly because: string;
     };
 
+/** One subject a visit read: the subject as it was realized, and its reading. */
+export interface VisitedSubject {
+  readonly planned: PlannedSubject;
+  readonly collected: Collected;
+}
+
+/**
+ * What reaching one planned subject produced, when it is not one reading.
+ *
+ * A plan is made before any subject is visited, and some of what decides how a
+ * subject is read is known only at the visit: a story's widths live in its
+ * parameters, which are read when its file is loaded. So a visit may realize
+ * several subjects, or the planned one at a viewport it declared, and say what
+ * it could not read on the way. Every realized id begins with the planned id —
+ * the story's id, then its width — so a `--subjects` glob decides before the
+ * visit whether anything it realizes can be wanted.
+ */
+export interface Visit {
+  readonly subjects: readonly VisitedSubject[];
+  readonly warnings?: readonly string[];
+}
+
+/** The subjects one `collect` produced, as a list whichever shape it answered in. */
+export function visited(planned: PlannedSubject, result: Collected | Visit): readonly VisitedSubject[] {
+  return 'subjects' in result ? result.subjects : [{ planned, collected: result }];
+}
+
 /**
  * The half of a run this package cannot write.
  *
@@ -213,7 +240,8 @@ export type Collected =
 export interface Collector {
   /** Subjects to observe, plus the ones this source already refuses, with reasons. */
   plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
+  /** One planned subject read: a {@link Collected}, or a {@link Visit} when it realized other subjects. */
+  collect(subject: PlannedSubject): Promise<Collected | Visit>;
 
   /**
    * The frames a snapshot carries, spent on demand.

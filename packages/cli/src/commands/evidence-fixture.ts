@@ -4,7 +4,7 @@ import {
   type SemanticSnapshot,
   type SemanticNode,
 } from '@variance-authority/core/format';
-import type { Collected, Collector, Plan, PlannedSubject } from './collector.js';
+import type { Collected, Collector, Plan, PlannedSubject, Visit } from './collector.js';
 import { VIEWPORT, documentFor } from './run-fixture.js';
 
 /**
@@ -82,7 +82,7 @@ export interface Opened {
  */
 export function collecting(
   plan: Plan,
-  answer: (id: string) => Collected,
+  answer: (id: string) => Collected | Visit,
   options: { readonly delay?: (id: string) => number; readonly failOpening?: number } = {},
 ): Opened {
   const worlds = { opened: 1, closed: 0 };
