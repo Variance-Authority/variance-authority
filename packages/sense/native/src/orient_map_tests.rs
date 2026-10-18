@@ -289,3 +289,31 @@ fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_pa
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["make"]);
 }
+
+#[test]
+fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_default() {
+    let root = std::env::temp_dir().join(format!("sense-orient-map-{}-through-default", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    for (directory, name) in [("packages/a", "@t/a"), ("packages/b", "@t/b")] {
+        std::fs::create_dir_all(root.join(directory).join("src")).unwrap();
+        std::fs::write(root.join(directory).join("package.json"), format!(r#"{{"name": "{name}"}}"#)).unwrap();
+    }
+    std::fs::write(root.join("package.json"), r#"{"private": true}"#).unwrap();
+    let _root = Fixture(root.clone());
+    let a = "packages/a/src/index.ts";
+    let b = "packages/b/src/index.ts";
+    // `import * as a from '@t/a'; a.make; a.default.inner`: `inner` is the default's.
+    let request = r#"{"value": "@t/a", "kind": "imports", "line": 1, "bindings": [{"imported": "*", "local": "a", "type": false, "line": 1}]}"#;
+    let members = r#"[{"request": 0, "name": "make", "line": 2}, {"request": 0, "name": "default", "line": 3}, {"request": 0, "name": "inner", "line": 3, "throughDefault": true}]"#;
+    let document = format!(
+        r#"{{"records": [["{a}", {{"record": {{"file": "{a}", "digest": "da"}}, "witnesses": [], "targets": []}}], ["{b}", {{"record": {{"file": "{b}", "digest": "db"}}, "witnesses": [], "targets": ["{a}"]}}]], "parses": [["da\u0000.ts\u0000+", {{"requests": []}}], ["db\u0000.ts\u0000+", {{"requests": [{request}], "members": {members}}}]], "deletedRecords": [], "deletedParses": []}}"#
+    );
+    let segment = merged(&[], &Delta::of(vec![document]).unwrap());
+    let layers = [Layer::open(&segment).unwrap()];
+    let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
+
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+
+    let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
+    assert_eq!(read.head[at], ["default", "make"]);
+}

@@ -4,8 +4,8 @@
 
 ## Responsibility
 
-Paints an assembled document in a browser this block launched, under a launch
-recipe it declares, and hands back the subject's pixels and their box.
+Paints an assembled document in a browser leased under a launch recipe it
+declares, and hands back the subject's pixels and their box.
 
 ## Bounded context
 
@@ -40,6 +40,12 @@ page is loaded by setting content rather than by navigating, which is what lets
 it serve a document that was read without a browser at all — there is no server,
 no build and no application to navigate to.
 
+The browser is leased, not launched: every harness and renderer in a process that
+asks for the same engine, headless flag and ordered arguments holds one browser,
+and the last to let go closes it. A run's collectors and its renderer are then
+one Chromium, which is the same launch the identity names. The renderer's pages
+stay in contexts of its own, keyed by viewport.
+
 Concurrency is bounded and leases a separate page per render above one, because
 setting content replaces a page's whole document. Pages, not browsers: the
 isolation a render needs is a document of its own, which every render already
@@ -67,8 +73,10 @@ The page it opens for painting is not the page a run collects from.
 ## Implementation coordinates
 
 `packages/playwright/src/renderer.ts` — `createPlaywrightRenderer`,
-`CHROMIUM_RASTER_ARGS`, the `PagePool`, the resource route and its refusals, and
-`probeFonts`, which runs inside the page. `packages/playwright/src/capture.ts` —
+`CHROMIUM_RASTER_ARGS`, the resource route and its refusals, and `probeFonts`,
+which runs inside the page. `packages/playwright/src/page-pool.ts` — the
+`PagePool`. `packages/playwright/src/browsers.ts` — `leaseBrowser` and
+`leaseContext`, the refcounted browser and context. `packages/playwright/src/capture.ts` —
 `captureSubject` and `outward`, the rounding that makes the two paths
 byte-identical. `packages/playwright/src/viewport.ts` — `unresizable`, the
 properties a page cannot change without a new browser context.

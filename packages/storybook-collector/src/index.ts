@@ -185,6 +185,14 @@ export function storybookCollector(
         ...(config.locale !== undefined ? { locale: config.locale } : {}),
         ...(options.headless !== undefined ? { headless: options.headless } : {}),
         stabilize,
+        // Every world of the run in one context, which is where the browser
+        // keeps its HTTP cache: a worker's preview boots from what the first
+        // world fetched. The pages share cookies and storage with it, as stories
+        // in one preview already share a document. Across workers what a story
+        // finds left behind depends on scheduling: which worker read which story
+        // before it decides the cookies, storage and service workers, msw's
+        // among them, that it meets.
+        warm: true,
       },
       // Installed in `prepare`, which runs before the first navigation: an
       // observation that starts afterwards has already missed the assets the
@@ -195,6 +203,10 @@ export function storybookCollector(
             network: {
               ...(config.blank !== undefined ? { blank: config.blank } : {}),
               ...(options.hashAssets !== undefined ? { hashAssets: options.hashAssets } : {}),
+              // Watching without turning the cache off. Safe because a Storybook
+              // world never resets its observation: each story carries the
+              // page's whole set, so nothing the cache answers silently is lost.
+              cache: true,
             },
           }),
     };
@@ -314,7 +326,7 @@ export function storybookCollector(
        * `changed`.
        */
       async collectAlone(planned: PlannedSubject): Promise<Collected> {
-        const alone = await openWorld(recipe);
+        const alone = await openWorld({ ...recipe, harness: { ...recipe.harness, isolated: true } });
         // This world's engine. The run's reader has met every function every
         // earlier subject rendered, and would lay all of them over this reading.
         const declaredAlone = createDeclarationReader(alone.page);

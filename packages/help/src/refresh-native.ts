@@ -178,7 +178,9 @@ export function useOf(use: NativeUse): Use {
   return {
     by: use.by, at: use.at, line: use.line, type: use.type, kind: use.kind,
     ...(use.local === undefined || use.local === null ? {} : { local: use.local }),
-    ...(use.through === undefined || use.through === null ? {} : { through: { kind: use.through, line: use.throughLine } }),
+    ...(use.through === undefined || use.through === null ? {} : {
+      through: { kind: use.through, line: use.throughLine, ...(use.throughDefault ? { throughDefault: true } : {}), ...(use.whole ? { whole: true } : {}) },
+    }),
   };
 }
 

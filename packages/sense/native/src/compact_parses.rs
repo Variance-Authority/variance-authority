@@ -68,6 +68,8 @@ pub(crate) struct Parses<'a> {
     pub member_request: U32s<'a>,
     pub member_name: U32s<'a>,
     pub member_line: U32s<'a>,
+    /// A member read off the module's `default`, as [`crate::members::Member`] says.
+    pub member_through_default: &'a [u8],
     pub member_declarations: U32s<'a>,
     pub member_declaration_name: U32s<'a>,
     pub member_declaration_line: U32s<'a>,
@@ -147,6 +149,7 @@ impl<'a> Parses<'a> {
             members: stored.offsets("parses.members", rows, member_name.len())?,
             member_request: u32s("members.request")?,
             member_line: u32s("members.line")?,
+            member_through_default: stored.u8s("members.through-default")?,
             member_name,
             member_declarations: stored.offsets("parses.member-declarations", rows, member_declaration_name.len())?,
             member_declaration_line: u32s("member-declarations.line")?,
@@ -245,6 +248,7 @@ impl<'a> Parses<'a> {
         same_length(self.member_name.len(), &[
             ("members.request", self.member_request.len()),
             ("members.line", self.member_line.len()),
+            ("members.through-default", self.member_through_default.len()),
         ])?;
         same_length(self.member_declaration_name.len(), &[
             ("member-declarations.line", self.member_declaration_line.len()),
@@ -375,7 +379,7 @@ impl ParseRow for ParseView<'_, '_> {
             columns.mocks_plus.range(row).map(|at| id(columns.mock_plus, at)),
         );
         for at in columns.members.range(row) {
-            into.member(columns.member_request.at(at), id(columns.member_name, at), columns.member_line.at(at));
+            into.member(columns.member_request.at(at), id(columns.member_name, at), columns.member_line.at(at), columns.member_through_default[at] == 1);
         }
         for at in columns.member_declarations.range(row) {
             into.member_declaration(

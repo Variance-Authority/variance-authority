@@ -1071,9 +1071,15 @@ state they ran under is printed as unmeasured, and cases from a runner that
 does not record preconditions are counted apart from the cases that recorded
 nothing.
 
-A comment shows part of the answer, and `review.json` holds all of it. Upload
-the `--out` directory as an artifact, and anyone with the GitHub CLI can print
-the whole review in their own terminal:
+A comment shows part of the answer, and `review.json` holds all of it. It
+names each case once, under `cases`, ordered by test file, title and id, and
+each changed region lists the cases that entered it under `called` by their
+place in that list, so a change that moves most of a suite weighs its regions
+plus its cases, not one times the other. The places hold within one file only:
+to compare two reviews, match cases on `id`. A region's test files are those of
+its cases, so the file leaves them out. `version` names the shape, `2` for this
+one. Upload the `--out` directory as an artifact, and anyone with the GitHub
+CLI can print the whole review in their own terminal:
 
 ```bash
 variance review --from-run https://github.com/acme/shop/actions/runs/36531792356
@@ -1081,7 +1087,9 @@ variance review --from-run https://github.com/acme/shop/actions/runs/36531792356
 
 `--from-run` takes a run id or the URL of a run or one of its jobs. It runs
 `gh run download` for the artifact `variance-review`, or the one `--artifact`
-names, and prints the `review.json` inside in the format asked for. The review
+names, and prints the `review.json` inside in the format asked for. It reads
+one written before `version` too, and one larger than a single string holds, a
+member at a time. The review
 is the one the run made, so `--since`, `--against`, `--suite` and `--out` are
 refused beside it. When `gh` is not installed, or the artifact has expired, the
 message names which.

@@ -152,6 +152,8 @@ subjects into one document and let one decide the other's verdict.
 | `subjectId` | `fixture:<subject>` | how a subject name becomes a capture id |
 | `timezoneId`, `locale` | `UTC`, `en-US` | the timezone the page's clock reads in and the language it formats for. Pinned rather than taken from the host, so a date read on two machines is one date, and written to the environment key of every capture. Give the renderer the same pair: it is the renderer that carries them in `RenderIdentity` |
 | `headless` | `true` | set false to watch a case that is behaving oddly |
+| `warm` | `false` | open the page in a context shared with every other warm harness on the same browser — the same engine, headless flag and launch arguments — and of the same viewport and region. The context holds the HTTP cache, so your second page boots from what the first fetched; the pages also share cookies and storage, which is why you ask for it |
+| `isolated` | `false` | launch a browser of the harness's own. Every other harness leases one browser per launch recipe and the last to close it closes it, so a run with workers and a renderer starts one Chromium |
 | `stabilize` | none | a stabilization recipe whose driver tricks — `no-hover`, `reduced-motion`, `freeze-clock` — are applied before the first navigation. The ids it applied are `harness.driven`, for the page agent to keep in the recipe it records; with `reduced-motion` applied the capture declares `prefers-reduced-motion: reduce` unless `features` declares its own |
 | `prepare` | none | run against the page *before* its first navigation. This is where `observeNetwork` attaches: a watcher installed after `goto` has already missed every asset the document pulled in, and the alternative pays a second page load per run to observe the first one |
 
@@ -205,6 +207,7 @@ Only a reading of the network response shows the difference.
 | `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame, on the wire rather than in the page |
 | `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It reads the URL and the intrinsic size, and does not read the DOM |
 | `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and buffered long enough to digest, so a portable document costs a map and not a second crawl |
+| `cache` | `false` | leave the browser's HTTP cache on. Requests are held through the DevTools protocol rather than Playwright's routing, which turns the cache off, so a page in a context another page filled is answered from memory and every answer still passes the observation. An image the same page already shows is drawn again without a request, so turn it on only when you never call `reset`. Chromium only |
 
 `retainResources` keeps **what was served** — the blank an image became, the
 single frame a GIF was truncated to. Keeping what *arrived* would paint a

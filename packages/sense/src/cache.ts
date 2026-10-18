@@ -126,6 +126,13 @@ export interface Member {
   readonly request: number;
   readonly name: string;
   readonly line: number;
+  /**
+   * The name is read off the module's `default`, which under interop is a
+   * CommonJS module's `module.exports`: `(await import('m')).default.name`.
+   * `*` for a name is the module, or its `default`, going somewhere the reader
+   * does not follow, so what it reads there is not listed.
+   */
+  readonly throughDefault?: true;
 }
 
 /** One member a file declares, on the interface, type alias or class that holds it. */

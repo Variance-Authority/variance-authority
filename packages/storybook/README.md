@@ -273,6 +273,18 @@ Storybook has emitted `storyFinished` since 8.3. On anything older, the first
 story of a session waits out `timeoutMs` to establish that the event is never
 coming, and the rest of the run pays nothing.
 
+The wait for `storyFinished` is the event itself: the story is handed on when
+Storybook emits it, not at the next tick of a poll. Storybook's own fixed wait
+is gone too. Outside a test runner it opens every render's `completing` phase
+with a 100 ms timer before it looks for running animations; `collectStory` sets
+`__vitest_browser__` on each document it navigates, which is the switch
+Storybook reads to skip that timer. The same switch makes Storybook pause every
+animation at its last keyframe, so the adapter removes that stylesheet as it is
+added, and your page keeps the animation state it set. Like the globals below,
+the switch lives in a document this session opened and dies with it. The first
+story of a document is rendered before the switch
+can be set, and pays Storybook's wait once.
+
 Nor is there a wait for a story the preview is already showing. Storybook
 re-renders only a story it is not already displaying, so asking for the same
 subject twice in one page — which is how an order-dependent reading is told apart

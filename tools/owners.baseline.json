@@ -326,8 +326,13 @@
   },
   {
     "idiom": "fresh-page",
-    "at": "packages/playwright/src/harness.ts",
+    "at": "packages/playwright/src/browsers.ts",
     "count": 4
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/playwright/src/harness.ts",
+    "count": 2
   },
   {
     "idiom": "timer",
@@ -336,8 +341,8 @@
   },
   {
     "idiom": "fresh-page",
-    "at": "packages/playwright/src/renderer.ts",
-    "count": 4
+    "at": "packages/playwright/src/page-pool.ts",
+    "count": 3
   },
   {
     "idiom": "code-unit-order",
@@ -677,7 +682,7 @@
   {
     "idiom": "timer",
     "at": "packages/storybook/src/preview-fake.ts",
-    "count": 9
+    "count": 10
   },
   {
     "idiom": "fresh-page",
@@ -807,7 +812,7 @@
   {
     "idiom": "fresh-page",
     "at": "cases/storybook-case/src/finish.chromium.test.js",
-    "count": 5
+    "count": 6
   },
   {
     "idiom": "fresh-page",
@@ -916,8 +921,13 @@
   },
   {
     "idiom": "fresh-page",
+    "at": "packages/playwright/src/network-reach.chromium.test.ts",
+    "count": 7
+  },
+  {
+    "idiom": "fresh-page",
     "at": "packages/playwright/src/network.chromium.test.ts",
-    "count": 16
+    "count": 26
   },
   {
     "idiom": "timer",
@@ -1027,6 +1037,11 @@
   {
     "idiom": "timer",
     "at": "packages/store/src/share-lock-holder.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/storybook/src/preview-finished.test.ts",
     "count": 1
   },
   {
