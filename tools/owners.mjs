@@ -62,14 +62,14 @@ export const IDIOMS = {
   'fresh-page': {
     owner:
       'the page the session already holds, switched in place through the harness API (ADR-0009); ' +
-      'a reload or a new page or context per subject is the isolation that was measured and rejected',
+      'a navigation, a reload, or a new page or context per subject is the isolation that was measured and rejected',
     owns: [],
   },
 };
 
 // Each call that waits on the clock, and each call that throws the page away.
 const TIMERS = new Set(['setTimeout', 'setInterval', 'waitForTimeout']);
-const FRESH_PAGES = new Set(['reload', 'newPage', 'newContext']);
+const FRESH_PAGES = new Set(['goto', 'reload', 'newPage', 'newContext']);
 
 /**
  * Production sources: what ships, and the tools that write what ships.
@@ -108,7 +108,7 @@ export function tests() {
   })
     .trim()
     .split('\n')
-    .filter((file) => /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/.test(file) && !/(^|\/)(__fixtures__|fixtures)\//.test(file))
+    .filter((file) => COLLECTED_NAME.test(file) && !FIXTURE.test(file))
     .filter((file) => existsSync(join(ROOT, file)));
 }
 
@@ -118,8 +118,12 @@ const COLLECTED = ['packages/', 'cases/', 'examples/', 'site/app/', 'tools/'];
 const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
 const IN_TESTS = new Set(['timer', 'fresh-page']);
 
-const isTest = (file) =>
-  /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/.test(file) || /(^|\/)(__tests__|__fixtures__|fixtures|test)\//.test(file);
+// A name a runner collects, and the directories that hold what a test reads.
+// `COLLECTED` is wider than any one runner's configuration on purpose: a wait
+// in a file no runner collects yet is still a wait.
+const COLLECTED_NAME = /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/;
+const FIXTURE = /(^|\/)(__fixtures__|fixtures)\//;
+const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
 export function sitesIn(file, text, read = Object.keys(IDIOMS)) {

@@ -114,9 +114,11 @@ the site, CLI output and error messages. Read it before writing any of them.
   one is a defect, however it is spelled: a new flag beside an old one, a fast
   path beside the general path, a fallback beside the reader that refused. The
   change extends, calls or replaces the first; it never sits next to it.
-- **Four roles, and complexity goes down.** Each file plays one of them, and an
-  import points down the list, never up. A role is not a package layer: those
-  are depth in the import graph, from `variance layers`.
+- **Four roles, and complexity goes down.** Each file plays one of them. A
+  shell imports decisions and mechanisms, a mechanism imports engines, and a
+  decision imports only decisions and types; nothing imports a shell. A role is
+  not a package layer: those are depth in the import graph, from
+  `variance layers`.
   1. **Engine** — borrowed: oxc parses, git finds files and diffs, TypeScript
      answers types, Chromium paints, the runner says what an import meant under
      test. We call an engine; we never re-implement it.

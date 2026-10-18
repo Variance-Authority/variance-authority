@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { relationBetween, type RuleFile } from '../packages/sense/src/restrictions.js';
+import { ruleFiles } from '../packages/cli/src/commands/relations-file.js';
+import { relationBetween } from '../packages/sense/src/restrictions.js';
 
 /**
  * The runner fences, read through the engine `variance restrictions` runs.
@@ -13,11 +13,7 @@ import { relationBetween, type RuleFile } from '../packages/sense/src/restrictio
  */
 
 const ROOT = join(import.meta.dirname, '..');
-const DIRECTORIES = ['packages', 'packages/sense/src/test-selection'];
-const FILES: readonly RuleFile[] = DIRECTORIES.map((directory) => ({
-  directory,
-  rules: JSON.parse(readFileSync(join(ROOT, directory, '.relations.json'), 'utf8')),
-}));
+const FILES = ruleFiles(ROOT, undefined);
 
 const verdict = (from: string, to: string): string => relationBetween(FILES, from, to)?.rule.type ?? 'unmatched';
 const SELECTION = 'packages/sense/src/test-selection';
@@ -32,6 +28,7 @@ describe('a runner integration', () => {
   it('is open to its own files, a test and the package index', () => {
     expect(verdict(`${SELECTION}/vitest-reporter.ts`, `${SELECTION}/vitest.ts`)).toBe('allowed');
     expect(verdict(`${SELECTION}/probes-placement.test.ts`, `${SELECTION}/rstest.ts`)).toBe('allowed');
+    expect(verdict(`${SELECTION}/view.test.tsx`, `${SELECTION}/vitest.ts`)).toBe('allowed');
     expect(verdict(`${SELECTION}/index.ts`, `${SELECTION}/jest-journey-artifact.ts`)).toBe('allowed');
   });
 

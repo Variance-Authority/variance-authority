@@ -327,7 +327,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/harness.ts",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "timer",
@@ -337,7 +337,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/renderer.ts",
-    "count": 2
+    "count": 3
   },
   {
     "idiom": "code-unit-order",
@@ -397,6 +397,11 @@
   {
     "idiom": "timer",
     "at": "packages/route-collector/src/page-agent.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/route-collector/src/read.ts",
     "count": 1
   },
   {
@@ -675,6 +680,11 @@
     "count": 9
   },
   {
+    "idiom": "fresh-page",
+    "at": "packages/storybook/src/preview.ts",
+    "count": 3
+  },
+  {
     "idiom": "timer",
     "at": "packages/storybook/src/show-story.ts",
     "count": 2
@@ -736,12 +746,62 @@
   },
   {
     "idiom": "fresh-page",
-    "at": "cases/playwright-storybook-case/src/spec/popup.spec.mjs",
+    "at": "cases/event-announcement-case/src/spec/announcement.spec.mjs",
+    "count": 7
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/event-announcement-case/src/spec/diagnosis.spec.mjs",
     "count": 1
   },
   {
     "idiom": "fresh-page",
+    "at": "cases/incumbent-case/src/incumbent.spec.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/journey-tracing-case/src/spec/dollars.spec.mjs",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/journey-tracing-case/src/spec/euros.spec.mjs",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/playwright-storybook-case/src/spec/after-each.spec.mjs",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/playwright-storybook-case/src/spec/manager.spec.mjs",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/playwright-storybook-case/src/spec/navigate.spec.mjs",
+    "count": 2
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/playwright-storybook-case/src/spec/plain.spec.mjs",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/playwright-storybook-case/src/spec/popup.spec.mjs",
+    "count": 3
+  },
+  {
+    "idiom": "fresh-page",
     "at": "cases/playwright-storybook-case/src/spec/reload.spec.mjs",
+    "count": 2
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/playwright-storybook-case/src/spec/variance.spec.mjs",
     "count": 1
   },
   {
@@ -827,7 +887,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/untouched.chromium.test.ts",
-    "count": 8
+    "count": 12
   },
   {
     "idiom": "timer",
@@ -847,7 +907,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/declarations.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
@@ -857,7 +917,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/network.chromium.test.ts",
-    "count": 7
+    "count": 15
   },
   {
     "idiom": "timer",
@@ -897,7 +957,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/route-collector/src/form-state.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "timer",
@@ -907,12 +967,12 @@
   {
     "idiom": "fresh-page",
     "at": "packages/route-collector/src/laid-out-size.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
     "at": "packages/route-collector/src/pseudo-elements.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "timer",
@@ -967,6 +1027,11 @@
   {
     "idiom": "timer",
     "at": "packages/store/src/share-lock-holder.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/storybook/src/preview.test.ts",
     "count": 1
   },
   {
