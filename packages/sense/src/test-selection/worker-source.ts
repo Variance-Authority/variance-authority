@@ -153,6 +153,7 @@ export const BROWSER_JOURNAL = 'varianceAuthority';
  * collector keeps it: the drain is always the realm's own.
  */
 export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+  // FIXME: Vitest is the default runner of a runner-neutral file; the caller names it (No runner is the default).
   return `
 import { afterAll, beforeAll } from ${JSON.stringify(runner)};
 {${executionCollectorSource(mode)}}
