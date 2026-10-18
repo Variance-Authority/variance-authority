@@ -318,6 +318,26 @@ module.exports = {
     expect(done.code).toContain('.r("src/pick.js@');
   });
 
+  it('is never asked for a recipe under the loads recipe, and the module it wrote is marked as loaded', async () => {
+    const root = await project('variance-jest-placing-');
+    await writeFile(resolve(root, 'src/pick.js'), RAW);
+    await writeFile(
+      resolve(root, 'transformer.cjs'),
+      `module.exports = {
+  senseRecipe: (mode) => { throw new Error('asked for ' + mode); },
+  process: (source) => ({ code: source }),
+};
+`,
+    );
+    const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs'), mode: 'loads' });
+
+    const done = transformer.process!(RAW, resolve(root, 'src/pick.js'), transformOptions(root));
+
+    expect(done.code.startsWith(`${RAW}\n;`)).toBe(true);
+    expect(done.code).toContain('.r("src/pick.js@~');
+    expect(done.code).not.toMatch(/__va\(\d+\)/);
+  });
+
   it('is handed a module named unprobed already marked, with nothing to place', async () => {
     const root = await placing(OURS);
     const transformer = await createTransformer({

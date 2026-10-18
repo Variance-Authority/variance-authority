@@ -140,6 +140,7 @@ export function placeModule(
   mode: InstrumentMode | undefined,
   original: (path: string) => string = readOriginal,
 ): Captured | undefined {
+  if (mode === 'loads') return placeModule(root, path, code, never, loadsAll(root, include, unprobed), undefined, original);
   const plan = planModule(root, path, code, include, original, unprobed);
   if (plan === undefined) return undefined;
   const { frame, file, id } = plan;
@@ -157,6 +158,17 @@ export function placeModule(
     ...changed,
     ...(done?.module === false ? { script: { at: done.headerAt } } : {}),
   };
+}
+
+const never = (): boolean => false;
+
+/**
+ * Under `loads`, every module `include` or `unprobed` accepts is marked as
+ * loaded and none is probed. A module outside `root` has no project path to
+ * be marked under, as {@link planModule} says, and is left as it is.
+ */
+function loadsAll(root: string, include: (file: string) => boolean, unprobed: ((file: string) => boolean) | undefined) {
+  return (file: string) => insideRoot(root, file) && (include(file) || unprobed?.(file) === true);
 }
 
 /** The map a transform at the end of a pipeline is handed back to every source it came from: Vite's `getCombinedSourcemap()`. */
@@ -226,6 +238,9 @@ export function captureAfter(
   map: (() => ComposedMap | undefined) | undefined,
   options: AfterOptions = {},
 ): CapturedAfter | undefined {
+  if (mode === 'loads') {
+    return captureAfter(root, path, code, never, undefined, map, { ...options, unprobed: loadsAll(root, include, options.unprobed) });
+  }
   const { unprobed, carry = false, original: read = readOriginal, unmapped = [], remedy = REMEDY, variant = false } = options;
   // Under `node_modules`, `include` is asked first: no map there is read.
   if (!mayTake(path, (file) => include(file) || (unprobed !== undefined && insideRoot(root, file) && unprobed(file)))) return undefined;

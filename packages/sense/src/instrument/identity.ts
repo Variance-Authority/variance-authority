@@ -21,6 +21,7 @@ export const INSTRUMENTATION_ID = 'sense:instrument/presence-v6';
 const IDS: Readonly<Record<InstrumentMode, string>> = {
   presence: INSTRUMENTATION_ID,
   entries: 'sense:instrument/entries-v3',
+  loads: 'sense:instrument/loads-v1',
 };
 
 /**

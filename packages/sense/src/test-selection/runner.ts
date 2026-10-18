@@ -148,7 +148,8 @@ export function startRecording(options: RecordingOptions = {}): Recording {
     caseDirectory: run.caseDirectory,
     mode,
     continuations: options.continuations === true,
-    cadence: options.cadence !== false,
+    // Under `loads` no region is probed for a line of a test to have reached first.
+    cadence: options.cadence !== false && mode !== 'loads',
   };
   const value = JSON.stringify(carried);
   process.env[RECORDING_VARIABLE] = value;

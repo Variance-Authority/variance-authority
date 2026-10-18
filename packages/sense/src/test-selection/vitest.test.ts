@@ -345,6 +345,30 @@ describe('coverage generations', () => {
     }
   });
 
+  it('marks each module as loaded under the loads recipe, and places no probe in it', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-instrumentation-loads-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    const source = 'export function f(x) { if (x) { return 1; } return 2; }';
+    try {
+      const configured = withTestSelection({}, { root, coverageFile, include: () => true, mode: 'loads' });
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'f.ts'), source);
+
+      const placed = plugin.transform.handler(source, resolve(root, 'f.ts'));
+      await reporter.onFinished([]);
+
+      // The text is the module's own up to its end, and one line follows it.
+      expect(placed!.code.startsWith(`${source}\n;`)).toBe(true);
+      expect(placed!.code.slice(source.length + 1)).not.toContain('\n');
+      expect(placed!.code).not.toMatch(/__va\(\d+\)|__vaL\(/);
+      const coverage = decodeTestCoverage(await readFile(coverageFile));
+      expect(coverage.instrumentation).toBe(instrumentationId('loads'));
+      expect(coverage.modules.map((module) => [module.instrumented, module.blocks])).toEqual([[false, []]]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('lets a completed changed test replace every old crossing', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(true, 'test:new');

@@ -103,7 +103,7 @@ function ahead(captured: Captured | undefined, handed: HandedMap) {
 }
 
 function recipe(mode: string): InstrumentMode {
-  if (mode === 'presence' || mode === 'entries') return mode;
+  if (mode === 'presence' || mode === 'entries' || mode === 'loads') return mode;
   throw new Error(`variance-authority: the probes loader was asked for a collector of recipe ${JSON.stringify(mode)}, which is none.`);
 }
 

@@ -321,7 +321,8 @@ export function withTestSelection(
   const unprobed = options.unprobed?.map((glob) =>
     glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
   const placing = { mode, unprobed, placement: options.placement };
-  const cadence = options.cadence !== false;
+  // Under `loads` no region is probed for a line of a test to have reached first.
+  const cadence = options.cadence !== false && mode !== 'loads';
   const projects = inline?.map((project) =>
     instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence));
   const preconditions = [

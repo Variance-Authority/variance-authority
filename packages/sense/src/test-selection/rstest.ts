@@ -227,7 +227,8 @@ export function withTestSelection(
   const marked = options.unprobed;
   run.unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
   run.placement = options.placement ?? 'after-transforms';
-  run.cadence = options.cadence === false
+  // Under `loads` no region is probed for a line of a test to have reached first.
+  run.cadence = options.cadence === false || mode === 'loads'
     ? undefined
     : testFilesAt(configRoot, undefined, config['include'] as readonly string[] | undefined);
 
