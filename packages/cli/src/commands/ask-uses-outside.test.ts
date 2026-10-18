@@ -158,3 +158,34 @@ describe('variance ask uses over a name a module of the runtime declares', () =>
     expect(out).not.toContain('docs_symbol has its declaration');
   }, 120_000);
 });
+
+describe('variance ask uses --package over a name declared outside the workspace', () => {
+  it('keeps the imports out of the package asked, and drops the others', async () => {
+    checkout(RUNTIME);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const outside = await run(['ask', 'uses', '--name', 'render', '--package', 'thirdp']);
+    expect(outside.code).toBe(EXIT_CLEAN);
+    expect(outside.out).toMatch(/^packages\/tool\/src\/paint\.ts:1 — @acme\/tool, from thirdp$/m);
+    expect(outside.out).not.toContain('packages/tool/src/view.ts');
+
+    const workspace = await run(['ask', 'uses', '--name', 'render', '--package', '@acme/pkg']);
+    expect(workspace.code).toBe(EXIT_CLEAN);
+    expect(workspace.out).toMatch(/^packages\/tool\/src\/view\.ts:1 — @acme\/tool$/m);
+    expect(workspace.out).not.toContain('from thirdp');
+  }, 120_000);
+
+  it('takes a module of the runtime by its name with or without the scheme', async () => {
+    checkout(RUNTIME);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const asked of ['path', 'node:path']) {
+      const { code, out } = await run(['ask', 'uses', '--name', 'resolve', '--package', asked]);
+      expect(code).toBe(EXIT_CLEAN);
+      expect(out).toContain('`resolve` is declared in no file of this workspace; it is imported from outside it in 2 places, out of node:path.');
+      expect(out).toMatch(/^packages\/tool\/src\/bare\.ts:1 — @acme\/tool, from node:path, the runtime's \(as resolved\)$/m);
+      expect(out).toMatch(/^packages\/tool\/src\/where\.ts:1 — @acme\/tool, from node:path, the runtime's$/m);
+      expect(out).not.toContain('packages/other/src/resolve.ts');
+    }
+  }, 120_000);
+});
