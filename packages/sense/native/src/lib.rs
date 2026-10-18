@@ -65,6 +65,7 @@ mod help_in_file;
 mod help_member_uses;
 mod help_members;
 mod help_origin;
+mod help_outside;
 mod help_own_uses;
 mod help_publish;
 mod help_search;

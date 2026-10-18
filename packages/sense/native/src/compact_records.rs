@@ -104,6 +104,13 @@ impl<'a> Records<'a> {
         stored.optional(self.unknown.at(row))
     }
 
+    /// The packages the record at `row` says its file imports, none when it does not say.
+    pub fn packages_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> impl Iterator<Item = &'s str> + use<'s, 'a> {
+        let (offsets, to) = (self.packages, self.package_to);
+        let present = self.packages_present[row] == 1;
+        offsets.range(row).filter(move |_| present).map(move |at| stored.text(to.at(at)))
+    }
+
     /// The record at `row`, its absent lists absent.
     pub fn indexed(&self, stored: &Stored<'a>, row: usize) -> Indexed {
         let text = |column: U32s, at: usize| stored.text(column.at(at)).to_owned();

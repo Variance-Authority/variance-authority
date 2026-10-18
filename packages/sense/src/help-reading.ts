@@ -13,7 +13,8 @@
 // compass: variance-authority.report.agent-surface
 
 import { native, nativeRefusal } from './native.js';
-import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import { BUILTINS } from './native-index-graph.js';
+import type { NativeImporters, NativeIndexedUsage, NativeNameUse } from './native-orient.js';
 import type { SourceSymbolReach } from './harvest.js';
 import { sourceIndexPath } from './source-index.js';
 
@@ -148,6 +149,7 @@ export interface NativeHelp {
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
+  outsideImportersOf?(root: string, index: string, name: string, builtins: readonly string[]): OutsideImports | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
   declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
@@ -211,6 +213,41 @@ export function importersOf(
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
   return entry('importersOf')(root, index, [...files], name) ?? undefined;
+}
+
+/** One import of a name out of an installed package. */
+export interface OutsideUse {
+  /** The package the specifier names, or the runtime's module with its `node:` scheme, such as `node:path`. */
+  package: string;
+  /** The module is the runtime's, not a package the workspace installs. */
+  runtime: boolean;
+  /** The request is an `export … from`, which passes the name on. */
+  passesOn: boolean;
+  site: NativeNameUse;
+}
+
+/** Every import of a name from outside a workspace, and the files whose imports were not read. */
+export interface OutsideImports {
+  uses: OutsideUse[];
+  /** Files the index holds whose imports do not read, in code-unit order; any of them may import the name. */
+  unread: string[];
+}
+
+/**
+ * Every import of `name` from outside the workspace, by any file the index at
+ * `index` holds. Out of a package no manifest of the workspace declares: a
+ * request the scan did not resolve to a file, whose specifier names a package
+ * the file's record says it imports, the rule the external-dependency
+ * orientation keeps. Out of a module the runtime owns: a request whose
+ * specifier is one of `isBuiltin`'s names, with or without `node:`, unless the
+ * scan resolved it to a file. An `export … from` that passes the name on is
+ * one; an `export *` names no name and is none. Each use's `key` is the
+ * specifier as written. Ordered by the importing file in code units, then by
+ * line; `undefined` when no index was published. Throws when the index does
+ * not read.
+ */
+export function outsideImportersOf(root: string, name: string, index: string = sourceIndexPath(root)): OutsideImports | undefined {
+  return entry('outsideImportersOf')(root, index, name, BUILTINS) ?? undefined;
 }
 
 /**

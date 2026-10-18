@@ -25,6 +25,7 @@ use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_passed_on, PassedOnDeclaration};
+use crate::help_outside::{outside_importers, OutsideImports};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -102,6 +103,17 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
 #[napi]
 pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
+}
+
+/// Every import of `name` out of a package no manifest of the workspace
+/// declares, or out of one of `builtins`, the runtime's modules, by any file of
+/// the chain at `index`, ordered by the importing file in code units, then by
+/// line, and the files whose imports were not read; `None` when there is no
+/// index. A use's `key` is the specifier as the importing file wrote it.
+#[napi]
+pub fn outside_importers_of(root: String, index: String, name: String, builtins: Vec<String>) -> napi::Result<Option<OutsideImports>> {
+    let builtins: std::collections::HashSet<String> = builtins.into_iter().collect();
+    opened_chain(&index, |layers| outside_importers(&root, layers, &name, &builtins))
 }
 
 /// Every import on the chain at `index` that binds `local` to an export of

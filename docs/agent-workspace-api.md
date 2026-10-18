@@ -388,6 +388,20 @@ local or an inner item of the same name is another name and is not listed, and
 neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
 its imports alone.
 
+One name can be several declarations: an export, a member of an interface in
+another package, a name an installed package or a built-in module declares.
+When it is more than one, `docs_uses` opens with one line for each, what it is
+and where, and answers each after. A name an installed package declares, such
+as a parser's `parseSync`, is answered with every import of it out of that
+package, and `docs_symbol` has the declaration. A name a built-in module
+declares, such as `resolve` from `node:path` or a bare `path`, is answered the
+same way, marked as the runtime's. An `export … from` that passes such a name
+on is one of those imports, marked as such, not a declaration of your own, and
+a file whose imports the source index could not read is named, since it may
+import the name too. A Rust item that JavaScript reaches through a native
+binding is imported by no JavaScript file under its Rust name, so ask for the
+name the binding's JavaScript side declares.
+
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
