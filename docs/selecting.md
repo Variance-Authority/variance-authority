@@ -325,18 +325,16 @@ Rstest alike:
 export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
 ```
 
-| `mode` | What each module gets | The record holds | The finest step it answers | Added to a 67 s run |
+| `mode` | What each module gets | The record holds | The finest step it answers | Added to the run |
 |---|---|---|---|---|
-| `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | about 2 s |
-| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | about 5 s |
-| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | about 6 s |
+| `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | about 3% |
+| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | about 7% |
+| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | about 9% |
 
-The run is this repository's unit suite, 925 test files on an Apple M4 Max.
-The cost is paid where each module is parsed and its probes placed, not where
-the tests run: Vitest's transform and collect phases, summed over its workers,
-take 187 s with no recording and under `loads`, 215 s under `entries` and 221 s
-under `presence`, while the time in tests stays within 1% across all four. So
-it grows with the modules a run loads, not with its tests.
+The run is this repository's unit suite under Vitest on an Apple M4 Max, each
+arm the mean of two rounds against the same suite run with no recording. On
+it, what `entries` and `presence` add over `loads` lands in Vitest's transform
+and collect phases, where each module is parsed and its probes placed.
 
 Four more options decide what a case carries besides its regions, and where the
 probes go:
