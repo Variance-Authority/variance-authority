@@ -8,7 +8,7 @@ use napi::bindgen_prelude::{Buffer, Uint32Array};
 use napi_derive::napi;
 
 use crate::case_said::{self, Said};
-use crate::journey_format::SetPool;
+use crate::crossing_sets::SetPool;
 
 fn parsed(text: Option<&str>) -> napi::Result<Option<Said>> {
     text.map(case_said::parse).transpose().map_err(napi::Error::from_reason)

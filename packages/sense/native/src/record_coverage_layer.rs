@@ -34,11 +34,10 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::case_shard;
 use crate::journey_columns::{self, Column};
 use crate::order;
 use crate::record_coverage::{self, Coverage, Text};
-use crate::journey_format::SetPool;
+use crate::crossing_sets::{self, SetPool};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Merged, Spelled};
 use crate::record_coverage_recut::{reaches, recut, write_cut, Readings, Recut};
@@ -191,8 +190,8 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
     let inputs = current.precondition_name.len() + previous.precondition_name.len();
     let mut out = Columns::sized(current.tests() + carried, inputs, rows.len(), blocks);
 
-    let previous_members = |set: u32| case_shard::decode_set(case_shard::set_slice(&previous.set_bytes, &previous.set_offsets, set)?, previous.tests());
-    let current_members = |set: u32| case_shard::decode_set(case_shard::set_slice(&current.set_bytes, &current.set_offsets, set)?, current.tests());
+    let previous_members = |set: u32| crossing_sets::decode_set(crossing_sets::set_slice(&previous.set_bytes, &previous.set_offsets, set)?, previous.tests());
+    let current_members = |set: u32| crossing_sets::decode_set(crossing_sets::set_slice(&current.set_bytes, &current.set_offsets, set)?, current.tests());
     let mut stale = vec![false; previous.tests()];
     let mut staled = vec![false; previous.set_offsets.len() - 1];
     let mut lose = |set: u32, stale: &mut [bool]| -> Result<(), String> {

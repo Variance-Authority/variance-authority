@@ -15,7 +15,7 @@ use std::path::Path;
 use serde_json::value::RawValue;
 
 use crate::case_owner::project_path;
-use crate::journey_format::SetPool;
+use crate::crossing_sets::SetPool;
 use crate::order;
 
 /// The section's name in the case index.

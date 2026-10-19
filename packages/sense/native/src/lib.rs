@@ -38,6 +38,7 @@ mod large_alloc;
 static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
 mod conditions;
 mod coverage_rows;
+mod crossing_sets;
 mod declarations;
 mod declared_role;
 mod declared_roles_check;
