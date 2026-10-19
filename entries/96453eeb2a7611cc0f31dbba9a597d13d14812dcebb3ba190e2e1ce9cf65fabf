@@ -1,0 +1,4087 @@
+[["report.json",99969],["images.json",3003]]
+{
+  "runVersion": 1,
+  "at": "2026-10-19T02:50:36.596Z",
+  "identity": {
+    "renderer": "playwright-chromium",
+    "engine": "chromium@151.0.7922.34",
+    "platform": "linux/x64",
+    "deviceScaleFactor": 1,
+    "fonts": [
+      "ui-sans-serif/400/normal/sha256-case-system-stack"
+    ],
+    "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
+    "rasterization": "v1:330fe135bbab91e3e5de647c260709ee"
+  },
+  "retention": "durable",
+  "intent": "feat(sense): a test file can record what it loaded, with one line per module",
+  "run": {
+    "id": "github-39191499378-1",
+    "commit": "3c22be7dcee1179352535a9d70aedfe22dd3a8ee"
+  },
+  "observations": [
+    {
+      "subject": "story:case-surface--deferred",
+      "verdict": "unchanged",
+      "because": "the document this run assembled is byte-identical to the one the baseline was painted from, under the same renderer identity, so no image was produced; the renderer lacked ui-sans-serif when the baseline was painted, so what is settled is an image of a substituted font; the collection of this subject reported story-preview (warn), so what was compared may be less than the whole subject",
+      "changedPixels": 0,
+      "regions": [],
+      "signals": {
+        "pixels": "unchanged"
+      },
+      "findings": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "diagnostics": [
+        {
+          "severity": "warn",
+          "code": "story-preview",
+          "message": "readiness `declared`: the subject attached `[data-testid=\"case-ready\"]` itself, which is the application saying it has settled — a stronger claim than `storyRendered`, where the framework says only that the story function returned."
+        }
+      ],
+      "costMs": 1265.1662019999999,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 2.2
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.6
+        }
+      ],
+      "declaredIn": "src/settling.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--button-primary",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font; the collection of this subject reported host-chosen-font (warn), so what was compared may be less than the whole subject",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--button-primary.after.json",
+        "after": "images/story%3Acase-surface--button-primary.after.png"
+      },
+      "diagnostics": [
+        {
+          "severity": "warn",
+          "code": "host-chosen-font",
+          "message": "text in this subject asks for `ui-sans-serif` and names no face before it; the host picks which typeface answers a generic family, two hosts -- or two renderer processes on one host -- can pick differently, and the pixels then move with no change to the code"
+        }
+      ],
+      "baselineKey": {
+        "file": "src/button.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Button — primary"
+      },
+      "costMs": 183.00453300000027,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 0.7
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.5
+        },
+        {
+          "step": "baseline",
+          "ms": 0.3
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 2.1
+        },
+        {
+          "step": "render.hold",
+          "ms": 0.8
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.5
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.8
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 24.8
+        },
+        {
+          "step": "render.frame",
+          "ms": 14.7
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.4
+        },
+        {
+          "step": "compare",
+          "ms": 0.2
+        },
+        {
+          "step": "write",
+          "ms": 1.4
+        }
+      ],
+      "declaredIn": "src/button.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--button-secondary",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font; the collection of this subject reported host-chosen-font (warn), so what was compared may be less than the whole subject",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--button-secondary.after.json",
+        "after": "images/story%3Acase-surface--button-secondary.after.png"
+      },
+      "diagnostics": [
+        {
+          "severity": "warn",
+          "code": "host-chosen-font",
+          "message": "text in this subject asks for `ui-sans-serif` and names no face before it; the host picks which typeface answers a generic family, two hosts -- or two renderer processes on one host -- can pick differently, and the pixels then move with no change to the code"
+        }
+      ],
+      "baselineKey": {
+        "file": "src/button.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Button — secondary"
+      },
+      "costMs": 183.4011730000002,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 0.7
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.5
+        },
+        {
+          "step": "baseline",
+          "ms": 0.2
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 2.6
+        },
+        {
+          "step": "render.hold",
+          "ms": 0.8
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.6
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.9
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.8
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 29
+        },
+        {
+          "step": "render.frame",
+          "ms": 15
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.4
+        },
+        {
+          "step": "compare",
+          "ms": 0.1
+        },
+        {
+          "step": "write",
+          "ms": 1.5
+        }
+      ],
+      "declaredIn": "src/button.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--card-rebranded",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font; the collection of this subject reported host-chosen-font (warn), so what was compared may be less than the whole subject",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--card-rebranded.after.json",
+        "after": "images/story%3Acase-surface--card-rebranded.after.png"
+      },
+      "diagnostics": [
+        {
+          "severity": "warn",
+          "code": "host-chosen-font",
+          "message": "text in this subject asks for `ui-sans-serif` and names no face before it; the host picks which typeface answers a generic family, two hosts -- or two renderer processes on one host -- can pick differently, and the pixels then move with no change to the code"
+        }
+      ],
+      "baselineKey": {
+        "file": "src/card.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Card — rebranded token"
+      },
+      "costMs": 934.621071,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 4
+        },
+        {
+          "step": "inspect",
+          "ms": 0.7
+        },
+        {
+          "step": "settle",
+          "ms": 1.4
+        },
+        {
+          "step": "baseline",
+          "ms": 3.9
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.9
+        },
+        {
+          "step": "render.lease",
+          "ms": 63.2
+        },
+        {
+          "step": "render.load",
+          "ms": 5.3
+        },
+        {
+          "step": "render.hold",
+          "ms": 6.1
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 8.9
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 1.9
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 1.2
+        },
+        {
+          "step": "render.fonts",
+          "ms": 20.5
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 49.8
+        },
+        {
+          "step": "render.frame",
+          "ms": 13.2
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.9
+        },
+        {
+          "step": "decode",
+          "ms": 3.1
+        },
+        {
+          "step": "compare",
+          "ms": 3.5
+        },
+        {
+          "step": "write",
+          "ms": 2.7
+        }
+      ],
+      "declaredIn": "src/card.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--receipt-at-two-widths@375",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--receipt-at-two-widths%40375.after.json",
+        "after": "images/story%3Acase-surface--receipt-at-two-widths%40375.after.png"
+      },
+      "baselineKey": {
+        "file": "src/card.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Card — receipt at two widths @375"
+      },
+      "costMs": 441.26342999999997,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 1.8
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.6
+        },
+        {
+          "step": "baseline",
+          "ms": 0.5
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.3
+        },
+        {
+          "step": "render.lease",
+          "ms": 40.7
+        },
+        {
+          "step": "render.load",
+          "ms": 4.6
+        },
+        {
+          "step": "render.hold",
+          "ms": 4.4
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 8.7
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 1.4
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 1.1
+        },
+        {
+          "step": "render.fonts",
+          "ms": 2.8
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 50.7
+        },
+        {
+          "step": "render.frame",
+          "ms": 14.5
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.6
+        },
+        {
+          "step": "compare",
+          "ms": 0.3
+        },
+        {
+          "step": "write",
+          "ms": 1.7
+        }
+      ],
+      "declaredIn": "src/card.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--receipt-at-two-widths@800",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--receipt-at-two-widths%40800.after.json",
+        "after": "images/story%3Acase-surface--receipt-at-two-widths%40800.after.png"
+      },
+      "baselineKey": {
+        "file": "src/card.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Card — receipt at two widths @800"
+      },
+      "costMs": 103.69716100000005,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 1
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.4
+        },
+        {
+          "step": "baseline",
+          "ms": 0.3
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 27.6
+        },
+        {
+          "step": "render.load",
+          "ms": 6.4
+        },
+        {
+          "step": "render.hold",
+          "ms": 4.1
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 10.7
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 2.2
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 1.1
+        },
+        {
+          "step": "render.fonts",
+          "ms": 2.4
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 24.1
+        },
+        {
+          "step": "render.frame",
+          "ms": 14
+        },
+        {
+          "step": "cache.put",
+          "ms": 1.1
+        },
+        {
+          "step": "decode",
+          "ms": 2.5
+        },
+        {
+          "step": "compare",
+          "ms": 0.5
+        },
+        {
+          "step": "write",
+          "ms": 3.6
+        }
+      ],
+      "declaredIn": "src/card.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--card-with-actions",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font; the collection of this subject reported host-chosen-font (warn), so what was compared may be less than the whole subject",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--card-with-actions.after.json",
+        "after": "images/story%3Acase-surface--card-with-actions.after.png"
+      },
+      "diagnostics": [
+        {
+          "severity": "warn",
+          "code": "host-chosen-font",
+          "message": "text in this subject asks for `ui-sans-serif` and names no face before it (and 1 more run like it); the host picks which typeface answers a generic family, two hosts -- or two renderer processes on one host -- can pick differently, and the pixels then move with no change to the code"
+        }
+      ],
+      "baselineKey": {
+        "file": "src/card.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Card — with actions"
+      },
+      "costMs": 195.35918500000025,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 1.2
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.6
+        },
+        {
+          "step": "baseline",
+          "ms": 0.3
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 2.2
+        },
+        {
+          "step": "render.hold",
+          "ms": 0.8
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.6
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.8
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.8
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.8
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 29.8
+        },
+        {
+          "step": "render.frame",
+          "ms": 13.7
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.8
+        },
+        {
+          "step": "compare",
+          "ms": 0.5
+        },
+        {
+          "step": "write",
+          "ms": 2.4
+        }
+      ],
+      "declaredIn": "src/card.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--ticking",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--ticking.after.json",
+        "after": "images/story%3Acase-surface--ticking.after.png"
+      },
+      "baselineKey": {
+        "file": "src/instability.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Clock — ticking"
+      },
+      "costMs": 198.38262600000053,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 0.7
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.5
+        },
+        {
+          "step": "baseline",
+          "ms": 0.2
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 2.6
+        },
+        {
+          "step": "render.hold",
+          "ms": 0.8
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.5
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.7
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.8
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 39.3
+        },
+        {
+          "step": "render.frame",
+          "ms": 14.7
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.3
+        },
+        {
+          "step": "compare",
+          "ms": 0.2
+        },
+        {
+          "step": "write",
+          "ms": 1.7
+        }
+      ],
+      "declaredIn": "src/instability.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--revealed",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--revealed.after.json",
+        "after": "images/story%3Acase-surface--revealed.after.png"
+      },
+      "baselineKey": {
+        "file": "src/settling.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Panel — revealed by its play function"
+      },
+      "costMs": 278.04245600000013,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 1.6
+        },
+        {
+          "step": "inspect",
+          "ms": 0.2
+        },
+        {
+          "step": "settle",
+          "ms": 0.6
+        },
+        {
+          "step": "baseline",
+          "ms": 1.1
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 43.2
+        },
+        {
+          "step": "render.load",
+          "ms": 4.9
+        },
+        {
+          "step": "render.hold",
+          "ms": 2
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.7
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 1.2
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 1
+        },
+        {
+          "step": "render.fonts",
+          "ms": 1
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 41.6
+        },
+        {
+          "step": "render.frame",
+          "ms": 14.3
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.5
+        },
+        {
+          "step": "compare",
+          "ms": 0.2
+        },
+        {
+          "step": "write",
+          "ms": 1.7
+        }
+      ],
+      "declaredIn": "src/settling.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--loading",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font; the collection of this subject reported subject-size-diverged (warn), so what was compared may be less than the whole subject",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--loading.after.json",
+        "after": "images/story%3Acase-surface--loading.after.png"
+      },
+      "diagnostics": [
+        {
+          "severity": "warn",
+          "code": "subject-size-diverged",
+          "message": "the acquired subject is 70×70 CSS pixels and the image painted is 64×64; the two are not the same layout, so every region coordinate in this observation was converted through a size the image does not have. Attribution may name a neighbouring component and will not say so"
+        }
+      ],
+      "baselineKey": {
+        "file": "src/instability.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Spinner — mid animation"
+      },
+      "costMs": 200.0324099999998,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 0.9
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.6
+        },
+        {
+          "step": "baseline",
+          "ms": 0.3
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 2.9
+        },
+        {
+          "step": "render.hold",
+          "ms": 1
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.6
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.9
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.9
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.8
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 40.1
+        },
+        {
+          "step": "render.frame",
+          "ms": 14.7
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.6
+        },
+        {
+          "step": "decode",
+          "ms": 1.4
+        },
+        {
+          "step": "compare",
+          "ms": 0.1
+        },
+        {
+          "step": "write",
+          "ms": 1.6
+        }
+      ],
+      "declaredIn": "src/instability.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--composed",
+      "verdict": "unchanged",
+      "because": "the document this run assembled is byte-identical to the one the baseline was painted from, under the same renderer identity, so no image was produced; the renderer lacked ui-sans-serif when the baseline was painted, so what is settled is an image of a substituted font; the collection of this subject reported host-chosen-font (warn), so what was compared may be less than the whole subject",
+      "changedPixels": 0,
+      "regions": [],
+      "signals": {
+        "pixels": "unchanged"
+      },
+      "findings": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "diagnostics": [
+        {
+          "severity": "warn",
+          "code": "host-chosen-font",
+          "message": "text in this subject asks for `ui-sans-serif` and names no face before it (and 1 more run like it); the host picks which typeface answers a generic family, two hosts -- or two renderer processes on one host -- can pick differently, and the pixels then move with no change to the code"
+        }
+      ],
+      "costMs": 144.24137100000007,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 2.1
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.5
+        }
+      ],
+      "declaredIn": "src/page.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--suspense-settles",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--suspense-settles.after.json",
+        "after": "images/story%3Acase-surface--suspense-settles.after.png"
+      },
+      "baselineKey": {
+        "file": "src/settling.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Suspense — arrives late"
+      },
+      "costMs": 416.4113610000004,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 1.2
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.4
+        },
+        {
+          "step": "baseline",
+          "ms": 0.2
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 2.4
+        },
+        {
+          "step": "render.hold",
+          "ms": 0.8
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.5
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.7
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 29.3
+        },
+        {
+          "step": "render.frame",
+          "ms": 14
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.5
+        },
+        {
+          "step": "compare",
+          "ms": 0.3
+        },
+        {
+          "step": "write",
+          "ms": 2
+        }
+      ],
+      "declaredIn": "src/settling.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--suspense-waterfall",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--suspense-waterfall.after.json",
+        "after": "images/story%3Acase-surface--suspense-waterfall.after.png"
+      },
+      "baselineKey": {
+        "file": "src/settling.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Suspense — boundary inside a boundary"
+      },
+      "costMs": 717.1015259999995,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 1.4
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.4
+        },
+        {
+          "step": "baseline",
+          "ms": 0.2
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 2.8
+        },
+        {
+          "step": "render.hold",
+          "ms": 0.9
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.5
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.7
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 24.4
+        },
+        {
+          "step": "render.frame",
+          "ms": 13.8
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 1.6
+        },
+        {
+          "step": "compare",
+          "ms": 0.3
+        },
+        {
+          "step": "write",
+          "ms": 2.1
+        }
+      ],
+      "declaredIn": "src/settling.stories.jsx"
+    },
+    {
+      "subject": "story:case-surface--suspense-stalled",
+      "verdict": "unchanged",
+      "because": "no pixels differ, but the renderer lacked ui-sans-serif on both sides, so both images are of a substituted font",
+      "changedPixels": 0,
+      "signals": {
+        "document": "changed",
+        "pixels": "unchanged"
+      },
+      "moved": [],
+      "regions": [],
+      "missingFonts": [
+        "ui-sans-serif"
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/story%3Acase-surface--suspense-stalled.after.json",
+        "after": "images/story%3Acase-surface--suspense-stalled.after.png"
+      },
+      "baselineKey": {
+        "file": "src/settling.stories.jsx",
+        "title": "Case/Surface",
+        "name": "Suspense — never resolves"
+      },
+      "costMs": 200.68684699999994,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 0.8
+        },
+        {
+          "step": "inspect",
+          "ms": 0
+        },
+        {
+          "step": "settle",
+          "ms": 0.5
+        },
+        {
+          "step": "baseline",
+          "ms": 1.6
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.2
+        },
+        {
+          "step": "render.lease",
+          "ms": 0
+        },
+        {
+          "step": "render.load",
+          "ms": 4
+        },
+        {
+          "step": "render.hold",
+          "ms": 1.2
+        },
+        {
+          "step": "render.no-focus",
+          "ms": 0.7
+        },
+        {
+          "step": "render.wait-for-fonts",
+          "ms": 0.8
+        },
+        {
+          "step": "render.wait-for-images",
+          "ms": 0.7
+        },
+        {
+          "step": "render.fonts",
+          "ms": 0.7
+        },
+        {
+          "step": "render.screenshot",
+          "ms": 36.8
+        },
+        {
+          "step": "render.frame",
+          "ms": 14.6
+        },
+        {
+          "step": "cache.put",
+          "ms": 0.4
+        },
+        {
+          "step": "decode",
+          "ms": 1.7
+        },
+        {
+          "step": "compare",
+          "ms": 0.2
+        },
+        {
+          "step": "write",
+          "ms": 3
+        }
+      ],
+      "declaredIn": "src/settling.stories.jsx"
+    }
+  ],
+  "notObserved": [
+    {
+      "subject": "story:case-surface--finishes-late",
+      "kind": "excluded",
+      "because": "excluded by tag `no-variance`"
+    },
+    {
+      "subject": "story:case-surface--leaks-a-sheet",
+      "kind": "excluded",
+      "because": "excluded by tag `no-variance`"
+    },
+    {
+      "subject": "story:case-surface--receipt-not-read",
+      "kind": "excluded",
+      "because": "excluded by its own parameters (`variance.exclude`)"
+    }
+  ],
+  "workers": 2,
+  "steps": [
+    {
+      "step": "baseline",
+      "ms": 9.1,
+      "subjects": 12
+    },
+    {
+      "step": "cache.get",
+      "ms": 3.2,
+      "subjects": 12
+    },
+    {
+      "step": "cache.put",
+      "ms": 7,
+      "subjects": 12
+    },
+    {
+      "step": "compare",
+      "ms": 6.4,
+      "subjects": 12
+    },
+    {
+      "step": "compose",
+      "ms": 20.3,
+      "subjects": 14
+    },
+    {
+      "step": "decode",
+      "ms": 20.8,
+      "subjects": 12
+    },
+    {
+      "step": "inspect",
+      "ms": 0.9,
+      "subjects": 14
+    },
+    {
+      "step": "render.fonts",
+      "ms": 32.7,
+      "subjects": 12
+    },
+    {
+      "step": "render.frame",
+      "ms": 171.2,
+      "subjects": 12
+    },
+    {
+      "step": "render.hold",
+      "ms": 23.7,
+      "subjects": 12
+    },
+    {
+      "step": "render.lease",
+      "ms": 174.7,
+      "subjects": 12
+    },
+    {
+      "step": "render.load",
+      "ms": 42.8,
+      "subjects": 12
+    },
+    {
+      "step": "render.no-focus",
+      "ms": 33.5,
+      "subjects": 12
+    },
+    {
+      "step": "render.screenshot",
+      "ms": 419.7,
+      "subjects": 12
+    },
+    {
+      "step": "render.wait-for-fonts",
+      "ms": 12.7,
+      "subjects": 12
+    },
+    {
+      "step": "render.wait-for-images",
+      "ms": 10.6,
+      "subjects": 12
+    },
+    {
+      "step": "settle",
+      "ms": 8.1,
+      "subjects": 14
+    },
+    {
+      "step": "write",
+      "ms": 25.4,
+      "subjects": 12
+    }
+  ],
+  "composition": {
+    "subjects": [
+      "story:case-surface--deferred",
+      "story:case-surface--button-primary",
+      "story:case-surface--button-secondary",
+      "story:case-surface--card-rebranded",
+      "story:case-surface--receipt-at-two-widths@375",
+      "story:case-surface--receipt-at-two-widths@800",
+      "story:case-surface--card-with-actions",
+      "story:case-surface--ticking",
+      "story:case-surface--revealed",
+      "story:case-surface--loading",
+      "story:case-surface--composed",
+      "story:case-surface--suspense-settles",
+      "story:case-surface--suspense-waterfall",
+      "story:case-surface--suspense-stalled"
+    ],
+    "components": [
+      {
+        "component": "AsyncPanel",
+        "subjects": [
+          "story:case-surface--deferred"
+        ],
+        "instances": 1,
+        "examples": [
+          "story:case-surface--deferred"
+        ],
+        "within": [
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Stack"
+        ],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "Button",
+        "subjects": [
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--composed"
+        ],
+        "instances": 7,
+        "examples": [
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary"
+        ],
+        "within": [
+          "Stack",
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [
+          "--case-accent"
+        ],
+        "variants": 2,
+        "renderings": 6
+      },
+      {
+        "component": "Card",
+        "subjects": [
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--composed"
+        ],
+        "instances": 6,
+        "examples": [
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--composed"
+        ],
+        "within": [
+          "Stack",
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Stack"
+        ],
+        "tokens": [
+          "--case-space",
+          "--case-text"
+        ],
+        "variants": 3,
+        "renderings": 4
+      },
+      {
+        "component": "Clock",
+        "subjects": [
+          "story:case-surface--ticking"
+        ],
+        "instances": 1,
+        "examples": [
+          "story:case-surface--ticking"
+        ],
+        "within": [
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "Disclosure",
+        "subjects": [
+          "story:case-surface--revealed"
+        ],
+        "instances": 1,
+        "examples": [
+          "story:case-surface--revealed"
+        ],
+        "within": [
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [
+          "--case-text"
+        ],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "ErrorBoundary",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--ticking",
+          "story:case-surface--revealed",
+          "story:case-surface--loading",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall",
+          "story:case-surface--suspense-stalled"
+        ],
+        "instances": 14,
+        "examples": [],
+        "within": [
+          "WithCallback"
+        ],
+        "createdBy": [],
+        "renders": [
+          "unboundStoryFn"
+        ],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "Invoice",
+        "subjects": [
+          "story:case-surface--suspense-waterfall"
+        ],
+        "instances": 1,
+        "examples": [],
+        "within": [
+          "SuspendedWaterfall"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Rows"
+        ],
+        "tokens": [
+          "--case-space",
+          "--case-text"
+        ],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "Rows",
+        "subjects": [
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall"
+        ],
+        "instances": 2,
+        "examples": [],
+        "within": [
+          "Invoice",
+          "SuspendedRoster"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Stack"
+        ],
+        "tokens": [],
+        "variants": 2,
+        "renderings": 2
+      },
+      {
+        "component": "Skeleton",
+        "subjects": [
+          "story:case-surface--suspense-stalled"
+        ],
+        "instances": 1,
+        "examples": [],
+        "within": [
+          "StalledFeed"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "Spinner",
+        "subjects": [
+          "story:case-surface--loading"
+        ],
+        "instances": 2,
+        "examples": [
+          "story:case-surface--loading"
+        ],
+        "within": [
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [
+          "--case-accent"
+        ],
+        "variants": 1,
+        "renderings": 2
+      },
+      {
+        "component": "Stack",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall"
+        ],
+        "instances": 10,
+        "examples": [],
+        "within": [
+          "AsyncPanel",
+          "Card",
+          "Rows",
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Button",
+          "Card"
+        ],
+        "tokens": [
+          "--case-text"
+        ],
+        "variants": 1,
+        "renderings": 8
+      },
+      {
+        "component": "StalledFeed",
+        "subjects": [
+          "story:case-surface--suspense-stalled"
+        ],
+        "instances": 1,
+        "examples": [
+          "story:case-surface--suspense-stalled"
+        ],
+        "within": [
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Skeleton"
+        ],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "SuspendedRoster",
+        "subjects": [
+          "story:case-surface--suspense-settles"
+        ],
+        "instances": 1,
+        "examples": [
+          "story:case-surface--suspense-settles"
+        ],
+        "within": [
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Rows"
+        ],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "SuspendedWaterfall",
+        "subjects": [
+          "story:case-surface--suspense-waterfall"
+        ],
+        "instances": 1,
+        "examples": [
+          "story:case-surface--suspense-waterfall"
+        ],
+        "within": [
+          "Tokens"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Invoice"
+        ],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "Tokens",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--ticking",
+          "story:case-surface--revealed",
+          "story:case-surface--loading",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall",
+          "story:case-surface--suspense-stalled"
+        ],
+        "instances": 14,
+        "examples": [],
+        "within": [
+          "hookified"
+        ],
+        "createdBy": [],
+        "renders": [
+          "AsyncPanel",
+          "Button",
+          "Card",
+          "Clock",
+          "Disclosure",
+          "Spinner",
+          "Stack",
+          "StalledFeed",
+          "SuspendedRoster",
+          "SuspendedWaterfall"
+        ],
+        "tokens": [],
+        "variants": 2,
+        "renderings": 11
+      },
+      {
+        "component": "WithCallback",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--ticking",
+          "story:case-surface--revealed",
+          "story:case-surface--loading",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall",
+          "story:case-surface--suspense-stalled"
+        ],
+        "instances": 14,
+        "examples": [],
+        "within": [
+          "(unattributed)"
+        ],
+        "createdBy": [],
+        "renders": [
+          "ErrorBoundary"
+        ],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "hookified",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--ticking",
+          "story:case-surface--revealed",
+          "story:case-surface--loading",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall",
+          "story:case-surface--suspense-stalled"
+        ],
+        "instances": 14,
+        "examples": [],
+        "within": [
+          "unboundStoryFn"
+        ],
+        "createdBy": [],
+        "renders": [
+          "Tokens"
+        ],
+        "tokens": [],
+        "variants": 13,
+        "renderings": 13
+      },
+      {
+        "component": "unboundStoryFn",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--ticking",
+          "story:case-surface--revealed",
+          "story:case-surface--loading",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall",
+          "story:case-surface--suspense-stalled"
+        ],
+        "instances": 14,
+        "examples": [],
+        "within": [
+          "ErrorBoundary"
+        ],
+        "createdBy": [],
+        "renders": [
+          "hookified"
+        ],
+        "tokens": [],
+        "variants": 13,
+        "renderings": 13
+      }
+    ],
+    "echoes": [
+      {
+        "component": "ErrorBoundary",
+        "rendering": "v1:476ad1ff961c1358f0d35fe3b1bf6e9e",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--ticking",
+          "story:case-surface--revealed",
+          "story:case-surface--loading",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall",
+          "story:case-surface--suspense-stalled"
+        ],
+        "sites": 14
+      },
+      {
+        "component": "WithCallback",
+        "rendering": "v1:dcc812e965ac5b684b1086bc3f97e748",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary",
+          "story:case-surface--card-rebranded",
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions",
+          "story:case-surface--ticking",
+          "story:case-surface--revealed",
+          "story:case-surface--loading",
+          "story:case-surface--composed",
+          "story:case-surface--suspense-settles",
+          "story:case-surface--suspense-waterfall",
+          "story:case-surface--suspense-stalled"
+        ],
+        "sites": 14
+      },
+      {
+        "component": "Tokens",
+        "rendering": "v1:9b073ed85e36d3869e77f6927fc009d0",
+        "subjects": [
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800",
+          "story:case-surface--card-with-actions"
+        ],
+        "sites": 3
+      },
+      {
+        "component": "Button",
+        "rendering": "v1:9dd38ef41614553f102ced36296bdcf6",
+        "subjects": [
+          "story:case-surface--card-with-actions",
+          "story:case-surface--composed"
+        ],
+        "sites": 2
+      },
+      {
+        "component": "Card",
+        "rendering": "v1:1684e212f3f332a2c67cc02ae30d55f6",
+        "subjects": [
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800"
+        ],
+        "sites": 2,
+        "example": "story:case-surface--receipt-at-two-widths@375"
+      },
+      {
+        "component": "Card",
+        "rendering": "v1:eef8729df9f08ea538f26413e910ccb7",
+        "subjects": [
+          "story:case-surface--card-with-actions",
+          "story:case-surface--composed"
+        ],
+        "sites": 2,
+        "example": "story:case-surface--card-with-actions"
+      },
+      {
+        "component": "Stack",
+        "rendering": "v1:33d2a9869c3d05f89511406ddbcd62ff",
+        "subjects": [
+          "story:case-surface--deferred",
+          "story:case-surface--suspense-settles"
+        ],
+        "sites": 2
+      },
+      {
+        "component": "Stack",
+        "rendering": "v1:a2f8608cdc546f6b36b72c053424d02d",
+        "subjects": [
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800"
+        ],
+        "sites": 2
+      },
+      {
+        "component": "Tokens",
+        "rendering": "v1:e1ceae8578c535b8eda6baba0ce341e6",
+        "subjects": [
+          "story:case-surface--button-primary",
+          "story:case-surface--button-secondary"
+        ],
+        "sites": 2
+      },
+      {
+        "component": "hookified",
+        "rendering": "v1:8071ae75d0852cb96b928e5ac5e8118c",
+        "subjects": [
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800"
+        ],
+        "sites": 2
+      },
+      {
+        "component": "unboundStoryFn",
+        "rendering": "v1:c6c4ffe3b1d1eb350a96a4ec50441424",
+        "subjects": [
+          "story:case-surface--receipt-at-two-widths@375",
+          "story:case-surface--receipt-at-two-widths@800"
+        ],
+        "sites": 2
+      }
+    ],
+    "divergences": [
+      {
+        "component": "Card",
+        "bands": [
+          "token"
+        ],
+        "renderings": [
+          [
+            "story:case-surface--card-with-actions",
+            "story:case-surface--composed"
+          ],
+          [
+            "story:case-surface--card-rebranded"
+          ]
+        ],
+        "partings": [
+          {
+            "rendering": 1,
+            "lines": [
+              "variation — an input changed and the page followed",
+              "Card inherited a different `height` and `transform-origin` — an ancestor declared it",
+              "  9 deltas here (geometry, token) — height, margin-bottom, padding-bottom, padding-left and 3 more",
+              "Stack inherited a different `height` and `transform-origin` — an ancestor declared it",
+              "  6 deltas here (geometry, token) — column-gap, height, row-gap, transform-origin",
+              "Button inherited a different `height` and `transform-origin` — an ancestor declared it",
+              "  8 deltas here (geometry, token) — background-color, height, padding-bottom, padding-left and 3 more"
+            ]
+          }
+        ]
+      }
+    ],
+    "movements": [],
+    "structure": [
+      {
+        "subject": "story:case-surface--deferred",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "AsyncPanel",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 7,
+            "within": "AsyncPanel",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 1,
+          "structure": 6,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "AsyncPanel",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--button-primary",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Button",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 1,
+          "structure": 5,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Button",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--button-secondary",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Button",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 1,
+          "structure": 5,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Button",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--card-rebranded",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Card",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 7,
+            "within": "Card",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Button",
+            "depth": 8,
+            "within": "Stack",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 2,
+          "structure": 6,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Button",
+              "renderings": 1
+            },
+            {
+              "component": "Card",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--receipt-at-two-widths@375",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Card",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 7,
+            "within": "Card",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 1,
+          "structure": 6,
+          "alike": [
+            "story:case-surface--receipt-at-two-widths@800"
+          ],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Card",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--receipt-at-two-widths@800",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Card",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 7,
+            "within": "Card",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 1,
+          "structure": 6,
+          "alike": [
+            "story:case-surface--receipt-at-two-widths@375"
+          ],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Card",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--card-with-actions",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Card",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 7,
+            "within": "Card",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Button",
+            "depth": 8,
+            "within": "Stack",
+            "count": 2,
+            "variants": 2
+          }
+        ],
+        "pieces": {
+          "footprint": 3,
+          "structure": 6,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Button",
+              "renderings": 2
+            },
+            {
+              "component": "Card",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--ticking",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Clock",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 1,
+          "structure": 5,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Clock",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--revealed",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Disclosure",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 1,
+          "structure": 5,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Disclosure",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--loading",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Spinner",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 2,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 2,
+          "structure": 5,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Spinner",
+              "renderings": 2
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--composed",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Card",
+            "depth": 7,
+            "within": "Stack",
+            "count": 2,
+            "variants": 2
+          },
+          {
+            "component": "Stack",
+            "depth": 8,
+            "within": "Card",
+            "count": 2,
+            "variants": 1
+          },
+          {
+            "component": "Button",
+            "depth": 9,
+            "within": "Stack",
+            "count": 2,
+            "variants": 2
+          }
+        ],
+        "pieces": {
+          "footprint": 4,
+          "structure": 6,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Button",
+              "renderings": 2
+            },
+            {
+              "component": "Card",
+              "renderings": 2
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--suspense-settles",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "SuspendedRoster",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Rows",
+            "depth": 7,
+            "within": "SuspendedRoster",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 8,
+            "within": "Rows",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 2,
+          "structure": 6,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Rows",
+              "renderings": 1
+            },
+            {
+              "component": "SuspendedRoster",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--suspense-waterfall",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "SuspendedWaterfall",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Invoice",
+            "depth": 7,
+            "within": "SuspendedWaterfall",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Rows",
+            "depth": 8,
+            "within": "Invoice",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Stack",
+            "depth": 9,
+            "within": "Rows",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 3,
+          "structure": 6,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Invoice",
+              "renderings": 1
+            },
+            {
+              "component": "Rows",
+              "renderings": 1
+            },
+            {
+              "component": "SuspendedWaterfall",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      },
+      {
+        "subject": "story:case-surface--suspense-stalled",
+        "rows": [
+          {
+            "component": "WithCallback",
+            "depth": 1,
+            "within": "(unattributed)",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "ErrorBoundary",
+            "depth": 2,
+            "within": "WithCallback",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "unboundStoryFn",
+            "depth": 3,
+            "within": "ErrorBoundary",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "hookified",
+            "depth": 4,
+            "within": "unboundStoryFn",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Tokens",
+            "depth": 5,
+            "within": "hookified",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "StalledFeed",
+            "depth": 6,
+            "within": "Tokens",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Skeleton",
+            "depth": 7,
+            "within": "StalledFeed",
+            "count": 1,
+            "variants": 1
+          }
+        ],
+        "pieces": {
+          "footprint": 2,
+          "structure": 5,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [
+            {
+              "component": "Skeleton",
+              "renderings": 1
+            },
+            {
+              "component": "StalledFeed",
+              "renderings": 1
+            }
+          ],
+          "inContext": []
+        }
+      }
+    ]
+  },
+  "lexicon": {
+    "version": 1,
+    "fields": [
+      "example",
+      "names",
+      "text",
+      "components",
+      "createdBy",
+      "files",
+      "roles",
+      "tokens"
+    ],
+    "declaredIn": {
+      "AsyncPanel": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Button": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Card": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Clock": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Disclosure": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Invoice": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "NEVER_ARRIVES": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Rows": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "SheetLeak": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Skeleton": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Spinner": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Stack": [
+        "src/ds.jsx"
+      ],
+      "Stalled": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "StalledFeed": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "SuspendedRoster": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "SuspendedWaterfall": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "TOKENS": [
+        "cases/storybook-case/src/ds.jsx"
+      ],
+      "Tokens": [
+        "src/ds.jsx"
+      ],
+      "WIDE_BUTTON": [
+        "cases/storybook-case/src/ds.jsx"
+      ]
+    },
+    "subjects": [
+      {
+        "subject": "story:case-surface--deferred",
+        "boundaries": 7,
+        "terms": {
+          "example": [
+            "AsyncPanel"
+          ],
+          "text": [
+            "Ada",
+            "Grace",
+            "Katherine"
+          ],
+          "components": [
+            "AsyncPanel",
+            "ErrorBoundary",
+            "Stack",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "tokens": [
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "text": "Ada",
+            "box": [
+              382,
+              341,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 313,
+            "component": "Stack"
+          },
+          {
+            "text": "Grace",
+            "box": [
+              382,
+              374,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 313,
+            "component": "Stack"
+          },
+          {
+            "text": "Katherine",
+            "box": [
+              382,
+              407,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 313,
+            "component": "Stack"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--button-primary",
+        "boundaries": 6,
+        "terms": {
+          "example": [
+            "Button"
+          ],
+          "names": [
+            "Continue"
+          ],
+          "text": [
+            "Continue"
+          ],
+          "components": [
+            "Button",
+            "ErrorBoundary",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "button"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "button",
+            "name": "Continue",
+            "text": "Continue",
+            "box": [
+              462,
+              361,
+              100,
+              47
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 53,
+            "component": "Button"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--button-secondary",
+        "boundaries": 6,
+        "terms": {
+          "example": [
+            "Button"
+          ],
+          "names": [
+            "Cancel"
+          ],
+          "text": [
+            "Cancel"
+          ],
+          "components": [
+            "Button",
+            "ErrorBoundary",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "button"
+          ],
+          "tokens": [
+            "--case-accent"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "button",
+            "name": "Cancel",
+            "text": "Cancel",
+            "box": [
+              469,
+              361,
+              85,
+              47
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 53,
+            "component": "Button"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--card-rebranded",
+        "boundaries": 8,
+        "terms": {
+          "example": [
+            "Card"
+          ],
+          "names": [
+            "Invoice",
+            "Pay"
+          ],
+          "text": [
+            "Invoice",
+            "Pay"
+          ],
+          "components": [
+            "Button",
+            "Card",
+            "ErrorBoundary",
+            "Stack",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "button",
+            "heading"
+          ],
+          "tokens": [
+            "--case-space",
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "heading",
+            "name": "Invoice",
+            "text": "Invoice",
+            "box": [
+              382,
+              336,
+              260,
+              26
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 85,
+            "component": "Card"
+          },
+          {
+            "role": "button",
+            "name": "Pay",
+            "text": "Pay",
+            "box": [
+              382,
+              378,
+              260,
+              55
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 53,
+            "component": "Button"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--receipt-at-two-widths@375",
+        "boundaries": 7,
+        "terms": {
+          "example": [
+            "Card"
+          ],
+          "names": [
+            "Receipt"
+          ],
+          "text": [
+            "Paid in full",
+            "Receipt"
+          ],
+          "components": [
+            "Card",
+            "ErrorBoundary",
+            "Stack",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/card.stories.jsx",
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "heading"
+          ],
+          "tokens": [
+            "--case-space",
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "heading",
+            "name": "Receipt",
+            "text": "Receipt",
+            "box": [
+              35,
+              35,
+              305,
+              26
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 85,
+            "component": "Card"
+          },
+          {
+            "text": "Paid in full",
+            "box": [
+              35,
+              73,
+              305,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 72,
+            "component": "Stack"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--receipt-at-two-widths@800",
+        "boundaries": 7,
+        "terms": {
+          "example": [
+            "Card"
+          ],
+          "names": [
+            "Receipt"
+          ],
+          "text": [
+            "Paid in full",
+            "Receipt"
+          ],
+          "components": [
+            "Card",
+            "ErrorBoundary",
+            "Stack",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/card.stories.jsx",
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "heading"
+          ],
+          "tokens": [
+            "--case-space",
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "heading",
+            "name": "Receipt",
+            "text": "Receipt",
+            "box": [
+              35,
+              35,
+              730,
+              26
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 85,
+            "component": "Card"
+          },
+          {
+            "text": "Paid in full",
+            "box": [
+              35,
+              73,
+              730,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 72,
+            "component": "Stack"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--card-with-actions",
+        "boundaries": 9,
+        "terms": {
+          "example": [
+            "Card"
+          ],
+          "names": [
+            "Invoice",
+            "Later",
+            "Pay"
+          ],
+          "text": [
+            "Invoice",
+            "Later",
+            "Pay"
+          ],
+          "components": [
+            "Button",
+            "Card",
+            "ErrorBoundary",
+            "Stack",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "button",
+            "heading"
+          ],
+          "tokens": [
+            "--case-accent",
+            "--case-space",
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "heading",
+            "name": "Invoice",
+            "text": "Invoice",
+            "box": [
+              382,
+              312,
+              260,
+              26
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 85,
+            "component": "Card"
+          },
+          {
+            "role": "button",
+            "name": "Pay",
+            "text": "Pay",
+            "box": [
+              382,
+              350,
+              260,
+              47
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 53,
+            "component": "Button"
+          },
+          {
+            "role": "button",
+            "name": "Later",
+            "text": "Later",
+            "box": [
+              382,
+              409,
+              260,
+              47
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 53,
+            "component": "Button"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--ticking",
+        "boundaries": 6,
+        "terms": {
+          "example": [
+            "Clock"
+          ],
+          "text": [
+            "elapsed 100ms"
+          ],
+          "components": [
+            "Clock",
+            "ErrorBoundary",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ]
+        },
+        "landmarks": [
+          {
+            "text": "elapsed 100ms",
+            "box": [
+              457,
+              374,
+              110,
+              20
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 126,
+            "component": "Clock"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--revealed",
+        "boundaries": 6,
+        "terms": {
+          "example": [
+            "Disclosure"
+          ],
+          "names": [
+            "Show details"
+          ],
+          "text": [
+            "Shipping to Wollongong on Tuesday",
+            "Show details"
+          ],
+          "components": [
+            "Disclosure",
+            "ErrorBoundary",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "button"
+          ],
+          "tokens": [
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "button",
+            "name": "Show details",
+            "text": "Show details",
+            "box": [
+              382,
+              359,
+              92,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 151,
+            "component": "Disclosure"
+          },
+          {
+            "text": "Shipping to Wollongong on Tuesday",
+            "box": [
+              382,
+              380,
+              260,
+              29
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 155,
+            "component": "Disclosure"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--loading",
+        "boundaries": 7,
+        "terms": {
+          "example": [
+            "Spinner"
+          ],
+          "text": [
+            "@keyframes case-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}"
+          ],
+          "components": [
+            "ErrorBoundary",
+            "Spinner",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "tokens": [
+            "--case-accent"
+          ]
+        },
+        "landmarks": [
+          {
+            "text": "@keyframes case-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}",
+            "box": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 101,
+            "component": "Spinner"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--composed",
+        "boundaries": 12,
+        "terms": {
+          "example": [
+            "Card"
+          ],
+          "names": [
+            "Export",
+            "History",
+            "Invoice",
+            "Pay"
+          ],
+          "text": [
+            "Export",
+            "History",
+            "Invoice",
+            "Pay",
+            "due on receipt"
+          ],
+          "components": [
+            "Button",
+            "Card",
+            "ErrorBoundary",
+            "Stack",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "cases/storybook-case/src/page.stories.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "button",
+            "heading"
+          ],
+          "tokens": [
+            "--case-accent",
+            "--case-space",
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "heading",
+            "name": "Invoice",
+            "text": "Invoice",
+            "box": [
+              382,
+              274,
+              260,
+              26
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 85,
+            "component": "Card"
+          },
+          {
+            "role": "button",
+            "name": "Pay",
+            "text": "Pay",
+            "box": [
+              382,
+              312,
+              62,
+              47
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 53,
+            "component": "Button"
+          },
+          {
+            "text": "due on receipt",
+            "box": [
+              456,
+              325,
+              100,
+              21
+            ],
+            "file": "cases/storybook-case/src/page.stories.jsx",
+            "line": 43,
+            "component": "Stack"
+          },
+          {
+            "role": "heading",
+            "name": "History",
+            "text": "History",
+            "box": [
+              382,
+              409,
+              260,
+              26
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 85,
+            "component": "Card"
+          },
+          {
+            "role": "button",
+            "name": "Export",
+            "text": "Export",
+            "box": [
+              382,
+              447,
+              260,
+              47
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 53,
+            "component": "Button"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--suspense-settles",
+        "boundaries": 8,
+        "terms": {
+          "example": [
+            "SuspendedRoster"
+          ],
+          "text": [
+            "Ada",
+            "Grace",
+            "Katherine"
+          ],
+          "components": [
+            "ErrorBoundary",
+            "Rows",
+            "Stack",
+            "SuspendedRoster",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "tokens": [
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "text": "Ada",
+            "box": [
+              382,
+              341,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 223,
+            "component": "Stack"
+          },
+          {
+            "text": "Grace",
+            "box": [
+              382,
+              374,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 223,
+            "component": "Stack"
+          },
+          {
+            "text": "Katherine",
+            "box": [
+              382,
+              407,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 223,
+            "component": "Stack"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--suspense-waterfall",
+        "boundaries": 9,
+        "terms": {
+          "example": [
+            "SuspendedWaterfall"
+          ],
+          "names": [
+            "Invoice #4021"
+          ],
+          "text": [
+            "Build",
+            "Design",
+            "Handover",
+            "Invoice #4021"
+          ],
+          "components": [
+            "ErrorBoundary",
+            "Invoice",
+            "Rows",
+            "Stack",
+            "SuspendedWaterfall",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ],
+          "roles": [
+            "heading"
+          ],
+          "tokens": [
+            "--case-space",
+            "--case-text"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "heading",
+            "name": "Invoice #4021",
+            "text": "Invoice #4021",
+            "box": [
+              382,
+              322,
+              260,
+              26
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 265,
+            "component": "Invoice"
+          },
+          {
+            "text": "Design",
+            "box": [
+              382,
+              360,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 223,
+            "component": "Stack"
+          },
+          {
+            "text": "Build",
+            "box": [
+              382,
+              393,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 223,
+            "component": "Stack"
+          },
+          {
+            "text": "Handover",
+            "box": [
+              382,
+              426,
+              260,
+              21
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 223,
+            "component": "Stack"
+          }
+        ]
+      },
+      {
+        "subject": "story:case-surface--suspense-stalled",
+        "boundaries": 7,
+        "terms": {
+          "example": [
+            "StalledFeed"
+          ],
+          "text": [
+            "loading feed…"
+          ],
+          "components": [
+            "ErrorBoundary",
+            "Skeleton",
+            "StalledFeed",
+            "Tokens",
+            "WithCallback",
+            "hookified",
+            "unboundStoryFn"
+          ],
+          "files": [
+            "cases/storybook-case/src/ds.jsx",
+            "src/ds.jsx"
+          ]
+        },
+        "landmarks": [
+          {
+            "text": "loading feed…",
+            "box": [
+              381,
+              347,
+              262,
+              74
+            ],
+            "file": "cases/storybook-case/src/ds.jsx",
+            "line": 198,
+            "component": "Skeleton"
+          }
+        ]
+      }
+    ]
+  },
+  "stabilization": [
+    "freeze-clock",
+    "hide-scrollbars",
+    "no-focus",
+    "no-hover",
+    "pin-animations",
+    "reduced-motion",
+    "wait-for-fonts",
+    "wait-for-images"
+  ]
+}
+{"images/story%3Acase-surface--button-primary.after.json":"a02bf22f6973ad210fa26746b253f5d0a4638dcc505ceef3075801f9bd3d4b57","images/story%3Acase-surface--button-primary.after.png":"bcafbecb2e86c42d2699057e6fb5ffb89fab2e0faf5c9b6d70556b5daa46aa64","images/story%3Acase-surface--button-secondary.after.json":"896d0d6bc6fa5b986041295a5c04180009a8c11f8562cf0dab885c6d63486f65","images/story%3Acase-surface--button-secondary.after.png":"cdb9be2ac8930af71fabdf5b30933ea861bb7058d3dcc4461840ca45387d4e30","images/story%3Acase-surface--card-rebranded.after.json":"7fe987d0887d11abec3af743c5f130ec2bc6ccc58e777b57fe29813a47dab1e3","images/story%3Acase-surface--card-rebranded.after.png":"6307ca3bdde6ecd2cfc988b0a63a5090e7ad0474a91fb13c805fbd7d639ead68","images/story%3Acase-surface--card-with-actions.after.json":"cc182a9747b279d5194c16f8dd1cab56c9cdfa825f6caebc897bedf536ebb557","images/story%3Acase-surface--card-with-actions.after.png":"c77fb145304e7fa30ba6042f583644950c862af969bcb697450f458a1df722ef","images/story%3Acase-surface--loading.after.json":"41fae196865f288f568af8bf9363d84eb40b3128ddfd8614e2cb95664be3892d","images/story%3Acase-surface--loading.after.png":"4f852cfe622067e2872424c8add5d3977db6b7d6ad84a6329f288f6d7da566fa","images/story%3Acase-surface--receipt-at-two-widths%40375.after.json":"a73ac3efdd081734feb4c32b668ba2d06cc363c638a87b21f6ceb189cd62aa42","images/story%3Acase-surface--receipt-at-two-widths%40375.after.png":"2972b6fb6d7d5b4cf884301b4aa09e62c0b6aac68430880e42f797de9d3d5d83","images/story%3Acase-surface--receipt-at-two-widths%40800.after.json":"58017dbb3dd24fd6f4bcee62a8b11e879a95dca9eb2f839a9ea898206754e188","images/story%3Acase-surface--receipt-at-two-widths%40800.after.png":"a5300ffae884e948a7b094245489e43e1580a3e47c030c7f881b2e6b5b43b8bf","images/story%3Acase-surface--revealed.after.json":"86d5e159b0742c8357159562c62347b335138d8b5c3288c6629658b47b9c395a","images/story%3Acase-surface--revealed.after.png":"a423c8a2d2bf6b59466b7fdb086886ed84fa4823d7cd25ae6809dcaa6c811400","images/story%3Acase-surface--suspense-settles.after.json":"006326b262c80c344334da5077a7221ffb87e7e93032ec07a993e669ef9c0df4","images/story%3Acase-surface--suspense-settles.after.png":"50b6fd466ea16a14844360c4101a3bc53275dbfe2bc6a0fad80e8bb82122b407","images/story%3Acase-surface--suspense-stalled.after.json":"ac192c4b5c85473852879c93db08cb6192de87f3ef981bf6b44bf2f049d76f8a","images/story%3Acase-surface--suspense-stalled.after.png":"59c43ea74a6095e795a4b8738205f6e192f5f0f5be4c9664bf5710afeaef24f6","images/story%3Acase-surface--suspense-waterfall.after.json":"89253f14ca3ecce4df003945e6899aa1611cff75033d1b9ed68e8136badf1b27","images/story%3Acase-surface--suspense-waterfall.after.png":"73086a5e0bd9a943a5be52c3fb1a4eb109ffa6e8841ef85bb567e408e065c882","images/story%3Acase-surface--ticking.after.json":"31d17f59bf5b297f83c8c26c6e1ee1cdf9c663be3d1b350031af6566b4e8dc02","images/story%3Acase-surface--ticking.after.png":"07f907f52696f22468ceba0e286d49a206a7fdc15199f69c75d5f4ab0424bb49"}
