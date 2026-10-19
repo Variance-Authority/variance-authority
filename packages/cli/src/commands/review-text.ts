@@ -18,7 +18,7 @@ import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
 import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
-import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
+import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';
@@ -95,7 +95,7 @@ function text(review: Review): string {
   lines.push(...motionText(review.motion));
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
-      region.name === '' ? region.kind : `${region.kind} ${region.name}`
+      regionKind(region)
     } — ${REACH_TEXT[region.reach]} (${editText(file.file, region)})`));
   if (detail.length > 0) lines.push('', 'Regions not covered by a test one import away:', ...detail);
   for (const reading of review.coverage ?? []) {

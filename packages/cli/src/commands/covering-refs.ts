@@ -13,6 +13,7 @@ import type { CoveringTest, ExecutionTest } from '@variance-authority/sense/test
 import { runsText, targetText } from './covering-at.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
+import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
@@ -100,7 +101,7 @@ function regionLine(region: StatedRegion, table: Table): string {
   const carried = region.passengers === undefined
     ? '; ran while its module evaluated, loaders unnamed'
     : region.passengers.length === 0 ? '' : `; carried ${table.refs(region.passengers)}`;
-  return `${region.startLine}-${region.endLine} ${region.kind}${region.name === '' ? '' : ` ${region.name}`}${
+  return `${region.startLine}-${region.endLine} ${regionKind(region)}${
     region.state === undefined ? '' : ` ${region.state}`
   }: ${witnesses(region.tests, region.stopped, table)}${carried}`;
 }
