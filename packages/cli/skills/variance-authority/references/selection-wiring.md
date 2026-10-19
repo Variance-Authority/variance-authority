@@ -116,13 +116,14 @@ step; nothing composes them.
 
 `withTestSelection` takes the same recording options under Vitest, Jest and
 Rstest. Record at the step the suite declares and no finer, because each step
-down costs run time. On this repository's 925 unit test files, a 66.5 s run:
+down costs run time, paid where modules are parsed and probed, so it grows with
+the modules a run loads. On this repository's 925 unit test files, a 67 s run:
 
 | `mode` | the record holds | finest `precision` it answers | added |
 |---|---|---|---|
-| `'loads'` | the modules each test file loaded; one line after each module, nothing parsed, no cases | `file-use` | 1.5 s |
-| `'entries'` | the functions each case entered | `function-use` | 4.7 s |
-| `'presence'` (default) | the regions each case entered | `region-use` | 5.8 s |
+| `'loads'` | the modules each test file loaded; one line after each module, nothing parsed, no cases | `file-use` | about 2 s |
+| `'entries'` | the functions each case entered | `function-use` | about 5 s |
+| `'presence'` (default) | the regions each case entered | `region-use` | about 6 s |
 
 The other recording options:
 
@@ -136,7 +137,7 @@ The other recording options:
   when a compiler that reads syntax, such as React Compiler or Compiled, is in
   the run.
 - `unprobed`: modules that take the `loads` line instead of probes, inside a
-  finer recording.
+  finer recording. Jest takes globs; Vitest and Rstest take a predicate.
 
 Under `'loads'`, `cadence`, `continuations` and stories do not apply. A run
 fails rather than lay itself over a record made under another `mode`:
