@@ -296,7 +296,7 @@ If your suite comes from a graph selector such as `nx affected`, start at
 once you trust the record: it never runs a test `file` would skip, and it needs
 only to know which test loaded which file. It runs fewer tests once your
 modules load where they are used. Declare `region-use` once every project the
-suite runs loads the instrumentation:
+suite runs records regions, as [below](#record-as-finely-as-you-select):
 
 ```json
 { "suites": { "unit": { "kind": "unit", "precision": "file" } } }
@@ -309,6 +309,52 @@ suite runs loads the instrumentation:
 | `file-use` | it loaded a changed file |
 | `function-use` | it entered the function a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes, with each region it charges widened to the function that holds it: a changed value runs every test that entered a function reading it, at any line of that function, and a change that runs as the module loads runs every test that loaded the file |
 | `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes: a changed value runs the tests that entered the region reading it. A suite that declares nothing reads this |
+
+### Record as finely as you select
+
+`precision` is how much of the record a suite trusts. The recording's `mode` is
+how much the record holds, and it sets what the run pays. A step finer than the
+record answers with what the record has: on a `loads` record, `region-use` runs
+what `file-use` runs, and on an `entries` record, what `function-use` runs. So
+choose the two together, and record at the step you declare. `precision` is the suite's, in the
+configuration above; `mode` is an option of the `withTestSelection` you already
+wrap the runner in, under Vitest, Jest and Rstest alike:
+
+```ts
+export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
+```
+
+| `mode` | What each module gets | The record holds | The finest step it answers | Added to a 66.5 s run |
+|---|---|---|---|---|
+| `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | 1.5 s |
+| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | 4.7 s |
+| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | 5.8 s |
+
+The run is this repository's unit suite, 925 test files on an Apple M4 Max, each
+figure the mean of two rounds. Vitest's own phase times, summed over its
+workers, put the difference in transforming and collecting the test files, where
+each module is parsed and its probes placed, and not in running the tests:
+
+| | transform | collect | tests |
+|---|---|---|---|
+| no recording | 15.6 s | 171 s | 592 s |
+| `loads` | 16.4 s | 171 s | 592 s |
+| `entries` | 21.5 s | 193 s | 592 s |
+| `presence` | 22.6 s | 198 s | 592 s |
+
+Four more options decide what a case carries besides its regions, and where the
+probes go:
+
+| option | default | what it changes |
+|---|---|---|
+| `cadence` | on | each region's record names the line of the test statement that first reached it, which says what each statement of a test added; the transform puts a call before every test statement. Turning it off saved under a second on the run above |
+| `continuations` | off | a case keeps the work it started after it returns, for a suite whose work outlives its cases or that runs them concurrently |
+| `placement` | `'after-transforms'` | `'before-transforms'` probes each file as read, ahead of your transforms: one parse and no source map, for a run whose transforms only strip types or JSX |
+| `unprobed` | none | the modules you name, such as one whose functions a test hands to `page.evaluate`, run with the `loads` line and no probe inside a finer recording, so a change to one selects every test that loaded it, as at `file-use` |
+
+A `loads` record has no cases, so `cadence`, `continuations` and stories do not
+apply to it. Each option and its edges are in
+[Sense](../packages/sense/README.md#options-on-the-vitest-seam).
 
 ### From `file` to `file-use`: load a module where it is used
 
@@ -359,8 +405,9 @@ shows.
 
 ### What every step reads
 
-Every step reads the same record and the same file graph; nothing is recorded
-differently. The graph and the record miss different tests: the graph takes loading a module to
+Every step reads the same record and the same file graph; a step changes what
+is read, not what is recorded. What is recorded is the recording's own setting,
+[above](#record-as-finely-as-you-select). The graph and the record miss different tests: the graph takes loading a module to
 declare its exports and nothing more, which the `sideEffects` field overrides,
 and a runner config can load a file that no import names. So `file` and
 `symbol` add what the graph reaches to what `file-use` runs, rather than
