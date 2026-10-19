@@ -73,9 +73,13 @@ export interface RstestTestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
-   * `presence` probes every arrival region; `entries` probes modules and
-   * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * `presence`, the default, probes every arrival region; `entries` probes
+   * modules and functions only, so a suite reads it no finer than
+   * `function-use`. Both record which functions ran before the file's first
+   * test. `loads` probes nothing: each module runs with one line after its own
+   * text, the record says which files each test loaded, and a change to a file
+   * selects every test that loaded it. Under it `cadence` is off, whatever it
+   * says.
    */
   readonly mode?: InstrumentMode;
   /**
