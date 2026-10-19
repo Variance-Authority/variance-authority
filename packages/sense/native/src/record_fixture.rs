@@ -5,9 +5,8 @@
 
 use rustc_hash::FxHashMap;
 
-use crate::case_shard;
 use crate::journey_columns::{self, Column};
-use crate::journey_format::SetPool;
+use crate::crossing_sets::{self, SetPool};
 use crate::record_coverage;
 use crate::record_layout::LAYOUT;
 
@@ -197,8 +196,8 @@ pub fn read(bytes: &[u8]) -> (Vec<(String, bool, Option<u32>)>, Vec<(String, boo
         })
         .collect();
     let members = |set: u32| -> Vec<String> {
-        let stored = case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set).unwrap();
-        case_shard::decode_set(stored, coverage.tests()).unwrap().into_iter().map(|test| files[test as usize].clone()).collect()
+        let stored = crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set).unwrap();
+        crossing_sets::decode_set(stored, coverage.tests()).unwrap().into_iter().map(|test| files[test as usize].clone()).collect()
     };
     let modules = (0..coverage.modules())
         .map(|at| {

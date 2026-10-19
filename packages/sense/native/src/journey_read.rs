@@ -19,7 +19,7 @@ use std::fs;
 
 use crate::case_said::{self, Said};
 use crate::journey_lazy::{Handle, Lazy};
-use crate::case_shard::decode_set;
+use crate::crossing_sets::decode_set;
 use crate::order;
 use crate::record_layout::LAYOUT;
 

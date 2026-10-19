@@ -1,5 +1,6 @@
 use super::*;
-use crate::journey_format::{self, CaseExtras, EncodedModule, SetPool};
+use crate::crossing_sets::SetPool;
+use crate::journey_format::{self, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_record::{Block, Module};
 use crate::record_fixture::{self as fixture, block, module, spec, test, Spec};

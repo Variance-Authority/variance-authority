@@ -5,8 +5,8 @@ use std::path::Path;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
-use crate::{case_owner, case_shard, journey_columns, journey_output, order};
+use crate::journey_format::{self, EncodedModule, Gaps};
+use crate::{case_owner, case_shard, crossing_sets, journey_columns, journey_output, order};
 use crate::journey_journal::{self, CaseRun, ModuleId, Visitor};
 use crate::journey_record::Module;
 use crate::record_layout::LAYOUT;
@@ -216,7 +216,7 @@ fn fold(
     let mut called_sets = vec![0; block_count];
     let mut loaded_flags = vec![false; block_count];
     let mut module_entered = vec![false; modules.len()];
-    let mut sets = SetPool::new(run.tests.len());
+    let mut sets = crossing_sets::SetPool::new(run.tests.len());
     let empty = sets.intern(&[]);
     called_sets.fill(empty);
     if block_count == 0 || run.tests.is_empty() {

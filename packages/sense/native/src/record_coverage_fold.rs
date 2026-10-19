@@ -30,9 +30,8 @@ use std::collections::BTreeMap;
 
 use rustc_hash::FxHashMap;
 
-use crate::case_shard;
 use crate::journey_columns::Column;
-use crate::journey_format::SetPool;
+use crate::crossing_sets::{self, SetPool};
 use crate::order;
 use crate::record_start::Agreed;
 use crate::record_coverage::{Coverage, Phases, Text};
@@ -239,9 +238,9 @@ impl<'c> Fold<'c> {
             if let Some(id) = unions.get(&(held, set)) {
                 return Ok(*id);
             }
-            let mut members = case_shard::decode_set(case_shard::set_slice(sets.bytes(), sets.offsets(), held)?, self.universe)?;
-            let stored = case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?;
-            members.extend(case_shard::decode_set(stored, coverage.tests())?.into_iter().map(|test| test + offset));
+            let mut members = crossing_sets::decode_set(crossing_sets::set_slice(sets.bytes(), sets.offsets(), held)?, self.universe)?;
+            let stored = crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?;
+            members.extend(crossing_sets::decode_set(stored, coverage.tests())?.into_iter().map(|test| test + offset));
             members.sort_unstable();
             members.dedup();
             let id = sets.intern(&members);
@@ -310,7 +309,7 @@ impl<'c> Fold<'c> {
                 }
                 for (block, _) in coverage.blocks(row).zip(taken).filter(|(_, taken)| !taken) {
                     for set in [coverage.block_set[block], coverage.block_loaded_set[block]] {
-                        for test in case_shard::decode_set(case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?, coverage.tests())? {
+                        for test in crossing_sets::decode_set(crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?, coverage.tests())? {
                             tests[(offset + test) as usize].complete = 0;
                         }
                     }
@@ -406,7 +405,7 @@ impl<'c> Fold<'c> {
             if let Some(placed) = placed[held as usize] {
                 return Ok(placed);
             }
-            let members = case_shard::decode_set(case_shard::set_slice(sets.bytes(), sets.offsets(), held)?, universe)?;
+            let members = crossing_sets::decode_set(crossing_sets::set_slice(sets.bytes(), sets.offsets(), held)?, universe)?;
             let mut members: Vec<u32> = members.into_iter().map(|test| final_id[test as usize]).collect();
             members.sort_unstable();
             let interned = (pool.intern(&members), members.len() as u32);

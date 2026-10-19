@@ -1,5 +1,6 @@
 use super::*;
-use crate::journey_format::{encode, CaseExtras, EncodedModule, SetPool};
+use crate::crossing_sets::SetPool;
+use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_read::Journey;
 use crate::journey_record::{Block, Module};

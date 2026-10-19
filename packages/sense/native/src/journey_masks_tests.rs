@@ -1,6 +1,7 @@
 use super::*;
 use crate::journey_forks::{between, JourneyEnd};
-use crate::journey_format::{encode, CaseExtras, EncodedModule, SetPool};
+use crate::crossing_sets::SetPool;
+use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_paths::through;
 use crate::journey_record::{Block, Module};
