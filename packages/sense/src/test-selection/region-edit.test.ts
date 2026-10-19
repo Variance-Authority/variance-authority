@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NO_OWNER } from './format-layout.js';
 import { editsBetween, landedThrough, NO_EDIT } from './region-edit.js';
 
 /** A module of regions the callers' names are no part of: kind and lines only. */
@@ -43,6 +44,61 @@ describe('landedThrough', () => {
     const recorded = module(['module', 1, 11], ['function', 2, 4], ['function', 8, 10]);
 
     expect([...landedThrough(held, recorded, { hunks: [after] })]).toEqual([-1, 1, 2]);
+  });
+
+  it('lands every region on its own when the edit changes nothing that runs, though a comment moved their lines', () => {
+    // A comment line written inside the module after the first function, and one inside the second.
+    const held = module(['module', 1, 9], ['function', 2, 4], ['function', 6, 8]);
+    const recorded = module(['module', 1, 11], ['function', 2, 4], ['function', 7, 10]);
+    const comments = [{ oldStart: 5, oldCount: 0, newStart: 6, newCount: 1 }, { oldStart: 6, oldCount: 0, newStart: 8, newCount: 1 }];
+
+    expect([...landedThrough(held, recorded, { hunks: comments })]).toEqual([-1, 1, -1]);
+    expect([...landedThrough(held, recorded, { hunks: comments, reading: 'none' })]).toEqual([0, 1, 2]);
+  });
+
+  it('pairs by address when the edit changes nothing that runs but the two cuts hold other regions', () => {
+    const held = module(['module', 1, 9], ['function', 2, 4]);
+    const recorded = module(['module', 1, 10], ['function', 2, 4], ['function', 6, 8]);
+    const written = { oldStart: 5, oldCount: 0, newStart: 6, newCount: 1 };
+
+    // The top level ran as it did, so its own region lands; the third region is
+    // born, and the cut names no region around it to take cases from.
+    expect([...landedThrough(held, recorded, { hunks: [written], reading: 'none' })]).toEqual([0, 1, -1]);
+  });
+
+  it('lands the top level when the edit changed function bodies only, and not the body it changed', () => {
+    const held = module(['module', 1, 9], ['function', 2, 4], ['function', 6, 8]);
+    const rewritten = { oldStart: 7, oldCount: 1, newStart: 7, newCount: 1 };
+
+    expect([...landedThrough(held, held, { hunks: [rewritten], reading: 'bodies' })]).toEqual([0, 1, -1]);
+    expect([...landedThrough(held, held, { hunks: [rewritten], reading: 'load' })]).toEqual([-1, 1, -1]);
+  });
+
+  it('pairs a region the edit moved by its address, and a born one takes the cases around it, where nothing that runs changed', () => {
+    const at = (kind: string, name: string, path: string, startLine: number, endLine: number) =>
+      ({ kind, name, path, startLine, endLine, source: true });
+    const held = { blocks: [at('module', '', '', 1, 9), at('function', 'f', '', 2, 4), at('function', 'g', '', 6, 8)] };
+    // A line written inside `g`, and a region the cut gained inside it.
+    const recorded = {
+      blocks: [at('module', '', '', 1, 10), at('function', 'f', '', 2, 4), at('function', 'g', '', 6, 9), at('branch', 'g', 'if#0', 7, 8)],
+      owner: Uint32Array.from([NO_OWNER, 0, 0, 2]),
+    };
+    const written = { oldStart: 6, oldCount: 0, newStart: 7, newCount: 1 };
+
+    expect([...landedThrough(held, recorded, { hunks: [written], reading: 'none' })]).toEqual([0, 1, 2, 2]);
+    // Under a body edit only the top level is spared: `g` and what it gained are reached.
+    expect([...landedThrough(held, recorded, { hunks: [written], reading: 'bodies' })]).toEqual([0, 1, -1, -1]);
+  });
+
+  it('pairs nothing by address where the two cuts numbered their regions otherwise', () => {
+    const at = (kind: string, path: string, startLine: number, endLine: number) =>
+      ({ kind, name: 'f', path, startLine, endLine, source: true });
+    // The first of two branches is deleted, so the survivor is cut as `if#0`.
+    const held = { blocks: [at('function', '', 1, 9), at('branch', 'if#0', 2, 4), at('branch', 'if#1', 6, 8)] };
+    const recorded = { blocks: [at('function', '', 1, 6), at('branch', 'if#0', 3, 5)] };
+    const deletion = { oldStart: 2, oldCount: 3, newStart: 1, newCount: 0 };
+
+    expect([...landedThrough(held, recorded, { hunks: [deletion], reading: 'none' })]).toEqual([-1, 2]);
   });
 
   it('never lands a region on one of another kind at the same lines', () => {

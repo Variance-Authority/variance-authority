@@ -407,8 +407,8 @@ fn ascending(coverage: &Coverage, test: usize) -> bool {
 /// handing those tests down answers only diffs that land in the new region,
 /// where demoting every holder of the module would run them on every diff in
 /// the file. Both crossing lists ride together, and the walk stops at the module
-/// root, which no cut ever bears anew; `heldAround` in `region-around.ts` walks
-/// the case index's regions by the same owners.
+/// root, which no cut ever bears anew; `landedThrough` in `region-edit.ts`
+/// hands a born case index region its owner's cases by the same owners.
 fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usize>]) -> Vec<Option<usize>> {
     let ordinals: FxHashMap<u32, usize> = blocks.clone().enumerate().map(|(at, block)| (coverage.block_ordinal[block], at)).collect();
     let owner = |at: usize| {

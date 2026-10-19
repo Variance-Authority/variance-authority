@@ -101,8 +101,9 @@ function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
  * neighbours.
  *
  * This answers whether two cuts of one text agree. Where the cases of a region
- * go over an edit is {@link landedThrough}'s to say, and an address says
- * nothing of that.
+ * go over an edit is {@link landedThrough}'s to say: it seats a region by the
+ * lines the edit places it at first, and pairs by address only where both
+ * cuts numbered their regions alike and the edit's reading spares the kind.
  */
 function landing(recorded: Cut, before: Cut): Int32Array {
   // A layer asks one pair this up to four times.

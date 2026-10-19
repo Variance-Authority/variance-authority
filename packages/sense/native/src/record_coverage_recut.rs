@@ -24,13 +24,16 @@ use crate::record_layout::LAYOUT;
 /// What each edit reached, by `path\0from\0to`.
 pub(crate) type Readings = std::collections::HashMap<String, String>;
 
-/// Whether the edit of `file` from text `from` to text `to` reached a region of `kind`.
+/// Whether the edit of `file` from text `from` to text `to` reached a region of
+/// `kind`: it did unless the layout's `spared` names the kind under the edit's
+/// reading, the rule the case index's carry (`reaches` in `edit-readings.ts`)
+/// reads too.
 pub(crate) fn reaches(readings: &Readings, file: &str, from: &str, to: &str, kind: u8) -> bool {
-    match readings.get(&format!("{file}\0{from}\0{to}")).map(String::as_str) {
-        Some("none") => false,
-        Some("bodies") => LAYOUT.coverage.block_kinds[usize::from(kind)] != "module",
-        _ => true,
-    }
+    let kind = &LAYOUT.coverage.block_kinds[usize::from(kind)];
+    !readings
+        .get(&format!("{file}\0{from}\0{to}"))
+        .and_then(|reading| LAYOUT.coverage.spared.get(reading))
+        .is_some_and(|kinds| kinds.contains(kind))
 }
 
 /// What cutting one carried row again decides, in the previous record's regions.
