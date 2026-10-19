@@ -133,15 +133,15 @@
  */
 
 import { instrumentationId } from './identity.js';
-import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
+import { instrumenter, spliced as splice, type Block, type BlockKind, type InstrumentMode, type WalkMode } from './spliced.js';
 
-export type { Block, BlockKind, InstrumentMode };
+export type { Block, BlockKind, InstrumentMode, WalkMode };
 export { cadence, columnBehindCut, type CutSourceMap, type CutTestFile } from './cadence.js';
 export { INSTRUMENTATION_ID, instrumentationId, instrumentModeOf } from './identity.js';
 
 export interface InstrumentOptions {
   /** `presence` records every arrival region; `entries` only modules and functions. */
-  readonly mode?: InstrumentMode;
+  readonly mode?: WalkMode;
 }
 
 /**
@@ -265,6 +265,11 @@ export function probeRuntime(id: ModuleId, count: number): string {
  * tells that the probes it did not place are the ones this build would have.
  */
 export function probeRecipe(mode: InstrumentMode = 'presence'): string {
-  return instrumenter().probeRecipe(mode === 'entries');
+  if (mode !== 'loads') return instrumenter().probeRecipe(mode === 'entries');
+  // A mark is the header and nothing the walk wrote. The digest is one over the
+  // header and the walk's sources, so it moves on a change to the walk too: a
+  // cache is keyed afresh more often than the mark needs, never less.
+  const recipe = instrumenter().probeRecipe(false);
+  return `${instrumentationId('loads')}${recipe.slice(recipe.indexOf('+'))}`;
 }
 

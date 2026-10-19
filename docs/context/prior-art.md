@@ -66,7 +66,10 @@ outperformed method-level in practice**, because tracking finer dependencies
 costs more than the extra selection saves. Our selection output is test-file
 paths and the runner executes every test inside a selected file; Ekstazi says
 that is likely the right engineering answer rather than a limitation, and puts
-the burden on a measurement to say otherwise.
+the burden on a measurement to say otherwise. Our `loads` recipe records at
+its grain without its smart checksums: a change to a comment or to whitespace
+selects every test file that loaded the module, where Ekstazi's checksum
+leaves debug information out and selects nothing.
 
 **STARTS** (Legunsen, Shi, Marinov) is the static class-firewall counterpart,
 evaluated head to head against Ekstazi, and found static selection competitive

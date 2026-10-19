@@ -156,6 +156,7 @@ mod source_tree;
 mod source_update;
 mod specifier;
 mod stored;
+mod text_digests;
 mod top_level;
 mod tree;
 mod witness;

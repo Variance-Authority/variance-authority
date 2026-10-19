@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { defaultInclude, type CapturedModule, type ProbePlacement } from './instrumented-modules.js';
 
 export interface SelectionRun {
@@ -83,7 +84,11 @@ export interface SelectionRun {
    * first loader without the second.
    */
   readonly awaiting: Set<string>;
-  /** Whether this run records per-case crossings: every run does, unless its files run in a page. */
+  /**
+   * Whether this run records per-case crossings: every run does, unless its
+   * files run in a page or it records under `loads`, where a module is marked
+   * as its file loads it, before any case opens.
+   */
   cases: boolean;
   /**
    * Whether the run in progress has been folded.
@@ -146,7 +151,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     shims: new Set<string>(),
     made: new Set<string>(),
     awaiting: new Set<string>(),
-    cases: true,
+    cases: probesRegions(mode),
     settled: false,
     watching: false,
     alone: false,

@@ -209,11 +209,16 @@ const twoAtOnce = (open: string, opening: string): string =>
   '{ continuations: true } to follow every case through the async context and name the ' +
   'ones whose work outlived them.';
 
-/** One bucket for the file. */
+/**
+ * One bucket for the file, holding every module the realm had loaded before it
+ * as well as what it loads: a realm shared with an earlier file evaluates
+ * nothing twice, so whatever is already in it is the file's to read.
+ */
 function flat(holder: Holder): Collector {
   const engine = attach(holder, false);
   const bucket = taken(holder) ?? engine.open(AMBIENT);
   engine.use(bucket);
+  engine.carry();
   return {
     scoped: false,
     seal: () => presenceOf(engine.read(bucket)),

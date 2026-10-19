@@ -14,8 +14,7 @@
  * against whichever the project installed.
  */
 
-import { readFile } from 'node:fs/promises';
-import { digestString } from '../digest.js';
+import type { Digest } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import {
@@ -399,13 +398,15 @@ export function oneRowPerFile(
   return [...byPath.values()];
 }
 
-export async function coverageTest(
+export function coverageTest(
   task: FinishedFile,
   root: string,
   preconditionFiles: readonly string[],
+  /** Every file's text digest, from `textDigests`, read once for the whole run. */
+  digests: ReadonlyMap<string, Digest>,
   journals: readonly ReadJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
-): Promise<CoverageTest> {
+): CoverageTest {
   const file = projectPath(root, task.filepath);
   // By name, because the same fact can arrive more than once: a file two
   // projects both ran left a journal under each of them, and the modules those
@@ -418,7 +419,7 @@ export async function coverageTest(
   for (const input of [task.filepath, ...preconditionFiles]) {
     require({
       name: projectPath(root, input),
-      digest: digestString(await readFile(input, 'utf8')),
+      digest: digests.get(input)!,
     });
   }
   // Whether this file left a journal at all. A file with every test skipped is

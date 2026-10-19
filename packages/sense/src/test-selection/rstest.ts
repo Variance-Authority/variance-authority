@@ -24,6 +24,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { InstrumentMode } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { AFTER_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
 import { carriedJournal, statusesComplete } from './finished-files.js';
@@ -227,7 +228,8 @@ export function withTestSelection(
   const marked = options.unprobed;
   run.unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
   run.placement = options.placement ?? 'after-transforms';
-  run.cadence = options.cadence === false
+  // Under `loads` no region is probed for a line of a test to have reached first.
+  run.cadence = options.cadence === false || !probesRegions(mode)
     ? undefined
     : testFilesAt(configRoot, undefined, config['include'] as readonly string[] | undefined);
 
@@ -307,6 +309,7 @@ export function withTestSelection(
           continuations: options.continuations === true,
           scope,
           story: askedForStories(coverageFile),
+          cases: probesRegions(mode),
         }),
       ),
       ...setupFiles,

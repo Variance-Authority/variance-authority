@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { parseSync } from 'oxc-parser';
 import { describe, expect, it } from 'vitest';
+import { instrumentationId, probeRecipe } from '../instrument/index.js';
 import { testSelectionProbes } from './probes.js';
 import { inRoot } from './__fixtures__/browser-page.js';
 
@@ -34,6 +35,27 @@ describe('the collector import', () => {
       // Every line of the module stays where the file had it.
       expect(code.split('\n')[0]).toMatch(/^"use client";/);
       expect(code.split('\n')[1]).toMatch(/^import \{ useState \} from "react";/);
+    });
+  });
+});
+
+describe('a build under the loads recipe', () => {
+  it('names its own recipe, and carries the digest of the presence recipe, which covers the header and the walk', () => {
+    const presence = probeRecipe('presence');
+    expect(probeRecipe('loads')).toBe(`${instrumentationId('loads')}${presence.slice(presence.indexOf('+'))}`);
+  });
+
+  it('marks each module as loaded after its own text, and probes nothing inside it', async () => {
+    await inRoot(async (root) => {
+      const module = resolve(root, 'Since.js');
+      await writeFile(module, CLIENT, 'utf8');
+
+      const { code } = testSelectionProbes({ root, mode: 'loads' }).transform.handler(CLIENT, module)!;
+
+      expect(code.startsWith(`${CLIENT}\n;`)).toBe(true);
+      expect(code).toContain('.m("Since.js@~');
+      expect(code).not.toMatch(/__va\(\d+\)/);
+      expect(statements(code).some((statement) => statement.type === 'ImportDeclaration' && statement.source?.value === 'variance-authority:execution-collector')).toBe(true);
     });
   });
 });

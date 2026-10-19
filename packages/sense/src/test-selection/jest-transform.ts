@@ -40,6 +40,7 @@ import picomatch from 'picomatch';
 import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { probedAfter } from './jest-after.js';
@@ -135,7 +136,8 @@ export async function createTransformer(
   const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
   const mode = config.mode ?? 'presence';
   const recipe = probeRecipe(mode);
-  const theirs = inner?.senseRecipe?.(mode);
+  // Under `loads` nothing is placed, so a transformer that places probes is not asked to.
+  const theirs = !probesRegions(mode) ? undefined : inner?.senseRecipe?.(mode);
   const places = theirs !== undefined;
   if (places && theirs !== recipe) {
     const name = typeof config.transformer === 'string' ? config.transformer : config.transformer?.[0];
@@ -146,7 +148,7 @@ export async function createTransformer(
   }
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
   const how: Placing = { mode, excluded, unprobed: unprobedMatcher(config.unprobed), placement: config.placement ?? 'after-transforms' };
-  const cuts = config.cadence !== false;
+  const cuts = config.cadence !== false && probesRegions(mode);
   const cutOf = (source: string, path: string, options: JestTransformRequest): CutTestFile | undefined =>
     cuts && isTestFile(path, options.config) ? cadence(source, path) : undefined;
   // The project's transformer maps the cut text, so its map is moved back to

@@ -58,6 +58,19 @@ describe('the probes loader', () => {
     );
   });
 
+  it('serves the collector of the loads recipe, and marks a module under it rather than probing it', async () => {
+    expect(load('/anywhere/probes-collector.js', 'export {};\n', undefined, { collector: 'loads' }).code).toBe(
+      executionCollectorSource('loads'),
+    );
+    const root = await checkout();
+    const { error, code } = load(resolve(root, 'cart.js'), SOURCE, undefined, { root, mode: 'loads' });
+
+    expect(error).toBeNull();
+    expect(code!.startsWith(`${SOURCE}\n;`)).toBe(true);
+    expect(code).toContain('.m("cart.js@~');
+    expect(code).not.toMatch(/__va\(\d+\)/);
+  });
+
   it('refuses a collector of a recipe that is none', () => {
     expect(load('/anywhere/probes-collector.js', '', undefined, { collector: 'lines' }).error?.message).toMatch(/recipe "lines"/);
   });
@@ -135,7 +148,7 @@ describe('the probes loader', () => {
     const { error, code } = load(resolve(root, 'flow.js'), written, { ...STRIPPED, sources: ['flow.js'] }, { root });
 
     expect(error).toBeNull();
-    expect(code).toMatch(/__vaE\(\);/);
+    expect(code).toMatch(/;globalThis\.__VA__\.m\("[^"\n]*"\);/);
     expect(code!.startsWith(`${written}\n;require("!!`)).toBe(true);
     expect(imported(code!)).toEqual([]);
   });
@@ -147,7 +160,7 @@ describe('the probes loader', () => {
     const { error, code } = load(resolve(root, 'flow.js'), written, { ...STRIPPED, sources: ['flow.js'] }, { root });
 
     expect(error).toBeNull();
-    expect(code).toMatch(/__vaE\(\);/);
+    expect(code).toMatch(/;globalThis\.__VA__\.m\("[^"\n]*"\);/);
     expect(code).not.toMatch(/\brequire\(/);
     expect(code!.startsWith(`${written}\n;import "!!`)).toBe(true);
   });

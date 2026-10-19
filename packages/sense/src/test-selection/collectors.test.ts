@@ -271,6 +271,27 @@ describe('the recording a file writes', () => {
     },
   );
 
+  it.each([
+    ['flat', false], ['sequential', false], ['continuations', false], ['sequential', true], ['continuations', true],
+  ] as const)(
+    'logs a module marked loaded by its one line as the header logs a module that ran none of its regions: %s, story %s',
+    (mode, story) => {
+      const holder: Record<PropertyKey, unknown> = {};
+      const collector = mode === 'flat'
+        ? collectors.flat(holder)
+        : collectors.scoped(holder, mode === 'continuations', story ? () => {} : undefined);
+      // The header's mark, and the one line `loads` writes in its place.
+      new Function('globalThis', `${probeRuntime('header', 1)}__vaE();`)(holder);
+      new Function('globalThis', 'globalThis.__VA__.m("line");')(holder);
+
+      const sealed = collector.seal(FILE);
+
+      expect(sealed.get('line')).toEqual(sealed.get('header'));
+      expect(sealed.get('line')).toEqual(new Uint32Array([EVALUATING | 1]));
+      expect(collector.registered()).toEqual(['header', 'line']);
+    },
+  );
+
   it('marks a region entered outside an evaluation again when a later evaluation enters it', () => {
     const holder: Record<PropertyKey, unknown> = {};
     const collector = collectors.flat(holder);

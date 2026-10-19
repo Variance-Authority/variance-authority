@@ -199,15 +199,16 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /**
    * What one file of a tree-sitter language asks for and publishes, as `Read` JSON.
    *
-   * One file rather than a batch, because this crosses the boundary from inside
-   * the parse cache — the caller is a synchronous reader holding one file's
-   * bytes, and the batching that the module path does happens a layer above it.
+   * One file rather than a batch: the caller is a synchronous reader inside the
+   * parse cache, holding one file's bytes, and the module path batches above it.
    * Nothing when the addon does not claim the language: every language on a
    * binary built without the grammars, which `native/build.mjs` falls back to.
    */
   readLanguage(language: string, file: string, source: string): string | null;
   /** A `Package.swift`'s targets as JSON `[{ name, path }]`; `null` unparsed or without grammars. */
   swiftTargets(source: string): string | null;
+  /** Each path's text digest, as `digestString(readFile(path, 'utf8'))` has it, read in parallel; throws naming the first it cannot read. */
+  textDigests?(paths: string[]): string[];
   /** One module's parse, as JSON, for source text already in hand. */
   readSource(file: string, source: string): string;
   /**

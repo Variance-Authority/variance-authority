@@ -28,6 +28,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
 import { placingSequencer } from './jest-placing.js';
@@ -321,7 +322,8 @@ export function withTestSelection(
   const unprobed = options.unprobed?.map((glob) =>
     glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
   const placing = { mode, unprobed, placement: options.placement };
-  const cadence = options.cadence !== false;
+  // Under `loads` no region is probed for a line of a test to have reached first.
+  const cadence = options.cadence !== false && probesRegions(mode);
   const projects = inline?.map((project) =>
     instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence));
   const preconditions = [

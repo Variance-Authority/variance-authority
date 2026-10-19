@@ -57,7 +57,10 @@ export interface TestSelectionOptions {
   /**
    * `presence` probes every arrival region; `entries` probes modules and
    * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * ran before the file's first test. `loads` probes nothing: each module
+   * runs with one line after its own text, the record says which files each
+   * test loaded, and a change to a file selects every test that loaded it.
+   * Under it `cadence` is off, whatever it says.
    */
   readonly mode?: InstrumentMode;
   /**
@@ -193,12 +196,14 @@ export function withTestSelection(
     };
   }
 
-  const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
+  // Under `loads` no region is probed, so no line of a test can be said to
+  // have reached one first: the cut would cost a call per statement for nothing.
+  const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
   const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
-  const continuations = options.continuations === true;
-  const story = askedForStories(coverageFile);
+  const continuations = run.cases && options.continuations === true;
+  const story = run.cases ? askedForStories(coverageFile) : undefined;
   return {
     ...config,
     plugins: [...array(config.plugins), ...plugins],
@@ -214,7 +219,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
         ),
         ...setupFiles,
       ],
