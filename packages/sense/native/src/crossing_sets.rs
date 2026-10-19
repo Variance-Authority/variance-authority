@@ -3,8 +3,8 @@
 //! coverage rows refer to. A set is stored in whichever of the containers
 //! `record-layout.json` names under `sets` — LIST of members, BITS over every
 //! id, or RUNS of consecutive ids — is smallest, at the id width the pool's test
-//! count needs. The TypeScript reader of the same bytes is
-//! `packages/sense/src/test-selection/crossing-sets-read.ts`.
+//! count needs. The TypeScript writer and reader of the same bytes are
+//! `packages/sense/src/test-selection/crossing-sets.ts` and `crossing-sets-read.ts`.
 
 use std::collections::HashMap;
 
