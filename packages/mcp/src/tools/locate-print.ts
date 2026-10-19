@@ -63,6 +63,7 @@ function headline(located: Located, query: string): string {
   const count = located.hits.length;
   const asked = located.terms.length;
   const best = located.cover;
+  const found = asked - located.unmatched.length;
   const tail = located.dropped.length === 0 ? '.' : `; ${list(located.dropped)} not indexed.`;
   const first =
     asked === 0
@@ -70,16 +71,18 @@ function headline(located: Located, query: string): string {
       : count === 0
         ? `No subject of ${located.indexed} matches \`${query}\`.`
         : !located.distinguished
-          ? // Abstaining is the answer. Every word was found, and every one is
-            // said by most of what was searched wherever it was said, and so is
-            // every pair, so the holders are printed and their order is said
-            // to be no answer.
-            `None of the ${asked} term${asked === 1 ? '' : 's'} of \`${query}\` distinguishes a subject: ` +
-            `${asked === 1 ? 'it is' : 'each is'} in more than half the ${located.searched} subjects ` +
+          ? // Abstaining is the answer. Every word that was found is said by
+            // most of what was searched wherever it was said, and so is every
+            // pair, so the holders are printed and their order is said to be no
+            // answer. A word held nowhere picks nothing out either, and is named.
+            `None of the ${found} term${found === 1 ? '' : 's'} of \`${query}\`` +
+            `${located.unmatched.length === 0 ? '' : ' found'} distinguishes a subject: ` +
+            `${found === 1 ? 'it is' : 'each is'} in more than half the ${located.searched} subjects ` +
             `searched, in every field it matched` +
-            `${located.hits.some((hit) => hit.together.length > 0) ? ', and so is every pair of them said side by side' : ''}. ` +
+            `${located.hits.some((hit) => hit.together.length > 0) ? ', and so is every pair of them said side by side' : ''}` +
+            `${located.unmatched.length === 0 ? '' : `, and ${list(located.unmatched)} ${located.unmatched.length === 1 ? 'is' : 'are'} held by none`}. ` +
             `The ${count} subject(s) with ` +
-            `${asked === 1 ? 'it' : 'them'} are listed; their order is no answer${tail}`
+            `${found === 1 ? 'it' : 'them'} are listed; their order is no answer${tail}`
           : best < asked
           ? // Partial cover is the answer a large suite gives to a question it
             // cannot take. Saying *n subjects match* would be false: they match

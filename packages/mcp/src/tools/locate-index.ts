@@ -242,7 +242,7 @@ export function adjacent(value: string, words: readonly string[], skip: Readonly
     .map((piece) => camelParts(piece).map(lower).filter((part) => part !== '' && !skip.has(part)))
     .filter((parts) => parts.length > 0);
   const along = pieces.flatMap((parts) => parts.map((part, at) => ({ part, whole: at === 0 ? parts : undefined })));
-  const wanted = words.flatMap(wordsAlong).map(stem);
+  const wanted = words.flatMap(wordsAlong).filter((part) => !skip.has(part)).map(stem);
   if (wanted.length === 0) return false;
   const from = (at: number, index: number): boolean => {
     if (index === wanted.length) return true;

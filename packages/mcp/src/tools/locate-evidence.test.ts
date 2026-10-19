@@ -190,6 +190,30 @@ describe('two words side by side in one value', () => {
     expect(headline).toContain('and so is every pair of them said side by side');
   });
 
+  it('passes over a stopword inside a hyphenated word of the question, as it does in the value', () => {
+    const report = reportOf([
+      { subject: 'page/login', boundaries: 3, terms: { names: ['Sign in feature'] } },
+      { subject: 'page/apart', boundaries: 1, terms: { names: ['Sign'], text: ['feature'] } },
+      { subject: 'page/a', boundaries: 1, terms: { names: ['Add'] } },
+    ]);
+    const { hits } = locateSubjects(report, 'sign-in feature');
+    expect(hits.find((hit) => hit.subject === 'page/login')?.pairs).toBe(1);
+  });
+
+  it('abstains over the words it found when another word of the question is held nowhere', () => {
+    const report = reportOf([
+      { subject: 'a/one', boundaries: 1, terms: { text: ['red', 'green'] } },
+      { subject: 'a/two', boundaries: 1, terms: { text: ['red', 'green'] } },
+      { subject: 'a/three', boundaries: 1, terms: { text: ['red', 'green'] } },
+      { subject: 'b/other', boundaries: 1, terms: { text: ['blue'] } },
+    ]);
+    const located = locateSubjects(report, 'red green frobnicate');
+    expect(located.distinguished).toBe(false);
+    const headline = locate.run(report, { query: 'red green frobnicate' }).split('\n')[0];
+    expect(headline).toMatch(/^None of the 2 terms of `red green frobnicate` found distinguishes a subject/);
+    expect(headline).toContain('`frobnicate` is held by none');
+  });
+
   it('does not abstain when a hit below the first says two of the words side by side', () => {
     // Every word is common; the top hit has all three apart, and the second
     // says two of them as one label, which picks it out.

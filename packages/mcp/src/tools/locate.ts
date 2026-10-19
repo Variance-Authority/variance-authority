@@ -386,7 +386,7 @@ export function locateSubjects(
     indexed: index.subjects.size,
     searched: total,
     common: single.common,
-    distinguished: single.common.length < terms.length || together.common.length < together.held.size,
+    distinguished: single.common.length < single.held.size || together.common.length < together.held.size,
     idOnly: index.idOnly,
     cover: hits[0]?.terms ?? 0,
     hits,
