@@ -443,14 +443,16 @@ withTestSelection(config, { mode: 'loads' });
 
 A module is marked as it loads, before any of its file's cases opens, so the
 record keeps one entry per test file and no cases: `continuations`, `cadence`
-and stories do not apply to it. Nothing is parsed or probed, so the run pays
-for one call per module evaluated: on this repository's unit suite, 925 test
-files that take 66 s, `'presence'` adds 11 s and `'loads'` adds 7 s. The mark is one line after the
-module's own text, the same on every seam, and under the default `placement`
-it is added after your transforms, so every transform in the run reads your
-code as you wrote it. Choose
-it when a test file is the grain you select at, or when a transform in the run
-cannot take probes.
+and stories do not apply to it. The mark is one line after the module's own
+text, `globalThis.__VA__.m("<id>");`, and it imports nothing: a runner seam
+installs `__VA__` in its setup, and a bundle seam adds the import of the page's
+collector, as it does under every recipe. Nothing is parsed or probed, so the
+run pays one call per module evaluated: on this repository's unit suite, 925
+test files that take 66.8 s, `'loads'` adds 1.9 s, and the
+marks are half a second of it. Under the default `placement` the mark is
+added after your transforms, so every transform in the run reads your code as
+you wrote it. Choose it when a test file is the grain you select at, or when a
+transform in the run cannot take probes.
 
 A page reused between stories or test files evaluates a module once, so each
 drain leaves what the page already holds for the next one: every subject on the

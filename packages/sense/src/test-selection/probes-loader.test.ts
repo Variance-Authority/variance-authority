@@ -67,7 +67,7 @@ describe('the probes loader', () => {
 
     expect(error).toBeNull();
     expect(code!.startsWith(`${SOURCE}\n;`)).toBe(true);
-    expect(code).toContain('.r("cart.js@~');
+    expect(code).toContain('.m("cart.js@~');
     expect(code).not.toMatch(/__va\(\d+\)/);
   });
 
@@ -148,7 +148,7 @@ describe('the probes loader', () => {
     const { error, code } = load(resolve(root, 'flow.js'), written, { ...STRIPPED, sources: ['flow.js'] }, { root });
 
     expect(error).toBeNull();
-    expect(code).toMatch(/__vaE\(\);/);
+    expect(code).toMatch(/;globalThis\.__VA__\.m\("[^"\n]*"\);/);
     expect(code!.startsWith(`${written}\n;require("!!`)).toBe(true);
     expect(imported(code!)).toEqual([]);
   });
@@ -160,7 +160,7 @@ describe('the probes loader', () => {
     const { error, code } = load(resolve(root, 'flow.js'), written, { ...STRIPPED, sources: ['flow.js'] }, { root });
 
     expect(error).toBeNull();
-    expect(code).toMatch(/__vaE\(\);/);
+    expect(code).toMatch(/;globalThis\.__VA__\.m\("[^"\n]*"\);/);
     expect(code).not.toMatch(/\brequire\(/);
     expect(code!.startsWith(`${written}\n;import "!!`)).toBe(true);
   });

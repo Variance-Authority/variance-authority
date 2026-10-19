@@ -13,6 +13,7 @@
 
 import { rm } from 'node:fs/promises';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { textDigests } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
 import { landRun } from './commit-runs.js';
@@ -120,15 +121,12 @@ export function foldRun(
     // One row per path, not per project run of it: two projects that both match
     // a file are two announcements of one test file, and the snapshot is keyed
     // by path.
-    // FIXME: each test file reads and digests its preconditions itself, so one
-    // that every test shares is read once per test file. This repository's unit
-    // suite declares every file of the native crate, which made re-reading them
-    // about 2.5 s of a fold that needs to read each of them once.
-    const tests = await Promise.all(
-      oneRowPerFile(files, root).map((file) =>
-        coverageTest(file, root, governingPreconditions(run, file.configs), journals, joined.modules),
-      ),
-    );
+    // Every file's preconditions are read once for the run: one every test
+    // file shares is one read, not one per test file.
+    const perFile = oneRowPerFile(files, root).map((file) => ({ file, governing: governingPreconditions(run, file.configs) }));
+    const digests = textDigests(perFile.flatMap(({ file, governing }) => [file.filepath, ...governing]));
+    const tests = perFile.map(({ file, governing }) =>
+      coverageTest(file, root, governing, digests, journals, joined.modules));
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,

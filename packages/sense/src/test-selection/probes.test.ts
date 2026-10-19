@@ -53,7 +53,7 @@ describe('a build under the loads recipe', () => {
       const { code } = testSelectionProbes({ root, mode: 'loads' }).transform.handler(CLIENT, module)!;
 
       expect(code.startsWith(`${CLIENT}\n;`)).toBe(true);
-      expect(code).toContain('.r("Since.js@~');
+      expect(code).toContain('.m("Since.js@~');
       expect(code).not.toMatch(/__va\(\d+\)/);
       expect(statements(code).some((statement) => statement.type === 'ImportDeclaration' && statement.source?.value === 'variance-authority:execution-collector')).toBe(true);
     });

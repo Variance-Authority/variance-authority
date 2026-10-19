@@ -16,9 +16,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFile, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
-import { digestString } from '../digest.js';
+import type { Digest } from '../digest.js';
+import { textDigests } from '../text-digests.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
@@ -146,6 +147,11 @@ class JestCoverageReporter {
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
     process.env[ROOT_VARIABLE] = this.#config.root;
+    // A Jest started inside a recording run inherits its case scope; the
+    // workers read what this run sets, and nothing it does not.
+    delete process.env[CASE_DIRECTORY_VARIABLE];
+    delete process.env[CONTINUATIONS_VARIABLE];
+    delete process.env[STORY_DIRECTORY_VARIABLE];
     // Under `loads` a module is marked as its file loads it, before any case
     // opens: with no case directory the setup file keeps one bucket per file.
     if (!probesRegions(this.#config.mode)) return;
@@ -209,16 +215,22 @@ class JestCoverageReporter {
     const observed = crossingsOf(rows);
     const early = loadedOf(rows);
 
-    const tests = oneTestPerFile(await Promise.all(
-      results.testResults.map((result) => coverageTest(
-        result,
-        cut.has(result.testFilePath),
-        selection,
-        [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
-        journalsOf(written, projectNamed(result.displayName)),
-        modules,
-      )),
-    ));
+    const governed = results.testResults.map((result) => ({
+      result,
+      governing: [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
+    }));
+    // Every file's preconditions are read once for the run: one every test
+    // file shares is one read, not one per test file.
+    const digests = textDigests(governed.flatMap(({ result, governing }) => [result.testFilePath, ...governing]));
+    const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(
+      result,
+      cut.has(result.testFilePath),
+      selection,
+      governing,
+      digests,
+      journalsOf(written, projectNamed(result.displayName)),
+      modules,
+    )));
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,
@@ -275,21 +287,23 @@ class JestCoverageReporter {
  * failing case each leave the observation partial: what the file did not run
  * it did not enter, and a selector must not read that absence as evidence.
  */
-async function coverageTest(
+function coverageTest(
   result: JestRunResults['testResults'][number],
   /** Whether the selection skipped some of the file's cases, whose reach the run then did not record. */
   cut: boolean,
   config: SelectionReporterConfig,
   governing: readonly string[],
+  /** Every file's text digest, from `textDigests`, read once for the whole run. */
+  digests: ReadonlyMap<string, Digest>,
   journals: readonly ReadJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
-): Promise<CoverageTest> {
+): CoverageTest {
   const file = projectPath(config.root, result.testFilePath);
   const preconditions: CoveragePrecondition[] = [];
   for (const input of new Set([result.testFilePath, ...governing])) {
     preconditions.push({
       name: projectPath(config.root, input),
-      digest: digestString(await readFile(input, 'utf8')),
+      digest: digests.get(input)!,
     });
   }
   let placed = true;

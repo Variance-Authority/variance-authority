@@ -35,12 +35,19 @@ selection nothing.
 nothing and probes nothing: every module the run would probe gets the
 `unprobed` mark, and the run records one bucket per test file and no cases.**
 
-1. **The mark is the whole transform.** The seam appends
-   `\n;<header>__vaE();` after the text as it received it: no parse, no walk,
-   no map. Jest's transformer is never asked for its `senseRecipe`. The probe
+1. **The mark is the whole transform, and it is one call.** The seam appends
+   `\n;globalThis.__VA__.m("<id>");` after the text as it received it: no
+   parse, no walk, no map, no header and nothing imported. `m` is the run's
+   root: it registers the module and logs it as loaded. A runner seam — Jest,
+   Vitest, Rstest, the Node runner — installs the root in its setup, so the
+   line is all a module carries. A page has no setup, so the bundle seams —
+   `testSelectionProbes` and the webpack loader — add the import of the page's
+   collector before the mark, as they do under every recipe. A module that runs
+   where no root is installed throws on the missing global, as a probed one
+   does. Jest's transformer is never asked for its `senseRecipe`. The probe
    recipe is the `loads` id with the presence recipe's digest, which covers the
-   header and the walk's sources, so a change to the walk keys a cache afresh
-   though the mark did not move.
+   walk's sources, so a change to the walk keys a cache afresh though the mark
+   did not move.
 2. **The module is recorded with no blocks.** Its id is `path@~digest`, held
    not instrumented, so a change anywhere in the file selects every test file
    that loaded it. A text change that moves no line still selects: the reader
@@ -66,11 +73,13 @@ a switch it composes, not a policy this package decides.
 ## Consequences
 
 - On this repository's unit slice (925 test files, 10,549 tests, 16 cores,
-  two interleaved rounds that agree within half a second): the run takes 66 s
-  unprobed, 74 s under `loads` and 78 s under `presence`. CPU time rises by
-  33 s under `loads` and 54 s under `presence`, on 768 s. `loads` costs about
-  60% of what `presence` costs, and what is left is the mark's call per module
-  evaluated and the seam's transform of every module it marks.
+  two interleaved rounds that agree within 0.2 s): the run takes 66.8 s with
+  no seam, 68.2 s with the seam installed and nothing marked, and 68.7 s under
+  `loads`. The marks cost half a second; the rest is the seam's own setup and
+  the run's fold. A run's preconditions are digested once, natively and in
+  parallel, rather than once per test file that ran under them: before that,
+  the digests alone cost several seconds and grew with the number of test
+  files.
 - Under a shared realm a later test file is charged with every module an
   earlier one loaded, so a change selects more of it than an isolated run would.
 - A `loads` record selects at the file grain and cannot answer which line a

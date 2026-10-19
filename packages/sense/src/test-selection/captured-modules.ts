@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { instrumentTransformed } from '../instrument/transformed.js';
 import { recordedBlocks } from './coverage-rows.js';
 import moduleIds from './module-id.cjs';
@@ -391,10 +391,10 @@ const MARKED = '~';
  * For a module no probe may sit in: one whose functions cross into another
  * realm as text, where the first probe throws. The text is unchanged up to its
  * end, and the runtime follows it there, at module scope, which no function
- * carries with it when it crosses. It registers one region, the module's own,
- * and logs it as {@link instrument}'s header does, so every test that loaded
- * the module is in the record — which an edit to it then selects whole,
- * because nothing says what in it ran.
+ * carries with it when it crosses. It is one call, the root's `m`, nothing
+ * imported: it registers the module's own region and logs it as
+ * {@link instrument}'s header does, so every test that loaded the module is in
+ * the record — which an edit to it then selects whole, as nothing says what ran.
  *
  * Private to this module, beside {@link markedId}: the reader cuts a module
  * into regions unless its id says it was marked, so a mark placed under an id
@@ -402,7 +402,7 @@ const MARKED = '~';
  * region run.
  */
 function markLoaded(source: string, id: ModuleId): string {
-  return `${source}\n;${probeRuntime(id, 1)}__vaE();`;
+  return `${source}\n;globalThis.__VA__.m(${JSON.stringify(id)});`;
 }
 
 /**

@@ -256,7 +256,7 @@ describe('the Rstest loader', () => {
     const broken = 'export const pick = (;\n';
     const { handed, modules } = await loaded('src/pick.ts', broken);
 
-    expect(handed).toMatch(/^export const pick = \(;\n\n;[^]*__vaE\(\);$/);
+    expect(handed).toMatch(/^export const pick = \(;\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/pick.ts', instrumented: false, blocks: [] })]);
   });
 
@@ -264,7 +264,7 @@ describe('the Rstest loader', () => {
     const page = 'export const tag = () => \'#text\';\n';
     const { handed, modules } = await loaded('src/page.ts', page, { 'src/page.ts': page }, {}, { unprobed: (file) => file.endsWith('page.ts') });
 
-    expect(handed).toMatch(/^export const tag = \(\) => '#text';\n\n;[^]*__vaE\(\);$/);
+    expect(handed).toMatch(/^export const tag = \(\) => '#text';\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
     expect(handed).not.toMatch(/__va\(\d+\)/);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/page.ts', instrumented: false, blocks: [] })]);
   });
@@ -305,7 +305,7 @@ describe('the Rstest loader', () => {
     const add = 'export const add = (a, b) => a + b;\n';
     const { handed, modules } = await loaded('src/add.ts', add, { 'src/add.ts': add }, {}, { mode: 'loads' });
 
-    expect(handed).toMatch(/^export const add = \(a, b\) => a \+ b;\n\n;[^]*__vaE\(\);$/);
+    expect(handed).toMatch(/^export const add = \(a, b\) => a \+ b;\n\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
     expect(handed).not.toMatch(/__va\(\d+\)/);
     expect(modules).toEqual([expect.objectContaining({ file: 'src/add.ts', instrumented: false, blocks: [] })]);
   });

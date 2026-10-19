@@ -325,6 +325,16 @@ function createTap(engine: Engine, limit: number): Tap {
     x(): void {
       inner.x();
     },
+    // A module marked loaded is a visit to its own region, as the header's is.
+    m(id: ModuleId): void {
+      if (inner.s !== null) inner.s();
+      const { s: flags, b: base } = root.r(id, 1);
+      if ((flags[0]! & 2) === 0) {
+        flags[0] = flags[0]! | 2;
+        rooting = true;
+        root.g(base | -2147483648);
+      }
+    },
     // A test line's cut is not a visit: the tape is what the code entered.
     c(line: number): void {
       inner.c(line);

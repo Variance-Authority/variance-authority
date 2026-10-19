@@ -257,7 +257,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       const broken = 'export const = ;\n';
       const code = instrumentModule(broken, resolve(fixture, 'src/broken.mjs'));
       expect(code.startsWith(broken)).toBe(true);
-      expect(code.slice(broken.length)).toMatch(new RegExp(`${at('src/broken.mjs')}@[0-9a-f]+[\\s\\S]*__vaE\\(\\);$`));
+      expect(code.slice(broken.length)).toMatch(new RegExp(`^\\n;globalThis\\.__VA__\\.m\\("${at('src/broken.mjs')}@[0-9a-f]+"\\);$`));
     } finally {
       if (open === undefined) delete process.env[RECORDING_VARIABLE];
       else process.env[RECORDING_VARIABLE] = open;
