@@ -315,11 +315,12 @@ WebKit.
 ### Only Chromium can be told how to paint text
 
 Two of `CHROMIUM_RASTER_ARGS`, `--disable-lcd-text` and
-`--font-render-hinting=none`, make Chromium's text independent of host defaults, and there is no equivalent
-for Firefox or WebKit. Their text is painted the way the host paints text.
-WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
-substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the
-subject rather than the conditions the subject is photographed under.
+`--font-render-hinting=none`, make Chromium's text independent of host defaults,
+and there is no equivalent for Firefox or WebKit. Their text is painted the way
+the host paints text. WebKit's one lever is the page's own
+`-webkit-font-smoothing`, which is not a substitute: it changes 4,204 pixels of
+a 500x160 subject, so it changes the subject rather than the conditions the
+subject is photographed under.
 
 On macOS none of this bites. The system has had no subpixel antialiasing since
 10.14, all four candidate flags are no-ops, and every engine paints greyscale
@@ -466,9 +467,9 @@ const raster = await renderer.render(document);
 ```
 
 Chromium launches with `--disable-lcd-text`, `--font-render-hinting=none` and
-`--disable-partial-raster` by default. An explicit ordered `launchArgs` list replaces that default. Headless
-mode and the ordered launch recipe are hashed into
-`RenderIdentity.rasterization`, so changing font rasterization settings
+`--disable-partial-raster` by default. An explicit ordered `launchArgs` list
+replaces that default. Headless mode and the ordered launch recipe are hashed
+into `RenderIdentity.rasterization`, so changing font rasterization settings
 is named as the cause instead of appearing as a product diff.
 
 A resource-closed document is rendered without network access: archived resource

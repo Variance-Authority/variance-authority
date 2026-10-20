@@ -514,10 +514,11 @@ change.
 | A raster you already have | all acquisition and rendering work | less semantic evidence, unless you supply it yourself | another trusted capture system already owns the pixels and the identity |
 
 Every baseline records the renderer identity that painted it: engine, platform,
-scale, fonts, stabilization, and rasterization recipe. Chromium rendering defaults to
-`--disable-lcd-text`, `--font-render-hinting=none` and `--disable-partial-raster`; changing the ordered
-launch recipe changes identity, so a font rasterization difference comes back as
-a change caused by the recipe rather than as a component regression. The cause
+scale, fonts, stabilization, and rasterization recipe. Chromium rendering
+defaults to `--disable-lcd-text`, `--font-render-hinting=none` and
+`--disable-partial-raster`; changing the ordered launch recipe changes
+identity, so a font rasterization difference comes back as a change caused by
+the recipe rather than as a component regression. The cause
 names the recipe as what moved, and `accept` adopts the new image. Choose between a
 committed directory, Git LFS and a remote store in
 [where baselines live](placement.md), which also covers what each costs.

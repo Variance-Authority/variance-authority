@@ -180,9 +180,9 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — what the page painted bef
   it('paints the same content to the same bytes after an edit and its revert', async () => {
     // A harness mounts subject after subject on one page. With partial raster,
     // a remount repaints only the damaged part of each tile, and the repainted
-    // pixels came out one colour level off a whole-tile paint: the todomvc
-    // baseline shot taken after its mutation differed from the same baseline
-    // taken first, so a recording ran different comparison code each time.
+    // pixels come out one colour level off a whole-tile paint, so the same
+    // content painted after an edit differs from the same content painted
+    // first.
     const harness = await createHarness(OPTIONS);
     const page = harness.page;
 
