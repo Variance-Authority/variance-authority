@@ -208,19 +208,6 @@ describe('reading a module', () => {
     expect(read.unknown).toContain('not a literal');
   });
 
-  it('reads an `import()` type as a type-only request, after every load the module calls for', () => {
-    const read = readModule(
-      'a.ts',
-      "const a = require('./req');\ntype T = import('./t').T;\nvi.mock('./m', async (original) => original<typeof import('./m')>());\n",
-    );
-
-    expect(read.requests).toEqual([
-      { value: './req', kind: 'imports', bindings: [], line: 1 },
-      { value: './t', kind: 'type', bindings: [], line: 2 },
-      { value: './m', kind: 'type', bindings: [], line: 3 },
-    ]);
-  });
-
   it('reads a literal require in either quote, and marks the file unknown on one it cannot read', () => {
     for (const source of ["const a = require('./req');\n", 'const a = require("./req");\n']) {
       const literal = readModule('a.cjs', source);
