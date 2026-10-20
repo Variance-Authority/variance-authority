@@ -38,7 +38,7 @@ runs:
         if ! command -v cc >/dev/null || ! command -v curl >/dev/null; then
           apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates
         fi
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
         echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
     - name: use the producer's compiler
@@ -68,6 +68,7 @@ runs:
         libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
         compiler=$(rustc -vV | sha256sum | cut -d ' ' -f 1)
         echo "toolchain=$(rustc --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+        rustup default "$(rustup show active-toolchain | cut -d ' ' -f 1)"
         echo "libc=${libc:-none}" >> "$GITHUB_OUTPUT"
         echo "key=sense-native-v2-$PLATFORM-libc-${libc:-none}-$compiler-$inputs" >> "$GITHUB_OUTPUT"
 

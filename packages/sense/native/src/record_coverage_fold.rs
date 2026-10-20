@@ -42,7 +42,6 @@ use crate::record_coverage::{Coverage, Phases, Text};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Dictionary, Spelled};
 use crate::record_coverage_recut::{carried, Disputed, Recut};
-use crate::record_layout::LAYOUT;
 
 pub(crate) struct Folded {
     /// The coverage sections, in the order a record holds them.
