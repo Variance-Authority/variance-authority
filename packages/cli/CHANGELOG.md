@@ -1,5 +1,27 @@
 # @variance-authority/cli
 
+## 0.17.0
+
+### Patch Changes
+
+- a55d6bc: A comment, type or formatting edit no longer drops the tests recorded for the file
+
+  After an edit to a file that changes nothing that runs, such as a comment, a type or formatting, the record dropped every test that loaded the file, and `variance review` reported its regions as no longer run. Those tests are now kept. After an edit that changes only function bodies, the tests that loaded the file are kept at its top level, and the tests of the changed bodies are dropped as before.
+
+  When a run of some tests updates the record, the tests that did not run keep their cases on the regions they ran:
+
+  - Two callbacks with the same name, such as two `useEffect` callbacks, no longer swap cases when the two versions of the file have a different number of them. A callback that cannot be told apart takes the cases of the function around it.
+  - Deleting a branch no longer drops the cases of the file's top level, even when it renumbers the branches after it.
+  - When a run cut a file without a region the record held, a test that ran that region is owed a run, unless it also ran the region around it, which keeps its cases.
+
+  When shards of one run cut a file two ways and are combined onto the build's cut, a region the build's cut cannot place in a shard's row, such as a callback that cannot be told apart from a same-named one or a branch numbered another way, takes none of that shard's cases, nor does any region inside it, and the shard's tests that ran it or the region around it are owed a run. A region the shard's writer did not cut takes that shard's cases from the region around it.
+
+  `variance coverage` and `variance covering` no longer report a test file as no longer running a region when the test did not run since that region's file changed. They count such a region as unmeasured. A runs record beside the record that is there and cannot be read is refused, naming it, rather than read as if every test had run.
+- 13edc9a: `variance coverage` and `variance review` name where a test file stopped or started running
+
+  Each test file named under a suite's coverage line now says which functions its moved regions sit in, file by file, with the total region count in brackets, such as `no longer runs the top level, withFilter in src/jest.ts (2 regions) at the base`, the function list `variance covering` prints for the same motion. Past four functions it counts them instead. For each direction, a line counts the test files left unnamed and points to `--format json`, which lists every one. `variance covering` and the review's list of regions no test reaches call a module's own region "the top level", as the handover already did.
+- 1f574c1: The selection skill and the docs now say which `precision` each recording `mode` can answer and what each mode adds to a run: `'loads'` answers `file-use`, `'entries'` answers `function-use`, and `'presence'` answers `region-use`. They also list `cadence`, `continuations`, `placement` and `unprobed` alongside them. Before this, the skill said recording was the same at every step.
+
 ## 0.16.0
 
 ### Minor Changes
