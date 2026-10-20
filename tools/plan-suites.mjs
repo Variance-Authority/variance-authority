@@ -35,7 +35,7 @@ for (const [suite, config, unrecorded] of [
     const selected = answer(['--since', since, '--at-distance', '0-2']);
     // The rules leg keeps the queue gate running even when no test is selected.
     legs.push(...(selected.shards === 1 ? [{ part: suite }] : selected.matrix.map((shard) => ({ part: suite, shard }))));
-    summary.push(`| ${suite} | ${selected.files ?? 'unknown'} / ${total} | near | ${Math.max(1, selected.shards)} | ${selected.wall === undefined ? 'unrecorded' : `${Math.round(selected.wall / 1000)} s`} |`);
+    summary.push(`| ${suite} | ${selected.files ?? 'unknown'} / ${total} | near | ${selected.shards} | ${selected.wall === undefined ? 'unrecorded' : `${Math.round(selected.wall / 1000)} s`} |`);
   } else {
     const full = answer([]);
     const selected = pull ? answer(['--since', since, '--max', '1']) : undefined;
