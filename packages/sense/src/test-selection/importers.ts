@@ -234,9 +234,9 @@ export function answerByImporters(
   rowed: ReadonlySet<string>,
   options: ExecutionNarrowingOptions,
   disowned: Disowned | undefined,
-  also: ReadonlySet<string> = new Set(),
-  wholes: readonly string[] = [],
-  arrived: ReadonlyMap<string, string> = new Map(),
+  also: ReadonlySet<string>,
+  wholes: readonly string[],
+  arrived: ReadonlyMap<string, string>,
 ): ImporterAnswer {
   const { relations } = options;
   if (relations === undefined || changed.length + wholes.length === 0 || options.unmeasured === 'nothing') {

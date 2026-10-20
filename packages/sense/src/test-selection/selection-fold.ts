@@ -13,7 +13,7 @@
 
 import { rm } from 'node:fs/promises';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { textDigests } from '../text-digests.js';
+import { movedSince, textDigests } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
 import { landRun } from './commit-runs.js';
@@ -125,8 +125,17 @@ export function foldRun(
     // file shares is one read, not one per test file.
     const perFile = oneRowPerFile(files, root).map((file) => ({ file, governing: governingPreconditions(run, file.configs) }));
     const digests = textDigests(perFile.flatMap(({ file, governing }) => [file.filepath, ...governing]));
-    const tests = perFile.map(({ file, governing }) =>
-      coverageTest(file, root, governing, digests, journals, joined.modules));
+    // A file whose test file or precondition was written while it ran is
+    // digested at a text it may not have run, and is recorded incomplete.
+    const moved = movedSince(digests.keys(), run.startedAt);
+    const tests = perFile.map(({ file, governing }) => coverageTest(
+      [file.filepath, ...governing].some((path) => moved.has(path)) ? { ...file, complete: false } : file,
+      root,
+      governing,
+      digests,
+      journals,
+      joined.modules,
+    ));
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,

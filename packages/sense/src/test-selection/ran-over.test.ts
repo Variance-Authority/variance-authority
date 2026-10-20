@@ -153,12 +153,14 @@ describe('a green run over a text skips it', () => {
     });
   });
 
-  it('selects the test when its file moved again after the run', async () => {
+  it('selects the test, and reads its file, when the file moved again after the run', async () => {
     await checkout(async (at) => {
       const coverageFile = await recordOver(at, COMMITTED_SOURCE, EDITED_TEST);
       await writeFile(resolve(at.root, TEST), EDITED_TEST.replace('two(0)', 'two(2)'), 'utf8');
+      const { entered, readings } = await select(at, coverageFile);
 
-      expect((await select(at, coverageFile)).entered).toEqual([TEST]);
+      expect(entered).toEqual([TEST]);
+      expect(readings.map((reading) => [reading.file, reading.verdict])).toEqual([[TEST, 'bodies']]);
     });
   });
 

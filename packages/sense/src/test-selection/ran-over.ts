@@ -1,8 +1,10 @@
+// compass: variance-authority.reach
+
 import { digestString } from '../digest.js';
 import type { TestCoverageView } from './format-view.js';
-import type { GovernedTests } from './importers.js';
 import { findString } from './lookup.js';
 import { applied, type Hunk } from './patch.js';
+import type { FileReading } from './reading.js';
 
 /**
  * The digest of the text each changed file no row holds arrives at, by every
@@ -48,7 +50,12 @@ export function declarable(coverage: TestCoverageView, names: readonly string[])
  * Whether every test declaring a file under any of its names ran the text it
  * arrives at: some name was held, and each held name only by such tests.
  */
-export function ranOverAll(names: readonly string[], governed: GovernedTests): boolean {
-  const held = names.filter((name) => !governed.unread.includes(name));
-  return held.length > 0 && held.every((name) => governed.ranOver.has(name));
+export function ranOverAll(names: readonly string[], unread: ReadonlySet<string>, ranOver: ReadonlySet<string>): boolean {
+  const held = names.filter((name) => !unread.has(name));
+  return held.length > 0 && held.every((name) => ranOver.has(name));
+}
+
+/** The reading of a file whose text the record was taken over. */
+export function ranOverReading(file: string): FileReading {
+  return { file, verdict: 'none', names: [], kept: true };
 }

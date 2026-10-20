@@ -5,7 +5,7 @@ import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason 
 import { instrumentedRows, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
-import { arrivedDigests, declarable, ranOverAll } from './ran-over.js';
+import { arrivedDigests, declarable, ranOverAll, ranOverReading } from './ran-over.js';
 import { frameOf } from './frame.js';
 import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
@@ -299,8 +299,6 @@ function readDiff(
 
   const rowless = [...changed].filter(([file, lines]) => lines.length > 0 && rowsByFile.get(file)!.size === 0);
   const arrived = arrivedDigests(coverage, rowless.map(([file]) => file), hunks, knownAs, options.sourceAt);
-  // Read as ran over until the precondition scan says some test ran another text.
-  const ranOver = new Map<string, FileReading>();
   // A row cut from a kept text whose file the diff does not name ran an edit
   // that is gone: the tree is back at the commit's text, which is a change the
   // tests that ran the edit have not run. The diff from the commit cannot say
@@ -323,10 +321,6 @@ function readDiff(
   }
 
   for (const [file, lines] of [...changed, ...[...undone].map((file) => [file, []] as const)]) {
-    if (knownAs(file).some((name) => arrived.has(name))) {
-      readings.push(ranOver.set(file, { file, verdict: 'none', names: [], kept: true }).get(file)!);
-      continue;
-    }
     let ranges = lines;
     const rowsOf = rowsByFile.get(file)!;
     if (rowsOf.size === 0) {
@@ -434,7 +428,9 @@ function readDiff(
     [...wholes.keys()].sort(codeUnitOrder),
     arrived,
   );
-  const moved = new Set([...ranOver.keys()].filter((file) => !ranOverAll(knownAs(file), answered.governed)));
+  // A file every test declaring it ran the arrived text of reads so, whatever its reader made of the diff.
+  const unread = new Set(answered.governed.unread);
+  const ranOver = new Set(rowless.map(([file]) => file).filter((file) => ranOverAll(knownAs(file), unread, answered.governed.ranOver)));
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
   // says that no region of any row can say.
@@ -482,7 +478,7 @@ function readDiff(
     ...(declining ? { declined: unmeasured } : {}),
     stale: [...stale].sort(codeUnitOrder),
     because,
-    readings: readings.filter((reading) => !moved.has(reading.file) || ranOver.get(reading.file) !== reading).map((reading) =>
+    readings: [...readings.filter((reading) => !ranOver.has(reading.file)), ...[...ranOver].map(ranOverReading)].map((reading) =>
       'unseen' in reading && reading.unseen !== undefined
         ? { ...reading, unseen: reading.unseen.filter((test) => !through.has(`${reading.file}\0${test}`)) }
         : reading,

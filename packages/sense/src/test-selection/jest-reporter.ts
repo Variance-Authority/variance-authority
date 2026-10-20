@@ -19,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import type { Digest } from '../digest.js';
-import { textDigests } from '../text-digests.js';
+import { movedSince, textDigests } from '../text-digests.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
@@ -131,6 +131,9 @@ class JestCoverageReporter {
   /** Whether this run is one shard of a run that selects nothing — see `recordsAlone`. */
   readonly #alone: boolean;
 
+  /** When `onRunStart` began this run: see `movedSince`. */
+  #startedAt = 0;
+
   constructor(globalConfig: { readonly shard?: unknown } | undefined, config: JestReporterConfig) {
     this.#config = config;
     this.#alone = recordsAlone(globalConfig?.shard != null, 'selected' in config && config.selected === true);
@@ -143,6 +146,7 @@ class JestCoverageReporter {
   }
 
   onRunStart(): void {
+    this.#startedAt = Date.now();
     const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
@@ -222,9 +226,12 @@ class JestCoverageReporter {
     // Every file's preconditions are read once for the run: one every test
     // file shares is one read, not one per test file.
     const digests = textDigests(governed.flatMap(({ result, governing }) => [result.testFilePath, ...governing]));
+    // A file whose test file or precondition was written while it ran is
+    // digested at a text it may not have run, and is recorded incomplete.
+    const moved = movedSince(digests.keys(), this.#startedAt);
     const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(
       result,
-      cut.has(result.testFilePath),
+      cut.has(result.testFilePath) || [result.testFilePath, ...governing].some((path) => moved.has(path)),
       selection,
       governing,
       digests,
@@ -289,8 +296,12 @@ class JestCoverageReporter {
  */
 function coverageTest(
   result: JestRunResults['testResults'][number],
-  /** Whether the selection skipped some of the file's cases, whose reach the run then did not record. */
-  cut: boolean,
+  /**
+   * Whether the record of the file is partial: the selection skipped some of
+   * its cases, whose reach the run then did not record, or a text it rests on
+   * was written while it ran.
+   */
+  partial: boolean,
   config: SelectionReporterConfig,
   governing: readonly string[],
   /** Every file's text digest, from `textDigests`, read once for the whole run. */
@@ -338,7 +349,7 @@ function coverageTest(
   // already select it. A failure or an error is a different thing and still
   // spoils the file — it recorded only as far as it got.
   const complete =
-    !cut &&
+    !partial &&
     placed &&
     recorded &&
     result.testExecError === undefined &&

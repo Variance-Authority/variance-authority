@@ -37,6 +37,8 @@ export interface SelectionRun {
    * See `case-cut.ts`.
    */
   readonly cutFile: string;
+  /** When the run, or the rerun a watching runner reopened it for, began: see `movedSince`. */
+  startedAt: number;
   /** The cases the selection skips in the files this run kept: each such file is recorded incomplete. */
   readonly cut: Map<string, readonly string[]>;
   readonly modules: Map<ModuleId, CapturedModule>;
@@ -138,6 +140,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     caseDirectory: `${runDirectory}-cases`,
     finishedDirectory: `${runDirectory}-files`,
     cutFile: `${runDirectory}-cut.json`,
+    startedAt: Date.now(),
     cut: new Map<string, readonly string[]>(),
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
@@ -167,6 +170,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
  */
 export function reopenRun(run: SelectionRun): void {
   run.settled = false;
+  run.startedAt = Date.now();
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */
