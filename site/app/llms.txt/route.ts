@@ -11,7 +11,7 @@ export const revalidate = 3600;
 /**
  * The site's index for readers that take Markdown rather than pages.
  *
- * Every README in the repository points here, so it opens with what an agent
+ * Every shipped README points here, so it opens with what an agent
  * needs before it can use anything: the install, the skills the CLI ships and
  * how to link them, the integrations, the source, and the example repositories.
  * Then it carries the complete publication order, pointing at the Markdown

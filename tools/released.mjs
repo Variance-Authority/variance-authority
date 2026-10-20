@@ -42,7 +42,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Every package a release publishes, the version its manifest carries, and the
  * directory it is published from, relative to the root.
  *
- * Two directories, because the three `sense-<platform>` packages live under
+ * Two directories, because the four `sense-<platform>` packages live under
  * `packages/sense/npm/` rather than beside their siblings — they are build
  * output with a manifest, and `sense` names them as optional dependencies. They
  * are published by the same `changeset publish` as everything else and were
