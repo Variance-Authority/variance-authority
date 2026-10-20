@@ -144,3 +144,28 @@ describe('a test file edited while Rstest built its bundle', () => {
     expect(await completeness(coverageFile)).toEqual([['test/a.case.js', false]]);
   });
 });
+
+describe('a setup file written before the run announced itself', () => {
+  // A runner loads its configuration, and what that imports, once per process
+  // and before its first run starts, so a declared file is judged from the
+  // process's start, not the run's.
+  it('records every test declaring it incomplete', async () => {
+    const { root, coverageFile, testFile, journal } = await project();
+    const setup = resolve(root, 'test/setup.js');
+    await writeFile(setup, '// setup\n');
+    const loaded = (performance.timeOrigin + 1) / 1000;
+    await utimes(setup, loaded, loaded);
+    const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [setup] });
+    reporter.onRunStart();
+    const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
+    await mkdir(runDirectory, { recursive: true });
+    await writeFile(resolve(runDirectory, 'a.va'), journal);
+
+    await reporter.onRunComplete(
+      new Set([{ config: { cacheDirectory: resolve(root, 'cache'), id: 'project' } }]),
+      { testResults: [{ testFilePath: testFile, skipped: false, testResults: [{ status: 'passed' }] }] },
+    );
+
+    expect(await completeness(coverageFile)).toEqual([['test/a.case.js', false]]);
+  });
+});

@@ -101,11 +101,11 @@ export interface SelectionRun {
    */
   settled: boolean;
   /**
-   * Whether a name filter chose the tests this run ran, as the runner said once
-   * its command line was merged in. Every test the filter left out reads as
-   * skipped, so no skip in the run is the file's own.
+   * The name filter each project runs under, read when a cycle ends: a watch
+   * session sets and clears it between cycles. Every test a filter left out
+   * reads as skipped, so under one no skip in the run is the file's own.
    */
-  nameFiltered: boolean;
+  readonly nameFilters: Set<() => unknown>;
   /**
    * Whether the runner runs again in this process. The shims stay on disk
    * until it closes, because every rerun's workers load them.
@@ -162,7 +162,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     awaiting: new Set<string>(),
     cases: probesRegions(mode),
     settled: false,
-    nameFiltered: false,
+    nameFilters: new Set(),
     watching: false,
     alone: false,
   };

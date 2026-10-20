@@ -239,7 +239,11 @@ class JestCoverageReporter {
     const digests = textDigests(governed.flatMap(({ result, governing }) => [result.testFilePath, ...governing]));
     // A file whose test file or precondition was written while it ran is
     // digested at a text it may not have run, and is recorded incomplete.
-    const moved = movedSince(digests.keys(), this.#startedAt);
+    const moved = movedSince(
+      governed.map(({ result }) => result.testFilePath),
+      this.#startedAt,
+      governed.flatMap(({ governing }) => governing),
+    );
     const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(
       result,
       cut.has(result.testFilePath)

@@ -270,9 +270,10 @@ export function withTestSelection(
     onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
     onTestRunEnd: (payload: RstestRunEnd) => {
       ended = Date.now();
+      const named = [...run.nameFilters].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
       return unprobedAtEnd(run) ?? settle(cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
-        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), run.nameFiltered),
+        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
           cases: file.results.map((test) => finishedCase(
@@ -388,10 +389,10 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
   return {
     name: 'variance-authority:test-selection',
     setup(api: RsbuildPluginApi): void {
-      const rstest = api.useExposed('rstest')?.getRstestConfig();
-      // `-t` is merged in here too, and every project a run builds shares it.
-      if (rstest?.testNamePattern !== undefined && rstest.testNamePattern !== '') run.nameFiltered = true;
-      if (rstest?.browser?.enabled !== true) return;
+      const exposed = api.useExposed('rstest');
+      // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
+      if (exposed !== undefined) run.nameFilters.add(() => exposed.getRstestConfig().testNamePattern);
+      if (exposed?.getRstestConfig().browser?.enabled !== true) return;
       writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
       // TODO: record cases in a page — a drain per test, carried on each
       // test's `meta` as the file's is.

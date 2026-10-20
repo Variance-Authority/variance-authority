@@ -20,8 +20,13 @@ export function textDigests(paths: Iterable<string>): ReadonlyMap<string, Digest
 }
 
 /**
- * The paths whose text was written after a run began, at `startedAt` from
- * `Date.now()`, or that are gone.
+ * The test files written after a run began, at `startedAt` from `Date.now()`,
+ * and the declared files written since the process started, or gone.
+ *
+ * A runner reads a test file in the run that runs it, but a file it loads once
+ * — its configuration, what that imports — it reads before any run announces
+ * itself and keeps for every run after, so only the process's start bounds it.
+ * A precondition does not say which kind it is, so every one is judged so.
  *
  * {@link textDigests} reads a run's preconditions when the run ends, and a test
  * reads them while it runs. A file written in between is digested at a text
@@ -33,13 +38,22 @@ export function textDigests(paths: Iterable<string>): ReadonlyMap<string, Digest
 // FIXME: a write time is as fine as the file system keeps it. On one that
 // keeps whole seconds (HFS+, FAT, some network mounts), or whose clock runs
 // behind the process's, a write early in the run is stamped at or before
-// `startedAt` and reads as ran over. Digesting each text as its test starts
+// `startedAt` and reads as ran over. So does a copy that keeps the source's
+// write time (`cp -p`, `rsync -t`, an unpacked archive). Digesting each text as its test starts
 // and comparing it here would not depend on the clock.
-export function movedSince(paths: Iterable<string>, startedAt: number): ReadonlySet<string> {
+export function movedSince(
+  tests: Iterable<string>,
+  startedAt: number,
+  declared: Iterable<string>,
+): ReadonlySet<string> {
   const moved = new Set<string>();
-  for (const path of new Set(paths)) {
-    const written = statSync(path, { throwIfNoEntry: false })?.mtimeMs;
-    if (written === undefined || Math.floor(written) > startedAt) moved.add(path);
-  }
+  const since = (paths: Iterable<string>, start: number): void => {
+    for (const path of new Set(paths)) {
+      const written = statSync(path, { throwIfNoEntry: false })?.mtimeMs;
+      if (written === undefined || Math.floor(written) > start) moved.add(path);
+    }
+  };
+  since(tests, startedAt);
+  since(declared, Math.floor(performance.timeOrigin));
   return moved;
 }

@@ -127,7 +127,7 @@ export function foldRun(
     const digests = textDigests(perFile.flatMap(({ file, governing }) => [file.filepath, ...governing]));
     // A file whose test file or precondition was written while it ran is
     // digested at a text it may not have run, and is recorded incomplete.
-    const moved = movedSince(digests.keys(), run.startedAt);
+    const moved = movedSince(perFile.map(({ file }) => file.filepath), run.startedAt, perFile.flatMap(({ governing }) => governing));
     const tests = perFile.map(({ file, governing }) => coverageTest(
       [file.filepath, ...governing].some((path) => moved.has(path)) ? { ...file, complete: false } : file,
       root,

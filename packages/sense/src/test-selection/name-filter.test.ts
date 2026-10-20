@@ -78,13 +78,17 @@ describe('a Jest run with a name filter', () => {
   });
 });
 
-describe('an Rstest run with a name filter', () => {
+describe.each([
+  ['`-t`, merged into the configuration before the plugin is set up', 'adds', undefined],
+  ["watch mode's `t`, set on the configuration between cycles", undefined, 'adds'],
+])('an Rstest run with a name filter from %s', (_from, atSetup, atCycle) => {
   it('records a file with a skipped case incomplete, and a file that ran every case whole', async () => {
     const { root, coverageFile, journals } = await project();
     const config = withTestSelection({ root }, { coverageFile });
-    // Rstest hands its plugins the configuration with `-t` merged in.
+    const rstest: { testNamePattern?: string } = { testNamePattern: atSetup };
     const plugin = (config.plugins as ReadonlyArray<{ setup(api: object): void }>).at(-1)!;
-    plugin.setup({ useExposed: () => ({ getRstestConfig: () => ({ testNamePattern: 'adds' }) }) });
+    plugin.setup({ useExposed: () => ({ getRstestConfig: () => ({ ...rstest }) }) });
+    if (atCycle !== undefined) rstest.testNamePattern = atCycle;
     const reporter = (config.reporters as ReadonlyArray<{
       onTestRunStart(): unknown;
       onTestRunEnd(payload: object): Promise<unknown> | unknown;
