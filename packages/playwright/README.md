@@ -314,8 +314,8 @@ WebKit.
 
 ### Only Chromium can be told how to paint text
 
-`CHROMIUM_RASTER_ARGS` — `--disable-lcd-text`, `--font-render-hinting=none` —
-makes Chromium's text independent of host defaults, and there is no equivalent
+Two of `CHROMIUM_RASTER_ARGS`, `--disable-lcd-text` and
+`--font-render-hinting=none`, make Chromium's text independent of host defaults, and there is no equivalent
 for Firefox or WebKit. Their text is painted the way the host paints text.
 WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
 substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the
@@ -465,8 +465,8 @@ const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);
 ```
 
-Chromium launches with `--disable-lcd-text` and `--font-render-hinting=none` by
-default. An explicit ordered `launchArgs` list replaces that default. Headless
+Chromium launches with `--disable-lcd-text`, `--font-render-hinting=none` and
+`--disable-partial-raster` by default. An explicit ordered `launchArgs` list replaces that default. Headless
 mode and the ordered launch recipe are hashed into
 `RenderIdentity.rasterization`, so changing font rasterization settings
 is named as the cause instead of appearing as a product diff.

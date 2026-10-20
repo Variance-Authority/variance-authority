@@ -515,7 +515,7 @@ change.
 
 Every baseline records the renderer identity that painted it: engine, platform,
 scale, fonts, stabilization, and rasterization recipe. Chromium rendering defaults to
-`--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered
+`--disable-lcd-text`, `--font-render-hinting=none` and `--disable-partial-raster`; changing the ordered
 launch recipe changes identity, so a font rasterization difference comes back as
 a change caused by the recipe rather than as a component regression. The cause
 names the recipe as what moved, and `accept` adopts the new image. Choose between a

@@ -84,18 +84,28 @@ import {
 export type { BrowserEngine };
 
 /**
- * Chromium settings that make text rasterization independent of host defaults.
+ * Chromium settings that make rasterization independent of host defaults and of
+ * what the page painted before.
  *
- * **No other engine accepts them**, so Firefox and WebKit paint text the way the
- * host does; WebKit's one lever is the page's `-webkit-font-smoothing`, which
- * changes the subject rather than the conditions it is shot under. Dormant on
- * macOS — no subpixel antialiasing since 10.14, every flag a no-op — and
- * load-bearing wherever fontconfig is live: 6,662 chromatic pixels in the standard
- * image, zero with the flags. A raster belongs to a host. See the README.
+ * The two text flags: **no other engine accepts them**, so Firefox and WebKit
+ * paint text the way the host does; WebKit's one lever is the page's
+ * `-webkit-font-smoothing`, which changes the subject rather than the conditions
+ * it is shot under. Dormant on macOS — no subpixel antialiasing since 10.14,
+ * every flag a no-op — and load-bearing wherever fontconfig is live: 6,662
+ * chromatic pixels in the standard image, zero with the flags. A raster belongs
+ * to a host. See the README.
+ *
+ * `--disable-partial-raster`: with partial raster, an edit repaints only the
+ * damaged part of a tile and keeps the rest, and the repainted pixels come out a
+ * colour level off a whole-tile paint. A page that mounts subject after subject
+ * then shoots one subject two ways, by whether something else was painted over
+ * it first. Without it every tile is painted whole; a mount and shoot cost the
+ * same either way.
  */
 export const CHROMIUM_RASTER_ARGS = [
   '--disable-lcd-text',
   '--font-render-hinting=none',
+  '--disable-partial-raster',
 ] as const;
 
 /** Each page opens in {@link PageRegion}'s timezone and language: `UTC` and `en-US` by default. */
