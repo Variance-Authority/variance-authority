@@ -21,7 +21,7 @@ import { decodeExecutionIndex } from '../execution-format.js';
 import { hunksByFile } from '../placed.js';
 import type { ExecutionIndex } from '../reverse.js';
 import { standsAt } from '../stands.js';
-import { BIN, ELSEWHERE_TEST, namer, type Walk } from './carry-contract.js';
+import { BIN, cliEnv, ELSEWHERE_TEST, namer, type Walk } from './carry-contract.js';
 
 const run = promisify(execFile);
 
@@ -80,7 +80,7 @@ export async function comparedInProcess(walk: Walk, base: Kept): Promise<Compare
 export async function comparedByCli(walk: Walk, base: Kept): Promise<Compared> {
   const { stdout } = await run(process.execPath, [BIN, 'coverage', '--root', walk.root, '--against', base.file, '--format', 'json'], {
     cwd: walk.root,
-    env: { ...process.env, VARIANCE_AUTHORITY_CACHE: walk.cacheRoot },
+    env: cliEnv(walk),
     maxBuffer: 64 * 1024 * 1024,
   });
   const [suite] = (JSON.parse(stdout) as { readonly suites: readonly { readonly base?: { readonly change: SuiteChange } }[] }).suites;

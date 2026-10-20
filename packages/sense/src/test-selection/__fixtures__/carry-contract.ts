@@ -400,15 +400,27 @@ export async function selected(walk: Walk, next: string): Promise<readonly strin
   return narrowing.entered.filter((test) => test !== ELSEWHERE_TEST);
 }
 
-/** {@link selected}, asked of the CLI in a process of its own that opens the record cold. */
+/**
+ * The environment a CLI process of the walk's runs in: the walk's own cache,
+ * whatever cache the test runner handed its workers, so the child reads the
+ * record and the source index the walk wrote, the same on every machine.
+ */
+export function cliEnv(walk: Walk): NodeJS.ProcessEnv {
+  return { ...process.env, VARIANCE_AUTHORITY_CACHE: walk.cacheRoot };
+}
+
+/**
+ * {@link selected}, asked of the CLI in a process of its own that opens the
+ * record cold, after `variance index` has indexed HEAD into the walk's cache,
+ * as a pipeline indexes before it selects.
+ */
 export async function selectedByCli(walk: Walk, next: string): Promise<readonly string[]> {
   const diff = await patchTo(walk, next);
   const patch = resolve(walk.scratch, `change-${walk.actions.length}.patch`);
   await writeFile(patch, diff, 'utf8');
-  const { stdout } = await run(process.execPath, [BIN, 'select', '--execution', walk.coverageFile, '--diff', patch, '--format', 'json'], {
-    cwd: walk.root,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  const options = { cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024 };
+  await run(process.execPath, [BIN, 'index', '--wait'], options);
+  const { stdout } = await run(process.execPath, [BIN, 'select', '--execution', walk.coverageFile, '--diff', patch, '--format', 'json'], options);
   walk.actions.push({ action: 'select through the CLI', next, stdout });
   return testsOf(JSON.parse(stdout) as unknown);
 }
