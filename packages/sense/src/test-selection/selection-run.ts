@@ -101,6 +101,12 @@ export interface SelectionRun {
    */
   settled: boolean;
   /**
+   * Whether a name filter chose the tests this run ran, as the runner said once
+   * its command line was merged in. Every test the filter left out reads as
+   * skipped, so no skip in the run is the file's own.
+   */
+  nameFiltered: boolean;
+  /**
    * Whether the runner runs again in this process. The shims stay on disk
    * until it closes, because every rerun's workers load them.
    */
@@ -156,21 +162,23 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     awaiting: new Set<string>(),
     cases: probesRegions(mode),
     settled: false,
+    nameFiltered: false,
     watching: false,
     alone: false,
   };
 }
 
 /**
- * Open the run for the next end the runner announces: the start of a rerun.
+ * Open the run for the next end the runner announces: the start of a rerun,
+ * at `startedAt`, no later than the runner's first read of a file this cycle.
  *
  * The directories are the ones the workers were handed when the shims were
  * written. The last fold removed them, and each worker recreates the one it
  * writes to, so a rerun's journals are its own.
  */
-export function reopenRun(run: SelectionRun): void {
+export function reopenRun(run: SelectionRun, startedAt: number): void {
   run.settled = false;
-  run.startedAt = Date.now();
+  run.startedAt = startedAt;
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */

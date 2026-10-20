@@ -7,8 +7,11 @@ import { decodeTestCoverage } from './index.js';
 import SelectionReporter from './jest-reporter.js';
 import { RUN_DIRECTORY_VARIABLE } from './jest.js';
 import journalFormat from './journal-format.cjs';
+import probeAfter from './rstest-after-loader.js';
+import instrumentModule from './rstest-loader.js';
+import { withTestSelection } from './rstest.js';
 import { foldRun } from './selection-fold.js';
-import { newRun } from './selection-run.js';
+import { newRun, runOf } from './selection-run.js';
 
 const { encodeJournal } = journalFormat;
 
@@ -104,6 +107,39 @@ describe('a setup file edited while the run was running', () => {
       new Set([{ config: { cacheDirectory: resolve(root, 'cache'), id: 'project' } }]),
       { testResults: [{ testFilePath: testFile, skipped: false, testResults: [{ status: 'passed' }] }] },
     );
+
+    expect(await completeness(coverageFile)).toEqual([['test/a.case.js', false]]);
+  });
+});
+
+describe('a test file edited while Rstest built its bundle', () => {
+  // Rstest compiles the cycle, reading every test file, before it announces
+  // the start, so the start it announces is too late to judge a write by.
+  it('is recorded incomplete, judged from when the run was made', async () => {
+    const { root, coverageFile, testFile, journal } = await project();
+    const config = withTestSelection({ root }, { coverageFile });
+    const run = runOf(coverageFile)!;
+    // The run was made a minute ago, and the file written while the bundle built.
+    run.startedAt -= 60_000;
+    const during = Date.now() / 1000 - 30;
+    await utimes(testFile, during, during);
+    const resourcePath = resolve(root, 'src/one.js');
+    let handed: string | undefined;
+    let map: unknown;
+    instrumentModule.call({ resourcePath, getOptions: () => ({ coverageFile }), callback: (_error, text, given) => {
+      handed = text;
+      map = given;
+    } }, MODULE);
+    probeAfter.call({ resourcePath, getOptions: () => ({ coverageFile }), callback: () => undefined }, handed!, map as never);
+    await mkdir(run.runDirectory, { recursive: true });
+    await writeFile(resolve(run.runDirectory, 'a.va'), journal);
+    const reporter = (config.reporters as ReadonlyArray<{
+      onTestRunStart(): unknown;
+      onTestRunEnd(payload: object): Promise<unknown> | unknown;
+    }>).at(-1)!;
+
+    reporter.onTestRunStart();
+    await reporter.onTestRunEnd({ results: [{ testPath: testFile, status: 'pass', results: [{ status: 'pass' }] }] });
 
     expect(await completeness(coverageFile)).toEqual([['test/a.case.js', false]]);
   });

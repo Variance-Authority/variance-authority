@@ -131,11 +131,22 @@ class JestCoverageReporter {
   /** Whether this run is one shard of a run that selects nothing — see `recordsAlone`. */
   readonly #alone: boolean;
 
+  /**
+   * Whether `-t` chose the cases this run ran. Jest reports every case it left
+   * out as pending, which is how a case its file skips reads too, so under a
+   * filter no pending case is the file's own.
+   */
+  readonly #named: boolean;
+
   /** When `onRunStart` began this run: see `movedSince`. */
   #startedAt = 0;
 
-  constructor(globalConfig: { readonly shard?: unknown } | undefined, config: JestReporterConfig) {
+  constructor(
+    globalConfig: { readonly shard?: unknown; readonly testNamePattern?: string } | undefined,
+    config: JestReporterConfig,
+  ) {
     this.#config = config;
+    this.#named = (globalConfig?.testNamePattern ?? '') !== '';
     this.#alone = recordsAlone(globalConfig?.shard != null, 'selected' in config && config.selected === true);
   }
 
@@ -231,7 +242,9 @@ class JestCoverageReporter {
     const moved = movedSince(digests.keys(), this.#startedAt);
     const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(
       result,
-      cut.has(result.testFilePath) || [result.testFilePath, ...governing].some((path) => moved.has(path)),
+      cut.has(result.testFilePath)
+        || [result.testFilePath, ...governing].some((path) => moved.has(path))
+        || (this.#named && result.testResults.some((assertion) => assertion.status === 'pending')),
       selection,
       governing,
       digests,
@@ -297,9 +310,9 @@ class JestCoverageReporter {
 function coverageTest(
   result: JestRunResults['testResults'][number],
   /**
-   * Whether the record of the file is partial: the selection skipped some of
-   * its cases, whose reach the run then did not record, or a text it rests on
-   * was written while it ran.
+   * Whether the record of the file is partial: the selection or a name filter
+   * skipped some of its cases, whose reach the run then did not record, or a
+   * text it rests on was written while it ran.
    */
   partial: boolean,
   config: SelectionReporterConfig,

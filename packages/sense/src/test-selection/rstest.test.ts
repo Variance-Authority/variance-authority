@@ -200,11 +200,11 @@ describe('what a finished Rstest file is worth', () => {
   // skipped, which read leaf by leaf is the shape of a file that ran
   // everything it meant to. The file's own status is what tells them apart.
   it('refuses a file whose fixture threw, and keeps one whose tests were skipped by their own text', () => {
-    expect(statusesComplete('fail', ['pass', 'skip'])).toBe(false);
-    expect(statusesComplete('pass', ['pass', 'skip', 'todo'])).toBe(true);
-    expect(statusesComplete('pass', ['pass', 'fail'])).toBe(false);
+    expect(statusesComplete('fail', ['pass', 'skip'], false)).toBe(false);
+    expect(statusesComplete('pass', ['pass', 'skip', 'todo'], false)).toBe(true);
+    expect(statusesComplete('pass', ['pass', 'fail'], false)).toBe(false);
     // Nothing ran, so there is nothing to be evidence of.
-    expect(statusesComplete('pass', [])).toBe(false);
+    expect(statusesComplete('pass', [], false)).toBe(false);
   });
 });
 

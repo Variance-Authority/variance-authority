@@ -259,13 +259,20 @@ export function withTestSelection(
   if (config.projects !== undefined) run.runConfig = '';
 
   const settle = foldRun(run, { coverageFile, shims: [setupId] });
+  let ended: number | undefined;
   const reporter = {
     // A watching Rstest starts every cycle here, after the last cycle's end.
-    onTestRunStart: () => reopenRun(run),
-    onTestRunEnd: (payload: RstestRunEnd) => unprobedAtEnd(run) ?? settle(
-      cycleResults(run, payload).map((file) => ({
+    // Rstest builds the cycle's bundle, reading its files, before it announces
+    // the start: the first cycle began when the run was made, and a rerun when
+    // the last cycle ended.
+    // FIXME: so a watching rerun counts the save that started it as a write
+    // while it ran, and records the files it saved incomplete.
+    onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
+    onTestRunEnd: (payload: RstestRunEnd) => {
+      ended = Date.now();
+      return unprobedAtEnd(run) ?? settle(cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
-        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
+        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), run.nameFiltered),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
           cases: file.results.map((test) => finishedCase(
@@ -276,8 +283,8 @@ export function withTestSelection(
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
-      })),
-    ),
+      })));
+    },
     // A watching run kept its shim for the cycles after the first.
     onExit: () => removeSeamModules(run, [setupId]),
   };
@@ -361,7 +368,10 @@ export function withTestSelection(
 /** The part of Rsbuild's plugin API this seam reads. */
 interface RsbuildPluginApi {
   readonly useExposed: (id: string) => {
-    readonly getRstestConfig: () => { readonly browser?: { readonly enabled?: boolean } };
+    readonly getRstestConfig: () => {
+      readonly browser?: { readonly enabled?: boolean };
+      readonly testNamePattern?: string | RegExp;
+    };
   } | undefined;
 }
 
@@ -371,13 +381,17 @@ interface RsbuildPluginApi {
  *
  * Where a file runs is the runner's to say, and `--browser.enabled` says it
  * after the configuration was written. Rstest hands its Rsbuild plugins the
- * configuration with the command line merged in, so it is read there.
+ * configuration with the command line merged in, so it is read there, and so is
+ * `-t`, which skips every test it does not name.
  */
 function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
   return {
     name: 'variance-authority:test-selection',
     setup(api: RsbuildPluginApi): void {
-      if (api.useExposed('rstest')?.getRstestConfig().browser?.enabled !== true) return;
+      const rstest = api.useExposed('rstest')?.getRstestConfig();
+      // `-t` is merged in here too, and every project a run builds shares it.
+      if (rstest?.testNamePattern !== undefined && rstest.testNamePattern !== '') run.nameFiltered = true;
+      if (rstest?.browser?.enabled !== true) return;
       writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
       // TODO: record cases in a page — a drain per test, carried on each
       // test's `meta` as the file's is.

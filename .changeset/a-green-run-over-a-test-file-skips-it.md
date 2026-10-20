@@ -9,3 +9,5 @@ A test file you edited was selected on every run until the edit was recorded ove
 The decision is per test: where two tests declare one setup file and only one of them ran the text there now, the other is selected alone. `testsGovernedBy` takes the digest each name arrives at as an optional third argument, leaves out a test whose row records it, and returns the names held only by such rows as `ranOver`.
 
 A run records a test incomplete when its test file or a declared setup file was written while the run ran. The run reads those texts when it ends, so the text it would record may not be the one the test ran, and the next selection runs that test again rather than skip an edit nothing ran.
+
+A Jest or Rstest run with a name filter (`-t`) records a file whole only when every case in it passed: the filter reports the cases it left out as skipped, and one of them may be the edit. Vitest already read its filter this way. Rstest judges a write from when the run was made rather than from the start it announces, which comes after its bundle has read the files.

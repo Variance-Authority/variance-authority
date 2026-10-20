@@ -324,9 +324,13 @@ export function runnerSkipped(context: RunnerContext | undefined, reason?: strin
  * {@link stopped} reads out of a task tree — a `beforeAll` that throws leaves
  * the file failed and every test in it skipped — so asking it first refuses the
  * thrown-fixture case for the same reason and with the same consequence.
+ *
+ * @param runnerSkipped Whether the runner may have skipped a test the file did
+ * not ask it to, so that only a pass is an outcome — see {@link runnerSkipped}.
  */
-export function statusesComplete(file: string, tests: readonly string[]): boolean {
-  return usableOutcome(file) && tests.length > 0 && tests.every(usableOutcome);
+export function statusesComplete(file: string, tests: readonly string[], runnerSkipped: boolean): boolean {
+  const usable = (state: string): boolean => (runnerSkipped ? state === 'pass' : usableOutcome(state));
+  return usableOutcome(file) && tests.length > 0 && tests.every(usable);
 }
 
 export function reportedComplete(module: ReportedModule, runnerSkipped: boolean): boolean {
