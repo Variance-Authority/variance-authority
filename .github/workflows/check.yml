@@ -382,12 +382,20 @@ jobs:
             echo "::notice::The head is merged with $MERGED_WITH, and the mainline read at that merge answered ${read:-no single commit}: the run measures the commits between them as well."
           fi
 
+      - name: freeze the read
+        shell: bash
+        env:
+          READ: ${{ steps.read.outputs.dir }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/base"
+          if [ -d "$READ" ]; then cp -R "$READ/." "$RUNNER_TEMP/base/"; fi
+
       - name: hand the read on
         id: hand
         uses: actions/upload-artifact@v4
         with:
           name: variance-base
-          path: ${{ steps.read.outputs.dir }}
+          path: ${{ runner.temp }}/base
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 1
@@ -464,12 +472,18 @@ jobs:
       # and collection are read after the merge, on the suite jobs' own tree.
       - name: keep the planning records
         shell: bash
-        run: node tools/keep-base.mjs
+        env:
+          HANDED: ${{ steps.hand.outputs.artifact-id != '' }}
+        run: |
+          node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
+          node tools/keep-base.mjs
 
       - name: plan suite jobs
         id: count
         shell: bash
         env:
+          BASELINE_READ: ${{ runner.temp }}/base
+          BASELINE_HANDED: ${{ steps.hand.outputs.artifact-id != '' }}
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           SETUP: '100'

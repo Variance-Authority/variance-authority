@@ -13,10 +13,18 @@ import { suitePlan } from './ci-plan.mjs';
 const near = process.env.EVENT === 'merge_group';
 const pull = process.env.EVENT === 'pull_request';
 const legs = near ? [{ part: 'rules' }] : [];
-const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+const run = (command, args, env = process.env) => execFileSync(command, args, { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 const since = process.env.BASE || 'HEAD';
 const summary = ['### Suite plan', '', '| Suite | Selected / collected | Mode | Jobs | Predicted wall |', '| --- | --- | --- | --- | --- |'];
 run('yarn', ['variance', 'index']);
+// Whole shards read only the frozen mainline, while a selected slice may read
+// the PR's newer carried layer. Price each mode from the record it will use.
+const fullEnv = process.env.BASELINE_READ === undefined ? process.env : {
+  ...process.env, VARIANCE_AUTHORITY_CACHE: join(process.env.RUNNER_TEMP ?? tmpdir(), 'whole-plan'),
+};
+if (process.env.BASELINE_READ !== undefined) {
+  run('node', ['tools/take-base.mjs', process.env.BASELINE_READ, process.env.BASELINE_HANDED ?? 'false'], fullEnv);
+}
 for (const [suite, config, unrecorded] of [
   ['unit', 'vitest.config.mts', 2],
   ['integration', 'vitest.integration.config.mts', 1],
@@ -30,14 +38,14 @@ for (const [suite, config, unrecorded] of [
   const args = ['packages/cli/dist/bin.js', 'shards', '--suite', suite,
     '--setup', process.env.SETUP ?? '100', '--budget', process.env.BUDGET ?? '240',
     '--workers', String(workers), '--unrecorded', String(unrecorded), '--collected', listed, '--format', 'json'];
-  const answer = (extra) => JSON.parse(run('node', [...args, ...extra]));
+  const answer = (extra, env = process.env) => JSON.parse(run('node', [...args, ...extra], env));
   if (near) {
     const selected = answer(['--since', since, '--at-distance', '0-2']);
     // The rules leg keeps the queue gate running even when no test is selected.
     legs.push(...(selected.shards === 1 ? [{ part: suite }] : selected.matrix.map((shard) => ({ part: suite, shard }))));
     summary.push(`| ${suite} | ${selected.files ?? 'unknown'} / ${total} | near | ${selected.shards} | ${selected.wall === undefined ? 'unrecorded' : `${Math.round(selected.wall / 1000)} s`} |`);
   } else {
-    const full = answer([]);
+    const full = answer([], fullEnv);
     const selected = pull ? answer(['--since', since, '--max', '1']) : undefined;
     const planned = suitePlan(suite, full, selected);
     legs.push(...planned);
