@@ -1,5 +1,59 @@
 # @variance-authority/sense
 
+## 0.17.0
+
+### Minor Changes
+
+- 8c9a43c: A test file can record which files it loaded, with one line per module
+
+  Set `mode: 'loads'` on any seam — Vitest, Jest, Rstest, the Node runner or
+  `testSelectionProbes` — and no module is cut into regions or probed. Each one
+  runs with one call added after its own text, `globalThis.__VA__.m("<id>")`,
+  which imports nothing. The run keeps one entry per test file and no cases, and
+  a change to a file selects every test file that loaded it. On a suite of 925
+  test files that take 66.8 s, `loads` adds 1.9 s.
+
+  A run digests the files its test files ran under once, in the native addon,
+  rather than once per test file.
+- 303bfa8: `kept(selection, discovered, name?)` from `@variance-authority/sense/test-selection` names the test files a seam runs: those the runner discovered, less those the selection skips. `name` says each of the runner's own handles as the selection names files, and the Vitest and Jest seams both keep files by it. A file the record never saw, or never held whole, is kept.
+
+### Patch Changes
+
+- ba37885: An edited test file is no longer selected again after it ran green
+
+  A test file you edited was selected on every run until the edit was recorded over a clean tree, and a commit of edits that had already run green selected them all once more. Selection now compares the text each test recorded for its own file and its declared setup files with the text the diff arrives at, and skips a test that already ran that text. `variance select` reads such a file as `none (the record was taken over this text)`.
+
+  The decision is per test: where two tests declare one setup file and only one of them ran the text there now, the other is selected alone. `testsGovernedBy` takes the digest each name arrives at as an optional third argument, leaves out a test whose row records it, and returns the names held only by such rows as `ranOver`.
+
+  A run records a test incomplete when its test file or a declared setup file was written while the run ran, and a test whose declared setup file was written since the process started: a runner reads its configuration and what that imports once per process, before a run announces itself. The run reads those texts when it ends, so the text it would record may not be the one the test ran, and the next selection runs that test again rather than skip an edit nothing ran.
+
+  A Jest or Rstest run with a name filter (`-t`) records a file whole only when every case in it passed: the filter reports the cases it left out as skipped, and one of them may be the edit. Rstest's filter is read as each cycle ends, so watch mode's `t` counts. Vitest already read its filter this way. Rstest judges a write from when the run was made rather than from the start it announces, which comes after its bundle has read the files.
+- dfd5c06: An `import()` type is a type-only import
+
+  `import('./x').T` and `typeof import('./x')` are TypeScript's other spelling of
+  `import type`, and the reader skipped both: a file that reached a module only
+  through one, such as a test handing `typeof import('./x')` to a `vi.mock`
+  factory's original, had no edge to it, and `ask uses` did not list it. Each is
+  now a `type` request, an edge every walk but a runtime one follows. The name its
+  qualifier starts with is the name it takes; with no qualifier the module is
+  held whole, and `ask uses` lists the line as a type-only site that may read any
+  name, never as an `import()` that loads the module. The source index format
+  moves to version 33.
+- a55d6bc: A comment, type or formatting edit no longer drops the tests recorded for the file
+
+  After an edit to a file that changes nothing that runs, such as a comment, a type or formatting, the record dropped every test that loaded the file, and `variance review` reported its regions as no longer run. Those tests are now kept. After an edit that changes only function bodies, the tests that loaded the file are kept at its top level, and the tests of the changed bodies are dropped as before.
+
+  When a run of some tests updates the record, the tests that did not run keep their cases on the regions they ran:
+
+  - Two callbacks with the same name, such as two `useEffect` callbacks, no longer swap cases when the two versions of the file have a different number of them. A callback that cannot be told apart takes the cases of the function around it.
+  - Deleting a branch no longer drops the cases of the file's top level, even when it renumbers the branches after it.
+  - When a run cut a file without a region the record held, a test that ran that region is owed a run, unless it also ran the region around it, which keeps its cases.
+
+  When shards of one run cut a file two ways and are combined onto the build's cut, a region the build's cut cannot place in a shard's row, such as a callback that cannot be told apart from a same-named one or a branch numbered another way, takes none of that shard's cases, nor does any region inside it, and the shard's tests that ran it or the region around it are owed a run. A region the shard's writer did not cut takes that shard's cases from the region around it.
+
+  `variance coverage` and `variance covering` no longer report a test file as no longer running a region when the test did not run since that region's file changed. They count such a region as unmeasured. A runs record beside the record that is there and cannot be read is refused, naming it, rather than read as if every test had run.
+- 1f574c1: The selection skill and the docs now say which `precision` each recording `mode` can answer and what each mode adds to a run: `'loads'` answers `file-use`, `'entries'` answers `function-use`, and `'presence'` answers `region-use`. They also list `cadence`, `continuations`, `placement` and `unprobed` alongside them. Before this, the skill said recording was the same at every step.
+
 ## 0.16.0
 
 ### Minor Changes
