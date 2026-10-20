@@ -2205,6 +2205,10 @@ gained. `diff` is the `-U0` diff from the text `base` was recorded over to the
 text `now` was, by file, and it is the only way a region is paired: it carries
 each region at the base to the lines it stands on now. `relations` lets it name the stopped case behind a hidden region, and
 `exclude` leaves out modules whose motion belongs to another change.
+`stands` names the test files the newer record carried rather than ran, with
+the files changed since each last ran: a region of a changed file that lost
+one of their cases is listed as `unmeasured`, not lost, because nothing ran to
+measure it.
 When you
 compare only the cases that ran, pass the rest of the record as `retained`: a
 region one of those cases reaches keeps it at both ends, so it is not lost

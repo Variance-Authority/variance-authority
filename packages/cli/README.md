@@ -819,6 +819,13 @@ landed. Each region whose cases moved is one of four:
 - **thinned**: several cases walked it at the base, one does now.
 - **gained**: no case walked it at the base, one or more do now.
 
+A region is none of the four when a case that walked it at the base belongs to
+a test file that has not run since the region's file changed. The record kept
+that file's cases from its last run and dropped them where the edit could have
+changed what they did, so whether the test still walks the region is not
+measured. The answer lists the region as not measured, and does not say that
+the test file no longer enters it.
+
 A region that stayed walked is not listed. When nothing moved, the answer prints
 *no region moved*, because an empty list and a comparison that was not made
 are different answers.
@@ -1157,7 +1164,9 @@ coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the b
 Each part is signed by what it does to the count. `newly run` and `no longer
 run` are regions whose cases changed, the `gained` and `lost` of
 [What a change moved](#what-a-change-moved); `no longer run after a case
-stopped` is its `hidden`. `added regions` and `removed regions` are regions
+stopped` is its `hidden`. `unmeasured` regions lost a case of a test that has
+not run since the region's file changed, so they are not counted as no longer
+run. `added regions` and `removed regions` are regions
 only one of the two records has, in a file both have, and `newly loaded files`
 and `files no longer loaded` count the files only one of them has. `run by
 fewer cases` is unsigned, because those regions still run. The signed parts add

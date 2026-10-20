@@ -126,6 +126,10 @@ Look around:
   <path>`. A test is amended or added first, and fails on the code as it is,
   before the code changes. Behaviour nothing covers is pinned green first, in
   addition to that test, not instead of it.
+- Whether it changes how a record is carried, indexed by case, or read by a
+  selection or a comparison. If it does, the PR names the contract clause it
+  keeps and the carry journey that exercises it, and quotes the regression test
+  failing on the code before the fix.
 - Where each piece of writing goes. A top-layer page — the root `README.md` or
   `docs/` — gets its structure from
   [content flow](.agents/references/content-flow.md) before it is outlined: a

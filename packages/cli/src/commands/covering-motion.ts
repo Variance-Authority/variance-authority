@@ -29,7 +29,7 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { diffFromBase, movedOnBase } from './base-diff.js';
+import { carriedOver, diffFromBase, movedOnBase } from './base-diff.js';
 import { cutElsewhere } from './before-texts.js';
 import { relationsFor } from './source-graph.js';
 import { functionOf, regionKind } from './review-scope.js';
@@ -202,7 +202,7 @@ async function againstBefore(
   // at both ends. A case a run here recorded says nothing of what came before.
   const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id) && !ran.has(test.file)).map((test) => test.id)));
   const exclude = new Set([...(parting?.files ?? []), ...elsewhere]);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, retained, diff });
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), ...(await carriedOver(from, root)), exclude, retained, diff });
   return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }) };
 }
 
@@ -271,7 +271,7 @@ export async function motionAgainst(
   const parting = await movedOnBase(commit, since, root);
   const base: MotionBase = { from: against, kind: 'record', at: commit, mergeBase: parting.mergeBase, leftOut: parting.files };
   const exclude = new Set(parting.files);
-  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude, diff }) };
+  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), ...(await carriedOver(from, root)), exclude, diff }) };
 }
 
 /**
@@ -353,6 +353,12 @@ export function motionText(
       lines.push(`  ${place(row)} ${row.path} — now on ${row.now.startLine}-${row.now.endLine} ${row.now.path}`);
     }
     lines.push(...notListed(mismatched.length - listed, 'row'));
+  }
+  const carried = moved.unmeasured ?? [];
+  if (carried.length > 0) {
+    lines.push(`Not measured, ${carried.length} region${carried.length === 1 ? '' : 's'} whose cases last ran before ${carried.length === 1 ? 'its' : 'their'} file changed:`);
+    for (const region of carried.slice(0, listed)) lines.push(`  ${place(region)} — was ${named(region.before)}`);
+    lines.push(...notListed(carried.length - listed, 'region'));
   }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${listedOf(moved.unread, listed, 'file')}.`);
   if (motion.unmeasured !== undefined && motion.unmeasured.length > 0) {

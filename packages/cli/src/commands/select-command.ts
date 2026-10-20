@@ -36,7 +36,6 @@
  * that cannot be compared declines to narrow.
  */
 
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -45,7 +44,7 @@ import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
 import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
-import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
+import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
 import { many } from './prose-counts.js';
@@ -369,12 +368,6 @@ async function standsOf(
   const reading = selection.standsAt(at, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
   return reading === undefined ? undefined : { reading, stands: reading.stands };
 }
-
-/** One git invocation in `repository`, answering its stdout. */
-const gitIn =
-  (repository: string) =>
-  (...args: string[]): string =>
-    execFileSync('git', args, { cwd: repository, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
 
 /** What the journal says about where its tests last ran, as notes after the verdict. */
 function standingNotes(reading: StandReading, commit: string): readonly string[] {

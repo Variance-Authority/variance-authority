@@ -55,8 +55,9 @@ jobs:
   rules:
     # The repository's own rules, read as data: lint, and the `tools/*.check.ts`
     # suite. The cheapest failures there are, so they report while the suite is
-    # still installing. The native crate's unit tests run last, for the reason
-    # written at their step. A merge group runs `queue` instead.
+    # still installing. The carry contract and the native crate's unit tests run
+    # after them, for the reasons written at their steps. A merge group runs
+    # `queue` instead.
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-24.04
 
@@ -144,6 +145,61 @@ jobs:
       - name: restrictions
         shell: bash
         run: yarn restrictions
+
+      # The journeys that carry a record through a history of edits and runs,
+      # asked in-process and through the CLI after a restart. They run here by
+      # path, not by selection: `suite` runs what Variance selects from the
+      # record `main` saved, and a defect in carrying is a defect in that record,
+      # so a selection read from it is the one answer this contract cannot trust.
+      # They need the build this job already made — the CLI journeys run
+      # `packages/cli/dist/bin.js` — and nothing else, so they are a step here
+      # rather than a job that installs and builds again. The paths are what
+      # carrying is read and written by: the selection and the instrumenter in
+      # `sense`, the native layer, and the CLI's commands that compare records.
+      # A push to `main` always runs them. Like the native tests, they run
+      # after a red rule, because a failing link check says nothing about
+      # carrying.
+      #
+      # A failed walk keeps its directory — the texts, the actions, the record
+      # and each expectation beside what came back — under the artifacts path,
+      # and the step after uploads it.
+      - name: carry contract
+        id: carry-contract
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          CARRY_CONTRACT_ARTIFACTS: ${{ runner.temp }}/carry-contract
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE" ] && [ -z "$(git diff --name-only "$BASE" HEAD -- \
+            packages/sense packages/core/src packages/cli/src/commands \
+            .github/workflows/check.yml)" ]; then
+            echo "carry contract skipped: nothing it reads changed since $BASE"
+            exit 0
+          fi
+          mkdir -p "$CARRY_CONTRACT_ARTIFACTS"
+          # The two runs share nothing but the build, so they run side by
+          # side, each into its own log, printed whole once both have ended.
+          yarn vitest run packages/sense/src/test-selection/carry-contract.test.ts packages/sense/src/test-selection/carry-harness.test.ts \
+            > "$CARRY_CONTRACT_ARTIFACTS/in-process.log" 2>&1 &
+          in_process=$!
+          yarn vitest run --config vitest.integration.config.mts packages/sense/src/test-selection/carry-contract.integration.test.ts \
+            > "$CARRY_CONTRACT_ARTIFACTS/cli.log" 2>&1 &
+          cli=$!
+          status=0
+          wait "$in_process" || status=1
+          wait "$cli" || status=1
+          cat "$CARRY_CONTRACT_ARTIFACTS/in-process.log" "$CARRY_CONTRACT_ARTIFACTS/cli.log"
+          exit "$status"
+
+      - name: keep the failed walks
+        if: ${{ !cancelled() && steps.carry-contract.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: carry-contract-walks
+          path: ${{ runner.temp }}/carry-contract
+          if-no-files-found: ignore
 
       # The native crates' own unit tests, the `#[cfg(test)]` modules under
       # `packages/sense/native`, and one build of the instrumenter crate as a

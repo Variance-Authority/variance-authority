@@ -115,7 +115,7 @@ export interface LastCaseRun {
  * which is the text it was cut from. A module the run recorded from another
  * text lands its held cases through the edit between the two: the regions the
  * edit left alone keep them, at the lines it places them, and the regions it
- * touched keep none. A module whose text is not known on both sides, or not
+ * touched keep them only where the edit's reading spares their kind. A module whose text is not known on both sides, or not
  * found, is read as changed whole.
  *
  * `stands` is the commit the record's snapshot stands at. When `previous`
