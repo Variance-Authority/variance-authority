@@ -23,7 +23,7 @@ use rustc_hash::FxHashMap;
 
 use crate::record_coverage::{Coverage, Text};
 use crate::record_coverage_columns::{Columns, Region};
-use crate::record_coverage_layer::addressed_alike;
+use crate::record_coverage_address::addressed_alike;
 use crate::record_layout::LAYOUT;
 
 /// What each edit reached, by `path\0from\0to`.

@@ -40,6 +40,7 @@ use crate::record_coverage::{self, Coverage, Text};
 use crate::crossing_sets::{self, SetPool};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Merged, Spelled};
+use crate::record_coverage_address::addressed_alike;
 use crate::record_coverage_recut::{is_top, reaches, recut, write_cut, Readings, Recut};
 use crate::record_layout::LAYOUT;
 
@@ -447,68 +448,6 @@ fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usi
         }
     }
     resolved.into_iter().map(Option::flatten).collect()
-}
-
-/// Whether an address's number means one region in both cuts: each holds it as
-/// many times, and every counter it passes through handed out the same seats
-/// in each, so no edit renumbered it (`addressedAlike` in `region-landing.ts`).
-/// A counter whose population changed renumbers what it counts and everything
-/// nested under it, and nothing else.
-pub(crate) fn addressed_alike(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> impl Fn(&str, &str) -> bool {
-    let counts = |blocks: Vec<(String, String)>| {
-        let mut counts: FxHashMap<(String, String), u32> = FxHashMap::default();
-        for address in &blocks {
-            *counts.entry(address.clone()).or_default() += 1;
-        }
-        (sites(blocks.into_iter()), counts)
-    };
-    let ((was, held), (now, fresh)) = (counts(before.collect()), counts(after.collect()));
-    move |name, path| {
-        let address = (name.to_owned(), path.to_owned());
-        held.get(&address) == fresh.get(&address)
-            && seats_of(name, path).iter().all(|(site, _)| matches!((was.get(site), now.get(site)), (Some(left), Some(right)) if left == right))
-    }
-}
-
-/// The seats each site of a cut holds.
-fn sites(blocks: impl Iterator<Item = (String, String)>) -> FxHashMap<String, FxHashSet<u64>> {
-    let mut sites: FxHashMap<String, FxHashSet<u64>> = FxHashMap::default();
-    for (name, path) in blocks {
-        for (site, seat) in seats_of(&name, &path) {
-            sites.entry(site).or_default().insert(seat);
-        }
-    }
-    sites
-}
-
-/// Every counter an address passes through, with the seat it took there, as
-/// the bits of the number the seat's digits read as.
-fn seats_of(name: &str, path: &str) -> Vec<(String, u64)> {
-    let mut found = Vec::new();
-    let mut steps = |path: &str, from: String| -> String {
-        let mut at = from;
-        for step in path.split('/').filter(|_| !path.is_empty()) {
-            if let Some((prefix, seat)) = seat(step) {
-                found.push((format!("{at}/{prefix}"), seat));
-            }
-            at.push('/');
-            at.push_str(step);
-        }
-        at
-    };
-    let named = steps(name, String::new());
-    steps(path, format!("{named}\0"));
-    found
-}
-
-/// A step's counter and seat: the digits after its last `#`, which run to its
-/// end, over a prefix on one line.
-fn seat(step: &str) -> Option<(&str, u64)> {
-    let (prefix, digits) = step.rsplit_once('#')?;
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) || prefix.contains(['\n', '\r', '\u{2028}', '\u{2029}']) {
-        return None;
-    }
-    digits.parse::<f64>().ok().map(|seat| (prefix, seat.to_bits()))
 }
 
 #[cfg(test)]

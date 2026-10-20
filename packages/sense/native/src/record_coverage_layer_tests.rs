@@ -1,39 +1,6 @@
 use super::*;
 
 #[test]
-fn a_seat_is_the_digits_after_the_last_hash_of_a_step() {
-    assert_eq!(seat("if#12"), Some(("if", 12_f64.to_bits())));
-    assert_eq!(seat("a#b#3"), Some(("a#b", 3_f64.to_bits())));
-    assert_eq!(seat("if#"), None);
-    assert_eq!(seat("if#1x"), None);
-    assert_eq!(seat("if#2#x"), None);
-    assert_eq!(seat("line\nbreak#1"), None);
-    assert_eq!(seat("then"), None);
-}
-
-#[test]
-fn seats_are_sited_by_the_name_then_the_path_they_pass_through() {
-    assert_eq!(seats_of("decide/map.arg#1", "if#0/then"), vec![("/decide/map.arg".to_owned(), 1_f64.to_bits()), ("/decide/map.arg#1\0/if".to_owned(), 0_f64.to_bits())]);
-    assert_eq!(seats_of("", "anon#2"), vec![("\0/anon".to_owned(), 2_f64.to_bits())]);
-}
-
-#[test]
-fn an_address_names_one_region_only_where_its_counters_and_its_count_agree() {
-    let cut = |addresses: &[(&str, &str)]| addresses.iter().map(|(name, path)| ((*name).to_owned(), (*path).to_owned())).collect::<Vec<_>>();
-    let both = [("decide", "entry"), ("decide", "if#0/then"), ("decide", "if#1/then")];
-    let alike = addressed_alike(cut(&both).into_iter(), cut(&both).into_iter());
-    assert!(alike("decide", "if#0/then") && alike("decide", "if#1/then"));
-    // The first branch deleted: the second is cut as `if#0`, the address the first had.
-    let alike = addressed_alike(cut(&both).into_iter(), cut(&[("decide", "entry"), ("decide", "if#0/then")]).into_iter());
-    assert!(!alike("decide", "if#0/then"));
-    // The renumbering stays inside the counter it changed.
-    assert!(alike("decide", "entry"));
-    // Two callbacks of one name where the other cut holds one: no occurrence names either.
-    let alike = addressed_alike(cut(&[("c/useEffect.arg0", "entry")]).into_iter(), cut(&[("c/useEffect.arg0", "entry"), ("c/useEffect.arg0", "entry")]).into_iter());
-    assert!(!alike("c/useEffect.arg0", "entry"));
-}
-
-#[test]
 fn a_carried_test_keeps_every_precondition_its_ids_did_not_list_in_order() {
     use crate::record_fixture::{self as fixture, block, module, spec, test};
     // The fixture names strings as it meets them, so these ids descend and repeat.
