@@ -382,7 +382,8 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
   const certain = sites.filter((use) => use.through?.whole !== true && use.through?.throughDefault !== true);
   const off = sites.filter((use) => use.through?.throughDefault === true).length;
   const whole = sites.length - certain.length - off;
-  const dynamic = certain.filter((use) => use.through?.kind === 'dynamic').length;
+  // An `import()` type is a dynamic use that loads nothing.
+  const dynamic = certain.filter((use) => use.through?.kind === 'dynamic' && use.type !== true).length;
   const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
   const reads = certain.length === 0 ? `${off} ${off === 1 ? 'place reads' : 'places read'}` : `${off} more ${off === 1 ? 'reads' : 'read'}`;
   const before = certain.length + off;

@@ -85,8 +85,9 @@ export interface Use {
 
 /**
  * A module held whole. `dynamic` is an `import()`, which loads the module when
- * that call runs rather than when the importing file loads; `namespace` is a
- * static `import * as`.
+ * that call runs rather than when the importing file loads, or an `import()`
+ * type, which loads nothing and whose use is a type; `namespace` is a static
+ * `import * as`.
  */
 export interface Through {
   readonly kind: 'dynamic' | 'namespace';

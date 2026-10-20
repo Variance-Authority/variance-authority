@@ -319,6 +319,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     if loads.unread_required > 0 {
         reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", loads.unread_required));
     }
+    requests.extend(loads.typed);
     let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
     requests.extend(depends.requests);
     if depends.pathless > 0 {

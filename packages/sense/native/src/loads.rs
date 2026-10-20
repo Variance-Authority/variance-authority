@@ -1,7 +1,8 @@
 //! The modules a module loads by calling for them — `import()`, `require()`,
-//! `module.require()` and TypeScript's `import x = require()` — read off the tree
-//! `read_module` already holds. The module record lists no `require` and gives an
-//! `import()` only as a span of text.
+//! `module.require()` and TypeScript's `import x = require()` — and the ones it
+//! names in an `import()` type, read off the tree `read_module` already holds.
+//! The module record lists no `require`, gives an `import()` only as a span of
+//! text, and holds no type at all.
 //!
 //! A load is read where the tree has one, so a comment, a string or a template's
 //! text that spells one is not. A `require` is the identifier `require`, or the
@@ -10,6 +11,11 @@
 //! constant, a string or a template with no expressions, and any other is a load
 //! this counts and cannot read. `import x = require('y')` is TypeScript's
 //! spelling of a `require`, and its specifier is always a string.
+//!
+//! `import('./x').T` and `typeof import('./x')` are TypeScript's other spelling
+//! of `import type`: the compiler resolves the specifier as it resolves an
+//! import's, and erases it, so each is a `type` request, an edge every walk but a
+//! runtime one follows. Its specifier is always a string.
 //!
 //! This holds what one walk finds and walks nothing itself: the walk in
 //! [`members`](crate::members) drives it, because a name read through an
@@ -30,13 +36,15 @@ pub(crate) struct Loads<'l> {
     pub(crate) required: Vec<Request>,
     /// The `require` calls whose specifier is not a constant.
     pub(crate) unread_required: usize,
+    /// The `import()` types, in the order the walk met them.
+    pub(crate) typed: Vec<Request>,
     /// Each `import()` met so far, by its start offset, and its index in `dynamic`.
     met: HashMap<u32, Option<u32>>,
 }
 
 impl<'l> Loads<'l> {
     pub(crate) fn new(lines: &'l Lines) -> Self {
-        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, met: HashMap::new() }
+        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, typed: Vec::new(), met: HashMap::new() }
     }
 
     /// The index in `dynamic` of the request this call makes, read once however
@@ -78,6 +86,14 @@ impl<'l> Loads<'l> {
         let TSModuleReference::ExternalModuleReference(reference) = &it.module_reference else { return None };
         self.required.push(self.request(&reference.expression.value, Kind::Imports, reference.span.start));
         Some(self.required.len() as u32 - 1)
+    }
+
+    /// The index in `typed` of the request an `import()` type makes. A factory's
+    /// own target named in a type is still a request, unlike a `require` of it:
+    /// the type loads nothing, so it cancels no replacement.
+    pub(crate) fn import_type(&mut self, it: &TSImportType) -> u32 {
+        self.typed.push(self.request(&it.source.value, Kind::Type, it.span.start));
+        self.typed.len() as u32 - 1
     }
 
     fn request(&self, value: &str, kind: Kind, at: u32) -> Request {
