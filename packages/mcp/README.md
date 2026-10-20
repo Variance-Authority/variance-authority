@@ -5,6 +5,9 @@
 > Let an agent ask questions about a test run that has already finished.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
 
 Use this package only to hand an already-finished run, or an execution index,
 to an agent that speaks MCP.

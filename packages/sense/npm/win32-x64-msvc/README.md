@@ -3,6 +3,10 @@
 The prebuilt source scanner for **Windows on x64**, loaded by
 [`@variance-authority/sense`](https://www.npmjs.com/package/@variance-authority/sense).
 
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
+
 Install `@variance-authority/sense` instead of this. It names one of these
 packages per platform as an optional dependency, and your package manager
 unpacks the one your machine matches. Nothing imports this package by name.

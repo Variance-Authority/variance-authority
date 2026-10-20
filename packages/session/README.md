@@ -5,6 +5,9 @@
 > Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
 
 ## What this is for
 

@@ -49,6 +49,10 @@ source facts and observations it reads, through the interfaces it already has.
   investigation, UI review, test selection, and test reduction, each carried
   through an edit and a check.
 
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
+
 ## One change, traced end to end
 
 | Before | After | Diff |

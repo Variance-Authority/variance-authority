@@ -5,6 +5,9 @@
 > Announce what the code decided, so a test waits for the decision instead of guessing when it was made.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
 
 This package compares no images and needs none of the rest of that system. It
 gives your application source one call that announces *the code has just decided

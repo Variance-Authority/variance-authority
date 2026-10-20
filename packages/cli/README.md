@@ -5,6 +5,9 @@
 > Run the Variance Authority workflow from a project config: collect subjects, compare, render what changed, report, accept.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
 
 `variance` is the executable. It captures every **subject** your project
 declares — one named UI state you asked for and can ask for again: one story,

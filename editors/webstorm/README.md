@@ -7,6 +7,10 @@ the test files that went through it. The marks and their meanings are the ones t
 [VS Code client](../vscode/README.md) paints, and so are the colours on the
 scrollbar.
 
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
+
 Click a mark to list every case behind it. Each test file shows how many of its
 cases went through the line out of how many it has, `reset.test.ts 9/20 · 1 hop`,
 nearest file by imports first. Type to filter, choose a file to see its cases,

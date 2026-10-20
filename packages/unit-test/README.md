@@ -5,6 +5,9 @@
 > Put the states your unit suite already mounts in jsdom into visual regression review, without launching a browser in the test process.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
 
 Your jsdom tests already mount components and assert on them. This package
 writes each mounted state to disk as a *capture*: the markup, the CSS that

@@ -5,6 +5,9 @@
 > Find the public name, signature, documentation, consumers and import sites of an exported workspace symbol, over MCP.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
 
 ## What this is for
 

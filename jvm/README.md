@@ -6,6 +6,10 @@ class, or a Jest case or browser spec that reached the method in a service over
 HTTP. The record is one row per test, and the selector answers a diff from it
 without an import graph, which a request to another process never shows.
 
+Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
+the install, the agent skills the CLI ships, every documentation page, and the
+example repositories.
+
 The agent sets one flag per method, on entry, and writes no branch or line
 probes. A recorded method carries every line it holds, so a selection at line
 grain only widens. On Commons Lang, whose bare test phase takes about 130 s, a
