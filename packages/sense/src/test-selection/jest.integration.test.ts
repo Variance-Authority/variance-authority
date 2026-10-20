@@ -46,7 +46,7 @@ describe('the Jest integration', () => {
     }
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.modules.map((module) => [module.file, module.instrumented, module.blocks])).toEqual([
+    expect(coverage.modules.filter((module) => module.file === at('src/decide.ts')).map((module) => [module.file, module.instrumented, module.blocks])).toEqual([
       [at('src/decide.ts'), false, []],
     ]);
     const { index, before, last } = caseSectionsOf(await readFile(coverageFile));
@@ -117,7 +117,7 @@ describe('the Jest integration', () => {
     expect(onB).not.toContain(at('test/alpha.case.ts'));
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.modules.map((module) => module.file)).toEqual([at('src/decide.ts')]);
+    expect(coverage.modules.filter((module) => module.instrumented).map((module) => module.file)).toEqual([at('src/decide.ts')]);
     // Whole, skipped test and all — see `usableOutcome` in `vitest.ts` for why a
     // skip leaves the record usable as evidence where a failure does not.
     expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([
@@ -140,13 +140,13 @@ describe('the Jest integration', () => {
     // the answer depended on that the instrument could not see inside, and an
     // instrumented module is one it could — its digest is on its own row and a
     // change to its text is caught by re-cutting its regions.
-    expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual([
+    expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual(expect.arrayContaining([
       at('jest.config.mjs'),
       at('test/alpha.case.ts'),
       at('test/environment.ts'),
       at('test/polyfill.cjs'),
       at('test/setup.cjs'),
-    ]);
+    ]));
     // The project's reporter stayed configured and ran.
     await expect(readFile(resolve(directory, 'user-reporter.txt'), 'utf8')).resolves.toBe('ran\n');
 

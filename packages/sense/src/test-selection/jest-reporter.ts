@@ -97,6 +97,7 @@ export interface JestTestContext {
     readonly setupFiles?: readonly string[];
     readonly setupFilesAfterEnv?: readonly string[];
     readonly testEnvironment?: string;
+    readonly testEnvironmentOptions?: { readonly varianceAuthority?: { readonly environment?: string } };
   };
 }
 
@@ -387,8 +388,9 @@ function coverageTest(
  * precondition of anybody's.
  */
 function projectPreconditions(config: JestTestContext['config']): readonly string[] {
+  const environment = config.testEnvironmentOptions?.varianceAuthority?.environment ?? config.testEnvironment;
   return [
-    ...(config.testEnvironment === undefined ? [] : [config.testEnvironment]),
+    ...(environment === undefined ? [] : [environment]),
     ...(config.setupFiles ?? []),
     ...(config.setupFilesAfterEnv ?? []),
   ].filter((file) =>

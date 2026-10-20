@@ -571,6 +571,11 @@
   },
   {
     "idiom": "atomic-write",
+    "at": "packages/sense/src/test-selection/jest-environment-entry.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/jest-journey-artifact.ts",
     "count": 1
   },
