@@ -109,9 +109,16 @@ function inputs(file: string, root: string, mark: (file: string) => ModuleId | u
   for (let at = 0; at < pending.length; at += 1) {
     const module = pending[at];
     if (module === undefined || paths.has(module.filename) || intrinsic(module.filename)) continue;
-    if (nodeUtil.types.isModuleNamespaceObject(module.exports)) unavailable(module.filename);
-    const native = nativeImports.get(module.filename)?.values().next().value;
-    if (native !== undefined) unavailable(native);
+    if (nodeUtil.types.isModuleNamespaceObject(module.exports) && mark(module.filename) !== undefined) unavailable(module.filename);
+    const native = [...nativeImports.get(module.filename) ?? []];
+    const seenNative = new Set<string>();
+    for (let next = 0; next < native.length; next += 1) {
+      const target = native[next]!;
+      if (seenNative.has(target)) continue;
+      seenNative.add(target);
+      if (mark(target) !== undefined) unavailable(target);
+      native.push(...nativeImports.get(target) ?? []);
+    }
     paths.add(module.filename);
     pending.push(...module.children);
   }
