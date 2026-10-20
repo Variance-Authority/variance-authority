@@ -9,6 +9,7 @@
  */
 
 import { expect } from 'vitest';
+import { keepRecord, type Compare } from './carry-comparison.js';
 import { commit, held, noted, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
 
 export const A = 'test/a.test.ts';
@@ -148,5 +149,26 @@ export async function branchDeletedThenRunElsewhere(ask: Ask): Promise<void> {
     check(walk, 'top rows', after.rows.top, [A, B, C]);
     check(walk, 'load', after.loadedBy, [A, B, C]);
     check(walk, 'an edit at load', await ask(walk, branches({ one: false, top: "hit('again');" })), [A, B, C]);
+  });
+}
+
+/**
+ * An import written at the top of the subject, which changes what it does as
+ * it loads, and a run of other tests that carries the subject's record over it.
+ *
+ * A and B last ran before the edit. The edit's reading reaches the top level,
+ * so the carried record holds none of their cases there: whether they still
+ * run it was not measured. The comparison with the record before the edit
+ * says so, and never that either no longer runs it. Their functions' bodies
+ * did not change, and keep their cases.
+ */
+export async function importEditedThenRunElsewhere(compare: Compare): Promise<void> {
+  await walking(branches(), { [A]: ['top', 'body', 'one'], [B]: ['top', 'body', 'two'] }, async (walk) => {
+    await runTests(walk, [A, B]);
+    const base = await keepRecord(walk, 'before the import');
+    await commit(walk, branches({ top: "import { elsewhere } from './elsewhere';" }), 'an import at the top');
+    await runElsewhere(walk);
+
+    check(walk, 'the comparison', await compare(walk, base), { lost: 0, unmeasured: 1, left: {} });
   });
 }

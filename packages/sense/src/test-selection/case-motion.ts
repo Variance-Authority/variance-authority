@@ -3,6 +3,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import { addressKey } from './carried-rows.js';
 import { placeThrough, type Hunk } from './placed.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
+import type { Stand } from './stands.js';
 import { stoppedIn } from './stopped.js';
 
 /**
@@ -75,6 +76,17 @@ export interface CaseMotion {
    * were checked against their path: that is not the same as none.
    */
   readonly mismatched?: readonly MismatchedRow[];
+  /**
+   * Regions whose cases at the base include one whose test file last ran
+   * before an edit to the region's file, and that the current record no
+   * longer holds there: the record carried that file's cases over the edit,
+   * and kept them only where the edit's reading spared the region. Whether
+   * the case still runs the region was not measured, so the region is
+   * neither lost, hidden nor thinned, and the test file is not said to have
+   * left it. Absent from an answer written before carried cases were told
+   * apart: that is not the same as none.
+   */
+  readonly unmeasured?: readonly Omit<RegionMotion, 'motion' | 'stopped'>[];
 }
 
 /** A base row, as the base places it, and the region now that stands on the lines the diff carried it to. */
@@ -105,6 +117,14 @@ export interface CaseMotionOptions {
    * has nothing to compare.
    */
   readonly diff: ReadonlyMap<string, readonly Hunk[]>;
+  /**
+   * The stands of the current record ({@link Stand}): the test files that did
+   * not run at its commit, and the files changed since each last ran. A case
+   * of one of them that the current record lost from a region of a changed
+   * file was not measured gone. Absent: every case in the current record ran
+   * at its commit.
+   */
+  readonly stands?: readonly Stand[];
 }
 
 /**
@@ -117,7 +137,9 @@ export interface CaseMotionOptions {
  * already says so. Neither the address, whose occurrence counts siblings of
  * one name, nor the cases can say which of two siblings an edit wrote between
  * them is new; the diff can. Only calls count; a region entered while its
- * module evaluated was entered by whichever case imported it first.
+ * module evaluated was entered by whichever case imported it first. A case
+ * the current record carried over an edit to the region's file, and dropped
+ * there, makes the region unmeasured rather than moved.
  */
 export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: CaseMotionOptions): CaseMotion {
   const regions: RegionMotion[] = [];
@@ -131,6 +153,13 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   const unread: string[] = [];
   const renumbered: MovedRegion[] = [];
   const mismatched: MismatchedRow[] = [];
+  const unmeasured: Omit<RegionMotion, 'motion' | 'stopped'>[] = [];
+  // Each carried test file, with the files changed since it last ran.
+  const carried = new Map<string, ReadonlySet<string>>();
+  for (const stand of options.stands ?? []) {
+    const changed = new Set(stand.changed);
+    for (const test of stand.tests) carried.set(test, changed);
+  }
   const retained = options.retained;
   const kept = new Map(retained?.modules.map((module) => [module.file, module]));
   for (const held of base.modules) {
@@ -161,10 +190,14 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       // now keeps the regions its retained cases reach.
       const was = filesOf(before);
       const is = filesOf(after);
+      // A carried file the edit reached kept no case here, which says nothing of whether it runs the region.
+      const unread = (file: string) => carried.get(file)?.has(module.file) === true;
       for (const file of is) if (!was.has(file)) reachOf(file).entered.push(region);
-      for (const file of was) if (!is.has(file)) reachOf(file).left.push(region);
+      for (const file of was) if (!is.has(file) && !unread(file)) reachOf(file).left.push(region);
       const moved = { ...region, before, now: after };
-      if (before.length > 0 && after.length === 0) {
+      const gone = before.some((test) => !runsIds.has(test.id) && !still.some((kept) => kept.id === test.id) && unread(test.file));
+      if (gone && (after.length === 0 || (before.length > 1 && after.length === 1))) unmeasured.push(moved);
+      else if (before.length > 0 && after.length === 0) {
         if (stopped === null) stopped = stoppedIn(now, module, options.relations);
         const cases = stopped === undefined ? undefined : [...stopped].sort((left, right) => left - right);
         if (cases?.length === 0) regions.push({ ...moved, motion: 'lost' });
@@ -180,7 +213,8 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
     .map(([file, { entered, left }]) => ({ file, entered: inOrder(entered), left: inOrder(left) }))
     .sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
   mismatched.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
-  return { regions, counts, testFiles, unread: unread.sort(), renumbered: inOrder(renumbered), mismatched };
+  unmeasured.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
+  return { regions, counts, testFiles, unread: unread.sort(), renumbered: inOrder(renumbered), mismatched, unmeasured };
 }
 
 function place(file: string, block: ExecutionBlock): MovedRegion {

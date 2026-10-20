@@ -86,7 +86,7 @@ instrument and no second run.
 |---|---|---|
 | Share of the code each suite runs | one upload per flag | one count per [declared suite](execution-record.md#one-record-for-each-suite), all over the same total |
 | Code that only one kind of suite runs | no answer | counted per kind: unit, integration, e2e, visual |
-| Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change |
+| Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change; a region whose test has not run since its file changed is counted as unmeasured, not as no longer run |
 | Which test file caused it | no answer | named |
 | Files no test ran | at 0%, when the reporter is told to include every file under a glob | listed with their lines and regions, within the application `--from` names, following its imports into shared packages |
 | A suite that has not run | the last report, carried forward | `unrecorded`, never `0%` |

@@ -1,9 +1,11 @@
 import { describe, it } from 'vitest';
+import { comparedByCli } from './__fixtures__/carry-comparison.js';
 import { selectedByCli } from './__fixtures__/carry-contract.js';
 import {
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
   commentThenRunElsewhere,
+  importEditedThenRunElsewhere,
   lackedCallbackThenComment,
 } from './__fixtures__/carry-stories.js';
 
@@ -24,5 +26,9 @@ describe('a record carried through a history, asked by the CLI after a restart',
 
   it('keeps the top level\'s load evidence when a run of other tests carries the record over that deletion', async () => {
     await branchDeletedThenRunElsewhere(selectedByCli);
+  });
+
+  it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {
+    await importEditedThenRunElsewhere(comparedByCli);
   });
 });

@@ -50,7 +50,7 @@ export const ELSEWHERE = 'src/elsewhere.ts';
 export const ELSEWHERE_TEST = 'test/elsewhere.test.ts';
 
 /** The CLI's entry point, built. */
-const BIN = resolve(import.meta.dirname, '../../../../cli/dist/bin.js');
+export const BIN = resolve(import.meta.dirname, '../../../../cli/dist/bin.js');
 
 /** One step of a walk, as its artifacts list it. */
 type Action = Readonly<Record<string, unknown>> & { readonly action: string };
@@ -321,17 +321,35 @@ export interface Held {
   readonly loadedBy: readonly string[];
 }
 
-/** The record as a reader opens it from disk, labelled by the subject's text at HEAD. */
-export async function held(walk: Walk): Promise<Held> {
+/** A region by its kind and the lines it stands on. */
+export interface Lines {
+  readonly kind: string;
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+/**
+ * A namer of the subject's regions at HEAD: the label a region stands for, or
+ * its kind and lines where no label stands in it.
+ */
+export function namer(walk: Walk): (block: Lines) => string {
   const regions = regionsOf(walk.text);
-  // A region no label stands in — the `else` an `if` without one is cut with — is
-  // named by its lines, and only when something entered it.
-  const put = (into: Record<string, string[]>, block: { readonly kind: string; readonly startLine: number; readonly endLine: number }, tests: readonly string[]): void => {
+  return (block) => {
     const at = regions.findIndex((region) =>
       region.block.kind === block.kind && region.block.startLine === block.startLine && region.block.endLine === block.endLine);
-    const label = at < 0 ? undefined : labelOf(regions, at);
-    if (label === undefined && tests.length === 0) return;
-    const key = label ?? `${block.kind}@${block.startLine}-${block.endLine}`;
+    return (at < 0 ? undefined : labelOf(regions, at)) ?? `${block.kind}@${block.startLine}-${block.endLine}`;
+  };
+}
+
+/** The record as a reader opens it from disk, labelled by the subject's text at HEAD. */
+export async function held(walk: Walk): Promise<Held> {
+  const named = namer(walk);
+  // A region no label stands in — the `else` an `if` without one is cut with — is
+  // named by its lines, and only when something entered it.
+  const put = (into: Record<string, string[]>, block: Lines, tests: readonly string[]): void => {
+    const label = named(block);
+    if (label.includes('@') && tests.length === 0) return;
+    const key = label;
     if (into[key] !== undefined) throw new Error(`two regions of the record stand for ${key}`);
     into[key] = [...new Set(tests)].sort();
   };

@@ -13,7 +13,7 @@
  * changed*, which is a different question asked by a different half of the run.
  */
 
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { join, relative, resolve } from 'node:path';
@@ -466,3 +466,9 @@ export function topLevel(from: string): Promise<string | undefined> {
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/** One git invocation in `repository`, answering its stdout and throwing when git fails. */
+export const gitIn =
+  (repository: string) =>
+  (...args: string[]): string =>
+    execFileSync('git', args, { cwd: repository, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });

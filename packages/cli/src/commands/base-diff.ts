@@ -10,11 +10,12 @@
  */
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { hunksByFile, type Hunk } from '@variance-authority/sense/test-selection';
+import { hunksByFile, readCommitRuns, standsAt, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { diffSince, topLevel } from './since.js';
+import { diffSince, gitIn, topLevel } from './since.js';
 
 const OBJECT_NAME = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 
@@ -85,5 +86,23 @@ export async function movedOnBase(
         'A shallow clone has only the tip: check out every commit with `fetch-depth: 0` and `filter: tree:0` on `actions/checkout`.',
       { kind: 'undiffed' },
     );
+  }
+}
+
+/**
+ * The stands of the record at `record`: the test files that did not run at its
+ * commit, and the files changed since each last ran, so a case the record
+ * carried over an edit is not read as gone. Nothing when the runs record
+ * cannot be read or the root is in no checkout: every case is then read as
+ * run at the record's commit, as before runs were recorded.
+ */
+export async function carriedOver(record: string, root: string): Promise<{ readonly stands?: readonly Stand[] }> {
+  const repository = await topLevel(root);
+  if (repository === undefined) return {};
+  try {
+    const reading = standsAt(record, await readCommitRuns(record), gitIn(repository), (test) => existsSync(join(repository, test)));
+    return reading === undefined ? {} : { stands: reading.stands };
+  } catch {
+    return {};
   }
 }
