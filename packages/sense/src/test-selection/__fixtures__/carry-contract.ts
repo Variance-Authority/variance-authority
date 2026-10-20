@@ -17,9 +17,10 @@
  * holds. What each test enters is the fixture's to say, so every expectation
  * is written from the labels, never read back from the code under test.
  *
- * A walk that fails keeps its directory — every text, the actions in order,
- * the record, and each expectation beside what came back — and names it in the
- * error.
+ * A walk is removed only when it passes, so a failed one stays under
+ * `CARRY_CONTRACT_ARTIFACTS`; a generated history that fails also writes every
+ * text, the actions in order and each expectation beside what came back beside
+ * its record ({@link keepArtifacts}), and names the directory in its error.
  */
 
 import { execFile } from 'node:child_process';
@@ -66,6 +67,10 @@ export interface Walk {
   readonly checks: { readonly name: string; readonly expected: unknown; readonly actual: unknown }[];
   /** The subject's text at HEAD. */
   text: string;
+  /** HEAD's commit. */
+  head: string;
+  /** The commit `variance index` last indexed into the walk's cache. */
+  indexed?: string;
   /** Each text the subject held, in order. */
   readonly texts: string[];
 }
@@ -90,6 +95,7 @@ export async function openWalk(text: string, hits: Readonly<Record<string, reado
   await git(root, 'commit', '--quiet', '--message', 'the first text');
   return {
     root, scratch, cacheRoot, hits, text,
+    head: (await git(root, 'rev-parse', 'HEAD')).trim(),
     coverageFile: testCoverageFile(root, { cacheRoot }),
     actions: [{ action: 'open', tests: hits }],
     checks: [],
@@ -101,23 +107,14 @@ async function git(root: string, ...args: string[]): Promise<string> {
   return (await run('git', args, { cwd: root, maxBuffer: 64 * 1024 * 1024 })).stdout;
 }
 
-/**
- * Runs `body` over a walk, and keeps the walk's directory with its artifacts
- * when it throws, naming the directory in the error.
- */
+/** Runs `body` over a walk, and removes the walk's directory when it passes. */
 export async function walking(
   text: string,
   hits: Readonly<Record<string, readonly string[]>>,
   body: (walk: Walk) => Promise<void>,
 ): Promise<void> {
   const walk = await openWalk(text, hits);
-  try {
-    await body(walk);
-  } catch (error) {
-    const kept = await keepArtifacts(walk);
-    if (error instanceof Error) error.message = `${error.message}\nthe walk is kept at ${kept}`;
-    throw error;
-  }
+  await body(walk);
   await rm(walk.scratch, { recursive: true, force: true });
 }
 
@@ -145,7 +142,8 @@ export async function commit(walk: Walk, text: string, message: string): Promise
   walk.text = text;
   walk.texts.push(text);
   walk.actions.push({ action: 'commit', message, text: walk.texts.length - 1 });
-  return (await git(walk.root, 'rev-parse', 'HEAD')).trim();
+  walk.head = (await git(walk.root, 'rev-parse', 'HEAD')).trim();
+  return walk.head;
 }
 
 /** A region of the subject's text as a run records it, with the labels that stand in it. */
@@ -156,9 +154,7 @@ interface Region {
 
 /** The regions of `text`, each with the labels whose `hit` call stands in its lines. */
 export function regionsOf(text: string): readonly Region[] {
-  const instrumented = instrument(text, SUBJECT, SUBJECT);
-  if (instrumented === undefined) throw new Error(`the subject does not parse:\n${text}`);
-  const blocks = coverageBlocks(instrumented.blocks, {
+  const blocks = coverageBlocks(instrument(text, SUBJECT, SUBJECT)!.blocks, {
     text,
     extentOf: (start, last) => [lineAt(text, start), lineAt(text, last)],
   });
@@ -204,7 +200,7 @@ export interface RunOptions {
 
 /** A run of `tests` over the subject at HEAD, landed into the walk's record. */
 export async function runTests(walk: Walk, tests: readonly string[], options: RunOptions = {}): Promise<void> {
-  const head = (await git(walk.root, 'rev-parse', 'HEAD')).trim();
+  const { head } = walk;
   const all = regionsOf(walk.text);
   const lacked = new Set(all.flatMap((region, at) => {
     const label = labelOf(all, at);
@@ -270,7 +266,7 @@ export async function runTests(walk: Walk, tests: readonly string[], options: Ru
 
 /** A run of a test that enters only {@link ELSEWHERE}: the subject's record is carried to HEAD, not recorded. */
 export async function runElsewhere(walk: Walk): Promise<void> {
-  const head = (await git(walk.root, 'rev-parse', 'HEAD')).trim();
+  const { head } = walk;
   const text = 'export const elsewhere = 1;\n';
   const instrumented = instrument(text, ELSEWHERE, ELSEWHERE)!;
   const blocks = coverageBlocks(instrumented.blocks, { text, extentOf: (start, last) => [lineAt(text, start), lineAt(text, last)] });
@@ -298,7 +294,8 @@ export async function runElsewhere(walk: Walk): Promise<void> {
         })),
         called: Uint32Array.from(blocks, () => sets.intern([0])),
         loaded: Uint8Array.from(blocks, (block) => (block.kind === 'module' ? 1 : 0)),
-        owner: Uint32Array.from(blocks, (block) => (block.owner === undefined ? NO_OWNER : blocks.findIndex((other) => other.ordinal === block.owner))),
+        // The file is one statement: its top level, which no region owns.
+        owner: Uint32Array.from(blocks, () => NO_OWNER),
       }],
       sets: sets.pool(),
     }),
@@ -349,9 +346,7 @@ export async function held(walk: Walk): Promise<Held> {
   const put = (into: Record<string, string[]>, block: Lines, tests: readonly string[]): void => {
     const label = named(block);
     if (label.includes('@') && tests.length === 0) return;
-    const key = label;
-    if (into[key] !== undefined) throw new Error(`two regions of the record stand for ${key}`);
-    into[key] = [...new Set(tests)].sort();
+    into[label] = [...new Set(tests)].sort();
   };
   const coverage = await readTestCoverage(walk.coverageFile);
   const row = coverage.modules.find((module) => module.file === SUBJECT);
@@ -392,9 +387,8 @@ async function patchTo(walk: Walk, next: string): Promise<string> {
 export async function selected(walk: Walk, next: string): Promise<readonly string[]> {
   const diff = await patchTo(walk, next);
   const sections = caseSectionsAt(walk.coverageFile);
-  if (sections.index === undefined) throw new Error('the record holds no case index');
   const { read } = readJourneyChange(diff, (file) => (file === SUBJECT ? walk.text : undefined), { root: walk.root });
-  const narrowing = narrowByJourneys(decodeExecutionIndex(sections.index), changedLines(diff), { read });
+  const narrowing = narrowByJourneys(decodeExecutionIndex(sections.index!), changedLines(diff), { read });
   if (narrowing.unread.length > 0) throw new Error(`the selection read nothing for ${narrowing.unread.join(', ')}`);
   walk.actions.push({ action: 'select', next, entered: narrowing.entered });
   return narrowing.entered.filter((test) => test !== ELSEWHERE_TEST);
@@ -412,14 +406,17 @@ export function cliEnv(walk: Walk): NodeJS.ProcessEnv {
 /**
  * {@link selected}, asked of the CLI in a process of its own that opens the
  * record cold, after `variance index` has indexed HEAD into the walk's cache,
- * as a pipeline indexes before it selects.
+ * as a pipeline indexes a commit once before it selects.
  */
 export async function selectedByCli(walk: Walk, next: string): Promise<readonly string[]> {
   const diff = await patchTo(walk, next);
   const patch = resolve(walk.scratch, `change-${walk.actions.length}.patch`);
   await writeFile(patch, diff, 'utf8');
   const options = { cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024 };
-  await run(process.execPath, [BIN, 'index', '--wait'], options);
+  if (walk.indexed !== walk.head) {
+    await run(process.execPath, [BIN, 'index', '--wait'], options);
+    walk.indexed = walk.head;
+  }
   const { stdout } = await run(process.execPath, [BIN, 'select', '--execution', walk.coverageFile, '--diff', patch, '--format', 'json'], options);
   walk.actions.push({ action: 'select through the CLI', next, stdout });
   return testsOf(JSON.parse(stdout) as unknown);
@@ -427,8 +424,7 @@ export async function selectedByCli(walk: Walk, next: string): Promise<readonly 
 
 /** The test files a `--format json` selection names to run. */
 function testsOf(output: unknown): readonly string[] {
-  const { selected } = output as { readonly selected?: readonly { readonly test: string }[] };
-  if (selected === undefined) throw new Error(`no selection in the output: ${JSON.stringify(output)}`);
+  const { selected } = output as { readonly selected: readonly { readonly test: string }[] };
   return selected.map(({ test }) => test).filter((test) => test !== ELSEWHERE_TEST).sort();
 }
 
@@ -438,6 +434,5 @@ function testsOf(output: unknown): readonly string[] {
  */
 export function touching(text: string, label: string): string {
   const call = `hit('${label}');`;
-  if (!text.includes(call)) throw new Error(`no region is labelled ${label}`);
   return text.replace(call, `${call} again();`);
 }

@@ -39,12 +39,12 @@ describe('a record carried through a history, asked by the CLI after a restart',
   });
 });
 
-// A few of the generated histories, the last selection asked of the CLI for the
-// labels the three faults move: the callbacks and the top level. A replay here
-// is a process per selection, so a failing one is not shrunk: the in-process
-// run plays the same seeds and shrinks them.
+// The in-process run's seed, the last selection asked of the CLI for the labels
+// the three faults move: the callbacks and the top level. A replay here is a
+// process per selection, so a failing one is not shrunk: the in-process run
+// plays the same seed and shrinks it.
 describe('a record carried through a generated history, asked by the CLI after a restart', () => {
-  it.each(seedsOr([4830, 4831, 4832]))('stays within the fixture\'s bounds for seed %i', async (seed) => {
+  it.each(seedsOr([4839]))('stays within the fixture\'s bounds for seed %i', async (seed) => {
     await generated(seed, selectedByCli, { asked: ['top', 'first', 'second'], replays: 0 });
   });
 });

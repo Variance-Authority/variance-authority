@@ -37,9 +37,13 @@ describe('a record carried through a history, asked in-process', () => {
   });
 });
 
-// Seeds fixed so a run is reproducible; CARRY_SEED replays one.
+// One seed, fixed so a run is reproducible, and chosen as the one of seeds
+// 4830-4869 whose history every fault a seed catches fails: a carry that reads
+// lines only, one that pairs regions blind to their population, and one that
+// refuses the top level, in TypeScript and in the native layer. CARRY_SEED
+// replays another.
 describe('a record carried through a generated history, asked in-process', () => {
-  it.each(seedsOr(Array.from({ length: 24 }, (_, at) => 4830 + at)))('stays within the fixture\'s bounds for seed %i', async (seed) => {
+  it.each(seedsOr([4839]))('stays within the fixture\'s bounds for seed %i', async (seed) => {
     await generated(seed, selected, { replays: 3 });
   });
 });

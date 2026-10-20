@@ -33,8 +33,8 @@ contract it keeps and the journey in
 it, in-process and through the CLI, adding the journey when none does. It also
 shows the regression test failing on the code before the fix: the command and
 its failing assertion, quoted in the PR's `Pinned by` column. The
-`carry-contract` job in [`check.yml`](../../.github/workflows/check.yml) runs
-these journeys by path rather than by selection, because a carrying defect
+`carry contract` step of the `rules` job in
+[`check.yml`](../../.github/workflows/check.yml) runs these journeys by path rather than by selection, because a carrying defect
 corrupts the very record a selection would be read from.
 
 **Is it this task?** A task is the sentence of done from [refine](refine.md),

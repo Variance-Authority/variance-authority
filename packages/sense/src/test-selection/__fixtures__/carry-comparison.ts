@@ -35,7 +35,7 @@ export interface Kept {
 export async function keepRecord(walk: Walk, name: string): Promise<Kept> {
   const file = resolve(walk.scratch, `${name}.bin`);
   await copyFile(walk.coverageFile, file);
-  const commit = (await run('git', ['rev-parse', 'HEAD'], { cwd: walk.root })).stdout.trim();
+  const commit = walk.head;
   walk.actions.push({ action: 'keep the record', name, commit });
   return { file, commit };
 }
@@ -55,11 +55,7 @@ export type Compare = (walk: Walk, base: Kept) => Promise<Compared>;
 
 /** The comparison in-process, through the public readers: the case indexes, the diff and the runs record. */
 export async function comparedInProcess(walk: Walk, base: Kept): Promise<Compared> {
-  const indexOf = (file: string): ExecutionIndex => {
-    const { index } = caseSectionsAt(file);
-    if (index === undefined) throw new Error(`the record at ${file} holds no case index`);
-    return decodeExecutionIndex(index);
-  };
+  const indexOf = (file: string): ExecutionIndex => decodeExecutionIndex(caseSectionsAt(file).index!);
   const diff = hunksByFile((await run('git', ['diff', '-U0', '--no-color', base.commit], { cwd: walk.root })).stdout);
   const runs = await readCommitRuns(walk.coverageFile);
   const reading = standsAt(walk.coverageFile, runs, gitIn(walk.root), (test) => existsSync(resolve(walk.root, test)));
@@ -83,9 +79,8 @@ export async function comparedByCli(walk: Walk, base: Kept): Promise<Compared> {
     env: cliEnv(walk),
     maxBuffer: 64 * 1024 * 1024,
   });
-  const [suite] = (JSON.parse(stdout) as { readonly suites: readonly { readonly base?: { readonly change: SuiteChange } }[] }).suites;
-  if (suite?.base === undefined) throw new Error(`no comparison in the output: ${stdout}`);
-  const { change } = suite.base;
+  const [suite] = (JSON.parse(stdout) as { readonly suites: readonly { readonly base: { readonly change: SuiteChange } }[] }).suites;
+  const { change } = suite!.base;
   const named = namer(walk);
   const answer: Compared = {
     lost: change.lost + change.hidden,
