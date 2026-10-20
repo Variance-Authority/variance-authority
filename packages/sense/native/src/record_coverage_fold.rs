@@ -16,8 +16,9 @@
 //! that cut by address, as a carried row is cut again (`recut`), and owes a
 //! run to every test whose crossings have no place in it. A region a shard's
 //! row was cut without takes the region around it; one whose address the row
-//! disputes, and every region inside it, takes nothing from that row, since
-//! its crossers are owed the run that measures them.
+//! disputes, and every region inside it, takes nothing from that row, and the
+//! crossers of the row's region around it, any of whom may have run it, are
+//! owed the run that measures them.
 //!
 //! Shards are added one at a time and each is dropped once added, so the fold
 //! holds the output and one shard, never every shard: a region's tests are an
@@ -302,21 +303,25 @@ impl<'c> Fold<'c> {
                 // A row lends each region's crossings by address, and a region
                 // the row was cut without takes the region around it. A region
                 // whose address the row disputes takes nothing, nor does one
-                // inside it: the row's regions that have no place owe their
-                // crossers the run that measures them.
+                // inside it: the row's regions that have no place, and the one
+                // around a withheld region, owe their crossers the run that
+                // measures them.
                 let first = coverage.blocks(row).start;
                 let mut taken = vec![false; coverage.blocks(row).len()];
-                if let Recut::Cut { from, .. } = carried((coverage, local.strings), row, (cut.coverage, cut.text), fresh, Disputed::Withhold, |_| false) {
+                let mut owed = Vec::new();
+                if let Recut::Cut { from, owed: around } = carried((coverage, local.strings), row, (cut.coverage, cut.text), fresh, Disputed::Withhold, |_| false) {
                     for from in from.iter().flatten() {
                         taken[from - first] = true;
                     }
+                    owed = around;
                     for (kept, from) in held.blocks.iter_mut().zip(from) {
                         let Some(from) = from else { continue };
                         kept.called = union(kept.called, coverage.block_set[from])?;
                         kept.loaded = union(kept.loaded, coverage.block_loaded_set[from])?;
                     }
                 }
-                for (block, _) in coverage.blocks(row).zip(taken).filter(|(_, taken)| !taken) {
+                let untaken = coverage.blocks(row).zip(taken).filter(|(_, taken)| !taken).map(|(block, _)| block);
+                for block in untaken.chain(owed) {
                     for set in [coverage.block_set[block], coverage.block_loaded_set[block]] {
                         for test in crossing_sets::decode_set(crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set)?, coverage.tests())? {
                             tests[(offset + test) as usize].complete = 0;

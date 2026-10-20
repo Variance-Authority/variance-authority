@@ -85,9 +85,10 @@ fn gives_a_region_a_shard_s_row_lacks_what_that_row_measured_around_it_and_nothi
 }
 
 #[test]
-fn withholds_only_the_disputed_region_and_gives_a_region_the_same_row_lacks_what_it_measured_around_it() {
+fn withholds_only_the_disputed_region_owing_the_tests_around_it_and_gives_a_region_the_same_row_lacks_what_it_measured_around_it() {
     // `a`'s row holds the callback once where the build cuts it twice, and
-    // `g#0` without the region inside it: `d` entered `g#0` and never the callback.
+    // `g#0` without the region inside it. `d` ran the top level and `g#0`:
+    // the row cannot say whether it ran the callback its writer did not cut.
     let stale = vec![block(0, &[0, 1]), inside(1, "cb", 0, &[0]), inside(2, "g#0", 0, &[0, 1])];
     let cut = || vec![block(0, &[]), inside(1, "cb", 0, &[]), inside(2, "cb", 0, &[]), inside(3, "g#0", 0, &[]), inside(4, "inner", 3, &[])];
     let one = fixture::write(&spec(vec![test("a.test.ts"), test("d.test.ts")], vec![module("src/a.ts", stale)]));
@@ -97,7 +98,22 @@ fn withholds_only_the_disputed_region_and_gives_a_region_the_same_row_lacks_what
     assert_eq!(modules[0].2[1], (1, Vec::new(), Vec::new()));
     assert_eq!(modules[0].2[4], (4, files(&["a.test.ts", "d.test.ts"]), Vec::new()));
     let complete: Vec<_> = tests.iter().map(|(file, complete, _)| (file.as_str(), *complete)).collect();
-    assert_eq!(complete, [("a.test.ts", false), ("b.test.ts", true), ("d.test.ts", true)]);
+    assert_eq!(complete, [("a.test.ts", false), ("b.test.ts", true), ("d.test.ts", false)]);
+}
+
+#[test]
+fn owes_a_run_to_the_tests_around_a_branch_the_row_seated_but_did_not_cut() {
+    // `t`'s writer seated both branches of `f` and cut only the second;
+    // `t` ran `f`, so it may have run the first.
+    let stale = vec![block(0, &[0]), inside(1, "f", 0, &[0]), inside(2, "if#1", 1, &[])];
+    let cut = || vec![block(0, &[]), inside(1, "f", 0, &[]), inside(2, "if#0", 1, &[]), inside(3, "if#1", 1, &[])];
+    let one = fixture::write(&spec(vec![test("t.test.ts")], vec![module("src/a.ts", stale)]));
+    let other = fixture::write(&spec(vec![test("b.test.ts")], vec![module("src/a.ts", cut())]));
+    let cut = fixture::write(&spec(Vec::new(), vec![module("src/a.ts", cut())]));
+    let (tests, modules) = fixture::read(&combine_bytes(&named(&[&one, &other]), Some(&cut)).unwrap().bytes);
+    assert_eq!(modules[0].2[2], (2, Vec::new(), Vec::new()));
+    let complete: Vec<_> = tests.iter().map(|(file, complete, _)| (file.as_str(), *complete)).collect();
+    assert_eq!(complete, [("b.test.ts", true), ("t.test.ts", false)]);
 }
 
 #[test]

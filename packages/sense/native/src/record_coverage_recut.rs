@@ -50,7 +50,8 @@ pub(crate) enum Recut {
     /// Carried as it is, every crosser owed a run: its crossings have no place in the new text.
     Mislaid,
     /// Written as the fresh row: per fresh region, the previous region whose
-    /// crossings it takes, and the previous regions whose crossers the edit reached.
+    /// crossings it takes, and the previous regions whose crossers are owed a
+    /// run: the edit reached them, or a region inside them was withheld.
     Cut { from: Vec<Option<usize>>, owed: Vec<usize> },
 }
 
@@ -61,7 +62,8 @@ pub(crate) enum Disputed {
     /// that region, so the superset is the only set that skips none of them.
     Inherit,
     /// Nothing, and nor does a region inside it: the row's crossings are not
-    /// written where the row cannot say they belong.
+    /// written where the row cannot say they belong, and the crossers of the
+    /// region around it, any of whom may have run it, are owed a run.
     Withhold,
 }
 
@@ -122,7 +124,12 @@ pub(crate) fn carried(
         };
         let was = was.filter(|was| previous.block_kind[*was] == fresh.block_kind[block]);
         let owner = fresh.block_owner[block];
-        let taken = was.or_else(|| if withheld || owner == LAYOUT.coverage.no_owner { None } else { decided.get(&owner).copied().flatten() });
+        let around = if owner == LAYOUT.coverage.no_owner { None } else { decided.get(&owner).copied().flatten() };
+        if let Some(around) = around.filter(|_| withheld) {
+            // Its writer may have run it from the region around it, uncut.
+            owed.push(around);
+        }
+        let taken = was.or(around.filter(|_| !withheld));
         decided.insert(fresh.block_ordinal[block], taken);
         let unmoved = was.is_some_and(|was| ps.at(previous.block_digest[was]) == fs.at(fresh.block_digest[block]));
         if let Some(taken) = taken.filter(|_| !unmoved && reaches(fresh.block_kind[block])) {
