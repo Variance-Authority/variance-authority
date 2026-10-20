@@ -68,7 +68,7 @@ runs:
         libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
         compiler=$(rustc -vV | sha256sum | cut -d ' ' -f 1)
         echo "toolchain=$(rustc --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
-        echo "RUSTUP_TOOLCHAIN=$(rustup show active-toolchain | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+        rustup default "$(rustup show active-toolchain | cut -d ' ' -f 1)"
         echo "libc=${libc:-none}" >> "$GITHUB_OUTPUT"
         echo "key=sense-native-v2-$PLATFORM-libc-${libc:-none}-$compiler-$inputs" >> "$GITHUB_OUTPUT"
 
