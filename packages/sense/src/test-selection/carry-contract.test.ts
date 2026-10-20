@@ -7,6 +7,7 @@ import {
   commentThenRunElsewhere,
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
+  typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
 
 describe('a record carried through a history, asked in-process', () => {
@@ -24,6 +25,10 @@ describe('a record carried through a history, asked in-process', () => {
 
   it('keeps the top level\'s cases and load evidence when a run of other tests carries the record over that deletion', async () => {
     await branchDeletedThenRunElsewhere(selected);
+  });
+
+  it('keeps every case and the load evidence when a run of other tests carries the record over a type written at the top', async () => {
+    await typeWrittenThenRunElsewhere(selected);
   });
 
   it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {

@@ -368,6 +368,16 @@ export async function held(walk: Walk): Promise<Held> {
   return { cases, rows, loadedBy };
 }
 
+/**
+ * The test files the record owes a run, opened from disk: those it no longer
+ * holds whole, because an edit reached a region they entered and they have
+ * not run since.
+ */
+export async function owed(walk: Walk): Promise<readonly string[]> {
+  const coverage = await readTestCoverage(walk.coverageFile);
+  return coverage.tests.filter((test) => !test.complete).map((test) => test.file).sort();
+}
+
 /** The patch from the subject at HEAD to `next`, as `git diff` writes it, leaving HEAD's text in place. */
 async function patchTo(walk: Walk, next: string): Promise<string> {
   await writeFile(resolve(walk.root, SUBJECT), next, 'utf8');

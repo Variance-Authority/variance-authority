@@ -10,7 +10,7 @@
 
 import { expect } from 'vitest';
 import { keepRecord, type Compare } from './carry-comparison.js';
-import { commit, held, noted, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
+import { commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
 
 export const A = 'test/a.test.ts';
 export const B = 'test/b.test.ts';
@@ -71,6 +71,7 @@ export async function commentThenRunElsewhere(ask: Ask): Promise<void> {
 
     // Every region ran as it did, and keeps what entered it at the lines it stands at now.
     check(walk, 'carried', await held(walk), { cases: recorded, rows: recorded, loadedBy: [A, B] });
+    check(walk, 'owed after the comment', await owed(walk), []);
     check(walk, 'an edit in the first effect', await ask(walk, touching(walk.text, 'first')), [A]);
     check(walk, 'an edit in the second effect', await ask(walk, touching(walk.text, 'second')), [B]);
   });
@@ -153,6 +154,42 @@ export async function branchDeletedThenRunElsewhere(ask: Ask): Promise<void> {
 }
 
 /**
+ * A type written at the top of the subject, which changes its text and nothing
+ * it does, and a run of other tests that carries the subject's record over it.
+ *
+ * The edit moves every span below it, and the top level's text changed, but
+ * nothing that runs did: every region keeps every case and the load evidence,
+ * and an edit at load selects every test that loaded the module.
+ */
+export async function typeWrittenThenRunElsewhere(ask: Ask): Promise<void> {
+  await walking(branches(), { [A]: ['top', 'body', 'one'], [B]: ['top', 'body', 'two'], [C]: ['top'] }, async (walk) => {
+    await runTests(walk, [A, B, C]);
+    // B alone ran the statements after the first branch, a region no label names, at 7-9.
+    const recorded = { top: [A, B, C], body: [A, B], one: [A], two: [B] };
+    check(walk, 'recorded', await held(walk), {
+      cases: { ...recorded, 'continuation@7-9': [B] },
+      rows: { ...recorded, 'continuation@7-9': [B] },
+      loadedBy: [A, B, C],
+    });
+
+    const typed = branches({ top: 'type Unused = number;' });
+    check(walk, 'a type', await selected(walk, typed), []);
+    await commit(walk, typed, 'a type at the top');
+    await runElsewhere(walk);
+
+    // The same, one line lower.
+    check(walk, 'carried', await held(walk), {
+      cases: { ...recorded, 'continuation@8-10': [B] },
+      rows: { ...recorded, 'continuation@8-10': [B] },
+      loadedBy: [A, B, C],
+    });
+    // The top level's text changed, and nothing it does: no test is owed a run.
+    check(walk, 'owed after the type', await owed(walk), []);
+    check(walk, 'an edit at load', await ask(walk, branches({ top: "type Unused = number;\nhit('again');" })), [A, B, C]);
+  });
+}
+
+/**
  * An import written at the top of the subject, which changes what it does as
  * it loads, and a run of other tests that carries the subject's record over it.
  *
@@ -169,6 +206,8 @@ export async function importEditedThenRunElsewhere(compare: Compare): Promise<vo
     await commit(walk, branches({ top: "import { elsewhere } from './elsewhere';" }), 'an import at the top');
     await runElsewhere(walk);
 
+    // The import reached the top level both entered, so both are owed a run.
+    check(walk, 'owed after the import', await owed(walk), [A, B]);
     check(walk, 'the comparison', await compare(walk, base), { lost: 0, unmeasured: 1, left: {} });
   });
 }
