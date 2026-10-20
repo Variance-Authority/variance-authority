@@ -30,6 +30,11 @@ export function textDigests(paths: Iterable<string>): ReadonlyMap<string, Digest
  * write in the run's first millisecond is not: no test has read a file yet by
  * then, so it runs the text written.
  */
+// FIXME: a write time is as fine as the file system keeps it. On one that
+// keeps whole seconds (HFS+, FAT, some network mounts), or whose clock runs
+// behind the process's, a write early in the run is stamped at or before
+// `startedAt` and reads as ran over. Digesting each text as its test starts
+// and comparing it here would not depend on the clock.
 export function movedSince(paths: Iterable<string>, startedAt: number): ReadonlySet<string> {
   const moved = new Set<string>();
   for (const path of new Set(paths)) {
