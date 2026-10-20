@@ -14,7 +14,10 @@
 //! older writer cut. The fold names such modules and writes nothing; handed
 //! the checkout's own cut of them, it carries every shard's crossings onto
 //! that cut by address, as a carried row is cut again (`recut`), and owes a
-//! run to every test whose crossings have no place in it.
+//! run to every test whose crossings have no place in it. A region a shard's
+//! row lacks takes the region around it only where every region of that row
+//! has a place: a row with a region that has none lends what it placed and
+//! nothing more, since its crossers are owed the run that measures them.
 //!
 //! Shards are added one at a time and each is dropped once added, so the fold
 //! holds the output and one shard, never every shard: a region's tests are an
@@ -296,13 +299,19 @@ impl<'c> Fold<'c> {
                 continue;
             }
             if let Some((cut, fresh)) = fresh {
-                // Every test that entered a region no fresh region took is owed a run.
+                // A row lends each region's crossings by address. Where every one
+                // of its regions has a place, a region the row lacks takes the
+                // region around it; where one has none, its crossers are owed
+                // the run that measures them, and nothing is taken for them.
+                let first = coverage.blocks(row).start;
                 let mut taken = vec![false; coverage.blocks(row).len()];
-                if let Recut::Cut { from, .. } = carried((coverage, local.strings), row, (cut.coverage, cut.text), fresh, |_| false) {
-                    let first = coverage.blocks(row).start;
-                    for (kept, from) in held.blocks.iter_mut().zip(from) {
-                        let Some(from) = from else { continue };
-                        taken[from - first] = true;
+                if let Recut::Cut { from, placed, .. } = carried((coverage, local.strings), row, (cut.coverage, cut.text), fresh, |_| false) {
+                    for (from, _) in from.iter().zip(&placed).filter(|(_, placed)| **placed) {
+                        taken[from.expect("a placed region took its own") - first] = true;
+                    }
+                    let whole = taken.iter().all(|taken| *taken);
+                    for ((kept, from), placed) in held.blocks.iter_mut().zip(from).zip(placed) {
+                        let Some(from) = from.filter(|_| placed || whole) else { continue };
                         kept.called = union(kept.called, coverage.block_set[from])?;
                         kept.loaded = union(kept.loaded, coverage.block_loaded_set[from])?;
                     }

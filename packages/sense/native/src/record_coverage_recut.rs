@@ -48,8 +48,9 @@ pub(crate) enum Recut {
     /// Carried as it is, every crosser owed a run: its crossings have no place in the new text.
     Mislaid,
     /// Written as the fresh row: per fresh region, the previous region whose
-    /// crossings it takes, and the previous regions whose crossers the edit reached.
-    Cut { from: Vec<Option<usize>>, owed: Vec<usize> },
+    /// crossings it takes and whether that region is its own (`placed`) or the
+    /// one around it, and the previous regions whose crossers the edit reached.
+    Cut { from: Vec<Option<usize>>, placed: Vec<bool>, owed: Vec<usize> },
 }
 
 /// Row `row` of `previous`, cut again as row `module` of `fresh`. `reaches`
@@ -93,7 +94,7 @@ pub(crate) fn carried(
     // By ordinal, the previous region each fresh region took; `owner` names
     // one the walk that numbered them opened first.
     let mut decided: FxHashMap<u32, Option<usize>> = FxHashMap::default();
-    let (mut from, mut owed) = (Vec::with_capacity(fresh.blocks(module).len()), Vec::new());
+    let (mut from, mut placed, mut owed) = (Vec::with_capacity(fresh.blocks(module).len()), Vec::with_capacity(fresh.blocks(module).len()), Vec::new());
     for block in fresh.blocks(module) {
         let at = (fs.at(fresh.block_name[block]), fs.at(fresh.block_path[block]));
         let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
@@ -113,8 +114,9 @@ pub(crate) fn carried(
             owed.push(taken);
         }
         from.push(taken);
+        placed.push(was.is_some());
     }
-    Recut::Cut { from, owed }
+    Recut::Cut { from, placed, owed }
 }
 
 /// Whether a region of `kind` is a module's top level.

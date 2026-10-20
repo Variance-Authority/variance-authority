@@ -246,7 +246,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                                     lose(previous.block_set[block], &mut stale)?;
                                 }
                             }
-                            Recut::Cut { from, owed } => {
+                            Recut::Cut { from, owed, .. } => {
                                 for held in owed {
                                     lose(previous.block_set[held], &mut stale)?;
                                 }

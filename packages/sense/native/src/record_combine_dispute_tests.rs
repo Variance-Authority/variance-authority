@@ -42,16 +42,17 @@ fn folds_a_disputed_module_onto_the_build_s_own_cut_carrying_crossings_by_addres
     let folded = combine_bytes(&named(&[&one, &other]), Some(&cut)).unwrap();
     assert!(folded.result.disputed.is_none());
     let (tests, modules) = fixture::read(&folded.bytes);
-    // The second callback is new to `a`'s row, so `a` is taken to have entered
-    // it as it entered the region around it, and it is owed nothing.
+    // `a`'s row holds the callback's address once and the cut twice, so its
+    // callback names neither: `a` lends its top level and `g#0` by address,
+    // takes nothing at either callback, and is owed the run that measures them.
     let regions = vec![
         (0, files(&["a.test.ts", "b.test.ts"]), Vec::new()),
-        (1, files(&["a.test.ts"]), Vec::new()),
-        (2, files(&["a.test.ts"]), Vec::new()),
+        (1, Vec::new(), Vec::new()),
+        (2, Vec::new(), Vec::new()),
         (3, files(&["a.test.ts", "b.test.ts"]), Vec::new()),
     ];
     assert_eq!(modules, [("src/a.ts".to_owned(), true, regions)]);
-    assert!(tests.iter().all(|(_, complete, _)| *complete));
+    assert_eq!(tests.iter().map(|(file, complete, _)| (file.as_str(), *complete)).collect::<Vec<_>>(), [("a.test.ts", false), ("b.test.ts", true)]);
     let reversed = combine_bytes(&named(&[&other, &one]), Some(&cut)).unwrap();
     assert_eq!(fixture::read(&reversed.bytes).1, modules, "either order folds to one description");
 }
@@ -66,6 +67,21 @@ fn owes_a_run_to_a_shard_whose_regions_have_no_place_in_the_cut() {
     let (tests, modules) = fixture::read(&combine_bytes(&named(&[&one, &other]), Some(&cut)).unwrap().bytes);
     assert_eq!(tests.iter().map(|(file, complete, _)| (file.as_str(), *complete)).collect::<Vec<_>>(), [("a.test.ts", false), ("b.test.ts", true)]);
     assert_eq!(modules[0].2[3], (3, files(&["b.test.ts"]), Vec::new()));
+}
+
+#[test]
+fn gives_a_region_a_shard_s_row_lacks_what_that_row_measured_around_it_and_nothing_another_measured() {
+    // `a`'s writer cut `g#0` without the callback inside it; `b` cut it and
+    // never entered it.
+    let lacking = vec![block(0, &[0]), inside(1, "g#0", 0, &[0])];
+    let whole = vec![block(0, &[0]), inside(1, "g#0", 0, &[0]), inside(2, "cb", 1, &[])];
+    let cut = vec![block(0, &[]), inside(1, "g#0", 0, &[]), inside(2, "cb", 1, &[])];
+    let one = fixture::write(&spec(vec![test("a.test.ts")], vec![module("src/a.ts", lacking)]));
+    let other = fixture::write(&spec(vec![test("b.test.ts")], vec![module("src/a.ts", whole)]));
+    let cut = fixture::write(&spec(Vec::new(), vec![module("src/a.ts", cut)]));
+    let (tests, modules) = fixture::read(&combine_bytes(&named(&[&one, &other]), Some(&cut)).unwrap().bytes);
+    assert_eq!(modules[0].2[2], (2, files(&["a.test.ts"]), Vec::new()));
+    assert!(tests.iter().all(|(_, complete, _)| *complete));
 }
 
 #[test]

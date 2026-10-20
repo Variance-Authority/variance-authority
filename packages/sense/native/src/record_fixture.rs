@@ -151,7 +151,8 @@ pub fn write(spec: &Spec) -> Vec<u8> {
         bytes("modules.instrumented", spec.modules.iter().map(|module| u8::from(module.instrumented)).collect()),
         words("modules.blocks", module_blocks),
         words("blocks.ordinal", ordinal),
-        bytes("blocks.kind", vec![0; blocks]),
+        // A region with an owner is a function's, never a module's top level.
+        bytes("blocks.kind", owner.iter().map(|owner| u8::from(*owner != LAYOUT.coverage.no_owner)).collect()),
         words("blocks.owner", owner),
         words("blocks.digest", digest),
         words("blocks.name", block_name.clone()),
