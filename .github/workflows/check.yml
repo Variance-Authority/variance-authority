@@ -1094,9 +1094,8 @@ jobs:
     # The pinned Playwright image is the one `variance.yml` observes in, for the
     # same reason: the browser and its fonts are part of what these cases assert.
     # Whether the numbers written on a Mac survive this image is what this job
-    # asks, and it is not in `needs` of `check` below until it has answered green
-    # on `main`. A red result here is a finding about the image, not a reason to
-    # weaken a case.
+    # asks. It reports separately from the required `check`: a red result here
+    # is a finding about the image, not a reason to weaken a case.
     #
     # The cases' own fixture files stay at zero coverage: they run in child
     # processes and builds that carry no probe. Running them does not move that
