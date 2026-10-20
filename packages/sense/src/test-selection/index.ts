@@ -93,7 +93,7 @@ export { shardsInstall, type KeptInstall } from './kept-install.js';
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
+export { kept, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { landingTimes } from './selection-environment.js';
 export { shardArgument, shardOf, type ShardAsked, type ShardPart } from './shard-placement.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';

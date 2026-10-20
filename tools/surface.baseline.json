@@ -3155,6 +3155,7 @@
         "journeysApart": "function",
         "keepsCases": "function",
         "keepsEyes": "function",
+        "kept": "function",
         "keptDigests": "function",
         "keptTexts": "function",
         "landCases": "function",
