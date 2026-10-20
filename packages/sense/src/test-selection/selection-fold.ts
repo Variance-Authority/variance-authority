@@ -13,7 +13,7 @@
 
 import { rm } from 'node:fs/promises';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { movedSince, textDigests } from '../text-digests.js';
+import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
 import { landRun } from './commit-runs.js';
@@ -121,18 +121,13 @@ export function foldRun(
     // One row per path, not per project run of it: two projects that both match
     // a file are two announcements of one test file, and the snapshot is keyed
     // by path.
-    // Every file's preconditions are read once for the run: one every test
-    // file shares is one read, not one per test file.
     const perFile = oneRowPerFile(files, root).map((file) => ({ file, governing: governingPreconditions(run, file.configs) }));
-    const digests = textDigests(perFile.flatMap(({ file, governing }) => [file.filepath, ...governing]));
-    // A file whose test file or precondition was written while it ran is
-    // digested at a text it may not have run, and is recorded incomplete.
-    const moved = movedSince(perFile.map(({ file }) => file.filepath), run.startedAt, perFile.flatMap(({ governing }) => governing));
+    const texts = runTexts(perFile.map(({ file, governing }) => ({ test: file.filepath, governing })), run.startedAt);
     const tests = perFile.map(({ file, governing }) => coverageTest(
-      [file.filepath, ...governing].some((path) => moved.has(path)) ? { ...file, complete: false } : file,
+      texts.moved(file.filepath, governing) ? { ...file, complete: false } : file,
       root,
       governing,
-      digests,
+      texts.digests,
       journals,
       joined.modules,
     ));

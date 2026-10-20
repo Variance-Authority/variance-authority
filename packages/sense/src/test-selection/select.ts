@@ -5,7 +5,7 @@ import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason 
 import { instrumentedRows, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
-import { arrivedDigests, declarable, ranOverAll, withRanOver } from './ran-over.js';
+import { arrivedDigests, declarable, ranOverAll, ranOverReading, withRanOver } from './ran-over.js';
 import { frameOf } from './frame.js';
 import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
@@ -369,7 +369,7 @@ function readDiff(
         // when it landed. No parser was asked, so the reading says so rather
         // than claim equal runtime text. An undone file read empty is one the
         // diff never named, and no reading is made of it.
-        if (!undone.has(file)) readings.push({ file, verdict: 'none', names: [], kept: true });
+        if (!undone.has(file)) readings.push(ranOverReading(file));
         continue;
       } else {
         ranges = rebased.ranges;

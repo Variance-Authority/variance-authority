@@ -37,7 +37,7 @@ export interface SelectionRun {
    * See `case-cut.ts`.
    */
   readonly cutFile: string;
-  /** When the run, or the rerun a watching runner reopened it for, began: see `movedSince`. */
+  /** When the run, or the rerun a watching runner reopened it for, began: see `runTexts`. */
   startedAt: number;
   /** The cases the selection skips in the files this run kept: each such file is recorded incomplete. */
   readonly cut: Map<string, readonly string[]>;
@@ -101,12 +101,6 @@ export interface SelectionRun {
    */
   settled: boolean;
   /**
-   * The name filter each project runs under, read when a cycle ends: a watch
-   * session sets and clears it between cycles. Every test a filter left out
-   * reads as skipped, so under one no skip in the run is the file's own.
-   */
-  readonly nameFilters: Set<() => unknown>;
-  /**
    * Whether the runner runs again in this process. The shims stay on disk
    * until it closes, because every rerun's workers load them.
    */
@@ -162,7 +156,6 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     awaiting: new Set<string>(),
     cases: probesRegions(mode),
     settled: false,
-    nameFilters: new Set(),
     watching: false,
     alone: false,
   };

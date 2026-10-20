@@ -2,6 +2,7 @@
 
 import { digestString } from '../digest.js';
 import type { TestCoverageView } from './format-view.js';
+import { commitFrame } from './frame.js';
 import { findString } from './lookup.js';
 import { applied, type Hunk } from './patch.js';
 import type { FileReading } from './reading.js';
@@ -32,8 +33,7 @@ export function arrivedDigests(
   if (sourceAt === undefined || coverage.commit === undefined) return arrived;
   for (const file of rowless) {
     if (!declarable(coverage, knownAs(file))) continue;
-    // A file the commit does not hold is new, and its diff is its whole text.
-    const patched = applied(sourceAt(file, coverage.commit) ?? '', hunks.get(file) ?? []);
+    const patched = applied(commitFrame(coverage, knownAs(file), file, sourceAt).text, hunks.get(file) ?? []);
     if (patched === undefined) continue;
     const digest = digestString(patched.after);
     for (const name of knownAs(file)) arrived.set(name, digest);
@@ -56,7 +56,7 @@ export function ranOverAll(names: readonly string[], unread: ReadonlySet<string>
 }
 
 /** The reading of a file whose text the record was taken over. */
-function ranOverReading(file: string): FileReading {
+export function ranOverReading(file: string): FileReading {
   return { file, verdict: 'none', names: [], kept: true };
 }
 

@@ -270,7 +270,7 @@ export function withTestSelection(
     onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
     onTestRunEnd: (payload: RstestRunEnd) => {
       ended = Date.now();
-      const named = [...run.nameFilters].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
+      const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
       return unprobedAtEnd(run) ?? settle(cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
@@ -376,6 +376,19 @@ interface RsbuildPluginApi {
   } | undefined;
 }
 
+const nameFilters = new WeakMap<SelectionRun, Set<() => unknown>>();
+
+/**
+ * The name filter each project of a run runs under, read when a cycle ends: a
+ * watch session sets and clears it between cycles. Every test a filter left out
+ * reads as skipped, so under one no skip in the run is the file's own.
+ */
+function nameFiltersOf(run: SelectionRun): Set<() => unknown> {
+  let filters = nameFilters.get(run);
+  if (filters === undefined) nameFilters.set(run, (filters = new Set()));
+  return filters;
+}
+
 /**
  * The setup module for a test file that runs in a page, swapped in where the
  * run says it does.
@@ -391,7 +404,7 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
     setup(api: RsbuildPluginApi): void {
       const exposed = api.useExposed('rstest');
       // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
-      if (exposed !== undefined) run.nameFilters.add(() => exposed.getRstestConfig().testNamePattern);
+      if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);
       if (exposed?.getRstestConfig().browser?.enabled !== true) return;
       writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
       // TODO: record cases in a page — a drain per test, carried on each

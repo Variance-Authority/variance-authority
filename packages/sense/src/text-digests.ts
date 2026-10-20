@@ -39,9 +39,9 @@ export function textDigests(paths: Iterable<string>): ReadonlyMap<string, Digest
 // keeps whole seconds (HFS+, FAT, some network mounts), or whose clock runs
 // behind the process's, a write early in the run is stamped at or before
 // `startedAt` and reads as ran over. So does a copy that keeps the source's
-// write time (`cp -p`, `rsync -t`, an unpacked archive). Digesting each text as its test starts
-// and comparing it here would not depend on the clock.
-export function movedSince(
+// write time (`cp -p`, `rsync -t`, an unpacked archive). Digesting each text as
+// its test starts and comparing it here would not depend on the clock.
+function movedSince(
   tests: Iterable<string>,
   startedAt: number,
   declared: Iterable<string>,
@@ -56,4 +56,23 @@ export function movedSince(
   since(tests, startedAt);
   since(declared, Math.floor(performance.timeOrigin));
   return moved;
+}
+
+/** What a run's record rests on: each text's digest, and which test files rest on a text that moved. */
+export interface RunTexts {
+  readonly digests: ReadonlyMap<string, Digest>;
+  /** Whether a test file, or a precondition it declared, was written while it ran: see {@link movedSince}. */
+  moved(test: string, governing: readonly string[]): boolean;
+}
+
+/**
+ * The texts a run's test files and their preconditions rest on, each read once:
+ * a precondition every test file shares is one read, not one per test file. A
+ * test file whose text, or a declared precondition's, moved while it ran is
+ * digested at a text it may not have run, and its fold records it incomplete.
+ */
+export function runTexts(files: readonly { test: string; governing: readonly string[] }[], startedAt: number): RunTexts {
+  const digests = textDigests(files.flatMap(({ test, governing }) => [test, ...governing]));
+  const moved = movedSince(files.map(({ test }) => test), startedAt, files.flatMap(({ governing }) => governing));
+  return { digests, moved: (test, governing) => moved.has(test) || governing.some((path) => moved.has(path)) };
 }
