@@ -56,6 +56,15 @@ export function ranOverAll(names: readonly string[], unread: ReadonlySet<string>
 }
 
 /** The reading of a file whose text the record was taken over. */
-export function ranOverReading(file: string): FileReading {
+function ranOverReading(file: string): FileReading {
   return { file, verdict: 'none', names: [], kept: true };
+}
+
+/** The readings with each ran-over file's in its place, and one for a ran-over file nothing read. */
+export function withRanOver(readings: readonly FileReading[], ranOver: ReadonlySet<string>): FileReading[] {
+  const read = new Set(readings.map((reading) => reading.file));
+  return [
+    ...readings.map((reading) => (ranOver.has(reading.file) ? ranOverReading(reading.file) : reading)),
+    ...[...ranOver].filter((file) => !read.has(file)).map(ranOverReading),
+  ];
 }

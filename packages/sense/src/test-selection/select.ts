@@ -5,7 +5,7 @@ import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason 
 import { instrumentedRows, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
-import { arrivedDigests, declarable, ranOverAll, ranOverReading } from './ran-over.js';
+import { arrivedDigests, declarable, ranOverAll, withRanOver } from './ran-over.js';
 import { frameOf } from './frame.js';
 import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
@@ -478,7 +478,7 @@ function readDiff(
     ...(declining ? { declined: unmeasured } : {}),
     stale: [...stale].sort(codeUnitOrder),
     because,
-    readings: [...readings.filter((reading) => !ranOver.has(reading.file)), ...[...ranOver].map(ranOverReading)].map((reading) =>
+    readings: withRanOver(readings, ranOver).map((reading) =>
       'unseen' in reading && reading.unseen !== undefined
         ? { ...reading, unseen: reading.unseen.filter((test) => !through.has(`${reading.file}\0${test}`)) }
         : reading,

@@ -9,6 +9,7 @@ import { digestString } from '../digest.js';
 import { scanRelations } from '../scan.js';
 import { landRun } from './commit-runs.js';
 import { changedLines, keptDigests, keptTexts, narrowByExecution, testCoverageFile, type TestCoverage } from './index.js';
+import { withRanOver } from './ran-over.js';
 import { textAtRecording } from './recorded-text.js';
 
 /**
@@ -170,5 +171,19 @@ describe('a green run over a text skips it', () => {
 
       expect((await select(at, coverageFile)).entered).toEqual([OTHER]);
     });
+  });
+});
+
+describe('the readings of a selection with a ran-over file', () => {
+  it('keep the ran-over file in the place its reader gave it', () => {
+    const readings = withRanOver(
+      [
+        { file: 'test/a.test.ts', verdict: 'bodies', names: [] },
+        { file: 'test/b.test.ts', verdict: 'bodies', names: [] },
+      ],
+      new Set(['test/a.test.ts']),
+    );
+
+    expect(readings.map((reading) => [reading.file, reading.verdict])).toEqual([['test/a.test.ts', 'none'], ['test/b.test.ts', 'bodies']]);
   });
 });

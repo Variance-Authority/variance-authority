@@ -87,3 +87,24 @@ describe('a test file edited while its run was running', () => {
     expect(await completeness(coverageFile)).toEqual([['test/a.case.js', false]]);
   });
 });
+
+describe('a setup file edited while the run was running', () => {
+  it('records every test declaring it incomplete', async () => {
+    const { root, coverageFile, testFile, journal } = await project();
+    const setup = resolve(root, 'test/setup.js');
+    await writeFile(setup, '// setup\n');
+    const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [setup] });
+    reporter.onRunStart();
+    const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
+    await mkdir(runDirectory, { recursive: true });
+    await writeFile(resolve(runDirectory, 'a.va'), journal);
+    await editWhileRunning(setup);
+
+    await reporter.onRunComplete(
+      new Set([{ config: { cacheDirectory: resolve(root, 'cache'), id: 'project' } }]),
+      { testResults: [{ testFilePath: testFile, skipped: false, testResults: [{ status: 'passed' }] }] },
+    );
+
+    expect(await completeness(coverageFile)).toEqual([['test/a.case.js', false]]);
+  });
+});
