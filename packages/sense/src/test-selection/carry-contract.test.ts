@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import { comparedInProcess } from './__fixtures__/carry-comparison.js';
 import { selected } from './__fixtures__/carry-contract.js';
+import { generated, seedsOr } from './__fixtures__/carry-histories.js';
 import {
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
@@ -33,5 +34,12 @@ describe('a record carried through a history, asked in-process', () => {
 
   it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {
     await importEditedThenRunElsewhere(comparedInProcess);
+  });
+});
+
+// Seeds fixed so a run is reproducible; CARRY_SEED replays one.
+describe('a record carried through a generated history, asked in-process', () => {
+  it.each(seedsOr(Array.from({ length: 24 }, (_, at) => 4830 + at)))('stays within the fixture\'s bounds for seed %i', async (seed) => {
+    await generated(seed, selected, { replays: 3 });
   });
 });

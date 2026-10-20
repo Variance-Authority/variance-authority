@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import { comparedByCli } from './__fixtures__/carry-comparison.js';
 import { selectedByCli } from './__fixtures__/carry-contract.js';
+import { generated, seedsOr } from './__fixtures__/carry-histories.js';
 import {
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
@@ -35,5 +36,15 @@ describe('a record carried through a history, asked by the CLI after a restart',
 
   it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {
     await importEditedThenRunElsewhere(comparedByCli);
+  });
+});
+
+// A few of the generated histories, the last selection asked of the CLI for the
+// labels the three faults move: the callbacks and the top level. A replay here
+// is a process per selection, so a failing one is not shrunk: the in-process
+// run plays the same seeds and shrinks them.
+describe('a record carried through a generated history, asked by the CLI after a restart', () => {
+  it.each(seedsOr([4830, 4831, 4832]))('stays within the fixture\'s bounds for seed %i', async (seed) => {
+    await generated(seed, selectedByCli, { asked: ['top', 'first', 'second'], replays: 0 });
   });
 });
