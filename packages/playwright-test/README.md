@@ -216,7 +216,7 @@ render cache. The adapter preserves the acquisition base URL but does not archiv
 resource bytes, so a remote renderer must be able to load equivalent resources.
 
 For a browser the suite already pins, capture the caller-owned locator in place.
-Configure Chromium with the exported text-rendering arguments, then declare the
+Configure Chromium with the exported rasterization arguments, then declare the
 same launch recipe to the session:
 
 ```ts
