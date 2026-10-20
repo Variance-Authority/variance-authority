@@ -88,7 +88,9 @@ impl<'l> Loads<'l> {
         Some(self.required.len() as u32 - 1)
     }
 
-    /// The index in `typed` of the request an `import()` type makes.
+    /// The index in `typed` of the request an `import()` type makes. A factory's
+    /// own target named in a type is still a request, unlike a `require` of it:
+    /// the type loads nothing, so it cancels no replacement.
     pub(crate) fn import_type(&mut self, it: &TSImportType) -> u32 {
         self.typed.push(self.request(&it.source.value, Kind::Type, it.span.start));
         self.typed.len() as u32 - 1
