@@ -5,6 +5,7 @@
 > Turn pages your application already serves into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
