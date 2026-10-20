@@ -33,6 +33,12 @@ question open:
   with it. Record it alone with `-t` under `VARIANCE_AUTHORITY_STORY=alone`,
   then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
   and ask `story --name <name> --compare alone,file`.
+- **You need to know where one object went, or where it came from**: which
+  provider's value a component read, whether a wrapper passed a config on or
+  made a new one. Every function step lists what it was handed, an object as a
+  ref, and one ref is one object for the whole run. Follow the ref from step
+  to step; a new ref where you expected the same one is where it was
+  replaced. A module's `» holds` line names the binding that declared it.
 - **Two tests or more differ in their setup and in their result**: the flag
   on fails and off passes, the default user passes and Mike fails. Record each
   under `VARIANCE_AUTHORITY_STORY=1`, twice if you can, and name every one:
