@@ -227,6 +227,82 @@ jobs:
         shell: bash
         run: yarn measure
 
+  carry-contract:
+    # The journeys that carry a record through a history of edits and runs,
+    # asked in-process and through the CLI after a restart. They run here by
+    # path, not by selection: `suite` runs what Variance selects from the
+    # record `main` saved, and a defect in carrying is a defect in that record,
+    # so a selection read from it is the one answer this contract cannot trust.
+    # The paths are what carrying is read and written by: the selection and the
+    # instrumenter in `sense`, the native layer, and the CLI's commands that
+    # compare records. A push to `main` always runs them. A merge group runs
+    # `queue` instead.
+    if: github.event_name != 'merge_group'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: reached
+        id: reached
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BASE" HEAD -- \
+            packages/sense/src/test-selection packages/sense/src/instrument \
+            packages/sense/native packages/cli/src/commands \
+            .github/workflows/check.yml)
+          if [ -z "$changed" ]; then
+            echo "carry contract skipped: nothing it reads changed since $BASE"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Node 24, for the reason written at the same step in `rules`.
+      - uses: actions/setup-node@v4
+        if: steps.reached.outputs.run == 'true'
+        with:
+          node-version: 24
+
+      - name: install
+        if: steps.reached.outputs.run == 'true'
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      # The CLI journeys run `packages/cli/dist/bin.js` in a process of its own.
+      - uses: ./.github/actions/build
+        if: steps.reached.outputs.run == 'true'
+
+      # A failed walk keeps its directory — the texts, the actions, the record
+      # and each expectation beside what came back — under the artifacts path.
+      - name: journeys
+        if: steps.reached.outputs.run == 'true'
+        shell: bash
+        env:
+          CARRY_CONTRACT_ARTIFACTS: ${{ runner.temp }}/carry-contract
+        run: |
+          mkdir -p "$CARRY_CONTRACT_ARTIFACTS"
+          yarn vitest run packages/sense/src/test-selection/carry-contract.test.ts
+          yarn vitest run --config vitest.integration.config.mts packages/sense/src/test-selection/carry-contract.integration.test.ts
+
+      - name: keep the failed walks
+        if: failure() && steps.reached.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: carry-contract-walks
+          path: ${{ runner.temp }}/carry-contract
+          if-no-files-found: ignore
+
   base:
     # The mainline's record of every shared suite, read once for the whole run
     # and handed to every job that reads one. `refs/variance/mainline/main` is
@@ -1306,7 +1382,7 @@ jobs:
   # not finish said nothing about the change. The jobs the event does not run
   # are skipped on purpose and are not read.
   check:
-    needs: [rules, measure, base, suite, record, plan, queue]
+    needs: [rules, measure, carry-contract, base, suite, record, plan, queue]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
@@ -1320,7 +1396,7 @@ jobs:
           if [ "$EVENT" = merge_group ]; then
             gate='["plan","queue"]'
           else
-            gate='["rules","measure","base","suite","record"]'
+            gate='["rules","measure","carry-contract","base","suite","record"]'
           fi
           missing=$(echo "$RESULTS" | jq -r --argjson gate "$gate" '$gate - keys | join(", ")')
           if [ -n "$missing" ]; then

@@ -59,7 +59,7 @@ when an accept the comparison after it did not hold. The action's
 `exit-zero-on-changes` input does that for any job.
 
 `check.yml` runs one job per harness — the repository's rules, the timed
-measurements, and the vitest suite — and a `check` job that turns their results
+measurements, the carry contract, and the vitest suite — and a `check` job that turns their results
 into the one check a branch rule names. In a merge group `plan` and `queue`
 replace the harness jobs, and `check` still runs, reading only their results.
 
