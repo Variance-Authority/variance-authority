@@ -258,8 +258,7 @@ jobs:
             exit 0
           fi
           changed=$(git diff --name-only "$BASE" HEAD -- \
-            packages/sense/src/test-selection packages/sense/src/instrument \
-            packages/sense/native packages/cli/src/commands \
+            packages/sense packages/core/src packages/cli/src/commands \
             .github/workflows/check.yml)
           if [ -z "$changed" ]; then
             echo "carry contract skipped: nothing it reads changed since $BASE"
