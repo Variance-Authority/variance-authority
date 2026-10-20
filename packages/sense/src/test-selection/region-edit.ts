@@ -114,6 +114,8 @@ type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
  * Without a `change` — a text could not be found — the whole module changed
  * and nothing lands.
  */
+// FIXME: the snapshot's `carried` in record_coverage_recut.rs pairs by the same
+// rule in Rust; the case index should ask the addon for its landing instead.
 export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined): Int32Array {
   const lands = new Int32Array(recorded.blocks.length).fill(-1);
   if (change === undefined) return lands;

@@ -92,17 +92,28 @@ export async function movedOnBase(
 /**
  * The stands of the record at `record`: the test files that did not run at its
  * commit, and the files changed since each last ran, so a case the record
- * carried over an edit is not read as gone. Nothing when the runs record
- * cannot be read or the root is in no checkout: every case is then read as
- * run at the record's commit, as before runs were recorded.
+ * carried over an edit is not read as gone. A runs record that is there and
+ * cannot be read is refused, naming it: read as absent, it would place every
+ * test at the record's commit, and a case no test ran would be called no
+ * longer run.
  */
 export async function carriedOver(record: string, root: string): Promise<{ readonly stands?: readonly Stand[] }> {
   const repository = await topLevel(root);
-  if (repository === undefined) return {};
-  try {
-    const reading = standsAt(record, await readCommitRuns(record), gitIn(repository), (test) => existsSync(join(repository, test)));
-    return reading === undefined ? {} : { stands: reading.stands };
-  } catch {
-    return {};
+  if (repository === undefined) {
+    throw new OperatorError(`\`${root}\` is not in a git checkout, so where each test in ${record} last ran is not read and nothing is compared.`, {
+      kind: 'undiffed',
+    });
   }
+  let runs: Awaited<ReturnType<typeof readCommitRuns>>;
+  try {
+    runs = await readCommitRuns(record);
+  } catch (error) {
+    throw new OperatorError(
+      `${error instanceof Error ? error.message : String(error)}. It says where each test in the record last ran, and ` +
+        'a comparison that read it as absent would call a case no test ran no longer run.',
+      { cause: error },
+    );
+  }
+  const reading = standsAt(record, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
+  return reading === undefined ? {} : { stands: reading.stands };
 }
