@@ -291,6 +291,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         let source = now[current.module_source[module] as usize];
         let blocks = current.blocks(module);
         let mut surviving: Vec<Option<usize>> = vec![None; blocks.len()];
+        let mut unplaced: Vec<usize> = Vec::new();
         if let Some(row) = claims[module] {
             let held_source = before[previous.module_source[row] as usize];
             let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
@@ -311,7 +312,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                 let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
                 let paired = if is_top(previous.block_kind[held]) {
                     top.as_ref()
-                } else if held_source == source || alike(ps.at(previous.block_name[held]), ps.at(previous.block_path[held])) {
+                } else if alike(ps.at(previous.block_name[held]), ps.at(previous.block_path[held])) {
                     addressed.get(&(at.0, at.1, nth))
                 } else {
                     None
@@ -326,11 +327,25 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                             lose(previous.block_set[held], &mut stale)?;
                         }
                     }
+                    _ if measured => unplaced.push(held),
                     _ => lose(previous.block_set[held], &mut stale)?,
                 }
             }
         }
         let around = around(current, blocks.clone(), &surviving);
+        // A region with no place in this cut owes a run only to the tests no
+        // region of it took, its own or the one around it.
+        if !unplaced.is_empty() {
+            let mut kept = FxHashSet::default();
+            for held in around.iter().flatten() {
+                kept.extend(previous_members(previous.block_set[*held])?);
+            }
+            for held in unplaced.drain(..) {
+                for test in previous_members(previous.block_set[held])? {
+                    stale[test as usize] |= !kept.contains(&test) && !again[test as usize];
+                }
+            }
+        }
         out.module(path, source, current.module_instrumented[module] == 1);
         for (at, block) in blocks.enumerate() {
             let held = around[at];
