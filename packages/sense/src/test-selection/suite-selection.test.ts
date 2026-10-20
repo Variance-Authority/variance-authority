@@ -16,6 +16,11 @@ describe('the files a seam keeps', () => {
     expect(kept(selection([], 'no record'), ['a.test.ts'])).toEqual(['a.test.ts']);
   });
 
+  it('are the handles the runner passed, named as `skip` names them', () => {
+    const files = [{ path: '/repo/a.test.ts' }, { path: '/repo/b.test.ts' }];
+    expect(kept(selection(['a.test.ts']), files, (file) => file.path.slice('/repo/'.length))).toEqual([files[1]]);
+  });
+
   it('are what the headline counts', () => {
     expect(selectedLines(selection(['a.test.ts']), ['a.test.ts', 'b.test.ts'])[0]).toBe('variance-authority: selected 1 of 2');
   });

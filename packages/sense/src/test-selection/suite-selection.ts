@@ -53,13 +53,18 @@ export type SuiteTimes =
   | { readonly recording?: string; readonly unread: string };
 
 /**
- * The test files a seam runs: those the runner discovered, named as `skip`
- * names them, less those the selection skips. A file the record never saw, or
- * never held whole because it failed, is kept. A declined reading skips
- * nothing, so it keeps every file.
+ * The test files a seam runs: those the runner discovered, less those the
+ * selection skips. `name` says each file as `skip` names it, so a seam keeps
+ * its runner's own handles; without it the files are those names. A file the
+ * record never saw, or never held whole because it failed, is kept. A declined
+ * reading skips nothing, so it keeps every file.
  */
-export function kept(selection: SuiteSelection, discovered: readonly string[]): readonly string[] {
-  return [...new Set(discovered)].filter((file) => !selection.skip.has(file));
+export function kept<File = string>(
+  selection: SuiteSelection,
+  discovered: readonly File[],
+  name: (file: File) => string = String,
+): readonly File[] {
+  return [...new Set(discovered)].filter((file) => !selection.skip.has(name(file)));
 }
 
 /**
