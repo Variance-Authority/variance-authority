@@ -16,6 +16,26 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// A counter whose population changed renumbers what it counts and everything
 /// nested under it, and nothing else.
 pub(crate) fn addressed_alike(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> impl Fn(&str, &str) -> bool {
+    let standing = addressed(before, after);
+    move |name, path| standing(name, path) == Standing::Alike
+}
+
+/// What the cut `before` says of an address of the cut `after`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Standing {
+    /// The address names one region in both cuts.
+    Alike,
+    /// `before` holds no region at the address, and every counter it passes
+    /// through that `before` seated, `before` seated as `after` did: `before`
+    /// was cut without it, and says nothing about it.
+    Lacked,
+    /// `before` holds the address another number of times, or seated a counter
+    /// it passes through elsewhere: the number names another region in each.
+    Disputed,
+}
+
+/// What `before` says of each address of `after`: [`Standing`].
+pub(crate) fn addressed(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> impl Fn(&str, &str) -> Standing {
     let counts = |blocks: Vec<(String, String)>| {
         let mut counts: FxHashMap<(String, String), u32> = FxHashMap::default();
         for address in &blocks {
@@ -26,8 +46,14 @@ pub(crate) fn addressed_alike(before: impl Iterator<Item = (String, String)>, af
     let ((was, held), (now, fresh)) = (counts(before.collect()), counts(after.collect()));
     move |name, path| {
         let address = (name.to_owned(), path.to_owned());
-        held.get(&address) == fresh.get(&address)
-            && seats_of(name, path).iter().all(|(site, _)| matches!((was.get(site), now.get(site)), (Some(left), Some(right)) if left == right))
+        let seats = seats_of(name, path);
+        if held.get(&address) == fresh.get(&address) && seats.iter().all(|(site, _)| matches!((was.get(site), now.get(site)), (Some(left), Some(right)) if left == right)) {
+            Standing::Alike
+        } else if !held.contains_key(&address) && seats.iter().all(|(site, _)| !matches!((was.get(site), now.get(site)), (Some(left), right) if Some(left) != right)) {
+            Standing::Lacked
+        } else {
+            Standing::Disputed
+        }
     }
 }
 
@@ -107,5 +133,18 @@ mod tests {
         // Two callbacks of one name where the other cut holds one: no occurrence names either.
         let alike = addressed_alike(cut(&[("c/useEffect.arg0", "entry")]).into_iter(), cut(&[("c/useEffect.arg0", "entry"), ("c/useEffect.arg0", "entry")]).into_iter());
         assert!(!alike("c/useEffect.arg0", "entry"));
+    }
+
+    #[test]
+    fn an_address_one_cut_lacks_is_disputed_only_where_a_counter_it_passes_through_was_seated_elsewhere() {
+        let cut = |addresses: &[(&str, &str)]| addresses.iter().map(|(name, path)| ((*name).to_owned(), (*path).to_owned())).collect::<Vec<_>>();
+        let before = cut(&[("decide", "entry"), ("decide", "if#1/then"), ("cb", "entry")]);
+        let after = cut(&[("decide", "entry"), ("decide", "if#0/then"), ("cb", "entry"), ("cb", "entry"), ("inner", "entry"), ("inner", "if#0/then")]);
+        let standing = addressed(before.into_iter(), after.into_iter());
+        assert_eq!(standing("decide", "entry"), Standing::Alike);
+        assert_eq!(standing("inner", "entry"), Standing::Lacked);
+        assert_eq!(standing("inner", "if#0/then"), Standing::Lacked);
+        assert_eq!(standing("cb", "entry"), Standing::Disputed);
+        assert_eq!(standing("decide", "if#0/then"), Standing::Disputed);
     }
 }

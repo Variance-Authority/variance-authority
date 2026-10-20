@@ -11,8 +11,8 @@ When a run of some tests updates the record, the tests that did not run keep the
 
 - Two callbacks with the same name, such as two `useEffect` callbacks, no longer swap cases when the two versions of the file have a different number of them. A callback that cannot be told apart takes the cases of the function around it.
 - Deleting a branch no longer drops the cases of the file's top level, even when it renumbers the branches after it.
-- When the run cut an unchanged file into fewer regions, a test that ran a region the new cut lacks keeps its cases at the region around it, and is no longer owed a run.
+- When a run cut a file without a region the record held, a test that ran that region keeps its cases at the region around it, and is owed a run only when it did not run that region as well.
 
-When shards of one run cut a file two ways and are combined onto the build's cut, a shard whose callback cannot be told apart from a same-named one keeps its cases at the regions it can place and is owed a run, rather than having its cases written on one of the callbacks or on the regions around them.
+When shards of one run cut a file two ways and are combined onto the build's cut, a region the build's cut cannot place in a shard's row, such as a callback that cannot be told apart from a same-named one or a branch numbered another way, takes none of that shard's cases, nor does any region inside it, and the shard's tests that ran it are owed a run. A region the shard's writer did not cut takes that shard's cases from the region around it.
 
 `variance coverage` and `variance covering` no longer report a test file as no longer running a region when the test did not run since that region's file changed. They count such a region as unmeasured. A runs record beside the record that is there and cannot be read is refused, naming it, rather than read as if every test had run.

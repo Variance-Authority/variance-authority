@@ -62,3 +62,18 @@ fn pairs_no_callback_of_a_cut_that_lacks_its_sibling_and_owes_nobody_the_region_
     assert_eq!(modules[0].2[2].1, ["a.test.ts", "b.test.ts"]);
     assert!(tests.iter().all(|(_, complete, _)| *complete), "{tests:?}");
 }
+
+#[test]
+fn owes_a_run_to_a_test_whose_region_has_no_place_when_the_region_around_it_does_not_hold_it() {
+    use crate::record_fixture::{self as fixture, block, module, spec, test, Block};
+    let inside = |ordinal: u32, name: &str, owner: u32, called: &[u32]| Block { name: name.to_owned(), owner, ..block(ordinal, called) };
+    // One text: `b` ran the callback from a handler it kept, never the function
+    // that passed it; this run's writer did not cut the callback.
+    let held = vec![block(0, &[0, 1]), inside(1, "outer", 0, &[0]), inside(2, "cb", 1, &[1])];
+    let lacking = vec![block(0, &[0]), inside(1, "outer", 0, &[])];
+    let previous = fixture::write(&spec(vec![test("a.test.ts"), test("b.test.ts")], vec![module("src/a.ts", held)]));
+    let current = fixture::write(&spec(vec![test("c.test.ts")], vec![module("src/a.ts", lacking)]));
+    let (tests, _) = fixture::read(&laid(&previous, &current, LayOptions::default()).unwrap().unwrap());
+    let complete: Vec<_> = tests.iter().map(|(file, complete, _)| (file.as_str(), *complete)).collect();
+    assert_eq!(complete, [("a.test.ts", true), ("b.test.ts", false), ("c.test.ts", true)]);
+}

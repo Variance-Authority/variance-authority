@@ -203,6 +203,21 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         }
         Ok(())
     };
+    // A region of `row` with no place in the new cut owes a run to each test
+    // it held that the region around it, the nearest one `taken` placed, does
+    // not hold: that region kept what the test ran there, and nothing else did.
+    let owe_unplaced = |row: usize, taken: &FxHashSet<usize>, unplaced: &[usize], stale: &mut [bool]| -> Result<(), String> {
+        let blocks = previous.blocks(row);
+        let own: Vec<Option<usize>> = blocks.clone().map(|block| taken.contains(&block).then_some(block)).collect();
+        let kept = around(previous, blocks.clone(), &own);
+        for held in unplaced {
+            let around = kept[held - blocks.start].map(|kept| previous_members(previous.block_set[kept])).transpose()?.unwrap_or_default();
+            for test in previous_members(previous.block_set[*held])? {
+                stale[test as usize] |= !around.contains(&test) && !again[test as usize];
+            }
+        }
+        Ok(())
+    };
     // Sets are interned as they are written, so their ids follow the output.
     let mut pool = SetPool::new(current.tests() + carried);
     let mut unions: FxHashMap<(u32, u32), u32> = FxHashMap::default();
@@ -251,15 +266,9 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                                     lose(previous.block_set[held], &mut stale)?;
                                 }
                                 // A crosser the new text holds no region for has nowhere a diff could reach it.
-                                let mut kept = FxHashSet::default();
-                                for held in from.iter().flatten() {
-                                    kept.extend(previous_members(previous.block_set[*held])?);
-                                }
-                                for held in previous.blocks(row) {
-                                    for test in previous_members(previous.block_set[held])? {
-                                        stale[test as usize] |= !kept.contains(&test) && !again[test as usize];
-                                    }
-                                }
+                                let taken: FxHashSet<usize> = from.iter().flatten().copied().collect();
+                                let unplaced: Vec<usize> = previous.blocks(row).filter(|held| !taken.contains(held)).collect();
+                                owe_unplaced(row, &taken, &unplaced, &mut stale)?;
                                 write_cut(&mut out, path, (fresh, again_ranks), module, from, |held, loaded| match held {
                                     Some(held) => remap(&mut pool, if loaded { previous.block_loaded_set[held] } else { previous.block_set[held] }),
                                     None => Ok(pool.intern(&[])),
@@ -292,7 +301,8 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         let blocks = current.blocks(module);
         let mut surviving: Vec<Option<usize>> = vec![None; blocks.len()];
         let mut unplaced: Vec<usize> = Vec::new();
-        if let Some(row) = claims[module] {
+        let claimed = claims[module];
+        if let Some(row) = claimed {
             let held_source = before[previous.module_source[row] as usize];
             let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
             let alike = addressed_alike(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block)));
@@ -333,18 +343,8 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
             }
         }
         let around = around(current, blocks.clone(), &surviving);
-        // A region with no place in this cut owes a run only to the tests no
-        // region of it took, its own or the one around it.
-        if !unplaced.is_empty() {
-            let mut kept = FxHashSet::default();
-            for held in around.iter().flatten() {
-                kept.extend(previous_members(previous.block_set[*held])?);
-            }
-            for held in unplaced.drain(..) {
-                for test in previous_members(previous.block_set[held])? {
-                    stale[test as usize] |= !kept.contains(&test) && !again[test as usize];
-                }
-            }
+        if let Some(row) = claimed.filter(|_| !unplaced.is_empty()) {
+            owe_unplaced(row, &surviving.iter().flatten().copied().collect(), &unplaced, &mut stale)?;
         }
         out.module(path, source, current.module_instrumented[module] == 1);
         for (at, block) in blocks.enumerate() {

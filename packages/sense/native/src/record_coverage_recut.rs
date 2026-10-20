@@ -10,10 +10,12 @@
 //! reached the new text reached the region containing it.
 //!
 //! An occurrence names one region only where the two cuts hold the address as
-//! many times and seated every counter it passes through alike: otherwise one cut holds
-//! a sibling the other lacks, and the fresh region takes what the region around
-//! it took instead. The top level is one region in every cut of a module, so it
-//! always takes the top level's crossings, whatever its branches did.
+//! many times and seated every counter it passes through alike. A fresh region
+//! the row was cut without takes what the region around it took. One whose
+//! address the row disputes, holding a sibling the fresh cut lacks or seating a
+//! counter elsewhere, is decided by the caller ([`Disputed`]). The top level is
+//! one region in every cut of a module, so it always takes the top level's
+//! crossings, whatever its branches did.
 //!
 //! Nothing is cut again where the row was never measured, or its text did not
 //! move. The crossings are mislaid, and the row is carried as it was with every
@@ -23,7 +25,7 @@ use rustc_hash::FxHashMap;
 
 use crate::record_coverage::{Coverage, Text};
 use crate::record_coverage_columns::{Columns, Region};
-use crate::record_coverage_address::addressed_alike;
+use crate::record_coverage_address::{addressed, Standing};
 use crate::record_layout::LAYOUT;
 
 /// What each edit reached, by `path\0from\0to`.
@@ -48,9 +50,19 @@ pub(crate) enum Recut {
     /// Carried as it is, every crosser owed a run: its crossings have no place in the new text.
     Mislaid,
     /// Written as the fresh row: per fresh region, the previous region whose
-    /// crossings it takes and whether that region is its own (`placed`) or the
-    /// one around it, and the previous regions whose crossers the edit reached.
-    Cut { from: Vec<Option<usize>>, placed: Vec<bool>, owed: Vec<usize> },
+    /// crossings it takes, and the previous regions whose crossers the edit reached.
+    Cut { from: Vec<Option<usize>>, owed: Vec<usize> },
+}
+
+/// What a fresh region whose address the row disputes takes.
+#[derive(Clone, Copy)]
+pub(crate) enum Disputed {
+    /// What the region around it took: every test that reached it reached
+    /// that region, so the superset is the only set that skips none of them.
+    Inherit,
+    /// Nothing, and nor does a region inside it: the row's crossings are not
+    /// written where the row cannot say they belong.
+    Withhold,
 }
 
 /// Row `row` of `previous`, cut again as row `module` of `fresh`. `reaches`
@@ -65,7 +77,7 @@ pub(crate) fn recut(
     if previous.module_instrumented[row] != 1 || ps.at(previous.module_source[row]) == fs.at(fresh.module_source[module]) {
         return Recut::Kept;
     }
-    carried((previous, ps), row, (fresh, fs), module, reaches)
+    carried((previous, ps), row, (fresh, fs), module, Disputed::Inherit, reaches)
 }
 
 /// Row `row` of `previous` carried onto row `module` of `fresh`, whatever text
@@ -75,13 +87,14 @@ pub(crate) fn carried(
     row: usize,
     (fresh, fs): (&Coverage, Text),
     module: usize,
+    disputed: Disputed,
     reaches: impl Fn(u8) -> bool,
 ) -> Recut {
     let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
     if fresh.module_instrumented[module] != 1 {
         return Recut::Mislaid;
     }
-    let alike = addressed_alike(previous.blocks(row).map(|block| address(previous, ps, block)), fresh.blocks(module).map(|block| address(fresh, fs, block)));
+    let standing = addressed(previous.blocks(row).map(|block| address(previous, ps, block)), fresh.blocks(module).map(|block| address(fresh, fs, block)));
     let top = previous.blocks(row).find(|block| is_top(previous.block_kind[*block]));
     let mut seen: FxHashMap<(&str, &str), u32> = FxHashMap::default();
     let mut held: FxHashMap<(&str, &str, u32), usize> = FxHashMap::default();
@@ -94,29 +107,30 @@ pub(crate) fn carried(
     // By ordinal, the previous region each fresh region took; `owner` names
     // one the walk that numbered them opened first.
     let mut decided: FxHashMap<u32, Option<usize>> = FxHashMap::default();
-    let (mut from, mut placed, mut owed) = (Vec::with_capacity(fresh.blocks(module).len()), Vec::with_capacity(fresh.blocks(module).len()), Vec::new());
+    let (mut from, mut owed) = (Vec::with_capacity(fresh.blocks(module).len()), Vec::new());
     for block in fresh.blocks(module) {
         let at = (fs.at(fresh.block_name[block]), fs.at(fresh.block_path[block]));
         let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
-        let was = if is_top(fresh.block_kind[block]) {
-            top
-        } else if alike(at.0, at.1) {
-            held.get(&(at.0, at.1, nth)).copied()
+        let (was, withheld) = if is_top(fresh.block_kind[block]) {
+            (top, false)
         } else {
-            None
-        }
-        .filter(|was| previous.block_kind[*was] == fresh.block_kind[block]);
+            match standing(at.0, at.1) {
+                Standing::Alike => (held.get(&(at.0, at.1, nth)).copied(), false),
+                Standing::Lacked => (None, false),
+                Standing::Disputed => (None, matches!(disputed, Disputed::Withhold)),
+            }
+        };
+        let was = was.filter(|was| previous.block_kind[*was] == fresh.block_kind[block]);
         let owner = fresh.block_owner[block];
-        let taken = was.or_else(|| if owner == LAYOUT.coverage.no_owner { None } else { decided.get(&owner).copied().flatten() });
+        let taken = was.or_else(|| if withheld || owner == LAYOUT.coverage.no_owner { None } else { decided.get(&owner).copied().flatten() });
         decided.insert(fresh.block_ordinal[block], taken);
         let unmoved = was.is_some_and(|was| ps.at(previous.block_digest[was]) == fs.at(fresh.block_digest[block]));
         if let Some(taken) = taken.filter(|_| !unmoved && reaches(fresh.block_kind[block])) {
             owed.push(taken);
         }
         from.push(taken);
-        placed.push(was.is_some());
     }
-    Recut::Cut { from, placed, owed }
+    Recut::Cut { from, owed }
 }
 
 /// Whether a region of `kind` is a module's top level.
