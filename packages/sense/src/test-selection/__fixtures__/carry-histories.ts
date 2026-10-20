@@ -275,30 +275,31 @@ async function checkpoint(walk: Walk, model: Model, step: number, ask: Ask, aske
 async function play(actions: readonly Action[], ask: Ask, asked?: readonly Label[]): Promise<{ readonly walk: Walk; readonly failures: readonly string[] }> {
   const model = new Model(FIRST);
   const walk = await openWalk(textOf(FIRST), HITS);
-  try {
-    await runTests(walk, TESTS);
-    model.land(TESTS, undefined);
-    const played = isLanding(actions.at(-1)) ? actions : [...actions, { action: 'run elsewhere' } as const];
-    for (const [step, action] of played.entries()) {
-      if (action.action === 'run' || action.action === 'run elsewhere') {
-        if (action.action === 'run') await runTests(walk, action.tests, action.lacks === undefined ? {} : { lacks: [action.lacks] });
-        else await runElsewhere(walk);
-        model.land(action.action === 'run' ? action.tests : [], action.action === 'run' ? action.lacks : undefined);
-        const last = step === played.length - 1;
-        // The reader under test is asked at the last landing; every earlier one is asked in-process.
-        const failures = await checkpoint(walk, model, step, last ? ask : selected, last ? asked : undefined);
-        if (failures.length > 0) return { walk, failures };
-      } else {
-        const next = edited(model.shape, action);
-        if (textOf(next) === walk.text) continue;
-        model.shape = next;
-        await commit(walk, textOf(next), JSON.stringify(action));
-      }
+  await runTests(walk, TESTS);
+  model.land(TESTS, undefined);
+  const played = isLanding(actions.at(-1)) ? actions : [...actions, { action: 'run elsewhere' } as const];
+  for (const [step, action] of played.entries()) {
+    if (action.action === 'run' || action.action === 'run elsewhere') {
+      if (action.action === 'run') await runTests(walk, action.tests, action.lacks === undefined ? {} : { lacks: [action.lacks] });
+      else await runElsewhere(walk);
+      model.land(action.action === 'run' ? action.tests : [], action.action === 'run' ? action.lacks : undefined);
+      const last = step === played.length - 1;
+      // The reader under test is asked at the last landing; every earlier one is asked in-process.
+      const failures = await checkpoint(walk, model, step, last ? ask : selected, last ? asked : undefined);
+      if (failures.length > 0) return { walk, failures };
+    } else {
+      model.shape = edited(model.shape, action);
+      await commit(walk, textOf(model.shape), JSON.stringify(action));
     }
-  } catch (error) {
-    return { walk, failures: [`threw: ${error instanceof Error ? error.stack ?? error.message : String(error)}`] };
   }
   return { walk, failures: [] };
+}
+
+/** The failures `actions` meets when played, empty when it stays within bounds; its walk is removed. */
+export async function failuresOf(actions: readonly Action[], ask: Ask): Promise<readonly string[]> {
+  const { walk, failures } = await play(actions, ask);
+  await rm(walk.scratch, { recursive: true, force: true });
+  return failures;
 }
 
 function isLanding(action: Action | undefined): boolean {
@@ -364,10 +365,33 @@ export interface Generation {
   readonly replays: number;
 }
 
+/** A generated history that failed, shrunk, with the walk of its shrunk form kept. */
+export class FailedHistory extends Error {
+  constructor(
+    readonly seed: number,
+    /** How many actions the seed's history had. */
+    readonly original: number,
+    readonly actions: readonly Action[],
+    readonly failures: readonly string[],
+    /** The kept walk's directory: its repository, its cache with the record, and `artifacts`. */
+    readonly kept: string,
+    /** Whether shrinking stopped because its replays ran out, before every smaller history was tried. */
+    readonly exhausted: boolean,
+  ) {
+    super([
+      `the history of seed ${seed} fails (replay it with CARRY_SEED=${seed}); shrunk from ${original} actions to ${actions.length}${exhausted ? ' before its replays ran out (raise CARRY_SHRINK)' : ''}:`,
+      JSON.stringify(actions, null, 2),
+      ...failures,
+      `the walk is kept at ${kept}`,
+    ].join('\n'));
+  }
+}
+
 /**
  * Plays the history `seed` names and, when it fails, shrinks it toward the
- * fewest actions that still fail, within its replays, and throws, naming the
- * seed, the shrunk actions and the kept walk of the shrunk history.
+ * fewest actions that still fail, within its replays, and throws a
+ * {@link FailedHistory} naming the seed, the shrunk actions and the kept walk
+ * of the shrunk history.
  */
 export async function generated(seed: number, ask: Ask, { asked, replays }: Generation): Promise<void> {
   let actions = historyOf(seed);
@@ -378,10 +402,14 @@ export async function generated(seed: number, ask: Ask, { asked, replays }: Gene
   }
   const original = actions.length;
   let budget = Number(process.env['CARRY_SHRINK'] ?? replays);
-  for (let shrunk = true; shrunk;) {
+  let exhausted = false;
+  for (let shrunk = true; shrunk && !exhausted;) {
     shrunk = false;
     for (const candidate of smaller(actions)) {
-      if (budget === 0) break;
+      if (budget === 0) {
+        exhausted = true;
+        break;
+      }
       budget -= 1;
       const tried = await play(candidate, ask, asked);
       if (tried.failures.length === 0) {
@@ -395,13 +423,7 @@ export async function generated(seed: number, ask: Ask, { asked, replays }: Gene
       break;
     }
   }
-  const kept = await keepArtifacts(outcome.walk);
-  throw new Error([
-    `the history of seed ${seed} fails (replay it with CARRY_SEED=${seed}); shrunk from ${original} actions to ${actions.length}${budget === 0 ? ' before its replays ran out (raise CARRY_SHRINK)' : ''}:`,
-    JSON.stringify(actions, null, 2),
-    ...outcome.failures,
-    `the walk is kept at ${kept}`,
-  ].join('\n'));
+  throw new FailedHistory(seed, original, actions, outcome.failures, await keepArtifacts(outcome.walk), exhausted);
 }
 
 /** The seeds a run plays: `CARRY_SEED` alone when it is set, else `seeds`. */
