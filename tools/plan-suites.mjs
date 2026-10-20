@@ -33,9 +33,8 @@ for (const [suite, config, unrecorded] of [
   const answer = (extra) => JSON.parse(run('node', [...args, ...extra]));
   if (near) {
     const selected = answer(['--since', since, '--at-distance', '0-2']);
-    // An empty matrix skips the required queue job. One empty leg still checks
-    // the reading and exits through the runner's ordinary no-tests path.
-    legs.push(...(selected.shards <= 1 ? [{ part: suite }] : selected.matrix.map((shard) => ({ part: suite, shard }))));
+    // The rules leg keeps the queue gate running even when no test is selected.
+    legs.push(...(selected.shards === 1 ? [{ part: suite }] : selected.matrix.map((shard) => ({ part: suite, shard }))));
     summary.push(`| ${suite} | ${selected.files ?? 'unknown'} / ${total} | near | ${Math.max(1, selected.shards)} | ${selected.wall === undefined ? 'unrecorded' : `${Math.round(selected.wall / 1000)} s`} |`);
   } else {
     const full = answer([]);

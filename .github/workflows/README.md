@@ -29,10 +29,10 @@ an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
 The other two files here, [`check.yml`](check.yml) and
 [`release.yml`](release.yml), are this repository's own build and publish, and
-neither is a recipe. On a pull request, `check.yml` runs only the tests the
-change reached, selected by the `withTestSelection` each slice's config is
-wrapped in from the recording `main` saved, and a push to `main` runs the whole
-suite. It then posts two comments on the pull request, each under its own
+neither is a recipe. On a pull request, `check.yml` uses the recording `main`
+saved to select the tests the change reached. It compares the predicted time of
+that selection in one job with a sharded full suite and runs the cheaper option.
+A push to `main` runs the whole suite. It then posts two comments on the pull request, each under its own
 marker so neither overwrites the gate's: `variance review` over the suite's
 recording, and `variance coverage` against the record `main` saved. A merge
 group runs `plan` and `queue` in place of those jobs: lint and `yarn check` in

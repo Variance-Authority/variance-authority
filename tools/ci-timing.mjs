@@ -1,6 +1,4 @@
 /** Observed Actions timestamps, reported separately from the planner's estimates. */
-import { appendFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
 
 function seconds(start, end) {
   if (start == null || end == null) return undefined;
@@ -22,7 +20,7 @@ const display = (value) => value === undefined || !Number.isFinite(value) ? 'unk
 /** Elapsed gate time and one row of measured stage times per job; missing stays unknown. */
 export function timingSummary(jobs, created, now) {
   const lines = ['### Time to the required check', '',
-    `Elapsed from workflow creation to this gate summary: **${display(created === undefined ? undefined : (now - created) / 1000)}** (includes queue time).`, '',
+    `Elapsed from workflow creation / rerun start to this gate summary: **${display(created === undefined ? undefined : (now - created) / 1000)}** (includes queue time on the first attempt).`, '',
     '| Job | Setup / transfer | Build / native tests | Selection | Execution / rules | Reporting | Job elapsed |',
     '| --- | --- | --- | --- | --- | --- | --- |'];
   for (const job of jobs) {
@@ -41,24 +39,3 @@ export function timingSummary(jobs, created, now) {
   lines.push('', 'Stage times come from Actions step timestamps. Parallel job times are not added to elapsed gate time. The gate is still running while this summary is written; its final duration is in Actions.', '');
   return lines.join('\n');
 }
-
-async function main() {
-  const { GITHUB_API_URL = 'https://api.github.com', GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, GITHUB_TOKEN, GITHUB_STEP_SUMMARY } = process.env;
-  if (!GITHUB_REPOSITORY || !GITHUB_RUN_ID || !GITHUB_RUN_ATTEMPT || !GITHUB_TOKEN || !GITHUB_STEP_SUMMARY) throw new Error('CI timing requires the Actions run, attempt, token and summary path');
-  const root = `${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
-  const read = async (url) => {
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github+json' } });
-    if (!response.ok) throw new Error(`Actions timing API returned ${response.status}`);
-    return response.json();
-  };
-  const run = await read(root);
-  const jobs = [];
-  for (let page = 1; ; page += 1) {
-    const result = await read(`${root}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100&page=${page}`);
-    jobs.push(...result.jobs);
-    if (result.jobs.length < 100) break;
-  }
-  appendFileSync(GITHUB_STEP_SUMMARY, timingSummary(jobs, run.created_at == null ? undefined : Date.parse(run.created_at), Date.now()));
-}
-
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main();

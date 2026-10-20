@@ -94,13 +94,15 @@ runs:
     # Cache compiled dependencies across source edits, rather than starting
     # Cargo from nothing on every binary miss. rust-cache keys the resolved
     # compiler, manifests, lockfiles and build flags; libc separates the host
-    # from containers with a different linker floor. Cargo owns freshness.
+    # from containers with a different linker floor. Native-test jobs keep
+    # their debug dependencies separately, so a release-only producer cannot
+    # win a save race and discard them. Cargo owns freshness.
     - name: restore Cargo compilation
       if: (steps.cache.outputs.cache-hit != 'true' && steps.download.outcome != 'success') || inputs.native-tests == 'true'
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: packages/sense/native
-        shared-key: sense-${{ runner.os }}-${{ runner.arch }}-libc-${{ steps.native.outputs.libc }}
+        shared-key: sense-${{ runner.os }}-${{ runner.arch }}-libc-${{ steps.native.outputs.libc }}-tests-${{ inputs.native-tests }}
         cache-on-failure: 'true'
         cache-bin: 'false'
 
