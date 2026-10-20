@@ -441,8 +441,6 @@ function answerOf(
 
 /** The part of one read of the precondition table that answers a caller's own names. */
 function asked(held: GovernedTests, names: ReadonlySet<string>): GovernedTests {
-  if (names.size === 0) return { tests: new Map(), unread: [], ranOver: new Set() };
-
   const tests = new Map<number, readonly string[]>();
   for (const [test, carried] of held.tests) {
     const mine = carried.filter((name) => names.has(name));

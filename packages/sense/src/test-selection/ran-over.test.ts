@@ -88,13 +88,14 @@ async function recordOver(at: Checkout, source: string, test: string, complete =
 }
 
 /** What `variance select` asks: the diff from the recording's commit to the tree, read with the graph. */
-async function select(at: Checkout, coverageFile: string) {
+async function select(at: Checkout, coverageFile: string, readable = (_file: string) => true) {
   const diff = (await promisify(execFile)('git', ['diff', '--no-renames', at.commit], { cwd: at.root })).stdout;
+  const recorded = textAtRecording(at.root, changedLines(diff).keys());
   const relations = relationsOfFiles(await scanRelations({ root: at.root, dirs: ['.'] }));
   const { entered, readings, incomplete } = await narrowByExecution(coverageFile, diff, {
     root: at.root,
     relations,
-    sourceAt: textAtRecording(at.root, changedLines(diff).keys()),
+    sourceAt: (file, commit) => (readable(file) ? recorded(file, commit) : undefined),
     keptText: keptTexts(at.root, at.cacheRoot),
     keptDigests: keptDigests(at.root, at.cacheRoot),
   });
@@ -151,6 +152,15 @@ describe('a green run over a text skips it', () => {
       const coverageFile = await recordOver(at, COMMITTED_SOURCE, EDITED_TEST, false);
 
       expect((await select(at, coverageFile)).incomplete).toEqual([TEST]);
+    });
+  });
+
+  // A shallow clone holds no text at the recording's commit, so the diff applies to nothing.
+  it('selects the test when the text at the recording\'s commit cannot be read', async () => {
+    await checkout(async (at) => {
+      const coverageFile = await recordOver(at, COMMITTED_SOURCE, EDITED_TEST);
+
+      expect((await select(at, coverageFile, (file) => file !== TEST)).entered).toEqual([TEST]);
     });
   });
 
