@@ -159,12 +159,16 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
         let renamed = (local != imported).then(|| local.to_owned());
         names.push((NameUse { key: key.to_owned(), name: imported.to_owned(), local: renamed, by: by.to_owned(), at: at.to_owned(), line: parses.binding_line.at(binding), r#type: parses.binding_type[binding] == 1, kind: kind.to_owned(), through: None, through_line: 0, through_default: false, whole: false }, local));
     }
-    let through = if text.text(parses.request_kind.at(request)) == "dynamic" { "dynamic" } else { "namespace" };
+    // Only an `import()` type holds a module through a `type` request, since a
+    // type-only namespace holds nothing: it is an `import()`, and its reads are types.
+    let kind_written = text.text(parses.request_kind.at(request));
+    let typed = kind_written == "type";
+    let through = if kind_written == "dynamic" || typed { "dynamic" } else { "namespace" };
     for member in parses.members.range(row) {
         if parses.member_request.at(member) as usize != request - first { continue; }
         let name = text.text(parses.member_name.at(member));
         let (through_default, whole) = (parses.member_through_default[member] == 1, name == "*");
-        names.push((NameUse { key: key.to_owned(), name: name.to_owned(), local: None, by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: false, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line, through_default, whole }, ""));
+        names.push((NameUse { key: key.to_owned(), name: name.to_owned(), local: None, by: by.to_owned(), at: at.to_owned(), line: parses.member_line.at(member), r#type: typed, kind: kind.to_owned(), through: Some(through.to_owned()), through_line: line, through_default, whole }, ""));
     }
     names
 }

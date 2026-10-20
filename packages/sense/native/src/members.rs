@@ -11,7 +11,9 @@
 //! promise's, not the module's. Each of those is recorded against the
 //! request it reads through, by that request's index in the parse. An
 //! `import m = require()` holds from where it is written on, as the `const`
-//! TypeScript compiles it to does; a type-only one holds nothing.
+//! TypeScript compiles it to does; a type-only one holds nothing. An `import()`
+//! type reads the name its qualifier starts with, `import('m').x.y` reads `x`,
+//! and with none, as in `typeof import('m')`, the module goes on whole.
 //!
 //! This is a listing of where a name is used, and nothing selects on it: a
 //! request's `bindings` stay what the statement wrote, so a namespace still
@@ -57,7 +59,8 @@ pub struct Member {
 ///
 /// `requests` are the ones the module record states; a member read through an
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
-/// read through an `import m = require()` as if `loads.required` followed those.
+/// read through an `import m = require()` as if `loads.required` followed those,
+/// and one read through an `import()` type as if `loads.typed` followed those.
 /// `dynamic` is whether the module record lists any `import()`.
 pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &[Request], dynamic: bool) -> (Vec<Member>, Loads<'l>) {
     let namespaces: Vec<(&str, u32)> = requests
@@ -91,27 +94,31 @@ pub fn members_and_loads_in<'l>(program: &Program, lines: &'l Lines, requests: &
     walker.visit_program(program);
     // A required request's index is known only once the walk has met every `import()`.
     let required = walker.stated + walker.loads.dynamic.len() as u32;
+    let typed = required + walker.loads.required.len() as u32;
     let members: BTreeSet<Member> = walker
         .found
         .into_iter()
-        .map(|(held, name, line)| Member { request: held.via.index(required), name, line, through_default: held.off })
+        .map(|(held, name, line)| Member { request: held.via.index(required, typed), name, line, through_default: held.off })
         .collect();
     (members.into_iter().collect(), walker.loads)
 }
 
-/// The request a holder reads through: its index in the parse, or its index in
-/// `loads.required`, which the parse appends after every `import()`.
+/// The request a holder reads through: its index in the parse, its index in
+/// `loads.required`, which the parse appends after every `import()`, or its
+/// index in `loads.typed`, which the parse appends after those.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Via {
     Indexed(u32),
     Required(u32),
+    Typed(u32),
 }
 
 impl Via {
-    fn index(self, required: u32) -> u32 {
+    fn index(self, required: u32, typed: u32) -> u32 {
         match self {
             Via::Indexed(index) => index,
             Via::Required(index) => required + index,
+            Via::Typed(index) => typed + index,
         }
     }
 }
@@ -410,6 +417,20 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
             }
         }
         walk::walk_import_expression(self, it);
+    }
+
+    fn visit_ts_import_type(&mut self, it: &TSImportType<'a>) {
+        let index = self.loads.import_type(it);
+        let mut qualifier = it.qualifier.as_ref();
+        while let Some(TSImportTypeQualifier::QualifiedName(name)) = qualifier {
+            qualifier = Some(&name.left);
+        }
+        let name = match qualifier {
+            Some(TSImportTypeQualifier::Identifier(name)) => name.name.as_str(),
+            _ => WHOLE,
+        };
+        self.add(Held::whole(Via::Typed(index)), name, it.span.start);
+        walk::walk_ts_import_type(self, it);
     }
 
     fn visit_ts_import_equals_declaration(&mut self, it: &TSImportEqualsDeclaration<'a>) {

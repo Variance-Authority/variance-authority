@@ -394,7 +394,9 @@ its imports alone.
 A name your code reads off `import * as` or off `import()` is a site too, and the
 site names the line that loads the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
-loading. A name read off the module's `default` is marked "through `default`":
+loading. An `import()` written in a type, `import('./x').T` or
+`typeof import('./x')`, loads nothing: TypeScript resolves it as it resolves
+`import type`, so its site is marked type only. A name read off the module's `default` is marked "through `default`":
 `default` holds the name only when the module is CommonJS, so the line may read
 it and is counted apart from the imports. A module your code passes on whole —
 to a call, a property or a return — may read any name it exports, because what
