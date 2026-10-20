@@ -18,8 +18,8 @@ which takes tens of seconds to answer.
 
 ## Decision
 
-**`yarn test:loop` is `tools/test-loop.mjs`: `tsc --build` beside `variance
-index`, then one reading of the unit slice at `0-1`, and a runner only when that
+**`yarn test:loop` is `tools/test-loop.mjs`: `tsc --build`, then `variance
+index` and one reading of the unit slice at `0-1`, and a runner only when that
 reading keeps a test.**
 
 1. **The unit slice only.** Integration and chromium tests are slow because of
@@ -34,15 +34,18 @@ reading keeps a test.**
    skip. A file that failed last time is never held whole, so it is never
    skipped, and the loop stays red until it passes. A file the record never saw
    is kept the same way, and a declined reading skips nothing. Otherwise the
-   script prints one line and exits 0 without starting a runner. On the measurement machine,
-   a run with no change takes 0.8 s; an edit that selects one test takes 3.0 s;
-   a type error fails in 1.0 s with no test run.
+   script prints one line and exits 0 without starting a runner. On the
+   measurement machine, a run with no change takes 1.4 s; an edit that selects
+   one test takes 3.6 s; a type error fails in 0.4 s with no test run.
 3. **No marker of its own.** Each run folds into the record, so the next run
    selects what differs from the text each test last ran over. A baseline kept
    beside the record would be a second implementation of "since".
 4. **Types are the compiler's.** `tsc --build` is incremental; the loop prints
    what it reports and does not sort diagnostics by whose they are. A red
-   compiler ends the run before any test starts.
+   compiler ends the run before any test starts. The reading waits for a green
+   compiler, because `selectSuite` and `kept` load from the `dist/` it writes:
+   read beside it, an edit to the selection would be answered by the selection
+   it replaced.
 5. **A script, not a `variance` command,** because a command that runs the
    runner is the wrapper ADR-0043 rules out.
 

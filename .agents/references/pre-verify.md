@@ -63,9 +63,9 @@ the exact signature this project exists to tell apart from a real one.
 `tsc --build`, then the unit tests at distance `0-1` (the tests that entered
 the change and those one import away), measured from the text each test last
 ran over. It reads the unit selection once and starts Vitest only when that
-selection keeps a test, so an edit no test covers costs under a second. A type
-error stops it before any test. Integration and chromium tests never run in
-it. It is not lint and not a wave: `verify:near` still runs every slice once
+selection keeps a test, so an edit no test covers costs about a second and a
+half. A type error stops it before any test. Integration and chromium tests
+never run in it. It is not lint and not a wave: `verify:near` still runs every slice once
 the change is whole.
 
 ## The waves
