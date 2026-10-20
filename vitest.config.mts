@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
+import { defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { nativeSources } from './tools/native-sources.mjs';
 import { marked, probeable } from './tools/page-side.mjs';
@@ -171,23 +171,23 @@ const CORES = availableParallelism();
  *   Playwright. A file with no Chromium installed reports itself skipped.
  */
 export const SLICES = {
-  unit: { marker: MARKERS.unit, workers: undefined },
+  unit: { workers: undefined },
   // A file here is two processes at least, and a runner it starts is more.
-  integration: { marker: MARKERS.integration, workers: Math.max(1, Math.floor(CORES / 4)) },
+  integration: { workers: Math.max(1, Math.floor(CORES / 4)) },
   // A browser is a handful of processes, each busy while a page renders.
-  chromium: { marker: MARKERS.chromium, workers: Math.max(1, Math.floor(CORES / 8)) },
+  chromium: { workers: Math.max(1, Math.floor(CORES / 8)) },
 } as const;
 
 export type SliceName = keyof typeof SLICES;
 
 /** One slice as a Vitest config, without the recording. */
 export function slice(name: SliceName) {
-  const { marker, workers } = SLICES[name];
+  const { workers } = SLICES[name];
   return mergeConfig(shared, {
     test: {
       include: includeOf(name),
-      exclude: [...configDefaults.exclude, ...excludeOf(name)],
-      ...(marker === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
+      exclude: excludeOf(name),
+      ...(MARKERS[name] === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
       ...(workers === undefined ? {} : { maxWorkers: workers, minWorkers: 1 }),
     },
   });
