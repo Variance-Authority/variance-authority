@@ -5,9 +5,7 @@
 > Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.
 
 Part of [Variance Authority](https://variance-authority.dev).
-Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
-the install, the agent skills the CLI ships, every documentation page, and the
-example repositories.
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Use this package to cut a test run down to the files a diff can actually affect.
 It adds probes to your product source while your tests run, records which test

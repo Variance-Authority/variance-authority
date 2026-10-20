@@ -5,9 +5,7 @@
 > Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.
 
 Part of [Variance Authority](https://variance-authority.dev).
-Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
-the install, the agent skills the CLI ships, every documentation page, and the
-example repositories.
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

@@ -1,3 +1,5 @@
+import { GITHUB_ORGANIZATION } from "../links";
+
 /**
  * The example repositories: each one a project you can clone and run, wired
  * the way the integration it shows is meant to be used. They live outside this
@@ -24,5 +26,5 @@ export const EXAMPLES: readonly Example[] = [
 ];
 
 export function exampleUrl({ repository }: Example): string {
-  return `https://github.com/Variance-Authority/${repository}`;
+  return `${GITHUB_ORGANIZATION}/${repository}`;
 }

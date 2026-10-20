@@ -5,9 +5,7 @@
 > Add a source-aware visual observation to a Playwright test that already gets the app into the state.
 
 Part of [Variance Authority](https://variance-authority.dev).
-Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
-the install, the agent skills the CLI ships, every documentation page, and the
-example repositories.
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your Playwright test already navigates, authenticates, mounts data and
 waits for the application. This package adds one call to that test. The call

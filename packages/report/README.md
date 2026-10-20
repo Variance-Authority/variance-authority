@@ -5,9 +5,7 @@
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
 
 Part of [Variance Authority](https://variance-authority.dev).
-Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
-the install, the agent skills the CLI ships, every documentation page, and the
-example repositories.
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

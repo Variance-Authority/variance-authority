@@ -4,9 +4,7 @@ See which test cases went through each line of the file you are editing,
 without leaving it. After your suite runs with the recorder on, the gutter
 beside every line it ran shows one of five marks, and hovering names the cases.
 
-Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
-the install, the agent skills the CLI ships, every documentation page, and the
-example repositories.
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 | Mark | State | What it tells you |
 |---|---|---|

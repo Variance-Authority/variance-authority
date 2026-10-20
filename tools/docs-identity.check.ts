@@ -55,9 +55,7 @@ describe('only the overview says what the product is', () => {
  * Sentences carried by more than a few pages on purpose. A coined term has to
  * be landed by whichever page a reader arrives on, so the one-line gloss of
  * `subject` travels with it; the platform note travels with the one package
- * that ships per-platform binaries; the pointer at `llms.txt` travels with
- * every shipped README, because an agent lands on whichever one it was handed
- * and needs the index from there. A definition of the product is not one of
+ * that ships per-platform binaries. A definition of the product is not one of
  * these, and the way to add one is to be able to say why a reader benefits
  * from meeting it twice.
  */
@@ -65,7 +63,6 @@ const SHARED_BY_DESIGN = [
   /^a subject is one named ui state you asked for/,
   /^(?:src\/a\/file\.ts|key what it decides|viewport width and height|retention durable|the hash is of the font|required even with no history|the project-relative test file)/,
   /^it names one of these packages per platform|^the scanner it carries is an acceleration|^a machine that does not get a binary|^it places the probes, and without it/,
-  /^the install, the agent skills the cli ships, every documentation page, and the example repositories\.$/,
 ];
 
 /** How many pages may carry one sentence before it was written for none of them. */

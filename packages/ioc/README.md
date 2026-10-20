@@ -5,9 +5,7 @@
 > Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.
 
 Part of [Variance Authority](https://variance-authority.dev).
-Your coding agent starts at [`llms.txt`](https://variance-authority.dev/llms.txt):
-the install, the agent skills the CLI ships, every documentation page, and the
-example repositories.
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 A module-level `let` outlives the test that changed it. A counter, a cache, a
 lazily built client, a memoized value — each one is written by whichever test

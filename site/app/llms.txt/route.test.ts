@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { EXAMPLES } from "../content/examples";
+import { EXAMPLES, exampleUrl } from "../content/examples";
+import { documentHeadings } from "../content/markdown-text";
+import { routedDocument } from "../content/routed-docs";
+import { GITHUB } from "../links";
+import { SITE } from "../metadata";
 import { GET } from "./route";
 
 /**
@@ -11,21 +15,41 @@ import { GET } from "./route";
 describe("llms.txt", () => {
   const text = GET().text();
 
+  /** The block between `## Start here` and the next heading. */
+  async function start(): Promise<string> {
+    const index = await text;
+    const from = index.indexOf("## Start here");
+    expect(from).toBeGreaterThan(-1);
+    return index.slice(from, index.indexOf("\n## ", from + 1));
+  }
+
   it("opens with where to start, before the catalogue", async () => {
     const index = await text;
-    const start = index.indexOf("## Start here");
-    expect(start).toBeGreaterThan(-1);
-    expect(start).toBeLessThan(index.indexOf("## Documentation"));
-    expect(index).toContain("npm install --save-dev @variance-authority/cli");
-    expect(index).toContain("/agents/cli/index.md#point-an-agent-at-it");
-    expect(index).toContain("/start/index.md");
+    expect(index.indexOf("## Start here")).toBeLessThan(index.indexOf("## Documentation"));
+    const block = await start();
+    expect(block).toContain("npm install --save-dev @variance-authority/cli");
+    expect(block).toContain("/agents/cli/index.md#point-an-agent-at-it");
+    expect(block).toContain("/agents/index.md");
+    expect(block).toContain("/start/index.md");
+    expect(block).toContain(`(${GITHUB})`);
   });
 
   it("links every example repository", async () => {
     const index = await text;
     expect(index).toContain("## Examples");
-    for (const { repository } of EXAMPLES) {
-      expect(index).toContain(`https://github.com/Variance-Authority/${repository}`);
+    for (const example of EXAMPLES) expect(index).toContain(`(${exampleUrl(example)})`);
+  });
+
+  it("anchors only headings the page renders", async () => {
+    const site = new URL(SITE).origin;
+    const anchored = [...(await text).matchAll(/\]\(([^)\s]+#[^)\s]+)\)/g)].map(([, link]) => link!);
+    expect(anchored.length).toBeGreaterThan(0);
+    for (const link of anchored) {
+      const { origin, pathname, hash } = new URL(link);
+      expect(origin).toBe(site);
+      const document = routedDocument(pathname.replace(/\/index\.md$/, ""));
+      expect(document, link).toBeDefined();
+      expect(documentHeadings(document!.source).map(({ id }) => id), link).toContain(hash.slice(1));
     }
   });
 });
