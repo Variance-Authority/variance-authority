@@ -317,16 +317,16 @@ export function runnerSkipped(context: RunnerContext | undefined, reason?: strin
 
 /**
  * The same reading for a runner that reports a file as one status and its tests
- * as a flat list of them.
- *
- * Rstest is that runner: `onTestRunEnd` hands a result per file whose `results`
- * are its leaves, with no tree between them. The file's own status carries what
- * {@link stopped} reads out of a task tree — a `beforeAll` that throws leaves
- * the file failed and every test in it skipped — so asking it first refuses the
- * thrown-fixture case for the same reason and with the same consequence.
+ * as a flat list of them: Rstest's `results`, and Jest's statuses in these
+ * words. The file's own status carries what {@link stopped} reads out of a task
+ * tree — a `beforeAll` that throws leaves the file failed and every test in it
+ * skipped — so asking it first refuses the thrown-fixture case for the same
+ * reason. Where the runner may have skipped a
+ * test on its own, only a pass is an outcome.
  */
-export function statusesComplete(file: string, tests: readonly string[]): boolean {
-  return usableOutcome(file) && tests.length > 0 && tests.every(usableOutcome);
+export function statusesComplete(file: string, tests: readonly string[], runnerSkipped: boolean): boolean {
+  return usableOutcome(file) && tests.length > 0
+    && tests.every((state) => (runnerSkipped ? state === 'pass' : usableOutcome(state)));
 }
 
 export function reportedComplete(module: ReportedModule, runnerSkipped: boolean): boolean {

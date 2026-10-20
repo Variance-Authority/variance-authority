@@ -19,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import type { Digest } from '../digest.js';
-import { textDigests } from '../text-digests.js';
+import { runTexts } from '../text-digests.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
@@ -28,7 +28,7 @@ import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
-import { noteAnEmptyRecord } from './finished-files.js';
+import { noteAnEmptyRecord, statusesComplete } from './finished-files.js';
 import { jestPhases, reportedDuration, type JestPerfStats } from './reported-time.js';
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
@@ -131,8 +131,22 @@ class JestCoverageReporter {
   /** Whether this run is one shard of a run that selects nothing — see `recordsAlone`. */
   readonly #alone: boolean;
 
-  constructor(globalConfig: { readonly shard?: unknown } | undefined, config: JestReporterConfig) {
+  /**
+   * Whether `-t` chose the cases this run ran. Jest reports every case it left
+   * out as pending, which is how a case its file skips reads too, so under a
+   * filter no pending case is the file's own.
+   */
+  readonly #named: boolean;
+
+  /** When `onRunStart` began this run: see `runTexts`. */
+  #startedAt = 0;
+
+  constructor(
+    globalConfig: { readonly shard?: unknown; readonly testNamePattern?: string } | undefined,
+    config: JestReporterConfig,
+  ) {
     this.#config = config;
+    this.#named = (globalConfig?.testNamePattern ?? '') !== '';
     this.#alone = recordsAlone(globalConfig?.shard != null, 'selected' in config && config.selected === true);
   }
 
@@ -143,6 +157,7 @@ class JestCoverageReporter {
   }
 
   onRunStart(): void {
+    this.#startedAt = Date.now();
     const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
@@ -219,15 +234,14 @@ class JestCoverageReporter {
       result,
       governing: [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
     }));
-    // Every file's preconditions are read once for the run: one every test
-    // file shares is one read, not one per test file.
-    const digests = textDigests(governed.flatMap(({ result, governing }) => [result.testFilePath, ...governing]));
+    const texts = runTexts(governed.map(({ result, governing }) => ({ test: result.testFilePath, governing })), this.#startedAt);
     const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(
       result,
-      cut.has(result.testFilePath),
+      cut.has(result.testFilePath) || texts.moved(result.testFilePath, governing),
+      this.#named,
       selection,
       governing,
-      digests,
+      texts.digests,
       journalsOf(written, projectNamed(result.displayName)),
       modules,
     )));
@@ -279,6 +293,9 @@ class JestCoverageReporter {
   }
 }
 
+/** Jest's case statuses in the words `statusesComplete` reads; any other is not an outcome. */
+const jestOutcomes: Readonly<Record<string, string>> = { passed: 'pass', pending: 'skip', todo: 'todo' };
+
 /**
  * One test file's observation, and whether it was whole.
  *
@@ -289,8 +306,14 @@ class JestCoverageReporter {
  */
 function coverageTest(
   result: JestRunResults['testResults'][number],
-  /** Whether the selection skipped some of the file's cases, whose reach the run then did not record. */
-  cut: boolean,
+  /**
+   * Whether the record of the file is partial: the selection skipped some of
+   * its cases, whose reach the run then did not record, or a text it rests on
+   * was written while it ran.
+   */
+  partial: boolean,
+  /** Whether a name filter ran, which reports every case it left out as pending. */
+  named: boolean,
   config: SelectionReporterConfig,
   governing: readonly string[],
   /** Every file's text digest, from `textDigests`, read once for the whole run. */
@@ -337,15 +360,11 @@ function coverageTest(
   // edits either the test file or a module its collection entered, both of which
   // already select it. A failure or an error is a different thing and still
   // spoils the file — it recorded only as far as it got.
-  const complete =
-    !cut &&
-    placed &&
-    recorded &&
-    result.testExecError === undefined &&
-    result.testResults.length > 0 &&
-    result.testResults.every(
-      (assertion) => assertion.status === 'passed' || assertion.status === 'pending' || assertion.status === 'todo',
-    );
+  const complete = !partial && placed && recorded && statusesComplete(
+    result.testExecError === undefined ? 'pass' : 'fail',
+    result.testResults.map((assertion) => jestOutcomes[assertion.status] ?? 'fail'),
+    named,
+  );
   return {
     file,
     complete,

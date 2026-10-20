@@ -54,7 +54,7 @@ import { MODULE_EXTENSIONS } from '../read.js';
 import { blocksAround, gapInside, moduleRegion, outsideRegions, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredEffects } from './effects.js';
-import { frameOf, type Frame } from './frame.js';
+import { commitFrame, frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { walkImporters } from './importer-walk.js';
 import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
@@ -213,14 +213,7 @@ export function readRowless(
   const { coverage } = context;
   const { names, sourceAt, scanner } = subject;
 
-  let frame: Frame = { name: subject.name, text: '' };
-  for (const name of names) {
-    const text = sourceAt(name, coverage.commit);
-    if (text !== undefined) {
-      frame = { name, text };
-      break;
-    }
-  }
+  const frame = commitFrame(coverage, names, subject.name, sourceAt);
   const patched = applied(frame.text, context.hunks.get(file) ?? []);
   if (patched === undefined) return { reading: { file, unread: 'hunk' }, charged: false };
   const verdict = scanner.moduleVerdict(frame.name, frame.text, patched.after);

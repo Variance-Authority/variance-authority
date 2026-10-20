@@ -37,6 +37,8 @@ export interface SelectionRun {
    * See `case-cut.ts`.
    */
   readonly cutFile: string;
+  /** When the run, or the rerun a watching runner reopened it for, began: see `runTexts`. */
+  startedAt: number;
   /** The cases the selection skips in the files this run kept: each such file is recorded incomplete. */
   readonly cut: Map<string, readonly string[]>;
   readonly modules: Map<ModuleId, CapturedModule>;
@@ -138,6 +140,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     caseDirectory: `${runDirectory}-cases`,
     finishedDirectory: `${runDirectory}-files`,
     cutFile: `${runDirectory}-cut.json`,
+    startedAt: Date.now(),
     cut: new Map<string, readonly string[]>(),
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
@@ -159,14 +162,16 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
 }
 
 /**
- * Open the run for the next end the runner announces: the start of a rerun.
+ * Open the run for the next end the runner announces: the start of a rerun,
+ * at `startedAt`, no later than the runner's first read of a file this cycle.
  *
  * The directories are the ones the workers were handed when the shims were
  * written. The last fold removed them, and each worker recreates the one it
  * writes to, so a rerun's journals are its own.
  */
-export function reopenRun(run: SelectionRun): void {
+export function reopenRun(run: SelectionRun, startedAt: number): void {
   run.settled = false;
+  run.startedAt = startedAt;
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */

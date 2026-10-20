@@ -259,13 +259,21 @@ export function withTestSelection(
   if (config.projects !== undefined) run.runConfig = '';
 
   const settle = foldRun(run, { coverageFile, shims: [setupId] });
+  let ended: number | undefined;
   const reporter = {
     // A watching Rstest starts every cycle here, after the last cycle's end.
-    onTestRunStart: () => reopenRun(run),
-    onTestRunEnd: (payload: RstestRunEnd) => unprobedAtEnd(run) ?? settle(
-      cycleResults(run, payload).map((file) => ({
+    // Rstest builds the cycle's bundle, reading its files, before it announces
+    // the start: the first cycle began when the run was made, and a rerun when
+    // the last cycle ended.
+    // FIXME: so a watching rerun counts the save that started it as a write
+    // while it ran, and records the files it saved incomplete.
+    onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
+    onTestRunEnd: (payload: RstestRunEnd) => {
+      ended = Date.now();
+      const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
+      return unprobedAtEnd(run) ?? settle(cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
-        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
+        complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
           cases: file.results.map((test) => finishedCase(
@@ -276,8 +284,8 @@ export function withTestSelection(
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
-      })),
-    ),
+      })));
+    },
     // A watching run kept its shim for the cycles after the first.
     onExit: () => removeSeamModules(run, [setupId]),
   };
@@ -361,8 +369,24 @@ export function withTestSelection(
 /** The part of Rsbuild's plugin API this seam reads. */
 interface RsbuildPluginApi {
   readonly useExposed: (id: string) => {
-    readonly getRstestConfig: () => { readonly browser?: { readonly enabled?: boolean } };
+    readonly getRstestConfig: () => {
+      readonly browser?: { readonly enabled?: boolean };
+      readonly testNamePattern?: string | RegExp;
+    };
   } | undefined;
+}
+
+const nameFilters = new WeakMap<SelectionRun, Set<() => unknown>>();
+
+/**
+ * The name filter each project of a run runs under, read when a cycle ends: a
+ * watch session sets and clears it between cycles. Every test a filter left out
+ * reads as skipped, so under one no skip in the run is the file's own.
+ */
+function nameFiltersOf(run: SelectionRun): Set<() => unknown> {
+  let filters = nameFilters.get(run);
+  if (filters === undefined) nameFilters.set(run, (filters = new Set()));
+  return filters;
 }
 
 /**
@@ -371,13 +395,17 @@ interface RsbuildPluginApi {
  *
  * Where a file runs is the runner's to say, and `--browser.enabled` says it
  * after the configuration was written. Rstest hands its Rsbuild plugins the
- * configuration with the command line merged in, so it is read there.
+ * configuration with the command line merged in, so it is read there, and so is
+ * `-t`, which skips every test it does not name.
  */
 function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
   return {
     name: 'variance-authority:test-selection',
     setup(api: RsbuildPluginApi): void {
-      if (api.useExposed('rstest')?.getRstestConfig().browser?.enabled !== true) return;
+      const exposed = api.useExposed('rstest');
+      // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
+      if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);
+      if (exposed?.getRstestConfig().browser?.enabled !== true) return;
       writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
       // TODO: record cases in a page — a drain per test, carried on each
       // test's `meta` as the file's is.
