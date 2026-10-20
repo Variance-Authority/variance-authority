@@ -26,10 +26,13 @@ const FILES: Readonly<Record<string, string>> = {
     'export function widen(): number { return 2; }',
     '',
   ].join('\n'),
+  'packages/gamma/package.json': JSON.stringify({ name: 'gamma', type: 'module' }),
+  'packages/gamma/src/index.ts': 'export function gauge(): number { return 3; }\n',
   'packages/beta/package.json': JSON.stringify({ name: 'beta', type: 'module' }),
   'packages/beta/src/index.ts': [
     "export type Narrowed = ReturnType<typeof import('alpha').narrow>;",
     "export type Alpha = typeof import('alpha');",
+    "export type Gauge = typeof import('gamma/src/index.js').gauge;",
     '',
   ].join('\n'),
 };
@@ -73,5 +76,10 @@ describe('a name read off a module through an `import()` type', () => {
     const answer = uses.run(help, { name: 'narrow' });
     expect(answer).not.toContain('which loads the module when the call runs');
     expect(answer).toContain('packages/beta/src/index.ts:1 — beta (type only) (import() on line 1)');
+  });
+
+  it('is a type-only name taken by path from a package that declares no entry', () => {
+    const held = help.byPath.find((imported) => imported.by === 'beta' && imported.specifier === 'gamma/src/index.js');
+    expect(held?.names.map((taken) => `${taken.name}:${taken.line}${taken.type ? ' type' : ''} ${taken.through?.kind}`)).toEqual(['gauge:3 type dynamic']);
   });
 });
