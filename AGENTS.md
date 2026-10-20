@@ -147,6 +147,10 @@ Look around:
   magic and not alone, a path is the file, stop only what you started, a status
   claim is a marker.
 
+After each edit, run `yarn test:loop` and read its verdict before the next
+edit: the compiler, then the unit tests within one import of what changed. A
+red is fixed before any other edit.
+
 What the task needs, and a defect in its own diff, are fixed on its branch
 before it merges; a finding it neither needs nor wrote goes on its own branch,
 as [change](.agents/references/change.md) draws the line.
