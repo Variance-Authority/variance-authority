@@ -136,7 +136,11 @@ declaration path. No new identity is introduced.
 
 - **`variance covering … --where <dimension>[:<key>][=<value>]`**, in every
   form of `covering` that answers with cases, keeps the cases that declared it.
-  Repeated, every `--where` must hold. `--where network` matches any key of
+  Repeated for different names, every `--where` must hold; repeated for one
+  `dimension:key`, any of its values may
+  ([spec 0103](0103-a-behaviour-names-the-cases-that-witnessed-it.md)), and a
+  case that said two values for it at one level is counted as contradicted,
+  not matched. `--where network` matches any key of
   `network`, `--where flags:new-checkout` any value of that key, and
   `--where network=mocked` any key of `network` that holds `mocked`. A value
   is parsed as JSON when it parses, so `=true` is the boolean and `=mocked` the

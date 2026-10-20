@@ -1,0 +1,312 @@
+# Spec 0103 — a behaviour names the cases that witnessed it
+
+**Missing:** a question composed from more than one fact about a case. Today
+`covering` takes one region and narrows the cases that entered it by what they
+said (`--where`). It cannot also ask for a name, for a second region, or for
+the cases that did *not* enter a region. It cannot tell a case that said a value
+apart from one that said two values at once, or one that finished apart from
+one that stopped. It answers by resolving every case's row before it filters.
+So *which finished cases ran the fallback as an anonymous user during a
+timeout* can be asked only half-way, and the half that answers counts a
+contradiction as a match.
+**Built on:** `covering --where` and its unmeasured count
+([`covering-where.ts`](../../packages/cli/src/commands/covering-where.ts)); the
+items over crossing sets of
+[ADR-0094](../context/adr/0094-what-a-case-said-is-items-over-crossing-sets.md),
+whose one owner is
+[`case_said.rs`](../../packages/sense/native/src/case_said.rs); the crossing-set
+pool and its LIST, BITS and RUNS containers
+([`crossing_sets.rs`](../../packages/sense/native/src/crossing_sets.rs)); a
+case's `stopped`, the cases that stopped before a region
+([`stopped.ts`](../../packages/sense/src/test-selection/stopped.ts)), and the
+load-time reach of a region
+([`reverse.ts`](../../packages/sense/src/test-selection/reverse.ts)); and the
+outcome [spec 0067](0067-a-case-carries-its-outcome.md) has not yet recorded.
+**Waits for:** spec 0093's two-part name, `dimension:key`, and the bare
+dimension that unions its keys. The record and `--where` hold one flat name
+today; until the grammar lands, a name below is that flat name.
+**Amends:** [spec 0093](0093-a-case-names-its-preconditions.md)'s *Where it is
+read*: a `--where` repeated for one `dimension:key` is *any* of its values, and
+a contradicted case no longer matches. ADR-0094's Strategy, where `--where`
+filters resolved rows with its semantics fixed, and its cost row for `--where`.
+
+## Purpose
+
+A failing test is already explained by its stack trace. The question Variance
+can answer and nobody else can is the opposite one: **why did the others
+pass, and what did they actually run?** Aggregate coverage says a fallback was
+entered. It does not say whether any case entered it as an anonymous user during
+a timeout, which is the risk the change is about. A *witness* is a finished case
+that holds every fact the question names. An empty set of witnesses inside a
+green, 100%-covered region is a missing scenario, and it can be found without
+writing a test first.
+
+The questions this spec must answer, each on one recording:
+
+| | The developer asks | Facts |
+|---|---|---|
+| 1 | Did an anonymous user hit the fallback during a timeout? | entered `fallback` · said `user=anonymous` · said `network=timeout` |
+| 2 | Which retry test runs `paymentRetry` with a failed payment? | named `retry` · entered `paymentRetry` · said `payment=failed` |
+| 3 | Does any case reach both the save handler and the database write, with real storage? | entered `saveHandler` · entered `databaseWrite` · said `storage=real` |
+| 4 | Which timeout tests never reached timeout handling? | named `timeout` · said `network=timeout` · did not enter `timeoutHandler` |
+
+The answer to 2 gives an agent the one test to read, extend or run. A name alone
+was a guess; a name with the region it entered and the state it said is
+evidence. The answer to 4 is a fixture, a name or an early exit worth reading. A
+test can pass without ever exercising what its name claims.
+
+A witness proves the facts co-occurred on one case. It does not prove that they
+happened in order, that one caused another, or that a value applied to one
+particular call of the region: co-occurrence is what fault localisation reads
+too, and it is not cause
+([prior art](../context/prior-art.md#fault-localization)). Spec 0093 joins what
+a case said across its attempts and shards, so the facts may have co-occurred
+across them rather than within one run. A witness is reach, not checking
+([prior art](../context/prior-art.md#coverage-adequacy)): a case that asserts
+nothing about the fallback still witnesses that it ran.
+
+`covering` already calls every case that reached its target a witness, and spec
+0067 calls a case that entered a region one. Under a fact flag the word narrows
+to the definition above, and the existing wording says so.
+
+## The question
+
+A question has a population and facts. The population is every case
+`covering` keeps: its narrowings `--cases`, `--at-distance` and `--in-package`,
+and its target — `--file` with `--function` or `--line`, or a diff from
+`--since` — whose first fact is *entered the target*. A question with no target
+asks over every case the narrowings keep, so question 4 reads:
+
+```
+$ variance covering --named timeout --where network=timeout \
+    --except-entered src/net/timeout.ts:timeoutHandler
+```
+
+The flags add facts:
+
+```
+--where <name>[=<value>]                said it, in spec 0093's grammar
+--named <text>                          the case's title chain holds <text>
+--entered <file>[:<function>]           entered that region as well
+--except-entered <file>[:<function>]    did not enter that region
+--limit <n>                             list at most n cases
+```
+
+- **Different facts are all required.** Every positive fact must hold, and the
+  excepted region must not have been entered.
+- **One `dimension:key` given several values is any of them.** `--where
+  network:cdn=timeout --where network:cdn=offline` asks for either. Today both
+  are required, which only a contradiction can satisfy. Repeats that name a
+  dimension alone, or different keys, stay all-required as spec 0093 reads
+  them. This is the only *any* this spec adds. A general boolean grammar is a
+  query language, and none of the questions above needs one.
+- **`--named` matches the title chain** — the describe blocks and the test's
+  name, as the runner gave them — by code-unit substring, so `retry` finds a
+  case under `describe('retry')`. It never reads the file: `--cases` picks a
+  file's cases. It is never unmeasured.
+- **`--entered` and `--except-entered` resolve their region as `--file` and
+  `--function` resolve the target.** The function, a recorded one or a scope
+  that holds functions, follows the last `:`; a function name holds no `:`. A
+  path the checkout does not hold is refused as `--file` refuses it. A file the
+  record holds no coverage for is read as `--file` reads it, and the fact is
+  unmeasured for every case.
+- **`--limit` caps every list `covering` prints**, with or without a fact flag.
+  Absent, every case is listed, as today. Counts are always whole.
+
+No precondition is read against a `names.axes` axis, as spec 0093 holds until
+spec 0102 settles how an axis names a `dimension:key`. A case that never said a
+name has not said it. A configured default is never counted as an observation,
+because none is read.
+
+## What a case counts as
+
+Every case of the population lands in exactly one of these: the first that
+applies, in this order. A fact is read three ways — it holds, it fails, or it
+cannot be read — and a fact that fails decides before one that cannot be read.
+
+- **Not a witness.** It was seen to finish, and a fact that was read fails.
+- **Unmeasured.** A fact cannot be read for it: a `--where` on a case outside
+  the measured set, or a region in a file the record holds no coverage for.
+- **Contradicted.** At the narrowest level it said a `dimension:key` that made
+  a fact hold, it said two values. ADR-0094 keeps both, and a filter that
+  matches either of them hides the contradiction, so it is counted apart even
+  when one of the two is a value the question asked for. A contradiction on a
+  key the fact did not need is not counted.
+- **Outcome unsaid.** Its runner could not say whether it finished. A fact it
+  lacks may be one it never reached, so it is neither a witness nor a
+  non-witness. A producer that never reports settlement places every case here,
+  and the answer says so instead of offering a witness or a negative.
+- **Unfinished.** It stopped (`stopped` is `true`). A region it entered was
+  entered, but it is not a case that passed, so it is never a witness.
+- **At load only.** It holds every fact, but the target or an `--entered`
+  region was reached only while that region's module was evaluating. Selection
+  reads such a crossing as reach, on purpose, so a change cannot skip a test.
+  A question about what a case *exercised* needs the opposite reading. For the
+  same reason a load-only reach of an `--except-entered` region does not
+  exclude a case.
+- **Witness.** It holds every fact as an observation and was seen to finish
+  (`stopped` is `false`). An assertion that fails throws, so a case seen to
+  finish is a case that passed, except under an expected-failure modifier or
+  a soft assertion (`expect.soft`). Spec 0067 adds the outcome and closes both;
+  nothing here waits for it.
+
+**No recorded witness** is said only when the witness count is zero, no case is
+*unmeasured* or *outcome unsaid*, and the target is no hole in spec 0067's
+sense: no case that holds the asked state stopped before it could reach the
+target. Those cases are printed as their own line. Otherwise the answer says the
+record cannot tell, and names how many cases it could not read.
+*Contradicted*, *unfinished* and *at load only* are printed and never turn into
+a negative: the reader sees them and decides.
+
+```
+$ variance covering --file src/pay/fallback.ts --function fallback \
+    --where user=anonymous --where network=timeout
+
+fallback in src/pay/fallback.ts was entered by 14 cases.
+2 witnessed user=anonymous and network=timeout:
+  src/pay/fallback.test.ts > falls back when the gateway times out
+  src/checkout/guest.test.ts > guest retries after a timeout
+7 did not.
+3 were recorded without preconditions, so whether they ran under it is unmeasured.
+1 said network=timeout and network=offline in one beforeEach.
+1 stopped before it finished.
+```
+
+A listed line is resolved, name and file, only for the cases printed. Every
+other line is a count.
+
+## How it is answered
+
+Write `S(n, v, l)` for the cases holding item `(n, v, ·, l)`, joined over
+sites, and `M` for the measured set.
+
+- **Said, effective:** `P(n=v) = ⋃ₗ [ S(n,v,l) − ⋃_{l'>l} S(n,·,l') ]`. A
+  narrower level overrides a wider one. This is ADR-0094's resolution, and it
+  moves into `case_said.rs` as sets: the effective and contradicted sets per
+  `(name, value)` are computed there, and the per-case `resolve` that prints a
+  row becomes that computation over one case's membership. One resolver
+  remains.
+- **A name without a value or a key:** `P(n) = ⋃_{v,l} S(n,v,l)`, and a bare
+  dimension is the union over its keys.
+- **Contradicted:** `P(n=v) ∩ P(n=v')` for some `v' ≠ v`, on the key that made
+  the fact hold.
+- **Entered:** the cases that called into the region, a set in the pool. A
+  `--function` or a scope is the union of its regions' sets.
+- **At load only:** where a producer writes a crossing's `loaded`, it is read
+  per case. Where the record holds only the region's `loaded` flag, the cases
+  whose test file imports the module are read from the file graph, as
+  selection reads them, and the entered set is subtracted.
+- **A hole:** the cases `stoppedBefore` names for the target, as spec 0067
+  reads them.
+- **Named:** a scan of the case-name column, the one step linear in cases. It
+  runs only when `--named` is given.
+- **Finished, unfinished, outcome unsaid:** the `stopped` column, read as its
+  three states.
+- **The population:** the cases `covering` kept, passed in as one set.
+
+The said sets come from `case_said.rs`, its one owner. Set intersection,
+difference and cardinality over pool ids belong to `crossing_sets.rs`, the
+pool's owner, where spec 0102 and selection can call them. The composed query
+is a decision in its own file over their results: it adds no reading of what a
+case said and no set code. It is called once through N-API with the section
+and pool bytes `covering` already read, as the said reader is, and it returns
+counts per category and the first `n` ids of each list. Nothing resolves a case
+into a row to filter it.
+
+The general path is a sorted merge over decoded sets, smallest first, and every
+count is a cardinality. That makes the cost proportional to the sets the
+question touches, not to the facts multiplied by the cases; `--where` today is
+O(cases × items), and ADR-0094's cost table says so. A container-against-
+container path — a galloping search for a short list, a word-wise AND for BITS,
+intervals for RUNS — is written only where item 4's measurement asks for it.
+
+`whereCases`, and the per-case filter through `rowOf` it runs, are deleted with
+this change, not kept beside it. One answer to `--where` exists after it. The
+twin lines, the base reading and the vocabulary check in `case-axes.ts`
+(`heldValues`, `caseTwins`, `outsideVocabulary`, `namesAt`, and
+`CoveringWhere.outside`) are the reading spec 0093 suspended; they are deleted
+with it, not rebuilt over sets.
+
+## Prior art
+
+- **QuickCheck's `classify`, `label` and `cover`**, and Hypothesis's `event`,
+  report which labelled scenarios the passing cases held, and `cover` fails a
+  run whose scenario is under-represented. It is the field's form of *why did
+  the others pass*, over generated inputs and without the code they reached.
+- **Combinatorial coverage measurement** (Kuhn et al., NIST IR 7878, 2012; the
+  NIST CCM tool) measures which t-way combinations of configuration values a
+  test set covers. It answers *was anonymous × timeout ever arranged*, over the
+  inputs alone. A witness adds the region the combination reached.
+- **Trace queries** (TraceQL in Grafana Tempo, Honeycomb) filter span sets by
+  attributes with conjunction, negation and structure: *entered X with
+  attribute Y*, over production traces, not over the cases of a suite.
+- **Spectrum-based fault localisation** (Tarantula, Ochiai) counts which
+  passing and failing cases entered a statement. It reads the same
+  co-occurrence for the failure; a witness reads it for the pass, with state.
+- **Test gap analysis** (CQSE / Teamscale) intersects *changed* with *executed
+  by any test*. That is one fact per method, and it names no test.
+- **Per-test coverage lookups** in JetBrains IDEs, Parasoft Jtest and
+  Wallaby.js answer *which tests covered this line*: one region, no state, no
+  composition.
+- **Roaring bitmaps** (Lemire et al., *Software: Practice and Experience*,
+  2016) store a set as array, bitmap or run containers and intersect them
+  container against container. The pool has the same three container kinds,
+  chosen per set rather than per 2¹⁶ chunk.
+
+None of them answers a question that joins a name, two regions and an arranged
+state on one case of a suite.
+
+## What would discharge it
+
+1. Set intersection, difference and cardinality over pool ids in
+   `crossing_sets.rs`. The effective and contradicted sets in `case_said.rs`,
+   with `resolve` rewritten over them. The composed query in its own file:
+   bare-name sets, entered and load-only, the hole, named, the three states of
+   `stopped`, the population, all and except, counts per category and the first
+   `n` ids. Unit tests for an override, a contradiction on the key a fact
+   needed and on one it did not, a finished case failing one fact and
+   unmeasured on another, an unfinished and an outcome-unsaid case under
+   `--except-entered`, a load-only target, a hole, and a record with no measured
+   set.
+2. `covering` routed to it: `--named`, `--entered`, `--except-entered`,
+   `--limit`, a question with no target, one `dimension:key` given several
+   values read as any of them, and the output above. `whereCases`, its `rowOf`
+   filter and the axis readings listed above are deleted. The tests that assert
+   repeated values all-required, a contradicted case matched or a twin printed
+   are amended first, and fail. `covering`'s existing *witness* wording is
+   amended. ADR-0094's Strategy bullet and cost row for `--where` are amended.
+3. Fixtures for questions 1 to 4, recorded under Vitest, Jest and Rstest and run
+   through `covering`, with the output each is expected to print. One of them is
+   green at 100% line coverage and prints *no recorded witness*.
+4. The cost measured on this repository's recording and on the seven-MUI
+   corpus: `--where` before and after, a three-fact question, and a `--function`
+   scope that unions several regions, against the size of the sets each touched.
+
+The first slice is item 1's set operations and resolver, `--where` and
+`--except-entered` through `covering`, and question 1 end to end under Vitest.
+`--named`, *at load only*, the other runners and the measurement follow.
+
+## Open
+
+- **Axes and defaults.** When spec 0102 settles how an axis names a
+  `dimension:key`, a case that never said an axis name stands at its base. That
+  is a configured default, not an observation: it returns as its own count,
+  never as a witness.
+- **Excepted state and names.** `--except-where` and `--except-named` are the
+  same set difference. No question above needs them, and how an excepted
+  `--where` reads a contradicted or unmeasured case is undecided.
+- **Gates.** Spec 0102's `read` facts join as `--read`, the same sets over a
+  `tests.read` section, when that section exists. Comparing what a case said
+  against what its code read is that spec's.
+- **Two recordings.** Comparing a question's witnesses before and after a change
+  needs cases aligned by identity first. Otherwise a case that was not rerun
+  reads as one that stopped reaching the region. `caseMotion` compares regions,
+  not questions; how a question rides it is open.
+- **A reviewer's checklist.** `review` could take the questions a reviewer
+  names and print *witnessed*, *no recorded witness* or *unmeasured* for each
+  changed region, as QuickCheck's `cover` fails an under-represented scenario.
+  Which questions, and where a reviewer writes them, is open; enumerating every
+  configuration is not the answer.
+- **Unique evidence.** *If these tests were removed, which question loses its
+  last witness?* is the same query with a test-file except, run once per
+  candidate. Whether that deserves its own flag is open.
