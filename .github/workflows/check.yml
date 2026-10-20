@@ -489,7 +489,7 @@ jobs:
     # a sharded whole run. Cheap selections start one job; broad selections
     # keep the faster whole-suite parallelism. No job installs merely to skip.
     # Selected records still layer once; whole shards still record alone and
-    # fold over one shared baseline. The recording contract is unchanged.
+    # fold over one shared baseline.
     #
     # Not `fail-fast`: a red unit shard says nothing about chromium, and a
     # cancelled job reports nothing.
