@@ -3,7 +3,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { declaredSuites } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
-import { functionOf, uncovered } from './review-scope.js';
+import { functionOf, TOP_LEVEL, uncovered } from './review-scope.js';
 import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
 import { FRESH_MARK, MARK, REACH_WORD, unrecordedSources } from './review-text.js';
 
@@ -147,9 +147,6 @@ function summary(crumbs: readonly Crumb[], unread: number): string {
 
 /** Where a reach read from a record made before the change was seen: on the old code. */
 const BEFORE = 'in the record before the change';
-
-/** The function name a module's own top level is given. */
-const TOP_LEVEL = 'the top level';
 
 /** What a part no case reached lacks, in the words of the record it was read from, as the review comment words it. */
 function gapOf(part: Part): string {

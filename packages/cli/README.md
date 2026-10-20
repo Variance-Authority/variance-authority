@@ -1150,7 +1150,8 @@ coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the b
     checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions
     stories   visual  1,437 →   718  30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped
     unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions
-  stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
+  stories: src/checkout.stories.tsx no longer runs 212 functions in 9 files (716 regions) at the base
+  unit: src/checkout/total.test.ts no longer runs total in src/checkout/total.ts (3 regions) at the base
 ```
 
 Each part is signed by what it does to the count. `newly run` and `no longer
@@ -1161,7 +1162,10 @@ only one of the two records has, in a file both have, and `newly loaded files`
 and `files no longer loaded` count the files only one of them has. `run by
 fewer cases` is unsigned, because those regions still run. The signed parts add
 up to the change in the count, and the markdown says so when they do not. The test files whose regions changed most
-are named under the table.
+are named under the table, up to three that stopped running regions and three
+that started, each with the functions its moved regions sit in, file by file,
+or a count of them when there are more than four; a count says how many test
+files were left out, and `--format json` lists every one.
 
 Each suite's base is the record its mainline published to the
 [share](https://variance-authority.dev/docs/sharing), for a suite the root config gives to it with

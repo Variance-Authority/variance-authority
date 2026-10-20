@@ -32,6 +32,7 @@ import { readExecutionIndex } from './execution-input.js';
 import { diffFromBase, movedOnBase } from './base-diff.js';
 import { cutElsewhere } from './before-texts.js';
 import { relationsFor } from './source-graph.js';
+import { functionOf, regionKind } from './review-scope.js';
 
 /** Which record the answer was compared with, and what of it was left out. */
 export interface MotionBase {
@@ -366,10 +367,11 @@ export function motionText(
 /**
  * The line that counts what a bounded list left out, and says where it is
  * listed. Plain text, because the markdown sets these lines in a code block.
+ * `which` follows the noun, where two lists of the same noun sit side by side.
  */
-function notListed(more: number, noun: string): readonly string[] {
+export function notListed(more: number, noun: string, which = ''): readonly string[] {
   if (more <= 0) return [];
-  return [`... and ${more} more ${noun}${more === 1 ? '' : 's'}, not listed here; --format json lists every one.`];
+  return [`... and ${more} more ${noun}${more === 1 ? '' : 's'}${which}, not listed here; --format json lists every one.`];
 }
 
 /** Names in one line, no more than `listed` of them, and the rest counted. */
@@ -391,14 +393,14 @@ export function functionsIn(regions: readonly MovedRegion[]): string {
   if (regions.length === 0) return 'nothing';
   const byFile = new Map<string, Set<string>>();
   for (const region of regions) {
-    const name = region.kind === 'module' || region.name === '' ? 'the top level' : region.name.split('/')[0]!;
+    const name = functionOf(region);
     const held = byFile.get(region.file);
     if (held === undefined) byFile.set(region.file, new Set([name]));
     else held.add(name);
   }
   const functions = [...byFile.values()].reduce((sum, names) => sum + names.size, 0);
   const count = `${regions.length} region${regions.length === 1 ? '' : 's'}`;
-  if (functions > NAMED_FUNCTIONS) return `${functions} functions in ${byFile.size} files (${count})`;
+  if (functions > NAMED_FUNCTIONS) return `${functions} functions in ${byFile.size} file${byFile.size === 1 ? '' : 's'} (${count})`;
   const said = [...byFile].map(([file, names]) => `${[...names].join(', ')} in ${file}`).join('; ');
   return `${said} (${count})`;
 }
@@ -414,7 +416,7 @@ function casesByFile(tests: readonly ExecutionTest[]): string {
 }
 
 function place(region: MovedRegion): string {
-  return `${region.file} ${region.startLine}-${region.endLine} ${region.kind} ${region.name}`;
+  return `${region.file} ${region.startLine}-${region.endLine} ${regionKind(region)}`;
 }
 
 /** The motion of one module, and each test file's reach into it. */
