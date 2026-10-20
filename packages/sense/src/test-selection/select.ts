@@ -2,9 +2,10 @@ import { blocksAround, regionOf } from './blocks-around.js';
 import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
-import { findModules, testPathOf } from './lookup.js';
+import { instrumentedRows, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
+import { declarable, ranOverFiles } from './ran-over.js';
 import { frameOf } from './frame.js';
 import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
@@ -280,25 +281,26 @@ function readDiff(
   // nothing from the instrumented row beside it.
   const rowsByFile = new Map<string, Map<string, readonly number[]>>();
   for (const [file, lines] of changed) {
-    const rowsOf = new Map<string, readonly number[]>();
-    for (const name of knownAs(file)) {
-      // Every changed name is asked of the precondition table, whatever its
-      // rows say. A row and a declaration answer different questions: the row
-      // says which tests entered which regions of this module, the declaration
-      // says the observation is void if the file's text moves at all. No
-      // recorder writes the second where it can write the first, so what is
-      // left in the table is what no row can answer: a test's own file, a
-      // configured setup file, a module some other run never instrumented.
-      governing.add(name);
-      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-      if (rows.length === 0) continue;
-      rowed.add(name);
-      rowsOf.set(name, rows);
-    }
+    // Every changed name is asked of the precondition table, whatever its
+    // rows say. A row and a declaration answer different questions: the row
+    // says which tests entered which regions of this module, the declaration
+    // says the observation is void if the file's text moves at all. No
+    // recorder writes the second where it can write the first, so what is
+    // left in the table is what no row can answer: a test's own file, a
+    // configured setup file, a module some other run never instrumented.
+    for (const name of knownAs(file)) governing.add(name);
+    const rowsOf = instrumentedRows(coverage, knownAs(file));
+    for (const name of rowsOf.keys()) rowed.add(name);
     rowsByFile.set(file, rowsOf);
     if (rowsOf.size > 0) asking.push(file, ...knownAs(file));
-    else if (lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
+    else if (lines.length > 0 && declarable(coverage, knownAs(file))) asking.push(file);
+    if (rowsOf.size === 0 && lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
   }
+
+  // A rowless file every test declaring it ran over in the text the diff arrives at changed nothing for them.
+  const rowless = [...changed].filter(([file, lines]) => lines.length > 0 && rowsByFile.get(file)!.size === 0).map(([file]) => file);
+  const ranOver = ranOverFiles(coverage, rowless, hunks, knownAs, options.sourceAt);
+  for (const file of ranOver) for (const name of knownAs(file)) governing.delete(name);
 
   // A row cut from a kept text whose file the diff does not name ran an edit
   // that is gone: the tree is back at the commit's text, which is a change the
@@ -317,16 +319,15 @@ function readDiff(
   for (const file of undone) {
     // Under every name, as a changed file is: a built twin's rows are in frame
     // exactly when the source's are.
-    const rowsOf = new Map<string, readonly number[]>();
-    for (const name of knownAs(file)) {
-      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-      if (rows.length > 0) rowsOf.set(name, rows);
-    }
-    rowsByFile.set(file, rowsOf);
+    rowsByFile.set(file, instrumentedRows(coverage, knownAs(file)));
     asking.push(file, ...knownAs(file));
   }
 
   for (const [file, lines] of [...changed, ...[...undone].map((file) => [file, []] as const)]) {
+    if (ranOver.has(file)) {
+      readings.push({ file, verdict: 'none', names: [], kept: true });
+      continue;
+    }
     let ranges = lines;
     const rowsOf = rowsByFile.get(file)!;
     if (rowsOf.size === 0) {
@@ -426,7 +427,7 @@ function readDiff(
   // be the query.
   const answered = answerByImporters(
     coverage,
-    [...changed.keys()].sort(codeUnitOrder),
+    [...changed.keys()].filter((file) => !ranOver.has(file)).sort(codeUnitOrder),
     rowed,
     options,
     disowned,

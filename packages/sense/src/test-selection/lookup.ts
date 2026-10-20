@@ -80,6 +80,21 @@ export function findModules(coverage: TestCoverageView, file: string): readonly 
   return rows;
 }
 
+/**
+ * The instrumented rows recorded under each of a file's names, keyed by the
+ * name, holding only names that have one. `instrumented: false` is a build
+ * saying it never read the module, not that nothing ran in it, so its zero
+ * blocks are no answer and take nothing from the instrumented row beside it.
+ */
+export function instrumentedRows(coverage: TestCoverageView, names: readonly string[]): Map<string, readonly number[]> {
+  const rows = new Map<string, readonly number[]>();
+  for (const name of names) {
+    const held = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+    if (held.length > 0) rows.set(name, held);
+  }
+  return rows;
+}
+
 /** The test row recorded under exactly this path, if there is one. */
 export function findTest(coverage: TestCoverageView, file: string): number | undefined {
   return search(coverage, coverage.testPath, decoded(coverage).tests, file);
