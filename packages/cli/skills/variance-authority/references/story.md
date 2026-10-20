@@ -37,7 +37,7 @@ question open:
   provider's value reached a component as a prop, whether a wrapper passed a
   config on or made a new one. Follow the ref, read as the step lines below
   say, from step to step: the first step handed a new ref where you expected
-  the same one is where the replacement arrived. What made it is not a step;
+  the same one is where the replacement arrived. The story does not show what made it;
   a module's `» holds` line names it when it is a top-level binding. A return
   value is not shown, so a value read with `useContext` or a hook shows only
   where it is handed on.
