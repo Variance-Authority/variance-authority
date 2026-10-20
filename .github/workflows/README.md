@@ -2,8 +2,7 @@
 
 Five workflow files live here. Three of them are recipes, meant to be copied
 into your own repository and edited. Each is a complete answer to a different
-question, and every decision inside them is commented as a decision — including
-the ones that are wrong for somebody else's repository. They all shell out to
+question. They all shell out to
 one tool: `@variance-authority/cli`, a devDependency, invoked as
 `npx variance <command>`.
 

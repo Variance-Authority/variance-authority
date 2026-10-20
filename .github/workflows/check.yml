@@ -1,7 +1,6 @@
 name: check
 
-# This repository's own gate. Everything in it that is a decision is commented as
-# one.
+# This repository's own gate.
 #
 # These jobs run the suite and the repository's own rules, one job per harness.
 # The suite and the cases run in the pinned Playwright image, so the chromium
