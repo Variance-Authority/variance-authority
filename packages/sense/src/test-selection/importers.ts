@@ -208,6 +208,8 @@ export interface GovernedTests {
   readonly tests: ReadonlyMap<number, readonly string[]>;
   /** Asked-for names no test declared. */
   readonly unread: readonly string[];
+  /** Asked-for names every test declaring them ran over in the text they arrive at. */
+  readonly ranOver: ReadonlySet<string>;
 }
 
 const ASSET = EDGE_KINDS.indexOf('asset');
@@ -222,6 +224,9 @@ const ASSET = EDGE_KINDS.indexOf('asset');
  *
  * `wholes` is every file the caller could not read and holds no row for, to be
  * answered by every test that loaded it.
+ *
+ * `arrived` is the digest of the text each rowless changed name arrives at: a
+ * test that ran that text is not governed by the name (`testsGovernedBy`).
  */
 export function answerByImporters(
   coverage: TestCoverageView,
@@ -231,10 +236,11 @@ export function answerByImporters(
   disowned: Disowned | undefined,
   also: ReadonlySet<string> = new Set(),
   wholes: readonly string[] = [],
+  arrived: ReadonlyMap<string, string> = new Map(),
 ): ImporterAnswer {
   const { relations } = options;
   if (relations === undefined || changed.length + wholes.length === 0 || options.unmeasured === 'nothing') {
-    return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]), wholes: new Map() };
+    return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map() };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // Every test a walk reached, with what reached it — held rather than
@@ -338,7 +344,7 @@ export function answerByImporters(
   // could not answer from a row.
   const held = testsGovernedBy(coverage, [
     ...new Set([...changed.flatMap((file) => [...knownAs(file)]), ...governing.keys(), ...also]),
-  ]);
+  ], arrived);
 
   const selected = new Map<number, ImporterReason[]>();
   const whole = new Map<number, string[]>();
@@ -435,7 +441,7 @@ function answerOf(
 
 /** The part of one read of the precondition table that answers a caller's own names. */
 function asked(held: GovernedTests, names: ReadonlySet<string>): GovernedTests {
-  if (names.size === 0) return { tests: new Map(), unread: [] };
+  if (names.size === 0) return { tests: new Map(), unread: [], ranOver: new Set() };
 
   const tests = new Map<number, readonly string[]>();
   for (const [test, carried] of held.tests) {
@@ -443,7 +449,11 @@ function asked(held: GovernedTests, names: ReadonlySet<string>): GovernedTests {
     if (mine.length > 0) tests.set(test, mine);
   }
 
-  return { tests, unread: held.unread.filter((name) => names.has(name)) };
+  return {
+    tests,
+    unread: held.unread.filter((name) => names.has(name)),
+    ranOver: new Set([...held.ranOver].filter((name) => names.has(name))),
+  };
 }
 
 /**

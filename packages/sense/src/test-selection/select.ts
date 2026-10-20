@@ -5,7 +5,7 @@ import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason 
 import { instrumentedRows, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
-import { declarable, ranOverFiles } from './ran-over.js';
+import { arrivedDigests, declarable, ranOverAll } from './ran-over.js';
 import { frameOf } from './frame.js';
 import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
@@ -243,7 +243,6 @@ function readDiff(
   const stale = new Set<string>();
   // A test that mocked the module is not the audience of what it only loaded there (`shadowed.ts`).
   const disowned = disownedIn(coverage, options.relations);
-
   const hunks = hunksOf(diff);
   const readings: FileReading[] = [];
   const seen = new Set<string>();
@@ -293,15 +292,15 @@ function readDiff(
     for (const name of rowsOf.keys()) rowed.add(name);
     rowsByFile.set(file, rowsOf);
     if (rowsOf.size > 0) asking.push(file, ...knownAs(file));
+    // A declared rowless file's commit text is read for the digest its tests ran over (`arrivedDigests`).
     else if (lines.length > 0 && declarable(coverage, knownAs(file))) asking.push(file);
     if (rowsOf.size === 0 && lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
   }
 
-  // A rowless file every test declaring it ran over in the text the diff arrives at changed nothing for them.
-  const rowless = [...changed].filter(([file, lines]) => lines.length > 0 && rowsByFile.get(file)!.size === 0).map(([file]) => file);
-  const ranOver = ranOverFiles(coverage, rowless, hunks, knownAs, options.sourceAt);
-  for (const file of ranOver) for (const name of knownAs(file)) governing.delete(name);
-
+  const rowless = [...changed].filter(([file, lines]) => lines.length > 0 && rowsByFile.get(file)!.size === 0);
+  const arrived = arrivedDigests(coverage, rowless.map(([file]) => file), hunks, knownAs, options.sourceAt);
+  // Read as ran over until the precondition scan says some test ran another text.
+  const ranOver = new Map<string, FileReading>();
   // A row cut from a kept text whose file the diff does not name ran an edit
   // that is gone: the tree is back at the commit's text, which is a change the
   // tests that ran the edit have not run. The diff from the commit cannot say
@@ -324,8 +323,8 @@ function readDiff(
   }
 
   for (const [file, lines] of [...changed, ...[...undone].map((file) => [file, []] as const)]) {
-    if (ranOver.has(file)) {
-      readings.push({ file, verdict: 'none', names: [], kept: true });
+    if (knownAs(file).some((name) => arrived.has(name))) {
+      readings.push(ranOver.set(file, { file, verdict: 'none', names: [], kept: true }).get(file)!);
       continue;
     }
     let ranges = lines;
@@ -427,13 +426,15 @@ function readDiff(
   // be the query.
   const answered = answerByImporters(
     coverage,
-    [...changed.keys()].filter((file) => !ranOver.has(file)).sort(codeUnitOrder),
+    [...changed.keys()].sort(codeUnitOrder),
     rowed,
     options,
     disowned,
     governing,
     [...wholes.keys()].sort(codeUnitOrder),
+    arrived,
   );
+  const moved = new Set([...ranOver.keys()].filter((file) => !ranOverAll(knownAs(file), answered.governed)));
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
   // says that no region of any row can say.
@@ -481,7 +482,7 @@ function readDiff(
     ...(declining ? { declined: unmeasured } : {}),
     stale: [...stale].sort(codeUnitOrder),
     because,
-    readings: readings.map((reading) =>
+    readings: readings.filter((reading) => !moved.has(reading.file) || ranOver.get(reading.file) !== reading).map((reading) =>
       'unseen' in reading && reading.unseen !== undefined
         ? { ...reading, unseen: reading.unseen.filter((test) => !through.has(`${reading.file}\0${test}`)) }
         : reading,

@@ -43,6 +43,7 @@ async function checkout<T>(run: (at: Checkout) => Promise<T>): Promise<T> {
     await mkdir(resolve(root, 'test'), { recursive: true });
     await writeFile(resolve(root, SOURCE), COMMITTED_SOURCE, 'utf8');
     await writeFile(resolve(root, TEST), COMMITTED_TEST, 'utf8');
+    await writeFile(resolve(root, SETUP), COMMITTED_SETUP, 'utf8');
     const git = async (...args: string[]): Promise<string> => (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
     await git('init', '--quiet');
     await git('config', 'user.email', 'fixture@example.invalid');
@@ -56,12 +57,12 @@ async function checkout<T>(run: (at: Checkout) => Promise<T>): Promise<T> {
 }
 
 /** A run of the test over `test` on disk, entering the module over `source`, labelled with `commit`. */
-function recording(source: string, test: string, commit: string): TestCoverage {
+function recording(source: string, test: string, commit: string, complete = true): TestCoverage {
   return {
     version: 3,
     instrumentation: 'fixture-instrumentation',
     commit,
-    tests: [{ file: TEST, complete: true, preconditions: [{ name: TEST, digest: digestString(test) }] }],
+    tests: [{ file: TEST, complete, preconditions: [{ name: TEST, digest: digestString(test) }] }],
     modules: [
       {
         file: SOURCE,
@@ -77,11 +78,11 @@ function recording(source: string, test: string, commit: string): TestCoverage {
 }
 
 /** Write both texts to disk, run the suite over them green, and land it. */
-async function recordOver(at: Checkout, source: string, test: string): Promise<string> {
+async function recordOver(at: Checkout, source: string, test: string, complete = true): Promise<string> {
   await writeFile(resolve(at.root, SOURCE), source, 'utf8');
   await writeFile(resolve(at.root, TEST), test, 'utf8');
   const coverageFile = testCoverageFile(at.root, { cacheRoot: at.cacheRoot });
-  await landRun(coverageFile, recording(source, test, at.commit), at.root, at.cacheRoot);
+  await landRun(coverageFile, recording(source, test, at.commit, complete), at.root, at.cacheRoot);
   return coverageFile;
 }
 
@@ -89,14 +90,37 @@ async function recordOver(at: Checkout, source: string, test: string): Promise<s
 async function select(at: Checkout, coverageFile: string) {
   const diff = (await promisify(execFile)('git', ['diff', '--no-renames', at.commit], { cwd: at.root })).stdout;
   const relations = relationsOfFiles(await scanRelations({ root: at.root, dirs: ['.'] }));
-  const { entered, readings } = await narrowByExecution(coverageFile, diff, {
+  const { entered, readings, incomplete } = await narrowByExecution(coverageFile, diff, {
     root: at.root,
     relations,
     sourceAt: textAtRecording(at.root, changedLines(diff).keys()),
     keptText: keptTexts(at.root, at.cacheRoot),
     keptDigests: keptDigests(at.root, at.cacheRoot),
   });
-  return { entered, readings };
+  return { entered, readings, incomplete };
+}
+
+const SETUP = 'test/setup.ts';
+const COMMITTED_SETUP = 'globalThis.ready = true;\n';
+const OTHER = 'test/other.test.ts';
+
+/**
+ * Two tests declaring one setup file: `TEST` ran the edited setup text, while
+ * `OTHER` was last run over the committed one and carried, as a run of one
+ * file leaves the rest of the record.
+ */
+async function recordSetupOver(at: Checkout, setup: string): Promise<string> {
+  await writeFile(resolve(at.root, SETUP), setup, 'utf8');
+  await writeFile(resolve(at.root, OTHER), COMMITTED_TEST, 'utf8');
+  const coverageFile = testCoverageFile(at.root, { cacheRoot: at.cacheRoot });
+  const ran = (file: string, text: string) => ({
+    file,
+    complete: true,
+    preconditions: [{ name: file, digest: digestString(COMMITTED_TEST) }, { name: SETUP, digest: digestString(text) }],
+  });
+  const run: TestCoverage = { ...recording(COMMITTED_SOURCE, COMMITTED_TEST, at.commit), tests: [ran(TEST, setup), ran(OTHER, COMMITTED_SETUP)] };
+  await landRun(coverageFile, run, at.root, at.cacheRoot);
+  return coverageFile;
 }
 
 /** The reading of a file whose text the record was taken over. */
@@ -107,7 +131,7 @@ describe('a green run over a text skips it', () => {
     await checkout(async (at) => {
       const coverageFile = await recordOver(at, EDITED_SOURCE, EDITED_TEST);
 
-      expect(await select(at, coverageFile)).toEqual({ entered: [], readings: [ranOver(SOURCE), ranOver(TEST)] });
+      expect(await select(at, coverageFile)).toEqual({ entered: [], readings: [ranOver(SOURCE), ranOver(TEST)], incomplete: [] });
     });
   });
 
@@ -116,7 +140,16 @@ describe('a green run over a text skips it', () => {
       const coverageFile = await recordOver(at, EDITED_SOURCE, EDITED_TEST);
       await at.git('commit', '--quiet', '--all', '--message', 'the edit the run recorded over');
 
-      expect(await select(at, coverageFile)).toEqual({ entered: [], readings: [ranOver(SOURCE), ranOver(TEST)] });
+      expect(await select(at, coverageFile)).toEqual({ entered: [], readings: [ranOver(SOURCE), ranOver(TEST)], incomplete: [] });
+    });
+  });
+
+  // A run that did not pass whole is no evidence for leaving its test out, ran over this text or not.
+  it('names the test as unproven when its run over that text did not pass whole', async () => {
+    await checkout(async (at) => {
+      const coverageFile = await recordOver(at, COMMITTED_SOURCE, EDITED_TEST, false);
+
+      expect((await select(at, coverageFile)).incomplete).toEqual([TEST]);
     });
   });
 
@@ -126,6 +159,14 @@ describe('a green run over a text skips it', () => {
       await writeFile(resolve(at.root, TEST), EDITED_TEST.replace('two(0)', 'two(2)'), 'utf8');
 
       expect((await select(at, coverageFile)).entered).toEqual([TEST]);
+    });
+  });
+
+  it('selects only the test that ran another text of a setup file they both declare', async () => {
+    await checkout(async (at) => {
+      const coverageFile = await recordSetupOver(at, 'globalThis.ready = false;\n');
+
+      expect((await select(at, coverageFile)).entered).toEqual([OTHER]);
     });
   });
 });
