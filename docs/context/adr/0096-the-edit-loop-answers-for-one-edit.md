@@ -27,11 +27,14 @@ reading keeps a test.**
    waves. `tools/slices.mjs` defines what a slice holds, and both
    `vitest.config.mts` and the loop read it, so the loop's slice and the
    runner's are the same slice.
-2. **One reading, by the function every seam calls.** The script calls
-   `selectSuite` once. It starts Vitest when the reading declined, when it keeps
-   a test the record knows, or when a unit test file was added since the
-   record's commit, since the record never saw that file. Otherwise it prints
-   one line and exits 0 without starting a runner. On the measurement machine,
+2. **One reading, by the function every seam calls, gated by the rule every
+   seam keeps files by.** The script calls `selectSuite` once, lists the unit
+   test files in the working tree, and starts Vitest when `kept` — the rule the
+   seam's headline counts — names any of them: a file the reading does not
+   skip. A file that failed last time is never held whole, so it is never
+   skipped, and the loop stays red until it passes. A file the record never saw
+   is kept the same way, and a declined reading skips nothing. Otherwise the
+   script prints one line and exits 0 without starting a runner. On the measurement machine,
    a run with no change takes 0.8 s; an edit that selects one test takes 3.0 s;
    a type error fails in 1.0 s with no test run.
 3. **No marker of its own.** Each run folds into the record, so the next run
