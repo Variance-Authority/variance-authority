@@ -57,6 +57,17 @@ average above the core count means the run is contended. A browser
 suite under contention fails in teardown, and the failure moves between runs —
 the exact signature this project exists to tell apart from a real one.
 
+## The loop between waves
+
+`yarn test:loop` is what the edit loop runs after every edit, before any wave:
+`tsc --build`, then the tests at distance `0-1` (the tests that entered the
+change and those one import away), for what changed since the last green run. A
+green run moves its marker; a red one leaves it, so the next run checks the
+failed edit and its fix together; a commit starts it over; `yarn test:loop
+--reset` forgets it. It stops when the selection is `declined:` rather than run
+the suite. It is not lint and not a wave: `verify:near` still runs once the
+change is whole.
+
 ## The waves
 
 Verification runs in waves, nearest and cheapest first, and each wave starts
