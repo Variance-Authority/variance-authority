@@ -196,6 +196,24 @@ describe('a lay over a renumbered carry', () => {
     expect(only(laid).sourceDigest).not.toBe(only(recorded(BASELINE, PICK)).sourceDigest);
   });
 
+  it('keeps the top level and the function their own tests in the module whose deleted branch renumbered its sibling', () => {
+    // One module, its root among its regions: the deletion renumbers `if#1` as
+    // `if#0`, and the regions that kept their seats keep what they held.
+    const laid = laidCoverage(
+      recorded(BASELINE, PICK),
+      nothingLoaded(LOCAL),
+      new Map([['src/pick.ts', FIRST_GONE]]),
+    );
+
+    expect(only(laid).blocks.map((block) => [block.kind, block.path, block.testFiles])).toEqual([
+      ['module', 'module', [ONE, TWO]],
+      ['function', 'entry', [ONE, TWO]],
+      ['branch', 'if#0/then', [ONE, TWO]],
+      ['branch', 'if#0/else', [ONE, TWO]],
+      ['continuation', 'if#0/after', [ONE, TWO]],
+    ]);
+  });
+
   it('does not seat a recorded branch on one written before it', () => {
     // The same renumbering from the other side: a branch added before the
     // recorded one. Every region is one seat further down, so `one`'s branch is

@@ -324,6 +324,26 @@ describe('a module the index holds at an older text than the snapshot', () => {
     expect(unlined).toBeUndefined();
   });
 
+  it('lands a held callback on neither sibling when a comment on its own line leaves its lines nothing to match, and keeps the rest', () => {
+    const other = 'other.test.ts > keeps';
+    const [filter, map] = ['changelogOf/filter.arg0', 'changelogOf/map.arg0'];
+    const lacking = cutAt([one, other], 'src/changelog.ts', [[273, [one, other], filter], [283, [one, other], map]]);
+    const whole = cutAt([one], 'src/changelog.ts', [[273, [one], filter], [276, [], map], [283, [one], map]]);
+    // A comment written on the second callback's own line: nothing that runs moved.
+    const comment = { hunks: [{ oldStart: 283, oldCount: 1, newStart: 283, newCount: 1 }], reading: 'none' as const };
+
+    const { merged } = layerCaseIndex(lacking, whole, { ...ran(['blocks.test.ts']), edit: () => comment });
+
+    // The index holds `map` once and the run twice, so the address names neither.
+    const regions = decodeExecutionIndex(merged).modules[0]!.blocks;
+    const tests = decodeExecutionIndex(merged).tests;
+    expect(regions.map((block) => [block.startLine, block.crossings.map((crossing) => tests[crossing.test]!.id)])).toEqual([
+      [273, [one, other]],
+      [276, []],
+      [283, [one]],
+    ]);
+  });
+
   it('names a module unlined when a held callback finds no sibling at its lines in a cut that lacks one', () => {
     const other = 'other.test.ts > keeps';
     const map = 'changelogOf/map.arg0';

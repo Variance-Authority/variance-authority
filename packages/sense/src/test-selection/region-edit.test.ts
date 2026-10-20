@@ -29,6 +29,11 @@ describe('landedThrough', () => {
 
     // The survivor stands at 2-6 now, the new callback is written, and the module changed.
     expect([...landedThrough(held, recorded, { hunks: [deletion, insertion] })]).toEqual([-1, 2, -1]);
+    // Read as reaching nothing that runs, the written callback stands where the
+    // survivor's address stood, which the survivor holds at its lines: it takes
+    // what the module around it took, never the survivor's cases.
+    const owned = { ...recorded, owner: Uint32Array.from([NO_OWNER, 0, 0]) };
+    expect([...landedThrough(held, owned, { hunks: [deletion, insertion], reading: 'none' })]).toEqual([0, 2, 0]);
   });
 
   it('carries nothing onto a region whose own lines the edit rewrote, nor the regions around it', () => {
@@ -88,6 +93,33 @@ describe('landedThrough', () => {
     expect([...landedThrough(held, recorded, { hunks: [written], reading: 'none' })]).toEqual([0, 1, 2, 2]);
     // Under a body edit only the top level is spared: `g` and what it gained are reached.
     expect([...landedThrough(held, recorded, { hunks: [written], reading: 'bodies' })]).toEqual([0, 1, -1, -1]);
+  });
+
+  it('gives a born region inside one of two same-named callbacks what the function around them took, where the held cut lacked one of them', () => {
+    const at = (kind: string, name: string, path: string, startLine: number, endLine: number) =>
+      ({ kind, name, path, startLine, endLine, source: true });
+    // The held cut lacks the first of two callbacks given to `useEffect`.
+    const held = {
+      blocks: [at('module', '', '', 1, 14), at('function', 'c', '', 2, 13), at('function', 'c/useEffect.arg0', '', 8, 11)],
+      owner: Uint32Array.from([NO_OWNER, 0, 1]),
+    };
+    // The fresh cut holds both, a branch the first one gained, and a comment
+    // written inside the second moved its end.
+    const recorded = {
+      blocks: [
+        at('module', '', '', 1, 15),
+        at('function', 'c', '', 2, 14),
+        at('function', 'c/useEffect.arg0', '', 3, 6),
+        at('branch', 'c/useEffect.arg0', 'if#0', 4, 5),
+        at('function', 'c/useEffect.arg0', '', 8, 12),
+      ],
+      owner: Uint32Array.from([NO_OWNER, 0, 1, 2, 1]),
+    };
+    const comment = { oldStart: 8, oldCount: 0, newStart: 9, newCount: 1 };
+
+    // Neither callback names one region in both cuts, so each takes `c`'s cases,
+    // and so does the branch born inside the first: never the held callback's.
+    expect([...landedThrough(held, recorded, { hunks: [comment], reading: 'none' })]).toEqual([0, 1, 1, 1, 1]);
   });
 
   it('pairs by address only what a renumbered counter does not count', () => {
