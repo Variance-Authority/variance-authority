@@ -40,7 +40,7 @@ use crate::record_coverage::{self, Coverage, Text};
 use crate::crossing_sets::{self, SetPool};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Merged, Spelled};
-use crate::record_coverage_recut::{reaches, recut, write_cut, Readings, Recut};
+use crate::record_coverage_recut::{is_top, reaches, recut, write_cut, Readings, Recut};
 use crate::record_layout::LAYOUT;
 
 /// What a lay reads besides the two records.
@@ -293,8 +293,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         if let Some(row) = claims[module] {
             let held_source = before[previous.module_source[row] as usize];
             let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
-            let placeable = held_source == source
-                || same_numbering(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block)));
+            let alike = addressed_alike(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block)));
             let measured = current.module_instrumented[module] == 1 && previous.module_instrumented[row] == 1;
             let mut seen: FxHashMap<(u32, u32), u32> = FxHashMap::default();
             let mut addressed = FxHashMap::default();
@@ -304,11 +303,20 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                 addressed.insert((at.0, at.1, *nth), block);
             }
             seen.clear();
+            // The top level is one region in every cut, whatever its branches did.
+            let top = blocks.clone().find(|block| is_top(current.block_kind[*block]));
             for held in previous.blocks(row) {
                 let at = (before[previous.block_name[held] as usize], before[previous.block_path[held] as usize]);
                 let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
-                match addressed.get(&(at.0, at.1, nth)) {
-                    Some(block) if placeable && measured && previous.block_kind[held] == current.block_kind[*block] => {
+                let paired = if is_top(previous.block_kind[held]) {
+                    top.as_ref()
+                } else if held_source == source || alike(ps.at(previous.block_name[held]), ps.at(previous.block_path[held])) {
+                    addressed.get(&(at.0, at.1, nth))
+                } else {
+                    None
+                };
+                match paired {
+                    Some(block) if measured && previous.block_kind[held] == current.block_kind[*block] => {
                         surviving[*block - blocks.start] = Some(held);
                         if held_source != source
                             && before[previous.block_digest[held] as usize] != now[current.block_digest[*block] as usize]
@@ -441,11 +449,25 @@ fn around(coverage: &Coverage, blocks: std::ops::Range<usize>, own: &[Option<usi
     resolved.into_iter().map(Option::flatten).collect()
 }
 
-/// Whether two cuts of a module seated their counters alike: every site both
-/// number holds the same seats in each.
-pub(crate) fn same_numbering(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> bool {
-    let now = sites(after);
-    sites(before).into_iter().all(|(site, taken)| now.get(&site).is_none_or(|holds| *holds == taken))
+/// Whether an address's number means one region in both cuts: each holds it as
+/// many times, and every counter it passes through handed out the same seats
+/// in each, so no edit renumbered it (`addressedAlike` in `region-landing.ts`).
+/// A counter whose population changed renumbers what it counts and everything
+/// nested under it, and nothing else.
+pub(crate) fn addressed_alike(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> impl Fn(&str, &str) -> bool {
+    let counts = |blocks: Vec<(String, String)>| {
+        let mut counts: FxHashMap<(String, String), u32> = FxHashMap::default();
+        for address in &blocks {
+            *counts.entry(address.clone()).or_default() += 1;
+        }
+        (sites(blocks.into_iter()), counts)
+    };
+    let ((was, held), (now, fresh)) = (counts(before.collect()), counts(after.collect()));
+    move |name, path| {
+        let address = (name.to_owned(), path.to_owned());
+        held.get(&address) == fresh.get(&address)
+            && seats_of(name, path).iter().all(|(site, _)| matches!((was.get(site), now.get(site)), (Some(left), Some(right)) if left == right))
+    }
 }
 
 /// The seats each site of a cut holds.

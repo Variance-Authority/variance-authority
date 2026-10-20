@@ -16,10 +16,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { addressKey, sameNumbering } from './carried-rows.js';
+import { addressKey } from './carried-rows.js';
 import { reaches, readEdit, type EditReading } from './edit-readings.js';
 import type { SetExecutionModule } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
+import { addressedAlike } from './region-landing.js';
 import { keptTexts } from './kept-texts.js';
 import { hunksOf, placeThrough, type Hunk } from './placed.js';
 import { textAtRecording } from './recorded-text.js';
@@ -98,9 +99,13 @@ type Cut = Pick<SetExecutionModule, 'blocks' | 'owner'>;
  * lines; that region ran as it did whatever the edit read as. A region no
  * untouched one stands under pairs by address, as the snapshot's landing
  * pairs its rows (`carried` in `record_coverage_recut.rs`): the n-th region of
- * a name and structural path, of the same kind, where both cuts numbered
- * their regions alike and the held one is not already seated. A region with
- * neither was written by the edit and takes what the region around it took.
+ * a name and structural path, of the same kind, where both cuts hold the
+ * address as many times and seated every counter it passes through alike
+ * ({@link addressedAlike}), and the held one is not already seated. The top
+ * level is one region in every cut of a module and pairs with the held top
+ * level whatever an edit renumbered. A region with neither was written by the
+ * edit, or cannot be told from a sibling, and takes what the region around it
+ * took: a superset, never a sibling's cases.
  * A region that lands by address or is born carries those cases only when
  * {@link reaches} says the edit did not reach its kind; otherwise it is -1,
  * and its tests count as changed. An edit with no hunks — the same text, cut
@@ -136,10 +141,11 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
   }
   const occupied = new Set(seated.filter((from) => from >= 0));
   const addressed = new Map<string, number>();
-  if (sameNumbering(held.blocks, recorded.blocks)) {
-    const seen = new Map<string, number>();
-    for (const [at, block] of held.blocks.entries()) addressed.set(addressKey(`${block.name}\0${block.path}`, seen), at);
-  }
+  // The top level is one region in every cut of a module, whatever its branches did.
+  const top = held.blocks.findIndex((block) => block.kind === 'module');
+  const alike = addressedAlike(held, recorded);
+  const heldSeen = new Map<string, number>();
+  for (const [at, block] of held.blocks.entries()) addressed.set(addressKey(`${block.name}\0${block.path}`, heldSeen), at);
   const seen = new Map<string, number>();
   // What each recorded region took before the edit's reach was asked: a born
   // region inside it takes the same, as the recut's `decided` does.
@@ -150,7 +156,7 @@ export function landedThrough(held: Cut, recorded: Cut, change: Edit | undefined
       decided[at] = lands[at] = seated[at]!;
       continue;
     }
-    const was = addressed.get(address);
+    const was = block.kind === 'module' && top >= 0 ? top : alike(block) ? addressed.get(address) : undefined;
     const owner = recorded.owner?.[at];
     decided[at] = was !== undefined && !occupied.has(was) && held.blocks[was]!.kind === block.kind
       ? was

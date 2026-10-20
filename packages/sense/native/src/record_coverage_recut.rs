@@ -9,16 +9,21 @@
 //! region around it, already decided, since arrival nests: every test that
 //! reached the new text reached the region containing it.
 //!
+//! An occurrence names one region only where the two cuts hold the address as
+//! many times and seated every counter it passes through alike: otherwise one cut holds
+//! a sibling the other lacks, and the fresh region takes what the region around
+//! it took instead. The top level is one region in every cut of a module, so it
+//! always takes the top level's crossings, whatever its branches did.
+//!
 //! Nothing is cut again where the row was never measured, or its text did not
 //! move. The crossings are mislaid, and the row is carried as it was with every
-//! crosser owed a run, where the text does not cut or the cut seated its
-//! counters other than where the old one did.
+//! crosser owed a run, where the text does not cut.
 
 use rustc_hash::FxHashMap;
 
 use crate::record_coverage::{Coverage, Text};
 use crate::record_coverage_columns::{Columns, Region};
-use crate::record_coverage_layer::same_numbering;
+use crate::record_coverage_layer::addressed_alike;
 use crate::record_layout::LAYOUT;
 
 /// What each edit reached, by `path\0from\0to`.
@@ -72,11 +77,11 @@ pub(crate) fn carried(
     reaches: impl Fn(u8) -> bool,
 ) -> Recut {
     let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
-    if fresh.module_instrumented[module] != 1
-        || !same_numbering(previous.blocks(row).map(|block| address(previous, ps, block)), fresh.blocks(module).map(|block| address(fresh, fs, block)))
-    {
+    if fresh.module_instrumented[module] != 1 {
         return Recut::Mislaid;
     }
+    let alike = addressed_alike(previous.blocks(row).map(|block| address(previous, ps, block)), fresh.blocks(module).map(|block| address(fresh, fs, block)));
+    let top = previous.blocks(row).find(|block| is_top(previous.block_kind[*block]));
     let mut seen: FxHashMap<(&str, &str), u32> = FxHashMap::default();
     let mut held: FxHashMap<(&str, &str, u32), usize> = FxHashMap::default();
     for block in previous.blocks(row) {
@@ -92,7 +97,14 @@ pub(crate) fn carried(
     for block in fresh.blocks(module) {
         let at = (fs.at(fresh.block_name[block]), fs.at(fresh.block_path[block]));
         let nth = *seen.entry(at).and_modify(|nth| *nth += 1).or_insert(1);
-        let was = held.get(&(at.0, at.1, nth)).copied().filter(|was| previous.block_kind[*was] == fresh.block_kind[block]);
+        let was = if is_top(fresh.block_kind[block]) {
+            top
+        } else if alike(at.0, at.1) {
+            held.get(&(at.0, at.1, nth)).copied()
+        } else {
+            None
+        }
+        .filter(|was| previous.block_kind[*was] == fresh.block_kind[block]);
         let owner = fresh.block_owner[block];
         let taken = was.or_else(|| if owner == LAYOUT.coverage.no_owner { None } else { decided.get(&owner).copied().flatten() });
         decided.insert(fresh.block_ordinal[block], taken);
@@ -103,6 +115,11 @@ pub(crate) fn carried(
         from.push(taken);
     }
     Recut::Cut { from, owed }
+}
+
+/// Whether a region of `kind` is a module's top level.
+pub(crate) fn is_top(kind: u8) -> bool {
+    LAYOUT.coverage.block_kinds[usize::from(kind)] == "module"
 }
 
 /// Row `module` of `fresh` written at `path`, its strings ranked by `ranks`:

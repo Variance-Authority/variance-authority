@@ -90,7 +90,7 @@ describe('landedThrough', () => {
     expect([...landedThrough(held, recorded, { hunks: [written], reading: 'bodies' })]).toEqual([0, 1, -1, -1]);
   });
 
-  it('pairs nothing by address where the two cuts numbered their regions otherwise', () => {
+  it('pairs by address only what a renumbered counter does not count', () => {
     const at = (kind: string, path: string, startLine: number, endLine: number) =>
       ({ kind, name: 'f', path, startLine, endLine, source: true });
     // The first of two branches is deleted, so the survivor is cut as `if#0`.
@@ -98,7 +98,42 @@ describe('landedThrough', () => {
     const recorded = { blocks: [at('function', '', 1, 6), at('branch', 'if#0', 3, 5)] };
     const deletion = { oldStart: 2, oldCount: 3, newStart: 1, newCount: 0 };
 
-    expect([...landedThrough(held, recorded, { hunks: [deletion], reading: 'none' })]).toEqual([-1, 2]);
+    // The function passes through no counter the deletion changed, so it is the same region; the survivor is not `if#0` at the base.
+    expect([...landedThrough(held, recorded, { hunks: [deletion], reading: 'none' })]).toEqual([0, 2]);
+  });
+
+  it('pairs no repeated address by occurrence where the two cuts hold it a different number of times', () => {
+    const at = (kind: string, name: string, startLine: number, endLine: number) =>
+      ({ kind, name, path: '', startLine, endLine, source: true });
+    // The held cut lacks the first of two callbacks given to `useEffect`; it holds the second.
+    const held = {
+      blocks: [at('module', '', 1, 12), at('function', 'c', 2, 11), at('function', 'c/useEffect.arg0', 7, 9)],
+      owner: Uint32Array.from([NO_OWNER, 0, 1]),
+    };
+    // The fresh cut holds both, and a comment written inside the second moved its end.
+    const recorded = {
+      blocks: [at('module', '', 1, 13), at('function', 'c', 2, 12), at('function', 'c/useEffect.arg0', 3, 5), at('function', 'c/useEffect.arg0', 7, 10)],
+      owner: Uint32Array.from([NO_OWNER, 0, 1, 1]),
+    };
+    const comment = { oldStart: 7, oldCount: 0, newStart: 8, newCount: 1 };
+
+    // The first callback is not the held one: the held cut's first occurrence is
+    // the source's second. Neither callback has an identity here, so each takes
+    // the cases of `c` around it, never the second callback's alone.
+    expect([...landedThrough(held, recorded, { hunks: [comment], reading: 'none' })]).toEqual([0, 1, 1, 1]);
+  });
+
+  it('pairs the top level when a branch deletion renumbers its siblings and moves every span', () => {
+    const at = (kind: string, path: string, startLine: number, endLine: number) =>
+      ({ kind, name: kind === 'module' ? '' : 'f', path, startLine, endLine, source: true });
+    const held = { blocks: [at('module', '', 1, 12), at('function', '', 2, 11), at('branch', 'if#0', 3, 5), at('branch', 'if#1', 7, 9)] };
+    // The first branch is deleted from `f`'s body, so the survivor is cut as `if#0`.
+    const recorded = { blocks: [at('module', '', 1, 9), at('function', '', 2, 8), at('branch', 'if#0', 4, 6)] };
+    const deletion = { oldStart: 3, oldCount: 3, newStart: 2, newCount: 0 };
+
+    // The module is one per file whatever its counters did, and a body edit spares what it does at load.
+    expect([...landedThrough(held, recorded, { hunks: [deletion], reading: 'bodies' })]).toEqual([0, -1, 3]);
+    expect([...landedThrough(held, recorded, { hunks: [deletion], reading: 'load' })]).toEqual([-1, -1, 3]);
   });
 
   it('never lands a region on one of another kind at the same lines', () => {

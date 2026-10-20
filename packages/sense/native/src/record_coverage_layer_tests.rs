@@ -18,12 +18,19 @@ fn seats_are_sited_by_the_name_then_the_path_they_pass_through() {
 }
 
 #[test]
-fn a_cut_that_renumbered_a_site_both_hold_is_not_the_same_numbering() {
-    let cut = |paths: &[&str]| paths.iter().map(|path| ("decide".to_owned(), (*path).to_owned())).collect::<Vec<_>>();
-    assert!(same_numbering(cut(&["if#0/then", "if#1/then"]).into_iter(), cut(&["if#0/then", "if#1/then"]).into_iter()));
-    assert!(!same_numbering(cut(&["if#0/then", "if#1/then"]).into_iter(), cut(&["if#0/then"]).into_iter()));
-    // A site only one cut holds says nothing.
-    assert!(same_numbering(cut(&["if#0/then"]).into_iter(), cut(&["loop#0/body"]).into_iter()));
+fn an_address_names_one_region_only_where_its_counters_and_its_count_agree() {
+    let cut = |addresses: &[(&str, &str)]| addresses.iter().map(|(name, path)| ((*name).to_owned(), (*path).to_owned())).collect::<Vec<_>>();
+    let both = [("decide", "entry"), ("decide", "if#0/then"), ("decide", "if#1/then")];
+    let alike = addressed_alike(cut(&both).into_iter(), cut(&both).into_iter());
+    assert!(alike("decide", "if#0/then") && alike("decide", "if#1/then"));
+    // The first branch deleted: the second is cut as `if#0`, the address the first had.
+    let alike = addressed_alike(cut(&both).into_iter(), cut(&[("decide", "entry"), ("decide", "if#0/then")]).into_iter());
+    assert!(!alike("decide", "if#0/then"));
+    // The renumbering stays inside the counter it changed.
+    assert!(alike("decide", "entry"));
+    // Two callbacks of one name where the other cut holds one: no occurrence names either.
+    let alike = addressed_alike(cut(&[("c/useEffect.arg0", "entry")]).into_iter(), cut(&[("c/useEffect.arg0", "entry"), ("c/useEffect.arg0", "entry")]).into_iter());
+    assert!(!alike("c/useEffect.arg0", "entry"));
 }
 
 #[test]
