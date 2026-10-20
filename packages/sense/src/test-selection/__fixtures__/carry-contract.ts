@@ -18,9 +18,9 @@
  * is written from the labels, never read back from the code under test.
  *
  * A walk is removed only when it passes, so a failed one stays under
- * `CARRY_CONTRACT_ARTIFACTS`; a generated history that fails also writes every
- * text, the actions in order and each expectation beside what came back beside
- * its record ({@link keepArtifacts}), and names the directory in its error.
+ * `CARRY_CONTRACT_ARTIFACTS`, with every text, the actions in order and each
+ * expectation beside what came back written beside its record
+ * ({@link keepArtifacts}), and its error names the directory.
  */
 
 import { execFile } from 'node:child_process';
@@ -107,14 +107,24 @@ async function git(root: string, ...args: string[]): Promise<string> {
   return (await run('git', args, { cwd: root, maxBuffer: 64 * 1024 * 1024 })).stdout;
 }
 
-/** Runs `body` over a walk, and removes the walk's directory when it passes. */
+/**
+ * Runs `body` over a walk, and removes the walk's directory when it passes;
+ * when it throws, keeps the walk's artifacts and names the directory in the
+ * error.
+ */
 export async function walking(
   text: string,
   hits: Readonly<Record<string, readonly string[]>>,
   body: (walk: Walk) => Promise<void>,
 ): Promise<void> {
   const walk = await openWalk(text, hits);
-  await body(walk);
+  try {
+    await body(walk);
+  } catch (error) {
+    const kept = await keepArtifacts(walk);
+    if (error instanceof Error) error.message = `${error.message}\nthe walk is kept at ${kept}`;
+    throw error;
+  }
   await rm(walk.scratch, { recursive: true, force: true });
 }
 

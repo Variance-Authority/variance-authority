@@ -426,6 +426,16 @@ export async function generated(seed: number, ask: Ask, { asked, replays }: Gene
   throw new FailedHistory(seed, original, actions, outcome.failures, await keepArtifacts(outcome.walk), exhausted);
 }
 
+/**
+ * The seed the contract plays, fixed so a run is reproducible, and chosen as
+ * the one of seeds 4830-4869 whose history every fault a seed catches fails: a
+ * carry that reads lines only, one that pairs regions blind to their
+ * population, and one that refuses the top level, in TypeScript and in the
+ * native layer. `CARRY_SEED` replays another, which is how a search for new
+ * faults widens past it.
+ */
+export const CONTRACT_SEED = 4839;
+
 /** The seeds a run plays: `CARRY_SEED` alone when it is set, else `seeds`. */
 export function seedsOr(seeds: readonly number[]): readonly number[] {
   const one = process.env['CARRY_SEED'];

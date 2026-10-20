@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import { comparedByCli } from './__fixtures__/carry-comparison.js';
 import { selectedByCli } from './__fixtures__/carry-contract.js';
-import { generated, seedsOr } from './__fixtures__/carry-histories.js';
+import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
 import {
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
@@ -39,12 +39,12 @@ describe('a record carried through a history, asked by the CLI after a restart',
   });
 });
 
-// The in-process run's seed, the last selection asked of the CLI for the labels
-// the three faults move: the callbacks and the top level. A replay here is a
+// The contract's seed, the last selection asked of the CLI for the labels the
+// three faults move: the callbacks and the top level. A replay here is a
 // process per selection, so a failing one is not shrunk: the in-process run
 // plays the same seed and shrinks it.
 describe('a record carried through a generated history, asked by the CLI after a restart', () => {
-  it.each(seedsOr([4839]))('stays within the fixture\'s bounds for seed %i', async (seed) => {
+  it.each(seedsOr([CONTRACT_SEED]))('stays within the fixture\'s bounds for seed %i', async (seed) => {
     await generated(seed, selectedByCli, { asked: ['top', 'first', 'second'], replays: 0 });
   });
 });
