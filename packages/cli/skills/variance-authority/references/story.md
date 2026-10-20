@@ -34,11 +34,14 @@ question open:
   then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
   and ask `story --name <name> --compare alone,file`.
 - **You need to know where one object went, or where it came from**: which
-  provider's value a component read, whether a wrapper passed a config on or
-  made a new one. Every function step lists what it was handed, an object as a
-  ref, and one ref is one object for the whole run. Follow the ref from step
-  to step; a new ref where you expected the same one is where it was
-  replaced. A module's `» holds` line names the binding that declared it.
+  provider's value reached a component as a prop, whether a wrapper passed a
+  config on or made a new one. Every function step lists what it was handed,
+  an object as a ref, and one ref is one object for the whole run. Follow the
+  ref from step to step. The first step handed a new ref where you expected
+  the same one is the first to receive the replacement; open the code that ran
+  before it for what made it. A return value is not shown, so a value read
+  with `useContext` or a hook shows only where it is handed on. A module's
+  `» holds` line names the binding that declared it.
 - **Two tests or more differ in their setup and in their result**: the flag
   on fails and off passes, the default user passes and Mike fails. Record each
   under `VARIANCE_AUTHORITY_STORY=1`, twice if you can, and name every one:
