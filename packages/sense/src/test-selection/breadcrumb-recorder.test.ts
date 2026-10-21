@@ -94,6 +94,26 @@ describe('the recorder of what the code read', () => {
     expect(recorder.take(keyOf('pays')).read).toEqual([['network:api', '"mocked"', site, preconditions.CASE_LEVEL]]);
   });
 
+  it('lays a read under a beforeEach that names its case on that case', () => {
+    const recorder = preconditions.recorder(holder, () => undefined, undefined, undefined, true);
+    recorder.loaded();
+    const site = recorder.within({ kind: 'each', depth: 1, case: keyOf('pays') }, () => read('network', 'api', 'mocked').site);
+    expect(recorder.take(keyOf('pays')).read).toEqual([['network:api', '"mocked"', site, preconditions.CASE_LEVEL]]);
+  });
+
+  it('keeps a value read under a beforeEach and again in the case body once, at the beforeEach\'s site', () => {
+    let running: string | undefined;
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    recorder.loaded();
+    const token = {};
+    recorder.begin(token);
+    const site = recorder.within({ kind: 'each', depth: 1, token }, () => read('flags', 'checkout', true).site);
+    recorder.entered(keyOf('pays'), token);
+    running = keyOf('pays');
+    expect(read('flags', 'checkout', true).asked).toBe(true);
+    expect(recorder.take(keyOf('pays')).read).toEqual([['flags:checkout', 'true', site, preconditions.CASE_LEVEL]]);
+  });
+
   it('records a read no case runs on nowhere, warns once for its site, and never throws', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     let running: string | undefined;
