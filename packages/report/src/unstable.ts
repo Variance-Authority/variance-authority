@@ -29,6 +29,11 @@ export function isUnstable(
   return observation.unstable !== undefined && observation.unstable.absorbed === undefined;
 }
 
+/**
+ * One subject whose two readings disagreed outside what it asserts on: what moved
+ * between them, and what the history store knows about it. A surface renders
+ * these; it does not decide which subjects they are.
+ */
 export interface UnstableSubject {
   readonly subject: string;
   readonly components: NonNullable<ObservationRecord['unstable']>['components'];
