@@ -1302,6 +1302,8 @@
         "frame": "function"
       },
       "./node": {
+        "Registrar": "type",
+        "isolateConcurrentTests": "function",
         "isolated": "function"
       },
       "./react": {

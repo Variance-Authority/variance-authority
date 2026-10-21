@@ -25,6 +25,6 @@ it('gives every Jest test the module state it was loaded with, and names what it
     [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false'],
     { cwd: fixture, env: { ...process.env, ISOLATOR_JEST_CACHE: cache } },
   );
-  expect(stderr).toContain('Tests:       2 passed, 2 total');
+  expect(stderr).toContain('Tests:       5 passed, 5 total');
   expect(stderr).toContain('isolator: src/mode.ts:1 `mode` stays shared');
 });

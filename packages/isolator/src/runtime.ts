@@ -20,8 +20,16 @@ export interface Frame {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly $: Record<PropertyKey, any>;
-  /** One declaration: `run` assigns `names`, once, as the module reaches it. */
-  step(names: readonly PropertyKey[], run: () => void): void;
+  /**
+   * The same variables as their declarations write them: a write here is the
+   * declaration's own, so it passes a `let` still in its dead zone and a
+   * `const`. A write inside the initializer goes through {@link $} and is
+   * checked, as the module would check it.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly init: Record<PropertyKey, any>;
+  /** One declaration, run once, as the module reaches it. */
+  step(run: () => void): void;
   /** The module finished loading: what it holds now is where every session starts. */
   loaded(): void;
 }
@@ -32,7 +40,8 @@ interface Copy {
   readonly raw: Record<string, unknown>;
   /** `raw` behind the checks the module itself would make. */
   readonly values: Record<PropertyKey, unknown>;
-  initializing: readonly PropertyKey[];
+  /** `raw` as a declaration writes it, unchecked. */
+  readonly init: Record<PropertyKey, unknown>;
 }
 
 const UNSET = Symbol('unset');
@@ -54,12 +63,11 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
   const base = create(kinds, undefined);
   const copies = new WeakMap<object, Copy>();
   let loading = true;
-  let stepping = false;
   let lastSession: object | undefined;
   let lastCopy: Copy = base;
 
   const own = (): Copy => {
-    if (stepping || loading) return base;
+    if (loading) return base;
     const session = currentSession();
     if (session === lastSession) return lastCopy;
     let copy = copies.get(session);
@@ -73,15 +81,11 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
     get $() {
       return own().values;
     },
-    step(names, run) {
-      stepping = true;
-      base.initializing = names;
-      try {
-        run();
-      } finally {
-        stepping = false;
-        base.initializing = [];
-      }
+    get init() {
+      return own().init;
+    },
+    step(run) {
+      run();
     },
     loaded() {
       loading = false;
@@ -92,7 +96,8 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
 function create(kinds: Readonly<Record<string, Kind>>, from: Readonly<Record<string, unknown>> | undefined): Copy {
   const raw = Object.create(null) as Record<string, unknown>;
   const values = Object.create(null) as Record<PropertyKey, unknown>;
-  const copy: Copy = { raw, values, initializing: [] };
+  const init = Object.create(null) as Record<PropertyKey, unknown>;
+  const copy: Copy = { raw, values, init };
   const seen = new Map<object, unknown>();
   for (const [name, kind] of Object.entries(kinds)) {
     raw[name] = from === undefined ? (kind === 'var' ? undefined : UNSET) : copied(from[name], seen);
@@ -103,10 +108,13 @@ function create(kinds: Readonly<Record<string, Kind>>, from: Readonly<Record<str
         return raw[name];
       },
       set(next: unknown) {
-        if (!copy.initializing.includes(name)) {
-          if (raw[name] === UNSET) throw new ReferenceError(`Cannot access '${name}' before initialization`);
-          if (kind === 'const') throw new TypeError('Assignment to constant variable.');
-        }
+        if (raw[name] === UNSET) throw new ReferenceError(`Cannot access '${name}' before initialization`);
+        if (kind === 'const') throw new TypeError('Assignment to constant variable.');
+        raw[name] = next;
+      },
+    });
+    Object.defineProperty(init, name, {
+      set(next: unknown) {
         raw[name] = next;
       },
     });
@@ -119,13 +127,6 @@ function copied(value: unknown, seen: Map<object, unknown>): unknown {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
   if (seen.has(value)) return seen.get(value);
   const prototype = Object.getPrototypeOf(value) as object | null;
-  if (prototype === Array.prototype) {
-    const array: unknown[] = [];
-    array.length = (value as unknown[]).length;
-    seen.set(value, array);
-    for (const key of Object.keys(value)) (array as unknown as Record<string, unknown>)[key] = copied((value as Record<string, unknown>)[key], seen);
-    return array;
-  }
   if (prototype === Map.prototype) {
     const map = new Map<unknown, unknown>();
     seen.set(value, map);
@@ -137,14 +138,11 @@ function copied(value: unknown, seen: Map<object, unknown>): unknown {
     seen.set(value, set);
     return set;
   }
-  if (prototype === Object.prototype || prototype === null) {
-    const object = Object.create(prototype) as object;
+  if (prototype === Array.prototype || prototype === Object.prototype || prototype === null) {
+    const object = (prototype === Array.prototype ? [] : Object.create(prototype)) as object;
     seen.set(value, object);
-    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value)) as [PropertyKey, PropertyDescriptor][]) {
-      if ('value' in descriptor) descriptor.value = copied(descriptor.value, seen);
-      Object.defineProperty(object, key, descriptor);
-    }
-    for (const key of Object.getOwnPropertySymbols(value)) {
+    // Every own key, symbols and an array's `length` among them, as it is described.
+    for (const key of Reflect.ownKeys(value)) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
       if ('value' in descriptor) descriptor.value = copied(descriptor.value, seen);
       Object.defineProperty(object, key, descriptor);

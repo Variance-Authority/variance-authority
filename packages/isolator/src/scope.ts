@@ -298,12 +298,17 @@ export function varNames(statements: readonly Node[]): string[] {
 
 /** The names a binding pattern declares. */
 export function bound(pattern: Node | null | undefined): Set<string> {
-  const names = new Set<string>();
+  return new Set(binders(pattern).map((id) => id.name as string));
+}
+
+/** The identifiers a pattern binds, in source order: not its defaults, nor its computed keys. */
+export function binders(pattern: Node | null | undefined): Node[] {
+  const ids: Node[] = [];
   const visit = (node: Node | null | undefined): void => {
     if (node == null) return;
     switch (node.type) {
       case 'Identifier':
-        names.add(node.name as string);
+        ids.push(node);
         return;
       case 'ObjectPattern':
         for (const property of node.properties as Node[]) visit(property.type === 'RestElement' ? property : (property.value as Node));
@@ -320,7 +325,7 @@ export function bound(pattern: Node | null | undefined): Set<string> {
     }
   };
   visit(pattern);
-  return names;
+  return ids;
 }
 
 export function isNode(value: unknown): value is Node {

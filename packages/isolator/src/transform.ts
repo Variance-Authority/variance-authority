@@ -2,11 +2,12 @@
  * The rewrite: a module's variables a session can change move into one frame
  * the session owns.
  *
- * Each such declaration becomes a step of the module's frame, and every place
- * that names one of its variables reads the frame:
+ * Each such declaration becomes a step of the module's frame that writes its
+ * variables through `init`, and every other place that names one reads the
+ * frame through `$`, which checks what the module would:
  *
  * ```ts
- * let count = 0;            __frame.step(["count"], () => { __frame.$.count = 0 });
+ * let count = 0;            __frame.step(() => { __frame.init.count = 0 });
  * count += 1;          →    __frame.$.count += 1;
  * ```
  *
@@ -23,7 +24,7 @@
  * since an ES module's importers read the binding itself; an object that leaves
  * the module when it loads — exported, or handed to something — since whoever
  * took it keeps the one the module made; an instance of a class, which no
- * session can copy; a `var` declared twice, or by a function too; a
+ * session can copy; a `var` declared twice, or by a function too; an
  * object that holds an object every session shares, since its copy would hold
  * a copy instead; a module that awaits at its top level, or reads through `with`.
  *
@@ -32,7 +33,7 @@
 
 import MagicString, { type SourceMap } from 'magic-string';
 import { parseSync } from 'oxc-parser';
-import { bound, isNode, moduleReferences, varNames, type Node } from './scope.js';
+import { binders, bound, isNode, moduleReferences, varNames, type Node } from './scope.js';
 
 /** The specifier a rewritten module imports its frame from. */
 export const RUNTIME = '@variance-authority/isolator/runtime';
@@ -210,8 +211,12 @@ function isolateParsed(
   const s = new MagicString(code);
   // Every overwrite comes before every insertion: an overwrite replaces the
   // intro and outro of the chunks it covers, so an insertion made first is lost.
+  // A pattern's own names are its declaration's writes; its defaults are not.
+  const declares = new Set(
+    declarators.filter(({ role, node }) => role === 'step' && (node.id as Node).type !== 'Identifier').flatMap(({ node }) => binders(node.id as Node).map(({ start }) => start)),
+  );
   for (const { name, start, end, shorthand, called } of found.references.filter(({ name }) => moved.has(name))) {
-    const value = called ? `(0, ${frame}.$.${name})` : `${frame}.$.${name}`;
+    const value = called ? `(0, ${frame}.$.${name})` : `${frame}.${declares.has(start) ? 'init' : '$'}.${name}`;
     s.overwrite(start, end, shorthand ? `${name}: ${value}` : value);
   }
   const steps = declarators.filter(({ role }) => role === 'step');
@@ -221,7 +226,7 @@ function isolateParsed(
     const step = (node: Node): Declarator | undefined => (roleOf.get(node)?.role === 'step' ? roleOf.get(node) : undefined);
     const head = (node: Node): string => {
       const moving = step(node);
-      return moving === undefined ? kind : `${frame}.step(${JSON.stringify(moving.names)}, () => {`;
+      return moving === undefined ? kind : `${frame}.step(() => {`;
     };
     s.overwrite(declaration.start, declaration.start + kind.length, head(all[0]!));
     for (let index = 1; index < all.length; index++) {
@@ -241,10 +246,10 @@ function isolateParsed(
           else s.overwrite(annotation.start, annotation.end, '\n'.repeat(newlines));
         }
       } else if (init == null) {
-        const empty = kind === 'var' ? 'void 0' : `${frame}.$.${id.name as string} = undefined`;
+        const empty = kind === 'var' ? 'void 0' : `${frame}.init.${id.name as string} = undefined`;
         s.overwrite(node.start, node.end, keepLines(empty, code, node.start, node.end));
       } else {
-        s.overwrite(node.start, init.start, keepLines(`${frame}.$.${id.name as string} = `, code, node.start, init.start));
+        s.overwrite(node.start, init.start, keepLines(`${frame}.init.${id.name as string} = `, code, node.start, init.start));
       }
     }
   }

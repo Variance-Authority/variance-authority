@@ -2,3 +2,7 @@
 const { configureResetHandler } = require('@variance-authority/ioc/reset/setup');
 
 configureResetHandler(beforeEach);
+
+const { isolateConcurrentTests } = require('@variance-authority/isolator/node');
+
+isolateConcurrentTests(test);

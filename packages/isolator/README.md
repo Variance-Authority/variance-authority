@@ -50,8 +50,8 @@ export const next = () => {
 becomes, on the same lines:
 
 ```ts
-import * as __isolator from "@variance-authority/isolator/runtime"; const __frame = __isolator.frame({"count":"let","seen":"const"}); __frame.step(["count"], () => { __frame.$.count = 0 });
-__frame.step(["seen"], () => { __frame.$.seen = new Set<number>() });
+import * as __isolator from "@variance-authority/isolator/runtime"; const __frame = __isolator.frame({"count":"let","seen":"const"}); __frame.step(() => { __frame.init.count = 0 });
+__frame.step(() => { __frame.init.seen = new Set<number>() });
 
 export const next = () => {
   __frame.$.count += 1;
@@ -74,8 +74,9 @@ too. A session copies those values the first time it reads the module: arrays, p
 and the values of a `Map` are copied as deep as they go, one copy per object, so
 `const y = { x }` still holds that session's `x`. A `Set`'s members, a `Map`'s
 keys, a frozen object and an instance of a class are the same objects in every
-session. Reading a `let` before its declaration still throws, and a `var` still
-reads `undefined`.
+session. Reading a `let` before its declaration still throws, and so does writing it
+inside its own initializer; a `var` still reads `undefined`. An array keeps its
+symbol keys and holes.
 
 A `const` built by a call — `memoize(fn)`, `createStore()`, a higher-order
 component — or holding a primitive is left as it is, and so is what it closes
@@ -99,6 +100,10 @@ export default {
 const { configureResetHandler } = require('@variance-authority/ioc/reset/setup');
 
 configureResetHandler(beforeEach);
+
+const { isolateConcurrentTests } = require('@variance-authority/isolator/node');
+
+isolateConcurrentTests(test);
 ```
 
 `transformer` names the transformer that would have run without this one,
@@ -109,6 +114,11 @@ trace and a coverage report still name the line on disk.
 The setup has to load before any rewritten module, for the reason
 [ioc](https://variance-authority.dev/reference/packages/ioc#install-the-driver-in-the-test-setup) gives: the runtime registers
 its reset when it is imported, and ioc refuses one that registered first.
+
+`test.concurrent` runs its tests side by side, and Jest gives them no
+`beforeEach` of their own. `isolateConcurrentTests(test)` runs the body of
+every `test.concurrent`, `.only`, `.each` and `.failing` in its own `isolated`
+session instead.
 
 Test files are not rewritten. A test file's own `let` carries what a
 `beforeAll` set into the tests after it, which is what a test file means by it.
@@ -198,8 +208,8 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 | Entry point | What it does |
 |---|---|
 | `@variance-authority/isolator` | `nextSession()` starts a new fallback session; `currentSession()` answers with the session in force; `addSessionSource(source)` adds a source, asked before any added after it. |
-| `@variance-authority/isolator/node` | `isolated(fn)` runs `fn` in a new session, through every `await` it starts. |
-| `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session. |
+| `@variance-authority/isolator/node` | `isolated(fn)` runs `fn` in a new session, through every `await` it starts; `isolateConcurrentTests(test)` gives each concurrent Jest test one. Every copy of this entry in a process shares one store, so an inner `isolated` always wins. |
+| `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
 | `@variance-authority/isolator/rspack` | The Rspack loader. |
 | `@variance-authority/isolator/runtime` | `frame`, which rewritten modules import. |

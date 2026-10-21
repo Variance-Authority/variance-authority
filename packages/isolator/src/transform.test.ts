@@ -14,7 +14,7 @@ describe('isolate: a let or var', () => {
   it('becomes a step of the frame, and every reference reads the frame, on the lines it was on', () => {
     const code = 'export {};\nlet count = 0;\nexport function next() {\n  count += 1;\n  return count++;\n}\n';
     expect(out(code)).toBe(
-      `${header('{"count":"let"}')}export {};\n__frame.step(["count"], () => { __frame.$.count = 0 });\nexport function next() {\n  __frame.$.count += 1;\n  return __frame.$.count++;\n}\n`,
+      `${header('{"count":"let"}')}export {};\n__frame.step(() => { __frame.init.count = 0 });\nexport function next() {\n  __frame.$.count += 1;\n  return __frame.$.count++;\n}\n`,
     );
   });
 
@@ -33,7 +33,7 @@ describe('isolate: a let or var', () => {
 
   it('keeps a declaration without a value undefined', () => {
     expect(out('export {};\nlet client;\nclient = 1;')).toBe(
-      `${header('{"client":"let"}')}export {};\n__frame.step(["client"], () => { __frame.$.client = undefined });\n__frame.$.client = 1;`,
+      `${header('{"client":"let"}')}export {};\n__frame.step(() => { __frame.init.client = undefined });\n__frame.$.client = 1;`,
     );
   });
 
@@ -61,27 +61,27 @@ describe('isolate: a let or var', () => {
 
   it('reads a reference inside a nested function, and leaves keys and members', () => {
     expect(out('export {};\nlet x = 0;\nconst o = { x: x, y: a.x, [x]: 1 };\nclass C { x = x; x() {} }')).toBe(
-      `${header('{"x":"let","o":"const"}')}export {};\n__frame.step(["x"], () => { __frame.$.x = 0 });\n__frame.step(["o"], () => { __frame.$.o = { x: __frame.$.x, y: a.x, [__frame.$.x]: 1 } });\nclass C { x = __frame.$.x; x() {} }`,
+      `${header('{"x":"let","o":"const"}')}export {};\n__frame.step(() => { __frame.init.x = 0 });\n__frame.step(() => { __frame.init.o = { x: __frame.$.x, y: a.x, [__frame.$.x]: 1 } });\nclass C { x = __frame.$.x; x() {} }`,
     );
   });
 
   it('spells a shorthand property out, in an object and in a destructuring assignment', () => {
     expect(out('export {};\nlet x = 0;\nf({ x });\n({ x = 2 } = o);')).toBe(
-      `${header('{"x":"let"}')}export {};\n__frame.step(["x"], () => { __frame.$.x = 0 });\nf({ x: __frame.$.x });\n({ x: __frame.$.x = 2 } = o);`,
+      `${header('{"x":"let"}')}export {};\n__frame.step(() => { __frame.init.x = 0 });\nf({ x: __frame.$.x });\n({ x: __frame.$.x = 2 } = o);`,
     );
   });
 
   it('gives every declarator of one declaration its own step, destructuring included', () => {
     const result = isolate('export {};\nlet a = 1, { b } = o, c;', 'a.mjs');
     expect(out('export {};\nlet a = 1, { b } = o, c;')).toBe(
-      `${header('{"a":"let","b":"let","c":"let"}')}export {};\n__frame.step(["a"], () => { __frame.$.a = 1 }); __frame.step(["b"], () => { ({ b: __frame.$.b } = o) }); __frame.step(["c"], () => { __frame.$.c = undefined });`,
+      `${header('{"a":"let","b":"let","c":"let"}')}export {};\n__frame.step(() => { __frame.init.a = 1 }); __frame.step(() => { ({ b: __frame.init.b } = o) }); __frame.step(() => { __frame.init.c = undefined });`,
     );
     expect(result.left).toEqual([]);
   });
 
   it('reads a parameter default from the frame, whatever the body declares', () => {
     expect(out('export {};\nlet x = 0;\nfunction f(a = x) { let x; return a; }')).toBe(
-      `${header('{"x":"let"}')}export {};\n__frame.step(["x"], () => { __frame.$.x = 0 });\nfunction f(a = __frame.$.x) { let x; return a; }`,
+      `${header('{"x":"let"}')}export {};\n__frame.step(() => { __frame.init.x = 0 });\nfunction f(a = __frame.$.x) { let x; return a; }`,
     );
   });
 
@@ -93,19 +93,19 @@ describe('isolate: a let or var', () => {
 
   it('reads a component from the frame in JSX, and leaves an intrinsic tag', () => {
     expect(out('export {};\nlet Button = () => null;\nlet div;\n<Button><div /></Button>;', 'a.jsx')).toBe(
-      `${header('{"Button":"let","div":"let"}')}export {};\n__frame.step(["Button"], () => { __frame.$.Button = () => null });\n__frame.step(["div"], () => { __frame.$.div = undefined });\n<__frame.$.Button><div /></__frame.$.Button>;`,
+      `${header('{"Button":"let","div":"let"}')}export {};\n__frame.step(() => { __frame.init.Button = () => null });\n__frame.step(() => { __frame.init.div = undefined });\n<__frame.$.Button><div /></__frame.$.Button>;`,
     );
   });
 
   it('drops a type annotation, and reads through `as` and `!`', () => {
     expect(out('export {};\nlet x: number | undefined = 1;\n(x as number)!;\ntype T = typeof x;', 'a.ts')).toBe(
-      `${header('{"x":"let"}')}export {};\n__frame.step(["x"], () => { __frame.$.x = 1 });\n(__frame.$.x as number)!;\ntype T = typeof x;`,
+      `${header('{"x":"let"}')}export {};\n__frame.step(() => { __frame.init.x = 1 });\n(__frame.$.x as number)!;\ntype T = typeof x;`,
     );
   });
 
   it("names its frame so it collides with none of the module's own", () => {
     expect(out('export {};\nlet x = 0;\nconst __frame = 1;\nx;')).toBe(
-      `${header('{"x":"let"}', '__isolator', '__frame1')}export {};\n__frame1.step(["x"], () => { __frame1.$.x = 0 });\nconst __frame = 1;\n__frame1.$.x;`,
+      `${header('{"x":"let"}', '__isolator', '__frame1')}export {};\n__frame1.step(() => { __frame1.init.x = 0 });\nconst __frame = 1;\n__frame1.$.x;`,
     );
   });
 });
@@ -113,13 +113,13 @@ describe('isolate: a let or var', () => {
 describe('isolate: a const', () => {
   it('moves an object, and an object that holds it, so a copy keeps them one', () => {
     expect(out('export {};\nlet x = { n: 0 };\nconst y = { x }, n = 1;\nexport const get = () => y;')).toBe(
-      `${header('{"x":"let","y":"const"}')}export {};\n__frame.step(["x"], () => { __frame.$.x = { n: 0 } });\n__frame.step(["y"], () => { __frame.$.y = { x: __frame.$.x } }); const n = 1;\nexport const get = () => __frame.$.y;`,
+      `${header('{"x":"let","y":"const"}')}export {};\n__frame.step(() => { __frame.init.x = { n: 0 } });\n__frame.step(() => { __frame.init.y = { x: __frame.$.x } }); const n = 1;\nexport const get = () => __frame.$.y;`,
     );
   });
 
   it('moves an object the module fills while it loads', () => {
     expect(out('export {};\nconst registry = new Map();\nregistry.set("a", 1);\nconst list = [];\nlist.push(registry.get("a") ? 1 : 0);')).toBe(
-      `${header('{"registry":"const","list":"const"}')}export {};\n__frame.step(["registry"], () => { __frame.$.registry = new Map() });\n__frame.$.registry.set("a", 1);\n__frame.step(["list"], () => { __frame.$.list = [] });\n__frame.$.list.push(__frame.$.registry.get("a") ? 1 : 0);`,
+      `${header('{"registry":"const","list":"const"}')}export {};\n__frame.step(() => { __frame.init.registry = new Map() });\n__frame.$.registry.set("a", 1);\n__frame.step(() => { __frame.init.list = [] });\n__frame.$.list.push(__frame.$.registry.get("a") ? 1 : 0);`,
     );
   });
 
@@ -183,27 +183,27 @@ describe('isolate: opting out', () => {
 
   it('leaves only its own line when the mark ends a line of code', () => {
     expect(out('export {};\nlet a = 0; // @isolator-ignore\nlet b = 0;')).toBe(
-      `${header('{"b":"let"}')}export {};\nlet a = 0; // @isolator-ignore\n__frame.step(["b"], () => { __frame.$.b = 0 });`,
+      `${header('{"b":"let"}')}export {};\nlet a = 0; // @isolator-ignore\n__frame.step(() => { __frame.init.b = 0 });`,
     );
   });
 
   it('leaves a whole file that says so in a comment, and not in a string', () => {
     const code = '/* @isolator-ignore-file */\nlet a = 0;';
     expect(isolate(code, 'a.mjs').code).toBe(code);
-    expect(out('export {};\nconst s = "@isolator-ignore-file";\nlet a = 0;')).toContain('__frame.$.a = 0');
+    expect(out('export {};\nconst s = "@isolator-ignore-file";\nlet a = 0;')).toContain('__frame.init.a = 0');
   });
 });
 
 describe('isolate: the runtime it imports', () => {
   it('requires it in CommonJS, after the directive prologue', () => {
     expect(out("'use strict';\nlet x = 0;\nmodule.exports = () => x;", 'a.cjs')).toBe(
-      "'use strict';const __isolator = require(\"@variance-authority/isolator/runtime\"); const __frame = __isolator.frame({\"x\":\"let\"}); \n__frame.step([\"x\"], () => { __frame.$.x = 0 });\nmodule.exports = () => __frame.$.x;",
+      "'use strict';const __isolator = require(\"@variance-authority/isolator/runtime\"); const __frame = __isolator.frame({\"x\":\"let\"}); \n__frame.step(() => { __frame.init.x = 0 });\nmodule.exports = () => __frame.$.x;",
     );
   });
 
   it('imports it after a shebang', () => {
     expect(out('#!/usr/bin/env node\nexport {};\nlet x = 0;')).toBe(
-      `#!/usr/bin/env node\n${header('{"x":"let"}')}export {};\n__frame.step(["x"], () => { __frame.$.x = 0 });`,
+      `#!/usr/bin/env node\n${header('{"x":"let"}')}export {};\n__frame.step(() => { __frame.init.x = 0 });`,
     );
   });
 

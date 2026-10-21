@@ -50,6 +50,22 @@ describe('a variable', () => {
     expect(peek()).toBe(0);
   });
 
+  it('reads the innermost isolated session, whichever copy of the Node entry started it', async () => {
+    const { next, peek } = counter();
+    vi.resetModules();
+    const other = await import('./node.js');
+    const inner = () => {
+      next();
+      return peek();
+    };
+    const outer = (start: <T>(fn: () => T) => T, within: <T>(fn: () => T) => T) =>
+      start(() => {
+        next();
+        return within(inner);
+      });
+    expect([outer(isolated, other.isolated), outer(other.isolated, isolated)]).toEqual([1, 1]);
+  });
+
   it('starts again for every test once ioc drives resets', async () => {
     // A runner evaluates its setup before the modules a test imports: so here.
     const IOC = Symbol.for('@variance-authority/ioc/reset');
@@ -127,6 +143,11 @@ describe("a module's frame", () => {
     expect(load<{ seen: unknown }>('const early = () => x;\nconst seen = early();\nvar x = 1;\nmodule.exports = { seen };').seen).toBeUndefined();
   });
 
+  it('refuses a write to a let inside its own initializer, as the module would', () => {
+    expect(() => load('let count = (count = 1);')).toThrow(ReferenceError);
+    expect(() => load('let { a = (a = 1) } = {};')).toThrow(ReferenceError);
+  });
+
   it('refuses to assign a const, as the module would', () => {
     const { set } = load<{ set: () => void }>('const list = [];\nmodule.exports = { set: () => { list = []; } };');
     expect(set).toThrow(TypeError);
@@ -202,6 +223,20 @@ describe('an object a module holds', () => {
     nextSession();
     expect(box().n).toBe(1);
     delete (globalThis as Record<string, unknown>).Box;
+  });
+
+  it('keeps the symbols and holes of an array', () => {
+    const { items } = load<{ items: () => unknown[] & Record<PropertyKey, unknown> }>(
+      [
+        'const items = [];',
+        'items[Symbol.for("metadata")] = 42;',
+        'items.length = 2;',
+        'module.exports = { items: () => items };',
+      ].join('\n'),
+    );
+    nextSession();
+    expect(items()[Symbol.for('metadata')]).toBe(42);
+    expect([items().length, 0 in items()]).toEqual([2, false]);
   });
 
   it('can be frozen', () => {
