@@ -4,9 +4,9 @@
 `covering` takes one region and narrows the cases that entered it by what they
 said (`--where`). It cannot also ask for a name, for a second region, or for
 the cases that did *not* enter a region. It cannot tell a case that said a value
-apart from one that said two values at once, or one that finished apart from
-one that stopped. It answers by resolving every case's row before it filters.
-So *which finished cases ran the fallback as an anonymous user during a
+apart from one that said two values at once, or one that passed apart from one
+that failed. It answers by resolving every case's row before it filters.
+So *which passing cases ran the fallback as an anonymous user during a
 timeout* can be asked only half-way, and the half that answers counts a
 contradiction as a match.
 **Built on:** `covering --where` and its unmeasured count
@@ -16,13 +16,12 @@ items over crossing sets of
 whose one owner is
 [`case_said.rs`](../../packages/sense/native/src/case_said.rs); the crossing-set
 pool and its LIST, BITS and RUNS containers
-([`crossing_sets.rs`](../../packages/sense/native/src/crossing_sets.rs)); a
-case's `stopped`, the cases that stopped before a region
-([`stopped.ts`](../../packages/sense/src/test-selection/stopped.ts)), and the
-load-time reach of a region
-([`reverse.ts`](../../packages/sense/src/test-selection/reverse.ts)); and the
-outcome [spec 0067](0067-a-case-carries-its-outcome.md) has not yet recorded.
-**Waits for:** spec 0093's two-part name, `dimension:key`, and the bare
+([`crossing_sets.rs`](../../packages/sense/native/src/crossing_sets.rs)); and
+the cases that stopped before a region
+([`stopped.ts`](../../packages/sense/src/test-selection/stopped.ts)).
+**Waits for:** each case's outcome, as
+[spec 0067](0067-a-case-carries-its-outcome.md) records it: the record stores
+the case and how it ended. And spec 0093's two-part name, `dimension:key`, and the bare
 dimension that unions its keys. The record and `--where` hold one flat name
 today; until the grammar lands, a name below is that flat name.
 **Amends:** [spec 0093](0093-a-case-names-its-preconditions.md)'s *Where it is
@@ -36,7 +35,7 @@ A failing test is already explained by its stack trace. The question Variance
 can answer and nobody else can is the opposite one: **why did the others
 pass, and what did they actually run?** Aggregate coverage says a fallback was
 entered. It does not say whether any case entered it as an anonymous user during
-a timeout, which is the risk the change is about. A *witness* is a finished case
+a timeout, which is the risk the change is about. A *witness* is a passing case
 that holds every fact the question names. An empty set of witnesses inside a
 green, 100%-covered region is a missing scenario, and it can be found without
 writing a test first.
@@ -59,9 +58,9 @@ A witness proves the facts co-occurred on one case. It does not prove that they
 happened in order, that one caused another, or that a value applied to one
 particular call of the region: co-occurrence is what fault localisation reads
 too, and it is not cause
-([prior art](../context/prior-art.md#fault-localization)). Spec 0093 joins what
-a case said across its attempts and shards, so the facts may have co-occurred
-across them rather than within one run. A witness is reach, not checking
+([prior art](../context/prior-art.md#fault-localization)). Each attempt is read
+on its own, so a witness is one run. A case whose attempts disagree is the
+stability report's: it records both runs and reports the difference. A witness is reach, not checking
 ([prior art](../context/prior-art.md#coverage-adequacy)): a case that asserts
 nothing about the fallback still witnesses that it ran.
 
@@ -125,41 +124,31 @@ Every case of the population lands in exactly one of these: the first that
 applies, in this order. A fact is read three ways — it holds, it fails, or it
 cannot be read — and a fact that fails decides before one that cannot be read.
 
-- **Not a witness.** It was seen to finish, and a fact that was read fails.
-- **Unmeasured.** A fact cannot be read for it: a `--where` on a case outside
-  the measured set, or a region in a file the record holds no coverage for.
+- **Not a witness.** A fact that was read fails.
+- **Unmeasured.** A fact or the outcome cannot be read for it: a `--where` on a
+  case outside the measured set, a region in a file the record holds no
+  coverage for, or a record that stores no outcome.
 - **Contradicted.** At the narrowest level it said a `dimension:key` that made
   a fact hold, it said two values. ADR-0094 keeps both, and a filter that
   matches either of them hides the contradiction, so it is counted apart even
   when one of the two is a value the question asked for. A contradiction on a
   key the fact did not need is not counted.
-- **Outcome unsaid.** Its runner could not say whether it finished. A fact it
-  lacks may be one it never reached, so it is neither a witness nor a
-  non-witness. A producer that never reports settlement places every case here,
-  and the answer says so instead of offering a witness or a negative.
-- **Unfinished.** It stopped (`stopped` is `true`). A region it entered was
-  entered, but it is not a case that passed, so it is never a witness.
-- **At load only.** It holds every fact, but the target or an `--entered`
-  region was reached only while that region's module was evaluating. Selection
-  reads such a crossing as reach, on purpose, so a change cannot skip a test.
-  A question about what a case *exercised* needs the opposite reading. For the
-  same reason a load-only reach of an `--except-entered` region does not
-  exclude a case.
-- **Witness.** It holds every fact as an observation and was seen to finish
-  (`stopped` is `false`). An assertion that fails throws, so a case seen to
-  finish is a case that passed, except under an expected-failure modifier or
-  a soft assertion (`expect.soft`). Spec 0067 adds the outcome and closes both;
-  nothing here waits for it.
+- **Failed.** It holds every fact, but its recorded outcome is a failure. It is
+  printed with that outcome, never as a witness.
+- **Witness.** It holds every fact and its recorded outcome is a pass.
+
+*Entered* means the case called into the region. A module that was only loaded
+was not entered; the record says which, and a record that cannot is a defect
+in what wrote it, not a category here.
 
 **No recorded witness** is said only when the witness count is zero, no case is
-*unmeasured* or *outcome unsaid*, and the target is no hole in spec 0067's
-sense: no case that holds the asked state stopped before it could reach the
-target. Those cases are printed as their own line. A record that cannot say
-which cases stopped before the target (no relations, a missing file, no
-recorded reach) has an unknown hole, never an empty one. Otherwise the answer
-says the record cannot tell, and names how many cases it could not read.
-*Contradicted*, *unfinished* and *at load only* are printed and never turn into
-a negative: the reader sees them and decides.
+*unmeasured*, and the target is no hole in spec 0067's sense: no case that holds
+the asked state stopped before it could reach the target. Those cases are
+printed as their own line. A record that cannot say which cases stopped before
+the target (no relations, a missing file, no recorded reach) has an unknown
+hole, never an empty one. Otherwise the answer says the record cannot tell, and
+names how many cases it could not read. *Contradicted* and *failed* are printed
+and never turn into a negative: the reader sees them and decides.
 
 ```
 $ variance covering --file src/pay/fallback.ts --function fallback \
@@ -172,7 +161,7 @@ fallback in src/pay/fallback.ts was entered by 14 cases.
 7 did not.
 3 were recorded without preconditions, so whether they ran under it is unmeasured.
 1 said network=timeout and network=offline in one beforeEach.
-1 stopped before it finished.
+1 failed.
 ```
 
 A listed line is resolved, name and file, only for the cases printed. Every
@@ -221,17 +210,12 @@ sites, and `M` for the measured set.
   the fact hold.
 - **Entered:** the cases that called into the region, a set in the pool. A
   `--function` or a scope is the union of its regions' sets.
-- **At load only:** where a producer writes a crossing's `loaded`, it is read
-  per case. Where the record holds only the region's `loaded` flag, the cases
-  whose test file imports the module are read from the file graph, as
-  selection reads them, and the entered set is subtracted.
 - **A hole:** the cases `stoppedBefore` names for the target, as spec 0067
   reads them. Its `undefined`, a record it cannot read, is an unknown hole and
   blocks the negative.
 - **Named:** a scan of the case-name column, the one step linear in cases. It
   runs only when `--named` is given.
-- **Finished, unfinished, outcome unsaid:** the `stopped` column, read as its
-  three states.
+- **Outcome:** the recorded outcome of each case, one attempt at a time.
 - **The population:** the cases `covering` kept, passed in as one set.
 
 The said sets come from `case_said.rs`, its one owner. Set intersection,
@@ -291,13 +275,11 @@ state on one case of a suite.
 1. Set intersection, difference and cardinality over pool ids in
    `crossing_sets.rs`. The effective and contradicted sets in `case_said.rs`,
    with `resolve` rewritten over them. The composed query in its own file:
-   bare-name sets, entered and load-only, the hole, named, the three states of
-   `stopped`, the population, all and except, counts per category and the first
-   `n` ids. Unit tests for an override, a contradiction on the key a fact
-   needed and on one it did not, a finished case failing one fact and
-   unmeasured on another, an unfinished and an outcome-unsaid case under
-   `--except-entered`, a load-only target, a hole, and a record with no measured
-   set.
+   bare-name sets, entered, the hole, named, the outcome, the population, all
+   and except, counts per category and the first `n` ids. Unit tests for an
+   override, a contradiction on the key a fact needed and on one it did not, a
+   case failing one fact and unmeasured on another, a failed case holding every
+   fact, a hole, a record with no outcome, and a record with no measured set.
 2. `covering` routed to it: `--named`, `--entered`, `--except-entered`,
    `--limit`, a question with no target, one `dimension:key` given several
    values read as any of them, and the output above. `whereCases`, its `rowOf`
@@ -316,7 +298,7 @@ state on one case of a suite.
 
 The first slice is item 1's set operations and resolver, `--where` and
 `--except-entered` through `covering`, and question 1 end to end under Vitest.
-`--named`, *at load only*, the contrast, the other runners and the measurement
+`--named`, the contrast, the other runners and the measurement
 follow.
 
 ## Open
