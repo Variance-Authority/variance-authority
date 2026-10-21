@@ -77,10 +77,17 @@ fn a_file_whose_every_declaration_is_exported_uses_its_names() {
 #[test]
 fn a_key_of_the_object_the_module_hands_out_passes_the_name_on() {
     let found = uses(
-        "function recorder() {}\nfunction scoped() {\n  return recorder();\n}\nexport = { recorder, scoped: scoped, later: () => recorder(), [recorder.name]: 1 };\n",
+        "function recorder() {}\nfunction scoped() {\n  return recorder();\n}\nexport = { recorder, scoped: scoped, later: () => recorder(), [`name`]: recorder.name };\n",
         SourceType::ts(),
     );
     assert_eq!(found, vec![one("recorder", 3), one("recorder", 5)]);
     let found = uses("function hush() {}\nmodule.exports = { hush };\nconst other = { hush };\n", SourceType::cjs());
     assert_eq!(found, vec![one("hush", 3)]);
+}
+
+#[test]
+fn a_key_of_an_object_with_unspelled_keys_is_a_use() {
+    // The object exports nothing, so naming a declaration in it passes nothing on.
+    let found = uses("function a() {}\nexport = {\n  a,\n  ...rest,\n};\n", SourceType::ts());
+    assert_eq!(found, vec![one("a", 3)]);
 }

@@ -11,9 +11,9 @@
 //! promise's, not the module's. Each of those is recorded against the
 //! request it reads through, by that request's index in the parse. An
 //! `import m = require()` holds from where it is written on, as the `const`
-//! TypeScript compiles it to does; a type-only one holds nothing. A default
-//! import holds the module's `default`, which under interop is a CommonJS
-//! module's `module.exports`. An `import()` type reads the name its qualifier
+//! TypeScript compiles it to does. A default import holds the module's
+//! `default`, which under interop is a CommonJS module's `module.exports`. A
+//! type-only import of any of these holds the same, for its types. An `import()` type reads the name its qualifier
 //! starts with, `import('m').x.y` reads `x`; with none, as in `typeof
 //! import('m')`, it names the module's type and reads nothing, and what that
 //! type is written on holds the module: a cast, an annotated variable or
@@ -73,11 +73,11 @@ pub struct Member {
 pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
     let mut holders = HashMap::new();
     for (index, request) in requests.iter().enumerate() {
-        // `import type * as ns` holds the module for its types; a type-only default holds nothing.
+        // A type-only namespace or default holds the module, or its `default`, for its types.
         for binding in &request.bindings {
             let held = match binding.imported.as_str() {
                 "*" => Held::whole(Via::Indexed(index as u32)),
-                "default" if !binding.type_only => Held::whole(Via::Indexed(index as u32)).default(),
+                "default" => Held::whole(Via::Indexed(index as u32)).default(),
                 _ => continue,
             };
             if let Some(symbol) = scoping.get_root_binding(binding.local.as_str().into()) {
@@ -178,8 +178,8 @@ struct Walker<'l, 's> {
 
 impl Walker<'_, '_> {
     /// What an expression evaluates to, looking through parentheses,
-    /// TypeScript's casts and `await`: an awaited `import()`, a holder, or the
-    /// `default` of either.
+    /// TypeScript's casts and `await`: an awaited `import()`, a holder, the
+    /// `default` of either, or else what a cast says it is.
     fn held(&mut self, expression: &Expression) -> Option<Held> {
         match expression.get_inner_expression() {
             Expression::AwaitExpression(it) => self.promised(&it.argument).map(Held::whole).or_else(|| self.held(&it.argument)),
@@ -191,6 +191,7 @@ impl Walker<'_, '_> {
             Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).map(Held::default),
             _ => None,
         }
+        .or_else(|| self.cast(expression))
     }
 
     /// The request an `import()` promises. The promise is not the module: a read
@@ -310,7 +311,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
         if let Some(init) = &it.init {
             if let Some(held) = self.held_all(init) {
                 self.bind_all(&it.id, &held);
-            } else if let Some(held) = self.held(init).or(annotated).or_else(|| self.cast(init)) {
+            } else if let Some(held) = self.held(init).or(annotated) {
                 self.bind(&it.id, held);
             } else if !matches!(it.id, BindingPattern::BindingIdentifier(_)) {
                 // A pattern destructures the promise, which reads it and holds nothing.
@@ -450,9 +451,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
 
     fn visit_ts_import_equals_declaration(&mut self, it: &TSImportEqualsDeclaration<'a>) {
         if let Some(index) = self.loads.import_equals(it) {
-            if !it.import_kind.is_type() {
-                self.hold(it.id.symbol_id.get(), Held::whole(Via::Required(index)));
-            }
+            self.hold(it.id.symbol_id.get(), Held::whole(Via::Required(index)));
         }
         walk::walk_ts_import_equals_declaration(self, it);
     }

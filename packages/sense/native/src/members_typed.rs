@@ -28,8 +28,9 @@ impl Walker<'_, '_> {
     }
 
     /// What a cast says its value is: `x as typeof import('m')`, `satisfies`,
-    /// or `<…>x`. What a call returns is TypeScript's answer, so a call's type
-    /// argument types nothing here.
+    /// or `<…>x`, written in place or on a variable's value. What a call
+    /// returns is TypeScript's answer: the reader does not establish what a
+    /// call given the type as an argument returns.
     pub(super) fn cast(&self, expression: &Expression) -> Option<Held> {
         let (written, inner) = match expression {
             Expression::ParenthesizedExpression(it) => return self.cast(&it.expression),

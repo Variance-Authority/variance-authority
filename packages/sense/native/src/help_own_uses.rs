@@ -78,11 +78,12 @@ impl<'a> Visit<'a> for Walker<'_> {
         }
     }
 
-    // An object the module hands out whole passes on each declaration a key
-    // names, as `export { name }` does; any other value is the module's own.
+    // An object the module hands out whole, every key spelled, passes on each
+    // declaration a key names, as `export { name }` does; one with a key no
+    // reader can spell exports nothing, so naming a declaration in it is a use.
     fn visit_program(&mut self, it: &Program<'a>) {
         for statement in &it.body {
-            let Some(object) = crate::assigned_object::assigned(statement) else {
+            let Some(object) = crate::assigned_object::assigned(statement).filter(|it| crate::assigned_object::spelled(it)) else {
                 self.visit_statement(statement);
                 continue;
             };

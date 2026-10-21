@@ -30,12 +30,21 @@ modelled beyond that.**
    computed `module.exports`. A read off a default import is matched to a key
    only as "through `default`: may read it", never as a definite read: interop
    decides it at run time.
-2. **A CommonJS gap is this position, not a defect.** An answer that misses a
-   use made through a CommonJS object is classified against this ADR. The
-   reader still answers what it can and names what is not recorded; it never
-   guesses.
+2. **An unread shape is a limitation; a wrong answer on a read one is a
+   defect.** An answer that misses a use made through a CommonJS shape this
+   ADR does not read is a limitation of this position. An answer that is wrong
+   for a shape rule 1 reads is a defect, fixed like any other. The reader
+   answers what it can and names what is not recorded; it never guesses.
 3. **Our own code is ESM.** New code in this repository is written as ESM.
    A `.cjs` or `.cts` file is added only where a tool cannot load anything else.
+
+## Alternatives
+
+- **Model CommonJS as fully as ESM.** Rejected: every further shape, from
+  `exports.x` to a reassigned `module.exports`, is another rule about a runtime
+  object, and none of them is a statement the module makes about itself.
+- **Read no CommonJS at all.** Rejected: a top-level object literal handed out
+  whole spells its keys, and reading them takes no guess.
 
 ## Consequences
 

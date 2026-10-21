@@ -396,8 +396,8 @@ local or an inner item of the same name is another name and is not listed, and
 neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
 its imports alone.
 
-A name your code reads off `import * as` or `import type * as`, off `import()` or off a default
-import is a site too, and the site names the line that loads the module. In a
+A name your code reads off a namespace or default import, written with
+`import type` or without, or off `import()`, is a site too, and the site names the line that loads the module. In a
 type, `typeof ns.x` and `ns.T` read `x` and `T` off whatever holds the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
 loading. An `import()` written in a type, `import('./x').T` or
@@ -407,8 +407,10 @@ the module's type and reads no name of it. A value that type is written on — a
 cast, or an annotated variable or parameter, directly or through a top-level
 alias — holds the module, and a name read off that value is a type-only site,
 as `M['x']` off the module type `M` is. What a call returns is TypeScript's
-answer, so a call's type argument holds nothing: the value
-`await importOriginal<typeof import('./x')>()` returns reads no name. A name read off the module's
+answer, and the reader does not work it out: a name read off the value
+`await importOriginal<typeof import('./x')>()` returns is not listed, because
+the reader cannot tell which module the value came from, not because the line
+reads no name. A name read off the module's
 `default` is marked "through `default`": `default` holds the name only when the
 module is CommonJS, so the line may read it and is counted apart from the
 imports. A module your code passes on whole —

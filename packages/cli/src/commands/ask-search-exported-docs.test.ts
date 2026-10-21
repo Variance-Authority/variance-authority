@@ -82,6 +82,8 @@ describe('search over the documentation of unpublished exports', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     expect((await run(['ask', 'search', '--query', 'turnstile'])).out).toContain('hold');
-    expect((await run(['ask', 'search', '--query', 'gate'])).out).not.toContain('hold.ts');
+    const gate = await run(['ask', 'search', '--query', 'gate']);
+    expect(gate.code).toBe(EXIT_CLEAN);
+    expect(gate.out).not.toContain('hold.ts');
   });
 });
