@@ -137,7 +137,7 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
     }
   });
 
-  it('lists every value the file exports, and none for a file that publishes through `module.exports`', async () => {
+  it('lists every value the file exports, the keys of the object `module.exports` assigns among them', async () => {
     // What a mock's factory must stand in for: a name it leaves out reads undefined.
     const root = await mkdtemp(join(tmpdir(), 'variance-authority-references-'));
     try {
@@ -163,7 +163,7 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
       expect(dialog?.exports).toEqual(['label', 'Dialog', 'open', 'default']);
       expect(importReferences(root, undefined, 'src/base.ts')?.exports).toEqual(['default', 'PREFIX', 'shout']);
       // A factory of `{}` would hand a reader of `size.x` a throw while the test file loads.
-      expect(importReferences(root, undefined, 'src/legacy.js')).not.toHaveProperty('exports');
+      expect(importReferences(root, undefined, 'src/legacy.js')?.exports).toEqual(['size']);
       // Nor for a file whose only export names a type, which loads nothing a factory could stand in for.
       expect(importReferences(root, undefined, 'src/shape.ts')).not.toHaveProperty('exports');
     } finally {

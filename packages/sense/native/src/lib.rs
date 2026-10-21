@@ -21,6 +21,7 @@ use variance_sense_instrument::digest;
 
 mod acquire;
 mod append_index;
+mod assigned_object;
 mod batch;
 mod case_fold;
 mod case_id;

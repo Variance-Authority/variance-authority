@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{Program, Statement};
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
 use serde::Serialize;
@@ -299,6 +300,26 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             });
         }
     }
+    // An object the module hands out whole exports each key it spells.
+    for statement in &parsed.program.body {
+        let Some(object) = crate::assigned_object::assigned(statement) else { continue };
+        let at = oxc_span::GetSpan::span(statement);
+        for key in crate::assigned_object::keys(object) {
+            let local = key.local.map(|it| it.name.to_string());
+            let tags = roles.of(at.start, local.as_deref());
+            exports.push(Export {
+                exported: Some(key.name),
+                local,
+                from: None,
+                imported: None,
+                type_only: false,
+                line: lines.at(at.start),
+                signature: Some(harvest.span(at)),
+                doc: harvest.doc(at.start),
+                tags,
+            });
+        }
+    }
     requests.extend(republished.into_iter().map(|group| Request {
         value: group.value,
         kind: if group.only_types {
@@ -312,7 +333,10 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     }));
 
     let mut reasons = Vec::new();
-    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests, !record.dynamic_imports.is_empty());
+    // One scope tree serves every reader that resolves a name by scope.
+    let built = SemanticBuilder::new().build(&parsed.program);
+    let scoping = built.semantic.scoping();
+    let (members, loads) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);
@@ -342,11 +366,12 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         members,
         member_declarations: member_declarations_in(&parsed.program, &lines),
         member_uses: member_uses_in(&parsed.program, &lines),
-        own_uses: own_uses_in(&parsed.program, &lines),
+        own_uses: own_uses_in(&parsed.program, scoping, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
         doc: harvest.module_doc,
     };
+    drop(built);
     (read, parsed.program)
 }
 
@@ -385,3 +410,7 @@ fn source_name(name: &ExportImportName<'_>) -> Option<String> {
 #[cfg(test)]
 #[path = "read_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "read_objects_tests.rs"]
+mod objects_tests;

@@ -182,8 +182,6 @@ fn a_destructured_import_call_takes_each_name_it_destructures() {
             // module in a result: either holds it whole where the walk cannot follow.
             ("./after-spread", "*"),
             ("./settled", "*"),
-            // The cast's `typeof import('./cast')` is a type that holds the module whole.
-            ("./cast", "*"),
         ]
             .map(|(value, name)| (value.to_owned(), name.to_owned()))
     );
@@ -242,8 +240,6 @@ fn a_name_read_off_the_default_of_an_import_call_is_read_through_default() {
             off("./held", "e", true),
             off("./cast", "default", false),
             off("./cast", "f", true),
-            // The cast's `typeof import('./cast')` is a type that holds the module whole.
-            off("./cast", "*", false),
         ]
     );
 }

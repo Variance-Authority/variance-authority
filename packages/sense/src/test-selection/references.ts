@@ -31,7 +31,7 @@ export interface FileReferences {
   /**
    * Every value name the file exports, `default` included. Absent when an
    * `export *` leaves the set to another file, the file exports nothing as a
-   * module does (`module.exports` is not read), or its exports were not read.
+   * module does, or its exports were not read.
    */
   readonly exports?: readonly string[];
 }
@@ -83,7 +83,7 @@ function exportsOf(file: string, text: string): readonly string[] | undefined {
     return undefined;
   }
   const values = (read.exports ?? []).filter((entry) => !entry.type);
-  // A file with no module export may publish through `module.exports`, which the reader does not list.
+  // A file with no module export may publish through CommonJS in a shape the reader does not list.
   if (values.length === 0 || values.some((entry) => entry.exported === undefined)) return undefined;
   const types = new Set((read.symbols ?? []).filter(({ kind }) => kind === 'interface' || kind === 'type').map(({ name }) => name));
   const names = [...new Set(values.flatMap(({ exported, local }) => (local !== undefined && types.has(local) ? [] : [exported!])))];
