@@ -395,6 +395,16 @@ story when the code does not answer your question:
   and [compare the readings](#compare-readings-of-one-test).
 - **One test passes and another fails**, with a flag on and off, or as two
   users. Record both and [compare the tests](#why-does-one-test-pass-and-another-fail).
+- **You need to know where an object went.** A theme, a store or a config
+  object is passed down through providers and wrappers, and the source shows
+  every place it could come from. The story shows
+  [what each function was handed](#what-each-function-was-handed) as a ref, so
+  the steps handed the same ref are the path that one object took. The first
+  step handed a different ref where you expected the same one is where the
+  replacement arrived. The story does not show what made it; when it is a
+  module's top-level binding, the module's `» holds` line names it. What a
+  function returns is not shown either, so a value read with `useContext` or a
+  hook appears only once the component hands it on, as a prop or an argument.
 - **You hand one test to an agent to fix or extend.** The story gives it the
   steps in order, each with its file and lines, so it reads those and not the whole package.
 

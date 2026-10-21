@@ -5,6 +5,7 @@
 > Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 This package is where those approved images sit. It gives you two backends —
 a plain directory, and a directory whose images are tracked by git-LFS — plus

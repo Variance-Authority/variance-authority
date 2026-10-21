@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -39,9 +39,10 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * Every package a release publishes, and the version its manifest carries.
+ * Every package a release publishes, the version its manifest carries, and the
+ * directory it is published from, relative to the root.
  *
- * Two directories, because the three `sense-<platform>` packages live under
+ * Two directories, because the four `sense-<platform>` packages live under
  * `packages/sense/npm/` rather than beside their siblings — they are build
  * output with a manifest, and `sense` names them as optional dependencies. They
  * are published by the same `changeset publish` as everything else and were
@@ -65,7 +66,7 @@ export function publishable() {
     if (!existsSync(at)) continue;
     const manifest = JSON.parse(readFileSync(at, 'utf8'));
     if (manifest.private === true || manifest.name === undefined) continue;
-    found.push({ name: manifest.name, version: manifest.version });
+    found.push({ name: manifest.name, version: manifest.version, directory: relative(ROOT, dir) });
   }
   return found.sort((one, other) => one.name.localeCompare(other.name));
 }

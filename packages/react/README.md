@@ -5,6 +5,7 @@
 > Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What you get
 

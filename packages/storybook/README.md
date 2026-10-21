@@ -5,6 +5,7 @@
 > Storybook index parsing, subject planning and a host-neutral preview driver.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is, and whether you want it
 
