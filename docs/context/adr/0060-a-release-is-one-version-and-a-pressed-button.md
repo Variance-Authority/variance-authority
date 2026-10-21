@@ -103,7 +103,10 @@ it is a release whose acceptance test has not been taken yet.
 the registry already holds and publishes in dependency order, so an interrupted
 release is resumed by pressing the button again. The publish job refuses to start
 while an unversioned changeset sits on `main`, because that is the state in which
-the version it would publish understates what shipped.
+the version it would publish understates what shipped. Nor does it publish a
+commit that `check` has not passed as a push to `main`: the press waits for that
+run and reads its conclusion rather than running the suite again, so pressing
+once more costs a build and a publish, not another pass over every test.
 
 **A publish that skipped the build would ship empty tarballs.** `dist` is
 gitignored and no package declares `prepack`, so a build before the publish is
