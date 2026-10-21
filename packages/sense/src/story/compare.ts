@@ -281,7 +281,7 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
 
 /** Where the `then` of the `if` an arm belongs to starts, from the module's regions; nothing for any other region. */
 function ifLine(arm: string, regions: readonly Region[], at: readonly string[]): number | undefined {
-  const match = /\/if#\d+\/(then|else)$/.exec(arm);
+  const match = /[#/]if#\d+\/(then|else)$/.exec(arm);
   if (match === null) return undefined;
   const then = `${arm.slice(0, -match[1]!.length)}then`;
   const index = at.indexOf(then);

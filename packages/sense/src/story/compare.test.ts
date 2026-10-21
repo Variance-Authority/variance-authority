@@ -172,6 +172,25 @@ describe('two sides of a case', () => {
     ]);
   });
 
+  it('name an arm of an `if` at the top level by the line its `then` starts on', () => {
+    const regions: Region[] = [
+      { kind: 'module', name: '', path: 'module', startLine: 1, endLine: 9 },
+      { kind: 'branch', name: '', path: 'if#0/then', startLine: 3, endLine: 4 },
+      { kind: 'branch', name: '', path: 'if#0/else', startLine: 5, endLine: 6 },
+    ];
+    const boot = (visits: number[], stopped: boolean): Loaded => ({
+      story: { ...reading([], [], stopped).story, rows: [['src/boot.ts', 3]], visits: Int32Array.from(visits) },
+      files: ['src/boot.ts'],
+      regions: [regions],
+    });
+    const comparison = compareLoaded(ROOT, [passed(boot([0, 1], false), boot([0, 1], false)), threw(boot([0, 2], true), boot([0, 2], true))]);
+
+    expect(comparison.only.flatMap((only) => only.places.map(({ at, constructLine }) => ({ at, constructLine })))).toEqual([
+      { at: 'src/boot.ts#if#0/then', constructLine: 3 },
+      { at: 'src/boot.ts#if#0/else', constructLine: 3 },
+    ]);
+  });
+
   it('meet one region across two texts of its file, as a reading from before an edit meets one after it', () => {
     // The edit added a helper above `removeItem`: every ordinal after it moved,
     // and the module holds a region more, but the arm each side took is the
