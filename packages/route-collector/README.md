@@ -5,6 +5,7 @@
 > Turn pages your application already serves into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -290,6 +291,26 @@ subject should be something somebody signs off. A sitemap index is not followed:
 its own `<loc>` values are treated as pages, and links on pages are never
 crawled.
 
+## Leave a page out
+
+A sitemap lists every page a site publishes, and not every page is one you
+review as pixels: a long article, a changelog, a generated reference. Such a
+page changes on every prose edit and can be tens of thousands of pixels tall.
+Mark it on the page itself, with the reason as the value:
+
+```html
+<article data-variance-exclude="a markdown document: its change is reviewed as text">
+```
+
+The attribute can sit on any element of the document, inside the roots or not,
+and it applies to the whole page. Put it in the component that renders the kind
+of page — the layout every article uses — and a page added later leaves the run
+with no edit to the collector. The collector navigates, waits for `ready`, sees
+the attribute, and reads and photographs nothing. The run lists the page as
+`excluded`, with the reason the page gave, beside the subjects the plan left
+out; an excluded page never sends a run to review. A page that drops the
+attribute is photographed on the next run.
+
 ## Observe responsive layouts
 
 Use `widths` when each route must be evaluated at more than one breakpoint:
@@ -329,7 +350,6 @@ loudest first: `a11y`, `geometry`, `token`, `content`, `texture`.
 | `readyTimeoutMs` | A declared readiness marker legitimately needs longer. | `10000`. A timeout is reported, never replaced by a fallback capture. |
 | `loading` | A route's *fallback* is the state you intend to review. | Omitted. Id globs, matched against the subject id. |
 | `suspenseTimeoutMs` | A route legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
-| `hydrationTimeoutMs` | A server-rendered route takes React longer than two seconds to hydrate. | `2000`. `0` reads once. A route still hydrating is refused; one with no React root is collected with a `react-root-absent` warning. Not read while `wiring` is off. |
 | `headless` | You need to watch collection while debugging. | `true`. |
 | `network` | Asset bytes at stable URLs must affect render identity. | `true`. |
 | `portable` | The pixels will be made on a machine with no route to your asset origin. | `false`. Requires `network`; a resource that cannot be closed fails its route and names itself. |
@@ -342,17 +362,26 @@ loudest first: `a11y`, `geometry`, `token`, `content`, `texture`.
 
 ## Readiness and loading
 
-Before each route is read, the collector waits for React to hydrate it. A
-server-rendered route is on screen before React has committed it, and the
+Before each route is read, the collector waits for React to hydrate it, when
+React has not already. A server-rendered route is on screen before React has committed it, and the
 component behind a node can only be read after that commit. So the collector
 reads React's own record of each root on, above or under the selected roots,
-the `Document` included, and waits until every one has committed. A route
-React had not finished hydrating when `hydrationTimeoutMs` runs out is refused,
-as a route still showing a Suspense fallback is: an effect that runs after
+the `Document` included, and waits until every one has committed: while React
+has work it can do or effects to run, and, while it is stuck on a promise or
+no root is there yet, for as long as anything the page requested is still
+arriving. On a page React has not loaded on, only a script still arriving
+counts, because only a script brings a renderer, so a long poll on a page
+React does not render holds nothing. No clock ends the wait. A route
+React stops hydrating with nothing left arriving is refused at once, as a route
+still showing a Suspense fallback is: an effect that runs after
 hydration can paint a different image, so the same route would record one image
 on a slow run and another on a fast one. A route where no React root is found
 is collected with a `react-root-absent` warning, and a changed region on it
-names no component for that reason. With `wiring: false` the collector reads no components, waits for
+names no component for that reason; on a route React never loaded on, the
+warning says so. A route whose markup changed after its hydration commit
+carries a `hydration-changed-markup` warning that quotes the markup at that
+commit and the client's, and names the components that committed after
+hydrating. With `wiring: false` the collector reads no components, waits for
 nothing, and says nothing.
 
 Then it waits for every React Suspense boundary
@@ -511,6 +540,10 @@ console.log(routesFrom(xml));
   what you intend to review.
 - **Every route changes with shared chrome:** tighten `roots`; `body` explicitly
   includes headers, navigation, and overlays.
+- **A page is refused as too large to photograph:** a subject longer than 16,384
+  device pixels on either side is never captured and never clipped; the run
+  records it as failed, with its size, and exits `1`. Bound it with tighter `roots`, or
+  [leave the page out](#leave-a-page-out).
 - **Component names have no source lines:** configure `source.dirs` and preserve
   component names in the production bundle. That resolves a name to where the
   component is *declared* — one line however many times the component renders.
@@ -540,4 +573,4 @@ the collector.
 
 ---
 
-**[@variance-authority/route-collector](https://variance-authority.dev/reference/packages/route-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/route-collector](https://variance-authority.dev/reference/packages/route-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/route-collector) · MIT

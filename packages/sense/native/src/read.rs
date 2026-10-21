@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::Program;
+use oxc_ast::ast::{Program, Statement};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
@@ -12,6 +12,9 @@ use serde::Serialize;
 use crate::declarations::declarations;
 use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
+use crate::help_member_uses::{member_uses_in, MemberUse};
+use crate::help_own_uses::{own_uses_in, OwnUse};
+use crate::help_members::{member_declarations_in, MemberDeclaration};
 use crate::members::{members_and_loads_in, Member};
 use crate::mocks::{mocks_in, Mocks};
 use crate::source_size::{size_of, Size};
@@ -57,6 +60,12 @@ pub struct Request {
     pub kind: Kind,
     pub(crate) bindings: Vec<Binding>,
     pub(crate) line: u32,
+    /// An `export … from` group: what it binds it passes on, and takes for no
+    /// use of its own. Every `reexports` request is one, and a `type` one is
+    /// when `export type` writes it, which its kind alone cannot tell from
+    /// `import type`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) republishes: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -96,16 +105,28 @@ pub struct Read {
     pub(crate) mocks: Mocks,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) members: Vec<Member>,
+    /// Every member of an interface, a type literal or a class the module declares.
+    #[serde(rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) member_declarations: Vec<MemberDeclaration>,
+    /// Every use of a member through a value whose type the module writes.
+    #[serde(rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) member_uses: Vec<MemberUse>,
+    /// Every line that uses a name the module declares at its top level.
+    #[serde(rename = "ownUses", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) own_uses: Vec<OwnUse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) size: Option<Size>,
+    /// The module's own doc comment, inside its marks, as [`Harvest`] reads it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) doc: Option<TextSpan>,
 }
 
 pub(crate) struct Lines(Vec<usize>);
 
 impl Lines {
-    fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         let mut starts = vec![0];
         starts.extend(source.match_indices('\n').map(|(at, _)| at + 1));
         Self(starts)
@@ -144,6 +165,15 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     let record = &parsed.module_record;
     let lines = Lines::new(source);
     let mut harvest = Harvest::new(&parsed.program, source, &lines, symbols);
+    // A module's own top level is its alone; a script's is global, or handed
+    // out through `module.exports`, and `export =` hands out what it names,
+    // neither of which the record holds.
+    let assigned = parsed.program.body.iter().any(|statement| matches!(statement, Statement::TSExportAssignment(_)));
+    if record.has_module_syntax && !assigned {
+        for symbol in &mut harvest.symbols {
+            symbol.reach = Some("file");
+        }
+    }
     let roles = DeclaredRoles::new(&parsed.program, std::mem::take(&mut harvest.tagged));
     let mut requests = Vec::new();
     let mut imports: Vec<ImportGroup> = Vec::new();
@@ -203,6 +233,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: lines.at(group.at),
+        republishes: false,
     }));
 
     let mut entries: Vec<_> = record
@@ -277,16 +308,18 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: group.line,
+        republishes: true,
     }));
 
     let mut reasons = Vec::new();
-    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests);
+    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests, !record.dynamic_imports.is_empty());
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);
     if loads.unread_required > 0 {
         reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", loads.unread_required));
     }
+    requests.extend(loads.typed);
     let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
     requests.extend(depends.requests);
     if depends.pathless > 0 {
@@ -307,8 +340,12 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         declares: declarations(file, &parsed.program),
         mocks: mocks_in(source, &parsed.program),
         members,
+        member_declarations: member_declarations_in(&parsed.program, &lines),
+        member_uses: member_uses_in(&parsed.program, &lines),
+        own_uses: own_uses_in(&parsed.program, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
+        doc: harvest.module_doc,
     };
     (read, parsed.program)
 }

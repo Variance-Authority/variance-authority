@@ -93,6 +93,27 @@ describe('a browser run records what it executed', () => {
     });
   });
 
+  it('charges every drain of a reused page under the loads recipe with the modules the page already loaded', async () => {
+    // A page reused between stories evaluates a module once, so its mark runs
+    // for the first story alone; a later story that imports it runs nothing.
+    await inRoot(async (root) => {
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+      const transformed = testSelectionProbes({ root, mode: 'loads' }).transform.handler(SOURCE, module)!;
+
+      const page = createContext({});
+      runInContext(`{${executionCollectorSource('loads')}}`, page);
+      runInContext(transformed.code.replace(/\n;import "[^"]+";$/, ''), page);
+      const files = (call: string) =>
+        (JSON.parse(runInContext(`JSON.stringify(globalThis[${JSON.stringify(EXECUTION_GLOBAL)}].${call}() ?? null)`, page)) as ExecutionJournal | null)?.modules.map((entry) => entry.id.split('@')[0]);
+
+      expect(files('drain')).toEqual(['price.js']);
+      expect(files('drain')).toEqual(['price.js']);
+      files('reset');
+      expect(files('drain')).toEqual(['price.js']);
+    });
+  });
+
   it('records one row for a subject the run read twice', async () => {
     // A subject that is not trusted on the first read is read again, so an
     // unstable or changed one reaches the recorder twice under one owner. The
@@ -385,7 +406,7 @@ describe('a browser run records what it executed', () => {
         subjects: [{ owner: 'story:price--premium', journal }],
       });
 
-      await expect(recording).rejects.toThrow(new RegExp(`${coverageFile}.*delete it and run again`, 'su'));
+      await expect(recording).rejects.toThrow(new RegExp(`${coverageFile}.*It was written by another build, so it is left as it was and this run lays nothing over it; deleting it is the operator's\\.$`, 'su'));
       expect(await readFile(coverageFile, 'utf8')).toBe('half a copy of something else');
     });
   });

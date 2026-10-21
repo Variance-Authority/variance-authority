@@ -5,6 +5,7 @@
 > Turn a built or already-served Storybook into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -173,7 +174,7 @@ rendered by playwright-chromium (chromium@131, darwin/arm64, 1x)
 [changed] story:checkout--empty — Button: 1356 pixel(s) differ across 2 region(s) in Button
 [changed] story:checkout--one-item — Button: 1356 pixel(s) differ across 2 region(s) in Button
 
-not observed: 2 subject(s) — 0 the run could not see, 2 excluded by configuration, 0 not reached by this change
+not observed: 2 subject(s) — 0 the run could not see, 2 excluded on purpose, 0 not reached by this change
   [excluded] story:checkout--docs-only: excluded by tag `no-variance`
 ```
 
@@ -231,6 +232,16 @@ source and page-agent shapes.
 One navigation serves the whole suite rather than one navigation per story, and
 addon chrome stays outside the selected story root, so it never covers the
 subject document.
+
+A parallel run starts one Chromium. Each worker is another page in it, in one
+browser context with the first, so its preview boots from the HTTP cache rather
+than fetching the bundle again; the pages share cookies and storage, as stories
+in one preview already share a document. Across workers, what a story finds left
+behind depends on scheduling: which worker read which story before it decides the
+cookies, storage and service workers, msw's among them, that it meets. When you
+let the collector serve the build, it answers with `cache-control: immutable` so
+every asset stays cached for the run. A story read again to rule out its
+neighbours gets a browser of its own.
 
 ## Readiness and loading
 
@@ -444,6 +455,23 @@ the index names each row by where the story is declared — its file, its
 `title/name` — which is the coordinate a person reads in the sidebar and the one
 a diff touches.
 
+Each story's row also says where the browser spent it, timed by the page on its
+own clock rather than by the test driving it, under the phase names a test
+file's row uses. `prepare` is the document's start until the preview is ready:
+the navigation, the runtime, the project annotations and the index. A document
+pays it once, so only the first story read on it carries it, and a story the
+preview switched to reads 0, as the second test in one file pays no worker
+start. `collect` is importing the story's file and everything it loads, and then
+unmounting the story shown before it: Storybook does that in between and signals
+nothing for it. No file is imported before its first story comes up — the
+story's parameters are read from the file the preview loads to show it — so the
+first story of each file carries that file's import, and the stories after it
+read only the unmount. `cases` is the render, from loaders through the play function to
+`afterEach`, or to the phase it ended on when it errored or was aborted. Each
+width a story is read at is its own row, with its own figures; the widths share
+one visit on one page, so the first carries the import and the others are the
+same story shown again at another size.
+
 ## When integration fails
 
 - **The index cannot be read:** build Storybook first and check
@@ -482,4 +510,4 @@ navigation, mounting and readiness.
 
 ---
 
-**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/storybook-collector) · MIT

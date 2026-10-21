@@ -36,36 +36,35 @@ import {
   caseTwins,
   changedLines,
   coveringChange,
-  coveringTests,
   anyStopped,
   coveringTestsInFile,
   keepsCases,
-  ranWhileLoading,
-  stoppedBefore,
-  stateOf,
   recordedCommit,
   type CaseTwin,
   type CoveringChange,
   type CoveringRegion,
   type CoveringTest,
   type ExecutionTest,
+  type HeldLines,
   type LineRange,
   type ExecutionIndex,
   type RangeState,
 } from '@variance-authority/sense/test-selection';
-import type { Relations } from '@variance-authority/core/relate';
+import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
-import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
+import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
+import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import { unloadedFile, unreadPreconditions } from './covering-unloaded.js';
+import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { listedIn, namesAt, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { relationsFor } from './source-graph.js';
+import { coveringAt, countOf, fileGraph } from './covering-at.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
@@ -86,6 +85,12 @@ export interface StatedChange extends Omit<CoveringChange, 'regions'> {
   readonly regions: readonly StatedRegion[];
 }
 
+/** A line, a run of lines, or a recorded function or the scope that holds some. */
+export type CoveringTarget =
+  | { readonly line: number }
+  | { readonly lines: HeldLines }
+  | { readonly function: string };
+
 /** What was asked, and what the record said about it. */
 export interface Covering {
   /** The file the question named, absent when it named a diff. */
@@ -94,12 +99,31 @@ export interface Covering {
   readonly since?: string;
   /** Present when the question named a diff: one entry per changed file. */
   readonly changed?: readonly StatedChange[];
-  /** The line or function the question named, absent when it named neither. */
-  readonly target?: { readonly line: number } | { readonly function: string };
+  /** The line, run of lines or function the question named, in the text as it is now; absent when it named none. */
+  readonly target?: CoveringTarget;
+  /**
+   * `file` when an edit to every line the answer read charges the module's own
+   * region — a line only the module holds, or one that opens or closes a
+   * function the module encloses: the record says the module was loaded and
+   * nothing finer, so the cases are the ones that loaded the file.
+   */
+  readonly grain?: 'file';
+  /**
+   * Under a run of lines that also holds finer ones: the lines whose edit
+   * charges the module's own region, for which the cases are the ones that
+   * loaded the file. In the text as it is now.
+   */
+  readonly fileGrain?: readonly HeldLines[];
+  /** Under a run of lines: the lines no recorded region holds, which no case can be said to have run. In the text as it is now. */
+  readonly outside?: readonly HeldLines[];
+  /** Under a run of lines: the lines written since the recording, which no case has run. In the text as it is now. */
+  readonly written?: readonly HeldLines[];
   /** Present when the question named a line or a function. */
   readonly tests?: readonly CoveringTest[];
   /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */
   readonly files?: readonly CoveringFile[];
+  /** Under `--hops`, when no distance could be measured: why. */
+  readonly hopsGap?: string;
   /**
    * Present with `tests`, when it could be told: the cases that could have
    * reached the line or function and stopped before entering it. With no
@@ -118,13 +142,18 @@ export interface Covering {
    * change to it selects whole (`covering-unloaded.ts`).
    */
   readonly preconditionOf?: readonly string[];
+  /** With `preconditionOf`: whether the run loaded the file uninstrumented, or only the suite declares it (a native source no probe reaches). */
+  readonly held?: 'loaded' | 'declared';
+  /** With `preconditionOf`: how many test files the reading holds, so that every one of them is said as that. */
+  readonly among?: number;
   /**
    * Where the line numbers stand, when the file could be framed against the
    * snapshot: `recorded` when the held text is the one the suite ran over,
    * `mapped` when it differs and the recorded text was found, so every range is
    * carried to where it stands now, and `stale` when it differs and the
    * recorded text was not found — then no range is given, because none of them
-   * is a place in anything held. Absent when nothing held a digest to check.
+   * is a place in anything held, and `tests` names the cases that ran code in
+   * the file. Absent when nothing held a digest to check.
    */
   readonly frame?: 'recorded' | 'mapped' | 'stale';
   /** Where the index was read, so an empty answer can be checked against a path. */
@@ -151,6 +180,12 @@ export interface Covering {
     readonly of: number;
     readonly notes: readonly string[];
   };
+  /**
+   * Present when the record was cut under probes this build does not place:
+   * the answer is the record's, and this says what the difference leaves
+   * open, for the asked file when one was asked (`probes-gap.ts`).
+   */
+  readonly probes?: ProbesGap & { readonly cut?: CutGap; readonly note: string };
 }
 
 /**
@@ -180,27 +215,60 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     where = kept.where;
     return { index: kept.index, files: read.files, before: index };
   };
-  const answer = await ask(request, reader, (tests) => {
-    reached = tests;
-  });
+  let answer: Covering;
+  try {
+    answer = await ask(request, reader, (tests) => {
+      reached = tests;
+    });
+  } catch (error) {
+    // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
+    // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
+    if (!(error instanceof OperatorError) || !RECORD_SHAPED.has(error.kind ?? '')) throw error;
+    // The refusal is the answer; a record that cannot be found again only leaves it without a note.
+    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
+    if (from === undefined) throw error;
+    const probes = await gapOf(request, from, undefined);
+    if (probes === undefined) throw error;
+    throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
+  }
   // Twins and counts are read among every case the question reached before `--where` narrowed it.
   const listed = listedIn(answer);
   const twins = names === undefined ? undefined : caseTwins(listed, reached ?? listed, names);
-  if (where !== undefined) where = placesNoCase(answer) ? undefined : whereOver(where, listed, reached ?? listed, names);
+  if (where !== undefined) where = whereOver(where, listed, reached ?? listed, names);
   const motion = await motionFor(request, answer.from, scope, full);
-  const files = answer.tests === undefined || whole === undefined
-    ? undefined
-    : coveringFiles(answer.tests, whole, request.since === undefined && request.hops === true
-      ? await hopsToTests(request)
-      : undefined);
+  const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
+  const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
+  const probes = await gapOf(request, answer.from, whole);
   return {
     ...answer,
+    ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
+    ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
     ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
+}
+
+/** The refusals that say what the record holds of the file, and so are answered from it with its gap beside them. */
+const RECORD_SHAPED: ReadonlySet<string> = new Set(['older', 'unloaded']);
+
+/**
+ * The probes gap of the record `from`, with, for one asked file the record
+ * holds, how its regions there stand against this build's cut.
+ */
+async function gapOf(request: ParsedCovering, from: string, index: ExecutionIndex | undefined): Promise<Covering['probes']> {
+  const gap = await probesGap(from, request.root, request.suite);
+  if (gap === undefined) return undefined;
+  // `covering --file` is where a note sends a reader for one file's cut, so when it compared none it says why, not where to ask.
+  const module = index?.modules.find((candidate) => candidate.file === request.file);
+  const cut: CutGap | undefined = request.file === undefined
+    ? undefined
+    : module === undefined
+      ? { file: request.file, unread: 'the record holds no region of it' }
+      : await cutGap(request.root, await recordedCommit(from), module.file, module.blocks);
+  return { ...gap, ...(cut === undefined ? {} : { cut }), note: probesNote(gap, cut, '--execution') };
 }
 
 /**
@@ -252,9 +320,20 @@ async function ask(
     const asked = request.cases === undefined && request.where === undefined
       ? undefined
       : new Set(index.tests.map((test) => test.file));
-    if (loaded !== undefined) return { file, preconditionOf: asked === undefined ? loaded : loaded.filter((test) => asked.has(test)), from };
+    if (loaded !== undefined) {
+      const preconditionOf = asked === undefined ? loaded : loaded.filter((test) => asked.has(test));
+      return { file, preconditionOf, held: held?.loaded.has(file) === true ? 'loaded' : 'declared', among: asked?.size ?? held?.tests ?? 0, from };
+    }
     // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
+    // Git says whether the commit the record was made at held the file: a
+    // record older than the file is not a run that never loaded it.
+    const at = record !== undefined && from.startsWith(record) ? await recordedCommit(record) : undefined;
+    if (at !== undefined) {
+      const then = existedAt(request.root, at, file);
+      if (then === false) throw addedSince(file, from, at);
+      if (then !== true) throw unreadCommit(file, from, at, then.unread);
+    }
     throw unloadedFile(file, from, files.length);
   }
 
@@ -262,78 +341,11 @@ async function ask(
   const placement = await placementFor(request, from);
   const frame = placement === undefined ? {} : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
-    // No range is a place in the held text, so none is given: painted at its
-    // recorded numbers it would land on whatever code holds them now.
-    return { file, ...frame, from, ...(placement.at === undefined ? {} : { at: placement.at }) };
+    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, near, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
-  if (request.line !== undefined) {
-    const held = request.line;
-    const line = placement === undefined ? held : placement.recordedLine(held);
-    if (line === undefined) {
-      throw new OperatorError(
-        `line ${held} of \`${file}\` was written since the recording, so the record has nothing to say ` +
-          'about it yet: no case has run it. Run the suite to record it.',
-      );
-    }
-    if (!module.blocks.some((block) => block.source && block.startLine <= line && line <= block.endLine)) {
-      throw new OperatorError(
-        `line ${line} of \`${file}\` is outside every recorded region. A blank line, an ` +
-          'import or a type declaration has no region to be covered, so there is no list to ' +
-          'print — which again is not the same as nobody covering it.',
-      );
-    }
-    const target = { file, line };
-    const graph = await loadersFor(before ?? index, target, request.root);
-    const found = coveringTests(index, target, graph);
-    const kept = near.whole ? found : found.filter(near.keep);
-    const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
-    if (before !== undefined) reach?.(reached);
-    const stopped = stoppedBefore(before ?? index, target, graph);
-    return {
-      file: file,
-      target: { line: held },
-      tests: kept,
-      ...(stopped === undefined ? {} : { stopped }),
-      ...stateFor(reached, stopped),
-      ...frame,
-      from,
-      ...countOf(near, kept.length, found.length),
-    };
-  }
-
-  if (request.function !== undefined) {
-    const named = request.function;
-    if (!module.blocks.some((block) =>
-      block.source && block.kind === 'function' && block.name === named,
-    )) {
-      const functions = module.blocks
-        .filter((block) => block.source && block.kind === 'function')
-        .map((block) => block.name);
-      throw new OperatorError(
-        `\`${named}\` is not a recorded function of \`${file}\`. ` +
-          (functions.length === 0
-            ? 'That file has no recorded functions at all.'
-            : `It has ${functions.join(', ')}.`),
-      );
-    }
-    const target = { file, function: named };
-    const graph = await loadersFor(before ?? index, target, request.root);
-    const found = coveringTests(index, target, graph);
-    const kept = near.whole ? found : found.filter(near.keep);
-    const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
-    if (before !== undefined) reach?.(reached);
-    const stopped = stoppedBefore(before ?? index, target, graph);
-    return {
-      file: file,
-      target: { function: named },
-      tests: kept,
-      ...(stopped === undefined ? {} : { stopped }),
-      ...stateFor(reached, stopped),
-      from,
-      ...countOf(near, kept.length, found.length),
-    };
-  }
+  const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near }, reach);
+  if (at !== undefined) return at;
 
   const graph = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
     ? { relations: await fileGraph(request.root) }
@@ -356,12 +368,6 @@ async function ask(
   };
 }
 
-/** The state of one line or function, from the cases that entered it and those that stopped, before `--where`. */
-function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
-  const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
-  return state === undefined ? {} : { state };
-}
-
 /** A changed region as `--where` lists it, stated, with the cases that stopped, over every case that reached it. */
 function stated(listed: CoveringRegion, reached: CoveringRegion): StatedRegion {
   const { stopped: _, ...region } = listed;
@@ -371,15 +377,6 @@ function stated(listed: CoveringRegion, reached: CoveringRegion): StatedRegion {
     ...(reached.stopped === undefined ? {} : { stopped: reached.stopped }),
     ...(state === undefined ? {} : { state }),
   };
-}
-
-/** The narrowing's own report, when there was a narrowing. */
-function countOf(
-  near: Narrowing,
-  kept: number,
-  of: number,
-): Pick<Covering, 'narrowed'> {
-  return near.whole ? {} : { narrowed: { kept, of, notes: near.notes } };
 }
 
 /**
@@ -455,26 +452,4 @@ async function readIndex(
         'a run whose test files ran in a page writes none, and knows which files a test covered but not which case.',
     );
   }
-}
-
-/**
- * The file graph, read only when a region the question landed on ran while its
- * module evaluated, or when a recorded case stopped and a hole has to be told
- * from a region nobody walked.
- *
- * The record credits no case with that: a module evaluates once per realm, for
- * whichever case imported it first. The graph names every case whose file
- * imports the module, and rules out one that mocked it. A question about a
- * region only a case called into never pays for the scan.
- */
-async function loadersFor(
-  index: ExecutionIndex,
-  target: Parameters<typeof ranWhileLoading>[1],
-  root: string,
-): Promise<{ readonly relations?: Relations }> {
-  return ranWhileLoading(index, target) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
-}
-
-function fileGraph(root: string): Promise<Relations> {
-  return relationsFor(root, ['.'], [], []);
 }

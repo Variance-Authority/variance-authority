@@ -73,6 +73,8 @@ export interface SetupShim {
   readonly story?: string | undefined;
   /** The checkout the record names files against; given, the case scope keeps Eyes journals. */
   readonly root?: string;
+  /** `false` keeps one bucket for the file and no case scope or frame: a run under `loads`. */
+  readonly cases?: boolean;
 }
 
 export function setupSource(
@@ -85,18 +87,16 @@ import { afterAll, beforeAll, expect } from ${JSON.stringify(shim.runner ?? 'vit
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
-    shim.continuations === true
-  }, ${
-    shim.story === undefined
-      ? 'undefined'
-      : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
-  }, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)});
+const senseRequire = createRequire(${JSON.stringify(HERE)});
+const journalFormat = senseRequire('./journal-format.cjs');
+const collector = ${shim.cases === false ? `senseRequire('./collectors.cjs').flat(globalThis)` : `senseRequire('./collectors.cjs').scoped(
+  globalThis, ${shim.continuations === true}, ${shim.story === undefined
+    ? 'undefined'
+    : `senseRequire('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`}, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)})`};
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
-${shim.scope ?? ''}
+${shim.cases === false ? '' : shim.scope ?? ''}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the
@@ -153,6 +153,7 @@ export const BROWSER_JOURNAL = 'varianceAuthority';
  * collector keeps it: the drain is always the realm's own.
  */
 export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+  // FIXME: Vitest is the default runner of a runner-neutral file; the caller names it (No runner is the default).
   return `
 import { afterAll, beforeAll } from ${JSON.stringify(runner)};
 {${executionCollectorSource(mode)}}
@@ -281,6 +282,16 @@ const tree = (task) => ({
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
+// A file's phases, under the record's names, as the runner measured them; the
+// reader keeps the ones that are durations. Its cases are the file's own result.
+const phases = (file) => ({
+  prepare: file.prepareDuration,
+  environment: file.environmentLoad,
+  setup: file.setupDuration,
+  collect: file.collectDuration,
+  cases: file.result?.duration,
+});
+
 const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
 // The declaration path under the file, which is what a reader recognises a
 // case by. The runner's own \`test.id\` is unique and is carried beside it,
@@ -354,7 +365,7 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, phases: phases(file), ...tree(file) }))),
     );
   }
 

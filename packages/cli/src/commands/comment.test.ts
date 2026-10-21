@@ -41,6 +41,7 @@ function tokenChange(subjects: number): CliRunReport {
       verdict: 'changed' as const,
       because: '1530 pixel(s) differ across 3 region(s)',
       changedPixels: 1530,
+      images: { after: `story_s${index}.after.png` },
       regions: [
         {
           x: 4,
@@ -403,7 +404,7 @@ describe('renderComment', () => {
     });
 
     expect(body).toContain('`story:chart` — the story never became ready');
-    expect(body).toContain('1 subject excluded by configuration and not listed');
+    expect(body).toContain('1 subject excluded on purpose and not listed');
     expect(body).not.toContain('story:docs');
   });
 

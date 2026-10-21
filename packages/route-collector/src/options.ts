@@ -39,6 +39,10 @@ export interface RouteCollectorOptions {
    * A sitemap *index* is not followed. Fetching what a fetched document points at
    * is a crawler, and a crawler is a different product with a different failure
    * mode.
+   *
+   * A listed page that is not reviewed as pixels leaves the run from the page
+   * itself: `data-variance-exclude="<reason>"` on any element. The page is
+   * reported as `excluded` with that reason, and nothing is read from it.
    */
   readonly sitemap?: string;
 
@@ -223,21 +227,6 @@ export interface RouteCollectorOptions {
    * are actually waiting: a subtree with no boundary returns on the first read.
    */
   readonly suspenseTimeoutMs?: number;
-
-  /**
-   * Milliseconds to wait for React to hydrate a route before reading its
-   * components. Defaults to 2000.
-   *
-   * A server-rendered route is on screen before React owns it, and the
-   * component behind a node can only be read once React has committed the
-   * root it belongs to, and an effect that runs after hydration can paint a
-   * different image. A route that has not committed by then is refused, with
-   * the roots still hydrating counted. A route with no React root is collected
-   * with a `react-root-absent` diagnostic. Paid only while a root is still
-   * hydrating, or by a route with no root at all; `wiring: false` skips the
-   * wait.
-   */
-  readonly hydrationTimeoutMs?: number;
 
   /**
    * Record what each page executed and showed, into the shared test-selection

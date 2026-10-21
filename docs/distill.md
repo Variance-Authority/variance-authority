@@ -58,8 +58,9 @@ stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
 whole file: what it loaded, and how many of its cases entered each module
 ([below](#imports-a-file-loads-for-few-of-its-cases)). Name neither, and Distill
 reads every test file, or with `--from <dir>` every one under a folder or a
-package, and ranks the imports they load for nothing
-([below](#imports-a-folder-a-suite-or-the-repository-loads-for-nothing)).
+package, says how much of their time went to loading rather than to the tests
+([below](#where-a-folders-test-time-went)), and ranks the imports they load for
+nothing ([below](#imports-a-folder-a-suite-or-the-repository-loads-for-nothing)).
 
 Distill reads the record your last recorded run wrote, `coverage.bin`, and finds
 it the way [test selection](selecting.md) does. With more than one declared
@@ -220,7 +221,7 @@ it, and `unentered` names the declarations the test never reached.
 Loaded but not covered: 1 module(s).
   src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
     never covered: HeavyChart (lines 5-8)
-    substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
+    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it. Stand in for what it exports: an automock loads the module to read its shape
 ```
 
 This is a stronger reading than an opportunity and still not a verdict. Mocking
@@ -279,7 +280,11 @@ each group, ten of those only some cases entered, and sums the rest on one line;
 with its cause.
 
 A module listed is evidence; the fix is at its import. Delete that
-import, or mock it with a factory, when nothing behind it is used; when part
+import, or mock it with a factory, when nothing behind it is used. Where the
+test file's subject reads the import only in functions no case ran, the reading
+proposes the mock: the module, the file that would stop loading it, and every value it
+exports for a stand-in. It names no runner's call; write the mock the way your
+runner mocks a module. When part
 of it is, import past the barrel inside its own package, or from an entry its
 package declares; move it to the code that uses it when only some
 cases do. Which case calls a module does not change what the file loads: only
@@ -308,37 +313,78 @@ without. Running the file again records a row the reading can use.
 As with every finding here, rerun the file after the change: a top level can
 register something a case depends on.
 
-## Imports a folder, a suite or the repository loads for nothing
+## Where a folder's test time went
 
-One test file shows you what its own imports cost. The import worth removing
-first is usually one many test files share: a barrel that puts a hundred unused
-lines into forty test files costs four thousand, paid once in each. Name no case
-and no file, and Distill reads every test file on its own, as `--file` would,
-then gathers what each loaded for nothing under the import that brought it in:
+Before you cut an import, find out whether loading is what your tests cost.
+Name no case and no file, and Distill opens with the time the runner measured
+for each test file under the scope, split into what is part of a test and what
+is not:
 
 ```bash
 variance distill --from packages/distill
 ```
 
 ```text
-packages/distill in suite unit: 4 test file(s), each read.
+packages/distill in suite unit: 6 test file(s), each read.
 
-Loaded, and entered by no case of the test file that loaded it: 63 module load(s), 12748 line(s).
-  packages/distill/src/own.ts imports packages/core/src/relate/index.ts: 11 module(s) in 2 test file(s), 4540 line(s)
-  packages/core/src/relate/index.ts imports packages/core/src/relate/merkle.ts: 4 module(s) in 2 test file(s), 1490 line(s)
+Where the time went, as the runner timed 6 of the 6 test file(s): 3964 ms.
+  prepare, the worker readying the file: 242 ms, 6%
+  environment: 0 ms, 0%
+  setup files: 119 ms, 3%
+  collect, importing the test file and everything it loads: 3447 ms, 87%
+  cases: 156 ms, 4%
+Loading took longer than the cases in 6 test file(s): 3808 ms against 156 ms.
+  packages/distill/src/charge.test.ts: 635 ms loading, 34 ms in its cases
+  packages/distill/src/file.test.ts: 635 ms loading, 24 ms in its cases
+  packages/distill/src/mocks.test.ts: 635 ms loading, 14 ms in its cases
+  packages/distill/src/own.test.ts: 635 ms loading, 33 ms in its cases
+  packages/distill/src/scope.test.ts: 635 ms loading, 35 ms in its cases
+  and 1 more
+```
+
+Only `cases` is your tests: the cases and their hooks. `collect` is importing
+the test file and running its top level, which is where its modules load.
+"Loading" in the last lines is everything before the first case: `prepare`,
+`environment`, `setup` and `collect` summed. Vitest reports all five
+phases. Jest reports the environment and the setup files, and the recording
+marks the moment jest-circus starts each file's run, so a Jest file has every phase
+but `prepare`. A phase no file reported is left out rather than shown as zero,
+and a file without both a `collect` and a `cases` time is left out of every
+sum, which is why the head says how many of the files were timed.
+
+A test file whose loading took longer than its cases spends most of its time
+before it tests anything, and usually in what it imports. Each one is named, the longest loading first, the line
+before the names sums them, and the next reading says which imports those are.
+Files that load side by side wait on one another's imports, so in a parallel
+run their `collect` times come out close together, as they do above.
+
+## Imports a folder, a suite or the repository loads for nothing
+
+One test file shows you what its own imports cost. The import worth removing
+first is usually one many test files share: a barrel that puts a hundred unused
+lines into forty test files costs four thousand, paid once in each. The same
+command reads every test file on its own, as `--file` would, and after the time
+gathers what each loaded for nothing under the import that brought it in:
+
+```text
+Loaded, and entered by no case of the test file that loaded it: 951 module load(s), 198296 line(s).
+  packages/sense/src/test-selection/kept-install.ts imports packages/sense/src/lock/read.ts: 6 module(s) in 6 test file(s), 4476 line(s)
+  packages/sense/src/test-selection/index.ts imports packages/sense/src/test-selection/select.ts: 3 module(s) in 6 test file(s), 4218 line(s)
   ...
-  No one import brings these in alone: 7 module(s) in 4 test file(s), 3797 line(s)
+  No one import brings these in alone: 103 module(s) in 6 test file(s), 119268 line(s)
 ```
 
 An import's lines count once in every test file it reaches, because each file
-evaluates its imports anew. Only what no case of the loading file entered is
-gathered; a module some cases used belongs to the file's own reading. The text
-names the ten heaviest imports and sums the rest, then the modules no one import
-brings in alone and those no static import reaches, as a file's reading names
-them ([above](#imports-a-file-loads-for-few-of-its-cases)); `--format json`
-lists every import with its modules and the test files it reaches. Lines are
-the size of what loaded, not its time. The fix is at the import named, as it
-is for one file, and every test file the import reaches stops paying.
+evaluates its imports anew, and so does a module: 951 module loads is the sum
+over the six files. Only what no case of the loading file entered is gathered;
+a module some cases used belongs to the file's own reading. The text names the
+ten heaviest imports and sums the rest, then the modules no one import brings
+in alone and those no static import reaches, as a file's reading names them
+([above](#imports-a-file-loads-for-few-of-its-cases)); `--format json` lists
+every import with its modules and the test files it reaches. Lines are the size
+of what loaded, not its time: the time is the `collect` above, measured per
+file and not per import. The fix is at the import named, as it is for one file,
+and every test file the import reaches stops paying.
 
 You choose the scope:
 

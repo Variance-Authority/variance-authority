@@ -5,13 +5,13 @@
  * A record holds only the modules some suite loaded, so a file nothing loaded is
  * in no record, and a ratio over the records alone can be 100% over an
  * application half of whose files never ran. The source index holds every file,
- * with the size its parse stored ([`source-scope.ts`](../../../sense/src/source-scope.ts)),
+ * with the size its parse stored ([`source-scope.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/source-scope.ts)),
  * so the files in scope that no suite recorded are listed here with their lines
  * and the regions the instrument would cut from them, and the ratio is printed
  * a second time over those regions too.
  *
  * *Recorded*, not *loaded*: a seam can load a module it leaves uninstrumented —
- * this repository's own probe runtime is one ([`tools/page-side.mjs`](../../../../tools/page-side.mjs)) —
+ * this repository's own probe runtime is one ([`tools/page-side.mjs`](https://github.com/Variance-Authority/variance-authority/blob/main/tools/page-side.mjs)) —
  * and the record cannot tell that module from one nothing imported.
  *
  * Which files are in scope is `--from`'s: what the directory's declared entry
@@ -20,7 +20,7 @@
  * A file the harness loads is not one nothing loaded. Every recording names
  * what each test rests on besides the modules it instrumented — the runner's
  * config and the local modules that config imports — and what those reach along
- * the imports is before reach ([`before.ts`](../../../core/src/relate/before.ts)):
+ * the imports is before reach ([`before.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/relate/before.ts)):
  * it ran under every test, and no test's record holds a region of it. Before
  * reach is counted per scope: only the files of it that the scope's own entry
  * points reach, so the runner's config, which no application imports, is in
@@ -32,7 +32,7 @@
  * counted on its own, so a monorepo reads one line per application, and the
  * source is what those entry points reach together: a file none of them reaches
  * is not counted anywhere. `--packages` counts every package the same way, as
- * the package graph names them ([`orient.ts`](../../../sense/src/orient.ts)),
+ * the package graph names them ([`orient.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/orient.ts)),
  * less every one the root manifest's `workspaces` leaves out: a named manifest
  * under a test's fixtures is a package to the graph and not one of this
  * repository's. Each is counted twice — its own files, and

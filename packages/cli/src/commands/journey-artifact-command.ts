@@ -32,7 +32,7 @@ export async function runJourneyArtifactCommand(
     let result: CombinedRecord;
     try {
       try {
-        result = combineRecords(parsed.shards, staged);
+        result = combineRecords(parsed.shards, staged, process.cwd());
       } catch (error) {
         throw new OperatorError(messageOf(error), { cause: error });
       }

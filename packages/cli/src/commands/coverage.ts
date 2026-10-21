@@ -34,7 +34,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
-import { diffFromBase } from './base-diff.js';
+import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
@@ -155,7 +155,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       base: {
         from: found.from,
         commit,
-        change: coverageChange(base, index, { diff }),
+        change: coverageChange(base, index, { diff, ...(await carriedOver(record, request.root)) }),
       },
     });
   }
@@ -275,7 +275,7 @@ async function changeNoSuiteLoads(
 
 /** Whether a suite's count is the base's, part for part. */
 function unchanged(change: SuiteChange): boolean {
-  return change.gained === 0 && change.lost === 0 && change.hidden === 0 && change.thinned === 0 &&
+  return change.gained === 0 && change.lost === 0 && change.hidden === 0 && change.thinned === 0 && change.unmeasured === 0 &&
     change.written.regions === 0 && change.deleted.regions === 0 &&
     change.arrived.files.length === 0 && change.departed.files.length === 0 &&
     change.testFiles.every((file) => file.entered.length === 0 && file.left.length === 0);

@@ -39,5 +39,11 @@ export default withTestSelection(
       ['<rootDir>/test/reporter.cjs', { mark: resolve(dirname(coverageFile), 'user-reporter.txt') }],
     ],
   },
-  { coverageFile, preconditions: ['jest.config.mjs'], ...selection },
+  {
+    coverageFile,
+    preconditions: ['jest.config.mjs'],
+    // The recipe, when the test that runs this fixture names one.
+    ...(process.env['FIXTURE_MODE'] === undefined ? {} : { mode: process.env['FIXTURE_MODE'] }),
+    ...selection,
+  },
 );

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use oxc_ast::ast::Program;
+use oxc_ast::ast::{Program, Statement};
 use oxc_span::Span;
 use serde::Serialize;
 
@@ -24,6 +24,29 @@ pub struct SourceSymbol {
     pub signature: Option<TextSpan>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<TextSpan>,
+    /// Who can name it when no export of its file binds it, as the reader of
+    /// its language knows: one of [`REACHES`]; absent when the reader cannot
+    /// tell, as for a script, whose top level is global or handed out through
+    /// `module.exports`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reach: Option<&'static str>,
+}
+
+/// Every reach a symbol records, in the order the index stores them, from 1:
+/// its file alone (an ES module, a Swift or Kotlin `private`), its module and
+/// the modules inside it (a Rust item that is not `pub`), and any module that
+/// imports it by name, kept out of `from … import *` by a leading underscore or
+/// by `__all__` (Python).
+pub const REACHES: [&str; 4] = ["file", "module", "underscore", "all"];
+
+/// A reach as the index stores it; 0 is none.
+pub fn reach_code(reach: Option<&str>) -> u8 {
+    reach.and_then(|reach| REACHES.iter().position(|known| *known == reach)).map_or(0, |at| at as u8 + 1)
+}
+
+/// The reach the index stored as `code`.
+pub fn reach_of(code: u8) -> Option<&'static str> {
+    code.checked_sub(1).and_then(|at| REACHES.get(at as usize)).copied()
 }
 
 struct Offsets {
@@ -67,6 +90,12 @@ pub struct Harvest {
     docs: HashMap<u32, TextSpan>,
     /// The role tags a doc declares, by where its subject starts; only docs that declare one.
     pub tagged: HashMap<u32, u8>,
+    /// The module's own doc comment, inside its marks: the first `/**` that
+    /// ends before the first statement that is not an import and documents no
+    /// such statement. A doc above an import is the module's, since an import
+    /// is not documented. A leading licence header written as `/**` is read as
+    /// the module's doc too: no tag is asked for, unlike TypeDoc's `@module`.
+    pub module_doc: Option<TextSpan>,
     offsets: Offsets,
 }
 
@@ -75,6 +104,12 @@ impl Harvest {
         let offsets = Offsets::new(source);
         let mut docs = HashMap::new();
         let mut tagged = HashMap::new();
+        let first = program
+            .body
+            .iter()
+            .find(|statement| !matches!(statement, Statement::ImportDeclaration(_)))
+            .map(|statement| oxc_span::GetSpan::span(statement).start);
+        let mut module_doc = None;
         for comment in &program.comments {
             let start = comment.span.start as usize;
             if !comment.is_block()
@@ -98,16 +133,18 @@ impl Harvest {
             if tags != 0 {
                 tagged.insert(subject as u32, tags);
             }
-            docs.insert(
-                subject as u32,
-                offsets.span(Span::new(comment.span.start + 2, comment.span.end - 2)),
-            );
+            let doc = offsets.span(Span::new(comment.span.start + 2, comment.span.end - 2));
+            if module_doc.is_none() && first.is_none_or(|first| comment.span.end <= first && subject as u32 != first) {
+                module_doc = Some(doc);
+            }
+            docs.insert(subject as u32, doc);
         }
 
         let mut harvest = Self {
             symbols: Vec::new(),
             docs,
             tagged,
+            module_doc,
             offsets,
         };
         if symbols {
@@ -145,6 +182,7 @@ impl Harvest {
             line,
             signature: signature.map(|span| self.span(span)),
             doc,
+            reach: None,
         });
     }
 }

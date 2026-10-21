@@ -188,13 +188,14 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview }] = await Promise.all([
+      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
         import('./review-text.js'),
       ]);
       if (parsed.fromRun !== undefined) {
-        streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
+        const kept = await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root });
+        await writePieces(reviewPieces(kept, parsed.format), streams);
         return EXIT_CLEAN;
       }
       if (parsed.format === 'handover') {
@@ -205,12 +206,10 @@ export async function answerConfigless(
       const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
-        // FIXME: review.json is unbounded — every moved region carries its cases in full, and a change that moves
-        // most of a suite's regions writes hundreds of megabytes (430 MB on a pull request's CI run).
-        await writeFile(join(parsed.out, 'review.json'), formatReview(answer, 'json'));
+        await writeFile(join(parsed.out, 'review.json'), reviewPieces(answer, 'json'));
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
-      streams.out(formatReview(answer, parsed.format));
+      await writePieces(reviewPieces(answer, parsed.format), streams);
       return EXIT_CLEAN;
     }
 
@@ -228,11 +227,20 @@ export async function answerConfigless(
     // same reason: it publishes what they read, and a pipeline that runs them
     // may have configured this tool for nothing else.
     case 'index': {
-      const { followUpsOutput, indexOutput } = await import('./index-command.js');
-      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
+      const [{ followUpsOutput, indexOutput }, { stepTicker }] = await Promise.all([
+        import('./index-command.js'),
+        import('./step-progress.js'),
+      ]);
+      // On stderr, beside the waiting lines: stdout is the answer a pipeline reads.
+      const ticker = stepTicker((text) => streams.err(text), process.stderr.isTTY === true);
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress };
       const waiting = (text: string): void => streams.err(text);
-      if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
-      else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      try {
+        if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
+        else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      } finally {
+        ticker.done();
+      }
       return EXIT_CLEAN;
     }
 

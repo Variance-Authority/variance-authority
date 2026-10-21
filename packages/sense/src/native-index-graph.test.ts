@@ -13,6 +13,7 @@ import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
 import { LARGEST_FILE } from './scan.js';
 import { openSourceIndexFile, type IndexedRecord, type StoredSourceIndex } from './source-index-file.js';
+import { decodeSourceIndex } from './source-index-format.js';
 import { gitTreeOf } from './tree.js';
 
 /**
@@ -104,7 +105,7 @@ describe('a cold closure held by the addon', () => {
           config: shape.config,
           directories: shape.directories,
           records: new Map([[sheet.record.file, sheet]]),
-        }, { get bytes() { return held.parseSegment(); }, keys: { has: (key) => held.hasParse(key), delete: () => false } }, held);
+        }, { get bytes() { return held.parseSegment(); }, keys: { has: (key) => held.hasParse(key) } }, held);
 
         expect(await readFile(actual), name).toEqual(await readFile(expected));
         const segments = (await readdir(`${expected}.segments`)).sort();
@@ -118,6 +119,31 @@ describe('a cold closure held by the addon', () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  }, 120_000);
+
+  // A scan of ten thousand modules or more takes this path, and `ask symbol`
+  // reads its declarations from the parses it publishes: a closure that left
+  // them out answered a large checkout as if it declared nothing.
+  it.runIf(available)('publishes the declarations of every module it parses', async () => {
+    const seeds = ['packages/sense/src/source-index.ts'];
+    const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
+    const { shape, aliases } = await shapeOf({ root, tree });
+    const held = nativeIndexGraph(tree.native!, {
+      root,
+      seeds,
+      largestFile: LARGEST_FILE,
+      remembering: true,
+      aliases,
+      directories: shape.directories,
+    })!;
+    const read = graphRecords(held).find((record) => record.file === seeds[0])!;
+    const { parses } = decodeSourceIndex(held.parseSegment());
+    const parsed = parses.get(keyFor(read.digest!, parseWay(read.file)));
+    expect(parsed?.harvested).toBe(true);
+    expect(parsed?.symbols?.map((symbol) => symbol.name)).toContain('nativeParses');
+    // Every wave, not only the seeds': the closure reaches past the first file.
+    expect(parses.size).toBeGreaterThan(seeds.length);
+    expect([...parses.values()].filter((each) => each.harvested !== true)).toEqual([]);
   });
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {

@@ -22,7 +22,14 @@ pub(crate) fn text(source: &[u16], span: Option<TextSpan>) -> Option<String> {
 pub(crate) fn doc(source: &[u16], span: Option<TextSpan>) -> Option<String> {
     let raw = text(source, span)?;
     let body = raw.trim_start_matches("/**").trim_end_matches("*/");
-    let lines: Vec<_> = body.lines().map(|line| line.trim().trim_start_matches('*').trim()).collect();
+    // A JSDoc line's `*` margin, or a Rust or Swift `///` / `//!` one.
+    let lines: Vec<_> = body
+        .lines()
+        .map(|line| {
+            let line = line.trim();
+            line.strip_prefix("///").or_else(|| line.strip_prefix("//!")).unwrap_or(line).trim_start_matches('*').trim()
+        })
+        .collect();
     let cleaned = lines.join("\n").trim().to_owned();
     if cleaned.is_empty() { None } else { Some(cleaned) }
 }

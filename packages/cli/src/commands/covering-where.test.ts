@@ -5,10 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
 import { ConfigError } from '../config-values.js';
 import { parseCoveringArgs } from '../covering-args.js';
-import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
+  rowOf,
   writeTestCoverage,
   type ExecutionIndex,
   type ExecutionTest,
@@ -21,23 +21,26 @@ function at(line: number): string {
   return `${SPEC}:${line}`;
 }
 
-function row(name: string, preconditions?: ExecutionTest['preconditions']): ExecutionTest {
-  return { id: `${SPEC} > ${name}`, file: SPEC, name, ...(preconditions === undefined ? {} : { preconditions }) };
+/** One thing a case said, as the frame spells it: name, value, call site, level. */
+type Item = readonly [name: string, value: string | number | boolean, site: string, level: number];
+
+function row(name: string, said?: readonly Item[]): ExecutionTest {
+  return { id: `${SPEC} > ${name}`, file: SPEC, name, ...(said === undefined ? {} : { said: JSON.stringify(said) }) };
 }
 
 const MEASURED: readonly ExecutionTest[] = [
-  row('pays mocked', [{ name: 'network', value: 'mocked', site: at(4), level: 1 }]),
+  row('pays mocked', [['network', 'mocked', at(4), 1]]),
   row('refunds mocked behind a flag', [
-    { name: 'flag', value: 'ff-on', site: at(9), level: 1 },
-    { name: 'network', value: 'mocked', site: at(4), level: 1 },
+    ['flag', 'ff-on', at(9), 1],
+    ['network', 'mocked', at(4), 1],
   ]),
-  row('replays a recording', [{ name: 'network', value: 'recorded', site: at(14), level: 1 }]),
+  row('replays a recording', [['network', 'recorded', at(14), 1]]),
   row('says nothing', []),
   row('contradicted', [
-    { name: 'flag', value: 'ff-off', site: at(20), level: 1 },
-    { name: 'flag', value: 'ff-on', site: at(19), level: 1 },
+    ['flag', 'ff-off', at(20), 1],
+    ['flag', 'ff-on', at(19), 1],
   ]),
-  row('half on', [{ name: 'flag', value: 'ff-half', site: at(24), level: 1 }, { name: 'network', value: 'mocked', site: at(4), level: 1 }]),
+  row('half on', [['flag', 'ff-half', at(24), 1], ['network', 'mocked', at(4), 1]]),
 ];
 
 function indexOf(tests: readonly ExecutionTest[]): ExecutionIndex {
@@ -58,7 +61,7 @@ async function recorded(tests: readonly ExecutionTest[], axes = false): Promise<
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-where-'));
   const execution = join(root, 'coverage.bin');
   await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-    index: encodeExecutionIndex(indexOf(tests)),
+    index: encodeAsSetExecutionIndex(indexOf(tests)),
   });
   if (axes) {
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({
@@ -110,7 +113,14 @@ describe('a case read by what it said', () => {
   it('reads the preconditions a JSON execution index carries, as the recorded spelling does', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-covering-where-json-'));
     const execution = join(root, 'execution.json');
-    await writeFile(execution, JSON.stringify(indexOf(MEASURED)));
+    // The JSON input spells each item as an object, where the record holds the frame's tuples.
+    const spelled = MEASURED.map(({ said, ...test }) => ({
+      ...test,
+      ...(said === undefined ? {} : {
+        preconditions: (JSON.parse(said) as Item[]).map(([name, value, site, level]) => ({ name, value, site, level })),
+      }),
+    }));
+    await writeFile(execution, JSON.stringify({ ...indexOf(MEASURED), tests: spelled }));
 
     const answer = await ask(['network=mocked'], { root, execution });
 
@@ -122,13 +132,17 @@ describe('a case read by what it said', () => {
     expect(() => parse(['--file', 'src/cart.ts', '--where', '=mocked'])).toThrow(/`--where` takes a precondition's name/);
   });
 
-  it('answers unmeasured, never an empty list, from a record made before cases said anything', async () => {
-    const record = await recorded(MEASURED.map(({ preconditions: _, ...test }) => test));
+  it('answers every case unmeasured, never an empty list, from a record made before cases said anything', async () => {
+    const record = await recorded(MEASURED.map(({ said: _, ...test }) => test));
 
-    const refused = await ask(['network=mocked'], record).catch((error: unknown) => error);
-    expect(refused).toBeInstanceOf(OperatorError);
-    expect((refused as OperatorError).kind).toBe('unmeasured');
-    expect((refused as Error).message).toMatch(/unmeasured/);
+    const answer = await ask(['network=mocked'], record);
+    const text = formatCovering(answer, 'text');
+
+    expect(answer.tests).toEqual([]);
+    expect(answer.where).toMatchObject({ kept: 0, of: 6, unmeasured: 6 });
+    expect(text).toContain('Kept none of the 6 cases that covered line 2 of src/cart.ts: none of them was recorded with preconditions.\n');
+    expect(text).toContain('6 cases were recorded without preconditions, so whether they ran under any of that is unmeasured.');
+    expect(text).not.toMatch(/No named test covered|[Rr]ecord the suite|[Rr]un the suite/);
   });
 
   it('counts the cases nobody listened to rather than reading them as having said nothing', async () => {
@@ -147,7 +161,7 @@ describe('a case read by what it said', () => {
     const refs = formatCovering(answer, 'refs');
     expect(refs).toContain(`replays a recording — network=recorded (${at(14)})`);
     const json = JSON.parse(formatCovering(answer, 'json')) as { tests: ExecutionTest[] };
-    expect(json.tests.find((test) => test.name === 'pays mocked')?.preconditions).toEqual([
+    expect(rowOf(json.tests.find((test) => test.name === 'pays mocked')!)).toEqual([
       { name: 'network', value: 'mocked', site: at(4), level: 1 },
     ]);
   });
@@ -161,7 +175,7 @@ describe('a case read along a declared axis', () => {
   });
 
   it('reports a value outside the vocabulary by name, and keeps the case', async () => {
-    const record = await recorded([...MEASURED, row('flag typo', [{ name: 'flag', value: 'ff-onn', site: at(30), level: 1 }])], true);
+    const record = await recorded([...MEASURED, row('flag typo', [['flag', 'ff-onn', at(30), 1]])], true);
 
     const answer = await ask(['flag=ff-onn'], record);
     expect(names(answer)).toEqual(['flag typo']);
@@ -185,10 +199,10 @@ describe('a case read along a declared axis', () => {
 
   it('walks past an empty step to the base, prints several twins with their count, and says when there is none', async () => {
     const record = await recorded([
-      row('on', [{ name: 'flag', value: 'ff-on', site: at(2), level: 1 }]),
+      row('on', [['flag', 'ff-on', at(2), 1]]),
       row('plain', []),
-      row('also plain', [{ name: 'flag', value: 'ff-off', site: at(5), level: 1 }]),
-      row('on and seeded', [{ name: 'flag', value: 'ff-on', site: at(2), level: 1 }, { name: 'seeded', value: true, site: at(7), level: 1 }]),
+      row('also plain', [['flag', 'ff-off', at(5), 1]]),
+      row('on and seeded', [['flag', 'ff-on', at(2), 1], ['seeded', true, at(7), 1]]),
     ], true);
 
     const answer = await ask(['flag=ff-on'], record);
@@ -202,12 +216,12 @@ describe('a case read along a declared axis', () => {
   });
 
   it('places no case nobody listened to, matches a stem by every undeclared name, and prints twins in refs', async () => {
-    const seededAndMocked = [
-      { name: 'seeded', value: true, site: at(7), level: 1 },
-      { name: 'network', value: 'mocked', site: at(4), level: 1 },
+    const seededAndMocked: Item[] = [
+      ['seeded', true, at(7), 1],
+      ['network', 'mocked', at(4), 1],
     ];
     const record = await recorded([
-      row('on', [{ name: 'flag', value: 'ff-on', site: at(2), level: 1 }, ...seededAndMocked]),
+      row('on', [['flag', 'ff-on', at(2), 1], ...seededAndMocked]),
       row('plain', seededAndMocked),
       row('unheard'),
     ], true);
@@ -244,7 +258,7 @@ describe('a case read along a declared axis', () => {
   });
 
   it('prints a value outside the vocabulary under what it kept', async () => {
-    const record = await recorded([row('flag typo', [{ name: 'flag', value: 'ff-onn', site: at(30), level: 1 }])], true);
+    const record = await recorded([row('flag typo', [['flag', 'ff-onn', at(30), 1]])], true);
 
     expect(formatCovering(await ask(['flag'], record), 'text'))
       .toContain(`  flag=ff-onn (${at(30)}) is not one of ff-off, ff-half, ff-on`);

@@ -39,14 +39,19 @@ The test says it, at runtime, from the test body, a hook or a helper:
 ```ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
-variancePrecondition({ network: 'mocked' });
-variancePrecondition({ flag: 'ff-on', colour: 'green', 'seeded-cart': true });
+variancePrecondition('network', { upsell: 'mocked' });
+variancePrecondition('flags', { 'new-checkout': true });
+variancePrecondition('subject', { colour: 'green', 'seeded-cart': true });
 ```
 
-- **One form: a record of names to values.** A value is a string, number or
-  boolean, always said; a state that is present with nothing further to say
-  holds `true`. A bare name and a name-value pair are refused, so every call
-  reads the same.
+- **One form: a dimension, then a record of keys to values**, as
+  [spec 0102](0102-a-case-records-what-the-code-read.md) defines it. A name is
+  the `(dimension, key)` pair, written `flags:new-checkout`; the dimension is
+  the user's string, open and untyped, and nothing crosses between two of them.
+  A value is recorded as the JSON text of what was said; a state that is present
+  with nothing further to say holds `true`. A dimension holding `:` throws,
+  naming the call site. The one-argument record is deleted, not kept beside the
+  new form.
 - **The entry imports nothing.** It reads one function from
   `globalThis[Symbol.for('variance-authority.test-selection.precondition')]`,
   which a recording installs, and calls it. Without a recording the call does
@@ -72,8 +77,8 @@ file, and one deeper for each `describe` around it. The case body is narrower
 than any of them.
 
 - **A narrower level overrides a wider one** for the same name, silently: a
-  `flag=ff-off` from a `beforeEach` at the top of the file and a `flag=ff-on`
-  from the case body give the case `ff-on`. That is the ordinary shape of a
+  `flags:new-checkout=false` from a `beforeEach` at the top of the file and a
+  `flags:new-checkout=true` from the case body give the case `true`. That is the ordinary shape of a
   default and its exception.
 - **Two values for one name at one level** are a contradiction. The case carries
   both with their call sites and is reported, never resolved to the last one
@@ -105,10 +110,13 @@ recording's commit. The body itself is never copied.
 
 ## What is recorded
 
-A case-level precondition is `{ name, value, site }`, laid on the case rows of
-the record (spec 0094) beside `stopped` and `duration`, through the string
-table every other section uses. It is layered, seeded, sharded and shared with
-the coverage the same run recorded, by the same code. It travels in the journal beside the case frame, which is a
+A case-level precondition is `{ name, value, site, level }`, its name the
+`(dimension, key)` pair, its value the JSON text the realm wrote. Each distinct
+one is an item, and the cases that said it are a set in the record's
+crossing-set pool, as ADR-0094 lays it in the case index's `tests.said`
+section. Every item is kept, an overridden one too; a case's row is resolved
+when it is read. It is layered, seeded, sharded and shared with the coverage
+the same run recorded, by the same code. It travels in the journal beside the case frame, which is a
 change to the journal format, and is not part of the case key, so a case's
 identity does not move when its preconditions do. A case that named a
 precondition has a row even when it crossed nothing: a passing case that only
@@ -126,14 +134,26 @@ that was never a file.
 A case is named the way `covering` already prints it: its test file and its
 declaration path. No new identity is introduced.
 
-- **`variance covering … --where <name>[=<value>]`**, in every form of
-  `covering` that answers with cases, keeps the cases that declared it.
-  Repeated, every `--where` must hold. `--where network` matches any value of
-  `network`.
+- **`variance covering … --where <dimension>[:<key>][=<value>]`**, in every
+  form of `covering` that answers with cases, keeps the cases that declared it.
+  Repeated, every `--where` must hold. `--where network` matches any key of
+  `network`, `--where flags:new-checkout` any value of that key, and
+  `--where network=mocked` any key of `network` that holds `mocked`. A value
+  is parsed as JSON when it parses, so `=true` is the boolean and `=mocked` the
+  string, and compared with the recorded JSON text.
 - **Every case `covering` lists carries its preconditions** with their call
-  sites, in each format.
+  sites, in each format, except a dimension the case also read: that one is
+  printed by its reads, with the value said beside each and no key said and
+  never read, as [spec 0102](0102-a-case-records-what-the-code-read.md) prints
+  it.
 
-When `names.axes` declares the name, the value is read against that axis:
+When `names.axes` declares the name, the value is read against that axis. An
+axis is one word with a closed vocabulary and a name is now a `(dimension, key)`
+pair with an untyped value, so how an axis names a pair is open in
+[spec 0102](0102-a-case-records-what-the-code-read.md). The examples below keep
+the one-word spelling. Until that is settled, no precondition is read against
+an axis, no twin is printed, and `--where flag=ff-off` is the key filter the
+grammar above makes of it:
 
 - A value outside the axis's vocabulary is reported by name and kept. It is not
   dropped.

@@ -17,9 +17,10 @@ use rustc_hash::FxHashMap;
 
 use crate::case_id::{self, CaseIds};
 use crate::case_lines;
-use crate::case_preconditions;
+use crate::case_said;
 use crate::case_shard::{self, Inventory, Shard};
-use crate::journey_format::{self, CaseExtras, EncodedModule, Gaps, SetPool};
+use crate::crossing_sets::{self, SetPool};
+use crate::journey_format::{self, CaseExtras, EncodedModule, Gaps};
 use crate::journey_journal::{self, Test};
 use crate::journey_record::{self, Block, Module};
 use crate::order;
@@ -67,7 +68,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
                 return Err(format!("case id {:?} names two cases", test.id));
             }
             before.settled = journey_journal::settled_across(before.settled, test.settled);
-            before.preconditions = case_preconditions::across(before.preconditions.take(), test.preconditions.clone());
+            before.said = case_said::join(before.said.take(), test.said.clone());
         } else {
             tests_by_key.insert(key(test), test.clone());
         }
@@ -166,7 +167,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
             }
             let lines = case_shard::remap_lines(&shard.lines[local], &row_of).map_err(|error| {
                 format!(
-                    "{}: case {:?}: {error}, so they name regions the combined record does not hold. Record every shard with one build, so each cuts the file the same way.",
+                    "{}: case {:?}: {error}, so they name regions the combined record does not hold, and the shards are not combined. Shards combine when one build recorded every one, so each cuts the file the same way.",
                     shard.name, tests[global].id
                 )
             })?;
@@ -225,7 +226,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         .map(|(at, module)| EncodedModule { module, called: &called_by_module[at], loaded: &loaded_by_module[at] })
         .collect();
     let gaps = union_gaps(&shards);
-    let bytes = journey_format::encode(&tests, &extras, &encoded, &sets, gaps.as_ref())?;
+    let bytes = journey_format::encode(&tests, &extras, &encoded, &mut sets, gaps.as_ref())?;
     Ok(Folded {
         ids: tests.iter().map(|test| test.id.clone()).collect(),
         bytes,
@@ -275,8 +276,8 @@ fn union_gaps(shards: &[Shard]) -> Option<Gaps> {
 }
 
 fn append_members(shard: &Shard, set: u32, out: &mut Vec<u32>, mut each: impl FnMut(u32)) -> Result<(), String> {
-    let held = case_shard::set_slice(&shard.set_bytes, &shard.set_offsets, set)?;
-    for local in case_shard::decode_set(held, shard.tests.len())? {
+    let held = crossing_sets::set_slice(&shard.set_bytes, &shard.set_offsets, set)?;
+    for local in crossing_sets::decode_set(held, shard.tests.len())? {
         out.push(shard.local_to_global[local as usize]);
         each(local);
     }

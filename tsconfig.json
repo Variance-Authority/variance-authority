@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./tools/consumer-configs" },
     {
       "path": "./packages/wire"
     },

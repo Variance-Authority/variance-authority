@@ -141,7 +141,18 @@ export type {
  * as CI published it or as last fetched here, else the primary checkout's — for
  * a runner outside this CLI that reads it.
  */
-export { layMainline, suiteBase } from './commands/suite-base.js';
+export {
+  layMainline,
+  mainlinePassedOver,
+  suiteBase,
+  type MainlineLaid,
+  type MainlinePassedOver,
+} from './commands/suite-base.js';
+/**
+ * A sharded suite's shards landed on its record, and the landing said without
+ * the reading: what a CI fan-in prints.
+ */
+export { landSuite } from './commands/journeys-command.js';
 /**
  * The record `distill`, `covering` and `review` read for a suite, or for a
  * repository that declares none: the nearest that holds a run's cases, refused

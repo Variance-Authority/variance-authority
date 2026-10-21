@@ -147,6 +147,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
       model: journals.encodeJournal(FILE, counters(model.current), counters(sealedModel)),
       frames: [undefined, undefined],
       stories: undefined,
+      registered: [collector.registered(), loaded.map((module) => module.id)] as const,
     };
   }
 
@@ -200,6 +201,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model: journals.encodeJournal(FILE, counters(union), counters(sealedModel)),
     frames: [journals.packFrames(done.frames ?? []), journals.packFrames(frames)],
     stories: [new Map([...written].map(([key, bytes]) => [key, spoken(bytes)])), told] as const,
+    registered: [collector.registered(), loaded.map((module) => module.id)] as const,
   };
 }
 
@@ -244,6 +246,17 @@ describe('the recording a file writes', () => {
     },
   );
 
+  it.each(['flat', 'sequential', 'continuations'] as const)(
+    'registers every module whose probes ran, once, whichever bucket it wrote into: %s',
+    (mode) => {
+      for (const seed of [1, 7, 42]) {
+        const [registered, loaded] = drive(mode, seed).registered;
+        expect(new Set(registered), `seed ${seed}`).toEqual(new Set(loaded));
+        expect(registered.length, `seed ${seed}`).toBe(new Set(registered).size);
+      }
+    },
+  );
+
   it.each(['sequential', 'continuations'] as const)(
     'is the same journal with stories taped, and each story is every visit its case made, in order: %s',
     (mode) => {
@@ -255,6 +268,27 @@ describe('the recording a file writes', () => {
         expect(told!.size, `seed ${seed}`).toBeGreaterThan(30);
         expect(written, `stories, seed ${seed}`).toEqual(told);
       }
+    },
+  );
+
+  it.each([
+    ['flat', false], ['sequential', false], ['continuations', false], ['sequential', true], ['continuations', true],
+  ] as const)(
+    'logs a module marked loaded by its one line as the header logs a module that ran none of its regions: %s, story %s',
+    (mode, story) => {
+      const holder: Record<PropertyKey, unknown> = {};
+      const collector = mode === 'flat'
+        ? collectors.flat(holder)
+        : collectors.scoped(holder, mode === 'continuations', story ? () => {} : undefined);
+      // The header's mark, and the one line `loads` writes in its place.
+      new Function('globalThis', `${probeRuntime('header', 1)}__vaE();`)(holder);
+      new Function('globalThis', 'globalThis.__VA__.m("line");')(holder);
+
+      const sealed = collector.seal(FILE);
+
+      expect(sealed.get('line')).toEqual(sealed.get('header'));
+      expect(sealed.get('line')).toEqual(new Uint32Array([EVALUATING | 1]));
+      expect(collector.registered()).toEqual(['header', 'line']);
     },
   );
 
@@ -365,7 +399,9 @@ describe('what a case said it arranged', () => {
   const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
   const said = (frame: Uint8Array) => {
     const owner = journals.decodeJournal(frame).testFile;
-    return [caseOwner.unpackCase(owner).name, preconditions.saidOf(owner)?.map(([name, value, , level]) => [name, value, level])];
+    const field = preconditions.saidField(owner);
+    const items = field === undefined ? undefined : JSON.parse(field) as [string, unknown, string, number][];
+    return [caseOwner.unpackCase(owner).name, items?.map(([name, value, , level]) => [name, value, level])];
   };
 
   it('travels in the frame of the case that said it, and a case that only said something still writes one', () => {

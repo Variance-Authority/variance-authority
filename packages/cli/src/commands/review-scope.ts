@@ -43,9 +43,18 @@ export function outermost(file: ReviewFile): readonly ReviewRegion[] {
   return kept;
 }
 
+/** What every sentence calls a module's own code, the region any import runs. */
+export const TOP_LEVEL = 'the top level';
+
 /** The function a region sits in: a branch or a closure is its enclosing function's, and a module's own code is its top level. */
-export function functionOf(region: ReviewRegion): string {
-  return region.kind === 'module' || region.name === '' ? 'the top level' : region.name.split('/')[0]!;
+export function functionOf(region: Pick<ReviewRegion, 'kind' | 'name'>): string {
+  return region.kind === 'module' || region.name === '' ? TOP_LEVEL : region.name.split('/')[0]!;
+}
+
+/** What a region is, where a sentence names the region itself rather than the function it sits in: its kind and name, or the top level. */
+export function regionKind(region: Pick<ReviewRegion, 'kind' | 'name'>): string {
+  if (region.kind === 'module') return TOP_LEVEL;
+  return region.name === '' ? region.kind : `${region.kind} ${region.name}`;
 }
 
 /**
@@ -65,7 +74,7 @@ export function uncoveredFunctions(review: Review): { readonly total: number; re
 
 /** The named functions as a sentence's tail: the first few, and the rest counted. */
 export function namedList(names: readonly string[]): string {
-  const said = names.slice(0, CALLOUT).map((name) => (name === 'the top level' ? name : `\`${name}\``));
+  const said = names.slice(0, CALLOUT).map((name) => (name === TOP_LEVEL ? name : `\`${name}\``));
   return names.length > CALLOUT ? `${said.join(', ')} and ${names.length - CALLOUT} more` : said.join(', ');
 }
 
@@ -195,7 +204,7 @@ function lines(region: ReviewRegion): string {
 
 /** `path:line` or `path:start-end`, and what is there: a branch or loop is named by the function holding it. */
 function where(review: Review, file: string, region: ReviewRegion): string {
-  const name = region.name === '' ? region.kind : region.kind === 'function' ? `function \`${region.name}\`` : `${region.kind} in \`${region.name}\``;
+  const name = region.kind === 'module' || region.name === '' ? regionKind(region) : region.kind === 'function' ? `function \`${region.name}\`` : `${region.kind} in \`${region.name}\``;
   return `${place(review, file, region)} ${name}`;
 }
 

@@ -3,9 +3,9 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { declaredSuites } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
-import { functionOf, uncovered } from './review-scope.js';
+import { functionOf, TOP_LEVEL, uncovered } from './review-scope.js';
 import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
-import { FRESH_MARK, MARK, REACH_WORD } from './review-text.js';
+import { FRESH_MARK, MARK, REACH_WORD, unrecordedSources } from './review-text.js';
 
 /** The line a pull request body's handover starts at: a re-run replaces everything up to {@link HANDOVER_END}. */
 export const HANDOVER_START = '<!-- variance-authority: handover -->';
@@ -81,14 +81,21 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
   const named = crumbs.filter(({ worst }) => !(isReached(worst) && worst.region.reach === 'near'));
   const shown = named.slice(0, HANDOVER_LINES);
   const rest = crumbs.filter((crumb) => !shown.includes(crumb));
-  const lines = [HANDOVER_START, `<details><summary>🧭 Coverage of the changed area: ${read.length === 0 ? 'no record read' : summary(crumbs)}</summary>`, ''];
+  const unread = unrecordedByAll(read.map(({ review: answer }) => answer));
+  const lines = [HANDOVER_START, `<details><summary>🧭 Coverage of the changed area: ${read.length === 0 ? 'no record read' : summary(crumbs, unread.length)}</summary>`, ''];
   if (read.length > 0) lines.push(origin(read), '');
   const tagged = read.length > 1;
   // Read from both: what a record from before the change reached is said apart, as the old code's.
   const mixed = read.some(({ review: answer }) => answer.record === 'ran') && read.some(({ review: answer }) => answer.record !== 'ran');
   lines.push(...shown.map((crumb) => crumbLine(crumb, tagged, mixed)));
   if (rest.length > 0) lines.push(...(shown.length === 0 ? [] : ['']), remainder(rest, shown.length > 0, mixed));
+  if (unread.length > 0) lines.push(...(crumbs.length === 0 ? [] : ['']), unreadLine(unread));
   for (const section of sections) {
+    if ('review' in section) {
+      for (const note of [section.review.probes, section.review.runsUnread]) {
+        if (note !== undefined) lines.push('', `${section.suite === undefined ? 'The record' : `\`${section.suite}\``}: ${note}`);
+      }
+    }
     if ('missed' in section) {
       const why = section.unrecorded === true ? 'this checkout holds no case-level record of it' : firstSentence(section.missed);
       lines.push('', `${section.suite === undefined ? 'The record' : `\`${section.suite}\``} not read: ${why}.`);
@@ -100,8 +107,28 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
   return `${lines.join('\n')}\n`;
 }
 
-function summary(crumbs: readonly Crumb[]): string {
-  if (crumbs.length === 0) return 'no changed function';
+/**
+ * The changed source files no suite read holds a row for, in any language:
+ * the record names no function in them, so the summary may not say the change
+ * touched none.
+ */
+function unrecordedByAll(reviews: readonly Review[]): readonly string[] {
+  const [first, ...others] = reviews.map((answer) => new Set(unrecordedSources(answer)));
+  return first === undefined ? [] : [...first].filter((file) => others.every((other) => other.has(file)));
+}
+
+/** Those files on one line, as many as {@link HANDOVER_LINES} by name. */
+function unreadLine(files: readonly string[]): string {
+  const named = files.slice(0, HANDOVER_LINES).map((file) => `\`${file}\``);
+  const more = files.length - named.length;
+  const listed = more === 0 ? named.join(', ') : `${named.join(', ')} and ${more} more`;
+  return `Not in the record, so no function in ${files.length === 1 ? 'it' : 'them'} is named: ${listed}.`;
+}
+
+function summary(crumbs: readonly Crumb[], unread: number): string {
+  if (crumbs.length === 0) {
+    return unread === 0 ? 'no changed function' : `no changed function in the record, ${unread} changed file${unread === 1 ? '' : 's'} not in it`;
+  }
   const tops = crumbs.filter(({ name }) => name === TOP_LEVEL).length;
   const functions = crumbs.length - tops;
   const counted = [
@@ -120,9 +147,6 @@ function summary(crumbs: readonly Crumb[]): string {
 
 /** Where a reach read from a record made before the change was seen: on the old code. */
 const BEFORE = 'in the record before the change';
-
-/** The function name a module's own top level is given. */
-const TOP_LEVEL = 'the top level';
 
 /** What a part no case reached lacks, in the words of the record it was read from, as the review comment words it. */
 function gapOf(part: Part): string {

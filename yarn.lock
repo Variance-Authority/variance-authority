@@ -5189,6 +5189,7 @@ __metadata:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/jsx-source": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
     "@variance-authority/storybook-collector": "workspace:^"
@@ -5226,6 +5227,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
+    "@playwright/test": "npm:^1.62.1"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/distill": "workspace:^"
     "@variance-authority/eyes": "workspace:^"
@@ -5607,10 +5609,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/presentation@workspace:packages/presentation"
   dependencies:
+    "@types/react": "npm:^19.0.0"
+    "@types/react-dom": "npm:^19.0.0"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/report": "workspace:^"
+    react: "npm:^19.0.0"
+    react-dom: "npm:^19.0.0"
   peerDependencies:
     "@playwright/test": ">=1.49 <2"
   peerDependenciesMeta:
@@ -5635,6 +5641,7 @@ __metadata:
     "@types/react": "npm:^19.0.0"
     "@types/react-dom": "npm:^19.0.0"
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     jsdom: "npm:^25.0.1"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
@@ -12802,9 +12809,11 @@ __metadata:
   resolution: "variance-authority@workspace:."
   dependencies:
     "@changesets/cli": "npm:^3.0.1"
+    "@changesets/read": "npm:^1.0.0"
     "@jscpd/core": "npm:^4.2.5"
     "@jscpd/tokenizer": "npm:^4.2.6"
     "@playwright/test": "npm:^1.62.1"
+    "@rspack/core": "npm:^2.2.6"
     "@types/node": "npm:^22.10.2"
     "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19"
@@ -12812,6 +12821,7 @@ __metadata:
     "@variance-authority/cli": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/help": "workspace:^"
+    "@variance-authority/playwright-test": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     "@vitest/coverage-v8": "npm:^2.1.8"
     backlog.md: "npm:1.50.1"

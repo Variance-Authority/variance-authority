@@ -12,8 +12,8 @@ import {
 } from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import { caughtUp, foundNothingAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { HELP, HELP_TOOLS, UNCOMPARED_HELP, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
 import { costsSubject } from './ask-costs.js';
@@ -53,7 +53,10 @@ import { reportSource } from './report-source.js';
  *
  * Which half is read is decided by the question. A report is a file and is read
  * every request. A source question reads the last published workspace generation
- * while it is less than an hour old; `--just-answer` removes even that expiry.
+ * while it is less than an hour old; `--just-answer` removes even that expiry,
+ * and every answer then says it was not compared with the checkout. A source
+ * question refused from a reused generation is asked again of one read now, as
+ * `@variance-authority/help`'s `caughtUp` decides for `variance ask` too.
  * Producing a generation remains separate work. Neither half pays for the other.
  */
 
@@ -116,7 +119,7 @@ function over<Inner>(
   }));
 }
 
-const BENCH: Served<Bench> = {
+const bench = (help: Served<Help>): Served<Bench> => ({
   name: REPORTS.name,
   version: REPORTS.version,
   tools: [
@@ -141,7 +144,7 @@ const BENCH: Served<Bench> = {
     // What review settled, as `variance ask` reads it: with the share token.
     ...over(REVIEWING, (bench) => bench.review, (bench) => bench.reviewRefused ?? 'nothing review settled was read'),
     ...over(
-      HELP.tools,
+      help.tools,
       (bench) => bench.help,
       'the workspace could not be read, so the source questions cannot be answered',
     ),
@@ -157,7 +160,10 @@ const BENCH: Served<Bench> = {
     'from the times the mainline\'s last build published. `variance_decisions` lists what reviewers ' +
     'approved and rejected on the review surface, and `variance_concerns` which renders they flagged ' +
     'as suspect and why; both are read with the share token, which never decides.',
-};
+});
+
+const BENCH = bench(HELP);
+const UNCOMPARED_BENCH = bench(UNCOMPARED_HELP);
 
 export interface ServeOptions {
   /**
@@ -196,12 +202,40 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   // MCP and answered by `variance ask`.
   let tree: Tree | undefined;
 
+  const readHelp = async (refreshAfterMs?: number): Promise<Help> => {
+    let nextTree: Tree | undefined;
+    const read = await readWorkspaceForAnswer(root, {
+      index,
+      justAnswer: options.justAnswer === true,
+      ...(refreshAfterMs === undefined ? {} : { refreshAfterMs }),
+      tree: (drawn) => {
+        nextTree = drawn;
+      },
+    });
+    help = read;
+    tree = nextTree;
+    return read;
+  };
+
   return serveTools<Bench>({
     input: process.stdin,
     output: process.stdout,
-    served: BENCH,
+    served: options.justAnswer === true ? UNCOMPARED_BENCH : BENCH,
     tree: () => tree,
     root,
+    // A source question refused from a reused generation, asked again of one
+    // read now. `--just-answer` reads only what was published, so its refusal stands.
+    ...(options.justAnswer === true ? {} : {
+      again: async (asked: string | undefined, refused: Bench, started: number) => {
+        const at = refused.help === undefined ? undefined : workspaceGeneration(refused.help);
+        if (asked === undefined || !SOURCE_QUESTIONS.has(asked)) return undefined;
+        return caughtUp(at, started, root, async (current) => (current ? { ...refused, help: await readHelp(0) } : refused));
+      },
+    }),
+    // A source question's name nothing declares is the answer once it has
+    // been read again, said as `variance ask` says it.
+    answered: (thrown: unknown, bench: Bench, again) =>
+      foundNothingAnswer(thrown, again, bench.help === undefined ? undefined : workspaceGeneration(bench.help), options.justAnswer === true),
     // Only the report, and the line it came from. `previous` serves the one
     // tool that compares this request with the last one, and it compares
     // reports; cloning a whole workspace reading on every successful call would
@@ -231,17 +265,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
         try {
           const at = help === undefined ? undefined : workspaceGeneration(help);
           const stale = at === undefined || Date.now() - Date.parse(at) > 60 * 60 * 1000;
-          if (help === undefined || (options.justAnswer !== true && stale)) {
-            let nextTree: Tree | undefined;
-            help = await readWorkspaceForAnswer(root, {
-              index,
-              justAnswer: options.justAnswer === true,
-              tree: (drawn) => {
-                nextTree = drawn;
-              },
-            });
-            tree = nextTree;
-          }
+          if (help === undefined || (options.justAnswer !== true && stale)) await readHelp();
         } catch (failure) {
           // A workspace mid-edit — a manifest saved half-written, a file being
           // rewritten — must not take the server down. The previous reading is

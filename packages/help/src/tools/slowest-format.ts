@@ -71,7 +71,7 @@ function section(
   const rows: readonly Row[] = read.slowest;
   const wide = Math.max(...rows.map((row) => spent(row.duration).length));
   return [
-    `${named}, as their runner reported them, from ${read.recording}:`,
+    `${named}, as their runner timed them, from ${read.recording}:`,
     ...rows.map((row) => `  ${spent(row.duration).padStart(wide)}  ${label(row)}`),
     `${rows.length} of ${read.timed} timed ${noun}(s) shown` +
       `${read.untimed === 0 ? '.' : `; ${read.untimed} recorded ${noun}(s) have no duration.`}`,

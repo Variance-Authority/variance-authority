@@ -14,11 +14,11 @@ fn shard(file: &'static str, base: Option<&'static str>) -> Vec<u8> {
 
 fn combined(records: &[&[u8]]) -> Result<Vec<u8>, String> {
     let named: Vec<(String, Vec<u8>)> = records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect();
-    combine_bytes(&named).map(|combined| combined.bytes)
+    combine_bytes(&named, None).map(|combined| combined.bytes)
 }
 
 #[test]
-fn fails_the_build_when_two_shards_were_laid_over_two_records_and_says_how_to_run_it_again() {
+fn fails_the_build_when_two_shards_were_laid_over_two_records_and_names_what_starts_them_alike() {
     let over = |laid: &str| leak(format!("none over {laid}"));
     let (one, two, none) = (shard("a.test.ts", Some(over(ONE))), shard("b.test.ts", Some(over(TWO))), shard("c.test.ts", Some("none")));
     for (records, started) in [
@@ -28,7 +28,8 @@ fn fails_the_build_when_two_shards_were_laid_over_two_records_and_says_how_to_ru
     ] {
         let message = combined(&[records[0], records[1]]).err().expect("the build fails");
         assert!(message.starts_with(&format!("the build failed because the sharding was unstable: {started}")), "{message}");
-        assert!(message.contains("Run the whole build again, so that every shard restores the same cached record"), "{message}");
+        assert!(message.contains("Nothing of this build is combined, so the record before it stands. Shards start alike when every one restores the same cached record"), "{message}");
+        assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "again"), "{message}");
         assert!(message.contains("`variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}`"), "{message}");
     }
 }
@@ -44,7 +45,8 @@ fn fails_the_build_when_two_shards_chose_their_tests_from_two_records_and_names_
     ] {
         let message = combined(&[records[0], records[1]]).err().expect("the build fails");
         assert!(message.starts_with(&format!("the build failed because the sharding was unstable: {chose}")), "{message}");
-        assert!(message.contains("Run the whole build again, so that every shard reads the same record"), "{message}");
+        assert!(message.contains("Nothing of this build is combined, so the record before it stands. Shards choose alike when every one reads the same record"), "{message}");
+        assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "again"), "{message}");
     }
 }
 
@@ -60,23 +62,25 @@ fn tells_a_restored_record_apart_from_the_record_the_selection_read() {
     let (one, two) = (shard("a.test.ts", Some(leak(format!("{ONE} over {TWO}")))), shard("b.test.ts", Some(ONE)));
     let message = combined(&[&one, &two]).err().expect("the build fails");
     assert!(message.starts_with("the build failed because the sharding was unstable: shard-0.bin started from the record sha256:fedcba987654, and shard-1.bin from the record sha256:0123456789ab."), "{message}");
-    assert!(message.contains("every shard restores the same cached record"), "{message}");
+    assert!(message.contains("every one restores the same cached record"), "{message}");
 }
 
 #[test]
-fn refuses_shards_of_two_versions_and_says_to_run_every_shard_on_one() {
+fn refuses_shards_of_two_versions_and_says_which_combine() {
     let (named, unnamed) = (shard("a.test.ts", Some(ONE)), shard("b.test.ts", None));
     for records in [[&named, &unnamed], [&unnamed, &named]] {
         let message = combined(&[records[0], records[1]]).err().expect("the shards are refused");
         let (old, new) = if records[0] == &unnamed { ("shard-0.bin", "shard-1.bin") } else { ("shard-1.bin", "shard-0.bin") };
         assert!(message.starts_with(&format!("{old} was written by variance-authority 0.15.0 or earlier, and {new} by a later version")), "{message}");
-        assert!(message.contains("Run every shard on one version, the one that combines them, and combine again"), "{message}");
+        assert!(message.contains("so nothing says the shards split one plan, and they are not combined. Shards combine when the version that combines them wrote every one."), "{message}");
+        assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "again"), "{message}");
     }
     let message = combined(&[&unnamed]).err().unwrap();
     assert!(message.starts_with("shard-0.bin was written by variance-authority 0.15.0 or earlier"), "{message}");
     let unspelled = shard("a.test.ts", Some("yesterday"));
     let message = combined(&[&unspelled]).err().unwrap();
     assert!(message.starts_with("shard-0.bin names the record it started from as `yesterday`"), "{message}");
+    assert!(message.ends_with("so this build cannot tell where it started, and nothing of it is combined."), "{message}");
 }
 
 /// A spelling that lives as long as the fixtures that hold it.
@@ -102,7 +106,7 @@ fn a_shard_that_observed_nothing_started_from_a_record_too() {
 
 fn result(records: &[&[u8]]) -> crate::record_combine::CombinedRecord {
     let named: Vec<(String, Vec<u8>)> = records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect();
-    combine_bytes(&named).unwrap().result
+    combine_bytes(&named, None).unwrap().result
 }
 
 #[test]
@@ -119,7 +123,7 @@ fn checks_no_read_of_a_shard_that_names_it_unknown_and_says_which() {
     assert_eq!(folded.unchecked, ["shard-0.bin"]);
     assert_eq!(folded.read.as_deref(), Some("unknown"), "a combine that checked no read of one shard claims none for all");
     let named: Vec<(String, Vec<u8>)> = vec![("shard-0.bin".into(), unknown.clone()), ("shard-1.bin".into(), read.clone())];
-    let bytes = combine_bytes(&named).unwrap().bytes;
+    let bytes = combine_bytes(&named, None).unwrap().bytes;
     assert_eq!(record_coverage::read(&bytes).unwrap().parts.base.as_deref(), Some(&b"unknown over none"[..]));
     assert!(result(&[&read]).unchecked.is_empty());
     // The record a shard was laid over is still checked.

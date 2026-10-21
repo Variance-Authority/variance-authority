@@ -15,6 +15,8 @@
  * than an error, and an empty list is what a selector reads as "nothing to run".
  */
 
+import { PHASE_NAMES } from './format-layout.js';
+
 /** Rows per section, keyed by the section's own name. */
 export type CoverageRows = Readonly<Record<string, number>>;
 
@@ -45,6 +47,7 @@ export function validateCoverageShape(rows: CoverageRows): void {
     rows['tests.complete'] !== tests ||
     rows['tests.preconditions'] !== tests + 1 ||
     (rows['tests.duration'] ?? tests) !== tests ||
+    (rows['tests.phases'] ?? tests * PHASE_NAMES.length) !== tests * PHASE_NAMES.length ||
     rows['preconditions.name'] !== rows['preconditions.digest'] ||
     rows['modules.source'] !== modules ||
     rows['modules.instrumented'] !== modules ||

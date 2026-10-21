@@ -1,15 +1,16 @@
 use super::*;
-use crate::journey_format::{self, CaseExtras, EncodedModule, SetPool};
+use crate::crossing_sets::SetPool;
+use crate::journey_format::{self, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_record::{Block, Module};
 use crate::record_fixture::{self as fixture, block, module, spec, test, Spec};
 
-fn named(records: &[&[u8]]) -> Vec<(String, Vec<u8>)> {
+pub(super) fn named(records: &[&[u8]]) -> Vec<(String, Vec<u8>)> {
     records.iter().enumerate().map(|(at, bytes)| (format!("shard-{at}.bin"), bytes.to_vec())).collect()
 }
 
-fn combined(records: &[&[u8]]) -> Result<Combined, String> {
-    combine_bytes(&named(records))
+pub(super) fn combined(records: &[&[u8]]) -> Result<Combined, String> {
+    combine_bytes(&named(records), None)
 }
 
 fn refused(records: &[&[u8]]) -> String {
@@ -25,7 +26,7 @@ fn two() -> (Vec<u8>, Vec<u8>) {
     (fixture::write(&first), fixture::write(&second))
 }
 
-fn files(names: &[&str]) -> Vec<String> {
+pub(super) fn files(names: &[&str]) -> Vec<String> {
     names.iter().map(|name| (*name).to_owned()).collect()
 }
 
@@ -99,15 +100,6 @@ fn refuses_a_module_two_shards_built_from_different_text() {
 }
 
 #[test]
-fn refuses_a_region_two_shards_describe_differently() {
-    let mut moved = block(0, &[0]);
-    moved.start = 40;
-    let one = fixture::write(&spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]));
-    let other = fixture::write(&spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![moved])]));
-    assert!(refused(&[&one, &other]).contains("`src/a.ts` region 0 is described differently"));
-}
-
-#[test]
 fn answers_a_module_from_the_shards_that_measured_it() {
     let mut unread = module("src/a.ts", vec![block(5, &[0])]);
     unread.instrumented = false;
@@ -143,10 +135,22 @@ fn reads_the_untimed_layout_the_jvm_agent_writes() {
 }
 
 #[test]
+fn carries_each_test_files_phases_and_reads_the_layout_before_them_as_none_reported() {
+    let none = LAYOUT.coverage.no_duration;
+    let mut unphased = spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    unphased.version = LAYOUT.coverage.unphased;
+    let mut phased = spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    phased.tests[0].phases = Some([4, none, 21, 530, 12]);
+    let folded = combined(&[&fixture::write(&unphased), &fixture::write(&phased)]).unwrap();
+    assert_eq!(fixture::phases(&folded.bytes), [("a.test.ts".to_owned(), [none; 5]), ("b.test.ts".to_owned(), [4, none, 21, 530, 12])]);
+    assert_eq!(journey_columns::decode_any(&folded.bytes).unwrap().0, LAYOUT.coverage.format);
+}
+
+#[test]
 fn refuses_a_version_or_a_section_this_build_does_not_read() {
     for version in [7, LAYOUT.coverage.format + 1] {
         let refused_version = refused(&[&journey_columns::encode(Vec::new(), version).unwrap()]);
-        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9 and 10")), "{refused_version}");
+        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9, 10 and 11")), "{refused_version}");
     }
     let mut held = spec(vec![test("a.test.ts")], Vec::new());
     held.parts.push(("index", Vec::new()));
@@ -228,7 +232,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
         project: None,
         runner: Some(runner.to_owned()),
         settled: FINISHED,
-        preconditions: None,
+        said: None,
     }];
     let regions_of = Module {
         id: "src/a.ts".to_owned(),
@@ -243,7 +247,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
     let loaded = vec![false; regions as usize];
     let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded }];
     let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] }, ..CaseExtras::default() };
-    journey_format::encode(&tests, &extras, &modules, &sets, None).unwrap()
+    journey_format::encode(&tests, &extras, &modules, &mut sets, None).unwrap()
 }
 
 fn last(commit: &str, files: &[&str], cases: &[&str]) -> Vec<u8> {
@@ -307,7 +311,8 @@ fn refuses_shards_of_which_only_some_kept_cases() {
     let bare = fixture::write(&spec(vec![test("b.test.ts")], Vec::new()));
     let message = refused(&[&fixture::write(&cased("a.test.ts", "1")), &bare]);
     assert!(message.contains("shard-0.bin kept cases and shard-1.bin kept none"), "{message}");
-    assert!(message.contains("Record shard-1.bin again with cases kept"), "{message}");
+    assert!(message.contains("so the combined record could answer for the cases of only some of its files, and the shards are not combined. Shards combine when every one kept cases, or none did."), "{message}");
+    assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "again"), "{message}");
 }
 
 #[test]
@@ -335,14 +340,15 @@ fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file(
     let other = cases_alone(index("b.test.ts", "1", 3, Vec::new()), "b.test.ts");
     let message = refused(&[&one, &other]);
     assert!(message.starts_with("shard-0.bin: case \"a.test.ts > adds\": its lines stand on `src/a.ts`"), "{message}");
-    assert!(message.contains("Record every shard with one build"), "{message}");
+    assert!(message.ends_with("so they name regions the combined record does not hold, and the shards are not combined. Shards combine when one build recorded every one, so each cuts the file the same way."), "{message}");
+    assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "Record"), "{message}");
 }
 
 #[test]
 fn a_record_that_is_not_there_is_refused_by_name() {
     let missing = std::env::temp_dir().join(format!("variance-combine-missing-{}.bin", std::process::id()));
     let path = missing.to_string_lossy().into_owned();
-    let error = combine(&[path.clone()]).err().expect("the combine is refused");
+    let error = combine(&[path.clone()], None).err().expect("the combine is refused");
     assert_eq!(error, format!("there is no record at {path}"));
 }
 

@@ -6,6 +6,7 @@ import { digestString } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable, type NativeJourneyModule } from '../native.js';
 import preconditions from './case-preconditions.cjs';
+import { rowOf } from './case-said.js';
 import { packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { nativeModule, stitchJourneyArtifacts } from './jest-journey-artifact.js';
@@ -97,7 +98,7 @@ describe.runIf(nativeAvailable())('stitched shard artifacts', () => {
     expect(stitched.tests.map((test) => test.id)).toEqual([
       'test/pay.test.ts > heard once', 'test/pay.test.ts > pays', 'test/pay.test.ts > retried', 'test/pay.test.ts > unheard',
     ]);
-    expect(Object.fromEntries(stitched.tests.map((test) => [test.name, test.preconditions]))).toEqual({
+    expect(Object.fromEntries(stitched.tests.map((test) => [test.name, rowOf(test)]))).toEqual({
       'heard once': [],
       pays: [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level: preconditions.CASE_LEVEL }],
       retried: [
@@ -125,7 +126,7 @@ describe.runIf(nativeAvailable())('stitched shard artifacts', () => {
     const stitched = decodeExecutionIndex(await readFile(output));
     const entered = (test: number) => stitched.modules.flatMap((module) =>
       module.blocks.filter((block) => block.crossings.some((crossing) => crossing.test === test)).map((block) => block.name));
-    expect(stitched.tests.map((test, at) => ({ id: test.id, preconditions: test.preconditions, entered: entered(at) }))).toEqual([
+    expect(stitched.tests.map((test, at) => ({ id: test.id, preconditions: rowOf(test), entered: entered(at) }))).toEqual([
       {
         id: 'test/pay.test.ts > pays',
         preconditions: [{ name: 'network', value: 'live', site: 'test/pay.test.ts:3', level: preconditions.CASE_LEVEL }],

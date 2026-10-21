@@ -5,9 +5,8 @@
 
 use rustc_hash::FxHashMap;
 
-use crate::case_shard;
 use crate::journey_columns::{self, Column};
-use crate::journey_format::SetPool;
+use crate::crossing_sets::{self, SetPool};
 use crate::record_coverage;
 use crate::record_layout::LAYOUT;
 
@@ -15,6 +14,8 @@ pub struct Test {
     pub file: &'static str,
     pub complete: bool,
     pub duration: Option<u32>,
+    /// Its phases, written only in the current layout; `None` for a runner that reported none.
+    pub phases: Option<record_coverage::Phases>,
     pub preconditions: Vec<(&'static str, &'static str)>,
 }
 
@@ -22,6 +23,8 @@ pub struct Block {
     pub ordinal: u32,
     pub name: String,
     pub start: u32,
+    /// The ordinal of the region around it, or `no_owner`.
+    pub owner: u32,
     /// The tests, by their row in the shard, that called the region.
     pub called: Vec<u32>,
     pub loaded: Vec<u32>,
@@ -48,11 +51,11 @@ pub struct Spec {
 }
 
 pub fn test(file: &'static str) -> Test {
-    Test { file, complete: true, duration: Some(file.len() as u32), preconditions: Vec::new() }
+    Test { file, complete: true, duration: Some(file.len() as u32), phases: None, preconditions: Vec::new() }
 }
 
 pub fn block(ordinal: u32, called: &[u32]) -> Block {
-    Block { ordinal, name: format!("f{ordinal}"), start: ordinal + 1, called: called.to_vec(), loaded: Vec::new() }
+    Block { ordinal, name: format!("f{ordinal}"), start: ordinal + 1, owner: LAYOUT.coverage.no_owner, called: called.to_vec(), loaded: Vec::new() }
 }
 
 pub fn module(file: &'static str, blocks: Vec<Block>) -> Module {
@@ -101,14 +104,15 @@ pub fn write(spec: &Spec) -> Vec<u8> {
     }
     let test_path: Vec<u32> = spec.tests.iter().map(|test| strings.id(test.file)).collect();
     let mut sets = SetPool::new(spec.tests.len());
-    let (mut module_blocks, mut ordinal, mut digest, mut block_name, mut start, mut set, mut loaded) =
-        (vec![0], Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut module_blocks, mut ordinal, mut digest, mut block_name, mut start, mut owner, mut set, mut loaded) =
+        (vec![0], Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for module in &spec.modules {
         for block in &module.blocks {
             ordinal.push(block.ordinal);
             digest.push(strings.id(&format!("d{}", block.ordinal)));
             block_name.push(strings.id(&block.name));
             start.push(block.start);
+            owner.push(block.owner);
             set.push(sets.intern(&block.called));
             loaded.push(sets.intern(&block.loaded));
         }
@@ -135,6 +139,10 @@ pub fn write(spec: &Spec) -> Vec<u8> {
     if spec.version != LAYOUT.coverage.untimed {
         columns.push(words(&LAYOUT.coverage.duration, spec.tests.iter().map(|test| test.duration.unwrap_or(LAYOUT.coverage.no_duration)).collect()));
     }
+    if spec.version == LAYOUT.coverage.format {
+        let none = [LAYOUT.coverage.no_duration; record_coverage::PHASES];
+        columns.push(words(&LAYOUT.coverage.phases, spec.tests.iter().flat_map(|test| test.phases.unwrap_or(none)).collect()));
+    }
     columns.extend([
         words("preconditions.name", names),
         words("preconditions.digest", digests),
@@ -143,8 +151,9 @@ pub fn write(spec: &Spec) -> Vec<u8> {
         bytes("modules.instrumented", spec.modules.iter().map(|module| u8::from(module.instrumented)).collect()),
         words("modules.blocks", module_blocks),
         words("blocks.ordinal", ordinal),
-        bytes("blocks.kind", vec![0; blocks]),
-        words("blocks.owner", vec![LAYOUT.coverage.no_owner; blocks]),
+        // A region with an owner is a function's, never a module's top level.
+        bytes("blocks.kind", owner.iter().map(|owner| u8::from(*owner != LAYOUT.coverage.no_owner)).collect()),
+        words("blocks.owner", owner),
         words("blocks.digest", digest),
         words("blocks.name", block_name.clone()),
         words("blocks.path", block_name),
@@ -168,6 +177,13 @@ pub fn write(spec: &Spec) -> Vec<u8> {
 /// One region as read back: its ordinal, and the files of the tests that called and loaded it.
 pub type Region = (u32, Vec<String>, Vec<String>);
 
+/// Each test's file and phases, in the order the record holds them.
+pub fn phases(bytes: &[u8]) -> Vec<(String, record_coverage::Phases)> {
+    let coverage = record_coverage::read(bytes).unwrap().coverage.unwrap();
+    let strings = coverage.strings().unwrap();
+    (0..coverage.tests()).map(|at| (strings[coverage.test_path[at] as usize].to_owned(), coverage.phases(at))).collect()
+}
+
 /// A record's coverage as plain values: `(file, complete, duration)` a test, and `(file, instrumented, regions)` a module.
 pub fn read(bytes: &[u8]) -> (Vec<(String, bool, Option<u32>)>, Vec<(String, bool, Vec<Region>)>) {
     let record = record_coverage::read(bytes).unwrap();
@@ -181,8 +197,8 @@ pub fn read(bytes: &[u8]) -> (Vec<(String, bool, Option<u32>)>, Vec<(String, boo
         })
         .collect();
     let members = |set: u32| -> Vec<String> {
-        let stored = case_shard::set_slice(&coverage.set_bytes, &coverage.set_offsets, set).unwrap();
-        case_shard::decode_set(stored, coverage.tests()).unwrap().into_iter().map(|test| files[test as usize].clone()).collect()
+        let stored = crossing_sets::set_slice(&coverage.set_bytes, &coverage.set_offsets, set).unwrap();
+        crossing_sets::decode_set(stored, coverage.tests()).unwrap().into_iter().map(|test| files[test as usize].clone()).collect()
     };
     let modules = (0..coverage.modules())
         .map(|at| {

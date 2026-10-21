@@ -70,6 +70,16 @@ impl ParseRow for Read {
         values.extend(self.mocks.minus.iter().map(String::as_str));
         values.extend(self.mocks.plus.iter().map(String::as_str));
         values.extend(self.members.iter().map(|member| member.name.as_str()));
+        for declared in &self.member_declarations {
+            values.insert(&declared.name);
+            values.insert(&declared.on);
+        }
+        for used in &self.member_uses {
+            values.insert(&used.name);
+            values.insert(&used.of);
+            values.insert(&used.how);
+        }
+        values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
         values.extend(self.unknown.as_deref());
     }
 
@@ -80,6 +90,9 @@ impl ParseRow for Read {
                 id(&request.value),
                 id(request.kind.as_str()),
                 request.line,
+                // An oxc read derives nothing: every request is written.
+                0,
+                request.republishes,
                 request.bindings.iter().map(|binding| {
                     (id(&binding.imported), id(&binding.local), binding.type_only, binding.line)
                 }),
@@ -98,14 +111,23 @@ impl ParseRow for Read {
             );
         }
         for symbol in &self.symbols {
-            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc));
+            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc), crate::harvest::reach_code(symbol.reach));
         }
         for name in &self.declares {
             into.declare(id(name));
         }
         into.mock(self.mocks.minus.iter().map(|value| id(value)), self.mocks.plus.iter().map(|value| id(value)));
         for member in &self.members {
-            into.member(member.request, id(&member.name), member.line);
+            into.member(member.request, id(&member.name), member.line, member.through_default);
+        }
+        for declared in &self.member_declarations {
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on));
+        }
+        for used in &self.member_uses {
+            into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
+        }
+        for used in &self.own_uses {
+            into.own_use(id(&used.name), used.line);
         }
     }
 
@@ -127,6 +149,10 @@ impl ParseRow for Read {
 
     fn size(&self) -> Option<crate::source_size::Size> {
         self.size
+    }
+
+    fn doc(&self) -> crate::parse_columns::Span {
+        self.doc.map(|doc| (doc.start, doc.end))
     }
 }
 

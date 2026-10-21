@@ -239,7 +239,7 @@ describe('the handshake', () => {
 
     const instructions = (answer?.result as { instructions?: string } | undefined)?.instructions;
     expect(instructions).toContain('`variance run`');
-    expect(instructions).toContain('https://variance-authority.dev/start-cli');
+    expect(instructions).toContain('https://variance-authority.dev/start/cli');
   });
 });
 

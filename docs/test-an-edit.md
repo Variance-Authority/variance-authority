@@ -159,6 +159,10 @@ seen it:
   since a test's commit is compared line by line with the code that test ran,
   as an uncommitted edit is, so a commit adds only the tests that executed the
   lines it changed.
+- **A test file you edited runs once.** A run records the text each test's
+  own file had, and a setup file the test declared, so the next selection skips
+  a test that already ran the text you have now, whether that edit is still
+  uncommitted or committed since.
 - **A test that did not pass whole runs again.** A failed, skipped or focused
   run records what it executed, and never justifies leaving that file out.
 - **An edit that runs nothing differently sends no test back.** A type, a

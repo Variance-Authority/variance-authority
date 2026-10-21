@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="docs/visual-guidelines.md">
+  <a href="https://variance-authority.dev">
     <img src="assets/brand/variance-authority-logo.svg" alt="Variance Authority logo" width="800">
   </a>
 </p>
@@ -48,6 +48,8 @@ source facts and observations it reads, through the interfaces it already has.
 - [**As guided workflows**](docs/agent-workflows.md) — source discovery, live
   investigation, UI review, test selection, and test reduction, each carried
   through an edit and a check.
+
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## One change, traced end to end
 

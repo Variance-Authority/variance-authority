@@ -2,18 +2,21 @@
 //
 // Whether a pull request can change what the `site` check photographs.
 //
-// The check builds `site/`, serves it, and photographs every route its sitemap
-// lists, which takes about twenty minutes and is the slowest check a pull
-// request waits for. A change reaches it in one of three ways, and the first two
-// are read out of this checkout rather than listed here, so a page that starts
-// importing another README, or a package the CLI starts depending on, is in
-// reach the moment it is committed:
+// The check builds `site/`, serves it, and photographs the routes its sitemap
+// lists that do not exclude themselves: the catalog and component pages, since
+// every markdown page carries `data-variance-exclude`. It is the slowest check
+// a pull request waits for. A change reaches it in one of three ways, and the
+// first two are read out of this checkout rather than listed here, so a site
+// module that starts importing a package, or a package the CLI starts
+// depending on, is in reach the moment it is committed:
 //
 // - **What the site is built from**: everything under `site/`, and every file
 //   the published source index says a file there reaches. That is the file graph
-//   every other reach question here walks (`affectedBy`), and it is how `docs/`
-//   and the packages' READMEs come in, as `?raw` text, and how the routes
-//   collector and what it imports come in. A site module the reader could not
+//   every other reach question here walks (`affectedBy`), and it is how the
+//   routes collector and what it imports come in. `docs/` and the packages'
+//   READMEs reach it too, as `?raw` text, and do not count: the pages that
+//   render them are excluded, and the catalog pages that quote a lead are
+//   photographed on `main`'s push run. A site module the reader could not
 //   enumerate every import of is a change nobody can read, and runs.
 // - **What photographs it**: the workspace packages the run loads, which are
 //   the one holding the runner (`VARIANCE_RUNNER`, the command the variance
@@ -47,7 +50,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
 import { publishedSources } from '@variance-authority/sense';
 import ciInfo from 'ci-info';
 import picomatch from 'picomatch';
@@ -65,6 +68,19 @@ const MACHINERY = [
   'variance.config.json',
   'tools/site-reach.mjs',
 ];
+
+/**
+ * The words a root script runs, with each `yarn <script>` it calls read in its
+ * place, so a build split into named halves is still every step of the build.
+ */
+function words(scripts, name, seen = new Set([name])) {
+  const said = (scripts[name] ?? '').split(/\s+/);
+  return said.flatMap((word, at) =>
+    said[at - 1] === 'yarn' && Object.hasOwn(scripts, word) && !seen.has(word)
+      ? words(scripts, word, new Set([...seen, word]))
+      : [word],
+  );
+}
 
 /** The root's checkout and install. Its build is read from `scripts.build`. */
 const INSTALL = [
@@ -166,7 +182,7 @@ export async function siteReach(root, changed, runner) {
   const { subjects } = JSON.parse(readFileSync(resolve(root, 'site/variance.config.json'), 'utf8'));
   const collector = idOf(relations, 'file', `site/${subjects?.collector ?? ''}`);
   if (collector === undefined) throw new Error('the source index holds no collector for `site/variance.config.json`');
-  const sited = dependenciesOf(relations, [collector]);
+  const sited = dependenciesOf(relations, [collector], { through: RUNTIME_EDGES });
   const seeds = new Set([...packages].filter(([, { dir }]) => runner.startsWith(`${dir}/`)).map(([name]) => name));
   for (const id of sited.nodes) {
     const node = nodeAt(relations, id);
@@ -186,13 +202,15 @@ export async function siteReach(root, changed, runner) {
     changedFilePatterns.filter((pattern) => !pattern.startsWith('!')),
     { dot: true, ignore: changedFilePatterns.filter((pattern) => pattern.startsWith('!')).map((p) => p.slice(1)) },
   );
-  const build = (JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts?.build ?? '').split(/\s+/);
+  const build = words(JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts ?? {}, 'build');
   const job = picomatch([...MACHINERY, ...INSTALL], { dot: true });
 
   for (const file of changed) {
     if (file.startsWith('site/')) return { observe: true, because: `\`${file}\` is the site's own.` };
-    const reached = affectedBy(relations, [file]).files;
-    const page = reached.filter((path) => path.startsWith('site/')).sort()[0];
+    const reached = affectedBy(relations, [file], { through: RUNTIME_EDGES }).files;
+    // Markdown is text a page shows, and the pages that show it whole leave the
+    // photographed set by excluding themselves.
+    const page = file.endsWith('.md') ? undefined : reached.filter((path) => path.startsWith('site/')).sort()[0];
     if (page !== undefined) return { observe: true, because: `\`${page}\` reaches \`${file}\`.` };
     const owner = owners.find(([, { dir }]) => file.startsWith(`${dir}/`));
     if (owner) {

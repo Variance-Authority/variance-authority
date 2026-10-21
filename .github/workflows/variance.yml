@@ -14,8 +14,8 @@ name: variance
 # this project's own interface: the review surface's Storybook, its pages and
 # components drawn over builds the project recorded through itself. A redesign
 # of that page once landed without one image moving, because nothing
-# photographed it. `site` observes variance-authority.dev, [`site/`](../../site),
-# every route its sitemap lists.
+# photographed it. `site` observes variance-authority.dev, [`site/`](../../site):
+# its catalog and component pages, since every markdown page excludes itself.
 #
 # The case is observed twice more, once for each other place a baseline can be
 # kept: `lfs` commits its baselines to the pull request's branch through
@@ -423,7 +423,7 @@ jobs:
   # This project's own surfaces, one check each: `tribunal` is the review
   # surface's Storybook (`packages/tribunal/stories`), over builds
   # `stories/record.mjs` pushes through an in-process tribunal on every run, and
-  # `site` is variance-authority.dev, every route its sitemap lists. Checks apart
+  # `site` is variance-authority.dev's catalog and component pages. Checks apart
   # from the one above and from each other, because each verdict is its own
   # decision: a change to the review page or to a docs page is accepted or not on
   # its own terms, not in the same breath as the case's buttons.
@@ -540,13 +540,13 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # About twenty minutes go to photographing the site, and some pull
-      # requests cannot move a pixel of it. `tools/site-reach.mjs` reads the
-      # whole change against the base and says whether it reaches what the site
-      # is built from or what photographs it; a push, a dispatch, the accept
-      # label and a change it cannot read always run. What the site's files
-      # reach is read from the source index, which CI refuses to build on
-      # demand, so `variance index` publishes it first. Nothing after this runs
+      # Photographing the site takes minutes, and some pull requests cannot
+      # move a pixel of it. `tools/site-reach.mjs` reads the whole change
+      # against the base and says whether it reaches what the site is built
+      # from, markdown aside, or what photographs it; a push, a dispatch, the
+      # accept label and a change it cannot read always run. What the site's
+      # files reach is read from the source index, which CI refuses to build
+      # on demand, so `variance index` publishes it first. Nothing after this runs
       # for the site when it says `false`. Any failure here leaves a warning,
       # and the site runs.
       - name: decide whether this change reaches the site
@@ -574,9 +574,12 @@ jobs:
 
       # The site is its own install, outside the workspaces, and its build reads
       # `docs/` and the packages' READMEs from this checkout. It is observed as
-      # built, served by the same worker it deploys as, so a page that differs
-      # between the build and production is not this check's to find. The
-      # server stays up for the rest of the job; the gate reads its sitemap.
+      # built, served by the same worker setup it deploys with, so a page that
+      # differs between the build and production is not this check's to find.
+      # It is built with `--mode unminified`, the production build with its
+      # script unminified, so a change names the client component that wrote it
+      # rather than `wo`. The server stays up for the rest of the job; the gate reads
+      # its sitemap.
       - name: build what this project observes
         if: matrix.project == 'site' && steps.reach.outputs.observe != 'false'
         shell: bash
@@ -586,7 +589,7 @@ jobs:
           set -euo pipefail
           cd site
           yarn install --immutable
-          yarn build
+          yarn build --mode unminified
           nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
           for _ in $(seq 60); do
             if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then exit 0; fi

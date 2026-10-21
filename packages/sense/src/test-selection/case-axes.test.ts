@@ -24,12 +24,15 @@ const GRAMMAR: NameGrammar = {
   ],
 };
 
-type Said = NonNullable<ExecutionTest['preconditions']>;
-
 const said = (name: string, value: string | boolean, line: number) => ({ name, value, site: at(line), level: 1 });
 
-function row(name: string, preconditions?: Said): ExecutionTest {
-  return { id: `${SPEC} > ${name}`, file: SPEC, name, ...(preconditions === undefined ? {} : { preconditions }) };
+type Item = ReturnType<typeof said>;
+
+/** The frame spelling of what a case said, item by item. */
+const spelled = (items: readonly Item[]) => JSON.stringify(items.map(({ name, value, site, level }) => [name, value, site, level]));
+
+function row(name: string, items?: readonly Item[]): ExecutionTest {
+  return { id: `${SPEC} > ${name}`, file: SPEC, name, ...(items === undefined ? {} : { said: spelled(items) }) };
 }
 
 describe('the values a case holds under a name', () => {
@@ -104,7 +107,7 @@ describe('a case twin', () => {
   });
 
   it('is looked for only in the case\'s own test file', () => {
-    const elsewhere: ExecutionTest = { id: 'refund.test.ts > plain', file: 'refund.test.ts', name: 'plain', preconditions: [] };
+    const elsewhere: ExecutionTest = { id: 'refund.test.ts > plain', file: 'refund.test.ts', name: 'plain', said: '[]' };
     const cases = [row('on', [said('flag', 'ff-on', 2)]), elsewhere];
 
     expect(caseTwins([cases[0]!], cases, GRAMMAR)).toEqual([

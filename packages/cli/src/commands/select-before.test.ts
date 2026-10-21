@@ -105,6 +105,29 @@ describe('a diff that moved what the suite rests on', () => {
     expect(said.out).toBe('test/alpha.test.ts\n');
     expect(said.err).not.toContain('rests on');
   });
+
+  it('names under json the files that moved what the suite rests on', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } } });
+
+    write(root, 'test/setup.ts', "import 'left-pad';\nexport const ready = 2;\n");
+    const said = JSON.parse((await selectOutput({ cwd: root, format: 'json', suite: 'unit' })).out) as Record<string, unknown>;
+
+    expect(said).toMatchObject({ ground: 'before', rests: ['test/setup.ts'], skip: [] });
+  });
+
+  it('says under json which changed region selected each test', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] } } });
+
+    write(root, 'src/pad.ts', PAD.replace('padStart(4', 'padStart(5'));
+    const said = JSON.parse((await selectOutput({ cwd: root, format: 'json', suite: 'unit' })).out) as {
+      readonly reasons: readonly { readonly kind: string; readonly file?: string; readonly name?: string }[];
+      readonly selected: readonly { readonly test: string; readonly reasons: readonly number[] }[];
+    };
+
+    expect(said.selected.map(({ test }) => test)).toEqual(['test/beta.test.ts']);
+    const named = said.selected[0]!.reasons.map((index) => said.reasons[index]);
+    expect(named).toContainEqual(expect.objectContaining({ kind: 'region', file: 'src/pad.ts', name: 'pad' }));
+  });
 });
 
 const PAD = ['export function pad(text: string): string {', "  return text.padStart(4, ' ');", '}', ''].join('\n');

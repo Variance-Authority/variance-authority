@@ -5,6 +5,7 @@
 > Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -304,4 +305,4 @@ does.
 
 ---
 
-**[@variance-authority/scenario](https://variance-authority.dev/reference/packages/scenario)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/scenario](https://variance-authority.dev/reference/packages/scenario)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/scenario) · MIT

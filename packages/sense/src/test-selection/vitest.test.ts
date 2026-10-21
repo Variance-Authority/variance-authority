@@ -240,7 +240,7 @@ describe('a module named unprobed', () => {
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', page);
       await reporter.onFinished([]);
 
-      expect(placed!.code).toMatch(/^export function f\(x\) \{ if \(x\) \{ return 1; \} return 2; \}\n;[^]*__vaE\(\);$/);
+      expect(placed!.code).toMatch(/^export function f\(x\) \{ if \(x\) \{ return 1; \} return 2; \}\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
       expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([
         expect.objectContaining({ file: 'page.ts', instrumented: false, blocks: [] }),
       ]);
@@ -260,7 +260,7 @@ describe('coverage generations', () => {
       await writeFile(resolve(root, 'broken.ts'), 'const =');
       // It still runs marked as loaded, so a test that loaded it still says so.
       expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toEqual({
-        code: expect.stringMatching(/^const =\n;[^]*__vaE\(\);$/),
+        code: expect.stringMatching(/^const =\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/),
         map: null,
       });
       await reporter.onFinished([]);

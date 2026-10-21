@@ -18,8 +18,9 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { notingRead } from './record-base.js';
-import { selectionFrom, timesFrom } from './selection-environment.js';
+import { landingTimes, selectionFrom } from './selection-environment.js';
 import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
+import { shardArgument } from './shard-placement.js';
 
 export interface TestSelectionOptions {
   /**
@@ -54,9 +55,13 @@ export interface TestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
-   * `presence` probes every arrival region; `entries` probes modules and
-   * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * `presence`, the default, probes every arrival region; `entries` probes
+   * modules and functions only, so a suite reads it no finer than
+   * `function-use`. Both record which functions ran before the file's first
+   * test. `loads` probes nothing: each module
+   * runs with one line after its own text, the record says which files each
+   * test loaded, and a change to a file selects every test that loaded it.
+   * Under it `cadence` is off, whatever it says.
    */
   readonly mode?: InstrumentMode;
   /**
@@ -192,12 +197,14 @@ export function withTestSelection(
     };
   }
 
-  const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
+  // Under `loads` no region is probed, so no line of a test can be said to
+  // have reached one first: the cut would cost a call per statement for nothing.
+  const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
   const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
-  const continuations = options.continuations === true;
-  const story = askedForStories(coverageFile);
+  const continuations = run.cases && options.continuations === true;
+  const story = run.cases ? askedForStories(coverageFile) : undefined;
   return {
     ...config,
     plugins: [...array(config.plugins), ...plugins],
@@ -213,7 +220,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
         ),
         ...setupFiles,
       ],
@@ -244,7 +251,13 @@ export function withTestSelection(
   };
 }
 
-/** The sequencer that drops what the selection skips and places a `--shard` by recorded time. */
+/**
+ * The sequencer that drops what the selection skips and places a `--shard` by
+ * recorded time. Under `--shard` the run passes with no tests unless the
+ * configuration says otherwise: Vitest 4 refuses a run with fewer files than
+ * shards before any sequencer places one, and a shard left no file is a
+ * placement, as it is under Jest.
+ */
 function selecting(
   config: UserConfig,
   root: string,
@@ -253,13 +266,11 @@ function selecting(
   coverageFile: string,
   selection: (() => Promise<SuiteSelection>) | undefined,
   run: SelectionRun,
-): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
+): Pick<NonNullable<UserConfig['test']>, 'sequence' | 'passWithNoTests'> {
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
-  // A record named by file is the one this run lands in, so its times are read
-  // there; a suite's are read where `variance select` reads its record.
-  const times = notingRead(coverageFile, timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) }));
+  const times = landingTimes(coverageFile, { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
@@ -269,7 +280,8 @@ function selecting(
     },
   });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
-  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };
+  const empty = shardArgument(process.argv) !== undefined && config.test?.passWithNoTests === undefined ? { passWithNoTests: true } : {};
+  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> }, ...empty };
 }
 
 /**

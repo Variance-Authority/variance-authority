@@ -5,6 +5,7 @@
 > Decode, compare and diff PNGs without a browser: two buffers in, a mask out.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -203,8 +204,18 @@ where it sits.
 
 When the widths differ there is no row of one image in the other. Both are then
 copied onto the union box, top-left aligned, and compared position by position,
-and `alignment` is absent. The same happens when the two differ in more than
-2,000 runs of rows, where aligning costs more than it can save.
+and `alignment` is absent.
+
+The shortest edit is searched for up to 2,000 runs of rows, and it counts every
+change on the page, so a rewritten section and a few lines reflowed under it can
+pass that on a long page. Past it the rows are split where both images hold a
+run of rows exactly once, as patience diff does, and each stretch between two
+such runs is aligned on its own: the rows an edit only moved still pair with the
+rows they moved from. A run is a block of identical rows, counted as one. A
+stretch the two images share no such run in is paired by position within it, as
+is every stretch left once the split has spent as much work as the search may,
+and the pairing is still kept only when it leaves fewer pixels differing than
+position does.
 
 That padding is opaque **white**, and that is a position rather than a derived
 value: white is taken as the page's assumed canvas. Transparent padding would
@@ -225,7 +236,7 @@ the bytes arrive cannot change a verdict.
 | `comparePixels` | `(left: DecodedImage, right: DecodedImage, options?: CompareOptions) => RasterComparison` |
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Buffer` |
-| `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy) => { diff: Buffer; change?: Buffer }` |
+| `changeImages` | `(before: Buffer, after: Buffer, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
 | `pngSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
 
@@ -260,10 +271,30 @@ its own size, for a page too tall to read whole once it is scaled to a column.
 Pass it the regions the comparison isolated (`isolateRegions` from
 `@variance-authority/core/attribute`). Each of the three heaviest, merged where
 they meet, is cut with 32 rows above and below and at least 320 pixels wide, and
-shown as its before, its after and its difference, top to bottom. A panel stops
-at 400 rows. The before panel is read through the row alignment, so beside an
-insertion it shows the before rows either side of the new content, and at a
-removal it shows the rows that went. With no regions, `change` is absent.
+shown as its before beside its after. A window stops at 400 rows, and its top
+and bottom move out of any line of text they would cut. Every window is cut as
+wide as the widest, so the panels line up down the sheet; each is framed, on a
+neutral canvas, with a margin between one window and the next. The before
+panel is read through the row alignment, so each row sits level with the row it
+became: opposite an insertion the before panel shows striped filler, and at a
+removal the after panel does. What changed is washed in red on the before and
+green on the after, with an edge of the same colour just outside it, widened
+to the space either side of the words it starts and ends in. Rows that only
+moved are not marked on the panels; a blue arrow in the gutter runs beside
+them, its head the way they went. A run of identical rows — a blank gap, or
+the plain inside of a box — that grew or shrank by more than a row is spacing
+that changed: it gets a window while the changes leave one free,
+and a blue line across the gutter rather than a mark, at both edges of a
+gap that grew and at the one place a gap that shrank closed. A gap one row
+taller or shorter is rounding from content that moved, and gets neither. With
+no regions, `change` is absent.
+
+Each column is labelled `Before` or `After`, beside a red or a green dot. `labels` adds
+what the sheet is of and where each side came from: `{ subject: 'story:button',
+before: 'baseline', after: 'this run' }` sets the subject over both columns and
+each source beside its label. The text is Inter, drawn from glyphs shipped in
+`glyphs/` with no browser and no font on the machine; Inter is under the SIL
+Open Font License 1.1, in `glyphs/inter-LICENSE.txt`.
 
 `pngSize` reads the width and height out of the IHDR without decoding, and
 returns `null` for bytes that are not a PNG or are too short for a header.
@@ -414,4 +445,4 @@ the component information captured at render time.
 
 ---
 
-**[@variance-authority/png](https://variance-authority.dev/reference/packages/png)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/png](https://variance-authority.dev/reference/packages/png)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/png) · MIT

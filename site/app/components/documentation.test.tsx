@@ -59,6 +59,19 @@ describe("what a page says it showed", () => {
     expect(document.querySelector(".doc-copy")?.getAttribute("data-variance-reads")).toBe("docs/tests.md");
   });
 
+  // The site's run photographs the catalog and component pages; a page that
+  // renders a markdown document whole leaves the run by saying so.
+  it("excludes a markdown document from the photographed pages, and keeps a catalog page in", () => {
+    const prose = documentOf(renderToStaticMarkup(
+      <MarkdownDocument source={"# Tests\n\nLead.\n\nBody."} sourcePath="docs/tests.md" />,
+    ));
+    const catalog = documentOf(renderToStaticMarkup(
+      <DocumentationIndex index={documentationIndex("/docs/all")!} />,
+    ));
+    expect(prose.querySelector("[data-variance-exclude]")?.getAttribute("data-variance-exclude")).toMatch(/markdown/);
+    expect(catalog.querySelector("[data-variance-exclude]")).toBeNull();
+  });
+
   it("names each document whose opening an index row shows, and none whose caption the catalogue holds", () => {
     const index = documentationIndex("/docs/all")!;
     const document = documentOf(renderToStaticMarkup(<DocumentationIndex index={index} />));

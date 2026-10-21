@@ -48,7 +48,7 @@ export async function runsBase(root: string, runs: CommitRuns | undefined, cover
     if (value !== undefined && !OBJECT_NAME.test(value)) {
       throw new OperatorError(
         `\`${file}\` is malformed: its \`${field}\` is ${JSON.stringify(value)}, which is not a commit's full object name. ` +
-          'Delete it and run the suite again, or name the base with `--since <ref>`.',
+          'Name the base with `--since <ref>`.',
       );
     }
   }

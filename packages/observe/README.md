@@ -5,6 +5,7 @@
 > Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -338,4 +339,4 @@ directly; this package is assembled from nothing else.
 
 ---
 
-**[@variance-authority/observe](https://variance-authority.dev/reference/packages/observe)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/observe](https://variance-authority.dev/reference/packages/observe)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/observe) · MIT

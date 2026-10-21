@@ -66,7 +66,7 @@ inputs:
   shard:
     description: >-
       `k/n`: observe the files placed on shard k of n, by the costs the mainline
-      lineage recorded or by checksum when there are none. Every other subject is
+      lineage recorded or by file count when there are none. Every other subject is
       reported as another shard's, never dropped, and `variance report` over all n
       reports is the suite.
     required: false

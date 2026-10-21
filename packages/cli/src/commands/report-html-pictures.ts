@@ -4,6 +4,7 @@ import { extname, resolve } from 'node:path';
 import type { CliRunReport } from './run.js';
 import { text } from './report-html-elements.js';
 import { needsReview } from './report-html-subjects.js';
+import { urlOfPath } from './url-of-path.js';
 
 /**
  * Where the page's pictures come from: beside it, or inside it.
@@ -32,6 +33,29 @@ import { needsReview } from './report-html-subjects.js';
  * Only the pictures of subjects the page shows are carried, each once: an
  * unchanged subject has no card, and its picture is weight with nothing to
  * show it.
+ *
+ * ## What each card opens on comes first
+ *
+ * A card opens on one view, and the pictures that view shows are carried
+ * ahead of every other picture in the file. A reviewer reads what changed on
+ * every card before the pages behind the other views arrive, instead of
+ * waiting behind the first card's pages for its change.
+ *
+ * ## A page past the texture limit is not carried
+ *
+ * An ordinary page is carried whole, so a card keeps its wipe, blend, blink,
+ * regions and trio. A page longer than Chromium's largest texture side is not:
+ * three of them are tens of megabytes a reviewer waits for, and the change
+ * picture already shows what moved in it, at one pixel per pixel. Only a
+ * subject with a change picture leaves its pages out, so no card is left with
+ * nothing to open on. The card names each page left out, with its size, and
+ * shows the views its carried pictures can fill.
+ *
+ * ## Decoded when shown
+ *
+ * A carried picture stays text until an `<img>` that shows it is near the
+ * viewport: the decoded bytes and the bitmap behind them are paid for the
+ * pictures a reviewer looks at, not for every picture in the file at load.
  */
 
 /** A picture the page carries: the file it is read from and what is known of it before then. */
@@ -41,6 +65,8 @@ export interface Picture {
   readonly media: string;
   readonly width?: number;
   readonly height?: number;
+  /** Left out of the page: past the texture limit, and every card that shows it has a change picture. */
+  readonly left?: true;
 }
 
 /** Pictures the page carries, by the path its `<img>` elements name them. */
@@ -48,15 +74,25 @@ export type Pictures = ReadonlyMap<string, Picture>;
 
 /** How the page's `<img>` elements reach their pictures, and what it writes after its markup. */
 export interface Placement {
-  /** The attributes an `<img>` showing the picture at `path` carries. */
-  attributes(path: string): string;
-  /** The payloads of the pictures placed so far, in the order they were placed. */
+  /**
+   * The attributes an `<img>` showing the picture at `path` carries; `opens`
+   * when the card's first view shows it, so it is carried ahead of the rest.
+   */
+  attributes(path: string, opens?: boolean): string;
+  /** The picture at `path` when the page leaves it out, so the card can say so. */
+  omitted(path: string): Picture | undefined;
+  /** The payloads of the pictures placed so far: every opening picture, then the rest. */
   carried(): Iterable<string>;
 }
 
-/** Every picture by its path, relative to the report: the page belongs beside it. */
+/**
+ * Every picture by its path, relative to the report: the page belongs beside it.
+ * The path is a file's name and `src` is a URL, so {@link urlOfPath} turns one
+ * into the other: a name holding `%` names that file, not the one it decodes to.
+ */
 export const BY_PATH: Placement = {
-  attributes: (path) => `src="${text(path)}"`,
+  attributes: (path) => `src="${text(urlOfPath(path))}"`,
+  omitted: () => undefined,
   carried: () => [],
 };
 
@@ -69,20 +105,28 @@ export const BY_PATH: Placement = {
  */
 export function carrying(pictures: Pictures): Placement {
   const placed = new Map<string, number>();
+  const opening = new Set<string>();
   return {
-    attributes(path) {
+    attributes(path, opens = false) {
       const picture = pictures.get(path);
       if (picture === undefined) return BY_PATH.attributes(path);
       const number = placed.get(path) ?? placed.size;
       placed.set(path, number);
+      if (opens) opening.add(path);
       return (
         `data-picture="${number}"` +
         (picture.width === undefined ? '' : ` width="${picture.width}"`) +
         (picture.height === undefined ? '' : ` height="${picture.height}"`)
       );
     },
+    omitted(path) {
+      const picture = pictures.get(path);
+      return picture?.left === true ? picture : undefined;
+    },
     *carried() {
-      for (const [path, number] of placed) {
+      // Stable, so each half keeps the order the page shows its pictures in.
+      const order = [...placed].sort(([a], [b]) => Number(opening.has(b)) - Number(opening.has(a)));
+      for (const [path, number] of order) {
         const picture = pictures.get(path) as Picture;
         // Read when its turn comes, so what is held is one picture. A file gone
         // since it was located fails the command rather than the page lying.
@@ -114,8 +158,14 @@ const MEDIA: Readonly<Record<string, string>> = {
  * Applied per shard, before the merge, because an image path is relative to
  * the report that named it and the merged report has no directory. A located
  * path is rewritten to the absolute file and is the key the page names it by.
- * Only `before`, `diff` and `after` are pictures; `record` is a sidecar and
- * stays a path. A picture that cannot be opened keeps its path.
+ * Only `before`, `diff`, `after` and `change` are pictures; `record` is a
+ * sidecar and stays a path. A picture that cannot be opened keeps its path.
+ *
+ * A page longer than {@link LONGEST_CARRIED_SIDE} on a subject with a change
+ * picture is marked `left`, for the reason the file's opening gives, until a
+ * card without a change picture names it too: its bytes are in the page then,
+ * and every card that names it shows it. A picture whose header does not say
+ * its size is carried.
  *
  * Read one file at a time and only as far as a PNG's header, so locating a
  * run costs its count of pictures, not their bytes.
@@ -132,19 +182,49 @@ export async function locatePictures(
       continue;
     }
     const images = { ...entry.images };
-    for (const side of ['before', 'diff', 'after'] as const) {
+    const fresh = new Set<string>();
+    for (const side of ['before', 'diff', 'after', 'change'] as const) {
       const path = images[side];
       const media = path === undefined ? undefined : MEDIA[extname(path).toLowerCase()];
       if (path === undefined || media === undefined) continue;
       const file = resolve(dir, path);
       const size = found.has(file) ? {} : await sizeOf(file);
       if (size === undefined) continue;
-      if (!found.has(file)) found.set(file, { file, media, ...size });
+      if (!found.has(file)) {
+        found.set(file, { file, media, ...size });
+        fresh.add(file);
+      }
       images[side] = file;
+    }
+    const change = images.change === undefined ? undefined : found.get(images.change);
+    // A file another card left out as a page is this card's opening picture.
+    if (change?.left === true) found.set(change.file, withoutLeft(change));
+    const cut = change !== undefined;
+    for (const side of ['before', 'diff', 'after'] as const) {
+      const page = images[side] === undefined ? undefined : found.get(images[side]);
+      if (page === undefined) continue;
+      const leave = cut && pastTexture(page);
+      if (leave && fresh.has(page.file)) found.set(page.file, { ...page, left: true });
+      if (!leave && page.left === true) found.set(page.file, withoutLeft(page));
     }
     observations.push({ ...entry, images });
   }
   return { ...report, observations };
+}
+
+/**
+ * Chromium's largest texture side. A picture past it is drawn in tiles, and a
+ * full-page capture past it is a page no viewer of a single file reads whole.
+ */
+export const LONGEST_CARRIED_SIDE = 16384;
+
+/** Whether `page` is longer than {@link LONGEST_CARRIED_SIDE}; never when its height is unknown. */
+function pastTexture(page: Picture): boolean {
+  return page.height !== undefined && page.height > LONGEST_CARRIED_SIDE;
+}
+
+function withoutLeft({ left: _, ...picture }: Picture): Picture {
+  return picture;
 }
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

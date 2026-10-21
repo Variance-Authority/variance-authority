@@ -69,6 +69,16 @@ one answers.
 
 ## Combine CI shard records
 
+A runner wrapped by `withTestSelection` places `--shard k/n` by whole test
+files — Vitest, Jest, and Playwright 1.62 or newer — so shards that read one
+record run each file in one shard; a Playwright setup project runs in every
+shard that needs it. Each shard prints one stderr line before its first test:
+`shard k/n by the times recorded at <commit>` when the record has times, and
+`shard k/n by file count` with the reason when it has none. `withTestSelection`
+refuses a sharded Playwright run, before any test starts, on Playwright older
+than 1.62, or when `--reporter` leaves out
+`@variance-authority/playwright-test/reporter`.
+
 To combine records written by `withTestSelection` into the one record an
 unsharded run would have written, name every shard and an output file:
 
@@ -89,9 +99,9 @@ combined without checking that read, and the output names it. It refuses, by sha
 test files or case files, different commits, different probe recipes, a shard
 that kept cases beside one that kept none, before layers that started from
 different records, different Eyes journals for one case attempt or a journal of a case the index does not
-record, a case index this build cannot read (record it again with this
-version), and lines on a file two shards cut into different regions (record
-every shard with one build). Land the result with
+record, a case index this build cannot read, with the reader's reason, and
+lines on a file two shards cut into different regions, which combine only when
+one build recorded every shard. Land the result with
 `variance journeys <record>`; to lay the shards over a record that is already
 there, run `variance journeys <shard.bin>... --into <record>`.
 `journeys stitch` reads journey-only artifacts instead, which lack the per-file
@@ -112,8 +122,16 @@ variance reach --since origin/main              # files a diff reaches over impo
 - **`select` prints a skip list, never a run list.** A test the recording has
   not seen stays in the run. An empty stdout skips nothing, and runs the whole
   suite. Every sentence about the reading goes to stderr, so `$(...)` gets only
-  arguments for the runner. `--format json` gives the counts, and gives the
-  reason it declined to narrow as `widened`.
+  arguments for the runner. `--format json` gives the counts, the reason it
+  declined to narrow as `widened`, and which reading was made as `ground`
+  (`read`, `no-journal`, `no-coverage`, `no-diff`, `no-install`, or `before`
+  with the changed files under `rests`). When the record narrowed, `selected`
+  lists each test file the change reached with the positions of its reasons in
+  `reasons`, where each `region`, `precondition`, `reader` or `importer` reason
+  is named once; a journey file's reading names no reasons and carries
+  neither. A region of a file under `install.files` was changed whole by a bump,
+  with `through` the chain from the bumped package. `incomplete`, when the record keeps one, lists the recorded test
+  files not observed whole, which run whatever changed.
 - **`select` flags.** `--suite <name>` names the record, and is required when
   the root config declares more than one suite. `--since <ref>` is the base when
   the recording names no commit. `--execution <journey file>` reads that file
@@ -147,7 +165,7 @@ Which cases ran one line, and what a change did to the cases, is `variance
 covering`, in [covering](covering.md).
 
 For what the commands do not print, read [selection API](selection-api.md): a
-distance per test, the `because` trail, or a diff that is not a ref.
+distance per test outside a leg, or a diff that is not a ref.
 
 ## Test an edit in a loop
 

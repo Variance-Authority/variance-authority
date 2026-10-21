@@ -9,8 +9,9 @@
  * code, code was deleted, or code the other suites run was written.
  */
 
-import type { TestFileMotion } from '@variance-authority/sense/test-selection';
+import type { MovedRegion, TestFileMotion } from '@variance-authority/sense/test-selection';
 import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed } from './coverage-summary.js';
+import { functionsIn, notListed } from './covering-motion.js';
 import { text as escape } from './report-html-elements.js';
 import type { CoverageFormat } from '../coverage-args.js';
 import type { CoverageSource } from './coverage-source.js';
@@ -94,18 +95,25 @@ function heading(answer: Coverage): string {
   return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}`;
 }
 
-/** The test files whose reach changed most, under the suite they belong to. */
+/**
+ * The test files whose reach changed most, under the suite they belong to, each
+ * with the functions its moved regions sit in, and a count of the test files
+ * left unnamed.
+ */
 function namedTestFiles(suite: CoverageSuite, testFiles: readonly TestFileMotion[]): readonly string[] {
-  const left = [...testFiles].filter((file) => file.left.length > 0).sort((a, b) => b.left.length - a.left.length || order(a.file, b.file));
-  const entered = [...testFiles].filter((file) => file.entered.length > 0).sort((a, b) => b.entered.length - a.entered.length || order(a.file, b.file));
-  const lines: string[] = [];
-  for (const file of left.slice(0, NAMED_TEST_FILES)) {
-    lines.push(`  ${suite.suite ?? 'the record'}: ${file.file} no longer runs ${regionCount(file.left.length)} it ran at the base`);
-  }
-  for (const file of entered.slice(0, NAMED_TEST_FILES)) {
-    lines.push(`  ${suite.suite ?? 'the record'}: ${file.file} now runs ${regionCount(file.entered.length)} it did not run at the base`);
-  }
-  return lines;
+  const name = suite.suite ?? 'the record';
+  const named = (regions: (file: TestFileMotion) => readonly MovedRegion[], before: string, after: string, which: string) => {
+    const files = testFiles.filter((file) => regions(file).length > 0)
+      .sort((a, b) => regions(b).length - regions(a).length || order(a.file, b.file));
+    return [
+      ...files.slice(0, NAMED_TEST_FILES).map((file) => `  ${name}: ${file.file} ${before} ${functionsIn(regions(file))} ${after}`),
+      ...notListed(files.length - NAMED_TEST_FILES, 'test file', which).map((line) => `  ${name}: ${line}`),
+    ];
+  };
+  return [
+    ...named((file) => file.left, 'no longer runs', 'at the base', ' that lost regions'),
+    ...named((file) => file.entered, 'now runs', 'not run at the base', ' that gained regions'),
+  ];
 }
 
 /** The summary gives each suite one row; inventories stay behind named disclosures. */

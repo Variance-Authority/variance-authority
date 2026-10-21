@@ -19,7 +19,9 @@ run, and its evidence comes back through the same read-only commands.
 devDependency and never globally. Run it through the package manager —
 `npm exec variance`, `yarn variance`, `pnpm exec variance`. A bare `variance`,
 as the commands in this skill are written, is on `PATH` only inside a package
-script. If the package is missing, add it as a devDependency with the project's
+script. Yarn 2 and later have no `-s`: `yarn variance` already prints only the
+CLI's output, and `yarn -s variance` fails before the CLI starts. If the
+package is missing, add it as a devDependency with the project's
 package manager.
 
 `variance ask` with no question prints every question and what each one needs.
@@ -62,7 +64,7 @@ when its condition holds, not before.
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
 | Which of them ran it with discounted prices mocked or a flag on? What state did a test run under, and where is its flag-off twin? | [case preconditions](references/case-preconditions.md) | |
-| Where does this one test, or the few I am looking into, go, and in what order? | [story](references/story.md) | |
+| Where does this one test, or the few I am looking into, go, and in what order? What was each function handed, and where did this object come from? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | you are writing a suite's `before` or `relations`, the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
 | What can this test be reduced to? How much of what each test file loads does it use, as percentiles across a suite? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
 | What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |

@@ -28,14 +28,17 @@ pub(crate) struct Parses<'a> {
     declares: U32s<'a>,
     declares_present: &'a [u8],
     pub unknown: U32s<'a>,
-    harvested: &'a [u8],
+    pub harvested: &'a [u8],
     bytes: U32s<'a>,
     lines: U32s<'a>,
     blocks: U32s<'a>,
+    doc: Ends<'a>,
     pub request_value: U32s<'a>,
     pub request_kind: U32s<'a>,
     pub request_line: U32s<'a>,
+    pub request_flags: &'a [u8],
     pub request_bindings: U32s<'a>,
+    pub request_republishes: &'a [u8],
     pub binding_imported: U32s<'a>,
     pub binding_local: U32s<'a>,
     pub binding_type: &'a [u8],
@@ -49,12 +52,14 @@ pub(crate) struct Parses<'a> {
     export_signature: Ends<'a>,
     export_doc: Ends<'a>,
     pub export_tags: &'a [u8],
-    symbols: U32s<'a>,
-    symbol_name: U32s<'a>,
-    symbol_kind: U32s<'a>,
-    symbol_line: U32s<'a>,
-    symbol_signature: Ends<'a>,
-    symbol_doc: Ends<'a>,
+    pub symbols: U32s<'a>,
+    pub symbol_name: U32s<'a>,
+    pub symbol_kind: U32s<'a>,
+    pub symbol_line: U32s<'a>,
+    pub symbol_signature: Ends<'a>,
+    pub symbol_doc: Ends<'a>,
+    /// A symbol's reach as [`crate::harvest::reach_code`] stores it.
+    pub symbol_reach: &'a [u8],
     mocks_minus: U32s<'a>,
     mocks_plus: U32s<'a>,
     mock_minus: U32s<'a>,
@@ -63,6 +68,20 @@ pub(crate) struct Parses<'a> {
     pub member_request: U32s<'a>,
     pub member_name: U32s<'a>,
     pub member_line: U32s<'a>,
+    /// A member read off the module's `default`, as [`crate::members::Member`] says.
+    pub member_through_default: &'a [u8],
+    pub member_declarations: U32s<'a>,
+    pub member_declaration_name: U32s<'a>,
+    pub member_declaration_line: U32s<'a>,
+    pub member_declaration_on: U32s<'a>,
+    pub member_uses: U32s<'a>,
+    pub member_use_name: U32s<'a>,
+    pub member_use_line: U32s<'a>,
+    pub member_use_of: U32s<'a>,
+    pub member_use_how: U32s<'a>,
+    pub own_uses: U32s<'a>,
+    pub own_use_name: U32s<'a>,
+    pub own_use_line: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -78,6 +97,9 @@ impl<'a> Parses<'a> {
         let (export_exported, symbol_name) = (u32s("exports.exported")?, u32s("symbols.name")?);
         let (mock_minus, mock_plus) = (u32s("mocks.minus")?, u32s("mocks.plus")?);
         let (member_name, declare_name) = (u32s("members.name")?, u32s("declares.name")?);
+        let member_declaration_name = u32s("member-declarations.name")?;
+        let member_use_name = u32s("member-uses.name")?;
+        let own_use_name = u32s("own-uses.name")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -93,8 +115,11 @@ impl<'a> Parses<'a> {
             bytes: u32s("parses.bytes")?,
             lines: u32s("parses.lines")?,
             blocks: u32s("parses.blocks")?,
+            doc: ends("parses.doc-start", "parses.doc-end")?,
             request_kind: u32s("requests.kind")?,
             request_line: u32s("requests.line")?,
+            request_flags: stored.u8s("requests.flags")?,
+            request_republishes: stored.u8s("requests.republishes")?,
             request_bindings: stored.offsets("requests.bindings", request_value.len(), binding_imported.len())?,
             request_value,
             binding_local: u32s("bindings.local")?,
@@ -115,6 +140,7 @@ impl<'a> Parses<'a> {
             symbol_line: u32s("symbols.line")?,
             symbol_signature: ends("symbols.signature-start", "symbols.signature-end")?,
             symbol_doc: ends("symbols.doc-start", "symbols.doc-end")?,
+            symbol_reach: stored.u8s("symbols.reach")?,
             symbol_name,
             mocks_minus: stored.offsets("parses.mocks-minus", rows, mock_minus.len())?,
             mocks_plus: stored.offsets("parses.mocks-plus", rows, mock_plus.len())?,
@@ -123,7 +149,20 @@ impl<'a> Parses<'a> {
             members: stored.offsets("parses.members", rows, member_name.len())?,
             member_request: u32s("members.request")?,
             member_line: u32s("members.line")?,
+            member_through_default: stored.u8s("members.through-default")?,
             member_name,
+            member_declarations: stored.offsets("parses.member-declarations", rows, member_declaration_name.len())?,
+            member_declaration_line: u32s("member-declarations.line")?,
+            member_declaration_on: u32s("member-declarations.on")?,
+            member_declaration_name,
+            member_uses: stored.offsets("parses.member-uses", rows, member_use_name.len())?,
+            member_use_line: u32s("member-uses.line")?,
+            member_use_of: u32s("member-uses.of")?,
+            member_use_how: u32s("member-uses.how")?,
+            member_use_name,
+            own_uses: stored.offsets("parses.own-uses", rows, own_use_name.len())?,
+            own_use_line: u32s("own-uses.line")?,
+            own_use_name,
             declare_name,
         };
         parses.lengths()?;
@@ -137,6 +176,24 @@ impl<'a> Parses<'a> {
         (bytes != crate::segment::NONE && lines != crate::segment::NONE).then_some(lines)
     }
 
+    /// The module's own doc comment span, in UTF-16 units of its file;
+    /// absent when it writes none.
+    pub fn doc_of_module(&self, row: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.doc[0], self.doc[1], row).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
+    /// The doc comment span of one export, in UTF-16 units of its file;
+    /// absent when the reader found none.
+    pub fn doc_of_export(&self, export: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.export_doc[0], self.export_doc[1], export).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
+    /// The doc comment span of one declaration, as [`Self::doc_of_export`]
+    /// is of an export.
+    pub fn doc_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.symbol_doc[0], self.symbol_doc[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
     fn lengths(&self) -> Result<(), String> {
         let rows = self.key.len();
         same_length(rows, &[
@@ -148,11 +205,15 @@ impl<'a> Parses<'a> {
             ("parses.bytes", self.bytes.len()),
             ("parses.lines", self.lines.len()),
             ("parses.blocks", self.blocks.len()),
+            ("parses.doc-start", self.doc[0].len()),
+            ("parses.doc-end", self.doc[1].len()),
         ])?;
         same_length(self.deleted.len(), &[("parses.deleted-way", self.deleted_way.len())])?;
         same_length(self.request_value.len(), &[
             ("requests.kind", self.request_kind.len()),
             ("requests.line", self.request_line.len()),
+            ("requests.flags", self.request_flags.len()),
+            ("requests.republishes", self.request_republishes.len()),
         ])?;
         same_length(self.binding_imported.len(), &[
             ("bindings.local", self.binding_local.len()),
@@ -182,11 +243,23 @@ impl<'a> Parses<'a> {
             ("symbols.signature-end", signature_end.len()),
             ("symbols.doc-start", doc_start.len()),
             ("symbols.doc-end", doc_end.len()),
+            ("symbols.reach", self.symbol_reach.len()),
         ])?;
         same_length(self.member_name.len(), &[
             ("members.request", self.member_request.len()),
             ("members.line", self.member_line.len()),
-        ])
+            ("members.through-default", self.member_through_default.len()),
+        ])?;
+        same_length(self.member_declaration_name.len(), &[
+            ("member-declarations.line", self.member_declaration_line.len()),
+            ("member-declarations.on", self.member_declaration_on.len()),
+        ])?;
+        same_length(self.member_use_name.len(), &[
+            ("member-uses.line", self.member_use_line.len()),
+            ("member-uses.of", self.member_use_of.len()),
+            ("member-uses.how", self.member_use_how.len()),
+        ])?;
+        same_length(self.own_use_name.len(), &[("own-uses.line", self.own_use_line.len())])
     }
 }
 
@@ -234,6 +307,18 @@ impl ParseRow for ParseView<'_, '_> {
         for at in columns.members.range(row) {
             text(columns.member_name, at);
         }
+        for at in columns.member_declarations.range(row) {
+            text(columns.member_declaration_name, at);
+            text(columns.member_declaration_on, at);
+        }
+        for at in columns.member_uses.range(row) {
+            text(columns.member_use_name, at);
+            text(columns.member_use_of, at);
+            text(columns.member_use_how, at);
+        }
+        for at in columns.own_uses.range(row) {
+            text(columns.own_use_name, at);
+        }
         for at in self.declares() {
             text(columns.declare_name, at);
         }
@@ -253,6 +338,8 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.request_value, request),
                 id(columns.request_kind, request),
                 columns.request_line.at(request),
+                columns.request_flags[request],
+                flag(columns.request_republishes, request),
                 columns.request_bindings.range(request).map(|binding| {
                     (
                         id(columns.binding_imported, binding),
@@ -281,6 +368,7 @@ impl ParseRow for ParseView<'_, '_> {
                 columns.symbol_line.at(symbol),
                 span(columns.symbol_signature[0], columns.symbol_signature[1], symbol),
                 span(columns.symbol_doc[0], columns.symbol_doc[1], symbol),
+                columns.symbol_reach[symbol],
             );
         }
         for at in self.declares() {
@@ -291,7 +379,25 @@ impl ParseRow for ParseView<'_, '_> {
             columns.mocks_plus.range(row).map(|at| id(columns.mock_plus, at)),
         );
         for at in columns.members.range(row) {
-            into.member(columns.member_request.at(at), id(columns.member_name, at), columns.member_line.at(at));
+            into.member(columns.member_request.at(at), id(columns.member_name, at), columns.member_line.at(at), columns.member_through_default[at] == 1);
+        }
+        for at in columns.member_declarations.range(row) {
+            into.member_declaration(
+                id(columns.member_declaration_name, at),
+                columns.member_declaration_line.at(at),
+                id(columns.member_declaration_on, at),
+            );
+        }
+        for at in columns.member_uses.range(row) {
+            into.member_use(
+                id(columns.member_use_name, at),
+                columns.member_use_line.at(at),
+                id(columns.member_use_of, at),
+                id(columns.member_use_how, at),
+            );
+        }
+        for at in columns.own_uses.range(row) {
+            into.own_use(id(columns.own_use_name, at), columns.own_use_line.at(at));
         }
     }
 
@@ -317,5 +423,9 @@ impl ParseRow for ParseView<'_, '_> {
             (self.columns.bytes.at(self.row), self.columns.lines.at(self.row), self.columns.blocks.at(self.row));
         (bytes != NONE && lines != NONE)
             .then(|| crate::source_size::Size { bytes, lines, blocks: (blocks != NONE).then_some(blocks) })
+    }
+
+    fn doc(&self) -> crate::parse_columns::Span {
+        span(self.columns.doc[0], self.columns.doc[1], self.row)
     }
 }

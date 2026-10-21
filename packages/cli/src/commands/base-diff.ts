@@ -10,11 +10,12 @@
  */
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
-import { hunksByFile, type Hunk } from '@variance-authority/sense/test-selection';
+import { hunksByFile, readCommitRuns, standsAt, type Hunk, type Stand } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { diffSince, topLevel } from './since.js';
+import { diffSince, gitIn, topLevel } from './since.js';
 
 const OBJECT_NAME = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 
@@ -86,4 +87,33 @@ export async function movedOnBase(
       { kind: 'undiffed' },
     );
   }
+}
+
+/**
+ * The stands of the record at `record`: the test files that did not run at its
+ * commit, and the files changed since each last ran, so a case the record
+ * carried over an edit is not read as gone. A runs record that is there and
+ * cannot be read is refused, naming it: read as absent, it would place every
+ * test at the record's commit, and a case no test ran would be called no
+ * longer run.
+ */
+export async function carriedOver(record: string, root: string): Promise<{ readonly stands?: readonly Stand[] }> {
+  const repository = await topLevel(root);
+  if (repository === undefined) {
+    throw new OperatorError(`\`${root}\` is not in a git checkout, so where each test in ${record} last ran is not read and nothing is compared.`, {
+      kind: 'undiffed',
+    });
+  }
+  let runs: Awaited<ReturnType<typeof readCommitRuns>>;
+  try {
+    runs = await readCommitRuns(record);
+  } catch (error) {
+    throw new OperatorError(
+      `${error instanceof Error ? error.message : String(error)}. It says where each test in the record last ran, and ` +
+        'a comparison that read it as absent would call a case no test ran no longer run.',
+      { cause: error },
+    );
+  }
+  const reading = standsAt(record, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
+  return reading === undefined ? {} : { stands: reading.stands };
 }

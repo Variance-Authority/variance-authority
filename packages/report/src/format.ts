@@ -466,7 +466,7 @@ export interface ObservationRecord {
     readonly diff?: string;
     /**
      * The change at its own size: each of the largest regions cropped with the
-     * rows around it, as before, after and the difference, top to bottom. Absent
+     * rows around it, before beside after with the change marked. Absent
      * when no region was isolated, and then `before` and `after` are the picture.
      */
     readonly change?: string;

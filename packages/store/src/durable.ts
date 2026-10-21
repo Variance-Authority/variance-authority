@@ -24,7 +24,7 @@ import {
 } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { claim, placedForIn, placedForOf, refuseOccupied, type Claims, type PlacedFor } from './claims.js';
-import { held } from './held.js';
+import { anyWidthOf, held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
 import { familyOf, identities, nearness } from './line.js';
 import { readRaster, readSidecar, retire, type Places, type Read } from './pair.js';
@@ -327,7 +327,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     },
 
     /** The plan's complement, over paths this store alone can compute. See `held.ts`. */
-    async unplanned(keys, identity): Promise<readonly string[]> {
+    async unplanned(keys, identity, atAnyWidth = []): Promise<readonly string[]> {
       const engine = familyOf(identity.engine);
       const digest = identityDigest(identity);
       const planned = new Set<string>();
@@ -337,7 +337,8 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
           for (const partition of partitionsOf(digest)) planned.add(posix.join(holder, partition, leaf));
         }
       }
-      return held(recordRoot, { template, engine, digest, planned });
+      const widened = atAnyWidth.length === 0 ? undefined : anyWidthOf(template, engine, atAnyWidth);
+      return held(recordRoot, { template, engine, digest, planned, ...(widened === undefined ? {} : { widened }) });
     },
 
     // A durable store is also a render cache: an unchanged document under an

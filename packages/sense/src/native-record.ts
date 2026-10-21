@@ -1,4 +1,4 @@
-import type { NativeReconciledRegions, NativeRegion } from './native-journey.js';
+import type { NativeRegion } from './native-journey.js';
 
 /** One shard a combine read, in the order the shards were named. */
 export interface NativeCombinedShard {
@@ -29,6 +29,8 @@ export interface NativeCombinedRecord {
   readonly read?: string | null;
   /** Shards whose record names its read `unknown`, so no read of theirs was checked against the others'. */
   readonly unchecked: readonly string[];
+  /** The modules the shards describe two ways over one text, when nothing was written: fold again with their cut. */
+  readonly disputed?: { readonly instrumentation: string; readonly files: readonly string[] } | null;
 }
 
 /** What the addon answers about records: combining shards, laying one over another, and joining one file's regions. */
@@ -36,8 +38,10 @@ export interface NativeRecords {
   /**
    * Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else.
    * Shards whose records name two records their runs started from fail as unstable sharding.
+   * Shards that describe a module two ways over one text write nothing and name it `disputed`;
+   * `cut`, a record with no tests holding the checkout's cut of those modules, settles them.
    */
-  combineRecords?(paths: string[], output: string): NativeCombinedRecord;
+  combineRecords?(paths: string[], output: string, cut?: Buffer): NativeCombinedRecord;
   /**
    * The record `current` laid over the record `previous`; `null` where `previous` measured nothing.
    * A `previous` this build cannot read, or one under other probes, throws the reason.
@@ -53,6 +57,9 @@ export interface NativeRecords {
       readonly readings?: Readonly<Record<string, 'none' | 'bodies' | 'load'>>;
     },
   ): Buffer | null;
-  /** Several inventories of one source text, read at the regions they all hold. */
-  reconcileRegions?(inventories: NativeRegion[][]): NativeReconciledRegions;
+  /**
+   * Where each region of `inventories` lands among `table`'s, one file's own cut, by position:
+   * at the region of its shape, else at the innermost source region enclosing it; `null` where none does.
+   */
+  landRegions?(table: NativeRegion[], inventories: NativeRegion[][]): (number | null)[][];
 }

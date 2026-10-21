@@ -2,9 +2,10 @@ import { blocksAround, regionOf } from './blocks-around.js';
 import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
-import { findModules, testPathOf } from './lookup.js';
+import { instrumentedRows, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
+import { arrivedDigests, declarable, ranOverAll, ranOverReading, withRanOver } from './ran-over.js';
 import { frameOf } from './frame.js';
 import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
@@ -12,6 +13,7 @@ import { readChange, readRowless, rowlessNames, type FileReading } from './readi
 import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
 import { routeOf } from './route.js';
+import { byRelations, declarationOf, withGraph } from './precision.js';
 
 export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
 
@@ -114,8 +116,11 @@ export interface ExecutionNarrowing {
    * places. `entered` alone cannot tell them apart. The reasons are the facts
    * the inner loop already held when it selected the test, kept rather than
    * discarded, so what a run prints about itself is what it did.
+   *
+   * Absent from a reading that names the tests it reached and not why: a
+   * journey file's, read in the addon or here.
    */
-  readonly because: readonly SelectionCause[];
+  readonly because?: readonly SelectionCause[];
 
   /**
    * What the parser made of each changed file whose frame was proved: which
@@ -224,6 +229,9 @@ function readDiff(
   const options: ExecutionNarrowingOptions =
     sourceAt === undefined ? known : { ...known, sourceAt: (file, commit) => sourceAt(file, commit, asking) };
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
+  // A graph step adds what the import walk reaches to what `file-use` reads, so
+  // it runs every test any finer step runs.
+  if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, diff, { ...asked, precision: 'file-use' }), [...changed.keys()], hunksOf(diff), options);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
     const reasons = selected.get(test) ?? [];
@@ -235,15 +243,27 @@ function readDiff(
   const stale = new Set<string>();
   // A test that mocked the module is not the audience of what it only loaded there (`shadowed.ts`).
   const disowned = disownedIn(coverage, options.relations);
-
   const hunks = hunksOf(diff);
   const readings: FileReading[] = [];
   const seen = new Set<string>();
-  const charge = (file: string, block: number, reason: SelectionReason): void => {
+  const enter = (file: string, block: number, reason: SelectionReason): void => {
     for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
       if (disowned?.(file, test, block) !== true) select(test, reason);
     }
   };
+  // At function use a region stands for the declaration it is in, found up its
+  // owner chain: every block that declaration holds, each charged once.
+  const widened = new Set<number>();
+  const charge =
+    options.precision !== 'function-use'
+      ? enter
+      : (file: string, block: number, reason: SelectionReason): void => {
+          for (const one of declarationOf(coverage, block)) {
+            if (widened.has(one)) continue;
+            widened.add(one);
+            enter(file, one, reason.kind === 'region' ? regionOf(coverage, reason.file, one) : reason);
+          }
+        };
   // An importer a reading could not read and holds no row for is answered by
   // the graph's walk over its importers, with the reasons the reading gave.
   const wholes = new Map<string, Array<Extract<SelectionReason, { readonly kind: 'reader' }>>>();
@@ -260,26 +280,25 @@ function readDiff(
   // nothing from the instrumented row beside it.
   const rowsByFile = new Map<string, Map<string, readonly number[]>>();
   for (const [file, lines] of changed) {
-    const rowsOf = new Map<string, readonly number[]>();
-    for (const name of knownAs(file)) {
-      // Every changed name is asked of the precondition table, whatever its
-      // rows say. A row and a declaration answer different questions: the row
-      // says which tests entered which regions of this module, the declaration
-      // says the observation is void if the file's text moves at all. No
-      // recorder writes the second where it can write the first, so what is
-      // left in the table is what no row can answer: a test's own file, a
-      // configured setup file, a module some other run never instrumented.
-      governing.add(name);
-      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-      if (rows.length === 0) continue;
-      rowed.add(name);
-      rowsOf.set(name, rows);
-    }
+    // Every changed name is asked of the precondition table, whatever its
+    // rows say. A row and a declaration answer different questions: the row
+    // says which tests entered which regions of this module, the declaration
+    // says the observation is void if the file's text moves at all. No
+    // recorder writes the second where it can write the first, so what is
+    // left in the table is what no row can answer: a test's own file, a
+    // configured setup file, a module some other run never instrumented.
+    for (const name of knownAs(file)) governing.add(name);
+    const rowsOf = instrumentedRows(coverage, knownAs(file));
+    for (const name of rowsOf.keys()) rowed.add(name);
     rowsByFile.set(file, rowsOf);
     if (rowsOf.size > 0) asking.push(file, ...knownAs(file));
-    else if (lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
+    // A declared rowless file's commit text is read for the digest its tests ran over (`arrivedDigests`).
+    else if (lines.length > 0 && declarable(coverage, knownAs(file))) asking.push(file);
+    if (rowsOf.size === 0 && lines.length > 0 && routeOf(false, options.unmeasured) !== 'nothing') asking.push(...rowlessNames(context, file));
   }
 
+  const rowless = [...changed].filter(([file, lines]) => lines.length > 0 && rowsByFile.get(file)!.size === 0);
+  const arrived = arrivedDigests(coverage, rowless.map(([file]) => file), hunks, knownAs, options.sourceAt);
   // A row cut from a kept text whose file the diff does not name ran an edit
   // that is gone: the tree is back at the commit's text, which is a change the
   // tests that ran the edit have not run. The diff from the commit cannot say
@@ -297,12 +316,7 @@ function readDiff(
   for (const file of undone) {
     // Under every name, as a changed file is: a built twin's rows are in frame
     // exactly when the source's are.
-    const rowsOf = new Map<string, readonly number[]>();
-    for (const name of knownAs(file)) {
-      const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-      if (rows.length > 0) rowsOf.set(name, rows);
-    }
-    rowsByFile.set(file, rowsOf);
+    rowsByFile.set(file, instrumentedRows(coverage, knownAs(file)));
     asking.push(file, ...knownAs(file));
   }
 
@@ -326,6 +340,13 @@ function readDiff(
     const held = [...rowsOf.keys()].sort(codeUnitOrder).join('\n');
     if (seen.has(held)) continue;
     seen.add(held);
+    // At file use a measured file is every test that loaded it, whatever its lines say.
+    if (options.precision === 'file-use') {
+      for (const [name, rows] of rowsOf) {
+        for (const module of rows) chargeAll(coverage, module, (block) => charge(file, block, regionOf(coverage, name, block)));
+      }
+      continue;
+    }
 
     // Everything below reads line numbers, and a line number is only a place
     // in the text it was cut from. The recorder wrote a digest of that text,
@@ -348,7 +369,7 @@ function readDiff(
         // when it landed. No parser was asked, so the reading says so rather
         // than claim equal runtime text. An undone file read empty is one the
         // diff never named, and no reading is made of it.
-        if (!undone.has(file)) readings.push({ file, verdict: 'none', names: [], kept: true });
+        if (!undone.has(file)) readings.push(ranOverReading(file));
         continue;
       } else {
         ranges = rebased.ranges;
@@ -405,7 +426,11 @@ function readDiff(
     disowned,
     governing,
     [...wholes.keys()].sort(codeUnitOrder),
+    arrived,
   );
+  // A file every test declaring it ran the arrived text of reads so, whatever its reader made of the diff.
+  const unread = new Set(answered.governed.unread);
+  const ranOver = new Set(rowless.map(([file]) => file).filter((file) => ranOverAll(knownAs(file), unread, answered.governed.ranOver)));
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
   // says that no region of any row can say.
@@ -453,7 +478,7 @@ function readDiff(
     ...(declining ? { declined: unmeasured } : {}),
     stale: [...stale].sort(codeUnitOrder),
     because,
-    readings: readings.map((reading) =>
+    readings: withRanOver(readings, ranOver).map((reading) =>
       'unseen' in reading && reading.unseen !== undefined
         ? { ...reading, unseen: reading.unseen.filter((test) => !through.has(`${reading.file}\0${test}`)) }
         : reading,

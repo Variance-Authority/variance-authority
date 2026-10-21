@@ -116,12 +116,13 @@ export interface RunDeps {
    * never recorded is answered by the files that import it. A bumped package
    * arrives in `diff` as the files that import it, changed whole, and only the
    * graph can say which those are, so a reading asked about one is always
-   * handed a graph.
+   * handed a graph. `probes` is the note a record cut under probes this build
+   * does not place carries beside its answer (`probes-gap.ts`).
    */
   readJourney?(
     diff: string,
     relations?: Relations,
-  ): Promise<ExecutionNarrowing | undefined>;
+  ): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined>;
 
   /**
    * Where this run's subjects parted in the source, read off the same journal.
@@ -147,8 +148,8 @@ export interface RunOptions {
   readonly shard?: Shard;
   /**
    * What each subject cost the newest mainline run this checkout descends from.
-   * Places groups on shards and orders the queue longest first; absent, a
-   * checksum places them and the queue keeps plan order.
+   * Places groups on shards and orders the queue longest first; absent, they
+   * are placed by count and the queue keeps plan order.
    */
   readonly costs?: { readonly commit: string; readonly costs: Costs };
 
@@ -281,6 +282,12 @@ export interface ObserveContext {
    * no clock, and then nothing is timed: the same rule as `costMs`.
    */
   readonly steps?: StepClock;
+  /**
+   * Where a second visit to this subject says what it could not read on the
+   * way. The first visit's warnings are the run's already; a second may say
+   * more, and the run states each once.
+   */
+  readonly said?: (warning: string) => void;
 }
 
 export type Outcome =

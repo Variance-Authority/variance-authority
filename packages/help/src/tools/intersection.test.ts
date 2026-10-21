@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
+import { FoundNothing } from './find.js';
 import { intersectionOf } from './intersection.js';
 
 /**
@@ -125,6 +126,53 @@ describe('an intersection answers the files every question answers', () => {
   it('wants the tree when any of its questions does', () => {
     expect(intersection.wants?.({ questions: [{ question: 'symbol', input: { name: 'a' } }, { question: 'discover', input: { from: 'a.ts' } }] })).toBe(true);
     expect(intersection.wants?.({ questions: [{ question: 'symbol', input: { name: 'a' } }, { question: 'symbol', input: { name: 'b' } }] })).toBe(false);
+  });
+});
+
+describe('an intersection over a name nothing declares', () => {
+  const asked: Asked[] = [];
+  const nowhere = (input: Readonly<Record<string, unknown>>): never => {
+    throw new FoundNothing(`No file declares \`${String(input['name'])}\`.`);
+  };
+  const crossing = intersectionOf<string>([
+    operand('symbol', (input) => (input['name'] === 'selectBalance' ? set({ 'src/store/selectors.ts': [1] }) : nowhere(input)), asked),
+    operand('uses', nowhere, asked),
+  ]);
+  const cross = (questions: readonly unknown[]): unknown => {
+    try {
+      return crossing.run('workspace', { questions }, { root: '/checkout' });
+    } catch (thrown) {
+      return thrown;
+    }
+  };
+
+  it('answers that no file is in all of them, naming the question that found nothing beside it', () => {
+    asked.length = 0;
+    const answer = cross([
+      { question: 'symbol', input: { name: 'selectBalance' } },
+      { question: 'uses', input: { name: 'gone' } },
+    ]);
+    // Found nothing, so a host reading a reused generation asks it again before it believes it.
+    expect(answer).toBeInstanceOf(FoundNothing);
+    expect((answer as FoundNothing).message).toBe(
+      [
+        '1. `symbol --name selectBalance`: 1 file',
+        '2. `uses --name gone`: 0 files — No file declares `gone`.',
+        '',
+        'No file is in all of them.',
+      ].join('\n'),
+    );
+    expect(asked.map((one) => one.input['name'])).toEqual(['selectBalance', 'gone']);
+  });
+
+  it('names every question that found nothing, not only the first', () => {
+    const answer = cross([
+      { question: 'symbol', input: { name: 'lost' } },
+      { question: 'uses', input: { name: 'gone' } },
+    ]);
+    expect(answer).toBeInstanceOf(FoundNothing);
+    expect((answer as FoundNothing).message).toContain('1. `symbol --name lost`: 0 files — No file declares `lost`.');
+    expect((answer as FoundNothing).message).toContain('2. `uses --name gone`: 0 files — No file declares `gone`.');
   });
 });
 

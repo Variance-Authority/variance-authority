@@ -50,6 +50,10 @@ describe('where to look, for a comment', () => {
     ].join('\n'));
   });
 
+  it('calls a module\'s own region no case ran the top level', () => {
+    expect(uncoveredMarkdown(review([region('module', '', 1, 40, 'unwalked')]), mark)).toContain('- `src/caps.ts:1-40` the top level (new)');
+  });
+
   it('says the record holds no case, rather than that no case ran, before the change has run', () => {
     expect(uncoveredMarkdown(review(mixed, 'before'), mark)[1]).toBe('<details><summary>R Where no case in the record: 2 places in 2 functions</summary>');
   });

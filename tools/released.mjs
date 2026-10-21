@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import read from '@changesets/read';
 
 /**
  * Whether the release that just ran is the release that was supposed to run.
@@ -33,15 +34,16 @@ import { fileURLToPath } from 'node:url';
  *     node tools/released.mjs            # is main's version fully out, and tagged?
  *     node tools/released.mjs --wait 120 # the same, tolerating registry lag
  *     node tools/released.mjs --registry # skip the tag half
- *     node tools/released.mjs --lockstep # before publishing: is there one version to publish?
+ *     node tools/released.mjs --lockstep # before publishing: is there one version to publish, and nothing waiting?
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * Every package a release publishes, and the version its manifest carries.
+ * Every package a release publishes, the version its manifest carries, and the
+ * directory it is published from, relative to the root.
  *
- * Two directories, because the three `sense-<platform>` packages live under
+ * Two directories, because the four `sense-<platform>` packages live under
  * `packages/sense/npm/` rather than beside their siblings — they are build
  * output with a manifest, and `sense` names them as optional dependencies. They
  * are published by the same `changeset publish` as everything else and were
@@ -65,7 +67,7 @@ export function publishable() {
     if (!existsSync(at)) continue;
     const manifest = JSON.parse(readFileSync(at, 'utf8'));
     if (manifest.private === true || manifest.name === undefined) continue;
-    found.push({ name: manifest.name, version: manifest.version });
+    found.push({ name: manifest.name, version: manifest.version, directory: relative(ROOT, dir) });
   }
   return found.sort((one, other) => one.name.localeCompare(other.name));
 }
@@ -84,6 +86,24 @@ export function lockstep(packages) {
   if (versions.length === 1) return versions[0];
   const listing = packages.map((entry) => `  ${entry.version.padEnd(10)} ${entry.name}`).join('\n');
   throw new Error(`the packages are not at one version:\n${listing}`);
+}
+
+/**
+ * The changesets on this checkout that `changeset version` has not yet raised a
+ * version for, by file name.
+ *
+ * Publishing past one would ship changes the version does not account for, so
+ * the changelog would miss them and the number would understate what shipped.
+ * A changeset that names no package — what `changeset --empty` writes —
+ * releases nothing and is not waiting for anything. Changesets reads its own
+ * files, so one it cannot parse refuses here as it would refuse `version`.
+ */
+export async function waiting(cwd = ROOT) {
+  const changesets = await read(cwd);
+  return changesets
+    .filter((changeset) => changeset.releases.length > 0)
+    .map((changeset) => `${changeset.id}.md`)
+    .sort();
 }
 
 /**
@@ -146,10 +166,20 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const version = lockstep(packages);
   console.log(`${packages.length} packages at ${version}`);
 
-  // Before a release, the only answerable question: the fixed group agrees on
+  // Before a release, the only answerable questions: the fixed group agrees on
   // one version, so there is a single thing to publish and a single thing to
-  // check for afterwards. Asking the registry here would fail by design.
-  if (argv.includes('--lockstep')) process.exit(0);
+  // check for afterwards, and nothing on `main` is waiting for a version.
+  // Asking the registry here would fail by design.
+  if (argv.includes('--lockstep')) {
+    const unversioned = await waiting();
+    if (unversioned.length > 0) {
+      console.error('unversioned changesets on main:');
+      for (const name of unversioned) console.error(`  .changeset/${name}`);
+      console.error('merge the version pull request first — its diff is what this would publish');
+      process.exit(1);
+    }
+    process.exit(0);
+  }
 
   const absent = await missing(packages, version, wait);
   const tags = skipTags ? null : tagsOnRemote();

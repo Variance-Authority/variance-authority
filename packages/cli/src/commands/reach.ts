@@ -49,6 +49,7 @@
  */
 
 import {
+  RUNTIME_EDGES,
   explain,
   changedBefore,
   affectedBy,
@@ -213,7 +214,10 @@ function seedsOf(
   const affected = affectedBy(
     relations,
     [...files, ...expanded],
-    narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) },
+    {
+      through: RUNTIME_EDGES,
+      ...(narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) }),
+    },
   );
   // Only the diff's own seeds can be missing; an expanded one came out of the
   // graph, so it is in it by construction. A path is counted once, however
@@ -417,7 +421,7 @@ function byCodeUnit(a: string, b: string): number {
  * Whether a changed path lies under one of the scanned roots.
  *
  * Re-exported rather than written again: the same boundary decides what the
- * harness walk stops at ([`before.ts`](../../../core/src/relate/before.ts)),
+ * harness walk stops at ([`before.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/relate/before.ts)),
  * and two spellings of *is this path under that directory* would disagree the
  * day one of them was fixed.
  */

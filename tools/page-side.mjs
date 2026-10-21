@@ -54,6 +54,8 @@ export const SERIALIZED = [
   'packages/storybook/src/show-story',
   'packages/storybook/src/story-finished',
   'packages/storybook/src/story-parameters',
+  'packages/storybook/src/story-test-environment',
+  'packages/storybook/src/story-timing-read',
 ];
 
 /**

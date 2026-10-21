@@ -246,9 +246,10 @@ describe('variance ask orient', () => {
 
     const answered = await run(['ask', 'orient', '--files', 'packages/cart/src/price.ts']);
     expect(answered.code).toBe(EXIT_OPERATOR);
-    expect(answered.err.split('\n')[0]).toBe(
+    // The version this release reads is sense's to pin; the command relays sense's line around it.
+    expect(answered.err.split('\n')[0]!.replace(/reads version \d+;/, 'reads version N;')).toBe(
       `the source index at ${at} did not read: segment 0: a variance-authority-source-index written in format version 15, ` +
-        'and this release reads version 19; `variance index` rebuilds it',
+        'and this release reads version N; `variance index` rebuilds it',
     );
   });
 });

@@ -69,11 +69,17 @@ const ROOT = 'VARIANCE_AUTHORITY_TEST_SELECTION_ROOT';
 
 /** This realm's collector, so a second evaluation of this file finds the first. */
 const COLLECTOR = Symbol.for('variance-authority.test-selection.collector');
+const HOST = Symbol.for('variance-authority.test-selection.host');
 
 type Holder = { __VA__?: unknown; [COLLECTOR]?: Collector };
 
 function install(): Collector {
   const holder = globalThis as Holder;
+  // Jest environments can copy the host's string globals into every VM,
+  // including a later project's built-in environment. Keep its root in its
+  // owning realm; the sandbox installs its own collector below.
+  const owner = (holder.__VA__ as { [HOST]?: object } | undefined)?.[HOST];
+  if (owner !== undefined && owner !== holder) delete holder.__VA__;
   const found = holder[COLLECTOR];
   if (found !== undefined) return found;
   const collector = process.env[CASE_DIRECTORY] === undefined
@@ -88,6 +94,17 @@ function install(): Collector {
   return collector;
 }
 
+/** Host-environment inputs are opaque marks, separate from probes in this test VM. */
+function environmentInputs(): void {
+  const holder = globalThis as Holder & {
+    [key: symbol]: unknown;
+  };
+  const inputs = holder[Symbol.for('variance-authority.test-selection.environment')] as (() => readonly import('../instrument/index.js').ModuleId[]) | undefined;
+  if (inputs === undefined) return;
+  const root = holder.__VA__ as { m(id: import('../instrument/index.js').ModuleId): void };
+  for (const id of inputs()) root.m(id);
+}
+
 install();
 
-export = install;
+export = Object.assign(install, { environmentInputs });

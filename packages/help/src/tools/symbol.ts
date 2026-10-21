@@ -1,18 +1,21 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { FileSet, Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
-import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
+import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
+import { memberRows } from './container.js';
 import { block } from './format.js';
-import { queryDependencyLexicon, type LexiconMatches, type SilentPackage, type ThirdPartyMatch } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
-import { provenance } from './third-party.js';
+import { thirdBlock } from './third-party.js';
+import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
+import { type Members, membersOf, membersStop } from './members.js';
+import { lineOf, originOf, passedOnRows } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
+import { localNames, renamedSites } from './renamed.js';
 
 /**
- * `docs_symbol` — one name, in full.
+ * `docs_symbol` — what a name is and where it is declared, in full.
  *
  * Answered for every specifier that publishes it rather than for the first,
  * because a declaration reachable from a barrel and from a subpath is one thing
@@ -22,17 +25,22 @@ import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 export const symbol: Tool<Help> = {
   name: 'docs_symbol',
   description:
-    'Everything known about one exported name: what it is, the import line that reaches it, the ' +
+    'Everything known about one name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
-    'written above it, the README passage that names it — and which packages import it. Names are ' +
-    'matched exactly, including a name exported and not published, answered with where it is declared, and ' +
+    'written above it, the README passage that names it — which packages import it, where an import ' +
+    'renames it, and the members an interface, a type alias or a class declares, one line each. An export ' +
+    'that only passes the name on with `export … from` is followed to the declaration it reaches. Names are ' +
+    'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
+    'name a file declares at its top level and does not export, answered with where it is written, a ' +
+    'name an import binds with `as`, answered with that import and the original it names, a ' +
+    'member of an interface, a type literal or a class, answered with its container and where it is declared, and ' +
     'installed third-party declarations when the API catalogue is ' +
     'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
     'when the exact name is not known, docs_uses for local import sites.',
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The exported name, matched exactly.' },
+      name: { type: 'string', description: 'The name, matched exactly.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         ...START_POINT_SCHEMA.from,
@@ -61,16 +69,35 @@ export const symbol: Tool<Help> = {
         b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
         byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
 
+    // Declared in a file and exported by none: still the workspace's
+    // own name, and where it is written says who can reach it. Another file's
+    // export of the same name is another thing, so it never stands for this one.
+    const declared = declaredBlocks(invocation?.root, name, wanted);
+
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
     const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
-    if (byPath.length > 0) return importedByPath(help, name, byPath);
+    // A name an import binds to an export of another name: the import, and the export it names.
+    const aliased = localNames(help, invocation?.root, name, wanted).blocks;
+    if (byPath.length > 0) return [importedByPath(help, name, byPath), ...declared, ...aliased].join('\n\n');
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     const exported = found.length === 0 ? exportsNamed(help, name, wanted) : [];
-    const own = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : [];
+    const kept = [
+      ...(exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : []),
+      ...(found.length === 0 ? [...declared, ...aliased] : []),
+    ];
+    // A member of an interface, a type literal or a class is the workspace's
+    // own declaration too, which no import names and the scan records. It is
+    // answered only when nothing else, an import that binds the name included, does.
+    const members = found.length === 0 && kept.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
+    const own = members === undefined || members.declared.length === 0 ? kept : memberBlocks(invocation?.root, name, members);
+    // Nothing in the workspace answered, so the name may be declared in a file
+    // whose declarations were not read: the installed answers below say so.
+    const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
+    const unread = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -78,7 +105,11 @@ export const symbol: Tool<Help> = {
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
       // No lexicon of installed names says nothing against the workspace's own export.
       if (everywhere === undefined && own.length > 0) return own.join('\n\n');
-      if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
+      // Without it, what the workspace holds is still an answer: the
+      // dependencies are the part of it not checked.
+      if (everywhere === undefined) {
+        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.'));
+      }
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
       // A door that declares nothing is a fallback for a package silent about
@@ -87,10 +118,6 @@ export const symbol: Tool<Help> = {
       const answered = (one: SilentPackage): boolean =>
         one.installed !== undefined && shown.shown.some((match) => match.installed === one.installed);
       const silent = silentBlocks(invocation.root, name, (shown.silent ?? []).filter((one) => !answered(one)), wanted !== undefined);
-      const described = (entry: ThirdPartyMatch): string =>
-        `${entry.specifier} · ${entry.name} [${entry.kind}] · ${entry.package}${entry.version === undefined ? '' : `@${entry.version}`}` +
-        `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
-        `\n${provenance(entry)}\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`;
       const cut = (matches: LexiconMatches): readonly string[] =>
         matches.total > matches.shown.length ? [`${matches.total - matches.shown.length} more matches not shown.`] : [];
       if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
@@ -100,14 +127,21 @@ export const symbol: Tool<Help> = {
         return [
           ...own,
           `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
-          ...everywhere.shown.map(described),
+          ...everywhere.shown.map(thirdBlock),
           ...cut(everywhere),
+          ...unread,
         ].join('\n\n');
       }
-      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(described), ...cut(shown), ...silent].join('\n\n');
+      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(thirdBlock), ...cut(shown), ...silent, ...unread].join('\n\n');
     }
     if (own.length > 0) return own.join('\n\n');
-    if (found.length === 0) throw new Error(unfound(help, name, wanted));
+    if (found.length === 0) {
+      // The lexicon was asked of the package named, when one was, and of no other.
+      const checked = invocation?.root === undefined
+        ? undefined
+        : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
+      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked));
+    }
 
     const [first] = found;
     if (first === undefined) throw new Error(`\`${name}\` was found and then was not`);
@@ -126,11 +160,21 @@ export const symbol: Tool<Help> = {
         ? []
         : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
-    return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
+    // The imports within a package are the source index's, which the Help value does not record.
+    const declaring = [...new Set(found.map(([, , entry]) => entry.at))];
+    const within = importsOf(invocation?.root, declaring, name);
+    const renamed = renamedSites(name, [...found.flatMap(([, , entry]) => entry.sites), ...('uses' in within ? within.uses : [])]);
+
+    const entry = first[2];
+    return [
+      [block(first[0], first[1], entry), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'),
+      ...declared,
+      ...aliased,
+    ].join('\n\n');
   },
 
   // The files of this checkout that declare the name, each at its line, by the
-  // same three readings `run` answers from in turn; an installed declaration is
+  // same readings `run` answers from; an installed declaration is
   // not a file of the checkout, so a name only a dependency declares is unfound.
   files(help, input, invocation): FileSet {
     const name = stringArg(input, 'name');
@@ -145,9 +189,17 @@ export const symbol: Tool<Help> = {
     }
     if (at.length === 0) {
       const exported = exportsNamed(help, name, wanted);
-      for (const [held] of declaringExports(name, exported, invocation?.root)) at.push([held.at, held.line]);
+      for (const [held] of declaringExports(name, exported, invocation?.root)) {
+        at.push([held.at, held.line]);
+        const origin = originOf(invocation?.root, held);
+        if (origin !== undefined) at.push([origin.at, origin.line]);
+      }
     }
-    if (at.length === 0) throw new Error(unfound(help, name, wanted));
+    at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
+    at.push(...localNames(help, invocation?.root, name, wanted).files);
+    const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
+    if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
+    if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {
       const lines = files.get(file) ?? [];
@@ -157,6 +209,28 @@ export const symbol: Tool<Help> = {
     return { files };
   },
 };
+
+/**
+ * A name the workspace declares only as a member: one block per declaration,
+ * on the container that holds it, then the languages whose members were not
+ * read, then the files whose declarations were not read, since one of them
+ * may declare it at its top level.
+ */
+function memberBlocks(root: string | undefined, name: string, members: Members): readonly string[] {
+  const read = declarations(root, name);
+  const stop = membersStop(name, members);
+  return [
+    ...members.declared.map((site) =>
+      [
+        name,
+        `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
+        "docs_uses names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
+      ].join('\n'),
+    ),
+    ...(stop === undefined ? [] : [stop]),
+    ...('refused' in read ? [] : unreadLine(read.unread)),
+  ];
+}
 
 /** Every published entry of the name, from the package asked for when one was. */
 function publishing(help: Help, name: string, wanted: string | undefined) {
@@ -195,7 +269,7 @@ function importedByPath(help: Help, name: string, sites: readonly PathSite[]): s
       why,
       '',
       `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
-      ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.type ? ' (type only)' : ''}`),
+      ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.local === undefined ? '' : ` (as ${site.taken.local})`}${site.taken.type ? ' (type only)' : ''}`),
     ].join('\n');
   });
   return blocks.join('\n\n');
@@ -220,18 +294,23 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
  * index resolved to that file, or to a file that passes the name on from it.
  * Exports that share a name are told apart, each with the imports of its own
  * file. A file that passes on another one's export is not told apart: its
- * imports are counted with the export it passes on, once.
+ * imports are counted with the export it passes on, once. An export that
+ * passes on a declaration of another file is followed to it, and that line is
+ * shown too. The members of an interface, a type alias or a class come last.
  */
 function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
   return declaringExports(name, exported, root)
-    .map(([held, within]) =>
-      [
+    .map(([held, within]) => {
+      const { declared, rows } = passedOnRows(root, held);
+      return [
         name,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
         ...(root === undefined ? [] : lineOf(root, held)),
-        ...('uses' in within ? [importedIn(within.uses.length)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
-      ].join('\n'),
-    )
+        ...rows,
+        ...('uses' in within ? [importedIn(within.uses.length), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
+        ...memberRows(root, declared.at, declared.name, declared.line),
+      ].join('\n');
+    })
     .join('\n\n');
 }
 
@@ -252,20 +331,4 @@ function importedIn(count: number): string {
   return count === 0
     ? `Nothing in this workspace imports it; ${UNCOUNTED}.`
     : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; docs_uses lists them, nearest to a file you name first.`;
-}
-
-/**
- * The line an export is written on, as the checkout holds it now; nothing when
- * the file is gone or the line no longer holds the name, since the index read
- * an older text.
- */
-function lineOf(root: string, held: Named): readonly string[] {
-  let text: string;
-  try {
-    text = readFileSync(join(root, held.at), 'utf8');
-  } catch {
-    return [];
-  }
-  const line = text.split(/\r?\n/)[held.line - 1]?.trim();
-  return line === undefined || !line.includes(held.name) ? [] : [line];
 }

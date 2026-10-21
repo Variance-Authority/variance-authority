@@ -10,10 +10,10 @@
  *
  * Three parts, and the split is the design:
  *
- * - The reading is [`@variance-authority/package`](../package), which owns every
+ * - The reading is [`@variance-authority/package`](https://variance-authority.dev/reference/packages/package), which owns every
  *   decision about what a workspace publishes and what reaches for it. Nothing
  *   here re-derives any of it.
- * - The framing is [`@variance-authority/mcp`](../mcp), whose protocol half is
+ * - The framing is [`@variance-authority/mcp`](https://variance-authority.dev/reference/packages/mcp), whose protocol half is
  *   generic in what it serves. A JSON-RPC line is a JSON-RPC line whether the
  *   subject is a visual-difference report or an API.
  * - What is left, and what is in this package, is the five questions worth
@@ -38,14 +38,15 @@ export {
   workspaceSnapshotPath,
 } from './read.js';
 export type { AnsweringOptions, ReadingOptions, SnapshotOptions } from './read.js';
-export { refreshWorkspaceFromIndex } from './refresh-native.js';
+export { publishWorkspaceFromIndex, type FromIndexOptions } from './refresh-native.js';
 export { readNamedTree, type NamedTree } from './names-read.js';
-export { readSearchForAnswer } from './search-read.js';
+export { readSearchForAnswer, unopenedLine, type SearchReading, type Unopened } from './search-read.js';
 export type { SearchIndex } from './search-index.js';
 export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';
 export { wordsOf } from './words.js';
 export { writePages } from './write.js';
 export type { PagesOptions, Written } from './write.js';
-export { readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
-export type { DependencyLexicon, LexiconEntry, LexiconAvailability, LexiconIssue } from './dependency-lexicon.js';
+export { refreshDependencyLexicon } from './dependency-lexicon.js';
+export { caughtUp, foundNothingAnswer, foundNothingFooter, snapshotLine, type CaughtUp } from './caught-up.js';
+export { FoundNothing } from './tools/find.js';

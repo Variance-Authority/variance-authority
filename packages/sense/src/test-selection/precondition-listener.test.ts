@@ -8,6 +8,9 @@ const realm = globalThis as { [PRECONDITION]?: unknown };
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const SITE = /^packages\/sense\/src\/test-selection\/precondition-listener\.test\.ts:\d+$/;
 
+// What a listener hands over for a case: every item it said, unresolved, in the order the addon stores them.
+const taken = (listener: { take(key: string): string | undefined }, key: string): unknown[] => JSON.parse(listener.take(key) ?? '[]') as unknown[];
+
 // The suite may itself run under a recording, which installed its own recorder.
 let recording: unknown;
 beforeEach(() => {
@@ -30,9 +33,9 @@ describe('a realm whose runner places each call itself', () => {
     variancePrecondition({ seeded: true });
     listener.close();
 
-    expect(listener.take('pays')).toEqual([['network', 'mocked', expect.stringMatching(SITE), 0xffff]]);
-    expect(listener.take('refunds')).toEqual([['seeded', true, expect.stringMatching(SITE), 1]]);
-    expect(listener.take('pays')).toEqual([]);
+    expect(taken(listener, 'pays')).toEqual([['network', 'mocked', expect.stringMatching(SITE), 0xffff]]);
+    expect(taken(listener, 'refunds')).toEqual([['seeded', true, expect.stringMatching(SITE), 1]]);
+    expect(taken(listener, 'pays')).toEqual([]);
   });
 
   it('shows a running case what it has said so far, resolved, without taking it', () => {
@@ -51,7 +54,8 @@ describe('a realm whose runner places each call itself', () => {
       { name: 'seeded', value: true, site: expect.stringMatching(SITE), level: 0 },
     ]);
     expect(listener.held('refunds')).toEqual([]);
-    expect(listener.take('pays').map(([name]) => name)).toEqual(['network', 'seeded', 'network', 'flag']);
+    // The overridden `network=live` is kept: a row is resolved when it is read.
+    expect(taken(listener, 'pays').map((item) => (item as [string])[0])).toEqual(['flag', 'network', 'network', 'seeded']);
   });
 
   it('reports a call made in an afterEach and records it on no case', () => {
@@ -65,7 +69,7 @@ describe('a realm whose runner places each call itself', () => {
 
     expect(warn).toHaveBeenCalledOnce();
     expect(String(warn.mock.calls[0]![0])).toMatch(/ran after its case and is recorded on no case/);
-    expect(listener.take('pays')).toEqual([]);
+    expect(taken(listener, 'pays')).toEqual([]);
   });
 
   it('throws for a call no case is running, finishing the sentence with the runner\'s reason', () => {

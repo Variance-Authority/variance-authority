@@ -40,7 +40,7 @@ export function render(report: RunReport, located: Located, query: string, limit
     // ranked on their names and are counted, not shown, so reading their
     // arrangement would be work nobody sees.
     const places = placesOn(report, shown.map((hit) => hit.subject), query);
-    sections.push(shown.map((hit) => renderHit(hit, places.get(hit.subject))).join('\n'));
+    sections.push(shown.map((hit) => renderHit(hit, places.get(hit.subject), located.searched)).join('\n'));
     const rest = located.hits.slice(limit);
     if (rest.length > 0) {
       sections.push(`…and ${rest.length} more: ${preview(rest.map((hit) => hit.subject), 6)}`);
@@ -63,13 +63,27 @@ function headline(located: Located, query: string): string {
   const count = located.hits.length;
   const asked = located.terms.length;
   const best = located.cover;
+  const found = asked - located.unmatched.length;
   const tail = located.dropped.length === 0 ? '.' : `; ${list(located.dropped)} not indexed.`;
   const first =
     asked === 0
       ? `Nothing left of \`${query}\` after the stoplist dropped ${list(located.dropped)}.`
       : count === 0
         ? `No subject of ${located.indexed} matches \`${query}\`.`
-        : best < asked
+        : !located.distinguished
+          ? // Abstaining is the answer. Every word that was found is said by
+            // most of what was searched wherever it was said, and so is every
+            // pair, so the holders are printed and their order is said to be no
+            // answer. A word held nowhere picks nothing out either, and is named.
+            `None of the ${found} term${found === 1 ? '' : 's'} of \`${query}\`` +
+            `${located.unmatched.length === 0 ? '' : ' found'} distinguishes a subject: ` +
+            `${found === 1 ? 'it is' : 'each is'} in more than half the ${located.searched} subjects ` +
+            `searched, in every field it matched` +
+            `${located.hits.some((hit) => hit.together.length > 0) ? ', and so is every pair of them said side by side' : ''}` +
+            `${located.unmatched.length === 0 ? '' : `, and ${list(located.unmatched)} ${located.unmatched.length === 1 ? 'is' : 'are'} held by none`}. ` +
+            `The ${count} subject(s) with ` +
+            `${found === 1 ? 'it' : 'them'} are listed; their order is no answer${tail}`
+          : best < asked
           ? // Partial cover is the answer a large suite gives to a question it
             // cannot take. Saying *n subjects match* would be false: they match
             // a word of it. On fifteen subjects there was nothing to half-match
@@ -95,14 +109,55 @@ function headline(located: Located, query: string): string {
           'miss below is not a miss on text, names, components or regions; none was searched.'
         : `\n${located.idOnly} subject(s) are indexed by id alone: the run composed nothing for them.`;
 
-  return `${first}${scope}\n${read}${unread}${idOnly}`;
+  return `${first}${commonLine(located)}${scope}\n${read}${unread}${idOnly}`;
 }
 
-function renderHit(hit: LocateHit, place: string | undefined): string {
+/**
+ * The words in most of the searched subjects, by the fields they are in. Said
+ * beside the count because it changes what the count means: a subject with the
+ * role `button` in a suite of buttons was matched by a word that says nothing
+ * about it.
+ */
+function commonLine(located: Located): string {
+  const fieldsOf = new Map<string, Set<string>>();
+  for (const hit of located.hits) {
+    for (const match of hit.matches) {
+      if (!match.common) continue;
+      let fields = fieldsOf.get(match.term);
+      if (fields === undefined) fieldsOf.set(match.term, (fields = new Set()));
+      fields.add(match.field);
+    }
+  }
+  const byFields = new Map<string, string[]>();
+  for (const term of located.terms) {
+    const fields = fieldsOf.get(term);
+    if (fields === undefined) continue;
+    const key = conjoined([...fields]);
+    let terms = byFields.get(key);
+    if (terms === undefined) byFields.set(key, (terms = []));
+    terms.push(term);
+  }
+  return [...byFields]
+    .map(
+      ([fields, terms]) =>
+        `\n${list(terms)} ${terms.length === 1 ? 'is' : 'are'} in the ${fields} of more than half ` +
+        `the ${located.searched} subjects searched, and there ${terms.length === 1 ? 'it distinguishes' : 'they distinguish'} ` +
+        'none of them.',
+    )
+    .join('');
+}
+
+function renderHit(hit: LocateHit, place: string | undefined, searched: number): string {
   const byTerm = new Map<string, LocateMatch[]>();
   for (const match of hit.matches) {
     let list = byTerm.get(match.term);
     if (list === undefined) byTerm.set(match.term, (list = []));
+    list.push(match);
+  }
+  const byPair = new Map<string, LocateMatch[]>();
+  for (const match of hit.together) {
+    let list = byPair.get(match.term);
+    if (list === undefined) byPair.set(match.term, (list = []));
     list.push(match);
   }
 
@@ -113,14 +168,19 @@ function renderHit(hit: LocateHit, place: string | undefined): string {
   return [
     head,
     ...(place === undefined ? [] : [`  where: ${place}`]),
-    ...[...byTerm].map(
-      ([term, matches]) =>
-        `  ${term}: ` +
-        matches
-          .map((match) => `${match.field} ${preview(match.values.map((value) => `\`${value}\``), MAX_VALUES_SHOWN)}`)
-          .join('; '),
-    ),
+    ...[...byTerm].map(([term, matches]) => `  ${term}: ${fieldsLine(matches, searched)}`),
+    ...[...byPair].map(([pair, matches]) => `  \`${pair}\` side by side: ${fieldsLine(matches, searched)}`),
   ].join('\n');
+}
+
+function fieldsLine(matches: readonly LocateMatch[], searched: number): string {
+  return matches
+    .map(
+      (match) =>
+        `${match.field} ${preview(match.values.map((value) => `\`${value}\``), MAX_VALUES_SHOWN)}` +
+        (match.common ? ` (in ${match.holders} of ${searched})` : ''),
+    )
+    .join('; ');
 }
 
 function unmatchedSection(located: Located): string {
@@ -133,6 +193,11 @@ function unmatchedSection(located: Located): string {
     `${words} ${verb} in no field that was read. The names this run did record:\n  ` +
     preview(located.names, MAX_NAMES_SHOWN, ' · ')
   );
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function conjoined(values: readonly string[]): string {
+  return values.length < 2 ? (values[0] ?? '') : `${values.slice(0, -1).join(', ')} and ${values.at(-1)}`;
 }
 
 function list(values: readonly string[]): string {

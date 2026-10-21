@@ -9,6 +9,7 @@ import {
   type Stand,
   type StandQuestion,
   type TestDistance,
+  type Precision,
   type Unmeasured,
 } from '@variance-authority/sense/test-selection';
 import type { RasterStore } from '@variance-authority/raster';
@@ -16,7 +17,8 @@ import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
-import { suiteRecord } from './suite-record.js';
+import { probesGap, probesNote } from './probes-gap.js';
+import { selectingRecord, suiteRecord } from './suite-record.js';
 
 /**
  * The machine-shaped things a run needs before it can start: a decoder, a store,
@@ -148,10 +150,37 @@ export async function journeyAgainst(
   /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
   at?: string,
   checkout: string = root,
-  /** `nothing` for a suite that declines relations: a file its record did not measure selects nobody. */
-  unmeasured?: Unmeasured,
+  /**
+   * What the suite declares: `unmeasured: 'nothing'` for one that declines
+   * relations, so a file its record did not measure selects nobody, and its
+   * precision.
+   */
+  suite: { readonly unmeasured?: Unmeasured | undefined; readonly precision?: Precision | undefined } = {},
 ): Promise<ExecutionNarrowing | undefined> {
-  return (await recordAgainst(root, diff, { relations, at, checkout, unmeasured }))?.narrowing;
+  return (await recordAgainst(root, diff, { relations, at, checkout, ...suite }))?.narrowing;
+}
+
+/**
+ * {@link journeyAgainst} over the record `suite` selects from, with what it
+ * declares. A suite at `file` or `symbol` precision reads the import
+ * graph, so `scan` builds one when the caller had none to hand over. A record
+ * cut under probes this build does not place carries the note that says so.
+ */
+export async function suiteJourney(
+  root: string,
+  diff: string,
+  relations: Relations | undefined,
+  suite: string | undefined,
+  scan: () => Promise<Relations>,
+): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined> {
+  const { file, ...declared } = await selectingRecord(root, suite);
+  const { byRelations } = await import('@variance-authority/sense/test-selection');
+  const graph = relations ?? (byRelations(declared.precision) ? await scan() : undefined);
+  const narrowing = await journeyAgainst(root, diff, graph, file, root, declared);
+  // A record cut under other probes narrows as it holds it, and says what that
+  // leaves open, as a note in the run's list, which ends its notes itself.
+  const gap = narrowing === undefined ? undefined : await probesGap(file, root, suite);
+  return narrowing === undefined || gap === undefined ? narrowing : { ...narrowing, probes: probesNote(gap).replace(/\.$/, '') };
 }
 
 /**
@@ -166,6 +195,8 @@ export async function recordAgainst(
     readonly at?: string | undefined;
     readonly checkout?: string | undefined;
     readonly unmeasured?: Unmeasured | undefined;
+    /** The suite's precision; absent reads regions. */
+    readonly precision?: Precision | undefined;
     readonly distances?: boolean;
     /**
      * `false` for a diff whose new side is not the text the landing kept a
@@ -181,7 +212,7 @@ export async function recordAgainst(
     readonly undone?: false;
   },
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
-  const { relations, at, checkout = root, unmeasured } = options;
+  const { relations, at, checkout = root, unmeasured, precision } = options;
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
@@ -196,6 +227,7 @@ export async function recordAgainst(
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),
+    ...(precision === undefined ? {} : { precision }),
   };
 
   try {
@@ -207,8 +239,7 @@ export async function recordAgainst(
     if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return undefined;
     throw new OperatorError(
       `the recorded execution journal at ${said(file)} could not be read: ${messageOf(error)}. ` +
-        'Delete it and run once without `--since` to record a new one; a run that ignored it ' +
-        'would look exactly like a run that never had one.',
+        'A run that ignored it would look exactly like a run that never had one.',
       { cause: error },
     );
   }
@@ -268,8 +299,7 @@ export async function recordedJourneys(
     if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return { at: file };
     throw new OperatorError(
       `the recorded execution journal at ${file} could not be read: ${messageOf(error)}. ` +
-        'Delete it and run once to record a new one; a reading that skipped it would look ' +
-        'exactly like a repository that never recorded anything.',
+        'A reading that skipped it would look exactly like a repository that never recorded anything.',
       { cause: error },
     );
   }

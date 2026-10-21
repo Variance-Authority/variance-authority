@@ -8,7 +8,7 @@ import { main } from '../bin.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   writeTestCoverage,
   type ExecutionIndex,
   type ExecutionTest,
@@ -26,7 +26,7 @@ import { caseNameOf, twinText } from './covering-where.js';
 function said(file: string, name: string, flag?: string, line = 3): ExecutionTest {
   return {
     id: `${file} > ${name}`, file, name,
-    preconditions: flag === undefined ? [] : [{ name: 'flag', value: flag, site: `${file}:${line}`, level: 1 }],
+    said: JSON.stringify(flag === undefined ? [] : [['flag', flag, `${file}:${line}`, 1]]),
   };
 }
 
@@ -62,7 +62,7 @@ const AXES = JSON.stringify({ names: { axes: [{ axis: 'flag', values: ['ff-off',
 async function record(): Promise<string> {
   const execution = join(await mkdtemp(join(tmpdir(), 'variance-covering-said-')), 'coverage.bin');
   await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-    index: encodeExecutionIndex(INDEX),
+    index: encodeAsSetExecutionIndex(INDEX),
   });
   return execution;
 }
@@ -134,16 +134,6 @@ describe('`--where` counts the cases that covered what was asked', () => {
     expect(answer(1)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of the 3 with recorded preconditions has flag=ff-half.\n');
     expect(answer(1)).toContain('1 case was recorded without preconditions');
     expect(answer(4)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of them was recorded with preconditions.\n');
-  });
-
-  it('says no count over a file whose recorded text is gone, where no case can be placed', () => {
-    const answer = formatCovering({
-      file: 'src/cart.ts', frame: 'stale', from: 'coverage.bin',
-      where: { asked: ['flag=ff-on'], kept: 0, of: 0, unmeasured: 0, outside: [] },
-    }, 'text');
-
-    expect(answer).not.toMatch(/No case covered|Kept/);
-    expect(answer).toContain('src/cart.ts is not the text the suite ran over');
   });
 
   it('still counts a function found in a file whose recorded text is gone, since its cases are listed', () => {

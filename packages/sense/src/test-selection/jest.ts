@@ -23,11 +23,13 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { environmentEntry } from './jest-environment-entry.js';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
 import { placingSequencer } from './jest-placing.js';
@@ -36,7 +38,7 @@ import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { notingRead } from './record-base.js';
-import { selectionFrom, timesFrom } from './selection-environment.js';
+import { landingTimes, selectionFrom } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
 
 export interface JestTestSelectionOptions {
@@ -76,9 +78,13 @@ export interface JestTestSelectionOptions {
    */
   readonly unprobed?: readonly string[];
   /**
-   * `presence` probes every arrival region; `entries` probes modules and
-   * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * `presence`, the default, probes every arrival region; `entries` probes
+   * modules and functions only, so a suite reads it no finer than
+   * `function-use`. Both record which functions ran before the file's first
+   * test. `loads` probes nothing: each module runs with one line after its own
+   * text, the record says which files each test loaded, and a change to a file
+   * selects every test that loaded it. Under it `cadence` is off, whatever it
+   * says.
    */
   readonly mode?: InstrumentMode;
   /**
@@ -278,7 +284,7 @@ export const SELECTION_TRANSFORM = here('./jest-transform.js');
 export const SELECTION_GLOBALS = here('./jest-globals.cjs');
 export const SELECTION_SETUP = here('./jest-setup.cjs');
 export const SELECTION_REPORTER = here('./jest-reporter.js');
-/** The environment a configuration with a `trace` runs its own environment through. */
+/** The host bridge a cached environment entry loads before the project environment. */
 export const TRACE_ENVIRONMENT = here('./jest-trace-environment.cjs');
 
 /**
@@ -321,9 +327,10 @@ export function withTestSelection(
   const unprobed = options.unprobed?.map((glob) =>
     glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
   const placing = { mode, unprobed, placement: options.placement };
-  const cadence = options.cadence !== false;
+  // Under `loads` no region is probed for a line of a test to have reached first.
+  const cadence = options.cadence !== false && probesRegions(mode);
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence));
+    traced(instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence), projectRoot(project, rootDir), undefined));
   const preconditions = [
     ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
@@ -343,11 +350,10 @@ export function withTestSelection(
   // Each reading notes the record it read against the record this run lands in, which names it.
   const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
   const selection = asked && notingRead(coverageFile, asked);
-  // A record named by file is the one this run lands in, so a shard's times are read there.
-  const times = notingRead(coverageFile, timesFrom({ root, from: rootDir, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) }));
+  const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, placing, declared, cadence) : config),
+    ...(projects === undefined ? traced(instrumented(config, root, rootDir, placing, declared, cadence), rootDir, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...(selection === undefined ? {} : selectingFilter(config, {
@@ -403,8 +409,8 @@ export function withJourneyCoverage(
  * as a file.
  */
 function traced(config: JestConfig, rootDir: string, trace: string | undefined): JestConfig {
-  if (trace === undefined) return config;
   const named = config.testEnvironment ?? 'node';
+  if (trace === undefined && ['node', 'jsdom', 'jest-environment-node', 'jest-environment-jsdom'].includes(named)) return config;
   const [path] = configuredPath(named, rootDir);
   const require = createRequire(resolve(rootDir, 'package.json'));
   let environment = path;
@@ -418,8 +424,8 @@ function traced(config: JestConfig, rootDir: string, trace: string | undefined):
   const options = (config['testEnvironmentOptions'] ?? {}) as Record<string, unknown>;
   return {
     ...config,
-    testEnvironment: TRACE_ENVIRONMENT,
-    testEnvironmentOptions: { ...options, varianceAuthority: { environment, trace } },
+    testEnvironment: environmentEntry(repositoryRoot(rootDir), environment, TRACE_ENVIRONMENT),
+    testEnvironmentOptions: { ...options, varianceAuthority: { environment, ...(trace === undefined ? {} : { trace }) } },
   };
 }
 
@@ -459,10 +465,6 @@ function instrumented(
     : Object.keys(config.transform).length === 0
       ? { [DEFAULT_PATTERN]: undefined }
       : config.transform;
-  // FIXME: A custom environment's repository-owned dependency closure still
-  // runs before `setupFiles` and is therefore probed before the collector exists.
-  // The configured entry is safe; the closure needs an owner before this can
-  // claim environments composed from other workspace packages.
   const exclude = [...new Set([...environmentPaths(config, rootDir), ...declared])];
   const transform = Object.fromEntries(
     Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [

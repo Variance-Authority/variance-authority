@@ -2,8 +2,7 @@
 
 Five workflow files live here. Three of them are recipes, meant to be copied
 into your own repository and edited. Each is a complete answer to a different
-question, and every decision inside them is commented as a decision — including
-the ones that are wrong for somebody else's repository. They all shell out to
+question. They all shell out to
 one tool: `@variance-authority/cli`, a devDependency, invoked as
 `npx variance <command>`.
 
@@ -29,10 +28,10 @@ an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
 The other two files here, [`check.yml`](check.yml) and
 [`release.yml`](release.yml), are this repository's own build and publish, and
-neither is a recipe. On a pull request, `check.yml` runs only the tests the
-change reached, selected by the `withTestSelection` each slice's config is
-wrapped in from the recording `main` saved, and a push to `main` runs the whole
-suite. It then posts two comments on the pull request, each under its own
+neither is a recipe. On a pull request, `check.yml` uses the recording `main`
+saved to select the tests the change reached. It compares the predicted time of
+that selection in one job with a sharded full suite and runs the cheaper option.
+A push to `main` runs the whole suite. It then posts two comments on the pull request, each under its own
 marker so neither overwrites the gate's: `variance review` over the suite's
 recording, and `variance coverage` against the record `main` saved. A merge
 group runs `plan` and `queue` in place of those jobs: lint and `yarn check` in
@@ -41,7 +40,7 @@ others, in as many shards per slice as `variance shards` counts them worth. It
 posts nothing.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
-nightly, and the shards on demand only — sharding fourteen subjects across two
+nightly, and the shards on demand only — sharding thirteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
@@ -63,9 +62,10 @@ baselines to the pull request's branch through git-LFS, and `tribunal-service`
 deploys this commit's review service to workers.dev and pushes the build to it.
 That one needs the `CLOUDFLARE_API_TOKEN` secret and fails without it.
 
-`check.yml` runs one job per harness — the repository's rules, the timed
-measurements, and the vitest suite — and a `check` job that turns their results
-into the one check a branch rule names. In a merge group `plan` and `queue`
+`check.yml` runs one job per harness — the repository's rules, with the carry
+contract as one of their steps, the timed measurements, and the vitest suite —
+and a `check` job that turns their results into the one check a branch rule
+names. In a merge group `plan` and `queue`
 replace the harness jobs, and `check` still runs, reading only their results.
 
 ## How the CLI reaches the runner

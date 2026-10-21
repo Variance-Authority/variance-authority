@@ -271,9 +271,10 @@ The top shows which run it is and what painted it; the subjects that need review
 are listed first, grouped by what they have in common when several changed the
 same way.
 
-Each subject is a picture you can work: the approved image, the difference, and
-the candidate, with a wipe to drag between the two, a blend, a blink, and an
-overlay of the regions the comparison found. `button/save` is `new`, so there is
+Each subject opens on what changed, cut from both images at their own size, and
+is a picture you can work: the approved image, the difference, and the
+candidate, with a wipe to drag between the two, a blend, a blink, and an overlay
+of the regions the comparison found. Clicking a region's row shows its box. `button/save` is `new`, so there is
 no approved image yet and nothing to compare against — what you are looking at
 is the candidate on its own, and the decision is whether that is what the
 component is supposed to look like.

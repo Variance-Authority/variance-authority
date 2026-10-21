@@ -142,7 +142,7 @@ export interface Config extends RestsOn, PageRegion {
    * scan understands, so a change it finds no component in forces a whole run; a
    * changed file outside them is one nobody claimed could move a render, and
    * narrowing past it is the operator's own statement of where their components
-   * are ([`docs/selecting.md`](../../../docs/selecting.md)).
+   * are ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
    */
   readonly source?: SourceConfig;
 

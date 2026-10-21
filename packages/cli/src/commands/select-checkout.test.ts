@@ -58,9 +58,11 @@ describe('reading this checkout', () => {
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, 'this is not a snapshot');
 
-    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(
-      /could not be read/,
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(
+      /could not be read: .*\. A run that ignored it would look exactly like a run that never had one\./su,
     );
+    await expect(refused).rejects.not.toThrow(/[Dd]elete it|run once|record a new one/);
   });
 
   it('refuses a readable snapshot that names no commit when no change is given', async () => {
@@ -70,7 +72,9 @@ describe('reading this checkout', () => {
     const { commit: _, ...uncommitted } = snapshot('c0ffee');
     await writeTestCoverage(testCoverageFile(root), uncommitted);
 
-    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+    await expect(refused).rejects.not.toThrow(/record the suite|run the suite/i);
   });
 
   it('skips the test files a real journal and a real diff rule out', async () => {

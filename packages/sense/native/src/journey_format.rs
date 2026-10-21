@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::case_id;
-use crate::case_preconditions;
+use crate::case_said;
+use crate::crossing_sets::SetPool;
 use crate::journey_columns::{self, Column};
 use crate::journey_journal::Test;
 use crate::journey_record::{Module, NO_OWNER};
@@ -13,110 +14,6 @@ use crate::record_layout::LAYOUT;
 // region that ran while its module evaluated ran for whoever imported the
 // module first, so the set named an import order and not a test; the import
 // graph answers that question, and the flag says when to ask it.
-
-pub struct SetPool {
-    test_count: usize,
-    bytes: Vec<u8>,
-    offsets: Vec<u32>,
-    hashes: HashMap<u32, Vec<u32>>,
-}
-
-impl SetPool {
-    pub fn new(test_count: usize) -> Self {
-        Self {
-            test_count,
-            bytes: Vec::new(),
-            offsets: vec![0],
-            hashes: HashMap::new(),
-        }
-    }
-
-    pub fn intern(&mut self, members: &[u32]) -> u32 {
-        let encoded = encode_set(members, self.test_count);
-        let hash = encoded.iter().fold(2_166_136_261_u32, |held, byte| {
-            (held ^ u32::from(*byte)).wrapping_mul(16_777_619)
-        });
-        if let Some(candidates) = self.hashes.get(&hash) {
-            for id in candidates {
-                let from = self.offsets[*id as usize] as usize;
-                let to = self.offsets[*id as usize + 1] as usize;
-                if self.bytes[from..to] == encoded {
-                    return *id;
-                }
-            }
-        }
-        let id = self.offsets.len() as u32 - 1;
-        self.bytes.extend_from_slice(&encoded);
-        self.offsets.push(self.bytes.len() as u32);
-        self.hashes.entry(hash).or_default().push(id);
-        id
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub fn offsets(&self) -> &[u32] {
-        &self.offsets
-    }
-}
-
-fn encode_set(members: &[u32], test_count: usize) -> Vec<u8> {
-    let sets = &LAYOUT.sets;
-    let width = sets.width(test_count);
-    let words = (test_count + 31) >> 5;
-    let mut runs = 0;
-    for at in 0..members.len() {
-        if at == 0 || members[at] != members[at - 1] + 1 {
-            runs += 1;
-        }
-    }
-    let list_size = 1 + members.len() * width;
-    let bits_size = 1 + words * 4;
-    let runs_size = 1 + runs * width * 2;
-    let smallest = list_size.min(bits_size).min(runs_size);
-    if smallest == bits_size {
-        let mut out = vec![0; bits_size];
-        out[0] = sets.bits;
-        for test in members {
-            let at = 1 + ((*test as usize >> 5) * 4);
-            let mut word = u32::from_le_bytes(out[at..at + 4].try_into().unwrap_or_default());
-            word |= 1 << (*test & 31);
-            out[at..at + 4].copy_from_slice(&word.to_le_bytes());
-        }
-        return out;
-    }
-    if smallest == runs_size {
-        let mut out = Vec::with_capacity(runs_size);
-        out.push(sets.runs);
-        let mut at = 0;
-        while at < members.len() {
-            let first = members[at];
-            let mut end = at + 1;
-            while end < members.len() && members[end] == members[end - 1] + 1 {
-                end += 1;
-            }
-            number(&mut out, first, width);
-            number(&mut out, (end - at) as u32, width);
-            at = end;
-        }
-        return out;
-    }
-    let mut out = Vec::with_capacity(list_size);
-    out.push(sets.list);
-    for member in members {
-        number(&mut out, *member, width);
-    }
-    out
-}
-
-fn number(out: &mut Vec<u8>, value: u32, width: usize) {
-    if width == 2 {
-        out.extend_from_slice(&(value as u16).to_le_bytes());
-    } else {
-        out.extend_from_slice(&value.to_le_bytes());
-    }
-}
 
 pub struct EncodedModule<'a> {
     pub module: &'a Module,
@@ -191,7 +88,7 @@ pub fn encode(
     tests: &[Test],
     extras: &CaseExtras,
     modules: &[EncodedModule<'_>],
-    sets: &SetPool,
+    sets: &mut SetPool,
     gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
     let timed = extras.always_timed || extras.durations.iter().any(Option::is_some);
@@ -200,10 +97,8 @@ pub fn encode(
         return Err("case columns disagree with the cases".to_owned());
     }
     let mut strings = Vec::new();
-    let said: Vec<Option<String>> = tests
-        .iter()
-        .map(|test| test.preconditions.as_deref().map(case_preconditions::spelled))
-        .collect();
+    let said: Vec<Option<&[case_said::Item]>> = tests.iter().map(|test| test.said.as_deref()).collect();
+    let said = case_said::lay(&said, sets);
     for test in tests {
         strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
     }
@@ -213,7 +108,6 @@ pub fn encode(
     // Carried when any case has one: a case no named project ran is `UNNAMED`.
     let named = tests.iter().any(|test| test.project.is_some());
     strings.extend(tests.iter().filter_map(|test| test.project.clone()));
-    strings.extend(said.iter().flatten().cloned());
     for held in modules {
         strings.push(held.module.file.clone());
         for block in &held.module.blocks {
@@ -301,9 +195,8 @@ pub fn encode(
         let words = extras.durations.iter().map(|duration| duration.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.duration.as_str(), words));
     }
-    if said.iter().any(Option::is_some) {
-        let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
-        columns.push(Column::Words(case_preconditions::COLUMN, words));
+    if let Some(said) = said {
+        columns.push(Column::Bytes(case_said::SECTION, said));
     }
     if lined {
         let mut blob = Vec::new();

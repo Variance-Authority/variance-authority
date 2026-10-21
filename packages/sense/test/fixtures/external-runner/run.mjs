@@ -17,6 +17,8 @@ const recording = startRecording({
   preconditions: [resolve(here, 'run.mjs'), resolve(here, 'worker.mjs')],
   // `--no-cadence` leaves each test file uncut, for the test that turns cuts off.
   cadence: !process.argv.includes('--no-cadence'),
+  // `--loads` records which files each test file loaded, and nothing inside them.
+  ...(process.argv.includes('--loads') ? { mode: 'loads' } : {}),
 });
 
 const finished = [];

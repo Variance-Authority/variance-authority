@@ -93,3 +93,21 @@ function keptFor(
   if (text === undefined || digestString(text) !== digest) return undefined;
   return { name, text, kept: true };
 }
+
+/**
+ * The text at the record's commit of a file no row holds, under the first of
+ * its names the commit holds, and empty under `fallback` for a file the commit
+ * does not hold: a new file's diff is its whole text.
+ */
+export function commitFrame(
+  coverage: TestCoverageView,
+  names: readonly string[],
+  fallback: string,
+  sourceAt: NonNullable<ExecutionNarrowingOptions['sourceAt']>,
+): Frame {
+  for (const name of names) {
+    const text = sourceAt(name, coverage.commit);
+    if (text !== undefined) return { name, text };
+  }
+  return { name: fallback, text: '' };
+}

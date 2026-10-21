@@ -41,6 +41,8 @@ pub struct Coverage {
     pub uncased: u8,
     /// The layout before `tests.duration`, which the JVM agent writes.
     pub untimed: u8,
+    /// The layout before `tests.phases`: a record whose runner reported no phases.
+    pub unphased: u8,
     pub no_duration: u32,
     /// The owner a block with no owner carries: the module root's.
     pub no_owner: u32,
@@ -50,9 +52,16 @@ pub struct Coverage {
     pub sections: Vec<String>,
     /// The section the untimed layout lacks.
     pub duration: String,
+    /// The section every layout before the current one lacks.
+    pub phases: String,
+    /// The phases `tests.phases` holds a word each of for every test, in order.
+    pub phase_names: Vec<String>,
     /// The case parts, `(part, section)`, in the order a record holds them after the coverage sections.
     pub parts: Vec<(String, String)>,
     pub block_kinds: Vec<String>,
+    /// The kinds of region each reading of an edit leaves running as they ran;
+    /// a reading absent here spares nothing.
+    pub spared: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl Coverage {
@@ -66,11 +75,11 @@ impl Coverage {
         }
     }
 
-    /// The layouts a reader opens: the current one, the one before the case
-    /// parts, and the untimed one the JVM agent writes. `readableFormat` in
-    /// `format-layout.ts` opens the same three.
+    /// The layouts a reader opens: the current one, the one before phases,
+    /// the one before the case parts, and the untimed one the JVM agent
+    /// writes. `readableFormat` in `format-layout.ts` opens the same four.
     pub fn readable(&self, version: u8) -> bool {
-        version == self.format || version == self.uncased || version == self.untimed
+        version == self.format || version == self.unphased || version == self.uncased || version == self.untimed
     }
 }
 
@@ -113,12 +122,21 @@ mod tests {
 
     #[test]
     fn reads_the_layout_both_sides_read() {
-        assert_eq!(LAYOUT.coverage.sections.len(), 27);
+        assert_eq!(LAYOUT.coverage.sections.len(), 28);
+        assert!(LAYOUT.coverage.sections.contains(&LAYOUT.coverage.phases));
+        assert_eq!(LAYOUT.coverage.phase_names.len(), crate::record_coverage::PHASES);
         assert!(LAYOUT.coverage.sections.contains(&LAYOUT.coverage.duration));
         assert_eq!(LAYOUT.coverage.part("index"), "cases");
         assert!(LAYOUT.coverage.readable(LAYOUT.coverage.untimed));
         assert!(LAYOUT.coverage.readable(LAYOUT.coverage.uncased));
         assert!(!LAYOUT.coverage.readable(LAYOUT.coverage.untimed - 1));
         assert!(!LAYOUT.coverage.readable(LAYOUT.coverage.format + 1));
+    }
+
+    #[test]
+    fn spares_every_kind_under_no_change_and_the_top_level_under_a_body_edit() {
+        assert_eq!(LAYOUT.coverage.spared["none"], LAYOUT.coverage.block_kinds);
+        assert_eq!(LAYOUT.coverage.spared["bodies"], ["module"]);
+        assert!(!LAYOUT.coverage.spared.contains_key("load"));
     }
 }

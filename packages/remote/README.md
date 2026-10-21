@@ -5,6 +5,7 @@
 > Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -368,4 +369,4 @@ disk passes, from `@variance-authority/raster`.
 
 ---
 
-**[@variance-authority/remote](https://variance-authority.dev/reference/packages/remote)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/remote](https://variance-authority.dev/reference/packages/remote)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/remote) · MIT

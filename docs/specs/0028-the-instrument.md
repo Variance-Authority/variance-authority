@@ -303,14 +303,19 @@ have returned.
 
 **Identity.** `INSTRUMENTATION_ID` at `packages/sense/src/instrument/index.ts`
 is `sense:instrument/presence-v6`. Every module record, journal, account and
-coverage file names it, and every reader refuses one that names another. A
+coverage file names it. A run is never laid over a record that names another,
+and a reader answers from such a record as it holds it, at its own commit, and
+names both identities and the regions the difference leaves unanswered. A
 change to how a module is cut into regions or to what a hit means mints a new
 id. Where in the output a region's probe sits does not: a record made with the
 probes before the transforms names the same regions by the same ordinals, and a
 hit in it still means the region ran, so it is merged with one made after. The
 `entries` mode — the module and each function, nothing between — is a second
-recipe under `sense:instrument/entries-v3`, and `instrumentationId(mode)` names
-the recipe a seam was asked for. Jest's transform cache keys on the recipe,
+recipe under `sense:instrument/entries-v3`. `loads` cuts nothing: each module
+gets one mark after its own text and reports its arrival alone, under
+`sense:instrument/loads-v1`, and a run made so records no cases. `instrument()`
+takes the two walks alone, by its type: a mark is the seam's, not the walk's.
+`instrumentationId(mode)` names the recipe a seam was asked for. Jest's transform cache keys on the recipe,
 which also digests the instrumenter's sources, so a module cached by an older
 release is transformed again.
 

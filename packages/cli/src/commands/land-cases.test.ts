@@ -11,6 +11,7 @@ import {
   readTestCoverage,
   RecordWithoutCoverage,
   recordOfCases,
+  rowOf,
   sharedRecord,
   testCoverageFile,
   withoutCoverage,
@@ -105,7 +106,7 @@ describe('landJourneys and the cases in the record', () => {
 describe('landJourneys and the run its shards were', () => {
   /** A case of `file` that said `user` was `value` in its body. */
   function said(file: string, name: string, value: string): ExecutionTest {
-    return { id: `${file} > ${name}`, file, name, stopped: false, preconditions: [{ name: 'user', value, site: `${file}:2`, level: 65535 }] };
+    return { id: `${file} > ${name}`, file, name, stopped: false, said: JSON.stringify([['user', value, `${file}:2`, 65535]]) };
   }
 
   /** A shard at `commit` that finished `test`'s file, entered `src/total.ts`, and kept `test` as its one case. */
@@ -136,7 +137,10 @@ describe('landJourneys and the run its shards were', () => {
     expect(last).toMatchObject({ commit: first, files: ['test/other.test.ts', 'test/total.test.ts'] });
     expect(last.cases).toEqual([alone.id, discounts.id]);
     const named = (await readExecutionIndex(record)).tests.filter((test) => last.cases.includes(test.id));
-    expect(named.map((test) => [test.id, test.preconditions])).toEqual([[alone.id, alone.preconditions], [discounts.id, discounts.preconditions]]);
+    expect(named.map((test) => [test.id, rowOf(test)])).toEqual([
+      [alone.id, [{ name: 'user', value: 'guest', site: 'test/other.test.ts:2', level: 65535 }]],
+      [discounts.id, [{ name: 'user', value: 'member', site: 'test/total.test.ts:2', level: 65535 }]],
+    ]);
   });
 
   it('counts the shards whose cases it laid, and not an empty one named beside them', async () => {
@@ -289,9 +293,10 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     await expect(landJourneys(dir, [other, at], record)).rejects.toThrow(new Error(
       `the build failed because the sharding was unstable: ${at} started from commit \`${first}\`, and ${other} from commit \`${'b'.repeat(40)}\`. ` +
         'Each shard split the suite against the record it started from, so the split may have left tests that ran in no shard. ' +
-        'Run the whole build again, so that every shard restores the same cached record: ' +
+        'Nothing of this build is combined, so the record before it stands. ' +
+        'Shards start alike when every one restores the same cached record: ' +
         'the `actions/cache` step keyed `variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}` restores it, ' +
-        'and a shard that restored another, or none, starts apart again.',
+        'and a shard that restored another, or none, starts apart.',
     ));
     expect(await readFile(record)).toEqual(before);
   });

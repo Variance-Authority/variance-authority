@@ -67,6 +67,17 @@ describe('locatePictures', () => {
     expect(images?.record).toBe('images/button.after.json');
   });
 
+  it('finds the change at its own size too, since a tall page is read by it', async () => {
+    await writeFile(join(dir, 'images', 'button.change.png'), PNG);
+    const found = new Map<string, Picture>();
+    const report = reportOf({ after: 'images/button.after.png', change: 'images/button.change.png' });
+    const images = (await locatePictures(report, dir, found)).observations[0]?.images;
+
+    const file = join(dir, 'images', 'button.change.png');
+    expect(images?.change).toBe(file);
+    expect(found.get(file)).toEqual({ file, media: 'image/png', width: 320, height: 200 });
+  });
+
   it('keeps the path of a picture it cannot read, so the page still has its slot', async () => {
     const found = new Map<string, Picture>();
     const report = reportOf({ after: 'images/button.after.png', before: 'images/gone.before.png' });

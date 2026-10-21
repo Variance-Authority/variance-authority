@@ -158,7 +158,7 @@ describe('subject costs', () => {
   it('are refused from a report with no commit, from one shard, and from a run that timed nothing', async () => {
     const config = configOf();
     const shard = reportOf('3f1c', {
-      notObserved: [{ subject: 'story:z', kind: 'excluded', because: shardOwnedBecause(2, 2, 'checksum') }],
+      notObserved: [{ subject: 'story:z', kind: 'excluded', because: shardOwnedBecause(2, 2, 'count') }],
     });
     const untimed = reportOf('3f1c', {
       observations: [{ subject: 'story:c', verdict: 'unchanged', because: 'nothing moved', regions: [] }],
