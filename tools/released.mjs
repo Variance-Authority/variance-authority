@@ -145,15 +145,27 @@ function tagsOnRemote() {
  * publish" are seconds apart in CI and npm is entitled to a moment. The wait is
  * spent only while something is still missing: a complete release answers on
  * the first pass and the step costs one round trip per package.
+ *
+ * A registry that did not answer — a 5xx, a dropped connection — is asked
+ * again on the next pass, because one bad answer between two publish rounds
+ * ended a release that the next pass would have counted. It is not counted as
+ * missing: what the registry did not say is not that the name is absent. A
+ * name still unanswered when the wait is spent refuses, naming why.
+ * `ask` and `everyMs` are handed in by a test.
  */
-export async function missing(packages, version, waitSeconds = 0) {
+export async function missing(packages, version, waitSeconds = 0, { ask = onRegistry, everyMs = 5000 } = {}) {
   const until = Date.now() + waitSeconds * 1000;
   let absent = packages;
   for (;;) {
-    const answers = await Promise.all(absent.map((entry) => onRegistry(entry.name, version)));
-    absent = absent.filter((_, at) => !answers[at]);
-    if (absent.length === 0 || Date.now() >= until) return absent;
-    await new Promise((wake) => setTimeout(wake, 5000));
+    const answers = await Promise.allSettled(absent.map((entry) => ask(entry.name, version)));
+    const unanswered = answers.flatMap((answer) => (answer.status === 'rejected' ? [answer.reason] : []));
+    absent = absent.filter((_, at) => answers[at].status === 'rejected' || !answers[at].value);
+    if (absent.length === 0) return absent;
+    if (Date.now() >= until) {
+      if (unanswered.length > 0) throw new Error(unanswered.map((reason) => reason.message).join('; '));
+      return absent;
+    }
+    await new Promise((wake) => setTimeout(wake, everyMs));
   }
 }
 

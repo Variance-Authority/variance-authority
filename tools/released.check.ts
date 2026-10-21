@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { lockstep, publishable, waiting } from './released.mjs';
+import { lockstep, missing, publishable, waiting } from './released.mjs';
 
 /**
  * A release is checked against the registry, and stays checked.
@@ -81,6 +81,24 @@ describe('what a release publishes', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  // One 503 between two publish rounds ended 0.18.0's retry before it ran: the
+  // count threw, and `bash -e` took the step with it.
+  it('asks again a registry that did not answer, and refuses one that never does', async () => {
+    const entries = [{ name: 'a' }, { name: 'b' }];
+    const asked: string[] = [];
+    const flaky = async (name: string) => {
+      asked.push(name);
+      if (name === 'a' && asked.filter((one) => one === 'a').length === 1) throw new Error('a answered 503');
+      return true;
+    };
+    expect(await missing(entries, '1.2.3', 60, { ask: flaky, everyMs: 0 })).toEqual([]);
+    expect(asked).toEqual(['a', 'b', 'a']);
+    const down = async () => {
+      throw new Error('answered 503');
+    };
+    await expect(missing(entries, '1.2.3', 0, { ask: down, everyMs: 0 })).rejects.toThrow(/answered 503/);
   });
 
   it('refuses a version the packages disagree on', () => {
