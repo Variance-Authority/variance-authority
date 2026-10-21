@@ -149,7 +149,7 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
@@ -651,20 +651,28 @@ that recorded it. `--where` keeps the covering cases that ran under a
 precondition, in every form of the question:
 
 ```bash
-variance covering --file src/checkout/total.ts --function total --where prices=discounted
+variance covering --file src/checkout/total.ts --function total --where mocks:prices=discounted
 ```
 
 ```text
-Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded mocks:prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > applies the discount — read flags:discount=true said true, mocks:prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — read flags:discount=false said false, mocks:prices=discounted (test/prices.ts:12)
 ```
 
 The count is out of the cases that covered what you asked about, before
-`--where` narrowed them. `--where prices` keeps every value of `prices`, and
-every repeated `--where` must hold. Two values recorded at one level print as a
+`--where` narrowed them. `--where mocks:prices` keeps every value of
+`mocks:prices`, `--where mocks` every key of the dimension, and every repeated
+`--where` must hold. Where the code under test leaves a breadcrumb with
+[`varianceBreadcrumb`](https://variance-authority.dev/reference/packages/event),
+each case prints what the code read beside what the case said under the same
+name, `read flags:discount=true said true`, and `--read` keeps the cases by
+what the code read, in the same forms. The two filters never stand in for each
+other: `--where flags:discount=true --read flags:discount=false` keeps the
+cases whose claim never reached the code. A case recorded by a runner that
+listens to reads and that read nothing prints `read nothing`. Two values recorded at one level print as a
 contradiction, and match a `--where` naming either. A record made before cases
 recorded preconditions keeps none and counts every case as unmeasured, rather
 than answering that no test covered it, and a case from a runner that does not
@@ -821,7 +829,7 @@ names the moved regions' cases by the numbers of its case table.
 variance review --since origin/main --format handover
 ```
 
-prints breadcrumbs to the coverage of the changed area as one folded
+points to the coverage of the changed area as one folded
 `<details>` block for the pull request body. A review bot reads the body when
 the pull request opens, before any check has finished. A changed function gets
 a line when there is something to look at: 🔴 when part of it ran under no
@@ -1043,11 +1051,15 @@ review is cut at a line break before that length, and its last line gives the
 number of characters not shown.
 
 When the cases that entered a function recorded more than one value of a
-precondition, its row names every value — `ran under discount=off,
-discount=on` — so you see which states ran the change without asking
-`covering --where`. `review.json` keeps each case with the preconditions it
-recorded, the way `covering` prints them: `applies the discount — discount=on
-(test/flags.ts:6)`. For a record made before cases recorded preconditions, the
+precondition, its row names every value — `ran under flags:discount=false,
+flags:discount` — so you see which states ran the change without asking
+`covering --where`. When they read a breadcrumb, the row splits them by what
+they read — `flags:express read false by 1, true by 1, not by 6`, where `not`
+counts the cases that entered the function and never read the key — so new
+code behind a flag that only the flag-on case reached shows
+`flags:express read true by 1`. `review.json` keeps each case with the
+preconditions it recorded and the reads its code made, as `preconditions` and
+`reads`, the way `covering` prints them. For a record made before cases recorded preconditions, the
 state they ran under is printed as unmeasured, and cases from a runner that
 does not record preconditions are counted apart from the cases that recorded
 nothing.

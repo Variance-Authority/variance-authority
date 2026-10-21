@@ -7,6 +7,7 @@
  */
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeSaid } from '../native-said.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 
 /**
  * Every item a case said and read, unresolved — overridden ones too — as
@@ -167,7 +168,59 @@ export function heldValues(said: readonly CasePrecondition[], named: string): re
   return said.filter((held) => (under === undefined ? held.name === named : held.name.startsWith(under))).map(valueText);
 }
 
-/** What a case said, after its name, or nothing when it said nothing. */
-export function heldText(said: readonly CasePrecondition[] | undefined): string {
-  return said === undefined || said.length === 0 ? '' : ` — ${preconditionText(said)}`;
+/**
+ * What a case heard, after its name: each key the code read as `read
+ * flags:checkout=true said true`, or `said nothing`, then what the case said in
+ * the dimensions the code never read, as spec 0093 prints it. A key said in a
+ * dimension the code read, and never read itself, is left out. Where nobody
+ * listened to reads, what the case said alone; nothing when it heard nothing.
+ */
+export function heldText(test: { readonly said?: Said | undefined }): string {
+  if (test.said === undefined) return '';
+  const { said = [], read } = saidRow(test.said);
+  const dimension = (name: string) => name.slice(0, name.indexOf(':'));
+  const consulted = new Set(read?.map((held) => dimension(held.name)));
+  const reads = read?.map((held) => {
+    const values = said.filter((one) => one.name === held.name).map(valueText);
+    return `read ${held.name}=${valueText(held)} said ${values.length === 0 ? 'nothing' : values.join(' and ')}`;
+  });
+  const unread = said.filter((held) => !consulted.has(dimension(held.name)));
+  const parts = [
+    ...reads === undefined ? [] : reads.length === 0 ? ['read nothing'] : reads,
+    ...unread.length === 0 ? [] : [preconditionText(unread)],
+  ];
+  return parts.length === 0 ? '' : ` — ${parts.join(', ')}`;
+}
+
+/**
+ * How the cases that entered one region split by what the code read: each key
+ * as `flags:checkout read false by 1, true by 2, not by 1`, the cases nobody
+ * listened to for reads counted as unmeasured. A key read at one value by
+ * every case is named too: which value reached the region is the reading.
+ * Nothing is printed when no case was listened to or none read anything.
+ */
+export function readSplit(cases: readonly (readonly CasePrecondition[] | undefined)[]): string {
+  const measured = cases.filter((read) => read !== undefined);
+  if (measured.length === 0) return '';
+  const unmeasured = cases.length - measured.length;
+  const byName = new Map<string, Map<string, number>>();
+  for (const read of measured) {
+    for (const [name, values] of new Map(read.map((held) => [held.name, new Set(read.filter((one) => one.name === held.name).map(valueText))]))) {
+      const counts = byName.get(name) ?? new Map<string, number>();
+      for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+      byName.set(name, counts);
+    }
+  }
+  return [...byName]
+    .map(([name, counts]) => {
+      const reading = measured.filter((read) => read.some((held) => held.name === name)).length;
+      return { name, counts, unread: measured.length - reading };
+    })
+    .sort((left, right) => codeUnitOrder(left.name, right.name))
+    .map(({ name, counts, unread }) => [
+      `${name} read ${[...counts].sort(([left], [right]) => codeUnitOrder(left, right)).map(([value, count]) => `${value} by ${count}`).join(', ')}`,
+      ...unread === 0 ? [] : [`not by ${unread}`],
+      ...unmeasured === 0 ? [] : [`unmeasured for ${unmeasured}`],
+    ].join(', '))
+    .join('; ');
 }

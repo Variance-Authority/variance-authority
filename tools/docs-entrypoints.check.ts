@@ -42,6 +42,7 @@ const CONCEPTS: readonly Concept[] = [
   { name: 'runtime scenario', pattern: /\bruntime scenarios?\b/i, owner: 'docs/scenarios.md' },
   { name: 'great green dragon rule', pattern: /\bgreat green dragon\b/i, owner: 'docs/variations.md' },
   { name: 'case precondition', pattern: /\bcase preconditions?\b/i, owner: 'docs/case-preconditions.md' },
+  { name: 'breadcrumb', pattern: /\bbreadcrumbs?\b/i, owner: 'docs/case-preconditions.md' },
   { name: 'cadence', pattern: /\bcadence\b/i, owner: 'docs/test-level-coverage.md' },
 ];
 

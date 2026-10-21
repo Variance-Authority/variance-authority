@@ -126,16 +126,16 @@ async function namedWhenSaid(when: 'comparing' | 'reading the accessibility tree
 chromium_('a snapshot taken inside a case', () => {
   it('names the preconditions said before its document was captured, not those said while it was compared', async () => {
     expect(await namedWhenSaid('comparing')).toEqual({
-      snapshot: [['network', 'mocked']],
+      snapshot: [['fixture:network', 'mocked']],
       // Said all the same: the case holds it for its row.
-      row: ['network', 'seeded'],
+      row: ['fixture:network', 'fixture:seeded'],
     });
   }, 60_000);
 
   it('does not name a precondition said while the accessibility tree was still being read', async () => {
     expect(await namedWhenSaid('reading the accessibility tree')).toEqual({
-      snapshot: [['network', 'mocked']],
-      row: ['network', 'seeded'],
+      snapshot: [['fixture:network', 'mocked']],
+      row: ['fixture:network', 'fixture:seeded'],
     });
   }, 60_000);
 });

@@ -26,7 +26,7 @@ describe('a review handed over in the pull request body, before CI', () => {
   const cwd = process.cwd();
   afterEach(() => process.chdir(cwd));
 
-  it('leaves breadcrumbs: each changed function, whether a case reached it and from how far, and the test file to open', async () => {
+  it('points at each changed function, whether a case reached it and from how far, and the test file to open', async () => {
     const { root, first } = await changed();
     await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
 
@@ -89,11 +89,11 @@ describe('a review handed over in the pull request body, before CI', () => {
     const review = { from: 'a'.repeat(40), record: 'before', base: 'since', files } as unknown as Review;
 
     const out = formatHandover([{ review }]);
-    const crumbs = out.split('\n').filter((line) => line.startsWith('- '));
+    const pointers = out.split('\n').filter((line) => line.startsWith('- '));
 
-    expect(crumbs).toHaveLength(HANDOVER_LINES);
-    expect(crumbs.slice(0, 4).every((line) => line.startsWith('- 🔴'))).toBe(true);
-    expect(crumbs[4]).toBe('- 🟡 `f3` in `src/f03.ts` — 2 cases, far: `test/a.test.ts` and 1 more');
+    expect(pointers).toHaveLength(HANDOVER_LINES);
+    expect(pointers.slice(0, 4).every((line) => line.startsWith('- 🔴'))).toBe(true);
+    expect(pointers[4]).toBe('- 🟡 `f3` in `src/f03.ts` — 2 cases, far: `test/a.test.ts` and 1 more');
     expect(out).toContain('<summary>🧭 Coverage of the changed area: 40 changed functions, 4 with code the record holds no case for</summary>');
     expect(out).toContain('And 28 more, every one reached by a case: 4 far, 24 near.');
   });
@@ -108,6 +108,27 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
       '- ⚪ `loaded` in `src/loaded.ts` — 1 case, ran only while its module loaded: `test/a.test.ts`',
       '- 🟠 `unplaced` in `src/unplaced.ts` — 1 case, distance not measured: `test/a.test.ts`',
+    ]);
+  });
+
+  it('says how the cases that reached a named function split by what the code read, and nothing of a record that did not listen', () => {
+    const read = (value: boolean) => [{ name: 'flags:checkout', value, site: 'src/a.ts:3', level: 0xffff }];
+    const called = [
+      { id: 'a > off', file: 'test/a.test.ts', name: 'off', preconditions: [], reads: read(false) },
+      { id: 'a > on', file: 'test/a.test.ts', name: 'on', preconditions: [], reads: read(true) },
+    ];
+    const region = (name: string, cases: ReviewRegion['called']): ReviewRegion => ({
+      kind: 'function', name, startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 2, cases: 2, tests: ['test/a.test.ts'], called: cases,
+    });
+    const files = [
+      { file: 'src/a.ts', recorded: true, regions: [region('total', called)] },
+      { file: 'src/b.ts', recorded: true, regions: [region('round', called.map(({ reads: _, ...unheard }) => unheard))] },
+    ];
+    const review = { from: 'a'.repeat(40), record: 'ran', base: 'since', files } as unknown as Review;
+
+    expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
+      '- 🟡 `total` in `src/a.ts` — 2 cases, far: `test/a.test.ts`; flags:checkout read false by 1, true by 1',
+      '- 🟡 `round` in `src/b.ts` — 2 cases, far: `test/a.test.ts`',
     ]);
   });
 

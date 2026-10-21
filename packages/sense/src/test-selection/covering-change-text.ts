@@ -1,4 +1,4 @@
-import { heldText, rowOf } from './case-said.js';
+import { heldText } from './case-said.js';
 import type { RangeState } from './range-state.js';
 import type { CoveringChange, CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -68,7 +68,7 @@ export function formatCoveringChange(
   changed: readonly StatedCoveringChange[],
   heading: CoveringChangeHeading = {},
 ): string {
-  const witness = (test: CoveringTest | ExecutionTest): readonly string[] => [`    ${describe(test)}${heldText(rowOf(test))}`];
+  const witness = (test: CoveringTest | ExecutionTest): readonly string[] => [`    ${describe(test)}${heldText(test)}`];
   const regions = changed.flatMap((file) => file.regions);
   const blind = regions.filter((region) => region.tests.length === 0 && !covered(region.state));
   const holes = blind.filter((region) => (region.stopped?.length ?? 0) > 0);

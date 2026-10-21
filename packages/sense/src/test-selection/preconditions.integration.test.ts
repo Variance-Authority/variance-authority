@@ -141,7 +141,7 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
 
   it('lays what a failing beforeEach said on no later case', () => {
     expect(rowOf(row('after doomed', 'pays'))).toEqual([said('fixture:network', 'live', 'file default')]);
-    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'doomed')).toBe(false);
+    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'fixture:doomed')).toBe(false);
   });
 
   it('gives a case that crossed nothing a row, and a case that said nothing an empty one', () => {
@@ -154,7 +154,7 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
 
   it('reports a call in afterEach with its site and lays it on no case', () => {
     expect(output).toMatch(new RegExp(`variancePrecondition at \\S*checkout\\.case\\.ts:${line('after each')} ran after its case`));
-    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'cleaned')).toBe(false);
+    expect(index.tests.flatMap((test) => rowOf(test) ?? []).some((held) => held.name === 'fixture:cleaned')).toBe(false);
   });
 
   it('throws where no case is running: the top level, a describe callback, a beforeAll and an afterAll', () => {

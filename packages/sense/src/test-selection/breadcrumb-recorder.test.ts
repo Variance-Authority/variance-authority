@@ -75,8 +75,7 @@ describe('the recorder of what the code read', () => {
   });
 
   it('lays a read under a beforeEach that names no case on the case entered with its token', () => {
-    let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => undefined, undefined, undefined, true);
     recorder.loaded();
     const token = {};
     recorder.begin(token);

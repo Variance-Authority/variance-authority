@@ -9,7 +9,7 @@
  * titles are the JSON's: a comment has a length limit and a review does not.
  */
 
-import { valued } from '@variance-authority/sense/test-selection';
+import { readSplit, valued } from '@variance-authority/sense/test-selection';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
@@ -112,7 +112,7 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   for (const [file, region] of rows.slice(0, ROWS)) {
     const named = region.tests.slice(0, TEST_FILES).map((test) => `\`${test}\``).join(', ');
     const more = region.tests.length > TEST_FILES ? ` and ${region.tests.length - TEST_FILES} more` : '';
-    lines.push(`| ${mark(region)} | \`${region.name}\` | ${editLabel(file, region)} | ${place(review, file, region)} | ${region.cases}${spanned(region.called)} | ${
+    lines.push(`| ${mark(region)} | \`${region.name}\` | ${editLabel(file, region)} | ${place(review, file, region)} | ${region.cases}${spanned(region.called)}${readsMarkdown(region.called)} | ${
       region.changedLineCases
     } | ${named}${more} |`);
   }
@@ -146,6 +146,12 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
   return [`${unheard} of ${heard.size} case${heard.size === 1 ? '' : 's'} ${unheard === 1 ? 'was' : 'were'} recorded without preconditions, so the state ${
     unheard === 1 ? 'it' : 'they'
   } ran under is unmeasured.`, ''];
+}
+
+/** How the cases that entered a region split by what the code read, after its count. */
+function readsMarkdown(called: readonly ReviewCase[]): string {
+  const split = readSplit(called.map((one) => one.reads));
+  return split === '' ? '' : `; ${escape(split).replaceAll('|', '\\|')}`;
 }
 
 /**

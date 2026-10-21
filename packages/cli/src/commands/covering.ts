@@ -205,8 +205,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     if (request.cases !== undefined) {
       ({ index, scope } = await scopeCases((full = read.index), from, request.cases, request.root));
     }
-    if (request.where === undefined) return { index, files: read.files };
-    const kept = whereCases(index, request.where);
+    if (request.where === undefined && request.read === undefined) return { index, files: read.files };
+    const kept = whereCases(index, request.where ?? [], request.read ?? []);
     where = kept.where;
     return { index: kept.index, files: read.files, before: index };
   };
@@ -226,7 +226,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     if (probes === undefined) throw error;
     throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
   }
-  // Counts are read among every case the question reached before `--where` narrowed it.
+  // Counts are read among every case the question reached before `--where` and `--read` narrowed it.
   if (where !== undefined) {
     const listed = listedIn(answer);
     where = whereOver(where, listed, reached ?? listed);
@@ -311,8 +311,8 @@ async function ask(
   if (module === undefined) {
     const held = heldAsPrecondition(from, [file]);
     const loaded = held?.of.get(file);
-    // The record holds every test file's preconditions; `--cases` and `--where` ask about the cases left in the index.
-    const asked = request.cases === undefined && request.where === undefined
+    // The record holds every test file's preconditions; `--cases`, `--where` and `--read` ask about the cases left in the index.
+    const asked = request.cases === undefined && request.where === undefined && request.read === undefined
       ? undefined
       : new Set(index.tests.map((test) => test.file));
     if (loaded !== undefined) {

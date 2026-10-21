@@ -18,7 +18,7 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText, rowOf } from '@variance-authority/sense/test-selection';
+import { heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
@@ -186,11 +186,11 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     if (range.tests.length === 0) {
       // The header already says `unwalked` or `hole`; the stopped cases are the rest of a hole.
       const said = range.state === 'unwalked' || range.state === 'hole';
-      // Under `--where` the state is read over cases the list leaves out, so an empty list says nothing about them.
+      // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
       if (!said) {
         lines.push(answer.where === undefined
           ? `  no named test covered this range${unentered(range.stopped)}`
-          : '  no case `--where` kept covered this range');
+          : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
       }
       lines.push(...(range.stopped ?? []).map((test) =>
         said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
@@ -302,7 +302,7 @@ function caseLines(
   const rows = new Map(files.map((row) => [row.file, row]));
   return [...byFile].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
-    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(rowOf(test))}`),
+    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test)}`),
   ]);
 }
 
