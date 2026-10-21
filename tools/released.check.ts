@@ -103,10 +103,20 @@ describe('the release workflow', () => {
   // finishes it. Without a second attempt this check turns a partial release
   // into a red job somebody has to fix by hand, which is better than green and
   // worse than done.
+  //
+  // The first attempt's exit code must not end the step: 0.17.1 lost two names
+  // to a transparency-log 409, `bash -e` stopped there, and the retry written
+  // for exactly that never ran. And the retry comes in rounds, because a name
+  // that fails holds every package that depends on it, so the round that
+  // finishes it is the first one that can attempt them.
   it('asks the registry what published, and finishes what did not', () => {
-    const publish = WORKFLOW.slice(WORKFLOW.indexOf('yarn release:publish'));
-    expect(publish).toContain('tools/released.mjs --registry');
-    expect(publish.match(/yarn release:publish/g)?.length).toBe(2);
+    const publish = job('publish');
+    const attempts = publish.match(/^ *yarn release:publish.*$/gm) ?? [];
+    expect(attempts.length).toBe(2);
+    expect(attempts.every((line) => /yarn release:publish \|\|/.test(line)), attempts.join('\n')).toBe(true);
+    expect(publish).toMatch(/for round in [^\n]*; do\n[^]*?tools\/released\.mjs --registry[^\n]*&& break[^]*?yarn release:publish[^]*?done/);
+    // The verdict after the rounds stands alone: nothing may excuse it.
+    expect(publish).toMatch(/done\n *node tools\/released\.mjs --registry --wait \d+$/m);
   });
 
   // `check` ran every file on this commit when it reached `main`, so a press
