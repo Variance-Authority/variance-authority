@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -56,7 +56,6 @@ async function ask(argv: readonly string[]) {
   await writeTestCoverage(execution, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeAsSetExecutionIndex(INDEX),
   });
-  await writeFile(join(root, 'variance.config.json'), JSON.stringify({ names: { axes: [{ axis: 'flag', values: ['ff-off', 'ff-on'] }] } }));
   return covering(parseCoveringArgs(readFlags(
     ['--file', 'src/cart.ts', '--execution', execution, '--root', root, ...argv],
     'covering', flagsFor('covering'), synopsisFor('covering'),

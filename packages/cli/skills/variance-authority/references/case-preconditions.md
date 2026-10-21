@@ -28,9 +28,7 @@ Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and r
 `--where`, within the `--cases` scope when one is given. Repeat `--where` and
 a case is kept only when it recorded all of them. A bare `--where prices` keeps
 every value, so `--where seeded-cart` also keeps a case that recorded `false`;
-`--where seeded-cart=true` keeps only `true`. On a declared axis, a case
-that recorded nothing for it is read at the axis's base, and `--where` matches
-it there.
+`--where seeded-cart=true` keeps only `true`.
 
 ## What state did the tests covering this function run under
 
@@ -50,48 +48,6 @@ call that won, which is the line in the helper when a helper recorded it.
 level; both are kept, and a `--where` naming either keeps the case. Do not
 pick one. Under `--format json` each test has
 `preconditions: [{name, value, site, level}]`.
-
-## Find the discount=off twin of this case
-
-The axis must be declared in the root `variance.config.json`, base first:
-
-```json
-{ "names": { "axes": [{ "axis": "discount", "values": ["off", "on"] }] } }
-```
-
-Then ask about the code, with or without `--where`:
-
-```bash
-variance covering --file src/checkout/total.ts --function total --where discount=on
-```
-
-```text
-    applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-      twin at discount=off: charges the regular price
-```
-
-- A twin is the test in the same file that covered the same code with the axis
-  nearer its base (on a two-value axis, at the base) and every other
-  precondition the same (`prices=full` must match too), among the cases that
-  covered it before `--where`, within the `--cases` scope.
-- With several axes, the twin differs on one only: the last declared axis the
-  case is away from its base on. The twin takes the nearest lower value a case
-  in the file covered the code at: on `["off", "half", "on"]`, a case at `on` is
-  twinned with `half` when one exists, else with `off`.
-- Twins print whenever `names.axes` is declared, with or without `--where`, in
-  every answer: line, function, whole file, `--since`.
-- A case that recorded nothing for `discount` is read as `discount=off`. That
-  reading comes from the configuration, not from the run; do not report it as
-  observed.
-- `2 twins at …` names several. `no twin recorded at discount=off` means no case
-  in this test file covered this code at `off`, recorded or read at the base,
-  with everything else the same. The twin may be in another test file, which is
-  not searched, or the code may not run at `off` at all. Check other files
-  before writing a test.
-- Under `--format json` twins are `twins: [{case, axis, from, to, twins}]`; an
-  empty `twins` is `no twin recorded`.
-- `discount=half (test/flags.ts:6) is not one of off, on` under the `Kept` line
-  is a value outside the axis. The case is kept and has no twin on that axis.
 
 ## Record the state this test runs under
 

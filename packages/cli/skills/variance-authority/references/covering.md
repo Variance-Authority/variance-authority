@@ -4,8 +4,7 @@
 to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
 function. Of the root `variance.config.json` it reads only `suites` and
-`cacheRoot`, and `names`, whose axes give `--where` its base values and each
-listed case its twin. None of it is a verdict: execution records where a test
+`cacheRoot`. None of it is a verdict: execution records where a test
 went, never why it was worth running.
 
 ```bash
@@ -48,8 +47,8 @@ each line, whether your edit wrote it or no region holds it.
 - `--cases last` answers from the cases the last run recorded; `--cases <test
   file>` from the ones that test file declares.
 - `--where <name>[=<value>]` keeps the cases that recorded that precondition
-  with `variancePrecondition`. Reading the state each case ran under, its twin
-  and a record that holds no preconditions is in [case preconditions](case-preconditions.md).
+  with `variancePrecondition`. Reading the state each case ran under and a record
+  that holds no preconditions is in [case preconditions](case-preconditions.md).
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
   costs one table, not eleven names per range. It is the shortest answer to hand

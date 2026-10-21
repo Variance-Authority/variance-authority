@@ -14,14 +14,14 @@ import {
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { caseNameOf, twinText } from './covering-where.js';
 
 /**
  * What a case said, printed beside it in every answer that lists it.
  *
- * Two test files say `flag=ff-on`; only one of them also holds the case at the
- * base, so only that one has a twin. `c.test.ts` says nothing at all, and sits
- * at the base of every axis.
+ * Two test files say `flag=ff-on`, one of them also `flag=ff-off`, and
+ * `c.test.ts` says nothing at all. The checkout declares `flag` an axis, and
+ * no case is read against it: spec 0093 waits on spec 0102 for how an axis
+ * names a `(dimension, key)` pair, so no case is given a twin.
  */
 function said(file: string, name: string, flag?: string, line = 3): ExecutionTest {
   return {
@@ -82,34 +82,19 @@ async function text(argv: readonly string[]): Promise<string> {
   return formatCovering(await covering(parse([...argv, '--execution', execution, '--root', root])), 'text');
 }
 
-describe('a listed case carries what it said and its twin', () => {
-  it('prints both under a plain `--function`, with no `--where`', async () => {
+describe('a listed case carries what it said', () => {
+  it('prints it under a plain `--function`, with no `--where`, and no twin under it', async () => {
     const answer = await text(['--file', 'src/cart.ts', '--function', 'round']);
 
-    expect(answer).toContain('    on — flag=ff-on (a.test.ts:3)\n      twin at flag=ff-off: off\n');
-    expect(answer).toContain('    off — flag=ff-off (a.test.ts:8)\n');
+    expect(answer).toContain('    off — flag=ff-off (a.test.ts:8)\n    on — flag=ff-on (a.test.ts:3)\n');
+    expect(answer).not.toContain('twin');
   });
 
-  it('takes a twin only from the case\'s own test file', async () => {
-    // `a.test.ts > off` and `c.test.ts > plain` both stand at the base, and neither shares a file with this case.
-    expect(await text(['--file', 'src/cart.ts', '--function', 'round']))
-      .toContain('    also on — flag=ff-on (b.test.ts:3)\n      no twin recorded at flag=ff-off\n');
-  });
+  it('prints it in the whole-file answer, with no twin under it', async () => {
+    const answer = await text(['--file', 'src/cart.ts']);
 
-  it('prints both in the whole-file answer', async () => {
-    expect(await text(['--file', 'src/cart.ts'])).toContain('    on — flag=ff-on (a.test.ts:3)\n      twin at flag=ff-off: off\n');
-  });
-
-  it('names a twin by its case name, and by its whole id when the id holds no file part', () => {
-    expect(caseNameOf('a.test.ts > checkout > pays')).toBe('checkout > pays');
-    expect(caseNameOf('pays')).toBe('pays');
-  });
-
-  it('bounds a large twin set to a count and a few names', () => {
-    const twin = { case: 'x', axis: 'flag', from: 'ff-on', to: 'ff-off', twins: ['a', 'b', 'c', 'd', 'e'] };
-
-    expect(twinText(twin, (id) => id, '  ')).toBe('  5 twins at flag=ff-off: a, b, c, and 2 more');
-    expect(twinText({ ...twin, twins: ['a', 'b', 'c'] }, (id) => id, '')).toBe('3 twins at flag=ff-off: a, b, c');
+    expect(answer).toContain('    off — flag=ff-off (a.test.ts:8)\n    on — flag=ff-on (a.test.ts:3)\n');
+    expect(answer).not.toContain('twin');
   });
 });
 
@@ -128,7 +113,7 @@ describe('`--where` counts the cases that covered what was asked', () => {
   it('claims none recorded it only of the cases recorded with preconditions', () => {
     const answer = (unmeasured: number) => formatCovering({
       file: 'src/cart.ts', from: 'coverage.bin', target: { line: 6 }, tests: [],
-      where: { asked: ['flag=ff-half'], kept: 0, of: 4, unmeasured, outside: [] },
+      where: { asked: ['flag=ff-half'], kept: 0, of: 4, unmeasured },
     }, 'text');
 
     expect(answer(1)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of the 3 with recorded preconditions has flag=ff-half.\n');
@@ -139,7 +124,7 @@ describe('`--where` counts the cases that covered what was asked', () => {
   it('still counts a function found in a file whose recorded text is gone, since its cases are listed', () => {
     const answer = formatCovering({
       file: 'src/cart.ts', frame: 'stale', from: 'coverage.bin', target: { function: 'round' }, tests: [],
-      where: { asked: ['flag=ff-on'], kept: 0, of: 0, unmeasured: 0, outside: [] },
+      where: { asked: ['flag=ff-on'], kept: 0, of: 0, unmeasured: 0 },
     }, 'text');
 
     expect(answer).toContain('No case covered function round of src/cart.ts, so none recorded flag=ff-on.');
@@ -179,12 +164,13 @@ describe('the review reading carries what each case said', () => {
     return { root, execution };
   }
 
-  it('prints the preconditions and the twin on each case line of `--since`', async () => {
+  it('prints the preconditions, and no twin, on each case line of `--since`', async () => {
     const { root, execution } = await edited();
 
     const answer = formatCovering(await covering(parse(['--since', 'main', '--root', root, '--execution', execution])), 'text');
 
-    expect(answer).toContain('    a.test.ts > on — flag=ff-on (a.test.ts:3)\n      twin at flag=ff-off: off\n');
+    expect(answer).toContain('    a.test.ts > on — flag=ff-on (a.test.ts:3)\n');
+    expect(answer).not.toContain('twin');
     expect(answer).toContain('    c.test.ts > plain\n');
   });
 

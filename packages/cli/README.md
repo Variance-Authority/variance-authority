@@ -676,33 +676,6 @@ read over the same cases before `--where`: a line three cases ran stays `walked`
 when `--where` keeps one of them, and a hole stays a hole when it leaves out the
 case that stopped.
 
-When `names.axes` in `variance.config.json` declares a name, its first value is
-the base. `covering` reads a case that recorded nothing for that name at the
-base, so with `discount` declared as `["off", "on"]`, `--where discount=off`
-keeps it. That reading comes from your configuration, not from the run. A value
-the axis does not list is printed by name with its site, and kept.
-
-Beside each case recorded away from the base, with or without `--where`, is its
-twin: the case in the same test file that covered the same code with the axis
-nearer its base and every other precondition the same; on a two-value axis,
-that is the base. A case recorded with
-`discount=on` prints the case in its file that ran the same code with
-`discount=off` and the same `prices`:
-
-```text
-    applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-      twin at discount=off: charges the regular price
-```
-
-With several axes declared, the twin differs on one axis only: the last declared
-axis on which the case is away from the base. On it, the twin is at the nearest
-lower value a case in the file covered the code at: on `["off", "half", "on"]`,
-a case at `on` is twinned with `half` when one exists, and with `off` otherwise.
-Twins are looked for among the cases that covered what you asked, before
-`--where` narrowed them. Several twins print as their count and the first three
-names. When no case in the file matches, the line under the case is `no twin
-recorded at discount=off`.
-
 #### Asking about the text you hold
 
 The recorded line numbers are the ones the suite ran over. Edit the file and

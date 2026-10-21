@@ -17,14 +17,14 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, rowOf, type CaseTwin } from '@variance-authority/sense/test-selection';
-import { caseNameOf, twinText, whereText } from './covering-where.js';
+import { heldText, rowOf } from '@variance-authority/sense/test-selection';
+import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
 
 /** Say the answer with every case numbered once. */
 export function formatCoveringRefs(answer: Covering): string {
-  const table = new Table(everyCase(answer), answer.twins);
+  const table = new Table(everyCase(answer));
   const body = answer.frame === 'stale' ? staleBody(answer, table) : bodyOf(answer, table);
   // Numbered before the table is read, which is when it knows every case it holds.
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
@@ -132,10 +132,8 @@ class Table {
   private readonly number = new Map<string, number>();
   private readonly cases: readonly Case[];
   private starred = false;
-  private readonly twins: ReadonlyMap<string, CaseTwin>;
 
-  constructor(named: readonly Case[], twins: readonly CaseTwin[] = []) {
-    this.twins = new Map(twins.map((twin) => [twin.case, twin]));
+  constructor(named: readonly Case[]) {
     const unique = new Map<string, Case>();
     for (const test of named) if (!unique.has(test.id)) unique.set(test.id, test);
     this.cases = [...unique.values()].sort((left, right) =>
@@ -163,8 +161,6 @@ class Table {
       lines.push(`  ${this.number.get(test.id)} ${
         test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`
       }${heldText(rowOf(test))}`);
-      const twin = this.twins.get(test.id);
-      if (twin !== undefined) lines.push(twinText(twin, caseNameOf, '      '));
     }
     return lines;
   }

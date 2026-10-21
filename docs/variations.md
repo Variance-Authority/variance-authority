@@ -136,14 +136,6 @@ Two consequences to plan for:
 - **Two subjects that land on the same coordinate are refused by name.** You fix
   the names rather than find out which one the run picked.
 
-`variance covering` uses the same axes for the state each test ran under,
-recorded as a [case precondition](case-preconditions.md). It reads a test that
-recorded nothing for `flag` at the base, `ff-off`, so `--where flag=ff-off`
-keeps it; that reading comes from your configuration, not from the run. A test
-recorded at `flag=ff-on` prints [its twin](case-preconditions.md#twins): the
-test in the same file that covered the same code with `flag` at `ff-off` and
-every other precondition the same.
-
 ## Declare the link where a name will not say it
 
 A name states an axis somebody chose to spell out. When there is no such name —

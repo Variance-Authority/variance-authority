@@ -4,8 +4,7 @@
  * A case that mocks the network, turns a flag on or seeds a cart leaves no
  * trace of it in what a recording reads off the code it ran. Said here, the
  * state lands on the case's row: `variance covering --where network=mocked`
- * finds the cases that arranged it, and a name `names.axes` declares finds each
- * case's twin one step along the axis.
+ * finds the cases that arranged it.
  *
  * The entry imports nothing. It reads one function a recording installs on the
  * realm and calls it; without a recording the call costs one property read and

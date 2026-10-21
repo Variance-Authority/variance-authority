@@ -33,14 +33,12 @@
 import { realpath } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
-  caseTwins,
   changedLines,
   coveringChange,
   anyStopped,
   coveringTestsInFile,
   keepsCases,
   recordedCommit,
-  type CaseTwin,
   type CoveringChange,
   type CoveringRegion,
   type CoveringTest,
@@ -60,7 +58,7 @@ import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './c
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { listedIn, namesAt, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
@@ -162,8 +160,6 @@ export interface Covering {
   readonly scope?: CoveringScope;
   /** Under `--where`: how many of the cases that covered it said it, and what could not be read. */
   readonly where?: CoveringWhere;
-  /** With `names.axes`: each listed case's twin one step toward the base, in its own test file. */
-  readonly twins?: readonly CaseTwin[];
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
   /** The commit the record stands at, when it says. The diff is measured from it. */
@@ -201,7 +197,6 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
   let where: CoveringWhere | undefined;
-  const names = await namesAt(request.root);
   let reached: readonly ExecutionTest[] | undefined;
   const reader: IndexReader = async (from, changed) => {
     const read = await readIndex(from, changed);
@@ -211,7 +206,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       ({ index, scope } = await scopeCases((full = read.index), from, request.cases, request.root));
     }
     if (request.where === undefined) return { index, files: read.files };
-    const kept = whereCases(index, request.where, names);
+    const kept = whereCases(index, request.where);
     where = kept.where;
     return { index: kept.index, files: read.files, before: index };
   };
@@ -231,10 +226,11 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     if (probes === undefined) throw error;
     throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
   }
-  // Twins and counts are read among every case the question reached before `--where` narrowed it.
-  const listed = listedIn(answer);
-  const twins = names === undefined ? undefined : caseTwins(listed, reached ?? listed, names);
-  if (where !== undefined) where = whereOver(where, listed, reached ?? listed, names);
+  // Counts are read among every case the question reached before `--where` narrowed it.
+  if (where !== undefined) {
+    const listed = listedIn(answer);
+    where = whereOver(where, listed, reached ?? listed);
+  }
   const motion = await motionFor(request, answer.from, scope, full);
   const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
   const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
@@ -246,7 +242,6 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
-    ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
 }
