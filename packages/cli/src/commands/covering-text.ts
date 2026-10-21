@@ -18,7 +18,7 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText } from '@variance-authority/sense/test-selection';
+import { caseHeard, heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
@@ -26,8 +26,19 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
-  if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
+  if (format === 'json') return `${JSON.stringify(answer, heardResolved, 2)}\n`;
   return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion)].join('\n')}\n`;
+}
+
+/**
+ * Every test in the answer with what it heard resolved, as `review` gives a
+ * case, in place of the raw `said` record: a reader never resolves it, and a
+ * misused breadcrumb is never met as a read.
+ */
+function heardResolved(this: unknown, _key: string, value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || !('said' in value) || typeof value.said !== 'string') return value;
+  const { said, ...test } = value as ExecutionTest & { readonly said: string };
+  return { ...test, ...caseHeard({ said }) };
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */

@@ -182,6 +182,9 @@ A breadcrumb, like a precondition, **never selects and never excludes** a test.
 - **`--read <dimension>[:<key>][=<value>]`** keeps the cases that read it, as
   `--where` keeps the cases that said it, with the same grammar. The two filters
   stay separate, because said and read are separate facts.
+- **A misused breadcrumb** prints after the reads, with its site and what was
+  wrong, and a region's split names it after the split by key, with the number
+  of cases that met it. No filter and no split counts it as a read.
 - **The handover `review --format handover` writes for a reviewer** carries the
   reads of every case it names on a changed region.
 

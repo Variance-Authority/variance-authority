@@ -8,7 +8,6 @@
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeSaid } from '../native-said.js';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import preconditions from './case-preconditions.cjs';
 
 /**
  * Every item a case said and read, unresolved — overridden ones too — as
@@ -76,7 +75,7 @@ export interface CaseRow {
   readonly said?: readonly CasePrecondition[];
   /** Per name and value read, the first site it was read at. */
   readonly read?: readonly CasePrecondition[];
-  /** Each `varianceBreadcrumb` call that made no `dimension:key`, at its first site; absent where none did. */
+  /** Each `varianceBreadcrumb` call that made no `dimension:key`, once per site; absent where none did. */
   readonly misused?: readonly Misuse[];
 }
 
@@ -88,19 +87,34 @@ export interface Misuse {
 
 type Spelled = [name: string, value: string | null, site: string, level: number];
 
-/** The row a reader prints: what the case said and what it read, each resolved. */
+/** The row a reader prints: what the case said and what it read, each resolved, and each misused breadcrumb apart. */
 export function saidRow(said: Said): CaseRow {
-  const row = JSON.parse(addon('saidResolved')(said)) as { said?: Spelled[]; read?: Spelled[] };
+  const row = JSON.parse(addon('saidResolved')(said)) as { said?: Spelled[]; read?: Spelled[]; misused?: Misuse[] };
   const items = (spelled: Spelled[]) =>
     spelled.map(([name, value, site, level]): CasePrecondition =>
       value === null ? { name, site, level } : { name, value: JSON.parse(value) as unknown, site, level });
-  const misused = (row.read ?? []).filter(([name]) => name === preconditions.MISUSED)
-    .map(([, why, site]): Misuse => ({ site, why: JSON.parse(why!) as string }));
-  const read = row.read?.filter(([name]) => name !== preconditions.MISUSED);
   return {
     ...(row.said === undefined ? {} : { said: items(row.said) }),
-    ...(read === undefined ? {} : { read: items(read) }),
-    ...(misused.length === 0 ? {} : { misused }),
+    ...(row.read === undefined ? {} : { read: items(row.read) }),
+    ...(row.misused === undefined ? {} : { misused: row.misused }),
+  };
+}
+
+/** What a case heard as a machine reader is handed it: each facet resolved, and nothing where nobody listened to it. */
+export interface CaseHeard {
+  readonly preconditions?: readonly CasePrecondition[];
+  readonly reads?: readonly CasePrecondition[];
+  readonly misused?: readonly Misuse[];
+}
+
+/** A case's resolved row under the names `review` and `covering --format json` give it. */
+export function caseHeard(test: { readonly said?: Said | undefined }): CaseHeard {
+  if (test.said === undefined) return {};
+  const row = saidRow(test.said);
+  return {
+    ...(row.said === undefined ? {} : { preconditions: row.said }),
+    ...(row.read === undefined ? {} : { reads: row.read }),
+    ...(row.misused === undefined ? {} : { misused: row.misused }),
   };
 }
 
@@ -211,6 +225,27 @@ export function heldText(test: { readonly said?: Said | undefined }): string {
     ...misused.map(({ site, why }) => `misused varianceBreadcrumb at ${site}: ${why}`),
   ];
   return parts.length === 0 ? '' : ` — ${parts.join(', ')}`;
+}
+
+/**
+ * How the cases that entered one region split by what they heard: the
+ * [`readSplit`](#readSplit) of their reads, then each misused breadcrumb with
+ * how many of them met it, `misused varianceBreadcrumb at <site> by N: <why>`.
+ */
+export function heardSplit(cases: readonly CaseHeard[]): string {
+  const misused = new Map<string, { misuse: Misuse; by: number }>();
+  for (const one of cases) {
+    for (const misuse of one.misused ?? []) {
+      const key = JSON.stringify([misuse.site, misuse.why]);
+      const held = misused.get(key);
+      if (held === undefined) misused.set(key, { misuse, by: 1 });
+      else held.by += 1;
+    }
+  }
+  return [
+    readSplit(cases.map((one) => one.reads)),
+    ...[...misused.values()].map(({ misuse, by }) => `misused varianceBreadcrumb at ${misuse.site} by ${by}: ${misuse.why}`),
+  ].filter((part) => part !== '').join('; ');
 }
 
 /**

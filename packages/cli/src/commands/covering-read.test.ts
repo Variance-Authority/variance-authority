@@ -110,3 +110,18 @@ describe('a case read by what its code read', () => {
     expect(() => parse(['--file', 'src/cart.ts', '--read', '=true'])).toThrow(/`--read` takes a dimension/);
   });
 });
+
+describe('a case as `--format json` hands it out', () => {
+  it('carries what it said, what its code read and each misused breadcrumb apart, resolved, and never the raw record', async () => {
+    const misused: Item = ['', 'the key 7 is not a string', 'src/cart.ts:9', 0xffff];
+    const answer = await ask([], await recorded([row('ships express', [['network:api', 'mocked', `${SPEC}:4`, 1]], [flag('express', true), misused])]));
+
+    const json = JSON.parse(formatCovering(answer, 'json')) as { tests: Record<string, unknown>[] };
+    expect(json.tests[0]).not.toHaveProperty('said');
+    expect(json.tests[0]).toMatchObject({
+      preconditions: [{ name: 'network:api', value: 'mocked', site: `${SPEC}:4`, level: 1 }],
+      reads: [{ name: 'flags:express', value: true, site: 'src/cart.ts:5', level: 0xffff }],
+      misused: [{ site: 'src/cart.ts:9', why: 'the key 7 is not a string' }],
+    });
+  });
+});

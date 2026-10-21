@@ -300,17 +300,19 @@ Vitest, Jest and Rstest record it in Node when the suite is recorded with
 | While the test file loads | On every test of the file, as if a top-level `beforeEach` read it |
 | Where no test is running | Nothing, with one warning per site |
 | Two values for one key in one test | Both, each as its own `read` |
-| A dimension or key that is not a non-empty string, or a dimension holding `:` | A misuse on that test, with its site and what was wrong, never a read |
+| A dimension or key that is not a non-empty string, or a dimension holding `:` | A misuse on that test, once per site and what was wrong, never a read |
 
-`variance covering` prints a misuse after the reads, and `variance review` gives
-the test `misused: [{site, why}]` under `--format json`:
+`variance covering` prints a misuse after the reads, and both commands give the
+test `misused: [{site, why}]` under `--format json`:
 
 ```text
     applies the discount — read flags:discount=true said true, misused varianceBreadcrumb at src/flags.ts:7: the key 7 is not a string
 ```
 
 A misuse never joins `--read` or the split `review` makes by what the code
-read.
+read: `review` names it after that split, as `misused varianceBreadcrumb at
+src/flags.ts:7 by 1: the key 7 is not a string`, with the number of tests that
+met it.
 
 A read never throws, unlike `variancePrecondition` where no test runs: it sits
 in product code, which runs whether or not a test does.
@@ -364,12 +366,13 @@ contradiction. A `--where` naming either value keeps the test.
 
 ### JSON
 
-Under `--format json`, `variance review` gives each case `preconditions` and
-`reads`, each `[{name, value, site, level}]`, where `level` is `0` for the
-file's top-level `beforeEach`, one more for each nested `describe`, and highest
-for the test body. `variance covering` gives each test the recorded `said`
-text, and its answer has `where: {asked, read, kept, of, unmeasured}`, with
-`read` present only when you gave `--read`.
+Under `--format json`, `variance review` and `variance covering` give each case
+`preconditions` and `reads`, each `[{name, value, site, level}]`, where `level`
+is `0` for the file's top-level `beforeEach`, one more for each nested
+`describe`, and highest for the test body, and `misused: [{site, why}]` where a
+breadcrumb was misused. `reads` is absent where the run did not listen to
+reads. The `covering` answer has `where: {asked, read, kept, of, unmeasured}`,
+with `read` present only when you gave `--read`.
 
 ### An unmeasured record
 

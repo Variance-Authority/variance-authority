@@ -209,6 +209,8 @@ describe('the cases a review lists under a changed function, with what each arra
       reads: [{ name: 'flags:checkout', value: 'on', site: 'src/total.ts:2', level: 0xffff }],
       misused: [{ site: 'src/total.ts:2', why: 'the key 7 is not a string' }],
     }]);
-    expect(formatReview(answer, 'markdown')).not.toMatch(/(^|[ ;|])read the key/mu);
+    const markdown = formatReview(answer, 'markdown');
+    expect(markdown).not.toMatch(/(^|[ ;|])read the key/mu);
+    expect(markdown).toContain('misused varianceBreadcrumb at src/total.ts:2 by 1: the key 7 is not a string');
   });
 });

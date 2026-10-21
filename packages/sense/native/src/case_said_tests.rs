@@ -111,6 +111,33 @@ fn keeps_every_value_a_key_was_read_with_and_the_case_over_the_load() {
 }
 
 #[test]
+fn splits_a_misused_breadcrumb_off_the_reads_once_per_site() {
+    let why = |text: &str| serde_json::Value::from(text).to_string();
+    let read = vec![
+        item("f:on", "true", "flag.ts:7", CASE_LEVEL),
+        item(MISUSED, &why("the key 7 is not a string"), "pay.ts:9", 0),
+        item(MISUSED, &why("the key 7 is not a string"), "pay.ts:9", CASE_LEVEL),
+        item(MISUSED, &why("the key 7 is not a string"), "pay.ts:12", CASE_LEVEL),
+        item(MISUSED, &why("the dimension is empty"), "pay.ts:9", CASE_LEVEL),
+    ];
+    let row = resolve(&join(Some(Heard { said: Some(Vec::new()), read: Some(read) }), None).unwrap());
+    assert_eq!(row.read.unwrap(), vec![item("f:on", "true", "flag.ts:7", CASE_LEVEL)], "a misuse is never a read");
+    let misuse = |site: &str, why: &str| Misuse { site: site.to_owned(), why: why.to_owned() };
+    assert_eq!(
+        row.misused,
+        vec![misuse("pay.ts:9", "the dimension is empty"), misuse("pay.ts:9", "the key 7 is not a string"), misuse("pay.ts:12", "the key 7 is not a string")],
+    );
+}
+
+#[test]
+fn spells_a_resolved_row_with_its_misuses_apart_and_none_where_nothing_was_misused() {
+    let read = |items| join(Some(Heard { said: None, read: Some(items) }), None).unwrap();
+    let misused = read(vec![item(MISUSED, "\"the key is empty\"", "pay.ts:9", CASE_LEVEL)]);
+    assert_eq!(spell_row(&resolve(&misused)), r#"{"read":[],"misused":[{"site":"pay.ts:9","why":"the key is empty"}]}"#);
+    assert_eq!(spell_row(&resolve(&read(vec![item("f:on", "true", "a:1", 0)]))), r#"{"read":[["f:on","true","a:1",0]]}"#);
+}
+
+#[test]
 fn lays_each_fact_once_and_reads_back_what_each_case_heard() {
     let shared = item("net:x", "\"mocked\"", "a.ts:3", 0);
     let heard = vec![

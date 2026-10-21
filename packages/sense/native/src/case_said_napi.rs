@@ -41,7 +41,7 @@ pub fn said_site(root: String, site: String) -> String {
 pub fn said_resolved(said: String) -> napi::Result<String> {
     let heard = case_said::parse(&said).map_err(napi::Error::from_reason)?;
     let joined = case_said::join(Some(heard), None).unwrap_or_default();
-    Ok(case_said::spell(&case_said::resolve(&joined)))
+    Ok(case_said::spell_row(&case_said::resolve(&joined)))
 }
 
 /// A crossing-set pool, with the `tests.said` and `tests.read` sections laid into it.

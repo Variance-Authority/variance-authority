@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { heldText, readSplit, readsOf, saidRow } from './case-said.js';
+import { heardSplit, heldText, readSplit, readsOf, saidRow } from './case-said.js';
 
 type Item = [name: string, value: string | null, site: string, level: number];
 const item = (name: string, value: unknown, site: string, level = 0xffff): Item => [name, JSON.stringify(value), site, level];
@@ -80,6 +80,17 @@ describe('how the cases that entered one region split by what the code read', ()
   it('counts the cases nobody listened to for reads apart, and says nothing when no case was listened to', () => {
     expect(readSplit([reads(['flags:checkout', true]), undefined])).toBe('flags:checkout read true by 1, unmeasured for 1');
     expect(readSplit([undefined, undefined])).toBe('');
+  });
+});
+
+describe('how the cases that entered one region split by what they heard', () => {
+  it('names each misused breadcrumb after the reads, by its site, what was wrong and how many cases met it', () => {
+    const read = [{ name: 'flags:checkout', value: true, site: 'pay.ts:41', level: 0xffff }];
+    const misused = [{ site: 'pay.ts:9', why: 'the key 7 is not a string' }];
+    expect(heardSplit([{ reads: read, misused }, { reads: read, misused }, { reads: [] }]))
+      .toBe('flags:checkout read true by 2, not by 1; misused varianceBreadcrumb at pay.ts:9 by 2: the key 7 is not a string');
+    expect(heardSplit([{ reads: [], misused }])).toBe('misused varianceBreadcrumb at pay.ts:9 by 1: the key 7 is not a string');
+    expect(heardSplit([{ reads: read }])).toBe('flags:checkout read true by 1');
   });
 });
 

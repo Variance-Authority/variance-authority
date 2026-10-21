@@ -24,6 +24,10 @@ use crate::case_owner::project_path;
 use crate::crossing_sets::SetPool;
 use crate::order;
 
+/// The name a `varianceBreadcrumb` call that made no `dimension:key` is read
+/// under, which no `dimension:key` is; its value is what was wrong, as JSON text.
+pub const MISUSED: &str = "";
+
 /// The section what each case said is laid in.
 pub const SAID_SECTION: &str = "tests.said";
 
@@ -183,6 +187,24 @@ pub fn heard(root: &Path, heard: Heard) -> Heard {
     heard.map(|items| canonical(items.into_iter().map(|item| Item { site: checkout_site(root, &item.site), ..item }).collect()))
 }
 
+/// A `varianceBreadcrumb` call that made no `dimension:key`: where it was
+/// called and what was wrong with it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Misuse {
+    pub site: String,
+    pub why: String,
+}
+
+/// The row a reader prints: what a case said and what the code read, each
+/// resolved, and each misused breadcrumb apart from the reads.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Row {
+    pub said: Option<Vec<Item>>,
+    pub read: Option<Vec<Item>>,
+    /// Each `(site, why)` once, by site; empty where nothing was misused.
+    pub misused: Vec<Misuse>,
+}
+
 /// The row a reader prints.
 ///
 /// What a case said: per name, the narrowest level the case said it at wins;
@@ -193,12 +215,39 @@ pub fn heard(root: &Path, heard: Heard) -> Heard {
 /// at — the case over the file's load.
 ///
 /// In both, a value held at several sites is printed at the one first in
-/// [`site_order`].
-pub fn resolve(heard: &Heard) -> Heard {
-    Heard {
+/// [`site_order`]. A read under [`MISUSED`] is no read: it is a misuse, kept
+/// once per site and reason at any level.
+pub fn resolve(heard: &Heard) -> Row {
+    let (misused, read): (Vec<Item>, Vec<Item>) =
+        heard.read.as_deref().unwrap_or_default().iter().cloned().partition(|item| item.name == MISUSED);
+    let mut misused: Vec<Misuse> = misused
+        .into_iter()
+        .map(|item| Misuse {
+            why: item.value.as_deref().and_then(|value| serde_json::from_str::<String>(value).ok()).unwrap_or_default(),
+            site: item.site,
+        })
+        .collect();
+    misused.sort_by(|left, right| site_order(&left.site, &right.site).then_with(|| order::code_unit(&left.why, &right.why)));
+    misused.dedup();
+    Row {
         said: heard.said.as_deref().map(|said| narrowest(said, |left, right| left.name == right.name)),
-        read: heard.read.as_deref().map(|read| narrowest(read, |left, right| left.name == right.name && left.value == right.value)),
+        read: heard.read.as_ref().map(|_| narrowest(&read, |left, right| left.name == right.name && left.value == right.value)),
+        misused,
     }
+}
+
+/// A resolved row as a reader is handed it: the facets as [`spell`] spells
+/// them, and `"misused": [{"site", "why"}, …]` beside them where any was.
+pub fn spell_row(row: &Row) -> String {
+    let facets = spell(&Heard { said: row.said.clone(), read: row.read.clone() });
+    if row.misused.is_empty() {
+        return facets;
+    }
+    let text = |value: &str| serde_json::Value::from(value).to_string();
+    let misused: Vec<String> =
+        row.misused.iter().map(|misuse| format!("{{\"site\":{},\"why\":{}}}", text(&misuse.site), text(&misuse.why))).collect();
+    let joint = if facets == "{}" { "" } else { "," };
+    format!("{}{joint}\"misused\":[{}]}}", &facets[..facets.len() - 1], misused.join(","))
 }
 
 /// Of each run of `items` alike under `alike`, the items at its narrowest

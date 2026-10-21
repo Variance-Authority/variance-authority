@@ -9,7 +9,7 @@
  * titles are the JSON's: a comment has a length limit and a review does not.
  */
 
-import { readSplit, valued } from '@variance-authority/sense/test-selection';
+import { heardSplit, valued } from '@variance-authority/sense/test-selection';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
@@ -150,7 +150,7 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
 
 /** How the cases that entered a region split by what the code read, after its count. */
 function readsMarkdown(called: readonly ReviewCase[]): string {
-  const split = readSplit(called.map((one) => one.reads));
+  const split = heardSplit(called);
   return split === '' ? '' : `; ${escape(split).replaceAll('|', '\\|')}`;
 }
 

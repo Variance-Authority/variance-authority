@@ -46,8 +46,9 @@ const MISPLACED = Symbol.for('variance-authority.test-selection.precondition.mis
 
 /**
  * What a read the breadcrumb cannot name is recorded under: the empty name,
- * which no `dimension:key` is, with what was wrong as its value. A reader
- * splits it off the reads, so it is never taken for a key.
+ * which no `dimension:key` is, with what was wrong as its value, once per
+ * site. The native resolver splits it off the reads into `misused`, so a
+ * reader of a resolved row never takes it for a key.
  */
 const MISUSED = '';
 
@@ -196,7 +197,10 @@ function recorder(
   // render costs a set lookup after its first read, and no site.
   const seenReads = new Map<unknown, Set<string>>();
 
-  const read = (name: string, value: string | null, called: unknown): boolean => {
+  // A misuse is asked every time and seen by its site too, so two calls wrong
+  // the same way are both found; a broken call costs a stack per call until
+  // it is fixed.
+  const read = (name: string, value: string | null, called: unknown, misuse?: string): boolean => {
     const to = readTo();
     if (to === undefined) {
       if (called === undefined) return true;
@@ -205,13 +209,14 @@ function recorder(
       warned.add(site);
       // FIXME: spec 0102 counts a read no case runs on its file, with its site,
       // and lays a `beforeAll`'s read on every case of its describe.
-      const what = name === MISUSED ? `was misused (${JSON.parse(value!) as string})` : `read ${name}`;
+      const what = name === MISUSED ? `was misused (${misuse!})` : `read ${name}`;
       console.warn(
         `variance-authority: varianceBreadcrumb at ${siteNamed(site)} ${what} where no case runs and is recorded on no case`,
       );
       return false;
     }
-    const item = JSON.stringify([name, value]);
+    if (misuse !== undefined && called === undefined) return true;
+    const item = readKey([name, value, misuse === undefined ? '' : siteOf(called), CASE_LEVEL]);
     const seen = seenReads.get(to.under);
     if (seen?.has(item) === true) return false;
     if (called === undefined) return true;
@@ -256,7 +261,7 @@ function recorder(
       const wrong = misuseOf(dimension, key);
       return wrong === undefined
         ? read(`${dimension as string}:${key as string}`, jsonText(value), called)
-        : read(MISUSED, JSON.stringify(wrong), called);
+        : read(MISUSED, JSON.stringify(wrong), called, wrong);
     };
   }
 
@@ -311,8 +316,8 @@ function recorder(
       readByCase.delete(key);
       // A case's own read of a value the file read as it loaded wins, as the
       // narrowest level does in the native fold.
-      const ownKeys = new Set(own.map(([name, value]) => JSON.stringify([name, value])));
-      const loaded = atLoad.filter(([name, value]) => !ownKeys.has(JSON.stringify([name, value])));
+      const ownKeys = new Set(own.map(readKey));
+      const loaded = atLoad.filter((read) => !ownKeys.has(readKey(read)));
       return { said, read: firstOfEach([...loaded, ...own]) };
     },
     held: (key) => [...(byCase.get(key) ?? [])],
@@ -384,11 +389,16 @@ function jsonText(value: unknown): string | null {
   }
 }
 
-/** Reads, each `(name, value)` once, at the first site it was read at. */
+/** What makes two reads one: the name and value, and for a misuse its site too, so each misused call is found. */
+function readKey([name, value, site]: Said): string {
+  return JSON.stringify(name === MISUSED ? [name, value, site] : [name, value]);
+}
+
+/** Reads, each once by [`readKey`](#readKey), at the first site it was read at. */
 function firstOfEach(read: readonly Said[]): Said[] {
   const seen = new Set<string>();
-  return read.filter(([name, value]) => {
-    const key = JSON.stringify([name, value]);
+  return read.filter((one) => {
+    const key = readKey(one);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -442,4 +452,4 @@ function heardField(packed: string): string | undefined {
   return field === undefined || field === '' ? undefined : field;
 }
 
-export = { PRECONDITION, BREADCRUMB, MISPLACED, MISUSED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField };
+export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField };
