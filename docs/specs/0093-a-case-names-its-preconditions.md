@@ -1,9 +1,10 @@
 # Spec 0093 — a case names its preconditions
 
 **Missing:** the dimension. `variancePrecondition` takes one record, so a name
-is one word and nothing parses `dimension:key`; the axis reading is built over
-that word, and a subject's coordinate is never compared with what its case
-said.
+is one word and nothing parses `dimension:key`. `covering` reads that word on
+an axis, which this spec withdraws until spec 0102 settles it. A snapshot in
+the Vitest browser realm names no case, a case row names no snapshot, and a
+subject's coordinate is never compared with what its case said.
 **Built on:** the per-file `preconditions` in the coverage record
 (`CoveragePrecondition`, `name` and `digest`), the case scope every producer
 already enters (`CASE_SCOPE` in `@variance-authority/sense`), the case
