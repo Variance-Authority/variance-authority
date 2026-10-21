@@ -1,35 +1,19 @@
 /**
- * The cases that said a precondition, and the case one step from each.
+ * The cases that said a precondition.
  *
  * `--where network=mocked` keeps the cases whose rows say they arranged it. It
  * reads the record's precondition column and nothing else: a named
  * precondition is a state, nothing in a checkout changes it, so it narrows an
  * answer and never what a run would select.
- *
- * Where `names.axes` declares the name, the value is read on that axis the way
- * a subject's name is read: `values[0]` is the base, and a case that never said
- * the name stands at it. Reading a case on an axis, and finding its twin, is
- * `@variance-authority/sense`'s, where a subject's name is read; this file
- * reads the config and the flags, and prints.
  */
 
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { keepCases } from './covering-scope.js';
-import { parseNames } from '../config-names.js';
-import { ConfigError, messageOf } from '../config-values.js';
-import { said } from '../here.js';
-import { DEFAULT_CONFIG } from '../usage.js';
 import {
   heldValues,
-  outsideVocabulary,
   rowOf,
   type CasePrecondition,
-  type CaseTwin,
   type ExecutionIndex,
   type ExecutionTest,
-  type NameGrammar,
 } from '@variance-authority/sense/test-selection';
 import type { WhereCondition } from '../covering-args.js';
 import { targetText } from './covering-at.js';
@@ -44,29 +28,6 @@ export interface CoveringWhere {
   readonly of: number;
   /** Of those, cases on a row nobody listened to: whether they said any of it is unmeasured. */
   readonly unmeasured: number;
-  /** Values a kept case said on a declared axis that the axis does not name. */
-  readonly outside: readonly string[];
-}
-
-/**
- * The `names` grammar of the checkout the question is asked in, when it declares one.
- *
- * Only the section is read. `covering` answers before the rest of a config is
- * required, so a checkout whose config does not yet name a profile still
- * reads its axes.
- */
-export async function namesAt(root: string): Promise<NameGrammar | undefined> {
-  const path = join(root, DEFAULT_CONFIG);
-  if (!existsSync(path)) return undefined;
-  const source = said(path);
-  let value: unknown;
-  try {
-    value = JSON.parse(await readFile(path, 'utf8'));
-  } catch (error) {
-    throw new ConfigError(source, '(file)', `is not valid JSON: ${messageOf(error)}`);
-  }
-  const names = (value as { readonly names?: unknown } | null)?.names;
-  return names === undefined ? undefined : parseNames(names, { source, baseDir: root });
 }
 
 /**
@@ -80,33 +41,22 @@ export async function namesAt(root: string): Promise<NameGrammar | undefined> {
 export function whereCases(
   index: ExecutionIndex,
   where: readonly WhereCondition[],
-  names: NameGrammar | undefined,
 ): { readonly index: ExecutionIndex; readonly where: CoveringWhere } {
   const asked = where.map((condition) => condition.value === undefined ? condition.name : `${condition.name}=${condition.value}`);
   const unmeasured = index.tests.filter((test) => test.said === undefined).length;
   const kept = index.tests.filter((test) => {
     const row = rowOf(test);
-    return row !== undefined && where.every((condition) => holds(row, condition, names));
+    return row !== undefined && where.every((condition) => holds(row, condition));
   });
   return {
     index: keepCases(index, new Set(kept.map((test) => test.id))),
-    where: { asked, kept: kept.length, of: index.tests.length, unmeasured, outside: outside(kept, names) },
+    where: { asked, kept: kept.length, of: index.tests.length, unmeasured },
   };
 }
 
-function holds(said: readonly CasePrecondition[], condition: WhereCondition, names: NameGrammar | undefined): boolean {
-  const values = heldValues(said, condition.name, names);
+function holds(said: readonly CasePrecondition[], condition: WhereCondition): boolean {
+  const values = heldValues(said, condition.name);
   return condition.value === undefined ? values.length > 0 : values.includes(condition.value);
-}
-
-function outside(kept: readonly ExecutionTest[], names: NameGrammar | undefined): readonly string[] {
-  const notes = new Set<string>();
-  for (const test of kept) {
-    for (const off of outsideVocabulary(rowOf(test) ?? [], names)) {
-      notes.add(`${off.axis}=${off.value} (${off.site}) is not one of ${off.values.join(', ')}`);
-    }
-  }
-  return [...notes];
 }
 
 /**
@@ -139,37 +89,16 @@ export function whereOver(
   where: CoveringWhere,
   kept: readonly ExecutionTest[],
   reached: readonly ExecutionTest[],
-  names: NameGrammar | undefined,
 ): CoveringWhere {
   return {
     asked: where.asked,
     kept: kept.length,
     of: reached.length,
     unmeasured: reached.filter((test) => test.said === undefined).length,
-    outside: outside(kept, names),
   };
 }
 
-/** Names a twin line prints before it says how many more there are. */
-const TWINS_NAMED = 3;
-
-/** The line a twin prints under its case: a few names, and a count when there are more. */
-export function twinText(twin: CaseTwin, nameOf: (id: string) => string, indent: string): string {
-  const at = `${twin.axis}=${twin.to}`;
-  if (twin.twins.length === 0) return `${indent}no twin recorded at ${at}`;
-  const named = twin.twins.slice(0, TWINS_NAMED).map(nameOf);
-  const more = twin.twins.length - named.length;
-  const names = `${named.join(', ')}${more === 0 ? '' : `, and ${more} more`}`;
-  return twin.twins.length === 1 ? `${indent}twin at ${at}: ${names}` : `${indent}${twin.twins.length} twins at ${at}: ${names}`;
-}
-
 /** What `--where` kept, said before the cases it kept. */
-/** A case's name from its id, `file > name`; an id with no file part is its own name. */
-export function caseNameOf(id: string): string {
-  const at = id.indexOf(' > ');
-  return at === -1 ? id : id.slice(at + 3);
-}
-
 export function whereText(answer: Covering): readonly string[] {
   const where = answer.where;
   if (where === undefined) return [];
@@ -187,7 +116,6 @@ export function whereText(answer: Covering): readonly string[] {
         where.unmeasured === 1 ? 'it' : 'they'
       } ran under any of that is unmeasured.`,
     ],
-    ...where.outside.map((note) => `  ${note}`),
   ];
 }
 

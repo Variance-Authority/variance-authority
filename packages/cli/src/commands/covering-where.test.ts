@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import { ConfigError } from '../config-values.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
@@ -167,83 +166,39 @@ describe('a case read by what it said', () => {
   });
 });
 
-describe('a case read along a declared axis', () => {
-  it('reads a case that never named the axis as standing at its base', async () => {
+describe('a declared axis, which no precondition is read against until spec 0102 says how an axis names a pair', () => {
+  it('keeps for `flag=ff-off` only the case that said it, not the cases that never named the axis', async () => {
     const answer = await ask(['flag=ff-off'], await recorded(MEASURED, true));
 
-    expect(names(answer)).toEqual(['contradicted', 'pays mocked', 'replays a recording', 'says nothing']);
+    expect(names(answer)).toEqual(['contradicted']);
   });
 
-  it('reports a value outside the vocabulary by name, and keeps the case', async () => {
+  it('keeps a value the axis does not name as any other value, with no vocabulary note', async () => {
     const record = await recorded([...MEASURED, row('flag typo', [['flag', 'ff-onn', at(30), 1]])], true);
 
-    const answer = await ask(['flag=ff-onn'], record);
-    expect(names(answer)).toEqual(['flag typo']);
-    expect(answer.where?.outside).toEqual([`flag=ff-onn (${at(30)}) is not one of ff-off, ff-half, ff-on`]);
+    const answer = await ask(['flag'], record);
+    expect(names(answer)).toEqual(['contradicted', 'flag typo', 'half on', 'refunds mocked behind a flag']);
+    expect(answer.where).toEqual({ asked: ['flag'], kept: 4, of: 7, unmeasured: 0 });
+    expect(formatCovering(answer, 'text')).not.toContain('is not one of');
   });
 
-  it('names the twin one step toward the base, from every case the question reached', async () => {
-    const answer = await ask(['flag=ff-on'], await recorded(MEASURED, true));
-
-    // A contradiction holds both values, so it is kept; it stands at no one coordinate and has no twin.
-    expect(names(answer)).toEqual(['contradicted', 'refunds mocked behind a flag']);
-    expect(answer.twins).toEqual([{
-      case: `${SPEC} > refunds mocked behind a flag`,
-      axis: 'flag',
-      from: 'ff-on',
-      to: 'ff-half',
-      twins: [`${SPEC} > half on`],
-    }]);
-    expect(formatCovering(answer, 'text')).toContain('twin at flag=ff-half: half on');
-  });
-
-  it('walks past an empty step to the base, prints several twins with their count, and says when there is none', async () => {
+  it('prints no twin, in any form', async () => {
     const record = await recorded([
       row('on', [['flag', 'ff-on', at(2), 1]]),
+      row('off', [['flag', 'ff-off', at(5), 1]]),
       row('plain', []),
-      row('also plain', [['flag', 'ff-off', at(5), 1]]),
-      row('on and seeded', [['flag', 'ff-on', at(2), 1], ['seeded', true, at(7), 1]]),
     ], true);
 
-    const answer = await ask(['flag=ff-on'], record);
-    expect(answer.twins).toEqual([
-      { case: `${SPEC} > on`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [`${SPEC} > also plain`, `${SPEC} > plain`] },
-      { case: `${SPEC} > on and seeded`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [] },
-    ]);
-    const text = formatCovering(answer, 'text');
-    expect(text).toContain('2 twins at flag=ff-off: also plain, plain');
-    expect(text).toContain('no twin recorded');
+    for (const answer of [await ask([], record), await ask(['flag=ff-on'], record)]) {
+      expect(answer).not.toHaveProperty('twins');
+      for (const format of ['text', 'refs'] as const) expect(formatCovering(answer, format)).not.toContain('twin');
+    }
   });
 
-  it('places no case nobody listened to, matches a stem by every undeclared name, and prints twins in refs', async () => {
-    const seededAndMocked: Item[] = [
-      ['seeded', true, at(7), 1],
-      ['network', 'mocked', at(4), 1],
-    ];
-    const record = await recorded([
-      row('on', [['flag', 'ff-on', at(2), 1], ...seededAndMocked]),
-      row('plain', seededAndMocked),
-      row('unheard'),
-    ], true);
+  it.todo('reads a case on a declared axis — the base for a name it never said, a value outside the vocabulary, the twin — needs spec 0102 to say how an axis names a `(dimension, key)` pair');
+});
 
-    const answer = await ask(['flag=ff-on'], record);
-    expect(answer.twins).toEqual([
-      { case: `${SPEC} > on`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [`${SPEC} > plain`] },
-    ]);
-    expect(formatCovering(answer, 'refs')).toContain('      twin at flag=ff-off: plain');
-  });
-
-  it('names the twin of a case a `--function` question reached', async () => {
-    const record = await recorded(MEASURED, true);
-
-    const answer = await covering(parse([
-      '--file', 'src/cart.ts', '--function', 'total', '--execution', record.execution, '--root', record.root, '--where', 'flag=ff-on',
-    ]));
-    expect(answer.twins?.map((twin) => [twin.case, twin.twins])).toEqual([
-      [`${SPEC} > refunds mocked behind a flag`, [`${SPEC} > half on`]],
-    ]);
-  });
-
+describe('`--where` over a function', () => {
   it('says the filter left none of the cases that ran a function, not that nothing ran it', async () => {
     const record = await recorded(MEASURED);
 
@@ -255,21 +210,5 @@ describe('a case read along a declared axis', () => {
     const text = formatCovering(answer, 'text');
     expect(text).toContain('Kept none of the 6 cases that covered function total of src/cart.ts: none recorded network=live.');
     expect(text).not.toContain('No named test covered');
-  });
-
-  it('prints a value outside the vocabulary under what it kept', async () => {
-    const record = await recorded([row('flag typo', [['flag', 'ff-onn', at(30), 1]])], true);
-
-    expect(formatCovering(await ask(['flag'], record), 'text'))
-      .toContain(`  flag=ff-onn (${at(30)}) is not one of ff-off, ff-half, ff-on`);
-  });
-
-  it('refuses a config that is not JSON, naming the file, rather than reading no axes', async () => {
-    const record = await recorded(MEASURED);
-    await writeFile(join(record.root, 'variance.config.json'), '{ "names": ');
-
-    const refused = await ask(['flag=ff-on'], record).catch((error: unknown) => error);
-    expect(refused).toBeInstanceOf(ConfigError);
-    expect((refused as Error).message).toMatch(/variance\.config\.json.*is not valid JSON/);
   });
 });

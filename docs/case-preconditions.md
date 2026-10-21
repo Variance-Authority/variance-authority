@@ -164,9 +164,6 @@ Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and r
 - Repeat `--where` to require several:
   `--where prices=discounted --where discount=on`.
 
-On a name you declare as an axis, below, a test that recorded nothing for it is
-read at the axis's base, and `--where` matches it there.
-
 `--where` works with `--line`, `--function`, a whole file and `--since`, and in
 every format. The count in `Kept` is out of the tests that covered what you
 asked, before `--where`, and within the
@@ -177,60 +174,6 @@ them:
 ```text
 Kept none of the 4 cases that covered function total of src/checkout/total.ts: none recorded prices=sale.
 ```
-
-## Twins
-
-Some preconditions have a meaningful base: flag off against flag on, default
-against experimental behaviour, anonymous against signed in. Declare those
-values as an axis in the root `variance.config.json`:
-
-```json
-{
-  "names": {
-    "axes": [{ "axis": "discount", "values": ["off", "on"] }]
-  }
-}
-```
-
-The first value is the base. Every covering test recorded away from the base
-now prints its **twin**: the test in the same file that covered the same code
-with `discount` nearer the base and every other precondition the same. On a
-two-value axis such as this one, that is the base.
-
-```text
-4 named tests covered function total of src/checkout/total.ts:
-  test/total.test.ts — 4/4
-    applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-      twin at discount=off: charges the regular price
-    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
-    sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
-      twin at discount=off: sale prices > charges the sale price
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
-```
-
-`applies the discount` is twinned with `charges the regular price`, not with
-`sale prices > charges the sale price`, because `prices` differs. That puts a
-question in front of you while you read coverage: *this code ran with the
-discount on; did a test also run it with the discount off, everything else
-equal?*
-
-When no such test exists, `covering` prints that:
-
-```text
-    applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-      no twin recorded at discount=off
-```
-
-That means no test in the same file covered this code with `discount=off`,
-recorded or read at the base, and the same other preconditions. It does not mean
-that no such test exists elsewhere, and on code that only runs with the discount
-on, such as an `applyDiscount` function, every `discount=on` test prints it.
-
-Twins are looked for only within one test file, among the tests that covered
-what you asked, before `--where` and within the `--cases` scope. Across files,
-a test that recorded nothing is read at the base of every axis, so it would be
-the twin of every test that recorded a value. Twins print with or without `--where`,
-in every answer.
 
 ## Reference
 
@@ -307,45 +250,12 @@ prints `discount contradicted:` and both values, each with its site. A retry
 that records a different value from an earlier attempt is the same
 contradiction. A `--where` naming either value keeps the test.
 
-### An omitted name on an axis
-
-The recording holds only what was recorded. For a name declared as an axis,
-`variance covering` reads a test that recorded nothing for it at the axis's
-base: with `discount` declared as `["off", "on"]`, a test that never called
-`setDiscountFlag` is read as `discount=off`, and `--where discount=off` keeps
-it. This reading comes from your configuration, not from anything observed
-while the test ran.
-
-### Several axes
-
-With several axes declared, a test's twin differs from it on one axis only:
-the last axis, in the order you declare them, on which the test is away from
-the base. On that axis the twin is at the nearest value below its own at
-which a test in the file covered the code: on an axis `["off", "half", "on"]`,
-a test at `on` is twinned with one at `half` when one exists, and with one at
-`off` otherwise. When no test qualifies, the answer prints
-`no twin recorded at` the base. Every other precondition, on an axis or not,
-has to match exactly, as
-[variations](variations.md#tell-it-what-the-words-mean) reads a subject's name.
-
-A value the axis does not list, such as `discount=half`, gives the test no twin
-on that axis. Under `--where`, it is printed under `Kept` with its site, and the
-test is kept:
-
-```text
-  discount=half (test/flags.ts:6) is not one of off, on
-```
-
-When several tests qualify as a twin, they print with their count.
-
 ### JSON
 
 Under `--format json`, each test has `preconditions: [{name, value, site,
 level}]`, where `level` is `0` for the file's top-level `beforeEach`, one more
 for each nested `describe`, and highest for the test body. The answer has
-`where: {asked, kept, of, unmeasured, outside}`, where `outside` lists the
-values recorded off a declared axis, and `twins: [{case, axis, from, to,
-twins}]`, where an empty `twins` is `no twin recorded`.
+`where: {asked, kept, of, unmeasured}`.
 
 ### An unmeasured record
 

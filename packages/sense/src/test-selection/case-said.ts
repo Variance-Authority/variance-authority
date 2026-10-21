@@ -117,3 +117,16 @@ export function preconditionText(said: readonly CasePrecondition[]): string {
 export function valued(held: CasePrecondition): string {
   return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
 }
+
+/**
+ * The values a case holds under a name: every value it said, a contradiction's
+ * both sides included, and nothing for a name it never said.
+ */
+export function heldValues(said: readonly CasePrecondition[], name: string): readonly string[] {
+  return said.filter((held) => held.name === name).map((held) => String(held.value));
+}
+
+/** What a case said, after its name, or nothing when it said nothing. */
+export function heldText(said: readonly CasePrecondition[] | undefined): string {
+  return said === undefined || said.length === 0 ? '' : ` — ${preconditionText(said)}`;
+}

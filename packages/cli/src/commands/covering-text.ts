@@ -18,8 +18,8 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText, rowOf, type CaseTwin } from '@variance-authority/sense/test-selection';
-import { caseNameOf, twinText, whereText } from './covering-where.js';
+import { heldText, rowOf } from '@variance-authority/sense/test-selection';
+import { whereText } from './covering-where.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
@@ -70,7 +70,7 @@ function text(answer: Covering): string {
     `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}${
       answer.state === 'alone' ? ', and it is the only case that could have' : ''
     }:`,
-    ...caseLines(tests, '  ', answer.files, answer.twins),
+    ...caseLines(tests, '  ', answer.files),
     ...legend(tests),
     ...grainText(answer, where),
     ...narrowedText(answer),
@@ -145,7 +145,7 @@ function staleText(answer: Covering): string {
   return [
     gone,
     ...header === undefined ? [] : [tests.length === 0 ? header : `${header}:`],
-    ...caseLines(tests, '  ', answer.files, answer.twins),
+    ...caseLines(tests, '  ', answer.files),
     ...legend(tests),
     ...narrowedText(answer),
   ].join('\n');
@@ -199,7 +199,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       const loading = carried.length === 0 ? [] : [`${carried.length} case${carried.length === 1 ? '' : 's'} that only loaded the module`];
       lines.push(`  the same ${[...named, ...loading].join(', and ')}${named.length > 0 && loading.length > 0 ? ',' : ''} as ${printed.get(key)}`);
     } else {
-      lines.push(...caseLines(tests, '  ', [], answer.twins), ...loadedOnly(carried, tests.length > 0));
+      lines.push(...caseLines(tests, '  '), ...loadedOnly(carried, tests.length > 0));
       printed.set(key, place);
     }
   }
@@ -267,21 +267,13 @@ export function narrowedText(answer: Covering): readonly string[] {
  * `coveringChange`, because two surfaces ask for them and a reading with two
  * renderers has two answers. All this adds is what the CLI is the only one
  * able to state: the ref the diff was taken against, the file the index was
- * read from, the commit it stands at, and each case's twin, which needs the
- * checkout's `names.axes`.
+ * read from and the commit it stands at.
  */
 function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
-  const twinOf = new Map((answer.twins ?? []).map((twin) => [twin.case, twin]));
   return formatCoveringChange(changed, {
     ...(answer.since === undefined ? {} : { since: answer.since }),
     from: answer.from,
     ...(answer.at === undefined ? {} : { at: answer.at }),
-  }, (test, indent) => {
-    const twin = twinOf.get(test.id);
-    return {
-      tail: heldText(rowOf(test)),
-      under: twin === undefined ? [] : [twinText(twin, caseNameOf, indent)],
-    };
   });
 }
 
@@ -300,10 +292,7 @@ function caseLines(
   tests: readonly CoveringTest[],
   indent: string,
   files: readonly CoveringFile[] = [],
-  twins: readonly CaseTwin[] = [],
 ): readonly string[] {
-  const twinOf = new Map(twins.map((twin) => [twin.case, twin]));
-  const names = new Map(tests.map((test) => [test.id, caseName(test)]));
   const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
   for (const test of tests) {
     const held = byFile.get(test.file);
@@ -313,13 +302,7 @@ function caseLines(
   const rows = new Map(files.map((row) => [row.file, row]));
   return [...byFile].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
-    ...cases.flatMap((test) => {
-      const twin = twinOf.get(test.id);
-      return [
-        `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(rowOf(test))}`,
-        ...twin === undefined ? [] : [twinText(twin, (id) => names.get(id) ?? caseNameOf(id), `${indent}    `)],
-      ];
-    }),
+    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(rowOf(test))}`),
   ]);
 }
 
