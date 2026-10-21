@@ -23,7 +23,7 @@ import read from '@changesets/read';
  * regardless of what it printed.
  *
  * A partial publish is also *repairable* by the thing that caused it:
- * `changeset publish` skips versions the registry already has, so running it
+ * `tools/publish.mjs` skips versions the registry already has, so running it
  * again completes a truncated release rather than doubling one. That is why
  * `release.yml` publishes, asks here, and publishes again while the answer is
  * no. What must never happen is the third outcome — a partial release that
@@ -34,6 +34,7 @@ import read from '@changesets/read';
  *     node tools/released.mjs            # is main's version fully out, and tagged?
  *     node tools/released.mjs --wait 120 # the same, tolerating registry lag
  *     node tools/released.mjs --registry # skip the tag half
+ *     node tools/released.mjs --count    # how many names the registry lacks, and nothing else
  *     node tools/released.mjs --lockstep # before publishing: is there one version to publish, and nothing waiting?
  */
 
@@ -46,7 +47,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Two directories, because the four `sense-<platform>` packages live under
  * `packages/sense/npm/` rather than beside their siblings — they are build
  * output with a manifest, and `sense` names them as optional dependencies. They
- * are published by the same `changeset publish` as everything else and were
+ * are published by the same publish as everything else and were
  * missed by the same truncation, so a check that reads only `packages/*` would
  * have called the split 0.5.6 complete.
  *
@@ -116,7 +117,7 @@ export async function waiting(cwd = ROOT) {
  * cheaper question would make this check flap on exactly the release it exists
  * to watch.
  */
-async function onRegistry(name, version) {
+export async function onRegistry(name, version) {
   const at = `https://registry.npmjs.org/${name.replace('/', '%2f')}/${version}`;
   const answer = await fetch(at, { headers: { accept: 'application/json' } });
   if (answer.status === 200) return true;
@@ -164,6 +165,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const packages = publishable();
   const version = lockstep(packages);
+
+  // How many names the registry still lacks, alone on stdout, for the release
+  // step to tell a round that finished names from one that finished none.
+  if (argv.includes('--count')) {
+    console.log((await missing(packages, version, wait)).length);
+    process.exit(0);
+  }
   console.log(`${packages.length} packages at ${version}`);
 
   // Before a release, the only answerable questions: the fixed group agrees on
@@ -194,7 +202,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (absent.length > 0) {
     console.error(`\n${absent.length} of ${packages.length} packages are not on the registry at ${version}:`);
     for (const entry of absent) console.error(`  ${entry.name}`);
-    console.error('`changeset publish` skips what is already there — running it again completes this.');
+    console.error('`tools/publish.mjs` skips what is already there — running it again completes this.');
   }
   if (untagged.length > 0) {
     console.error(`\n${untagged.length} of ${packages.length} versions have no tag on origin:`);
