@@ -191,7 +191,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model.current = ambient;
     // The case returned, so its frame is named as one that finished, and as
     // one a recorder listened to that said nothing.
-    fold(preconditions.packHeard(caseOwner.settledCase(key, false), { said: [], read: [] }), presence, true);
+    fold(preconditions.packHeard(caseOwner.settledCase(key, false), { said: [], read: [], misused: [] }), presence, true);
   }
   work(next(20), 0);
   fold(caseOwner.packCase(FILE, '', ''), ambient);

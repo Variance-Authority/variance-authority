@@ -163,6 +163,20 @@ describe('the recorder of what the code read', () => {
     expect(recorder.take(running).misused).toEqual([['dimension', '7', preconditions.siteOf(first), preconditions.CASE_LEVEL]]);
   });
 
+  it('keeps an array or an object given as a misuse by its kind alone, and a value JSON cannot hold as nothing', () => {
+    const running = keyOf('pays');
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    recorder.loaded();
+    read({ flags: { checkout: true } }, 'checkout', true);
+    read(['flags'], 'checkout', true);
+    read('flags', Symbol('checkout'), true);
+    expect(recorder.take(running).misused!.map(([argument, value]) => [argument, value])).toEqual([
+      ['dimension', '{}'],
+      ['dimension', '[]'],
+      ['key', null],
+    ]);
+  });
+
   it('lays a misuse made while the file loads on every case of the file, at level 0', () => {
     let running: string | undefined;
     const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);

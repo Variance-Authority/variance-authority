@@ -114,7 +114,7 @@ export interface ReviewCase {
   readonly preconditions?: readonly CasePrecondition[];
   /** What the code it ran read, as `covering` reads it: empty is read-nothing, absent is a record that did not listen. */
   readonly reads?: readonly CasePrecondition[];
-  /** Each `varianceBreadcrumb` call in it that made no `dimension:key`; absent where none did. */
+  /** Each `varianceBreadcrumb` call in it that made no `dimension:key`, empty where none did; absent where the run did not listen to reads. */
   readonly misused?: readonly Misuse[];
 }
 

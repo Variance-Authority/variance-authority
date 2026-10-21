@@ -50,7 +50,7 @@ struct Columns {
     said: Option<Handle>,
     /// `tests.read`, absent where no case was listened to, as in a record from before breadcrumbs.
     read: Option<Handle>,
-    /// `tests.misused`, absent where no case misused a breadcrumb or was listened to for reads.
+    /// `tests.misused`, absent where no case was listened to for reads.
     misused: Option<Handle>,
     module_files: Handle,
     module_blocks: Handle,

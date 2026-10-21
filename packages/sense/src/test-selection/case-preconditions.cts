@@ -355,29 +355,54 @@ function entriesOf(dimension: unknown, record: unknown): readonly (readonly [str
 }
 
 function isDimension(dimension: unknown): dimension is string {
-  return typeof dimension === 'string' && dimension !== '' && !dimension.includes(':');
+  return misuseWhy('dimension', dimension) === undefined;
 }
 
+type Argument = 'dimension' | 'key';
+
 /**
- * The argument of a dimension and key that make no `dimension:key`, what it
- * was given, and why, for a warning; nothing when they make one.
+ * What is wrong with what one argument of `varianceBreadcrumb` was given —
+ * `the key 7 is not a string`, `the dimension is empty`, `the dimension
+ * "flags:x" holds \`:\`` — or nothing when it is right. The one rule a misuse
+ * is recorded by, and the one a reader reads it back with.
  */
-function misuseOf(dimension: unknown, key: unknown): { argument: 'dimension' | 'key'; given: unknown; why: string } | undefined {
-  const wrong = (argument: 'dimension' | 'key', given: unknown, why: string) => ({ argument, given, why });
-  if (typeof dimension !== 'string') return wrong('dimension', dimension, `the dimension ${shown(dimension)} is not a string`);
-  if (dimension === '') return wrong('dimension', dimension, 'the dimension is empty');
-  if (dimension.includes(':')) return wrong('dimension', dimension, `the dimension ${JSON.stringify(dimension)} holds \`:\``);
-  if (typeof key !== 'string') return wrong('key', key, `the key ${shown(key)} is not a string`);
-  if (key === '') return wrong('key', key, 'the key is empty');
+function misuseWhy(argument: Argument, given: unknown): string | undefined {
+  if (typeof given !== 'string') return `the ${argument}${shown(given)} is not a string`;
+  if (given === '') return `the ${argument} is empty`;
+  if (argument === 'dimension' && given.includes(':')) return `the dimension ${JSON.stringify(given)} holds \`:\``;
   return undefined;
 }
 
-/** A value as a misuse names it: a primitive as itself, anything else by its kind. */
-function shown(value: unknown): string {
-  if (value === null || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'undefined' || typeof value === 'bigint') {
-    return String(value);
+/**
+ * The first argument of a dimension and key that make no `dimension:key`, what
+ * it was given as a misuse keeps it, and why; nothing when they make one.
+ */
+function misuseOf(dimension: unknown, key: unknown): { argument: Argument; given: unknown; why: string } | undefined {
+  for (const [argument, raw] of [['dimension', dimension], ['key', key]] as const) {
+    const given = keptGiven(raw);
+    const why = misuseWhy(argument, given);
+    if (why !== undefined) return { argument, given, why };
   }
-  return typeof value === 'object' ? (Array.isArray(value) ? 'an array' : 'an object') : `a ${typeof value}`;
+  return undefined;
+}
+
+/**
+ * A given value as a misuse keeps it: a primitive JSON holds as itself, an
+ * array or an object by its kind alone, so a whole object handed over is
+ * never serialised, and anything else as nothing.
+ */
+function keptGiven(raw: unknown): unknown {
+  if (raw === null || typeof raw === 'string' || typeof raw === 'boolean') return raw;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined;
+  if (typeof raw === 'object') return Array.isArray(raw) ? [] : {};
+  return undefined;
+}
+
+/** A kept value as a misuse names it, after a space: a primitive as itself, an array or an object by its kind, nothing as nothing. */
+function shown(given: unknown): string {
+  if (given === undefined) return '';
+  if (given === null || typeof given !== 'object') return ` ${String(given)}`;
+  return Array.isArray(given) ? ' an array' : ' an object';
 }
 
 /**
@@ -468,4 +493,4 @@ function heardField(packed: string): string | undefined {
   return field === undefined || field === '' ? undefined : field;
 }
 
-export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField };
+export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField, misuseWhy };

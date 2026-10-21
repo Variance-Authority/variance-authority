@@ -302,9 +302,10 @@ Vitest, Jest and Rstest record it in Node when the suite is recorded with
 | Two values for one key in one test | Both, each as its own `read` |
 | A dimension or key that is not a non-empty string, or a dimension holding `:` | A misuse on that test, once per argument and value given, at its first site, never a read |
 
-`variance covering` prints a misuse after the reads, and both commands give the
-test `misused: [{argument, value, site, level}]` under `--format json`, where
-`argument` is `dimension` or `key` and `value` is what it was given:
+`variance covering` prints a misuse after the reads, and `variance review` gives
+the test `misused: [{argument, value, site, level}]` under `--format json`,
+where `argument` is `dimension` or `key` and `value` is what it was given, an
+array or an object by its kind alone:
 
 ```text
     applies the discount — read flags:discount=true said true, misused varianceBreadcrumb at src/flags.ts:7: the key 7 is not a string
@@ -367,13 +368,14 @@ contradiction. A `--where` naming either value keeps the test.
 
 ### JSON
 
-Under `--format json`, `variance review` and `variance covering` give each case
-`preconditions` and `reads`, each `[{name, value, site, level}]`, where `level`
-is `0` for the file's top-level `beforeEach`, one more for each nested
-`describe`, and highest for the test body, and `misused: [{argument, value,
-site, level}]` where a breadcrumb was misused. `reads` is absent where the run did not listen to
-reads. The `covering` answer has `where: {asked, read, kept, of, unmeasured}`,
-with `read` present only when you gave `--read`.
+Under `--format json`, `variance review` gives each case `preconditions` and
+`reads`, each `[{name, value, site, level}]`, where `level` is `0` for the
+file's top-level `beforeEach`, one more for each nested `describe`, and highest
+for the test body, and `misused: [{argument, value, site, level}]`, empty where
+no breadcrumb was misused. `reads` and `misused` are absent where the run did
+not listen to reads. `variance covering` gives each test the recorded `said`
+text, and its answer has `where: {asked, read, kept, of, unmeasured}`, with
+`read` present only when you gave `--read`.
 
 ### An unmeasured record
 

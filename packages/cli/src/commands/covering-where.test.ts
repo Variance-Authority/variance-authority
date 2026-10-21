@@ -7,6 +7,7 @@ import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
   encodeAsSetExecutionIndex,
+  rowOf,
   writeTestCoverage,
   type ExecutionIndex,
   type ExecutionTest,
@@ -174,8 +175,8 @@ describe('a case read by what it said', () => {
     expect(text).toContain(`contradicted — flags:checkout contradicted: ff-off (${at(20)}), ff-on (${at(19)})`);
     const refs = formatCovering(answer, 'refs');
     expect(refs).toContain(`replays a recording — network:api=recorded (${at(14)})`);
-    const json = JSON.parse(formatCovering(answer, 'json')) as { tests: { name: string; preconditions?: unknown }[] };
-    expect(json.tests.find((test) => test.name === 'pays mocked')!.preconditions).toEqual([
+    const json = JSON.parse(formatCovering(answer, 'json')) as { tests: ExecutionTest[] };
+    expect(rowOf(json.tests.find((test) => test.name === 'pays mocked')!)).toEqual([
       { name: 'network:api', value: 'mocked', site: at(4), level: 1 },
     ]);
   });

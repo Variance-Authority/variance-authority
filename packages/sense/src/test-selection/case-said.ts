@@ -7,6 +7,7 @@
  * resolved row is printed.
  */
 import { native, nativeRefusal } from '../addon.js';
+import preconditions from './case-preconditions.cjs';
 import type { NativeSaid } from '../native-said.js';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 
@@ -88,7 +89,7 @@ export interface CaseRow {
 /** A `varianceBreadcrumb` call that made no `dimension:key`. */
 export interface Misuse {
   /** The argument that was wrong: `dimension` or `key`. */
-  readonly argument: string;
+  readonly argument: 'dimension' | 'key';
   /** What it was given, as JSON gave it back; absent where JSON could not hold it. */
   readonly value?: unknown;
   /** The repository-relative `file:line` of the call. */
@@ -109,7 +110,7 @@ export function saidRow(said: Said): CaseRow {
     ...(row.said === undefined ? {} : { said: items(row.said) }),
     ...(row.read === undefined ? {} : { read: items(row.read) }),
     ...(row.misused === undefined ? {} : {
-      misused: items(row.misused).map(({ name, ...misuse }): Misuse => ({ argument: name, ...misuse })),
+      misused: items(row.misused).map(({ name, ...misuse }): Misuse => ({ argument: name as Misuse['argument'], ...misuse })),
     }),
   };
 }
@@ -283,12 +284,7 @@ export function heardSplit(cases: readonly CaseHeard[]): string {
  */
 export function misuseWhy(misuse: Misuse): string {
   const { argument } = misuse;
-  if (!('value' in misuse)) return `the ${argument} is not a string`;
-  const { value } = misuse;
-  if (value === '') return `the ${argument} is empty`;
-  if (typeof value === 'string') return `the ${argument} ${JSON.stringify(value)} holds \`:\``;
-  const shown = value === null || typeof value !== 'object' ? String(value) : Array.isArray(value) ? 'an array' : 'an object';
-  return `the ${argument} ${shown} is not a string`;
+  return preconditions.misuseWhy(argument, 'value' in misuse ? misuse.value : undefined) ?? `the ${argument} was misused`;
 }
 
 /**

@@ -15,7 +15,7 @@ import { covering, formatCovering } from './covering.js';
 const SPEC = 'checkout.test.ts';
 
 /** One thing a case said or the code read, as the frame spells it: name, value, site, level. */
-type Item = readonly [name: string, value: string | boolean, site: string, level: number];
+type Item = readonly [name: string, value: string | boolean | number, site: string, level: number];
 const spelled = (items: readonly Item[]) => items.map(([name, value, site, level]) => [name, JSON.stringify(value), site, level]);
 
 /** A case that said `said` and whose code read `read`; a case with no `read` was recorded by a runner that did not listen. */
@@ -115,17 +115,19 @@ describe('a case read by what its code read', () => {
   });
 });
 
-describe('a case as `--format json` hands it out', () => {
-  it('carries what it said, what its code read and each misused breadcrumb apart, resolved, and never the raw record', async () => {
-    const misused: Item = ['key', '', 'src/cart.ts:9', 0xffff];
-    const answer = await ask([], await recorded([row('ships express', [['network:api', 'mocked', `${SPEC}:4`, 1]], [flag('express', true)], [misused])]));
+describe('a misused breadcrumb on a covering case', () => {
+  it('prints after the reads and is never kept by `--read`, which no misuse answers', async () => {
+    const misused: Item = ['key', 7, 'src/cart.ts:9', 0xffff];
+    const record = await recorded([
+      row('ships express', [], [flag('express', true)], [misused]),
+      row('misuses only', [], [], [misused]),
+    ]);
 
-    const json = JSON.parse(formatCovering(answer, 'json')) as { tests: Record<string, unknown>[] };
-    expect(JSON.stringify(json)).not.toContain('"said"');
-    expect(json.tests[0]).toMatchObject({
-      preconditions: [{ name: 'network:api', value: 'mocked', site: `${SPEC}:4`, level: 1 }],
-      reads: [{ name: 'flags:express', value: true, site: 'src/cart.ts:5', level: 0xffff }],
-      misused: [{ argument: 'key', value: '', site: 'src/cart.ts:9', level: 0xffff }],
-    });
+    const text = formatCovering(await ask([], record), 'text');
+    expect(text).toContain('ships express — read flags:express=true said nothing, misused varianceBreadcrumb at src/cart.ts:9: the key 7 is not a string');
+    expect(text).toContain('misuses only — misused varianceBreadcrumb at src/cart.ts:9: the key 7 is not a string');
+    const read = await ask([['--read', 'flags']], record);
+    expect(names(read)).toEqual(['ships express']);
+    expect(read.where).toMatchObject({ kept: 1, of: 2, unmeasured: 0 });
   });
 });
