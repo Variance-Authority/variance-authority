@@ -1,4 +1,12 @@
-import { byReason, promotionOf, type ObservationRecord, type RegionRecord } from '@variance-authority/report';
+import {
+  byReason,
+  isUnstable,
+  promotionOf,
+  unstableOf,
+  type ObservationRecord,
+  type RegionRecord,
+  type UnstableSubject,
+} from '@variance-authority/report';
 import type { CliRunReport, NotObserved } from './run.js';
 
 /**
@@ -83,30 +91,19 @@ export interface Move {
   readonly unchanged: number;
 }
 
-/**
- * A subject read twice in a row, with nothing changed between, whose readings
- * disagreed — and whose declaration did not absorb the movement.
- *
- * Kept out of {@link Docket.causes} because a cause says what this change moved,
- * and this subject moves on its own: its verdict came from whichever reading was
- * taken first, so a reviewer handed its largest region as the edit is handed a
- * coin flip in the voice of a finding.
- */
-export interface UnstableEntry {
-  readonly subject: string;
-  readonly components: NonNullable<ObservationRecord['unstable']>['components'];
-  readonly bands: readonly string[];
-  /**
-   * The history record's sentence about this subject. **Absent is not "first
-   * time"**: no store answered, and the rendering says so.
-   */
-  readonly history?: string;
-}
-
 export interface Docket {
   readonly causes: readonly CauseEntry[];
-  /** In report order. Neither a change nor a pass; `exitFor` holds the run open over each. */
-  readonly unstable: readonly UnstableEntry[];
+  /**
+   * Subjects read twice in a row, with nothing changed between, whose readings
+   * disagreed outside what they declared they assert on. In report order.
+   *
+   * Kept out of {@link Docket.causes} because a cause says what this change
+   * moved, and this subject moves on its own: its verdict came from whichever
+   * reading was taken first, so a reviewer handed its largest region as the edit
+   * is handed a coin flip in the voice of a finding. Neither a change nor a pass;
+   * `exitFor` holds the run open over each.
+   */
+  readonly unstable: readonly UnstableSubject[];
   /** Largest first; empty when every subject was painted under its baseline's identity. */
   readonly moves: readonly Move[];
   readonly collateral: Collateral;
@@ -177,7 +174,6 @@ export function docketOf(report: CliRunReport): Docket {
   const collateralComponents = new Set<string>();
   const collateralSubjects = new Set<string>();
   const moves = new Map<string, { identity: Move['identity']; moved: readonly string[]; changed: string[]; ignored: number; unchanged: number }>();
-  const unstable: UnstableEntry[] = [];
 
   let reviewable = 0;
   let fresh = 0;
@@ -207,12 +203,8 @@ export function docketOf(report: CliRunReport): Docket {
 
     // Before the green verdicts, because under `--flakes` an `unchanged` verdict
     // can carry one: it agreed with its baseline and not with itself.
-    if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
-      const { components, bands } = observation.unstable;
-      const history = report.flakiness?.[observation.subject]?.because;
-      unstable.push({ subject: observation.subject, components, bands, ...(history === undefined ? {} : { history }) });
-      continue;
-    }
+    // Listed by `unstableOf`, which every surface reads.
+    if (isUnstable(observation)) continue;
 
     if (observation.verdict === 'unchanged' || observation.verdict === 'ignored') continue;
     if (observation.verdict === 'new') fresh += 1;
@@ -288,7 +280,7 @@ export function docketOf(report: CliRunReport): Docket {
 
   return {
     causes: entries,
-    unstable,
+    unstable: unstableOf(report).subjects,
     moves: [...moves.values()].sort(
       (a, b) => b.changed.length + b.ignored + b.unchanged - (a.changed.length + a.ignored + a.unchanged),
     ),

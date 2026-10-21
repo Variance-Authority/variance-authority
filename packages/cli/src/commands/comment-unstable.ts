@@ -1,5 +1,6 @@
 import type { CommentLimits } from './comment.js';
-import type { Docket, UnstableEntry } from './docket.js';
+import { NO_RECORD, type UnstableSubject } from '@variance-authority/report';
+import type { Docket } from './docket.js';
 import { code, count } from './comment-text.js';
 
 /**
@@ -17,10 +18,8 @@ export function unstableBlocks(docket: Docket, limits: CommentLimits): readonly 
 
   const shown = docket.unstable.slice(0, limits.causes);
   const hidden = docket.unstable.length - shown.length;
-  // Said once when no subject has a record, which is every subject of a run with
-  // no history configured; per subject only when some do. Silence would read as
-  // "first time", the one claim the record exists to make or refuse.
-  const unrecorded = docket.unstable.every((entry) => entry.history === undefined);
+  // Said once when no subject has a record; per subject only when some do.
+  const unrecorded = docket.unstable.every((entry) => entry.record === undefined);
 
   return [
     '### Unstable',
@@ -35,10 +34,7 @@ export function unstableBlocks(docket: Docket, limits: CommentLimits): readonly 
   ];
 }
 
-/** Wording shared with the MCP summary's, which reads the same record. */
-const NO_RECORD = 'No history record: recurrence unknown';
-
-function unstableItem(entry: UnstableEntry, unrecorded: boolean): string {
+function unstableItem(entry: UnstableSubject, unrecorded: boolean): string {
   const named = entry.components
     .map((component) =>
       component.file === undefined
@@ -48,7 +44,7 @@ function unstableItem(entry: UnstableEntry, unrecorded: boolean): string {
     .join(', ');
   const where = named === '' ? '' : ` — ${named}`;
   const bands = entry.bands.length === 0 ? '' : ` (${entry.bands.join(', ')})`;
-  const history = unrecorded ? [] : [`    ${entry.history ?? NO_RECORD.toLowerCase()}`];
+  const history = unrecorded ? [] : [`    ${entry.record?.because ?? NO_RECORD.toLowerCase()}`];
   return [
     `- ${code(entry.subject)}${where}${bands}`,
     ...history,
