@@ -1,6 +1,6 @@
 // compass: variance-authority/runtime/attention
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { declaredSuites, readSplit } from '@variance-authority/sense/test-selection';
+import { declaredSuites, heardSplit } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
 import { functionOf, TOP_LEVEL, uncovered } from './review-scope.js';
@@ -222,7 +222,7 @@ function reachedBy({ region, suite, ran }: Part, tagged: boolean, mixed: boolean
   const [first, ...others] = region.tests;
   const cases = region.cases === 0 ? '' : `${region.cases} case${region.cases === 1 ? '' : 's'}${ran || !mixed ? '' : ' in the record'}, `;
   const open = first === undefined ? '' : `: \`${first}\`${others.length === 0 ? '' : ` and ${others.length} more`}`;
-  const split = readSplit(region.called.map((one) => one.reads));
+  const split = heardSplit(region.called);
   return `${cases}${REACH_WORD[region.reach]}${open}${tagged && suite !== undefined ? ` (\`${suite}\`)` : ''}${split === '' ? '' : `; ${split}`}`;
 }
 

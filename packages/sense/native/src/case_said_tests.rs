@@ -7,14 +7,14 @@ fn item(name: &str, value: &str, site: &str, level: u32) -> Item {
 }
 
 fn said(items: Vec<Item>) -> Heard {
-    Heard { said: Some(items), read: None }
+    Heard { said: Some(items), ..Heard::default() }
 }
 
 fn laid_and_read(heard: &[Option<Heard>]) -> Vec<Option<Heard>> {
     let mut pool = SetPool::new(heard.len());
     let views: Vec<Option<&Heard>> = heard.iter().map(Option::as_ref).collect();
-    let (said, read_section) = lay(&views, &mut pool);
-    read(said.as_deref(), read_section.as_deref(), heard.len(), |set| pool.members(set)).unwrap()
+    let sections = lay(&views, &mut pool);
+    read(sections.each_ref().map(Option::as_deref), heard.len(), |set| pool.members(set)).unwrap()
 }
 
 #[test]
@@ -59,7 +59,11 @@ fn reads_a_frame_that_never_listened_apart_from_one_that_heard_nothing() {
 #[test]
 fn joins_two_runs_to_one_answer_whichever_came_first() {
     let one = said(vec![item("n:a", "\"x\"", "b.ts:10", 1)]);
-    let two = Heard { said: Some(vec![item("n:a", "\"x\"", "b.ts:9", 1)]), read: Some(vec![item("f:on", "true", "c.ts:1", 0)]) };
+    let two = Heard {
+        said: Some(vec![item("n:a", "\"x\"", "b.ts:9", 1)]),
+        read: Some(vec![item("f:on", "true", "c.ts:1", 0)]),
+        ..Heard::default()
+    };
     let forward = join(Some(one.clone()), Some(two.clone()));
     assert_eq!(forward, join(Some(two), Some(one)));
     assert_eq!(forward.unwrap().read.unwrap().len(), 1);
@@ -103,7 +107,7 @@ fn keeps_every_value_a_key_was_read_with_and_the_case_over_the_load() {
         item("f:on", "true", "flag.ts:7", CASE_LEVEL),
         item("f:on", "true", "flag.ts:9", CASE_LEVEL),
     ];
-    let heard = join(Some(Heard { said: None, read: Some(read) }), None).unwrap();
+    let heard = join(Some(Heard { read: Some(read), ..Heard::default() }), None).unwrap();
     assert_eq!(
         resolve(&heard).read.unwrap(),
         vec![item("f:on", "false", "flag.ts:4", 0), item("f:on", "true", "flag.ts:7", CASE_LEVEL)],
@@ -111,13 +115,54 @@ fn keeps_every_value_a_key_was_read_with_and_the_case_over_the_load() {
 }
 
 #[test]
+fn carries_a_misused_breadcrumb_as_its_own_facet_that_no_read_holds() {
+    let field = r#"{"read":[["f:on","true","flag.ts:7",65535]],"misused":[["key","7","pay.ts:9",65535]]}"#;
+    let heard = parse(field).unwrap();
+    assert_eq!(heard.read.as_deref().unwrap(), [item("f:on", "true", "flag.ts:7", CASE_LEVEL)], "a misuse is never a read");
+    assert_eq!(heard.misused.as_deref().unwrap(), [item("key", "7", "pay.ts:9", CASE_LEVEL)]);
+    assert_eq!(spell(&heard), field);
+    assert_eq!(laid_and_read(&[Some(heard.clone()), None]), vec![Some(heard), None]);
+}
+
+#[test]
+fn lays_no_misused_section_where_no_case_was_listened_to_for_it() {
+    let mut pool = SetPool::new(1);
+    let heard = Heard { said: Some(Vec::new()), read: Some(Vec::new()), ..Heard::default() };
+    let [said, read, misused] = lay(&[Some(&heard)], &mut pool);
+    assert!(said.is_some() && read.is_some());
+    assert_eq!(misused, None, "a record that misused nothing it could say holds no section for it");
+}
+
+#[test]
+fn joins_and_resolves_a_misuse_once_per_argument_and_value_at_its_narrowest_level_and_first_site() {
+    let misused = vec![
+        item("key", "7", "pay.ts:9", 0),
+        item("key", "7", "pay.ts:12", CASE_LEVEL),
+        item("key", "7", "pay.ts:9", CASE_LEVEL),
+        item("dimension", "\"\"", "pay.ts:9", CASE_LEVEL),
+    ];
+    let one = Heard { misused: Some(misused[..2].to_vec()), ..Heard::default() };
+    let two = Heard { misused: Some(misused[2..].to_vec()), ..Heard::default() };
+    let joined = join(Some(one.clone()), Some(two.clone())).unwrap();
+    assert_eq!(Some(&joined), join(Some(two), Some(one)).as_ref());
+    assert_eq!(
+        resolve(&joined).misused.unwrap(),
+        vec![item("dimension", "\"\"", "pay.ts:9", CASE_LEVEL), item("key", "7", "pay.ts:9", CASE_LEVEL)],
+    );
+}
+
+#[test]
 fn lays_each_fact_once_and_reads_back_what_each_case_heard() {
     let shared = item("net:x", "\"mocked\"", "a.ts:3", 0);
     let heard = vec![
-        Some(Heard { said: Some(vec![shared.clone(), item("f:flag", "true", "a.ts:9", CASE_LEVEL)]), read: Some(vec![shared.clone()]) }),
+        Some(Heard {
+            said: Some(vec![shared.clone(), item("f:flag", "true", "a.ts:9", CASE_LEVEL)]),
+            read: Some(vec![shared.clone()]),
+            ..Heard::default()
+        }),
         None,
         Some(said(Vec::new())),
-        Some(Heard { said: Some(vec![shared.clone()]), read: Some(Vec::new()) }),
+        Some(Heard { said: Some(vec![shared.clone()]), read: Some(Vec::new()), ..Heard::default() }),
     ];
     let read = laid_and_read(&heard);
     assert_eq!(read[0], join(heard[0].clone(), None));
@@ -129,15 +174,15 @@ fn lays_each_fact_once_and_reads_back_what_each_case_heard() {
 #[test]
 fn reads_an_older_record_without_reads_as_unmeasured() {
     let mut pool = SetPool::new(1);
-    let (said_section, read_section) = lay(&[Some(&said(vec![item("n:a", "1", "a:1", 0)]))], &mut pool);
-    assert_eq!(read_section, None);
-    let back = read(said_section.as_deref(), None, 1, |set| pool.members(set)).unwrap();
+    let [said_section, read_section, misused_section] = lay(&[Some(&said(vec![item("n:a", "1", "a:1", 0)]))], &mut pool);
+    assert_eq!((read_section, misused_section), (None, None));
+    let back = read([said_section.as_deref(), None, None], 1, |set| pool.members(set)).unwrap();
     assert_eq!(back[0].as_ref().unwrap().read, None);
 }
 
 #[test]
 fn lays_nothing_when_no_case_was_listened_to() {
-    assert_eq!(lay(&[None, None], &mut SetPool::new(2)), (None, None));
+    assert_eq!(lay(&[None, None], &mut SetPool::new(2)), [None, None, None]);
 }
 
 #[test]
@@ -153,8 +198,8 @@ fn shares_a_set_the_pool_already_holds() {
 #[test]
 fn refuses_a_damaged_section() {
     let mut pool = SetPool::new(1);
-    let (section, _) = lay(&[Some(&said(vec![item("n:a", "1", "a:1", 0)]))], &mut pool);
+    let [section, ..] = lay(&[Some(&said(vec![item("n:a", "1", "a:1", 0)]))], &mut pool);
     let mut section = section.unwrap();
     section.pop();
-    assert!(read(Some(&section), None, 1, |_| Ok(vec![0])).is_err());
+    assert!(read([Some(&section), None, None], 1, |_| Ok(vec![0])).is_err());
 }

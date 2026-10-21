@@ -15,14 +15,18 @@ import { covering, formatCovering } from './covering.js';
 const SPEC = 'checkout.test.ts';
 
 /** One thing a case said or the code read, as the frame spells it: name, value, site, level. */
-type Item = readonly [name: string, value: string | boolean, site: string, level: number];
+type Item = readonly [name: string, value: string | boolean | number, site: string, level: number];
 const spelled = (items: readonly Item[]) => items.map(([name, value, site, level]) => [name, JSON.stringify(value), site, level]);
 
 /** A case that said `said` and whose code read `read`; a case with no `read` was recorded by a runner that did not listen. */
-function row(name: string, said: readonly Item[], read?: readonly Item[]): ExecutionTest {
+function row(name: string, said: readonly Item[], read?: readonly Item[], misused?: readonly Item[]): ExecutionTest {
   return {
     id: `${SPEC} > ${name}`, file: SPEC, name,
-    said: JSON.stringify({ said: spelled(said), ...(read === undefined ? {} : { read: spelled(read) }) }),
+    said: JSON.stringify({
+      said: spelled(said),
+      ...(read === undefined ? {} : { read: spelled(read) }),
+      ...(misused === undefined ? {} : { misused: spelled(misused) }),
+    }),
   };
 }
 
@@ -108,5 +112,22 @@ describe('a case read by what its code read', () => {
 
   it('refuses a condition with no name, naming `--read`', () => {
     expect(() => parse(['--file', 'src/cart.ts', '--read', '=true'])).toThrow(/`--read` takes a dimension/);
+  });
+});
+
+describe('a misused breadcrumb on a covering case', () => {
+  it('prints after the reads and is never kept by `--read`, which no misuse answers', async () => {
+    const misused: Item = ['key', 7, 'src/cart.ts:9', 0xffff];
+    const record = await recorded([
+      row('ships express', [], [flag('express', true)], [misused]),
+      row('misuses only', [], [], [misused]),
+    ]);
+
+    const text = formatCovering(await ask([], record), 'text');
+    expect(text).toContain('ships express — read flags:express=true said nothing, misused varianceBreadcrumb at src/cart.ts:9: the key 7 is not a string');
+    expect(text).toContain('misuses only — misused varianceBreadcrumb at src/cart.ts:9: the key 7 is not a string');
+    const read = await ask([['--read', 'flags']], record);
+    expect(names(read)).toEqual(['ships express']);
+    expect(read.where).toMatchObject({ kept: 1, of: 2, unmeasured: 0 });
   });
 });

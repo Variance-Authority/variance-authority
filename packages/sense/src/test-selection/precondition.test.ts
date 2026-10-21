@@ -322,6 +322,8 @@ describe('resolving what a case said', () => {
     expect(preconditions.heardField(packed)).toBe(spelled(said('network:upsell', 'mocked', 0)));
     expect(preconditions.heardField(preconditions.packHeard(owner, { said: [] }))).toBe('{"said":[]}');
     expect(preconditions.heardField(preconditions.packHeard(owner, { said: [], read: [] }))).toBe('{"said":[],"read":[]}');
+    expect(preconditions.heardField(preconditions.packHeard(owner, { said: [], read: [], misused: [] })))
+      .toBe('{"said":[],"read":[],"misused":[]}');
     expect(preconditions.heardField(owner)).toBeUndefined();
     expect(packed.split('\u0000').slice(0, 3)).toEqual(['a.test.ts', 'pays', '1']);
   });
@@ -353,5 +355,20 @@ describe('resolving what a case said', () => {
     expect(back!.said).toBe(heard);
     expect(readsOf(back!)).toEqual([{ name: 'flags:checkout', value: 'off', site: 'src/flags.ts:4', level: preconditions.CASE_LEVEL }]);
     expect(readsOf(silent!)).toEqual([]);
+  });
+
+  it('stores each misused breadcrumb in a section of its own, which no read of the case holds', () => {
+    const heard = JSON.stringify({
+      said: [],
+      read: [said('flags:checkout', 'off', preconditions.CASE_LEVEL, 'src/flags.ts:4')],
+      misused: [['key', '7', 'src/pay.ts:9', preconditions.CASE_LEVEL]],
+    });
+    const back = decodeExecutionIndex(encodeAsSetExecutionIndex({
+      tests: [{ id: 'a.test.ts > pays', file: 'a.test.ts', name: 'pays', said: heard }],
+      modules: [],
+    })).tests[0]!;
+    expect(back.said).toBe(heard);
+    expect(readsOf(back)).toEqual([{ name: 'flags:checkout', value: 'off', site: 'src/flags.ts:4', level: preconditions.CASE_LEVEL }]);
+    expect(saidRow(back.said!).misused).toEqual([{ argument: 'key', value: 7, site: 'src/pay.ts:9', level: preconditions.CASE_LEVEL }]);
   });
 });

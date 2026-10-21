@@ -50,6 +50,8 @@ struct Columns {
     said: Option<Handle>,
     /// `tests.read`, absent where no case was listened to, as in a record from before breadcrumbs.
     read: Option<Handle>,
+    /// `tests.misused`, absent where no case was listened to for reads.
+    misused: Option<Handle>,
     module_files: Handle,
     module_blocks: Handle,
     kinds: Handle,
@@ -95,6 +97,7 @@ impl Journey {
             test_settled: if lazy.has("tests.stopped") { Some(lazy.column("tests.stopped", 1)?) } else { None },
             said: if lazy.has(case_said::SAID_SECTION) { Some(lazy.column(case_said::SAID_SECTION, 1)?) } else { None },
             read: if lazy.has(case_said::READ_SECTION) { Some(lazy.column(case_said::READ_SECTION, 1)?) } else { None },
+            misused: if lazy.has(case_said::MISUSED_SECTION) { Some(lazy.column(case_said::MISUSED_SECTION, 1)?) } else { None },
             module_files: lazy.column("modules.file", 4)?,
             module_blocks: lazy.column("modules.blocks", 4)?,
             kinds: lazy.column("blocks.kind", 4)?,
@@ -189,8 +192,8 @@ impl Journey {
     /// nobody listened to.
     pub fn heard(&self) -> Result<Vec<Option<Heard>>, String> {
         let bytes = |column: Option<Handle>| column.map(|column| self.lazy.all_bytes(column)).transpose();
-        let (said, read) = (bytes(self.columns.said)?, bytes(self.columns.read)?);
-        case_said::read(said.as_deref(), read.as_deref(), self.tests, |set| self.members(set))
+        let (said, read, misused) = (bytes(self.columns.said)?, bytes(self.columns.read)?, bytes(self.columns.misused)?);
+        case_said::read([said.as_deref(), read.as_deref(), misused.as_deref()], self.tests, |set| self.members(set))
     }
 
     /// Each test's file, by test index.

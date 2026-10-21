@@ -132,6 +132,22 @@ describe('a review handed over in the pull request body, before CI', () => {
     ]);
   });
 
+  it('names a misused breadcrumb the cases that reached a named function met after their reads, never as a read', () => {
+    const misused = [{ argument: 'key', value: 7, site: 'src/a.ts:3', level: 0xffff }];
+    const called = [
+      { id: 'a > off', file: 'test/a.test.ts', name: 'off', preconditions: [], reads: [], misused },
+      { id: 'a > on', file: 'test/a.test.ts', name: 'on', preconditions: [], reads: [] },
+    ];
+    const region = {
+      kind: 'function', name: 'total', startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 2, cases: 2, tests: ['test/a.test.ts'], called,
+    } as unknown as ReviewRegion;
+    const review = { from: 'a'.repeat(40), record: 'ran', base: 'since', files: [{ file: 'src/a.ts', recorded: true, regions: [region] }] } as unknown as Review;
+
+    expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
+      '- 🟡 `total` in `src/a.ts` — 2 cases, far: `test/a.test.ts`; misused varianceBreadcrumb at src/a.ts:3 by 1: the key 7 is not a string',
+    ]);
+  });
+
   it('names each changed function once, by the suite that reached it nearest, and passes over a top level any import runs', () => {
     const region = (name: string, reach: ReviewRegion['reach'], tests: readonly string[], kind = 'function'): ReviewRegion => ({
       kind, name, startLine: name === '' ? 1 : 5, endLine: 9, reach, edit: 'modified', changedLineCases: tests.length, cases: tests.length, tests, called: [],

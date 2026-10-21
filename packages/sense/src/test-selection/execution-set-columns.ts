@@ -90,7 +90,7 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
   const testDuration = opened.found.has('tests.duration') ? columnWords(opened, 'tests.duration') : undefined;
   const testCount = testId.length;
   // Written since a case's said items are crossing sets; a file without it listened to none.
-  const testSaid = opened.found.has(SAID_SECTION) || opened.found.has(READ_SECTION) ? saidOf(opened, testCount) : undefined;
+  const testSaid = Object.values(HEARD_SECTIONS).some((name) => opened.found.has(name)) ? saidOf(opened, testCount) : undefined;
   if (testFile.length !== testCount || testName.length !== testCount) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testCount) throw invalid();
   for (let test = 0; test < testCount && testStopped !== undefined; test += 1) {
@@ -107,12 +107,19 @@ export const SAID_SECTION = 'tests.said';
 /** The section `case_said.rs` lays what the code read in each case in. */
 export const READ_SECTION = 'tests.read';
 
+/** The section `case_said.rs` lays each misused `varianceBreadcrumb` call of each case in. */
+export const MISUSED_SECTION = 'tests.misused';
+
+const HEARD_SECTIONS = { said: SAID_SECTION, read: READ_SECTION, misused: MISUSED_SECTION } as const;
+
 /** What each case heard, read by the addon off the sections and the index's crossing-set pool. */
 function saidOf(opened: OpenedSections, testCount: number): readonly (Said | undefined)[] {
   const offsets = columnWords(opened, 'sets.off');
-  const section = (name: string) => (opened.found.has(name) ? { [name === SAID_SECTION ? 'said' : 'read']: columnBytes(opened, name) } : {});
+  const sections = Object.fromEntries(
+    Object.entries(HEARD_SECTIONS).filter(([, name]) => opened.found.has(name)).map(([facet, name]) => [facet, columnBytes(opened, name)]),
+  );
   return saidRead(
-    { ...section(SAID_SECTION), ...section(READ_SECTION) },
+    sections,
     { bytes: columnBlob(opened, 'sets.blob', offsets), offsets },
     testCount,
   );

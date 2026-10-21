@@ -189,7 +189,9 @@ export function vaEnd(location: string, subject: string, action: string): void {
  *
  * The dimension is the caller's string, declared nowhere, and names the key
  * `dimension:key` on the case, as `variancePrecondition` names what a test
- * said; a dimension holding `:` is recorded as a misuse. The value is recorded
+ * said. A dimension or key that is not a non-empty string, or a dimension
+ * holding `:`, makes no name: the call is recorded as a misuse — the argument
+ * that was wrong and what it was given, at its first site — and never as a read. The value is recorded
  * as its JSON text, and one JSON cannot hold as unrecorded. Each key and value
  * keeps the site of its first read in a case.
  *

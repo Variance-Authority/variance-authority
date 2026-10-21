@@ -104,8 +104,12 @@ if (varianceBreadcrumb('flags', 'new-checkout', flags['new-checkout'])) {
 The breadcrumb is called from application source, and that fixes three things the
 precondition does not share:
 
-- **It never throws.** A misuse — a dimension with a `:` — is recorded on the
-  case and reported, and the value is returned. A recorder's failure is
+- **It never throws.** A misuse — a dimension or key that is not a non-empty
+  string, or a dimension with a `:` — is recorded on the case as a fact of its
+  own, the argument that was wrong and what it was given, at its site, apart
+  from what the code read, once per argument and value as a read is once per
+  key and value, and the value
+  is returned. A recorder's failure is
   swallowed, as the precondition's is.
 - **It imports nothing and costs one property read without a recording**,
   measured, because it runs in production builds. Like the precondition's
@@ -149,7 +153,8 @@ precondition does not share:
 
 On the case row of spec 0094, beside the preconditions: for each dimension the
 case read, its `(key, value, site)` reads, a value JSON cannot hold marked
-*unrecorded*, and each misuse of the breadcrumb with its site. On the test file: the
+*unrecorded*, and each misuse of the breadcrumb: the argument, the value it was
+given and its site. On the test file: the
 reads made *at load*, which every case of the file carries, and the count of
 reads made where no case was running, with their sites.
 
@@ -180,6 +185,9 @@ A breadcrumb, like a precondition, **never selects and never excludes** a test.
 - **`--read <dimension>[:<key>][=<value>]`** keeps the cases that read it, as
   `--where` keeps the cases that said it, with the same grammar. The two filters
   stay separate, because said and read are separate facts.
+- **A misused breadcrumb** prints after the reads, with its site and what was
+  wrong, and a region's split names it after the split by key, with the number
+  of cases that met it. No filter and no split counts it as a read.
 - **The handover `review --format handover` writes for a reviewer** carries the
   reads of every case it names on a changed region.
 

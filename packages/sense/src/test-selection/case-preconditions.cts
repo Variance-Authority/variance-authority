@@ -44,12 +44,6 @@ const BREADCRUMB = Symbol.for('variance-authority.test-selection.breadcrumb');
  */
 const MISPLACED = Symbol.for('variance-authority.test-selection.precondition.misplaced');
 
-/**
- * What a misused read is named under: the empty dimension, which no
- * well-formed name has, then the dimension and key it was handed.
- */
-const MISUSED = ':';
-
 /** What the reads made while the file loads are seen under. */
 const LOADING = Symbol('loading');
 
@@ -64,11 +58,25 @@ const LOADING = Symbol('loading');
  */
 type Said = readonly [name: string, value: string | null, site: string, level: number];
 
-/** What a case said and what the code read in it; `read` absent where nobody listened to reads. */
+/**
+ * What a case said, what the code read in it, and each `varianceBreadcrumb`
+ * call that made no `dimension:key`: `read` and `misused` absent where nobody
+ * listened to reads.
+ *
+ * A misuse is `[argument, value, site, level]`: the argument that was wrong,
+ * `dimension` or `key`, and the JSON text of what it was given, never a name.
+ */
 interface Heard {
   readonly said: readonly Said[];
   readonly read?: readonly Said[];
+  readonly misused?: readonly Said[];
 }
+
+/** Which facet of {@link Heard} a breadcrumb call lands on. */
+type Facet = 'read' | 'misused';
+
+/** A breadcrumb call as the recorder holds it until its case is taken. */
+type Laid = readonly [facet: Facet, item: Said];
 
 /** The level of a call made from the case body, narrower than any `beforeEach`. */
 const CASE_LEVEL = 0xffff;
@@ -124,22 +132,22 @@ function recorder(
   finish(): void;
 } {
   const byCase = new Map<string, Said[]>();
-  const readByCase = new Map<string, Said[]>();
+  const readByCase = new Map<string, Laid[]>();
   // What a `beforeEach` said, or the code read under it, before the runner
   // entered the case, under the token the runner hands both. A case that is
   // never entered — its `beforeEach` threw — leaves its calls here until the
   // next case begins.
   const pending = new Map<unknown, Said[]>();
-  const pendingRead = new Map<unknown, Said[]>();
+  const pendingRead = new Map<unknown, Laid[]>();
   // What the code read while the file loaded, which every case of the file ran on.
-  const atLoad: Said[] = [];
+  const atLoad: Laid[] = [];
   let loading = true;
   // A read site already warned about, so a read in a loop warns once.
   const warned = new Set<string>();
   let phase: Where | undefined;
   const where: { ask?: () => Where | undefined } = {};
 
-  const onto = (into: Map<string, Said[]>, key: string, said: readonly Said[]): void => {
+  const onto = <Held,>(into: Map<string, Held[]>, key: string, said: readonly Held[]): void => {
     const held = into.get(key);
     if (held === undefined) into.set(key, [...said]);
     else held.push(...said);
@@ -180,10 +188,10 @@ function recorder(
   // Where a read made now lands, and what its seen set is kept under: the
   // running case's key, the token of a `beforeEach` not yet entered, or the
   // file's load. Nothing where no case runs.
-  const readTo = (): { readonly under: unknown; lay(held: Said): void } | undefined => {
+  const readTo = (): { readonly under: unknown; lay(held: Laid): void } | undefined => {
     const key = running();
     if (key !== undefined) return { under: key, lay: (held) => onto(readByCase, key, [held]) };
-    if (loading) return { under: LOADING, lay: ([name, value, site]) => atLoad.push([name, value, site, 0]) };
+    if (loading) return { under: LOADING, lay: ([facet, [name, value, site]]) => atLoad.push([facet, [name, value, site, 0]]) };
     const at = standing();
     if (at.kind !== 'each') return undefined;
     // A read under a `beforeEach` is the case's: the code ran for it.
@@ -191,11 +199,12 @@ function recorder(
     if (entered !== undefined) return { under: entered, lay: (held) => onto(readByCase, entered, [held]) };
     return { under: token, lay: (held) => pendingRead.set(token, [...(pendingRead.get(token) ?? []), held]) };
   };
-  // Each `(name, value)` read so far under each `under`, so a key read on every
-  // render costs a set lookup after its first read, and no site.
+  // Each `(name, value)` read so far under each `under`, and each `(argument,
+  // value)` misused, so a key read on every render costs a set lookup after its
+  // first read, and no site.
   const seenReads = new Map<unknown, Set<string>>();
 
-  const read = (name: string, value: string | null, called: unknown): boolean => {
+  const read = (facet: Facet, name: string, value: string | null, called: unknown, misuse?: string): boolean => {
     const to = readTo();
     if (to === undefined) {
       if (called === undefined) return true;
@@ -204,18 +213,19 @@ function recorder(
       warned.add(site);
       // FIXME: spec 0102 counts a read no case runs on its file, with its site,
       // and lays a `beforeAll`'s read on every case of its describe.
+      const what = misuse === undefined ? `read ${name}` : `was misused (${misuse})`;
       console.warn(
-        `variance-authority: varianceBreadcrumb at ${siteNamed(site)} read ${name} where no case runs and is recorded on no case`,
+        `variance-authority: varianceBreadcrumb at ${siteNamed(site)} ${what} where no case runs and is recorded on no case`,
       );
       return false;
     }
-    const item = JSON.stringify([name, value]);
+    const item = laidKey([facet, [name, value, '', CASE_LEVEL]]);
     const seen = seenReads.get(to.under);
     if (seen?.has(item) === true) return false;
     if (called === undefined) return true;
     if (seen === undefined) seenReads.set(to.under, new Set([item]));
     else seen.add(item);
-    to.lay([name, value, siteOf(called), CASE_LEVEL]);
+    to.lay([facet, [name, value, siteOf(called), CASE_LEVEL]]);
     return false;
   };
 
@@ -250,7 +260,12 @@ function recorder(
       key: unknown,
       value: unknown,
       called?: unknown,
-    ): boolean => read(readName(dimension, key), jsonText(value), called);
+    ): boolean => {
+      const wrong = misuseOf(dimension, key);
+      return wrong === undefined
+        ? read('read', `${dimension as string}:${key as string}`, jsonText(value), called)
+        : read('misused', wrong.argument, jsonText(wrong.given), called, wrong.why);
+    };
   }
 
   return {
@@ -285,12 +300,14 @@ function recorder(
       seenReads.delete(token);
     },
     entered(key, token) {
-      for (const [from, into] of [[pending, byCase], [pendingRead, readByCase]] as const) {
+      const move = <Held,>(from: Map<unknown, Held[]>, into: Map<string, Held[]>): void => {
         const held = from.get(token);
-        if (held === undefined) continue;
+        if (held === undefined) return;
         from.delete(token);
         onto(into, key, held);
-      }
+      };
+      move(pending, byCase);
+      move(pendingRead, readByCase);
     },
     loaded() {
       loading = false;
@@ -304,9 +321,11 @@ function recorder(
       readByCase.delete(key);
       // A case's own read of a value the file read as it loaded wins, as the
       // narrowest level does in the native fold.
-      const ownKeys = new Set(own.map(([name, value]) => JSON.stringify([name, value])));
-      const loaded = atLoad.filter(([name, value]) => !ownKeys.has(JSON.stringify([name, value])));
-      return { said, read: firstOfEach([...loaded, ...own]) };
+      const ownKeys = new Set(own.map(laidKey));
+      const loaded = atLoad.filter((laid) => !ownKeys.has(laidKey(laid)));
+      const heard = firstOfEach([...loaded, ...own]);
+      const of = (facet: Facet): Said[] => heard.filter(([on]) => on === facet).map(([, item]) => item);
+      return { said, read: of('read'), misused: of('misused') };
     },
     held: (key) => [...(byCase.get(key) ?? [])],
     finish() {
@@ -336,12 +355,54 @@ function entriesOf(dimension: unknown, record: unknown): readonly (readonly [str
 }
 
 function isDimension(dimension: unknown): dimension is string {
-  return typeof dimension === 'string' && dimension !== '' && !dimension.includes(':');
+  return misuseWhy('dimension', dimension) === undefined;
 }
 
-/** A read's name: `dimension:key`, or under {@link MISUSED} the two it was handed when they make no name. */
-function readName(dimension: unknown, key: unknown): string {
-  return isDimension(dimension) && typeof key === 'string' ? `${dimension}:${key}` : `${MISUSED}${String(dimension)}:${String(key)}`;
+type Argument = 'dimension' | 'key';
+
+/**
+ * What is wrong with what one argument of `varianceBreadcrumb` was given —
+ * `the key 7 is not a string`, `the dimension is empty`, `the dimension
+ * "flags:x" holds \`:\`` — or nothing when it is right. The one rule a misuse
+ * is recorded by, and the one a reader reads it back with.
+ */
+function misuseWhy(argument: Argument, given: unknown): string | undefined {
+  if (typeof given !== 'string') return `the ${argument}${shown(given)} is not a string`;
+  if (given === '') return `the ${argument} is empty`;
+  if (argument === 'dimension' && given.includes(':')) return `the dimension ${JSON.stringify(given)} holds \`:\``;
+  return undefined;
+}
+
+/**
+ * The first argument of a dimension and key that make no `dimension:key`, what
+ * it was given as a misuse keeps it, and why; nothing when they make one.
+ */
+function misuseOf(dimension: unknown, key: unknown): { argument: Argument; given: unknown; why: string } | undefined {
+  for (const [argument, raw] of [['dimension', dimension], ['key', key]] as const) {
+    const given = keptGiven(raw);
+    const why = misuseWhy(argument, given);
+    if (why !== undefined) return { argument, given, why };
+  }
+  return undefined;
+}
+
+/**
+ * A given value as a misuse keeps it: a primitive JSON holds as itself, an
+ * array or an object by its kind alone, so a whole object handed over is
+ * never serialised, and anything else as nothing.
+ */
+function keptGiven(raw: unknown): unknown {
+  if (raw === null || typeof raw === 'string' || typeof raw === 'boolean') return raw;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined;
+  if (typeof raw === 'object') return Array.isArray(raw) ? [] : {};
+  return undefined;
+}
+
+/** A kept value as a misuse names it, after a space: a primitive as itself, an array or an object by its kind, nothing as nothing. */
+function shown(given: unknown): string {
+  if (given === undefined) return '';
+  if (given === null || typeof given !== 'object') return ` ${String(given)}`;
+  return Array.isArray(given) ? ' an array' : ' an object';
 }
 
 /**
@@ -364,11 +425,16 @@ function jsonText(value: unknown): string | null {
   }
 }
 
-/** Reads, each `(name, value)` once, at the first site it was read at. */
-function firstOfEach(read: readonly Said[]): Said[] {
+/** What makes two breadcrumb calls one: the facet, the name or argument, and the value. */
+function laidKey([facet, [name, value]]: Laid): string {
+  return JSON.stringify([facet, name, value]);
+}
+
+/** Breadcrumb calls, each once by [`laidKey`](#laidKey), at the first site it was made at. */
+function firstOfEach(laid: readonly Laid[]): Laid[] {
   const seen = new Set<string>();
-  return read.filter(([name, value]) => {
-    const key = JSON.stringify([name, value]);
+  return laid.filter((one) => {
+    const key = laidKey(one);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -402,7 +468,7 @@ function siteOf(called: unknown): string {
  *
  * Set at its index, as `case-owner.cts` sets every field after the
  * coordinate, so the project after it stays where its reader looks. The field
- * is always JSON, `{"said": […], "read": […]}`: an empty facet is a case that
+ * is always JSON, `{"said": […], "read": […], "misused": […]}`: an empty facet is a case that
  * said, or read, nothing under a recorder that was listening; a facet absent,
  * or the field empty or missing, is one nobody listened to, which a reader may
  * not take for a case that said or read nothing.
@@ -412,7 +478,12 @@ const HEARD_FIELD = 5;
 function packHeard(packed: string, heard: Heard): string {
   const fields = packed.split('\u0000');
   while (fields.length <= HEARD_FIELD) fields.push('');
-  fields[HEARD_FIELD] = JSON.stringify(heard.read === undefined ? { said: heard.said } : { said: heard.said, read: heard.read });
+  const { said, read, misused } = heard;
+  fields[HEARD_FIELD] = JSON.stringify({
+    said,
+    ...(read === undefined ? {} : { read }),
+    ...(misused === undefined ? {} : { misused }),
+  });
   return fields.join('\u0000');
 }
 
@@ -422,4 +493,4 @@ function heardField(packed: string): string | undefined {
   return field === undefined || field === '' ? undefined : field;
 }
 
-export = { PRECONDITION, BREADCRUMB, MISPLACED, MISUSED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField };
+export = { PRECONDITION, BREADCRUMB, MISPLACED, CASE_LEVEL, recorder, entriesOf, jsonText, siteOf, packHeard, heardField, misuseWhy };

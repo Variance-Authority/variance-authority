@@ -36,6 +36,7 @@ describe('the recorder of what the code read', () => {
     expect(recorder.take(keyOf('pays'))).toEqual({
       said: [],
       read: [['flags:checkout', 'true', first.site, preconditions.CASE_LEVEL]],
+      misused: [],
     });
   });
 
@@ -128,16 +129,83 @@ describe('the recorder of what the code read', () => {
     expect(recorder.take(running).read).toEqual([]);
   });
 
-  it('names a read with no string dimension and key under the empty dimension, and a value JSON cannot hold as unrecorded', () => {
+  it('records a call it cannot name as a misuse apart from the reads: the argument that was wrong and the value it was given', () => {
     const running = keyOf('pays');
     const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
     recorder.loaded();
-    read(7, 'checkout', () => true);
-    read('flags:x', 'checkout', 1);
-    expect(recorder.take(running).read!.map(([name, value]) => [name, value])).toEqual([
-      [':7:checkout', null],
-      [':flags:x:checkout', '1'],
+    let site = '';
+    for (const [dimension, key] of [[7, 'checkout'], ['flags:x', 'checkout'], ['', 'checkout'], ['flags', 7], ['flags', ''], [undefined, 'checkout']] as const) {
+      site = read(dimension, key, true).site;
+    }
+    const heard = recorder.take(running);
+    expect(heard.read).toEqual([]);
+    expect(heard.misused!.map(([argument, value, at]) => [argument, value, at])).toEqual([
+      ['dimension', '7', site],
+      ['dimension', '"flags:x"', site],
+      ['dimension', '""', site],
+      ['key', '7', site],
+      ['key', '""', site],
+      ['dimension', null, site],
     ]);
+  });
+
+  it('keeps a misuse once per argument and value, at its first site, and asks no site for it again', () => {
+    const running = keyOf('pays');
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    recorder.loaded();
+    const recorded = holder[BREADCRUMB]!;
+    // The site is the frame that called `varianceBreadcrumb`: here, the line that called `breadcrumb`.
+    const breadcrumb = () => new Error('varianceBreadcrumb');
+    const first = breadcrumb();
+    expect(recorded(7, 'checkout', true)).toBe(true);
+    expect(recorded(7, 'checkout', true, first)).toBe(false);
+    expect(recorded(7, 'checkout', true)).toBe(false);
+    expect(recorder.take(running).misused).toEqual([['dimension', '7', preconditions.siteOf(first), preconditions.CASE_LEVEL]]);
+  });
+
+  it('keeps an array or an object given as a misuse by its kind alone, and a value JSON cannot hold as nothing', () => {
+    const running = keyOf('pays');
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    recorder.loaded();
+    read({ flags: { checkout: true } }, 'checkout', true);
+    read(['flags'], 'checkout', true);
+    read('flags', Symbol('checkout'), true);
+    expect(recorder.take(running).misused!.map(([argument, value]) => [argument, value])).toEqual([
+      ['dimension', '{}'],
+      ['dimension', '[]'],
+      ['key', null],
+    ]);
+  });
+
+  it('lays a misuse made while the file loads on every case of the file, at level 0', () => {
+    let running: string | undefined;
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const { site } = read('flags', 7, true);
+    recorder.loaded();
+    for (const name of ['pays', 'refunds']) {
+      running = keyOf(name);
+      expect(recorder.take(running)).toEqual({ said: [], read: [], misused: [['key', '7', site, 0]] });
+    }
+  });
+
+  it('warns once for a misuse where no case runs, saying what was wrong, and records it nowhere', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let running: string | undefined;
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    recorder.loaded();
+    for (let at = 0; at < 2; at += 1) read('flags', '', true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain('was misused (the key is empty) where no case runs');
+    running = keyOf('pays');
+    expect(recorder.take(running)).toEqual({ said: [], read: [], misused: [] });
+  });
+
+  it('keeps a value JSON cannot hold under the name it was read by, as unrecorded', () => {
+    const running = keyOf('pays');
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    recorder.loaded();
+    read('flags', 'checkout', () => true);
+    expect(recorder.take(running).read!.map(([name, value]) => [name, value])).toEqual([['flags:checkout', null]]);
   });
 
   it('installs nothing to read with and carries no read facet where the runner does not listen to reads', () => {

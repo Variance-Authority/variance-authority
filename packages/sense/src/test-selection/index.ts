@@ -50,7 +50,7 @@ export { anyStopped } from './stopped.js';
 export { functionsUnder, lineGrain } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
-export { heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CasePrecondition, type Said } from './case-said.js';
+export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CaseHeard, type CasePrecondition, type Misuse, type Said } from './case-said.js';
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';

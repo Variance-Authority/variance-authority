@@ -1058,7 +1058,8 @@ counts the cases that entered the function and never read the key — so new
 code behind a flag that only the flag-on case reached shows
 `flags:express read true by 1`. `review.json` keeps each case with the
 preconditions it recorded and the reads its code made, as `preconditions` and
-`reads`, the way `covering` prints them. For a record made before cases recorded preconditions, the
+`reads`, and any misused breadcrumb as `misused`, the way `covering` prints
+them. For a record made before cases recorded preconditions, the
 state they ran under is printed as unmeasured, and cases from a runner that
 does not record preconditions are counted apart from the cases that recorded
 nothing.

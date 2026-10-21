@@ -65,8 +65,9 @@ elsewhere the answer prints nothing about them.
 `variance review` splits each changed region's cases by what they read:
 `flags:express read false by 1, true by 1, not by 6` — `not` counts the cases
 that entered the region and never read the key, `unmeasured for N` the cases
-from a recording that did not listen. The handover's `reached by` carries the
-same split.
+from a recording that did not listen. A misused breadcrumb follows the split as
+`misused varianceBreadcrumb at src/flags.ts:7 by 1: the key 7 is not a string`.
+The handover's `reached by` carries the same split.
 
 ## What state did the tests covering this function run under
 
@@ -78,7 +79,11 @@ recorded at one level; both are kept, and a `--where` naming either keeps the
 case. Do not pick one. Under `--format json`, `covering` gives each test the
 recorded `said` text and the answer `where: {asked, read, kept, of,
 unmeasured}`; `review` gives each case `preconditions` and `reads`, each
-`[{name, value, site, level}]`.
+`[{name, value, site, level}]`, and
+`misused: [{argument, value, site, level}]` — the argument that was wrong,
+`dimension` or `key`, and what it was given, an array or an object by its kind
+alone — empty where none was misused; `reads` and `misused` are absent where
+the run did not listen.
 
 ## Record the state this test runs under
 
@@ -133,7 +138,13 @@ export function isOn(key: string): boolean {
   prints as `unrecorded`.
 - `varianceBreadcrumb` returns its value, never throws, and does nothing
   without a recording; it ships in product source. A read where no case runs
-  warns once per site and is recorded nowhere.
+  warns once per site and is recorded nowhere. A dimension or key that is not
+  a non-empty string, or a dimension holding `:`, is a misuse: `covering` prints
+  `misused varianceBreadcrumb at <site>: the key 7 is not a string` after the
+  reads, once per argument and value given, at its first site, and `review
+  --format json` gives the case `misused: [{argument, value, site, level}]`. It
+  is never a read, so `--read` and the split never
+  count it. Fix the call.
 - Both only take effect in a recorded run: a record made before the call was
   added holds none of it.
 
