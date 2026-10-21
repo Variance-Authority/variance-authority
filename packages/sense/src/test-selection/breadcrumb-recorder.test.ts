@@ -36,6 +36,7 @@ describe('the recorder of what the code read', () => {
     expect(recorder.take(keyOf('pays'))).toEqual({
       said: [],
       read: [['flags:checkout', 'true', first.site, preconditions.CASE_LEVEL]],
+      misused: [],
     });
   });
 
@@ -128,25 +129,27 @@ describe('the recorder of what the code read', () => {
     expect(recorder.take(running).read).toEqual([]);
   });
 
-  it('records a read it cannot name as a misuse under the empty name, with its site and what was wrong as its value', () => {
+  it('records a call it cannot name as a misuse apart from the reads: the argument that was wrong and the value it was given', () => {
     const running = keyOf('pays');
     const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
     recorder.loaded();
     let site = '';
-    for (const [dimension, key] of [[7, 'checkout'], ['flags:x', 'checkout'], ['', 'checkout'], ['flags', 7], ['flags', '']] as const) {
+    for (const [dimension, key] of [[7, 'checkout'], ['flags:x', 'checkout'], ['', 'checkout'], ['flags', 7], ['flags', ''], [undefined, 'checkout']] as const) {
       site = read(dimension, key, true).site;
     }
-    const why = (text: string) => JSON.stringify(text);
-    expect(recorder.take(running).read!.map(([name, value, at]) => [name, value, at])).toEqual([
-      ['', why('the dimension 7 is not a string'), site],
-      ['', why('the dimension "flags:x" holds `:`'), site],
-      ['', why('the dimension is empty'), site],
-      ['', why('the key 7 is not a string'), site],
-      ['', why('the key is empty'), site],
+    const heard = recorder.take(running);
+    expect(heard.read).toEqual([]);
+    expect(heard.misused!.map(([argument, value, at]) => [argument, value, at])).toEqual([
+      ['dimension', '7', site],
+      ['dimension', '"flags:x"', site],
+      ['dimension', '""', site],
+      ['key', '7', site],
+      ['key', '""', site],
+      ['dimension', null, site],
     ]);
   });
 
-  it('keeps a misuse once per site, so a second call wrong the same way is found too', () => {
+  it('keeps a misuse once per argument and value, at its first site, and asks no site for it again', () => {
     const running = keyOf('pays');
     const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
     recorder.loaded();
@@ -154,15 +157,10 @@ describe('the recorder of what the code read', () => {
     // The site is the frame that called `varianceBreadcrumb`: here, the line that called `breadcrumb`.
     const breadcrumb = () => new Error('varianceBreadcrumb');
     const first = breadcrumb();
-    const second = breadcrumb();
-    for (const called of [first, second, first]) {
-      expect(recorded(7, 'checkout', true)).toBe(true);
-      expect(recorded(7, 'checkout', true, called)).toBe(false);
-    }
-    const why = JSON.stringify('the dimension 7 is not a string');
-    expect(recorder.take(running).read!.map(([name, value, site]) => [name, value, site])).toEqual(
-      [first, second].map((called) => ['', why, preconditions.siteOf(called)]),
-    );
+    expect(recorded(7, 'checkout', true)).toBe(true);
+    expect(recorded(7, 'checkout', true, first)).toBe(false);
+    expect(recorded(7, 'checkout', true)).toBe(false);
+    expect(recorder.take(running).misused).toEqual([['dimension', '7', preconditions.siteOf(first), preconditions.CASE_LEVEL]]);
   });
 
   it('lays a misuse made while the file loads on every case of the file, at level 0', () => {
@@ -172,7 +170,7 @@ describe('the recorder of what the code read', () => {
     recorder.loaded();
     for (const name of ['pays', 'refunds']) {
       running = keyOf(name);
-      expect(recorder.take(running).read).toEqual([['', JSON.stringify('the key 7 is not a string'), site, 0]]);
+      expect(recorder.take(running)).toEqual({ said: [], read: [], misused: [['key', '7', site, 0]] });
     }
   });
 
@@ -185,7 +183,7 @@ describe('the recorder of what the code read', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]![0]).toContain('was misused (the key is empty) where no case runs');
     running = keyOf('pays');
-    expect(recorder.take(running).read).toEqual([]);
+    expect(recorder.take(running)).toEqual({ said: [], read: [], misused: [] });
   });
 
   it('keeps a value JSON cannot hold under the name it was read by, as unrecorded', () => {

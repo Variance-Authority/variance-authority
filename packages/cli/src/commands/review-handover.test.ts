@@ -133,7 +133,7 @@ describe('a review handed over in the pull request body, before CI', () => {
   });
 
   it('names a misused breadcrumb the cases that reached a named function met after their reads, never as a read', () => {
-    const misused = [{ site: 'src/a.ts:3', why: 'the key 7 is not a string' }];
+    const misused = [{ argument: 'key', value: 7, site: 'src/a.ts:3', level: 0xffff }];
     const called = [
       { id: 'a > off', file: 'test/a.test.ts', name: 'off', preconditions: [], reads: [], misused },
       { id: 'a > on', file: 'test/a.test.ts', name: 'on', preconditions: [], reads: [] },

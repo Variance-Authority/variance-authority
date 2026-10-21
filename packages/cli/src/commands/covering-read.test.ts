@@ -19,10 +19,14 @@ type Item = readonly [name: string, value: string | boolean, site: string, level
 const spelled = (items: readonly Item[]) => items.map(([name, value, site, level]) => [name, JSON.stringify(value), site, level]);
 
 /** A case that said `said` and whose code read `read`; a case with no `read` was recorded by a runner that did not listen. */
-function row(name: string, said: readonly Item[], read?: readonly Item[]): ExecutionTest {
+function row(name: string, said: readonly Item[], read?: readonly Item[], misused?: readonly Item[]): ExecutionTest {
   return {
     id: `${SPEC} > ${name}`, file: SPEC, name,
-    said: JSON.stringify({ said: spelled(said), ...(read === undefined ? {} : { read: spelled(read) }) }),
+    said: JSON.stringify({
+      said: spelled(said),
+      ...(read === undefined ? {} : { read: spelled(read) }),
+      ...(misused === undefined ? {} : { misused: spelled(misused) }),
+    }),
   };
 }
 
@@ -113,15 +117,15 @@ describe('a case read by what its code read', () => {
 
 describe('a case as `--format json` hands it out', () => {
   it('carries what it said, what its code read and each misused breadcrumb apart, resolved, and never the raw record', async () => {
-    const misused: Item = ['', 'the key 7 is not a string', 'src/cart.ts:9', 0xffff];
-    const answer = await ask([], await recorded([row('ships express', [['network:api', 'mocked', `${SPEC}:4`, 1]], [flag('express', true), misused])]));
+    const misused: Item = ['key', '', 'src/cart.ts:9', 0xffff];
+    const answer = await ask([], await recorded([row('ships express', [['network:api', 'mocked', `${SPEC}:4`, 1]], [flag('express', true)], [misused])]));
 
     const json = JSON.parse(formatCovering(answer, 'json')) as { tests: Record<string, unknown>[] };
-    expect(json.tests[0]).not.toHaveProperty('said');
+    expect(JSON.stringify(json)).not.toContain('"said"');
     expect(json.tests[0]).toMatchObject({
       preconditions: [{ name: 'network:api', value: 'mocked', site: `${SPEC}:4`, level: 1 }],
       reads: [{ name: 'flags:express', value: true, site: 'src/cart.ts:5', level: 0xffff }],
-      misused: [{ site: 'src/cart.ts:9', why: 'the key 7 is not a string' }],
+      misused: [{ argument: 'key', value: '', site: 'src/cart.ts:9', level: 0xffff }],
     });
   });
 });

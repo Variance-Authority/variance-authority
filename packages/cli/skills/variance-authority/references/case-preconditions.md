@@ -78,8 +78,9 @@ call that won, which is the line in the helper when a helper recorded it.
 recorded at one level; both are kept, and a `--where` naming either keeps the
 case. Do not pick one. Under `--format json`, `covering` and `review` give each
 case `preconditions` and `reads`, each `[{name, value, site, level}]`, and
-`misused: [{site, why}]` where a breadcrumb was misused; `reads` is absent where
-the run did not listen. `covering`'s answer has `where: {asked, read, kept, of,
+`misused: [{argument, value, site, level}]` — the argument that was wrong,
+`dimension` or `key`, and what it was given — where a breadcrumb was misused;
+`reads` and `misused` are absent where the run did not listen. `covering`'s answer has `where: {asked, read, kept, of,
 unmeasured}`.
 
 ## Record the state this test runs under
@@ -138,8 +139,8 @@ export function isOn(key: string): boolean {
   warns once per site and is recorded nowhere. A dimension or key that is not
   a non-empty string, or a dimension holding `:`, is a misuse: `covering` prints
   `misused varianceBreadcrumb at <site>: the key 7 is not a string` after the
-  reads, once per site and what was wrong, and `--format json` gives the case
-  `misused: [{site, why}]`. It is never a read, so `--read` and the split never
+  reads, once per argument and value given, at its first site, and `--format
+  json` gives the case `misused: [{argument, value, site, level}]`. It is never a read, so `--read` and the split never
   count it. Fix the call.
 - Both only take effect in a recorded run: a record made before the call was
   added holds none of it.

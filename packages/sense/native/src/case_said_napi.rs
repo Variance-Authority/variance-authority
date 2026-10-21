@@ -1,5 +1,5 @@
 //! What a case said and read, as TypeScript reaches it: every call speaks the
-//! frame field's JSON, `{"said": [[name, value, site, level], …], "read": […]}`,
+//! frame field's JSON, `{"said": [[name, value, site, level], …], "read": […], "misused": […]}`,
 //! and does its work in [`crate::case_said`] (ADR-0094).
 
 use std::path::Path;
@@ -41,19 +41,20 @@ pub fn said_site(root: String, site: String) -> String {
 pub fn said_resolved(said: String) -> napi::Result<String> {
     let heard = case_said::parse(&said).map_err(napi::Error::from_reason)?;
     let joined = case_said::join(Some(heard), None).unwrap_or_default();
-    Ok(case_said::spell_row(&case_said::resolve(&joined)))
+    Ok(case_said::spell(&case_said::resolve(&joined)))
 }
 
-/// A crossing-set pool, with the `tests.said` and `tests.read` sections laid into it.
+/// A crossing-set pool, with the `tests.said`, `tests.read` and `tests.misused` sections laid into it.
 #[napi(object)]
 pub struct SaidLaid {
     pub said: Option<Buffer>,
     pub read: Option<Buffer>,
+    pub misused: Option<Buffer>,
     pub bytes: Buffer,
     pub offsets: Uint32Array,
 }
 
-/// The `tests.said` and `tests.read` sections for what each case heard (`null` where it was never
+/// The `tests.said`, `tests.read` and `tests.misused` sections for what each case heard (`null` where it was never
 /// listened to), its sets interned into the pool `bytes`/`offsets`.
 #[napi(catch_unwind)]
 pub fn said_laid(said: Vec<Option<String>>, bytes: Buffer, offsets: Uint32Array, test_count: u32) -> napi::Result<SaidLaid> {
@@ -64,16 +65,31 @@ pub fn said_laid(said: Vec<Option<String>>, bytes: Buffer, offsets: Uint32Array,
     let mut pool =
         SetPool::from_pool(bytes.to_vec(), offsets.to_vec(), test_count as usize).map_err(napi::Error::from_reason)?;
     let views: Vec<Option<&Heard>> = items.iter().map(Option::as_ref).collect();
-    let (said, read) = case_said::lay(&views, &mut pool);
-    Ok(SaidLaid { said: said.map(Buffer::from), read: read.map(Buffer::from), bytes: pool.bytes().to_vec().into(), offsets: pool.offsets().to_vec().into() })
+    let [said, read, misused] = case_said::lay(&views, &mut pool);
+    Ok(SaidLaid {
+        said: said.map(Buffer::from),
+        read: read.map(Buffer::from),
+        misused: misused.map(Buffer::from),
+        bytes: pool.bytes().to_vec().into(),
+        offsets: pool.offsets().to_vec().into(),
+    })
 }
 
-/// What each of `test_count` cases heard off its `tests.said` and `tests.read`
-/// sections, either absent, and their pool: `null` for a case no recorder listened to.
+/// What each of `test_count` cases heard off its `tests.said`, `tests.read` and
+/// `tests.misused` sections, each absent, and their pool: `null` for a case no
+/// recorder listened to.
 #[napi(catch_unwind)]
-pub fn said_read(said: Option<Buffer>, read: Option<Buffer>, bytes: Buffer, offsets: Uint32Array, test_count: u32) -> napi::Result<Vec<Option<String>>> {
+pub fn said_read(
+    said: Option<Buffer>,
+    read: Option<Buffer>,
+    misused: Option<Buffer>,
+    bytes: Buffer,
+    offsets: Uint32Array,
+    test_count: u32,
+) -> napi::Result<Vec<Option<String>>> {
     let pool =
         SetPool::from_pool(bytes.to_vec(), offsets.to_vec(), test_count as usize).map_err(napi::Error::from_reason)?;
-    let heard = case_said::read(said.as_deref(), read.as_deref(), test_count as usize, |set| pool.members(set)).map_err(napi::Error::from_reason)?;
+    let sections = [said.as_deref(), read.as_deref(), misused.as_deref()];
+    let heard = case_said::read(sections, test_count as usize, |set| pool.members(set)).map_err(napi::Error::from_reason)?;
     Ok(heard.into_iter().map(|heard| heard.map(|heard| case_said::spell(&heard))).collect())
 }

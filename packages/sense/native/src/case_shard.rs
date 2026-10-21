@@ -99,10 +99,12 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let set_bytes = decoded.bytes("sets.blob")?;
     let set_offsets = decoded.words("sets.off")?;
     let section = |name: &str| if decoded.has(name) { decoded.bytes(name).map(Some) } else { Ok(None) };
-    let (said, read) = (section(case_said::SAID_SECTION)?, section(case_said::READ_SECTION)?);
-    if said.is_some() || read.is_some() {
+    let [said, read, misused] = case_said::SECTIONS.map(section);
+    let [said, read, misused] = [said?, read?, misused?];
+    if said.is_some() || read.is_some() || misused.is_some() {
         let members = |set| decode_set(set_slice(&set_bytes, &set_offsets, set)?, count);
-        for (test, heard) in tests.iter_mut().zip(case_said::read(said.as_deref(), read.as_deref(), count, members)?) {
+        let sections = [said.as_deref(), read.as_deref(), misused.as_deref()];
+        for (test, heard) in tests.iter_mut().zip(case_said::read(sections, count, members)?) {
             test.heard = heard;
         }
     }

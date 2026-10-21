@@ -98,7 +98,7 @@ pub fn encode(
     }
     let mut strings = Vec::new();
     let heard: Vec<Option<&case_said::Heard>> = tests.iter().map(|test| test.heard.as_ref()).collect();
-    let (said, read) = case_said::lay(&heard, sets);
+    let heard = case_said::lay(&heard, sets);
     for test in tests {
         strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
     }
@@ -195,11 +195,10 @@ pub fn encode(
         let words = extras.durations.iter().map(|duration| duration.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.duration.as_str(), words));
     }
-    if let Some(said) = said {
-        columns.push(Column::Bytes(case_said::SAID_SECTION, said));
-    }
-    if let Some(read) = read {
-        columns.push(Column::Bytes(case_said::READ_SECTION, read));
+    for (section, laid) in case_said::SECTIONS.into_iter().zip(heard) {
+        if let Some(laid) = laid {
+            columns.push(Column::Bytes(section, laid));
+        }
     }
     if lined {
         let mut blob = Vec::new();

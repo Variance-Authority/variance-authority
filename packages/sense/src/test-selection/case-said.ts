@@ -1,7 +1,8 @@
 /**
  * What a case said it arranged and what the code read while it ran, as
  * TypeScript holds it after capture: a string the addon's `case_said.rs` wrote
- * and alone reads. Joining, laying the `tests.said` and `tests.read` sections,
+ * and alone reads. Joining, laying the `tests.said`, `tests.read` and
+ * `tests.misused` sections,
  * reading them back and resolving a row are its calls; here is only how a
  * resolved row is printed.
  */
@@ -11,8 +12,9 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 
 /**
  * Every item a case said and read, unresolved — overridden ones too — as
- * `{"said": [[name, value, site, level], …], "read": […]}` in the order the
- * addon stores them. A facet is absent where nobody listened to it.
+ * `{"said": [[name, value, site, level], …], "read": […], "misused": […]}` in
+ * the order the addon stores them. A facet is absent where nobody listened to
+ * it; a misuse holds the argument that was wrong where an item holds its name.
  */
 export type Said = string;
 
@@ -75,28 +77,40 @@ export interface CaseRow {
   readonly said?: readonly CasePrecondition[];
   /** Per name and value read, the first site it was read at. */
   readonly read?: readonly CasePrecondition[];
-  /** Each `varianceBreadcrumb` call that made no `dimension:key`, once per site; absent where none did. */
+  /**
+   * Each `varianceBreadcrumb` call that made no `dimension:key`, once per
+   * argument and value given, at the first site; absent where nobody listened
+   * to reads.
+   */
   readonly misused?: readonly Misuse[];
 }
 
-/** A `varianceBreadcrumb` call that made no `dimension:key`: its `file:line` and what was wrong. */
+/** A `varianceBreadcrumb` call that made no `dimension:key`. */
 export interface Misuse {
+  /** The argument that was wrong: `dimension` or `key`. */
+  readonly argument: string;
+  /** What it was given, as JSON gave it back; absent where JSON could not hold it. */
+  readonly value?: unknown;
+  /** The repository-relative `file:line` of the call. */
   readonly site: string;
-  readonly why: string;
+  /** As {@link CasePrecondition.level}. */
+  readonly level: number;
 }
 
 type Spelled = [name: string, value: string | null, site: string, level: number];
 
 /** The row a reader prints: what the case said and what it read, each resolved, and each misused breadcrumb apart. */
 export function saidRow(said: Said): CaseRow {
-  const row = JSON.parse(addon('saidResolved')(said)) as { said?: Spelled[]; read?: Spelled[]; misused?: Misuse[] };
+  const row = JSON.parse(addon('saidResolved')(said)) as { said?: Spelled[]; read?: Spelled[]; misused?: Spelled[] };
   const items = (spelled: Spelled[]) =>
     spelled.map(([name, value, site, level]): CasePrecondition =>
       value === null ? { name, site, level } : { name, value: JSON.parse(value) as unknown, site, level });
   return {
     ...(row.said === undefined ? {} : { said: items(row.said) }),
     ...(row.read === undefined ? {} : { read: items(row.read) }),
-    ...(row.misused === undefined ? {} : { misused: row.misused }),
+    ...(row.misused === undefined ? {} : {
+      misused: items(row.misused).map(({ name, ...misuse }): Misuse => ({ argument: name, ...misuse })),
+    }),
   };
 }
 
@@ -128,12 +142,18 @@ export function readsOf(test: { readonly said?: Said | undefined }): readonly Ca
   return test.said === undefined ? undefined : saidRow(test.said).read;
 }
 
-/** The `tests.said` and `tests.read` sections for what each case heard, laid into the crossing-set pool. */
+/** The `tests.said`, `tests.read` and `tests.misused` sections for what each case heard, laid into the crossing-set pool. */
 export function saidLaid(
   said: readonly (Said | undefined)[],
   pool: { readonly bytes: Uint8Array; readonly offsets: Uint32Array },
   testCount: number,
-): { readonly said?: Uint8Array; readonly read?: Uint8Array; readonly bytes: Uint8Array; readonly offsets: Uint32Array } {
+): {
+  readonly said?: Uint8Array;
+  readonly read?: Uint8Array;
+  readonly misused?: Uint8Array;
+  readonly bytes: Uint8Array;
+  readonly offsets: Uint32Array;
+} {
   const laid = addon('saidLaid')(
     said.map((one) => one ?? null),
     Buffer.from(pool.bytes.buffer, pool.bytes.byteOffset, pool.bytes.byteLength),
@@ -143,23 +163,31 @@ export function saidLaid(
   return {
     ...(laid.said === null ? {} : { said: laid.said }),
     ...(laid.read === null ? {} : { read: laid.read }),
+    ...(laid.misused === null ? {} : { misused: laid.misused }),
     bytes: laid.bytes,
     offsets: laid.offsets,
   };
 }
 
 /**
- * What each case heard, off the `tests.said` and `tests.read` sections, either
- * absent, and their pool; undefined for a case never listened to.
+ * What each case heard, off the `tests.said`, `tests.read` and `tests.misused`
+ * sections, any absent, and their pool; undefined for a case never listened to.
  */
 export function saidRead(
-  sections: { readonly said?: Uint8Array; readonly read?: Uint8Array },
+  sections: { readonly said?: Uint8Array; readonly read?: Uint8Array; readonly misused?: Uint8Array },
   pool: { readonly bytes: Uint8Array; readonly offsets: Uint32Array },
   testCount: number,
 ): readonly (Said | undefined)[] {
   const buffer = (bytes: Uint8Array) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const section = (bytes: Uint8Array | undefined) => (bytes === undefined ? null : buffer(bytes));
-  return addon('saidRead')(section(sections.said), section(sections.read), buffer(pool.bytes), pool.offsets, testCount)
+  return addon('saidRead')(
+    section(sections.said),
+    section(sections.read),
+    section(sections.misused),
+    buffer(pool.bytes),
+    pool.offsets,
+    testCount,
+  )
     .map((one) => one ?? undefined);
 }
 
@@ -222,7 +250,7 @@ export function heldText(test: { readonly said?: Said | undefined }): string {
     // no breadcrumb, that is every case. The record keeps it apart from absent.
     ...reads ?? [],
     ...unread.length === 0 ? [] : [preconditionText(unread)],
-    ...misused.map(({ site, why }) => `misused varianceBreadcrumb at ${site}: ${why}`),
+    ...misused.map((misuse) => `misused varianceBreadcrumb at ${misuse.site}: ${misuseWhy(misuse)}`),
   ];
   return parts.length === 0 ? '' : ` — ${parts.join(', ')}`;
 }
@@ -236,7 +264,7 @@ export function heardSplit(cases: readonly CaseHeard[]): string {
   const misused = new Map<string, { misuse: Misuse; by: number }>();
   for (const one of cases) {
     for (const misuse of one.misused ?? []) {
-      const key = JSON.stringify([misuse.site, misuse.why]);
+      const key = JSON.stringify([misuse.argument, misuse.value, misuse.site]);
       const held = misused.get(key);
       if (held === undefined) misused.set(key, { misuse, by: 1 });
       else held.by += 1;
@@ -244,8 +272,23 @@ export function heardSplit(cases: readonly CaseHeard[]): string {
   }
   return [
     readSplit(cases.map((one) => one.reads)),
-    ...[...misused.values()].map(({ misuse, by }) => `misused varianceBreadcrumb at ${misuse.site} by ${by}: ${misuse.why}`),
+    ...[...misused.values()].map(({ misuse, by }) => `misused varianceBreadcrumb at ${misuse.site} by ${by}: ${misuseWhy(misuse)}`),
   ].filter((part) => part !== '').join('; ');
+}
+
+/**
+ * What was wrong with a misused breadcrumb, from the argument and the value it
+ * was given: `the key 7 is not a string`, `the dimension is empty`, `the
+ * dimension "flags:x" holds \`:\``.
+ */
+export function misuseWhy(misuse: Misuse): string {
+  const { argument } = misuse;
+  if (!('value' in misuse)) return `the ${argument} is not a string`;
+  const { value } = misuse;
+  if (value === '') return `the ${argument} is empty`;
+  if (typeof value === 'string') return `the ${argument} ${JSON.stringify(value)} holds \`:\``;
+  const shown = value === null || typeof value !== 'object' ? String(value) : Array.isArray(value) ? 'an array' : 'an object';
+  return `the ${argument} ${shown} is not a string`;
 }
 
 /**

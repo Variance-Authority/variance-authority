@@ -196,18 +196,22 @@ describe('the cases a review lists under a changed function, with what each arra
   });
 
   it('gives a case that misused a breadcrumb its misuse apart from what the code read, and splits nothing by it', async () => {
-    const reading = (...read: readonly (readonly [string, string, string])[]): ExecutionTest => ({
+    const reading: ExecutionTest = {
       id: `${SPEC} > reads`, file: SPEC, name: 'reads', stopped: false,
-      said: JSON.stringify({ said: [], read: read.map(([name, value, site]) => [name, JSON.stringify(value), site, 0xffff]) }),
-    });
-    const { root, first } = await changed([reading(['flags:checkout', 'on', 'src/total.ts:2'], ['', 'the key 7 is not a string', 'src/total.ts:2'])]);
+      said: JSON.stringify({
+        said: [],
+        read: [['flags:checkout', '"on"', 'src/total.ts:2', 0xffff]],
+        misused: [['key', '7', 'src/total.ts:2', 0xffff]],
+      }),
+    };
+    const { root, first } = await changed([reading]);
 
     const answer = await review(parse(['--since', first, '--root', root]));
 
     const region = answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((one) => one.name === 'applyDiscount');
     expect(region?.called.map(({ reads, misused }) => ({ reads, misused }))).toEqual([{
       reads: [{ name: 'flags:checkout', value: 'on', site: 'src/total.ts:2', level: 0xffff }],
-      misused: [{ site: 'src/total.ts:2', why: 'the key 7 is not a string' }],
+      misused: [{ argument: 'key', value: 7, site: 'src/total.ts:2', level: 0xffff }],
     }]);
     const markdown = formatReview(answer, 'markdown');
     expect(markdown).not.toMatch(/(^|[ ;|])read the key/mu);

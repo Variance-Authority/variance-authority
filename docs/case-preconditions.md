@@ -300,10 +300,11 @@ Vitest, Jest and Rstest record it in Node when the suite is recorded with
 | While the test file loads | On every test of the file, as if a top-level `beforeEach` read it |
 | Where no test is running | Nothing, with one warning per site |
 | Two values for one key in one test | Both, each as its own `read` |
-| A dimension or key that is not a non-empty string, or a dimension holding `:` | A misuse on that test, once per site and what was wrong, never a read |
+| A dimension or key that is not a non-empty string, or a dimension holding `:` | A misuse on that test, once per argument and value given, at its first site, never a read |
 
 `variance covering` prints a misuse after the reads, and both commands give the
-test `misused: [{site, why}]` under `--format json`:
+test `misused: [{argument, value, site, level}]` under `--format json`, where
+`argument` is `dimension` or `key` and `value` is what it was given:
 
 ```text
     applies the discount — read flags:discount=true said true, misused varianceBreadcrumb at src/flags.ts:7: the key 7 is not a string
@@ -369,8 +370,8 @@ contradiction. A `--where` naming either value keeps the test.
 Under `--format json`, `variance review` and `variance covering` give each case
 `preconditions` and `reads`, each `[{name, value, site, level}]`, where `level`
 is `0` for the file's top-level `beforeEach`, one more for each nested
-`describe`, and highest for the test body, and `misused: [{site, why}]` where a
-breadcrumb was misused. `reads` is absent where the run did not listen to
+`describe`, and highest for the test body, and `misused: [{argument, value,
+site, level}]` where a breadcrumb was misused. `reads` is absent where the run did not listen to
 reads. The `covering` answer has `where: {asked, read, kept, of, unmeasured}`,
 with `read` present only when you gave `--read`.
 

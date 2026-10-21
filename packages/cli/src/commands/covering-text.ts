@@ -26,19 +26,36 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
-  if (format === 'json') return `${JSON.stringify(answer, heardResolved, 2)}\n`;
+  if (format === 'json') return `${JSON.stringify(heardResolved(answer), null, 2)}\n`;
   return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion)].join('\n')}\n`;
 }
 
 /**
- * Every test in the answer with what it heard resolved, as `review` gives a
- * case, in place of the raw `said` record: a reader never resolves it, and a
- * misused breadcrumb is never met as a read.
+ * The answer with every case's raw `said` record replaced by what it heard,
+ * resolved, as `review` gives a case: a reader never resolves it, and a misused
+ * breadcrumb is never met as a read.
  */
-function heardResolved(this: unknown, _key: string, value: unknown): unknown {
-  if (typeof value !== 'object' || value === null || !('said' in value) || typeof value.said !== 'string') return value;
-  const { said, ...test } = value as ExecutionTest & { readonly said: string };
-  return { ...test, ...caseHeard({ said }) };
+function heardResolved(answer: Covering): unknown {
+  const heard = <Test extends ExecutionTest>(tests: readonly Test[] | undefined) =>
+    tests?.map(({ said, ...test }) => ({ ...test, ...caseHeard({ said }) }));
+  return {
+    ...answer,
+    ...(answer.tests === undefined ? {} : { tests: heard(answer.tests) }),
+    ...(answer.stopped === undefined ? {} : { stopped: heard(answer.stopped) }),
+    ...(answer.ranges === undefined ? {} : { ranges: answer.ranges.map((range) => ({ ...range, tests: heard(range.tests) })) }),
+    ...(answer.changed === undefined ? {} : {
+      changed: answer.changed.map((change) => ({
+        ...change,
+        cases: heard(change.cases),
+        regions: change.regions.map((region) => ({
+          ...region,
+          tests: heard(region.tests),
+          ...(region.passengers === undefined ? {} : { passengers: heard(region.passengers) }),
+          ...(region.stopped === undefined ? {} : { stopped: heard(region.stopped) }),
+        })),
+      })),
+    }),
+  };
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */

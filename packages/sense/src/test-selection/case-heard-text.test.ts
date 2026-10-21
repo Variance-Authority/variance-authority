@@ -3,8 +3,8 @@ import { heardSplit, heldText, readSplit, readsOf, saidRow } from './case-said.j
 
 type Item = [name: string, value: string | null, site: string, level: number];
 const item = (name: string, value: unknown, site: string, level = 0xffff): Item => [name, JSON.stringify(value), site, level];
-const heard = (said: readonly Item[], read?: readonly Item[]) =>
-  ({ said: JSON.stringify({ said, ...(read === undefined ? {} : { read }) }) });
+const heard = (said: readonly Item[], read?: readonly Item[], misused?: readonly Item[]) =>
+  ({ said: JSON.stringify({ said, ...(read === undefined ? {} : { read }), ...(misused === undefined ? {} : { misused }) }) });
 
 describe('what a reader prints of what a case heard', () => {
   it('prints each key the code read with the value it read and the value the case said, or said nothing', () => {
@@ -38,13 +38,37 @@ describe('what a reader prints of what a case heard', () => {
   });
 
   it('prints a misused breadcrumb with its site and what was wrong, after the reads, and never as a read', () => {
-    const misused = item('', 'the dimension 7 is not a string', 'pay.ts:9');
+    const misused = [item('dimension', 7, 'pay.ts:9')];
     expect(heldText(heard(
       [item('flags:checkout', true, 'pay.test.ts:3')],
-      [item('flags:checkout', true, 'pay.ts:41'), misused],
+      [item('flags:checkout', true, 'pay.ts:41')],
+      misused,
     ))).toBe(' — read flags:checkout=true said true, misused varianceBreadcrumb at pay.ts:9: the dimension 7 is not a string');
-    expect(heldText(heard([item('flags:checkout', true, 'pay.test.ts:3')], [misused])))
+    expect(heldText(heard([item('flags:checkout', true, 'pay.test.ts:3')], [], misused)))
       .toBe(' — flags:checkout (pay.test.ts:3), misused varianceBreadcrumb at pay.ts:9: the dimension 7 is not a string');
+  });
+
+  it('says what was wrong from the argument and the value it was given', () => {
+    const misused = (argument: string, value: unknown) => heldText(heard([], [], [[argument, value === undefined ? null : JSON.stringify(value), 'pay.ts:9', 0xffff]]));
+    expect([
+      misused('key', 7),
+      misused('key', ''),
+      misused('dimension', ''),
+      misused('dimension', 'flags:x'),
+      misused('dimension', [1]),
+      misused('key', { a: 1 }),
+      misused('key', null),
+      misused('dimension', undefined),
+    ].map((text) => text.slice(text.indexOf(': ') + 2))).toEqual([
+      'the key 7 is not a string',
+      'the key is empty',
+      'the dimension is empty',
+      'the dimension "flags:x" holds `:`',
+      'the dimension an array is not a string',
+      'the key an object is not a string',
+      'the key null is not a string',
+      'the dimension is not a string',
+    ]);
   });
 
   it('prints what the case said as spec 0093 does where nobody listened to reads, and nothing for a case that said nothing', () => {
@@ -86,7 +110,7 @@ describe('how the cases that entered one region split by what the code read', ()
 describe('how the cases that entered one region split by what they heard', () => {
   it('names each misused breadcrumb after the reads, by its site, what was wrong and how many cases met it', () => {
     const read = [{ name: 'flags:checkout', value: true, site: 'pay.ts:41', level: 0xffff }];
-    const misused = [{ site: 'pay.ts:9', why: 'the key 7 is not a string' }];
+    const misused = [{ argument: 'key', value: 7, site: 'pay.ts:9', level: 0xffff }];
     expect(heardSplit([{ reads: read, misused }, { reads: read, misused }, { reads: [] }]))
       .toBe('flags:checkout read true by 2, not by 1; misused varianceBreadcrumb at pay.ts:9 by 2: the key 7 is not a string');
     expect(heardSplit([{ reads: [], misused }])).toBe('misused varianceBreadcrumb at pay.ts:9 by 1: the key 7 is not a string');
@@ -95,17 +119,18 @@ describe('how the cases that entered one region split by what they heard', () =>
 });
 
 describe('a misused breadcrumb on a resolved row', () => {
-  it('is a facet of its own, each site with what was wrong, which no read of the case holds', () => {
-    const test = heard([], [item('flags:checkout', true, 'pay.ts:41'), item('', 'the key 7 is not a string', 'pay.ts:9')]);
+  it('is a facet of its own, the argument that was wrong and what it was given, which no read of the case holds', () => {
+    const test = heard([], [item('flags:checkout', true, 'pay.ts:41')], [item('key', 7, 'pay.ts:9')]);
     expect(saidRow(test.said)).toEqual({
       said: [],
       read: [{ name: 'flags:checkout', value: true, site: 'pay.ts:41', level: 0xffff }],
-      misused: [{ site: 'pay.ts:9', why: 'the key 7 is not a string' }],
+      misused: [{ argument: 'key', value: 7, site: 'pay.ts:9', level: 0xffff }],
     });
     expect(readsOf(test)).toEqual([{ name: 'flags:checkout', value: true, site: 'pay.ts:41', level: 0xffff }]);
   });
 
-  it('is absent from a row where nothing was misused', () => {
+  it('is absent from a row nobody listened to for it, and empty where nothing was misused', () => {
     expect(saidRow(heard([], [item('flags:checkout', true, 'pay.ts:41')]).said)).not.toHaveProperty('misused');
+    expect(saidRow(heard([], [], []).said).misused).toEqual([]);
   });
 });

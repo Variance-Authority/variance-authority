@@ -2,17 +2,19 @@
 //! frame a realm wrote to the row a reader prints: the one owner of every step
 //! after capture (ADR-0094, spec 0102).
 //!
-//! A case holds two facets of items, `(name, value, site, level)`: what it
-//! *said* through `variancePrecondition`, and what the code *read* through
-//! `varianceBreadcrumb`. Each facet is measured on its own — a record from
-//! before breadcrumbs listened to what cases said and to no read — and absent
-//! is not empty in either. An item is kept raw — every one, an overridden one
+//! A case holds three facets of items, `(name, value, site, level)`: what it
+//! *said* through `variancePrecondition`, what the code *read* through
+//! `varianceBreadcrumb`, and each `varianceBreadcrumb` call the code *misused*,
+//! whose dimension and key made no `dimension:key` — named by the argument that
+//! was wrong, `dimension` or `key`, and the value it was given. Each facet is
+//! measured on its own — a record from before breadcrumbs listened to what
+//! cases said and to no read — and absent is not empty in any. An item is kept raw — every one, an overridden one
 //! too, its value the JSON text the realm wrote — and joined by union, so two
 //! frames, two shards or two runs give one answer whichever arrived first. A
 //! row is resolved only when it is read.
 //!
-//! The case index stores each facet in its own section, `tests.said` and
-//! `tests.read`, of one layout: each distinct item once, and the cases that
+//! The case index stores each facet in its own section, `tests.said`,
+//! `tests.read` and `tests.misused`, of one layout: each distinct item once, and the cases that
 //! hold it as a set in the record's crossing-set pool.
 
 use std::cmp::Ordering;
@@ -24,15 +26,17 @@ use crate::case_owner::project_path;
 use crate::crossing_sets::SetPool;
 use crate::order;
 
-/// The name a `varianceBreadcrumb` call that made no `dimension:key` is read
-/// under, which no `dimension:key` is; its value is what was wrong, as JSON text.
-pub const MISUSED: &str = "";
-
 /// The section what each case said is laid in.
 pub const SAID_SECTION: &str = "tests.said";
 
 /// The section what the code read in each case is laid in.
 pub const READ_SECTION: &str = "tests.read";
+
+/// The section each misused `varianceBreadcrumb` call in each case is laid in.
+pub const MISUSED_SECTION: &str = "tests.misused";
+
+/// Every facet's section, in the order [`lay`] gives and [`read`] takes them.
+pub const SECTIONS: [&str; 3] = [SAID_SECTION, READ_SECTION, MISUSED_SECTION];
 
 /// What a damaged section is refused with, as every other column of the case index is.
 const DAMAGED: &str = "not a variance-authority execution index";
@@ -40,10 +44,12 @@ const DAMAGED: &str = "not a variance-authority execution index";
 /// The value column's word for a value JSON cannot hold: no text id reaches it.
 const UNRECORDED: u32 = u32::MAX;
 
-/// One thing a case said, or one read the code made: `[name, value, site, level]` in a frame.
+/// One thing a case said, one read the code made, or one call it misused:
+/// `[name, value, site, level]` in a frame.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Item {
-    /// `dimension:key`, split at the first `:`.
+    /// `dimension:key`, split at the first `:`; for a misuse, the argument
+    /// that was wrong, `dimension` or `key`, and its value the one it was given.
     pub name: String,
     /// The JSON text the realm's `JSON.stringify` wrote, never re-spelled;
     /// `None` for a value JSON cannot hold, recorded as *unrecorded*.
@@ -56,22 +62,28 @@ pub struct Item {
     pub level: u32,
 }
 
-/// What one case said and what the code read in it, each in [`item_order`],
-/// each item once; a facet is `None` where nobody listened to it.
+/// What one case said, what the code read in it and what it misused, each in
+/// [`item_order`], each item once; a facet is `None` where nobody listened to it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Heard {
     pub said: Option<Vec<Item>>,
     pub read: Option<Vec<Item>>,
+    pub misused: Option<Vec<Item>>,
 }
 
 impl Heard {
-    /// Whether neither facet was listened to.
+    /// Whether no facet was listened to.
     fn unheard(&self) -> bool {
-        self.said.is_none() && self.read.is_none()
+        self.said.is_none() && self.read.is_none() && self.misused.is_none()
     }
 
     fn map(self, each: impl Fn(Vec<Item>) -> Vec<Item>) -> Heard {
-        Heard { said: self.said.map(&each), read: self.read.map(&each) }
+        Heard { said: self.said.map(&each), read: self.read.map(&each), misused: self.misused.map(&each) }
+    }
+
+    /// The facets in [`SECTIONS`] order.
+    fn facets(&self) -> [Option<&[Item]>; 3] {
+        [self.said.as_deref(), self.read.as_deref(), self.misused.as_deref()]
     }
 }
 
@@ -119,18 +131,20 @@ type Tuples = Vec<(String, Option<String>, String, u32)>;
 struct Spelled {
     said: Option<Tuples>,
     read: Option<Tuples>,
+    misused: Option<Tuples>,
 }
 
 /// What a frame field, or a row a writer hands over, spells:
-/// `{"said": [[name, value, site, level], …], "read": […]}`, a facet absent
-/// where nobody listened to it.
+/// `{"said": [[name, value, site, level], …], "read": […], "misused": […]}`, a
+/// facet absent where nobody listened to it.
 pub fn parse(text: &str) -> Result<Heard, String> {
-    let spelled: Spelled = serde_json::from_str(text)
-        .map_err(|_| r#"not what a case heard: expected {"said": [[name, value, site, level], …], "read": […]}"#.to_owned())?;
+    let spelled: Spelled = serde_json::from_str(text).map_err(|_| {
+        r#"not what a case heard: expected {"said": [[name, value, site, level], …], "read": […], "misused": […]}"#.to_owned()
+    })?;
     let items = |tuples: Tuples| {
         tuples.into_iter().map(|(name, value, site, level)| Item { name, value, site, level }).collect::<Vec<Item>>()
     };
-    Ok(Heard { said: spelled.said.map(items), read: spelled.read.map(items) })
+    Ok(Heard { said: spelled.said.map(items), read: spelled.read.map(items), misused: spelled.misused.map(items) })
 }
 
 /// What a case heard as a frame field spells it, each value as it was written.
@@ -146,9 +160,10 @@ pub fn spell(heard: &Heard) -> String {
             .collect();
         format!("[{}]", tuples.join(","))
     };
-    let facets: Vec<String> = [("said", &heard.said), ("read", &heard.read)]
+    let facets: Vec<String> = ["said", "read", "misused"]
         .into_iter()
-        .filter_map(|(key, items)| items.as_deref().map(|items| format!("\"{key}\":{}", facet(items))))
+        .zip(heard.facets())
+        .filter_map(|(key, items)| items.map(|items| format!("\"{key}\":{}", facet(items))))
         .collect();
     format!("{{{}}}", facets.join(","))
 }
@@ -179,7 +194,12 @@ pub fn join(held: Option<Heard>, more: Option<Heard>) -> Option<Heard> {
         }
     };
     let (held, more) = (held.unwrap_or_default(), more.unwrap_or_default());
-    Some(Heard { said: facet(held.said, more.said), read: facet(held.read, more.read) }).filter(|heard| !heard.unheard())
+    Some(Heard {
+        said: facet(held.said, more.said),
+        read: facet(held.read, more.read),
+        misused: facet(held.misused, more.misused),
+    })
+    .filter(|heard| !heard.unheard())
 }
 
 /// Every site named from the checkout. `root` is the checkout's absolute path.
@@ -187,67 +207,25 @@ pub fn heard(root: &Path, heard: Heard) -> Heard {
     heard.map(|items| canonical(items.into_iter().map(|item| Item { site: checkout_site(root, &item.site), ..item }).collect()))
 }
 
-/// A `varianceBreadcrumb` call that made no `dimension:key`: where it was
-/// called and what was wrong with it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Misuse {
-    pub site: String,
-    pub why: String,
-}
-
-/// The row a reader prints: what a case said and what the code read, each
-/// resolved, and each misused breadcrumb apart from the reads.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Row {
-    pub said: Option<Vec<Item>>,
-    pub read: Option<Vec<Item>>,
-    /// Each `(site, why)` once, by site; empty where nothing was misused.
-    pub misused: Vec<Misuse>,
-}
-
 /// The row a reader prints.
 ///
 /// What a case said: per name, the narrowest level the case said it at wins;
 /// each value said there is kept, two being a contradiction.
 ///
-/// What the code read: every value read under a name is kept, a key read with
-/// two values being two reads; of one value, the narrowest level it was read
-/// at — the case over the file's load.
+/// What the code read, and what it misused: every value read under a name, or
+/// given to an argument, is kept, a key read with two values being two reads;
+/// of one value, the narrowest level it was read at — the case over the file's
+/// load.
 ///
-/// In both, a value held at several sites is printed at the one first in
-/// [`site_order`]. A read under [`MISUSED`] is no read: it is a misuse, kept
-/// once per site and reason at any level.
-pub fn resolve(heard: &Heard) -> Row {
-    let (misused, read): (Vec<Item>, Vec<Item>) =
-        heard.read.as_deref().unwrap_or_default().iter().cloned().partition(|item| item.name == MISUSED);
-    let mut misused: Vec<Misuse> = misused
-        .into_iter()
-        .map(|item| Misuse {
-            why: item.value.as_deref().and_then(|value| serde_json::from_str::<String>(value).ok()).unwrap_or_default(),
-            site: item.site,
-        })
-        .collect();
-    misused.sort_by(|left, right| site_order(&left.site, &right.site).then_with(|| order::code_unit(&left.why, &right.why)));
-    misused.dedup();
-    Row {
+/// In each, a value held at several sites is printed at the one first in
+/// [`site_order`].
+pub fn resolve(heard: &Heard) -> Heard {
+    let each_value = |items: &Vec<Item>| narrowest(items, |left, right| left.name == right.name && left.value == right.value);
+    Heard {
         said: heard.said.as_deref().map(|said| narrowest(said, |left, right| left.name == right.name)),
-        read: heard.read.as_ref().map(|_| narrowest(&read, |left, right| left.name == right.name && left.value == right.value)),
-        misused,
+        read: heard.read.as_ref().map(each_value),
+        misused: heard.misused.as_ref().map(each_value),
     }
-}
-
-/// A resolved row as a reader is handed it: the facets as [`spell`] spells
-/// them, and `"misused": [{"site", "why"}, …]` beside them where any was.
-pub fn spell_row(row: &Row) -> String {
-    let facets = spell(&Heard { said: row.said.clone(), read: row.read.clone() });
-    if row.misused.is_empty() {
-        return facets;
-    }
-    let text = |value: &str| serde_json::Value::from(value).to_string();
-    let misused: Vec<String> =
-        row.misused.iter().map(|misuse| format!("{{\"site\":{},\"why\":{}}}", text(&misuse.site), text(&misuse.why))).collect();
-    let joint = if facets == "{}" { "" } else { "," };
-    format!("{}{joint}\"misused\":[{}]}}", &facets[..facets.len() - 1], misused.join(","))
 }
 
 /// Of each run of `items` alike under `alike`, the items at its narrowest
@@ -274,14 +252,13 @@ fn narrowest(items: &[Item], alike: impl Fn(&Item, &Item) -> bool) -> Vec<Item> 
     row
 }
 
-/// The `tests.said` and `tests.read` sections for `heard`, one entry per case,
-/// laying each item's cases into `pool`: each `None` where no case was
-/// listened to for it.
-pub fn lay(heard: &[Option<&Heard>], pool: &mut SetPool) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
-    let said: Vec<Option<&[Item]>> = heard.iter().map(|heard| heard.and_then(|heard| heard.said.as_deref())).collect();
-    let read: Vec<Option<&[Item]>> = heard.iter().map(|heard| heard.and_then(|heard| heard.read.as_deref())).collect();
-    let said = lay_facet(&said, pool);
-    (said, lay_facet(&read, pool))
+/// The [`SECTIONS`] for `heard`, one entry per case, laying each item's cases
+/// into `pool`: each `None` where no case was listened to for it.
+pub fn lay(heard: &[Option<&Heard>], pool: &mut SetPool) -> [Option<Vec<u8>>; 3] {
+    [0, 1, 2].map(|at| {
+        let facet: Vec<Option<&[Item]>> = heard.iter().map(|heard| heard.and_then(|heard| heard.facets()[at])).collect();
+        lay_facet(&facet, pool)
+    })
 }
 
 /// One facet's section, in the layout ADR-0094 names.
@@ -347,12 +324,11 @@ fn lay_facet(facet: &[Option<&[Item]>], pool: &mut SetPool) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// What each of `tests` cases heard, off its `tests.said` and `tests.read`
-/// sections, absent where the record holds none, whose sets `members` reads:
-/// `None` for a case no recorder listened to.
+/// What each of `tests` cases heard, off its [`SECTIONS`], each absent where
+/// the record holds none, whose sets `members` reads: `None` for a case no
+/// recorder listened to.
 pub fn read(
-    said: Option<&[u8]>,
-    read: Option<&[u8]>,
+    sections: [Option<&[u8]>; 3],
     tests: usize,
     members: impl Fn(u32) -> Result<Vec<u32>, String>,
 ) -> Result<Vec<Option<Heard>>, String> {
@@ -360,11 +336,13 @@ pub fn read(
         Some(section) => read_facet(section, tests, &members),
         None => Ok(vec![None; tests]),
     };
-    let (said, read) = (facet(said)?, facet(read)?);
+    let [said, read, misused] = sections;
+    let (said, read, misused) = (facet(said)?, facet(read)?, facet(misused)?);
     Ok(said
         .into_iter()
         .zip(read)
-        .map(|(said, read)| Some(Heard { said, read }).filter(|heard| !heard.unheard()))
+        .zip(misused)
+        .map(|((said, read), misused)| Some(Heard { said, read, misused }).filter(|heard| !heard.unheard()))
         .collect())
 }
 
