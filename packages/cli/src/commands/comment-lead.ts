@@ -57,8 +57,7 @@ export function leadBlocks(
     heading,
     ...leadLine(docket),
     ...(picture === undefined ? [] : [picture]),
-    // A failed subject needs review and is not acceptable either: it was never read.
-    ...footerBlocks(options, docket.reviewable + docket.fresh > 0),
+    ...footerBlocks(options, docket.promotable > 0),
   ];
 }
 
@@ -90,16 +89,16 @@ function leadLine(docket: Docket): readonly string[] {
  *
  * The command line is the fallback for a comment with no report to link: it
  * reads a report on disk, which a reviewer on a pull request does not have.
- * How to accept is left out when nothing listed can be accepted: an unstable
- * subject is refused, and a step that would be refused is not one to offer.
+ * How to accept is left out when `accept` would promote nothing: a step that
+ * would be refused is not one to offer.
  */
-function footerBlocks(options: CommentOptions, acceptable: boolean): readonly string[] {
+function footerBlocks(options: CommentOptions, promotes: boolean): readonly string[] {
   return [
     [
       options.runUrl === undefined
         ? 'Per subject: `variance report --subject <id>`'
         : `[Full report and images](${options.runUrl})`,
-      ...(options.toAccept === undefined || !acceptable ? [] : [`To accept: ${options.toAccept}`]),
+      ...(options.toAccept === undefined || !promotes ? [] : [`To accept: ${options.toAccept}`]),
     ].join('  \n'),
   ];
 }

@@ -65,6 +65,7 @@ const button: ObservationRecord = {
   regions: [
     { x: 4, y: 4, width: 16, height: 16, pixels: 86, component: 'Button', file: 'src/ds.jsx:12', cause: true },
   ],
+  images: { after: 'story_case-surface--primary.after.png' },
 };
 
 describe('an unstable subject in the pull-request comment', () => {
@@ -109,6 +110,20 @@ describe('an unstable subject in the pull-request comment', () => {
       notObserved: [{ subject: 'story:case-surface--broken', kind: 'failed', because: 'the story threw' }],
     };
     const body = renderComment({ project: 'storybook-case', report, toAccept: TO_ACCEPT });
+
+    expect(body).not.toContain('To accept');
+  });
+
+  it('does not offer accept beside a change that accept refuses, because another subject moved it', () => {
+    const leaked: ObservationRecord = {
+      ...button,
+      alone: { reproduced: false, because: 'read alone, it matches its baseline' },
+    };
+    const body = renderComment({
+      project: 'storybook-case',
+      report: reportOf([leaked, ticking]),
+      toAccept: TO_ACCEPT,
+    });
 
     expect(body).not.toContain('To accept');
   });

@@ -1,4 +1,4 @@
-import { byReason, type ObservationRecord, type RegionRecord } from '@variance-authority/report';
+import { byReason, promotionOf, type ObservationRecord, type RegionRecord } from '@variance-authority/report';
 import type { CliRunReport, NotObserved } from './run.js';
 
 /**
@@ -127,6 +127,12 @@ export interface Docket {
    * nothing moved, and nobody has yet said what the subject should look like.
    */
   readonly fresh: number;
+  /**
+   * Subjects `accept` would promote, asked of `promotionOf` rather than decided
+   * here: the comment offers accept only when it would land, and a second rule
+   * for that would drift from the one `accept` applies.
+   */
+  readonly promotable: number;
   readonly failed: readonly NotObserved[];
   readonly excluded: number;
   /**
@@ -175,12 +181,15 @@ export function docketOf(report: CliRunReport): Docket {
 
   let reviewable = 0;
   let fresh = 0;
+  let promotable = 0;
   let collateralRegions = 0;
   let collateralPixels = 0;
   let unrecorded = 0;
   let unrecordedPixels = 0;
 
   for (const observation of report.observations) {
+    if (promotionOf(observation).kind === 'promotable') promotable += 1;
+
     for (const font of observation.missingFonts ?? []) {
       missingFonts.set(font, (missingFonts.get(font) ?? 0) + 1);
     }
@@ -298,6 +307,7 @@ export function docketOf(report: CliRunReport): Docket {
     })),
     reviewable,
     fresh,
+    promotable,
     failed: notObserved.filter((entry) => entry.kind === 'failed'),
     excluded: notObserved.filter((entry) => entry.kind === 'excluded').length,
     unreached: notObserved.filter((entry) => entry.kind === 'unreached').length,
