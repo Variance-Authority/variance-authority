@@ -99,14 +99,21 @@ broke breaks there, before an adopter meets it, in the register an adopter would
 meet it in. An example left on the previous minor is not a release that failed —
 it is a release whose acceptance test has not been taken yet.
 
-**A second press is a no-op, not a disaster.** The publish skips versions
-the registry already holds and publishes in dependency order, so an interrupted
-release is resumed by pressing the button again. The publish job refuses to start
-while an unversioned changeset sits on `main`, because that is the state in which
-the version it would publish understates what shipped. Nor does it publish a
-commit that `check` has not passed as a push to `main`: the press waits for that
-run and reads its conclusion rather than running the suite again, so pressing
-once more costs a build and a publish, not another pass over every test.
+**A second press is a no-op, not a disaster.** The publish skips versions the
+registry already holds and publishes in dependency order, so an interrupted
+release is resumed by pressing the button again. Nothing is sent twice inside a
+press: npm answers a publish once it has accepted the version and shows it only
+after scanning it, and for as long as it holds a version it has not shown it
+refuses another publish of it with 409 "previously staged". That refusal is the
+version being npm's, not a failure: the publisher reads it as held, so a second
+press that sends such a version again costs nothing, and a retry inside the
+press has nothing to finish. The press publishes once and gives the registry
+twenty minutes to show what it accepted. The publish job refuses to start while
+an unversioned changeset sits on `main`, because that is the state in which the
+version it would publish understates what shipped. Nor does it publish a commit
+that `check` has not passed as a push to `main`: the press waits for that run
+and reads its conclusion rather than running the suite again, so pressing once
+more costs a build and a publish, not another pass over every test.
 
 **A publish that skipped the build would ship empty tarballs.** `dist` is
 gitignored and no package declares `prepack`, so a build before the publish is

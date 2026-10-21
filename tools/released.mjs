@@ -23,10 +23,10 @@ import read from '@changesets/read';
  * regardless of what it printed.
  *
  * A partial publish is also *repairable* by the thing that caused it:
- * `tools/publish.mjs` skips versions the registry already has, so running it
- * again completes a truncated release rather than doubling one. That is why
- * `release.yml` publishes, asks here, and publishes again while the answer is
- * no. What must never happen is the third outcome — a partial release that
+ * `tools/publish.mjs` skips versions the registry already has, so pressing the
+ * button again completes a truncated release rather than doubling one. That is
+ * why `release.yml` publishes once and asks here, giving npm the time it takes
+ * to show what it accepted, rather than trusting the exit code. What must never happen is the third outcome — a partial release that
  * finishes green.
  *
  * Run it by hand at any time to see where the registry stands:
@@ -34,7 +34,6 @@ import read from '@changesets/read';
  *     node tools/released.mjs            # is main's version fully out, and tagged?
  *     node tools/released.mjs --wait 120 # the same, tolerating registry lag
  *     node tools/released.mjs --registry # skip the tag half
- *     node tools/released.mjs --count    # how many names the registry lacks, and nothing else
  *     node tools/released.mjs --lockstep # before publishing: is there one version to publish, and nothing waiting?
  */
 
@@ -147,8 +146,8 @@ function tagsOnRemote() {
  * the first pass and the step costs one round trip per package.
  *
  * A registry that did not answer — a 5xx, a dropped connection — is asked
- * again on the next pass, because one bad answer between two publish rounds
- * ended a release that the next pass would have counted. It is not counted as
+ * again on the next pass, because one bad answer in a twenty-minute wait
+ * would end a release that the next pass would have counted. It is not counted as
  * missing: what the registry did not say is not that the name is absent. A
  * name still unanswered when the wait is spent refuses, naming why.
  * `ask` and `everyMs` are handed in by a test.
@@ -178,12 +177,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const packages = publishable();
   const version = lockstep(packages);
 
-  // How many names the registry still lacks, alone on stdout, for the release
-  // step to tell a round that finished names from one that finished none.
-  if (argv.includes('--count')) {
-    console.log((await missing(packages, version, wait)).length);
-    process.exit(0);
-  }
   console.log(`${packages.length} packages at ${version}`);
 
   // Before a release, the only answerable questions: the fixed group agrees on

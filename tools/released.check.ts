@@ -83,8 +83,8 @@ describe('what a release publishes', () => {
     }
   });
 
-  // One 503 between two publish rounds ended 0.18.0's retry before it ran: the
-  // count threw, and `bash -e` took the step with it.
+  // One 503 in a wait that spans npm's scan would end a release the next poll
+  // would have counted.
   it('asks again a registry that did not answer, and refuses one that never does', async () => {
     const entries = [{ name: 'a' }, { name: 'b' }];
     const asked: string[] = [];
@@ -116,24 +116,20 @@ describe('the release workflow', () => {
     expect(WORKFLOW).toContain('tools/released.mjs --lockstep');
   });
 
-  // The retry is the repair: the publisher skips versions the registry already
-  // holds, so the command that truncated a release is the command that
-  // finishes it. Its exit code ends nothing: 0.17.1 lost two names, `bash -e`
-  // stopped there, and the retry written for exactly that never ran. And the
-  // retry comes in rounds for as long as rounds finish names, because a name
-  // that fails holds what depends on it: 0.18.0 went 41, 34, 27, 22, 14
-  // missing and stopped at a cap of three with every round still finishing
-  // names. A round that publishes nothing is the stop.
-  it('asks the registry what published, and finishes what did not', () => {
+  // npm answers a publish when it has accepted the version, not when it shows
+  // it: 0.19.0 accepted `core` and showed it minutes later, after a scan. A
+  // second publish of a version npm holds is refused with 409 "previously
+  // staged" forever, so a retry cannot finish anything; it only stopped the
+  // round behind it. One publish, then the registry, given the scan's time,
+  // is the verdict, and nothing may excuse it.
+  it('publishes once, and asks the registry what published', () => {
     const publish = job('publish');
     const attempts = publish.match(/^ *node tools\/publish\.mjs.*$/gm) ?? [];
-    expect(attempts.length).toBe(2);
-    expect(attempts.every((line) => /node tools\/publish\.mjs "\$PACKED" \|\|/.test(line)), attempts.join('\n')).toBe(true);
-    expect(publish).not.toMatch(/for round in \d/);
-    expect(publish).toMatch(/left=\$\(node tools\/released\.mjs --count --wait \d+\)/);
-    expect(publish).toMatch(/while \[ "\$left" -gt 0 \]; do\n[^]*?tools\/publish\.mjs[^]*?released\.mjs --count[^]*?-lt "\$left"[^]*?done/);
-    // The verdict after the rounds stands alone: nothing may excuse it.
-    expect(publish).toMatch(/done\n *node tools\/released\.mjs --registry --wait \d+$/m);
+    expect(attempts).toEqual([expect.stringMatching(/^ *node tools\/publish\.mjs "\$PACKED"$/)]);
+    expect(publish).not.toMatch(/\bwhile\b|\bfor round\b|--count/);
+    const verdict = /^ *node tools\/publish\.mjs "\$PACKED"\n(?: *#.*\n| *\n)* *node tools\/released\.mjs --registry --wait (\d+)$/m.exec(publish);
+    expect(verdict, 'the registry check follows the publish').not.toBeNull();
+    expect(Number(verdict?.[1])).toBeGreaterThanOrEqual(1200);
   });
 
   // Yarn packs, because `yarn pack` rewrites `workspace:^` and runs each

@@ -14,9 +14,11 @@
 // from the workspace, and the Yarn tool refuses a tarball. So changesets plans
 // and packs, and this publishes its plan: each group in order, each name the
 // registry does not hold yet, and nothing after a group a name failed in,
-// because what depends on that name would be installable before it is.
-// Skipping what the registry holds makes it the repair for its own partial
-// run, so it is run again rather than resumed.
+// because what depends on that name would be installable before it is. Skipping
+// what the registry shows, and taking npm's "previously staged" refusal as a
+// version it already holds, makes it the repair for its own partial run: it is
+// run again rather than resumed, and a version it sends again because npm has
+// not shown it yet is refused, read as held, and costs nothing.
 //
 //   yarn changeset pack --out-dir <dir>
 //   node tools/publish.mjs <dir>
@@ -45,13 +47,37 @@ export function npmArguments(dir, release) {
   return ['publish', tarball, '--access', release.access, '--tag', release.tag, '--provenance'];
 }
 
-/** `npm` with these arguments, its output the job's, refused on a non-zero exit. */
+/**
+ * `npm` with these arguments, its output the job's, refused on a non-zero exit
+ * with what it printed to stderr, which is where npm says why.
+ */
 function npm(args) {
   return new Promise((done, refuse) => {
-    const child = spawn('npm', args, { stdio: 'inherit' });
+    const child = spawn('npm', args, { stdio: ['ignore', 'inherit', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+      process.stderr.write(chunk);
+    });
     child.on('error', refuse);
-    child.on('exit', (code) => (code === 0 ? done() : refuse(new Error(`npm ${args.join(' ')} exited ${code}`))));
+    child.on('close', (code) =>
+      code === 0 ? done() : refuse(Object.assign(new Error(`npm ${args.join(' ')} exited ${code}`), { stderr })),
+    );
   });
+}
+
+/**
+ * Whether npm refused a publish because it already holds the version.
+ *
+ * npm answers a publish once it has accepted the version, and shows it only
+ * after scanning it: 0.19.0's `core` was accepted and not shown two minutes
+ * later. Sending it again is refused with 409 "previously staged" for as long
+ * as npm holds it, which is to say forever, so that refusal is the version
+ * being npm's rather than a publish that failed. The registry check after the
+ * publish waits for it to show.
+ */
+export function held(error) {
+  return /previously staged version/i.test(String(error?.stderr ?? ''));
 }
 
 /**
@@ -71,6 +97,10 @@ export async function publish(dir, run = { registry: onRegistry, npm }) {
           if (await run.registry(release.name, release.version)) continue;
           await run.npm(npmArguments(dir, release));
         } catch (error) {
+          if (held(error)) {
+            console.log(`::warning::${named} is already npm's and not shown yet; the registry check waits for it`);
+            continue;
+          }
           failed.push(named);
           console.error(`${named} did not publish: ${error.message}`);
         }

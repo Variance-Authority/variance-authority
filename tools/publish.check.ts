@@ -123,4 +123,46 @@ describe('publishing a packed release', () => {
     expect(most).toBe(PARALLEL);
     expect(failed).toEqual(['n3@1.2.3']);
   });
+
+  // npm holds a version it accepted while it scans it, and a second publish
+  // of it is refused: that refusal says the version is npm's, not that it
+  // failed. 0.19.0's retry read it as a failure and held the group behind it.
+  it('counts a version npm already holds as sent, and any other refusal as a failure', async () => {
+    const dir = packed([[release('a'), release('b')], [release('c')]]);
+    const sent: string[] = [];
+    const failed = await publish(dir, {
+      registry: async () => false,
+      npm: async (args: readonly string[]) => {
+        sent.push(String(args[1]));
+        if (String(args[1]).endsWith('a.tgz')) {
+          throw Object.assign(new Error('npm exited 1'), {
+            stderr: 'npm error code E409\nnpm error 409 Conflict - PUT https://registry.npmjs.org/a - Cannot publish over previously staged version "1.2.3".\n',
+          });
+        }
+        if (String(args[1]).endsWith('b.tgz')) {
+          throw Object.assign(new Error('npm exited 1'), { stderr: 'npm error code E500\n' });
+        }
+      },
+    });
+    expect(failed).toEqual(['b@1.2.3']);
+    expect(sent.sort()).toEqual([join(dir, 'packages/a.tgz'), join(dir, 'packages/b.tgz')]);
+  });
+
+  it('goes on past a version npm already holds', async () => {
+    const dir = packed([[release('a')], [release('c')]]);
+    const sent: string[] = [];
+    const failed = await publish(dir, {
+      registry: async () => false,
+      npm: async (args: readonly string[]) => {
+        sent.push(String(args[1]));
+        if (String(args[1]).endsWith('a.tgz')) {
+          throw Object.assign(new Error('npm exited 1'), {
+            stderr: 'npm error 409 Conflict - PUT x - Cannot publish over previously staged version "1.2.3".\n',
+          });
+        }
+      },
+    });
+    expect(failed).toEqual([]);
+    expect(sent).toEqual([join(dir, 'packages/a.tgz'), join(dir, 'packages/c.tgz')]);
+  });
 });
