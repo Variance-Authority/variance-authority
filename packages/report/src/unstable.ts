@@ -23,9 +23,9 @@ export const NO_RECORD = 'No history record: recurrence unknown';
  * asserts on. Such a subject holds the run open and cannot be accepted; an
  * absorbed instability is neither.
  */
-export function isUnstable(
-  observation: ObservationRecord,
-): observation is ObservationRecord & { readonly unstable: NonNullable<ObservationRecord['unstable']> } {
+export function isUnstable<T extends { readonly unstable?: { readonly absorbed?: unknown } }>(
+  observation: T,
+): observation is T & { readonly unstable: NonNullable<T['unstable']> } {
   return observation.unstable !== undefined && observation.unstable.absorbed === undefined;
 }
 
