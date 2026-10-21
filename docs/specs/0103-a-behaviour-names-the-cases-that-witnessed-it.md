@@ -113,10 +113,11 @@ The flags add facts:
 - **`--limit` caps every list `covering` prints**, with or without a fact flag.
   Absent, every case is listed, as today. Counts are always whole.
 
-No precondition is read against a `names.axes` axis, as spec 0093 holds until
-spec 0102 settles how an axis names a `dimension:key`. A case that never said a
-name has not said it. A configured default is never counted as an observation,
-because none is read.
+A precondition is read as the case said it. A case that never said a name has
+not said it: no value is filled in from `names.axes` or any other
+configuration, because a default filled in is a declaration presented as an
+observation. No value is checked against a vocabulary either. What a case says
+is the user's word, and a closed list would turn a new value into an error.
 
 ## What a case counts as
 
@@ -177,6 +178,32 @@ fallback in src/pay/fallback.ts was entered by 14 cases.
 A listed line is resolved, name and file, only for the cases printed. Every
 other line is a count.
 
+## A contrast
+
+A witness says the facts co-occurred. The nearest case where they did not is the
+cheapest evidence of which fact the pass depended on. A witness's **contrast**
+is a case of the same test file, in the population, that said exactly what the
+witness said except on one name a `--where` fact needed. There it said another
+value, or said nothing. It is printed under the witness with that one
+difference and whether it entered the target:
+
+```
+  src/pay/fallback.test.ts > falls back when the gateway times out
+    contrast: network=offline · src/pay/fallback.test.ts > shows the offline page · did not enter
+```
+
+- **Said nothing is printed as said nothing**, never as a base value.
+- **Another file's case is never a contrast.** A case that said nothing would
+  otherwise be the contrast of every case that said one thing.
+- **Several cases at one difference** print as their count and the first name.
+  None prints *no contrast recorded*. A contradicted case is never a contrast.
+- **It needs no axis.** The difference is computed on the effective items of two
+  cases, so no grammar orders the values and none has to be declared.
+
+A contrast is computed for the listed witnesses only, against their own files'
+cases: at most `--limit` times the largest file's case count, never the whole
+population.
+
 ## How it is answered
 
 Write `S(n, v, l)` for the cases holding item `(n, v, ·, l)`, joined over
@@ -224,11 +251,11 @@ container path — a galloping search for a short list, a word-wise AND for BITS
 intervals for RUNS — is written only where item 4's measurement asks for it.
 
 `whereCases`, and the per-case filter through `rowOf` it runs, are deleted with
-this change, not kept beside it. One answer to `--where` exists after it. The
-twin lines, the base reading and the vocabulary check in `case-axes.ts`
-(`heldValues`, `caseTwins`, `outsideVocabulary`, `namesAt`, and
-`CoveringWhere.outside`) are the reading spec 0093 suspended; they are deleted
-with it, not rebuilt over sets.
+this change, not kept beside it. One answer to `--where` exists after it, and
+`heldValues` goes with it. Whatever axis reading is still in the tree when this
+lands is deleted, not rebuilt over sets: filling a base credits a case with a
+value it never said, and a vocabulary check closes an open word. The twin it
+printed returns as the contrast above, which needs neither.
 
 ## Prior art
 
@@ -274,9 +301,11 @@ state on one case of a suite.
 2. `covering` routed to it: `--named`, `--entered`, `--except-entered`,
    `--limit`, a question with no target, one `dimension:key` given several
    values read as any of them, and the output above. `whereCases`, its `rowOf`
-   filter and the axis readings listed above are deleted. The tests that assert
-   repeated values all-required, a contradicted case matched or a twin printed
-   are amended first, and fail. `covering`'s existing *witness* wording is
+   filter and any axis reading still in the tree are deleted. The tests that
+   assert repeated values all-required, a contradicted case matched or a base
+   value credited are amended first, and fail. A contrast under each listed
+   witness, with a case that said nothing on the differing name, one in another
+   file left out, and a contradicted case left out. `covering`'s existing *witness* wording is
    amended. ADR-0094's Strategy bullet and cost row for `--where` are amended.
 3. Fixtures for questions 1 to 4, recorded under Vitest, Jest and Rstest and run
    through `covering`, with the output each is expected to print. One of them is
@@ -287,14 +316,14 @@ state on one case of a suite.
 
 The first slice is item 1's set operations and resolver, `--where` and
 `--except-entered` through `covering`, and question 1 end to end under Vitest.
-`--named`, *at load only*, the other runners and the measurement follow.
+`--named`, *at load only*, the contrast, the other runners and the measurement
+follow.
 
 ## Open
 
-- **Axes and defaults.** When spec 0102 settles how an axis names a
-  `dimension:key`, a case that never said an axis name stands at its base. That
-  is a configured default, not an observation: it returns as its own count,
-  never as a witness.
+- **Declared defaults.** A project may one day declare what a name is when no
+  case says it. If such a declaration is read, it is its own count beside the
+  observations, never a witness.
 - **Excepted state and names.** `--except-where` and `--except-named` are the
   same set difference. No question above needs them, and how an excepted
   `--where` reads a contradicted or unmeasured case is undecided.
