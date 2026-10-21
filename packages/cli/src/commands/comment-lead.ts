@@ -32,7 +32,8 @@ export function leadBlocks(
   const fresh = docket.fresh === 0 ? '' : `${docket.fresh} subject(s) NEW`;
   // Unstable is said apart from review too: nothing this change did moved it, and
   // nothing a reviewer decides about it settles it.
-  const unstable = docket.unstable.length === 0 ? '' : `${docket.unstable.length} subject(s) unstable`;
+  const unstable =
+    docket.unstable.length === 0 ? '' : `${docket.unstable.length} subject(s) unstable`;
   const besides = [unstable, fresh].filter((part) => part !== '');
 
   const heading =
@@ -56,7 +57,8 @@ export function leadBlocks(
     heading,
     ...leadLine(docket),
     ...(picture === undefined ? [] : [picture]),
-    ...footerBlocks(options, needing + docket.fresh > 0),
+    // A failed subject needs review and is not acceptable either: it was never read.
+    ...footerBlocks(options, docket.reviewable + docket.fresh > 0),
   ];
 }
 

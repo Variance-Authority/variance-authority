@@ -44,15 +44,15 @@ const ticking: ObservationRecord = {
       height: 18,
       pixels: 29,
       component: 'Clock',
-      file: 'cases/storybook-case/src/ds.jsx:126',
+      file: 'cases/storybook-case/src/ds.jsx:118',
       cause: true,
     },
   ],
   unstable: {
-    components: [{ name: 'Clock', file: 'src/ds.jsx:118' }],
+    components: [{ name: 'Clock', file: 'cases/storybook-case/src/ds.jsx:118' }],
     bands: ['content'],
     because:
-      'two readings in a row, with nothing changed between, differ: Clock src/ds.jsx:118 (content). ' +
+      'two readings in a row, with nothing changed between, differ: Clock cases/storybook-case/src/ds.jsx:118 (content). ' +
       'Change neither confirmed nor cleared',
   },
 };
@@ -80,7 +80,7 @@ describe('an unstable subject in the pull-request comment', () => {
   it('names what differed between the two readings and the command that shows it', () => {
     const body = renderComment({ project: 'storybook-case', report: reportOf([ticking]) });
 
-    expect(body).toContain('`story:case-surface--ticking` — `Clock` `src/ds.jsx:118` (content)');
+    expect(body).toContain('`story:case-surface--ticking` — `Clock` `cases/storybook-case/src/ds.jsx:118` (content)');
     expect(body).toContain("`variance run --subjects 'story:case-surface--ticking' --flakes`");
   });
 
@@ -101,6 +101,41 @@ describe('an unstable subject in the pull-request comment', () => {
     expect(body).toContain('## Visual variance — 1 subject(s) need review, 1 subject(s) unstable');
     expect(body).toContain('Cause: **`Button`**');
     expect(body).toContain(`To accept: ${TO_ACCEPT}`);
+  });
+
+  it('does not offer accept beside a subject that failed to render, which accept cannot take either', () => {
+    const report: CliRunReport = {
+      ...reportOf([ticking]),
+      notObserved: [{ subject: 'story:case-surface--broken', kind: 'failed', because: 'the story threw' }],
+    };
+    const body = renderComment({ project: 'storybook-case', report, toAccept: TO_ACCEPT });
+
+    expect(body).not.toContain('To accept');
+  });
+
+  it('says what the history record knows about the subject, or that none answered', () => {
+    const recorded: CliRunReport = {
+      ...reportOf([ticking]),
+      flakiness: {
+        'story:case-surface--ticking': {
+          runs: 12,
+          sweeps: 12,
+          occurrences: 6,
+          absorbedRuns: 0,
+          rate: 0.5,
+          sweepsSince: 0,
+          causes: [{ component: 'Clock', band: 'content', runs: 6 }],
+          because: 'read differently in 6 run(s), 50% of the 12 sweep(s) that asked',
+        },
+      },
+    };
+
+    expect(renderComment({ project: 'storybook-case', report: recorded })).toContain(
+      'read differently in 6 run(s), 50% of the 12 sweep(s) that asked',
+    );
+    expect(renderComment({ project: 'storybook-case', report: reportOf([ticking]) })).toContain(
+      'No history record: recurrence unknown.',
+    );
   });
 
   it('leaves an absorbed instability where its verdict puts it', () => {

@@ -96,6 +96,11 @@ export interface UnstableEntry {
   readonly subject: string;
   readonly components: NonNullable<ObservationRecord['unstable']>['components'];
   readonly bands: readonly string[];
+  /**
+   * The history record's sentence about this subject. **Absent is not "first
+   * time"**: no store answered, and the rendering says so.
+   */
+  readonly history?: string;
 }
 
 export interface Docket {
@@ -195,7 +200,8 @@ export function docketOf(report: CliRunReport): Docket {
     // can carry one: it agreed with its baseline and not with itself.
     if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
       const { components, bands } = observation.unstable;
-      unstable.push({ subject: observation.subject, components, bands });
+      const history = report.flakiness?.[observation.subject]?.because;
+      unstable.push({ subject: observation.subject, components, bands, ...(history === undefined ? {} : { history }) });
       continue;
     }
 
