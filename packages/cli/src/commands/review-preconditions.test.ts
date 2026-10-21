@@ -142,6 +142,17 @@ describe('the cases a review lists under a changed function, with what each arra
     expect(markdown).toContain('| 2; ran under flags:checkout, flags:checkout=true |');
   });
 
+  it('splits two record values of one key apart, by their JSON', async () => {
+    const { root, first } = await changed([
+      row('one', [['fixture:cart', { items: 1 }, `${SPEC}:1`, 1]]),
+      row('two', [['fixture:cart', { items: 2 }, `${SPEC}:5`, 1]]),
+    ]);
+
+    const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
+
+    expect(markdown).toContain('| 2; ran under fixture:cart={"items":1}, fixture:cart={"items":2} |');
+  });
+
   it('prints a value as its text, never as markup the comment would render', async () => {
     const { root, first } = await changed([
       row('bold', [['copy:label', '<b>x</b>', `${SPEC}:1`, 1]]),

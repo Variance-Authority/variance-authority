@@ -58,9 +58,19 @@ describe('the recorder of what the code read', () => {
     recorder.loaded();
     for (const name of ['pays', 'refunds']) {
       running = keyOf(name);
-      expect(read('copy', 'label', 'Pay').asked).toBe(true);
       expect(recorder.take(keyOf(name)).read).toEqual([['copy:label', '"Pay"', loaded.site, 0]]);
     }
+  });
+
+  it('keeps a case\'s own read of a value the file read as it loaded, at the case\'s site, as the native fold does', () => {
+    let running: string | undefined;
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    read('copy', 'label', 'Pay');
+    recorder.loaded();
+    running = keyOf('pays');
+    const own = read('copy', 'label', 'Pay');
+    expect(own.asked).toBe(true);
+    expect(recorder.take(running).read).toEqual([['copy:label', '"Pay"', own.site, preconditions.CASE_LEVEL]]);
   });
 
   it('asks again for each case, so a read is laid on every case that made it', () => {

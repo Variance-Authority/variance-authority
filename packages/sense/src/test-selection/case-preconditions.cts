@@ -302,7 +302,11 @@ function recorder(
       if (!reads) return { said };
       const own = readByCase.get(key) ?? [];
       readByCase.delete(key);
-      return { said, read: firstOfEach([...atLoad, ...own]) };
+      // A case's own read of a value the file read as it loaded wins, as the
+      // narrowest level does in the native fold.
+      const ownKeys = new Set(own.map(([name, value]) => JSON.stringify([name, value])));
+      const loaded = atLoad.filter(([name, value]) => !ownKeys.has(JSON.stringify([name, value])));
+      return { said, read: firstOfEach([...loaded, ...own]) };
     },
     held: (key) => [...(byCase.get(key) ?? [])],
     finish() {
