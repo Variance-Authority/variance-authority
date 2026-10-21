@@ -380,37 +380,23 @@ jobs:
           # cost 0.17.1 two names and 0.18.0 one to three on every attempt.
           yarn changeset pack --out-dir "$PACKED"
 
-          # Asking the registry rather than believing the exit code, either
-          # way. 0.5.6 reached five of the thirty-eight names and stopped, and
-          # the step that did it was green. 0.17.1 lost two names and the step
-          # stopped on the exit code, so the retry below never ran.
-          node tools/publish.mjs "$PACKED" || echo "::warning::the publish failed on some names; the registry decides what is missing"
+          # Once. npm answers a publish when it has accepted the version, and
+          # shows it only after scanning it, so a version it holds and has not
+          # shown is refused a second publish with 409 "previously staged" for
+          # good: 0.19.0's retry sent `core` again, was refused, and held the
+          # group behind it. `tools/publish.mjs` reads that refusal as the
+          # version being npm's, and a name that failed any other way fails
+          # this step here. Pressing the button again is the repair: it sends
+          # what the registry does not show, and a version npm holds and has
+          # not shown is refused again and read as held.
+          node tools/publish.mjs "$PACKED"
 
-          # The publisher skips versions the registry already has, so the
-          # repair for a truncated release is the same command again — it
-          # completes the missing names and no others. In rounds, because a
-          # name that fails holds every package that depends on it, and for as
-          # long as a round finishes names: 0.18.0 went 41, 34, 27, 22, 14
-          # missing and stopped at a cap of three with every round still
-          # finishing names. A round that finishes none is the stop.
-          #
-          # No round's exit code is the verdict either. npm processes a
-          # publish asynchronously, and a version it has accepted but not yet
-          # shown refuses a second publish with 409 "previously staged". 0.6.0
-          # published all thirty-eight, showed twenty-five after two minutes,
-          # and showed `core` about six minutes after it was sent. So a round
-          # may fail, and the registry, given ten minutes, decides.
-          left=$(node tools/released.mjs --count --wait 120)
-          round=0
-          while [ "$left" -gt 0 ]; do
-            round=$((round + 1))
-            echo "::warning::$left names are not on the registry — round $round"
-            node tools/publish.mjs "$PACKED" || echo "::warning::round $round was refused on some names; a 409 'previously staged' is a version npm accepted and has not shown yet"
-            now=$(node tools/released.mjs --count --wait 120)
-            [ "$now" -lt "$left" ] || { echo "::warning::round $round finished no name"; break; }
-            left=$now
-          done
-          node tools/released.mjs --registry --wait 600
+          # A failed publish ends the step above; a green one is not believed
+          # either, because 0.5.6 reached five of thirty-eight names from a
+          # green step. The registry has the last word. It is given the scan's
+          # time — 0.6.0 showed `core` six minutes after it was sent, and other
+          # projects have seen npm hold one for seventeen.
+          node tools/released.mjs --registry --wait 1200
 
           # `changeset tag` is the tagging `changeset publish` claims to have
           # done, asked for on its own. It names versions the registry has
