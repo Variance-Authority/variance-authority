@@ -81,6 +81,6 @@
     "@types/react": "^19.2.14",
     "jest": "^30.5.1",
     "react": "^19.2.8",
-    "react-server-dom-webpack": "^19.2.8"
+    "react-server-dom-parcel": "^19.3.1"
   }
 }

@@ -15,7 +15,7 @@ registerHooks({
 });
 
 const { createElement, Suspense } = await import('react');
-const { renderToPipeableStream } = await import('react-server-dom-webpack/server');
+const { renderToPipeableStream } = await import('react-server-dom-parcel/server');
 const { requestSessions } = await import('@variance-authority/isolator/react');
 const { visit } = await import('./visits.mjs');
 
@@ -53,7 +53,7 @@ const request = () => {
       },
     });
     sink.on('finish', () => resolve(payload));
-    renderToPipeableStream(createElement(Page, gates), {}, { onError: reject }).pipe(sink);
+    renderToPipeableStream(createElement(Page, gates), { onError: reject }).pipe(sink);
   });
   return { gates, done };
 };
