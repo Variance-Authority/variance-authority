@@ -25,7 +25,7 @@ import read from '@changesets/read';
  * A partial publish is also *repairable* by the thing that caused it:
  * `changeset publish` skips versions the registry already has, so running it
  * again completes a truncated release rather than doubling one. That is why
- * `release.yml` publishes, asks here, and publishes once more if the answer is
+ * `release.yml` publishes, asks here, and publishes again while the answer is
  * no. What must never happen is the third outcome — a partial release that
  * finishes green.
  *

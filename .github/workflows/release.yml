@@ -370,28 +370,34 @@ jobs:
           # authenticates. Setting a token here turns trusted publishing off.
           YARN_NPM_PUBLISH_PROVENANCE: 'true'
         run: |
-          yarn release:publish
+          # Asking the registry rather than believing the exit code, either
+          # way. 0.5.6 reached five of the thirty-eight names and stopped, and
+          # the step that did it was green. 0.17.1 lost two names to a
+          # transparency-log 409 and the step stopped on the exit code, so the
+          # retry below never ran. Yarn's sigstore client gives rekor five
+          # seconds, retries the same signed envelope when rekor is slower, and
+          # reads rekor's "an equivalent entry already exists" for the entry it
+          # just made as a failure. A new attempt signs a new envelope.
+          yarn release:publish || echo "::warning::the publish failed on some names; the registry decides what is missing"
 
-          # Asking the registry rather than believing the exit code. 0.5.6
-          # reached five of the thirty-eight names and stopped, and the step
-          # that did it was green. `changeset publish` skips versions the
-          # registry already has, so the repair for a truncated release is the
-          # same command again — it completes the missing names and no others.
-          # One retry: a second identical failure is not a flake.
+          # `changeset publish` skips versions the registry already has, so
+          # the repair for a truncated release is the same command again — it
+          # completes the missing names and no others. In rounds, because a
+          # name that fails holds every package that depends on it: the round
+          # that finishes `package` is the first that attempts what imports it.
           #
-          # The retry's own exit code is not the verdict either. npm processes
-          # a publish asynchronously, and a version it has accepted but not yet
+          # No round's exit code is the verdict either. npm processes a
+          # publish asynchronously, and a version it has accepted but not yet
           # shown refuses a second publish with 409 "previously staged". 0.6.0
           # published all thirty-eight, showed twenty-five after two minutes,
-          # and showed `core` about six minutes after it was sent — while the
-          # retry, refused on three of the names in that window, stopped the
-          # step. So the retry may fail, and the registry, given ten minutes,
-          # decides.
-          node tools/released.mjs --registry --wait 120 || {
-            echo "::warning::the publish was partial — running it again for the names still missing"
-            yarn release:publish || echo "::warning::the retry was refused; a 409 'previously staged' is a version npm accepted and has not shown yet"
-            node tools/released.mjs --registry --wait 600
-          }
+          # and showed `core` about six minutes after it was sent. So a round
+          # may fail, and the registry, given ten minutes, decides.
+          for round in 1 2 3; do
+            node tools/released.mjs --registry --wait 120 && break
+            echo "::warning::the publish was partial — round $round for the names still missing"
+            yarn release:publish || echo "::warning::round $round was refused on some names; a 409 'previously staged' is a version npm accepted and has not shown yet"
+          done
+          node tools/released.mjs --registry --wait 600
 
           # `changeset tag` is the tagging `changeset publish` claims to have
           # done, asked for on its own. It names versions the registry has
