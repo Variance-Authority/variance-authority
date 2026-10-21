@@ -3010,6 +3010,7 @@
         "LastFetched": "interface",
         "LineRange": "interface",
         "MismatchedRow": "interface",
+        "Misuse": "interface",
         "ModuleTexts": "type",
         "MovedRegion": "interface",
         "NAME_BOUNDARY": "const",

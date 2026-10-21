@@ -300,6 +300,17 @@ Vitest, Jest and Rstest record it in Node when the suite is recorded with
 | While the test file loads | On every test of the file, as if a top-level `beforeEach` read it |
 | Where no test is running | Nothing, with one warning per site |
 | Two values for one key in one test | Both, each as its own `read` |
+| A dimension or key that is not a non-empty string, or a dimension holding `:` | A misuse on that test, with its site and what was wrong, never a read |
+
+`variance covering` prints a misuse after the reads, and `variance review` gives
+the test `misused: [{site, why}]` under `--format json`:
+
+```text
+    applies the discount — read flags:discount=true said true, misused varianceBreadcrumb at src/flags.ts:7: the key 7 is not a string
+```
+
+A misuse never joins `--read` or the split `review` makes by what the code
+read.
 
 A read never throws, unlike `variancePrecondition` where no test runs: it sits
 in product code, which runs whether or not a test does.

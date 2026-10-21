@@ -8,6 +8,7 @@
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeSaid } from '../native-said.js';
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import preconditions from './case-preconditions.cjs';
 
 /**
  * Every item a case said and read, unresolved — overridden ones too — as
@@ -75,6 +76,14 @@ export interface CaseRow {
   readonly said?: readonly CasePrecondition[];
   /** Per name and value read, the first site it was read at. */
   readonly read?: readonly CasePrecondition[];
+  /** Each `varianceBreadcrumb` call that made no `dimension:key`, at its first site; absent where none did. */
+  readonly misused?: readonly Misuse[];
+}
+
+/** A `varianceBreadcrumb` call that made no `dimension:key`: its `file:line` and what was wrong. */
+export interface Misuse {
+  readonly site: string;
+  readonly why: string;
 }
 
 type Spelled = [name: string, value: string | null, site: string, level: number];
@@ -85,7 +94,14 @@ export function saidRow(said: Said): CaseRow {
   const items = (spelled: Spelled[]) =>
     spelled.map(([name, value, site, level]): CasePrecondition =>
       value === null ? { name, site, level } : { name, value: JSON.parse(value) as unknown, site, level });
-  return { ...(row.said === undefined ? {} : { said: items(row.said) }), ...(row.read === undefined ? {} : { read: items(row.read) }) };
+  const misused = (row.read ?? []).filter(([name]) => name === preconditions.MISUSED)
+    .map(([, why, site]): Misuse => ({ site, why: JSON.parse(why!) as string }));
+  const read = row.read?.filter(([name]) => name !== preconditions.MISUSED);
+  return {
+    ...(row.said === undefined ? {} : { said: items(row.said) }),
+    ...(read === undefined ? {} : { read: items(read) }),
+    ...(misused.length === 0 ? {} : { misused }),
+  };
 }
 
 /** What a case said, resolved; undefined for a case nobody listened to for preconditions. */
@@ -174,11 +190,12 @@ export function heldValues(said: readonly CasePrecondition[], named: string): re
  * the dimensions the code never read, as spec 0093 prints it. A key said in a
  * dimension the code read, and never read itself, is left out. Where nobody
  * listened to reads or the code read nothing, what the case said alone;
- * nothing when it heard nothing.
+ * nothing when it heard nothing. Each misused breadcrumb comes last, with its
+ * site and what was wrong.
  */
 export function heldText(test: { readonly said?: Said | undefined }): string {
   if (test.said === undefined) return '';
-  const { said = [], read } = saidRow(test.said);
+  const { said = [], read, misused = [] } = saidRow(test.said);
   const dimension = (name: string) => name.slice(0, name.indexOf(':'));
   const consulted = new Set(read?.map((held) => dimension(held.name)));
   const reads = read?.map((held) => {
@@ -191,6 +208,7 @@ export function heldText(test: { readonly said?: Said | undefined }): string {
     // no breadcrumb, that is every case. The record keeps it apart from absent.
     ...reads ?? [],
     ...unread.length === 0 ? [] : [preconditionText(unread)],
+    ...misused.map(({ site, why }) => `misused varianceBreadcrumb at ${site}: ${why}`),
   ];
   return parts.length === 0 ? '' : ` — ${parts.join(', ')}`;
 }

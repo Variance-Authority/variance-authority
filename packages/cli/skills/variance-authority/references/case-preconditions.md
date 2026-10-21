@@ -133,7 +133,11 @@ export function isOn(key: string): boolean {
   prints as `unrecorded`.
 - `varianceBreadcrumb` returns its value, never throws, and does nothing
   without a recording; it ships in product source. A read where no case runs
-  warns once per site and is recorded nowhere.
+  warns once per site and is recorded nowhere. A dimension or key that is not
+  a non-empty string, or a dimension holding `:`, is a misuse: `covering` prints
+  `misused varianceBreadcrumb at <site>: the key 7 is not a string` after the
+  reads, and `review` gives the case `misused: [{site, why}]`. It is
+  never a read, so `--read` and the split never see it. Fix the call.
 - Both only take effect in a recorded run: a record made before the call was
   added holds none of it.
 

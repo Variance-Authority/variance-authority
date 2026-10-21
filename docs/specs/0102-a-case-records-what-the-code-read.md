@@ -104,8 +104,10 @@ if (varianceBreadcrumb('flags', 'new-checkout', flags['new-checkout'])) {
 The breadcrumb is called from application source, and that fixes three things the
 precondition does not share:
 
-- **It never throws.** A misuse — a dimension with a `:` — is recorded on the
-  case and reported, and the value is returned. A recorder's failure is
+- **It never throws.** A misuse — a dimension or key that is not a non-empty
+  string, or a dimension with a `:` — is recorded on the case as a fact of its
+  own, its site and what was wrong, apart from what the code read, and the value
+  is returned. A recorder's failure is
   swallowed, as the precondition's is.
 - **It imports nothing and costs one property read without a recording**,
   measured, because it runs in production builds. Like the precondition's

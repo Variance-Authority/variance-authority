@@ -128,16 +128,28 @@ describe('the recorder of what the code read', () => {
     expect(recorder.take(running).read).toEqual([]);
   });
 
-  it('names a read with no string dimension and key under the empty dimension, and a value JSON cannot hold as unrecorded', () => {
+  it('records a read it cannot name as a misuse under the empty name, with what was wrong as its value', () => {
     const running = keyOf('pays');
     const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
     recorder.loaded();
-    read(7, 'checkout', () => true);
-    read('flags:x', 'checkout', 1);
+    for (const [dimension, key] of [[7, 'checkout'], ['flags:x', 'checkout'], ['', 'checkout'], ['flags', 7], ['flags', '']] as const) {
+      read(dimension, key, true);
+    }
     expect(recorder.take(running).read!.map(([name, value]) => [name, value])).toEqual([
-      [':7:checkout', null],
-      [':flags:x:checkout', '1'],
+      ['', '"the dimension 7 is not a string"'],
+      ['', '"the dimension \\"flags:x\\" holds `:`"'],
+      ['', '"the dimension is empty"'],
+      ['', '"the key 7 is not a string"'],
+      ['', '"the key is empty"'],
     ]);
+  });
+
+  it('keeps a value JSON cannot hold under the name it was read by, as unrecorded', () => {
+    const running = keyOf('pays');
+    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    recorder.loaded();
+    read('flags', 'checkout', () => true);
+    expect(recorder.take(running).read!.map(([name, value]) => [name, value])).toEqual([['flags:checkout', null]]);
   });
 
   it('installs nothing to read with and carries no read facet where the runner does not listen to reads', () => {

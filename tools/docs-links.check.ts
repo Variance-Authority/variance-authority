@@ -88,6 +88,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'test/refund.test.ts': "a reader's own test file, quoted from a sample answer about case preconditions",
   'test/flags.ts': "a reader's own test helper, quoted from a sample answer about case preconditions",
   'test/prices.ts': "a reader's own test helper, quoted from a sample answer about case preconditions",
+  'src/flags.ts': "a reader's own module, quoted from a sample answer about case preconditions",
   'test/cleanup.test.ts': "a reader's own test file, quoted from a sample warning about case preconditions",
   'test/misplaced.test.ts': "a reader's own test file, quoted from a sample error about case preconditions",
 };

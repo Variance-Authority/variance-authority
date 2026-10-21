@@ -194,4 +194,21 @@ describe('the cases a review lists under a changed function, with what each arra
 
     expect(markdown).toContain('1 of 4 cases was recorded without preconditions, so the state it ran under is unmeasured.');
   });
+
+  it('gives a case that misused a breadcrumb its misuse apart from what the code read, and splits nothing by it', async () => {
+    const reading = (...read: readonly (readonly [string, string, string])[]): ExecutionTest => ({
+      id: `${SPEC} > reads`, file: SPEC, name: 'reads', stopped: false,
+      said: JSON.stringify({ said: [], read: read.map(([name, value, site]) => [name, JSON.stringify(value), site, 0xffff]) }),
+    });
+    const { root, first } = await changed([reading(['flags:checkout', 'on', 'src/total.ts:2'], ['', 'the key 7 is not a string', 'src/total.ts:2'])]);
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    const region = answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((one) => one.name === 'applyDiscount');
+    expect(region?.called.map(({ reads, misused }) => ({ reads, misused }))).toEqual([{
+      reads: [{ name: 'flags:checkout', value: 'on', site: 'src/total.ts:2', level: 0xffff }],
+      misused: [{ site: 'src/total.ts:2', why: 'the key 7 is not a string' }],
+    }]);
+    expect(formatReview(answer, 'markdown')).not.toMatch(/(^|[ ;|])read the key/mu);
+  });
 });

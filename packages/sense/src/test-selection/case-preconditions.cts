@@ -45,10 +45,11 @@ const BREADCRUMB = Symbol.for('variance-authority.test-selection.breadcrumb');
 const MISPLACED = Symbol.for('variance-authority.test-selection.precondition.misplaced');
 
 /**
- * What a misused read is named under: the empty dimension, which no
- * well-formed name has, then the dimension and key it was handed.
+ * What a read the breadcrumb cannot name is recorded under: the empty name,
+ * which no `dimension:key` is, with what was wrong as its value. A reader
+ * splits it off the reads, so it is never taken for a key.
  */
-const MISUSED = ':';
+const MISUSED = '';
 
 /** What the reads made while the file loads are seen under. */
 const LOADING = Symbol('loading');
@@ -204,8 +205,9 @@ function recorder(
       warned.add(site);
       // FIXME: spec 0102 counts a read no case runs on its file, with its site,
       // and lays a `beforeAll`'s read on every case of its describe.
+      const what = name === MISUSED ? `was misused (${JSON.parse(value!) as string})` : `read ${name}`;
       console.warn(
-        `variance-authority: varianceBreadcrumb at ${siteNamed(site)} read ${name} where no case runs and is recorded on no case`,
+        `variance-authority: varianceBreadcrumb at ${siteNamed(site)} ${what} where no case runs and is recorded on no case`,
       );
       return false;
     }
@@ -250,7 +252,12 @@ function recorder(
       key: unknown,
       value: unknown,
       called?: unknown,
-    ): boolean => read(readName(dimension, key), jsonText(value), called);
+    ): boolean => {
+      const wrong = misuseOf(dimension, key);
+      return wrong === undefined
+        ? read(`${dimension as string}:${key as string}`, jsonText(value), called)
+        : read(MISUSED, JSON.stringify(wrong), called);
+    };
   }
 
   return {
@@ -339,9 +346,22 @@ function isDimension(dimension: unknown): dimension is string {
   return typeof dimension === 'string' && dimension !== '' && !dimension.includes(':');
 }
 
-/** A read's name: `dimension:key`, or under {@link MISUSED} the two it was handed when they make no name. */
-function readName(dimension: unknown, key: unknown): string {
-  return isDimension(dimension) && typeof key === 'string' ? `${dimension}:${key}` : `${MISUSED}${String(dimension)}:${String(key)}`;
+/** Why a dimension and key make no `dimension:key`, or nothing when they make one. */
+function misuseOf(dimension: unknown, key: unknown): string | undefined {
+  if (typeof dimension !== 'string') return `the dimension ${shown(dimension)} is not a string`;
+  if (dimension === '') return 'the dimension is empty';
+  if (dimension.includes(':')) return `the dimension ${JSON.stringify(dimension)} holds \`:\``;
+  if (typeof key !== 'string') return `the key ${shown(key)} is not a string`;
+  if (key === '') return 'the key is empty';
+  return undefined;
+}
+
+/** A value as a misuse names it: a primitive as itself, anything else by its kind. */
+function shown(value: unknown): string {
+  if (value === null || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'undefined' || typeof value === 'bigint') {
+    return String(value);
+  }
+  return typeof value === 'object' ? (Array.isArray(value) ? 'an array' : 'an object') : `a ${typeof value}`;
 }
 
 /**
