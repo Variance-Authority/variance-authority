@@ -2335,6 +2335,7 @@
         "LexiconField": "type",
         "LexiconReport": "interface",
         "MovementRecord": "interface",
+        "NO_RECORD": "const",
         "NotObserved": "interface",
         "NotObservedKind": "type",
         "ObservationRecord": "interface",
@@ -2361,6 +2362,7 @@
         "SubjectStructureRecord": "interface",
         "UnclaimedChange": "interface",
         "Unrecordable": "interface",
+        "UnstableSubject": "interface",
         "VariationRecord": "interface",
         "VariationStep": "interface",
         "absorbedBands": "function",
@@ -2385,6 +2387,7 @@
         "ignoreTotals": "function",
         "isActionable": "function",
         "isRecorded": "function",
+        "isUnstable": "function",
         "methodLine": "function",
         "mixedAges": "function",
         "parseCommitMessage": "function",
@@ -2396,6 +2399,7 @@
         "sensitivityShare": "function",
         "sensitivityState": "function",
         "sensitivityTotals": "function",
+        "unstableOf": "function",
         "whyNotWhole": "function"
       },
       "./file": {
