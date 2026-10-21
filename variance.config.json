@@ -104,10 +104,11 @@
     "packages/isolator": [
       "src/jest.ts",
       "src/node.ts",
+      "src/loader.ts",
       "src/react.ts",
-      "src/rspack.ts",
       "src/runtime.ts",
-      "src/session.ts"
+      "src/session.ts",
+      "src/transform.ts"
     ],
     "packages/jest-transformer": [
       "src/index.ts"

@@ -13,12 +13,16 @@
  *
  * The module runs every step once, as it always did, and tells its frame when
  * its last statement has run: every session starts from a copy of what the
- * module held then. What moves: every `let` and
- * `var`, and every `const` that holds an object or an array literal, or a new
- * `Map`, `Set`, `Array` or `Object`. A `const` built by a call — `memoize(fn)`,
- * `createStore()`, a higher-order component — stays: the call decides what it
- * holds, and a module that has to reset it says so with `registerResetHandler`
- * from `@variance-authority/ioc/reset`.
+ * module held then.
+ *
+ * Only state a session can change moves: a `let` or `var` the module writes
+ * somewhere — an assignment, an update, a loop head — and any declaration that
+ * holds an object or an array literal, or a new `Map`, `Set`, `Array` or
+ * `Object`. A `let` nobody writes reads as the `const` it could have been. A
+ * function or a class is never wrapped, however it is declared, and nor is a
+ * value built by a call — `memoize(fn)`, `createStore()`, a higher-order
+ * component: the call decides what it holds, and a module that has to reset
+ * it says so with `registerResetHandler` from `@variance-authority/ioc/reset`.
  *
  * What it cannot rewrite it leaves, and says so in `left`: an exported `let`,
  * since an ES module's importers read the binding itself; an object that leaves
@@ -26,7 +30,8 @@
  * took it keeps the one the module made; an instance of a class, which no
  * session can copy; a `var` declared twice, or by a function too; an
  * object that holds an object every session shares, since its copy would hold
- * a copy instead; a module that awaits at its top level, or reads through `with`.
+ * a copy instead; a function the module reassigns; a module that awaits at its
+ * top level, or reads through `with`.
  *
  * Every line stays where it was, so a stack trace names the line it did before.
  */
@@ -36,7 +41,7 @@ import { parseSync } from 'oxc-parser';
 import { binders, bound, isNode, moduleReferences, varNames, type Node } from './scope.js';
 
 /** The specifier a rewritten module imports its frame from. */
-export const RUNTIME = '@variance-authority/isolator/runtime';
+const RUNTIME = '@variance-authority/isolator/runtime';
 
 /** One declaration the transform did not rewrite, and why. */
 export interface Left {
@@ -46,6 +51,7 @@ export interface Left {
   readonly reason: string;
 }
 
+/** One module, rewritten, and what it left shared. */
 export interface Isolated {
   readonly code: string;
   /** Absent when nothing was rewritten. */
@@ -59,6 +65,7 @@ const IGNORE = /@isolator-ignore(?!-file)/;
 const LEAVES = 'it holds an object that leaves the module when it loads, exported or handed to something, so every session shares it';
 const INSTANCE = 'it holds an instance of a class, which a session cannot copy, so every session shares it';
 const HOLDS = 'it holds an object every session shares, which a copy of it would not, so every session shares it too';
+const FUNCTION = 'it holds a function, and isolator never wraps one, so every session shares it';
 const NESTED = 'a `var` inside a top-level block, loop head or `try` belongs to the module, but no step can stand in for its declaration, so every session shares it';
 
 /** One top-level declarator, and what it becomes: a step of the frame, or itself. */
@@ -80,7 +87,11 @@ interface Held {
 }
 
 /**
- * Rewrite one module. `file` is read for its extension, which decides how it is
+ * Rewrite one module: the whole transform, which the Jest transformer and the
+ * loader only call. Any other build tool calls it the same way, with the text
+ * it read and its path, and hands on `code` and `map`.
+ *
+ * `file` is read for its extension, which decides how it is
  * parsed — `.ts`, `.tsx`, `.jsx`, `.cjs` — and is the map's source.
  */
 export function isolate(code: string, file: string): Isolated {
@@ -132,12 +143,26 @@ function isolateParsed(
     left.push({ line: lineOf(declarator.node.start), name: labelOf(declarator), reason });
   };
 
+  // Only what a session can change moves: a `let` or `var` nobody writes is a
+  // `const` by another name, and a function, however declared, is never state.
+  const declaredAt = new Set(declarators.map(({ node }) => node.id as Node).filter((id) => id.type === 'Identifier').map((id) => id.start));
+  const found = moduleReferences(program, new Set(declarators.flatMap(({ names }) => names)), declaredAt);
+  if (found.evaluates) {
+    return unchanged([{ line: 1, name: 'eval', reason: 'a direct `eval` can name any variable, so none is rewritten' }]);
+  }
+  const written = new Set(found.references.filter(({ written }) => written).map(({ name }) => name));
+
   const functions = functionNames(body);
   const declaredBy = new Map<string, number>();
   for (const name of varNames(body)) declaredBy.set(name, (declaredBy.get(name) ?? 0) + 1);
   for (const declarator of declarators) {
     const { kind, object } = declarator;
-    if (kind !== 'const' && declarator.exported) {
+    const changes = kind !== 'const' && declarator.names.some((name) => written.has(name));
+    if (callable(declarator.node.init as Node | null)) {
+      if (changes) leave(declarator, FUNCTION);
+    } else if (kind !== 'const' && !changes && object === undefined) {
+      // Never written: what it holds stays, as a `const`'s would.
+    } else if (kind !== 'const' && declarator.exported) {
       leave(declarator, `an exported \`${kind}\` is read by its importers as a live binding, which no getter can stand in for`);
     } else if (kind === 'const' && object === undefined) {
       // A value no session can change, or one a call decided.
@@ -164,11 +189,6 @@ function isolateParsed(
 
   const roleOf = new Map(declarators.map((declarator) => [declarator.node, declarator]));
   const ownerOf = new Map(declarators.flatMap((declarator) => declarator.names.map((name) => [name, declarator] as const)));
-  const declaredAt = new Set(declarators.map(({ node }) => node.id as Node).filter((id) => id.type === 'Identifier').map((id) => id.start));
-  const found = moduleReferences(program, new Set(ownerOf.keys()), declaredAt);
-  if (found.evaluates) {
-    return unchanged([...left, { line: 1, name: 'eval', reason: 'a direct `eval` can name any variable, so none is rewritten' }]);
-  }
 
   // An object stays one object only while every name for it moves with it: a
   // session's copy keeps two of its names two names for one copy, and nothing
@@ -311,6 +331,12 @@ function within(nodes: readonly Node[]): (at: number) => Node | undefined {
     }
     return undefined;
   };
+}
+
+/** A function or a class, under any `as`. */
+function callable(value: Node | null): boolean {
+  const node = unwrap(value);
+  return node?.type === 'ArrowFunctionExpression' || node?.type === 'FunctionExpression' || node?.type === 'ClassExpression';
 }
 
 /** A value no copy can tell from the one it was copied from. */

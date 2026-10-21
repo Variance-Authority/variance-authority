@@ -1,10 +1,11 @@
 /**
- * The Rspack loader: isolate each module before the project's loaders read it.
+ * The loader for Rspack and webpack: isolate each module before the project's
+ * loaders read it. It speaks the loader API both share and imports neither.
  *
  * ```js
  * // rspack.config.mjs
  * module: {
- *   rules: [{ test: /\.[jt]sx?$/, exclude: /node_modules/, enforce: 'pre', loader: '@variance-authority/isolator/rspack' }],
+ *   rules: [{ test: /\.[jt]sx?$/, exclude: /node_modules/, enforce: 'pre', loader: '@variance-authority/isolator/loader' }],
  * }
  * ```
  *
@@ -23,7 +24,7 @@ export interface IsolatorLoaderOptions {
   readonly exclude?: readonly string[];
 }
 
-/** The subset of Rspack's loader surface this uses, so nothing here needs Rspack. */
+/** The part of the loader API this uses, which Rspack and webpack both give. */
 export interface IsolatorLoaderContext {
   readonly resourcePath: string;
   readonly rootContext: string;

@@ -41,6 +41,8 @@ export interface Reference {
    * whichever its own place is: `state.items` kept keeps a part of `state`.
    */
   readonly stored: boolean;
+  /** Where it is written: an assignment's target, an update's operand, a `for…in`/`for…of` head. */
+  readonly written: boolean;
 }
 
 /** What the walk found in one module. */
@@ -93,6 +95,7 @@ export function moduleReferences(program: Node, names: ReadonlySet<string>, decl
   const references: Reference[] = [];
   const shorthands = new Set<Node>();
   const callees = new Set<Node>();
+  const writes = new Set<Node>();
   const scopes: Set<string>[] = [];
   let evaluates = false;
   let functions = 0;
@@ -100,7 +103,7 @@ export function moduleReferences(program: Node, names: ReadonlySet<string>, decl
   const shadowed = (name: string): boolean => scopes.some((scope) => scope.has(name));
   const reference = (id: Node, name: string, stored: boolean): void => {
     if (!names.has(name) || declared.has(id.start) || shadowed(name)) return;
-    references.push({ name, start: id.start, end: id.end, shorthand: shorthands.has(id), called: callees.has(id), deferred: functions > 0, stored });
+    references.push({ name, start: id.start, end: id.end, shorthand: shorthands.has(id), called: callees.has(id), deferred: functions > 0, stored, written: writes.has(id) });
   };
   const within = (scope: Set<string>, visit: () => void): void => {
     scopes.push(scope);
@@ -121,6 +124,11 @@ export function moduleReferences(program: Node, names: ReadonlySet<string>, decl
       letGo(inner.object);
       if (inner.computed === true) each(inner.property);
     } else each(value);
+  };
+  /** Mark the identifiers a target writes; a member it writes is not one of them. */
+  const writesTo = (target: unknown): void => {
+    const inner = unwrapped(target);
+    if (isNode(inner)) for (const id of binders(inner)) writes.add(id);
   };
   /** Mark the identifier a call or a tag calls. */
   const calls = (callee: unknown): void => {
@@ -168,6 +176,12 @@ export function moduleReferences(program: Node, names: ReadonlySet<string>, decl
       case 'TaggedTemplateExpression':
         calls(node.tag);
         return children(node);
+      case 'AssignmentExpression':
+        writesTo(node.left);
+        return children(node);
+      case 'UpdateExpression':
+        writesTo(node.argument);
+        return children(node);
       case 'CallExpression':
         calls(node.callee);
         if (isNode(node.callee) && node.callee.type === 'Identifier' && node.callee.name === 'eval' && !shadowed('eval')) evaluates = true;
@@ -210,6 +224,7 @@ export function moduleReferences(program: Node, names: ReadonlySet<string>, decl
       case 'ForOfStatement': {
         const head = (node.init ?? node.left) as Node | null;
         const scope = head?.type === 'VariableDeclaration' && head.kind !== 'var' ? declarations([head], false) : new Set<string>();
+        if (node.type !== 'ForStatement' && head?.type !== 'VariableDeclaration') writesTo(head);
         return within(scope, () => children(node));
       }
       case 'CatchClause':

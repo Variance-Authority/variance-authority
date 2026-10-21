@@ -129,7 +129,7 @@ const PACKAGES: {
       },
       {
         name: "isolator",
-        role: "the same reset without a handler: a build transform that gives every module-level variable one value per test, request or run",
+        role: "the same reset without a handler: an experimental build transform that gives a module's mutable state one value per test, request or run",
       },
     ],
   },

@@ -2,10 +2,14 @@
 
 # @variance-authority/isolator
 
-> A build transform that gives every module-level variable one value per session, so each test, request or run starts from the values the module was loaded with.
+> A build transform that gives a module's mutable state one value per session, so each test, request or run starts from the values the module was loaded with.
 
 Part of [Variance Authority](https://variance-authority.dev).
 Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
+
+**Experimental.** Every read of a rewritten variable goes through a JavaScript
+frame, and what that costs a hot path has not been measured; the transform's
+performance waits on a Rust port.
 
 A module-level `let` outlives the test that changed it, and so does the `Map`
 a `const` holds. [`@variance-authority/ioc`](https://variance-authority.dev/reference/packages/ioc) lets the module that owns
@@ -31,8 +35,9 @@ npm install --save-dev @variance-authority/isolator @variance-authority/ioc
 
 ## Requirements
 
-Node 22 or newer. Jest 30 or Rspack 2 to run the transform. React 19 only for
-the React entry.
+Node 22 or newer. React 19 only for the React entry. The transform is one
+function, `isolate(code, file)`; Jest 30, Rspack 2 and webpack 5 get a seam
+that calls it, and any other build tool calls it itself.
 
 ## What it rewrites
 
@@ -60,9 +65,14 @@ export const next = () => {
 };
 ```
 
-Every `let` and `var` becomes a step of the module's frame, and every place that
-names it reads the frame. So does a `const` that holds an object literal, an
-array literal, or a new `Map`, `Set`, `Array` or `Object`. A parameter, a
+Only state a session can change moves. A `let` or `var` the module writes
+somewhere — an assignment, an update, a loop head — becomes a step of the
+module's frame, and every place that names it reads the frame. So does any
+declaration that holds an object literal, an array literal, or a new `Map`,
+`Set`, `Array` or `Object`. A `let` nobody writes is a `const` in all but name,
+and it stays as it is. A function or a class is never wrapped, however it is
+declared, so a component, a hook or a handler is the one React and every other
+caller always saw. A parameter, a
 block's own `let` or a catch clause that declares the same name is a different
 variable, and it is left alone. Nothing the module exports is touched:
 `module.exports` and `export` keep the bindings they always had.
@@ -78,9 +88,9 @@ session. Reading a `let` before its declaration still throws, and so does writin
 inside its own initializer; a `var` still reads `undefined`. An array keeps its
 symbol keys and holes.
 
-A `const` built by a call — `memoize(fn)`, `createStore()`, a higher-order
-component — or holding a primitive is left as it is, and so is what it closes
-over. A module that has to reset one says so with `registerResetHandler` from
+A value built by a call — `memoize(fn)`, `createStore()`, a higher-order
+component — is left as it is when nothing writes it again, and so is what it
+closes over. A module that has to reset one says so with `registerResetHandler` from
 [`@variance-authority/ioc/reset`](https://variance-authority.dev/reference/packages/ioc).
 
 ## Run it in Jest
@@ -124,14 +134,14 @@ Test files are not rewritten. A test file's own `let` carries what a
 `beforeAll` set into the tests after it, which is what a test file means by it.
 Neither is anything under `node_modules`.
 
-## Run it in Rspack
+## Run it in Rspack or webpack
 
 ```js
-// rspack.config.mjs
+// rspack.config.mjs, or webpack.config.mjs
 export default {
   module: {
     rules: [
-      { test: /\.[jt]sx?$/, exclude: /node_modules/, enforce: 'pre', loader: '@variance-authority/isolator/rspack' },
+      { test: /\.[jt]sx?$/, exclude: /node_modules/, enforce: 'pre', loader: '@variance-authority/isolator/loader' },
     ],
   },
 };
@@ -144,6 +154,20 @@ what a `beforeAll` set into the tests after it.
 
 In a browser, call `nextSession()` before every run, so each starts from the
 values its modules were loaded with.
+
+## Run it in another tool
+
+```js
+import { isolate } from '@variance-authority/isolator/transform';
+
+const { code, map, left } = isolate(source, path);
+```
+
+`isolate` takes a module's text and its path, whose extension decides how it
+is parsed, and returns the rewritten text, its source map — `undefined` when
+nothing moved — and what it left shared, with the reason. Hand it the file as
+it is on disk, before any other transform, and skip test files and
+`node_modules` as the Jest seam does.
 
 ## Keep a variable shared
 
@@ -161,20 +185,20 @@ const registry = new Map(); // @isolator-ignore
 Put `@isolator-ignore-file` in a comment anywhere in a file to leave the whole
 file. To leave paths without touching them, give the transform globs in
 `exclude`. Jest reads them from the working directory, or from `root` when you
-give one; Rspack reads them from the build's context:
+give one; the loader reads them from the build's context:
 
 ```js
 ['@variance-authority/isolator/jest', { transformer: '@swc/jest', exclude: ['src/legacy/**'] }]
 ```
 
 ```js
-{ loader: '@variance-authority/isolator/rspack', options: { exclude: ['src/legacy/**'] } }
+{ loader: '@variance-authority/isolator/loader', options: { exclude: ['src/legacy/**'] } }
 ```
 
 ## What it leaves, and tells you
 
 Anything it cannot rewrite safely, it leaves shared and names, as a Jest
-warning or an Rspack build warning:
+warning or a build warning:
 
 ```
 isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its importers as a live binding, which no getter can stand in for
@@ -192,6 +216,8 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
   `const a = { b }`, `keep.push(state.items)` or `a.child = b`, where `b` and
   `state` stay. A session's copy of `a` would hold a copy of `b`, not `b`.
 - **An instance of a class**, such as `new Client()`. A session cannot copy it.
+- **A function the module reassigns**, such as `let handler = () => {}` with
+  `handler = next` later. A function is never wrapped.
 - **A `var` declared twice**, or that a function or a class declares too.
   Which declaration wins is the module's own order.
 - **A `var` inside a top-level block, loop head or `try`**, such as
@@ -211,7 +237,8 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 | `@variance-authority/isolator/node` | `isolated(fn)` runs `fn` in a new session, through every `await` it starts; `isolateConcurrentTests(test)` gives each concurrent Jest test one. Every copy of this entry in a process shares one store, so an inner `isolated` always wins. |
 | `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
-| `@variance-authority/isolator/rspack` | The Rspack loader. |
+| `@variance-authority/isolator/loader` | The loader for Rspack and webpack. |
+| `@variance-authority/isolator/transform` | `isolate(code, file)`, the transform itself, for any other tool. |
 | `@variance-authority/isolator/runtime` | `frame`, which rewritten modules import. |
 
 The first source that answers wins. When none does — in a test, or in a browser

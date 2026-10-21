@@ -7,7 +7,7 @@ import { rspack, type Stats } from '@rspack/core';
 import { afterEach, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const fixture = resolve(here, '../test/fixtures/rspack');
+const fixture = resolve(here, '../test/fixtures/loader');
 const temporary: string[] = [];
 
 afterEach(async () => {
@@ -26,7 +26,7 @@ const build = (entry: string, output: string): Promise<Stats> =>
       module: {
         rules: [
           { test: /\.ts$/, loader: 'builtin:swc-loader', options: { jsc: { parser: { syntax: 'typescript' } } } },
-          { test: /\.ts$/, enforce: 'pre', loader: resolve(here, '../dist/rspack.js') },
+          { test: /\.ts$/, enforce: 'pre', loader: resolve(here, '../dist/loader.js') },
         ],
       },
     }).run((error, stats) => (error ? fail(error) : done(stats!)));
