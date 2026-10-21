@@ -209,9 +209,9 @@ describe('distill', () => {
     // The JSON spells each item as an object; the index holds them as the frame does, unresolved, in the order every writer joins them to.
     const spelled = { ...EXECUTION, tests: [
       { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', preconditions: [
-        { name: 'network', value: 'mocked', site: 'test/pay.test.ts:4', level: 1 },
-        { name: 'retries', value: 3, site: 'test/pay.test.ts:5', level: 0 },
-        { name: 'flaky', value: true, site: 'test/pay.test.ts:9', level: 65535 },
+        { name: 'pay:network', value: 'mocked', site: 'test/pay.test.ts:4', level: 1 },
+        { name: 'pay:retries', value: 3, site: 'test/pay.test.ts:5', level: 0 },
+        { name: 'pay:flaky', value: true, site: 'test/pay.test.ts:9', level: 65535 },
       ] },
       { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', preconditions: [] },
       { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
@@ -220,12 +220,12 @@ describe('distill', () => {
     const parsed = parseExecutionIndex(spelled);
 
     expect(parsed).toEqual({ ...EXECUTION, tests: [
-      { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', said: JSON.stringify([
-        ['flaky', true, 'test/pay.test.ts:9', 65535],
-        ['network', 'mocked', 'test/pay.test.ts:4', 1],
-        ['retries', 3, 'test/pay.test.ts:5', 0],
-      ]) },
-      { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', said: '[]' },
+      { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', said: JSON.stringify({ said: [
+        ['pay:flaky', 'true', 'test/pay.test.ts:9', 65535],
+        ['pay:network', '"mocked"', 'test/pay.test.ts:4', 1],
+        ['pay:retries', '3', 'test/pay.test.ts:5', 0],
+      ] }) },
+      { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', said: '{"said":[]}' },
       { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
     ] } satisfies ExecutionIndex);
     expect(parsed.tests[2]).not.toHaveProperty('said');

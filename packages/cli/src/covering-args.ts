@@ -252,12 +252,15 @@ function executionAnd(flags: Flags): CoveringSource {
   };
 }
 
-/** `network=mocked` is a name and a value; `network` is a name said with any value. */
+/**
+ * `network:api=mocked` is a name and a value, `network:api` a name said with any
+ * value, and `network` any key said under the dimension.
+ */
 function whereOf(raw: string): WhereCondition {
   const equals = raw.indexOf('=');
   const name = equals === -1 ? raw : raw.slice(0, equals);
   if (name === '') {
-    throw new OperatorError(`\`--where\` takes a precondition's name, and a value after \`=\` when one matters, not \`${raw}\`.`);
+    throw new OperatorError(`\`--where\` takes a dimension or a precondition's \`dimension:key\`, and a value after \`=\` when one matters, not \`${raw}\`.`);
   }
   return equals === -1 ? { name } : { name, value: raw.slice(equals + 1) };
 }

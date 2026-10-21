@@ -1,28 +1,33 @@
 /**
- * What a case said it arranged, as TypeScript holds it after capture: a string
- * the addon's `case_said.rs` wrote and alone reads. Joining, laying the
- * `tests.said` section, reading it back and resolving a row are its calls; here
- * is only how a resolved row is printed.
+ * What a case said it arranged and what the code read while it ran, as
+ * TypeScript holds it after capture: a string the addon's `case_said.rs` wrote
+ * and alone reads. Joining, laying the `tests.said` and `tests.read` sections,
+ * reading them back and resolving a row are its calls; here is only how a
+ * resolved row is printed.
  */
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeSaid } from '../native-said.js';
 
 /**
- * Every item a case said, unresolved — overridden ones too — as
- * `[[name, value, site, level], …]` in the order the addon stores them.
+ * Every item a case said and read, unresolved — overridden ones too — as
+ * `{"said": [[name, value, site, level], …], "read": […]}` in the order the
+ * addon stores them. A facet is absent where nobody listened to it.
  */
 export type Said = string;
 
-/** What a case that was listened to and said nothing said. */
-export const SAID_NOTHING: Said = '[]';
+/** What a case that was listened to for preconditions alone, and said nothing, said. */
+export const SAID_NOTHING: Said = '{"said":[]}';
 
 /**
- * One precondition a case named: what it said, and the call that said it. Two
- * under one name on a row are a contradiction the case said.
+ * One item a case named: what it said, or what the code read in it, and the
+ * call that did. Two said under one name on a row are a contradiction the case
+ * said; two read under one name are two values the code read.
  */
 export interface CasePrecondition {
+  /** `dimension:key`. */
   readonly name: string;
-  readonly value: string | number | boolean;
+  /** The value, as JSON gave it back; absent where JSON could not hold it: unrecorded. */
+  readonly value?: unknown;
   /** The repository-relative `file:line` of the call. */
   readonly site: string;
   /**
@@ -63,40 +68,68 @@ export function saidSite(root: string, site: string): string {
   return addon('saidSite')(root, site);
 }
 
-/** The row a reader prints: per name, the values said at the narrowest level. */
-export function saidRow(said: Said): readonly CasePrecondition[] {
-  const row = JSON.parse(addon('saidResolved')(said)) as [string, string | number | boolean, string, number][];
-  return row.map(([name, value, site, level]) => ({ name, value, site, level }));
+/** A case's resolved row, facet by facet; a facet absent where nobody listened to it. */
+export interface CaseRow {
+  /** Per name, the values said at the narrowest level. */
+  readonly said?: readonly CasePrecondition[];
+  /** Per name and value read, the first site it was read at. */
+  readonly read?: readonly CasePrecondition[];
 }
 
-/** A case's resolved row; undefined for a case nobody listened to. */
+type Spelled = [name: string, value: string | null, site: string, level: number];
+
+/** The row a reader prints: what the case said and what it read, each resolved. */
+export function saidRow(said: Said): CaseRow {
+  const row = JSON.parse(addon('saidResolved')(said)) as { said?: Spelled[]; read?: Spelled[] };
+  const items = (spelled: Spelled[]) =>
+    spelled.map(([name, value, site, level]): CasePrecondition =>
+      value === null ? { name, site, level } : { name, value: JSON.parse(value) as unknown, site, level });
+  return { ...(row.said === undefined ? {} : { said: items(row.said) }), ...(row.read === undefined ? {} : { read: items(row.read) }) };
+}
+
+/** What a case said, resolved; undefined for a case nobody listened to for preconditions. */
 export function rowOf(test: { readonly said?: Said | undefined }): readonly CasePrecondition[] | undefined {
-  return test.said === undefined ? undefined : saidRow(test.said);
+  return test.said === undefined ? undefined : saidRow(test.said).said;
 }
 
-/** The `tests.said` section for each case's said, laid into the crossing-set pool. */
+/** What the code read in a case, each key and value once; undefined where nobody listened to reads: unmeasured. */
+export function readsOf(test: { readonly said?: Said | undefined }): readonly CasePrecondition[] | undefined {
+  return test.said === undefined ? undefined : saidRow(test.said).read;
+}
+
+/** The `tests.said` and `tests.read` sections for what each case heard, laid into the crossing-set pool. */
 export function saidLaid(
   said: readonly (Said | undefined)[],
   pool: { readonly bytes: Uint8Array; readonly offsets: Uint32Array },
   testCount: number,
-): { readonly section?: Uint8Array; readonly bytes: Uint8Array; readonly offsets: Uint32Array } {
+): { readonly said?: Uint8Array; readonly read?: Uint8Array; readonly bytes: Uint8Array; readonly offsets: Uint32Array } {
   const laid = addon('saidLaid')(
     said.map((one) => one ?? null),
     Buffer.from(pool.bytes.buffer, pool.bytes.byteOffset, pool.bytes.byteLength),
     pool.offsets,
     testCount,
   );
-  return { ...(laid.section === null ? {} : { section: laid.section }), bytes: laid.bytes, offsets: laid.offsets };
+  return {
+    ...(laid.said === null ? {} : { said: laid.said }),
+    ...(laid.read === null ? {} : { read: laid.read }),
+    bytes: laid.bytes,
+    offsets: laid.offsets,
+  };
 }
 
-/** What each case said, off a `tests.said` section and its pool; undefined for a case never listened to. */
+/**
+ * What each case heard, off the `tests.said` and `tests.read` sections, either
+ * absent, and their pool; undefined for a case never listened to.
+ */
 export function saidRead(
-  section: Uint8Array,
+  sections: { readonly said?: Uint8Array; readonly read?: Uint8Array },
   pool: { readonly bytes: Uint8Array; readonly offsets: Uint32Array },
   testCount: number,
 ): readonly (Said | undefined)[] {
   const buffer = (bytes: Uint8Array) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return addon('saidRead')(buffer(section), buffer(pool.bytes), pool.offsets, testCount).map((one) => one ?? undefined);
+  const section = (bytes: Uint8Array | undefined) => (bytes === undefined ? null : buffer(bytes));
+  return addon('saidRead')(section(sections.said), section(sections.read), buffer(pool.bytes), pool.offsets, testCount)
+    .map((one) => one ?? undefined);
 }
 
 /**
@@ -109,21 +142,29 @@ export function preconditionText(said: readonly CasePrecondition[]): string {
   for (const held of said) byName.set(held.name, [...byName.get(held.name) ?? [], held]);
   return [...byName].map(([name, held]) => held.length === 1
     ? `${valued(held[0]!)} (${held[0]!.site})`
-    : `${name} contradicted: ${held.map((one) => `${String(one.value)} (${one.site})`).join(', ')}`,
+    : `${name} contradicted: ${held.map((one) => `${valueText(one)} (${one.site})`).join(', ')}`,
   ).join(', ');
 }
 
-/** One thing a case said: `flag=ff-on`, or the bare name for `true`. */
+/** One thing a case said: `flags:new-checkout=ff-on`, or the bare name for `true`. */
 export function valued(held: CasePrecondition): string {
-  return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
+  return held.value === true ? held.name : `${held.name}=${valueText(held)}`;
+}
+
+/** A value as a reader prints it: a string as itself, `unrecorded` where JSON could not hold it, JSON otherwise. */
+export function valueText(held: CasePrecondition): string {
+  if (!('value' in held)) return 'unrecorded';
+  return typeof held.value === 'string' ? held.value : JSON.stringify(held.value);
 }
 
 /**
- * The values a case holds under a name: every value it said, a contradiction's
- * both sides included, and nothing for a name it never said.
+ * The values a case holds under `named`: every value it said, a contradiction's
+ * both sides included, and nothing for a name it never said. `named` is a
+ * `dimension:key`, or a bare dimension, which holds every key said under it.
  */
-export function heldValues(said: readonly CasePrecondition[], name: string): readonly string[] {
-  return said.filter((held) => held.name === name).map((held) => String(held.value));
+export function heldValues(said: readonly CasePrecondition[], named: string): readonly string[] {
+  const under = named.includes(':') ? undefined : `${named}:`;
+  return said.filter((held) => (under === undefined ? held.name === named : held.name.startsWith(under))).map(valueText);
 }
 
 /** What a case said, after its name, or nothing when it said nothing. */

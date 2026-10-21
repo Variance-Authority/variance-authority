@@ -97,8 +97,8 @@ pub fn encode(
         return Err("case columns disagree with the cases".to_owned());
     }
     let mut strings = Vec::new();
-    let said: Vec<Option<&[case_said::Item]>> = tests.iter().map(|test| test.said.as_deref()).collect();
-    let said = case_said::lay(&said, sets);
+    let heard: Vec<Option<&case_said::Heard>> = tests.iter().map(|test| test.heard.as_ref()).collect();
+    let (said, read) = case_said::lay(&heard, sets);
     for test in tests {
         strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
     }
@@ -196,7 +196,10 @@ pub fn encode(
         columns.push(Column::Words(cases.duration.as_str(), words));
     }
     if let Some(said) = said {
-        columns.push(Column::Bytes(case_said::SECTION, said));
+        columns.push(Column::Bytes(case_said::SAID_SECTION, said));
+    }
+    if let Some(read) = read {
+        columns.push(Column::Bytes(case_said::READ_SECTION, read));
     }
     if lined {
         let mut blob = Vec::new();

@@ -24,22 +24,22 @@ function at(line: number): string {
 type Item = readonly [name: string, value: string | number | boolean, site: string, level: number];
 
 function row(name: string, said?: readonly Item[]): ExecutionTest {
-  return { id: `${SPEC} > ${name}`, file: SPEC, name, ...(said === undefined ? {} : { said: JSON.stringify(said) }) };
+  return { id: `${SPEC} > ${name}`, file: SPEC, name, ...(said === undefined ? {} : { said: JSON.stringify({ said: said.map(([name, value, site, level]) => [name, JSON.stringify(value), site, level]) }) }) };
 }
 
 const MEASURED: readonly ExecutionTest[] = [
-  row('pays mocked', [['network', 'mocked', at(4), 1]]),
+  row('pays mocked', [['network:api', 'mocked', at(4), 1]]),
   row('refunds mocked behind a flag', [
-    ['flag', 'ff-on', at(9), 1],
-    ['network', 'mocked', at(4), 1],
+    ['flags:checkout', 'ff-on', at(9), 1],
+    ['network:api', 'mocked', at(4), 1],
   ]),
-  row('replays a recording', [['network', 'recorded', at(14), 1]]),
+  row('replays a recording', [['network:api', 'recorded', at(14), 1]]),
   row('says nothing', []),
   row('contradicted', [
-    ['flag', 'ff-off', at(20), 1],
-    ['flag', 'ff-on', at(19), 1],
+    ['flags:checkout', 'ff-off', at(20), 1],
+    ['flags:checkout', 'ff-on', at(19), 1],
   ]),
-  row('half on', [['flag', 'ff-half', at(24), 1], ['network', 'mocked', at(4), 1]]),
+  row('half on', [['flags:checkout', 'ff-half', at(24), 1], ['network:api', 'mocked', at(4), 1]]),
 ];
 
 function indexOf(tests: readonly ExecutionTest[]): ExecutionIndex {
@@ -64,7 +64,7 @@ async function recorded(tests: readonly ExecutionTest[], axes = false): Promise<
   });
   if (axes) {
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({
-      names: { axes: [{ axis: 'flag', values: ['ff-off', 'ff-half', 'ff-on'] }] },
+      names: { axes: [{ axis: 'flags:checkout', values: ['ff-off', 'ff-half', 'ff-on'] }] },
     }));
   }
   return { root, execution };
@@ -85,7 +85,7 @@ const names = (answer: { readonly tests?: readonly ExecutionTest[] }) => answer.
 
 describe('a case read by what it said', () => {
   it('keeps exactly the cases that declared the value', async () => {
-    const answer = await ask(['network=mocked'], await recorded(MEASURED));
+    const answer = await ask(['network:api=mocked'], await recorded(MEASURED));
 
     expect(names(answer)).toEqual(['half on', 'pays mocked', 'refunds mocked behind a flag']);
     expect(answer.where).toMatchObject({ kept: 3, of: 6 });
@@ -94,18 +94,33 @@ describe('a case read by what it said', () => {
   it('keeps every value of a name asked without one, and holds every repeated `--where`', async () => {
     const record = await recorded(MEASURED);
 
-    expect(names(await ask(['network'], record))).toEqual([
+    expect(names(await ask(['network:api'], record))).toEqual([
       'half on', 'pays mocked', 'refunds mocked behind a flag', 'replays a recording',
     ]);
-    expect(names(await ask(['network=mocked', 'flag=ff-on'], record))).toEqual(['refunds mocked behind a flag']);
+    expect(names(await ask(['network:api=mocked', 'flags:checkout=ff-on'], record))).toEqual(['refunds mocked behind a flag']);
+  });
+
+  it('keeps every key said under a dimension asked alone', async () => {
+    const record = await recorded([
+      ...MEASURED,
+      row('mocks the catalogue', [['network:catalogue', 'mocked', at(30), 1]]),
+    ]);
+
+    expect(names(await ask(['network'], record))).toEqual([
+      'half on', 'mocks the catalogue', 'pays mocked', 'refunds mocked behind a flag', 'replays a recording',
+    ]);
+    expect(names(await ask(['network=mocked'], record))).toEqual([
+      'half on', 'mocks the catalogue', 'pays mocked', 'refunds mocked behind a flag',
+    ]);
+    expect(names(await ask(['net'], record))).toEqual([]);
   });
 
   it('narrows the whole-file answer and the `--cases` answer the same way', async () => {
     const record = await recorded(MEASURED);
 
-    const file = await covering(parse(['--file', 'src/cart.ts', '--execution', record.execution, '--root', record.root, '--where', 'network=recorded']));
+    const file = await covering(parse(['--file', 'src/cart.ts', '--execution', record.execution, '--root', record.root, '--where', 'network:api=recorded']));
     expect(file.ranges?.[0]?.tests.map((test) => test.name)).toEqual(['replays a recording']);
-    const scoped = await ask(['network=recorded'], record, ['--cases', SPEC]);
+    const scoped = await ask(['network:api=recorded'], record, ['--cases', SPEC]);
     expect(names(scoped)).toEqual(['replays a recording']);
   });
 
@@ -116,25 +131,26 @@ describe('a case read by what it said', () => {
     const spelled = MEASURED.map(({ said, ...test }) => ({
       ...test,
       ...(said === undefined ? {} : {
-        preconditions: (JSON.parse(said) as Item[]).map(([name, value, site, level]) => ({ name, value, site, level })),
+        preconditions: (JSON.parse(said) as { said: [string, string, string, number][] }).said
+          .map(([name, value, site, level]) => ({ name, value: JSON.parse(value) as unknown, site, level })),
       }),
     }));
     await writeFile(execution, JSON.stringify({ ...indexOf(MEASURED), tests: spelled }));
 
-    const answer = await ask(['network=mocked'], { root, execution });
+    const answer = await ask(['network:api=mocked'], { root, execution });
 
     expect(names(answer)).toEqual(['half on', 'pays mocked', 'refunds mocked behind a flag']);
     expect(answer.where).toMatchObject({ kept: 3, of: 6, unmeasured: 0 });
   });
 
   it('refuses a condition with no name', () => {
-    expect(() => parse(['--file', 'src/cart.ts', '--where', '=mocked'])).toThrow(/`--where` takes a precondition's name/);
+    expect(() => parse(['--file', 'src/cart.ts', '--where', '=mocked'])).toThrow(/`--where` takes a dimension/);
   });
 
   it('answers every case unmeasured, never an empty list, from a record made before cases said anything', async () => {
     const record = await recorded(MEASURED.map(({ said: _, ...test }) => test));
 
-    const answer = await ask(['network=mocked'], record);
+    const answer = await ask(['network:api=mocked'], record);
     const text = formatCovering(answer, 'text');
 
     expect(answer.tests).toEqual([]);
@@ -145,7 +161,7 @@ describe('a case read by what it said', () => {
   });
 
   it('counts the cases nobody listened to rather than reading them as having said nothing', async () => {
-    const answer = await ask(['network=mocked'], await recorded([...MEASURED, row('unheard')]));
+    const answer = await ask(['network:api=mocked'], await recorded([...MEASURED, row('unheard')]));
 
     expect(answer.where).toMatchObject({ kept: 3, of: 7, unmeasured: 1 });
     expect(formatCovering(answer, 'text')).toMatch(/1 case was recorded without preconditions/);
@@ -155,41 +171,41 @@ describe('a case read by what it said', () => {
     const answer = await ask([], await recorded(MEASURED));
 
     const text = formatCovering(answer, 'text');
-    expect(text).toContain(`refunds mocked behind a flag — flag=ff-on (${at(9)}), network=mocked (${at(4)})`);
-    expect(text).toContain(`contradicted — flag contradicted: ff-off (${at(20)}), ff-on (${at(19)})`);
+    expect(text).toContain(`refunds mocked behind a flag — flags:checkout=ff-on (${at(9)}), network:api=mocked (${at(4)})`);
+    expect(text).toContain(`contradicted — flags:checkout contradicted: ff-off (${at(20)}), ff-on (${at(19)})`);
     const refs = formatCovering(answer, 'refs');
-    expect(refs).toContain(`replays a recording — network=recorded (${at(14)})`);
+    expect(refs).toContain(`replays a recording — network:api=recorded (${at(14)})`);
     const json = JSON.parse(formatCovering(answer, 'json')) as { tests: ExecutionTest[] };
     expect(rowOf(json.tests.find((test) => test.name === 'pays mocked')!)).toEqual([
-      { name: 'network', value: 'mocked', site: at(4), level: 1 },
+      { name: 'network:api', value: 'mocked', site: at(4), level: 1 },
     ]);
   });
 });
 
 describe('a declared axis, which no precondition is read against until spec 0102 says how an axis names a pair', () => {
-  it('keeps for `flag=ff-off` only the case that said it, not the cases that never named the axis', async () => {
-    const answer = await ask(['flag=ff-off'], await recorded(MEASURED, true));
+  it('keeps for `flags:checkout=ff-off` only the case that said it, not the cases that never named the axis', async () => {
+    const answer = await ask(['flags:checkout=ff-off'], await recorded(MEASURED, true));
 
     expect(names(answer)).toEqual(['contradicted']);
   });
 
   it('keeps a value the axis does not name as any other value, with no vocabulary note', async () => {
-    const record = await recorded([...MEASURED, row('flag typo', [['flag', 'ff-onn', at(30), 1]])], true);
+    const record = await recorded([...MEASURED, row('flag typo', [['flags:checkout', 'ff-onn', at(30), 1]])], true);
 
-    const answer = await ask(['flag'], record);
+    const answer = await ask(['flags:checkout'], record);
     expect(names(answer)).toEqual(['contradicted', 'flag typo', 'half on', 'refunds mocked behind a flag']);
-    expect(answer.where).toEqual({ asked: ['flag'], kept: 4, of: 7, unmeasured: 0 });
+    expect(answer.where).toEqual({ asked: ['flags:checkout'], kept: 4, of: 7, unmeasured: 0 });
     expect(formatCovering(answer, 'text')).not.toContain('is not one of');
   });
 
   it('prints no twin, in any form', async () => {
     const record = await recorded([
-      row('on', [['flag', 'ff-on', at(2), 1]]),
-      row('off', [['flag', 'ff-off', at(5), 1]]),
+      row('on', [['flags:checkout', 'ff-on', at(2), 1]]),
+      row('off', [['flags:checkout', 'ff-off', at(5), 1]]),
       row('plain', []),
     ], true);
 
-    for (const answer of [await ask([], record), await ask(['flag=ff-on'], record)]) {
+    for (const answer of [await ask([], record), await ask(['flags:checkout=ff-on'], record)]) {
       expect(answer).not.toHaveProperty('twins');
       for (const format of ['text', 'refs'] as const) expect(formatCovering(answer, format)).not.toContain('twin');
     }
@@ -203,12 +219,12 @@ describe('`--where` over a function', () => {
     const record = await recorded(MEASURED);
 
     const answer = await covering(parse([
-      '--file', 'src/cart.ts', '--function', 'total', '--execution', record.execution, '--root', record.root, '--where', 'network=live',
+      '--file', 'src/cart.ts', '--function', 'total', '--execution', record.execution, '--root', record.root, '--where', 'network:api=live',
     ]));
 
     expect(answer.where).toMatchObject({ kept: 0, of: 6 });
     const text = formatCovering(answer, 'text');
-    expect(text).toContain('Kept none of the 6 cases that covered function total of src/cart.ts: none recorded network=live.');
+    expect(text).toContain('Kept none of the 6 cases that covered function total of src/cart.ts: none recorded network:api=live.');
     expect(text).not.toContain('No named test covered');
   });
 });

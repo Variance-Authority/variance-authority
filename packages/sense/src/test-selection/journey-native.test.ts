@@ -328,13 +328,13 @@ describe('projecting a journey file onto a change', () => {
   });
 
   it('carries what each case said it arranged, and nothing for a case nobody listened to', async () => {
-    const network = { name: 'network', value: 'mocked', site: 'test/card.test.ts:3', level: 0 };
+    const network = { name: 'fixture:network', value: 'mocked', site: 'test/card.test.ts:3', level: 0 };
     const sets = new CrossingSets(3);
     const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
     writeFileSync(file, encodeSetExecutionIndex({
       tests: [
-        { id: 'card > a', file: 'test/card.test.ts', name: 'a', said: JSON.stringify([['network', 'mocked', 'test/card.test.ts:3', 0]]) },
-        { id: 'card > b', file: 'test/card.test.ts', name: 'b', said: '[]' },
+        { id: 'card > a', file: 'test/card.test.ts', name: 'a', said: JSON.stringify({ said: [['fixture:network', '"mocked"', 'test/card.test.ts:3', 0]] }) },
+        { id: 'card > b', file: 'test/card.test.ts', name: 'b', said: '{"said":[]}' },
         { id: 'card > c', file: 'test/card.test.ts', name: 'c' },
       ],
       modules: [{

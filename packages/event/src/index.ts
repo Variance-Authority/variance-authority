@@ -154,3 +154,5 @@ export function vaStart(location: string, subject: string, action: string): void
 export function vaEnd(location: string, subject: string, action: string): void {
   announce('end', location, subject, action);
 }
+
+export { varianceBreadcrumb } from './breadcrumb.js';

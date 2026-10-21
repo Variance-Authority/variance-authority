@@ -43,8 +43,8 @@ pub struct JourneyTest {
     pub name: String,
     /// `ExecutionTest.stopped`: absent when the file does not say how the case settled.
     pub stopped: Option<bool>,
-    /// Everything the case said it arranged, as a frame spells it
-    /// (`case_said::spell`): absent for a case nobody listened to.
+    /// Everything the case said it arranged and the code read, as a frame
+    /// spells it (`case_said::spell`): absent for a case nobody listened to.
     pub said: Option<String>,
 }
 
@@ -78,7 +78,7 @@ pub struct JourneyProjection {
 
 fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, String> {
     let journey = Journey::open(file)?;
-    let said = journey.said()?;
+    let heard = journey.heard()?;
     let tests = (0..journey.tests())
         .map(|at| Ok(JourneyTest {
             id: journey.test_id(at)?.to_owned(),
@@ -89,7 +89,7 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
                 Some(journey_journal::FINISHED) => Some(false),
                 _ => None,
             },
-            said: said[at].as_deref().map(case_said::spell),
+            said: heard[at].as_ref().map(case_said::spell),
         }))
         .collect::<Result<Vec<_>, String>>()?;
 
