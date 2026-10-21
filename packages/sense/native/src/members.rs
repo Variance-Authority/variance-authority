@@ -397,6 +397,14 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
         walk::walk_ts_qualified_name(self, it);
     }
 
+    // `M['a']` off a module type reads `a`.
+    fn visit_ts_indexed_access_type(&mut self, it: &TSIndexedAccessType<'a>) {
+        if let Some((held, name, at)) = self.indexed(it) {
+            self.add(held, name, at);
+        }
+        walk::walk_ts_indexed_access_type(self, it);
+    }
+
     // Read as a value where the walk does not follow it, the module goes on
     // whole. A write replaces the value, and a type query reads its type.
     fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {

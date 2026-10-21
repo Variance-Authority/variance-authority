@@ -365,10 +365,11 @@ modules inside it. If it is `pub`, the modules around it decide how far it is
 seen, so the answer says who can reach it is not recorded. CommonJS is read on
 a best-effort basis: the static keys of an object literal that `export =` or
 `module.exports =` assigns at the top level are the file's exports, and naming
-a declaration there passes it on, which is no use of it. A script, any other
-way a CommonJS file hands a name out, and a `macro_rules!` hand a name out in
-ways their readers cannot tell, so the answer says who can reach it is not
-recorded. `docs_uses`
+a declaration there passes it on, which is no use of it. An object with a
+spread or a computed key exports nothing, because its names cannot be spelled.
+A script or CommonJS file, a module that hands itself out with `export =` and
+a `macro_rules!` hand a name out in ways their readers cannot tell, so the
+answer says who can reach it is not recorded. `docs_uses`
 answers with the same kind, file, line and rule in one sentence, before any member
 declared by that name, and after the imports of an export of that name elsewhere.
 The kind tells apart two declarations that share a spelling: a Rust `mod walk;`
@@ -402,9 +403,11 @@ loading. An `import()` written in a type, `import('./x').T` or
 `typeof import('./x')`, loads nothing: TypeScript resolves it as it resolves
 `import type`, so its site is marked type only. `typeof import('./x')` names
 the module's type and reads no name of it. A value that type is written on — a
-cast, an annotated variable or parameter, one a top-level alias of it types,
-or a variable holding what a call given it as the one type argument returns, as
-`await importOriginal<typeof import('./x')>()` does — holds the module, and a name read off that value is a type-only site. A name read off the module's
+cast, or an annotated variable or parameter, directly or through a top-level
+alias — holds the module, and a name read off that value is a type-only site,
+as `M['x']` off the module type `M` is. What a call returns is TypeScript's
+answer, so a call's type argument holds nothing: the value
+`await importOriginal<typeof import('./x')>()` returns reads no name. A name read off the module's
 `default` is marked "through `default`": `default` holds the name only when the
 module is CommonJS, so the line may read it and is counted apart from the
 imports. A module your code passes on whole —

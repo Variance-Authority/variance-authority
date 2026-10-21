@@ -24,9 +24,11 @@ modelled beyond that.**
 1. **Simple shapes only.** A reader may take what a statement spells outright:
    the static keys of the object literal `export = { … }` or
    `module.exports = { … }` assigns at the top level are the module's exports.
-   No reader follows `exports.x` assignments, `Object.assign`, a reassigned or
-   computed `module.exports`, or uses interop rules to decide that a read off a
-   default import is a read off `module.exports`.
+   An object with a spread or a computed key exports nothing. No reader
+   follows `exports.x` assignments, `Object.assign`, or a reassigned or
+   computed `module.exports`. A read off a default import is matched to a key
+   only as "through `default`: may read it", never as a definite read: interop
+   decides it at run time.
 2. **A CommonJS gap is this position, not a defect.** An answer that misses a
    use made through a CommonJS object is classified against this ADR. The
    reader still answers what it can and names what is not recorded; it never

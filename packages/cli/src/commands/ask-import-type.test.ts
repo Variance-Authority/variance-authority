@@ -8,10 +8,11 @@ import { checkout, run } from './ask-packages-fixture.js';
 /**
  * `variance ask uses` over a module a file reaches only through TypeScript's
  * `import()` type: `import('./math.js').addTax` takes one name off the module,
- * and `typeof import('./math.js')` types the value a `vi.mock` factory's
- * original returns. Both are type-only imports the compiler resolves as
- * `import type` resolves. The factory reads off that value and spreads it, so
- * it may read every name of the module, and the row names the spread.
+ * and `typeof import('./math.js')` is the type argument a `vi.mock` factory
+ * passes its original. Both are type-only imports the compiler resolves as
+ * `import type` resolves. What the original returns is TypeScript's answer, so
+ * the value the factory reads off and spreads holds no module, and the factory
+ * reads no name of it.
  */
 
 const cwd = process.cwd();
@@ -47,14 +48,14 @@ describe('variance ask uses over an `import()` type', () => {
     expect(out).toMatch(/^packages\/lib\/src\/internal\/rate\.ts:1 — @acme\/lib \(type only\) \(import\(\) on line 1\)$/m);
   });
 
-  it('lists the test that hands the whole module type to a mock factory, for every name of the module', async () => {
+  it('does not list the test whose mock factory passes the whole module type to a call, for any name', async () => {
     checkout(TYPED);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     for (const name of ['addTax', 'roundTax']) {
       const { code, out } = await run(['ask', 'uses', '--name', name]);
       expect(code).toBe(EXIT_CLEAN);
-      expect(out).toMatch(/^packages\/lib\/src\/internal\/math\.test\.ts:3 — @acme\/lib \(type only\) \(import\(\) on line 2, passed on whole: may read it\)$/m);
+      expect(out).not.toMatch(/math\.test\.ts/);
     }
     const { out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(out).not.toMatch(/rate\.ts/);

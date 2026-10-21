@@ -8,44 +8,61 @@
 //! does; any other value is an expression of the module.
 
 use oxc_ast::ast::*;
+use oxc_span::Span;
 
-/// One key of the object, and the identifier its value names, when it names one.
+/// One key of the object, where it is written, and the identifier its value
+/// names, when it names one.
 pub(crate) struct Key<'p, 'a> {
     pub(crate) name: String,
+    pub(crate) span: Span,
     pub(crate) local: Option<&'p IdentifierReference<'a>>,
 }
 
-/// The object `statement` assigns to what the module hands out, if it assigns one.
-pub(crate) fn assigned<'p, 'a>(statement: &'p Statement<'a>) -> Option<&'p ObjectExpression<'a>> {
-    let value = match statement {
-        Statement::TSExportAssignment(it) => &it.expression,
+/// What `statement` hands out as the module, if it is `export = value` or
+/// `module.exports = value`.
+pub(crate) fn handed_out<'p, 'a>(statement: &'p Statement<'a>) -> Option<&'p Expression<'a>> {
+    match statement {
+        Statement::TSExportAssignment(it) => Some(&it.expression),
         Statement::ExpressionStatement(it) => {
             let Expression::AssignmentExpression(assignment) = it.expression.get_inner_expression() else { return None };
             let AssignmentTarget::StaticMemberExpression(target) = &assignment.left else { return None };
             if assignment.operator != AssignmentOperator::Assign || !target.object.is_specific_id("module") || target.property.name != "exports" {
                 return None;
             }
-            &assignment.right
+            Some(&assignment.right)
         }
-        _ => return None,
-    };
-    match value.get_inner_expression() {
+        _ => None,
+    }
+}
+
+/// The object `statement` hands out as the module, if it hands out an object literal.
+pub(crate) fn assigned<'p, 'a>(statement: &'p Statement<'a>) -> Option<&'p ObjectExpression<'a>> {
+    match handed_out(statement)?.get_inner_expression() {
         Expression::ObjectExpression(object) => Some(object),
         _ => None,
     }
 }
 
-/// The keys of `object` a reader can spell; a spread or a computed key hands
-/// out names no reader knows.
+/// The identifier a property's value names, when it names one.
+pub(crate) fn named<'p, 'a>(property: &'p ObjectProperty<'a>) -> Option<&'p IdentifierReference<'a>> {
+    match property.value.get_inner_expression() {
+        Expression::Identifier(it) => Some(it),
+        _ => None,
+    }
+}
+
+/// Whether a reader can spell every key of `object`: a spread or a computed
+/// key hands out names no reader knows, so the object's exports are not known.
+pub(crate) fn spelled(object: &ObjectExpression) -> bool {
+    object.properties.iter().all(|property| matches!(property, ObjectPropertyKind::ObjectProperty(it) if it.key.static_name().is_some()))
+}
+
+/// The keys of `object` a reader can spell.
 pub(crate) fn keys<'p, 'a>(object: &'p ObjectExpression<'a>) -> impl Iterator<Item = Key<'p, 'a>> {
     object.properties.iter().filter_map(|property| {
         let ObjectPropertyKind::ObjectProperty(property) = property else { return None };
         let name = property.key.static_name()?.into_owned();
-        let local = match property.value.get_inner_expression() {
-            Expression::Identifier(it) => Some(&**it),
-            _ => None,
-        };
-        Some(Key { name, local })
+        Some(Key { name, span: property.span, local: named(property) })
     })
 }
 

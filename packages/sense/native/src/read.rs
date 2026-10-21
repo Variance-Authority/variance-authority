@@ -89,6 +89,9 @@ pub struct Export {
     /// The role tags its doc declares, as `declared_role` bits.
     #[serde(rename = "roles", skip_serializing_if = "is_zero", serialize_with = "crate::declared_role::serialize")]
     pub(crate) tags: u8,
+    /// A key of the object `export =` or `module.exports =` hands out.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) assigned: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -271,6 +274,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             line,
             signature: Some(harvest.span(entry.statement_span)),
             doc: harvest.doc(entry.statement_span.start),
+            assigned: false,
             tags,
         });
 
@@ -300,23 +304,26 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             });
         }
     }
-    // An object the module hands out whole exports each key it spells.
+    // An object the module hands out whole exports each key, when it spells them all.
     for statement in &parsed.program.body {
-        let Some(object) = crate::assigned_object::assigned(statement) else { continue };
+        let Some(object) = crate::assigned_object::assigned(statement).filter(|it| crate::assigned_object::spelled(it)) else { continue };
         let at = oxc_span::GetSpan::span(statement);
         for key in crate::assigned_object::keys(object) {
             let local = key.local.map(|it| it.name.to_string());
             let tags = roles.of(at.start, local.as_deref());
+            // A key is declared where it is written, and documented there or on the statement.
+            let doc = harvest.doc(key.span.start).or_else(|| harvest.doc(at.start));
             exports.push(Export {
                 exported: Some(key.name),
                 local,
                 from: None,
                 imported: None,
                 type_only: false,
-                line: lines.at(at.start),
-                signature: Some(harvest.span(at)),
-                doc: harvest.doc(at.start),
+                line: lines.at(key.span.start),
+                signature: Some(harvest.span(key.span)),
+                doc,
                 tags,
+                assigned: true,
             });
         }
     }

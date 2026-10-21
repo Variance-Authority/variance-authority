@@ -27,9 +27,12 @@ fn an_object_handed_out_whole_exports_each_key_it_spells() {
     };
     let one = |exported: &str, local: Option<&str>, line: u32| (Some(exported.to_owned()), local.map(str::to_owned), line);
     assert_eq!(
-        exported("a.cts", "function a() {}\n\nexport = {\n  a,\n  b: a,\n  c() {},\n  ...rest,\n};\n"),
-        [one("a", Some("a"), 3), one("b", Some("a"), 3), one("c", None, 3)]
+        exported("a.cts", "function a() {}\n\nexport = {\n  a,\n  b: a,\n  c() {},\n};\n"),
+        [one("a", Some("a"), 4), one("b", Some("a"), 5), one("c", None, 6)]
     );
+    // A spread or a computed key hands out names no reader can spell.
+    assert!(exported("a.cts", "function a() {}\nexport = { a, ...rest };\n").is_empty());
+    assert!(exported("a.cts", "function a() {}\nexport = { a, [key]: 1 };\n").is_empty());
     assert_eq!(exported("a.cjs", "function hush() {}\nmodule.exports = { hush };\n"), [one("hush", Some("hush"), 2)]);
     assert!(exported("a.cjs", "exports.hush = function () {};\nmodule.exports.quiet = 1;\n").is_empty());
 }
@@ -66,8 +69,8 @@ fn a_typeof_import_reads_no_name_until_what_it_types_is_read() {
     // `typeof import('m')` names the module's type: it reads no name, and what
     // it types holds the module, whether a cast, an annotation or an alias
     // writes it, however late the alias is declared. Passed on, the value takes
-    // the module whole. The one type argument of a call types what it returns,
-    // and spreading that value reads no name.
+    // the module whole. What a call returns is TypeScript's answer: a call's
+    // type argument types nothing, and `M['e']` off a module type reads `e`.
     let source = concat!(
         "const cast = load('./m') as typeof import('./m');\n",
         "cast.a();\n",
@@ -81,6 +84,7 @@ fn a_typeof_import_reads_no_name_until_what_it_types_is_read() {
         "const actual = await original<typeof import('./m')>();\nactual.f;\n",
         "function away(lib: Lib) {\n  return pass(lib);\n}\n",
         "type Named = typeof import('./m').e;\n",
+        "type Picked = Parameters<Lib['g']>;\n",
     );
     let found = members("a.ts", source);
     assert_eq!(
@@ -89,9 +93,9 @@ fn a_typeof_import_reads_no_name_until_what_it_types_is_read() {
             read("./m", "a", 2, false),
             read("./m", "*", 15, false),
             read("./m", "b", 4, false),
+            read("./m", "g", 18, false),
             read("./m", "c", 6, false),
             read("./m", "d", 8, false),
-            read("./m", "f", 13, false),
             read("./m", "e", 17, false),
         ]
     );

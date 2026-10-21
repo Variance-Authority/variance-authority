@@ -1,6 +1,6 @@
 //! Where a type says a value is a module: `typeof import('m')` written on a
-//! cast, a variable, a parameter or the one type argument of a call whose
-//! result a variable holds, directly or through a top-level alias.
+//! cast, a variable or a parameter, directly or through a top-level alias.
+//! `M['name']` off such a type reads `name`.
 //!
 //! An alias is read before the walk, so a use above the alias's declaration
 //! holds as well as one below it.
@@ -28,25 +28,24 @@ impl Walker<'_, '_> {
     }
 
     /// What a cast says its value is: `x as typeof import('m')`, `satisfies`,
-    /// `<…>x`, or the module a call is told it returns, as
-    /// `await importOriginal<typeof import('m')>()` is.
+    /// or `<…>x`. What a call returns is TypeScript's answer, so a call's type
+    /// argument types nothing here.
     pub(super) fn cast(&self, expression: &Expression) -> Option<Held> {
         let (written, inner) = match expression {
             Expression::ParenthesizedExpression(it) => return self.cast(&it.expression),
-            Expression::AwaitExpression(it) => return self.cast(&it.argument),
-            Expression::CallExpression(it) => {
-                let arguments = it.type_arguments.as_ref()?;
-                return match arguments.params.as_slice() {
-                    [only] => self.typed(only),
-                    _ => None,
-                };
-            }
             Expression::TSAsExpression(it) => (&it.type_annotation, &it.expression),
             Expression::TSSatisfiesExpression(it) => (&it.type_annotation, &it.expression),
             Expression::TSTypeAssertion(it) => (&it.type_annotation, &it.expression),
             _ => return None,
         };
         self.typed(written).or_else(|| self.cast(inner))
+    }
+
+    /// The name `M['name']` reads off a module type `M`, and where it is spelled.
+    pub(super) fn indexed<'t>(&self, it: &'t TSIndexedAccessType) -> Option<(Held, &'t str, u32)> {
+        let TSType::TSLiteralType(literal) = &it.index_type else { return None };
+        let TSLiteral::StringLiteral(name) = &literal.literal else { return None };
+        Some((self.typed(&it.object_type)?, name.value.as_str(), name.span.start))
     }
 }
 

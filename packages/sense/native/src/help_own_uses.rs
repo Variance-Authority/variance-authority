@@ -88,7 +88,7 @@ impl<'a> Visit<'a> for Walker<'_> {
             };
             for property in &object.properties {
                 match property {
-                    ObjectPropertyKind::ObjectProperty(property) if matches!(property.value.get_inner_expression(), Expression::Identifier(_)) => {
+                    ObjectPropertyKind::ObjectProperty(property) if crate::assigned_object::named(property).is_some() => {
                         self.visit_property_key(&property.key);
                     }
                     _ => self.visit_object_property_kind(property),
