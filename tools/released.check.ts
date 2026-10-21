@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { lockstep, publishable, waiting } from './released.mjs';
+import { lockstep, missing, publishable, waiting } from './released.mjs';
 
 /**
  * A release is checked against the registry, and stays checked.
@@ -83,6 +83,24 @@ describe('what a release publishes', () => {
     }
   });
 
+  // One 503 between two publish rounds ended 0.18.0's retry before it ran: the
+  // count threw, and `bash -e` took the step with it.
+  it('asks again a registry that did not answer, and refuses one that never does', async () => {
+    const entries = [{ name: 'a' }, { name: 'b' }];
+    const asked: string[] = [];
+    const flaky = async (name: string) => {
+      asked.push(name);
+      if (name === 'a' && asked.filter((one) => one === 'a').length === 1) throw new Error('a answered 503');
+      return true;
+    };
+    expect(await missing(entries, '1.2.3', 60, { ask: flaky, everyMs: 0 })).toEqual([]);
+    expect(asked).toEqual(['a', 'b', 'a']);
+    const down = async () => {
+      throw new Error('answered 503');
+    };
+    await expect(missing(entries, '1.2.3', 0, { ask: down, everyMs: 0 })).rejects.toThrow(/answered 503/);
+  });
+
   it('refuses a version the packages disagree on', () => {
     expect(() =>
       lockstep([
@@ -98,25 +116,35 @@ describe('the release workflow', () => {
     expect(WORKFLOW).toContain('tools/released.mjs --lockstep');
   });
 
-  // The retry is the repair: `changeset publish` skips versions the registry
-  // already has, so the command that truncated a release is the command that
-  // finishes it. Without a second attempt this check turns a partial release
-  // into a red job somebody has to fix by hand, which is better than green and
-  // worse than done.
-  //
-  // The first attempt's exit code must not end the step: 0.17.1 lost two names
-  // to a transparency-log 409, `bash -e` stopped there, and the retry written
-  // for exactly that never ran. And the retry comes in rounds, because a name
-  // that fails holds every package that depends on it, so the round that
-  // finishes it is the first one that can attempt them.
+  // The retry is the repair: the publisher skips versions the registry already
+  // holds, so the command that truncated a release is the command that
+  // finishes it. Its exit code ends nothing: 0.17.1 lost two names, `bash -e`
+  // stopped there, and the retry written for exactly that never ran. And the
+  // retry comes in rounds for as long as rounds finish names, because a name
+  // that fails holds what depends on it: 0.18.0 went 41, 34, 27, 22, 14
+  // missing and stopped at a cap of three with every round still finishing
+  // names. A round that publishes nothing is the stop.
   it('asks the registry what published, and finishes what did not', () => {
     const publish = job('publish');
-    const attempts = publish.match(/^ *yarn release:publish.*$/gm) ?? [];
+    const attempts = publish.match(/^ *node tools\/publish\.mjs.*$/gm) ?? [];
     expect(attempts.length).toBe(2);
-    expect(attempts.every((line) => /yarn release:publish \|\|/.test(line)), attempts.join('\n')).toBe(true);
-    expect(publish).toMatch(/for round in [^\n]*; do\n[^]*?tools\/released\.mjs --registry[^\n]*&& break[^]*?yarn release:publish[^]*?done/);
+    expect(attempts.every((line) => /node tools\/publish\.mjs "\$PACKED" \|\|/.test(line)), attempts.join('\n')).toBe(true);
+    expect(publish).not.toMatch(/for round in \d/);
+    expect(publish).toMatch(/left=\$\(node tools\/released\.mjs --count --wait \d+\)/);
+    expect(publish).toMatch(/while \[ "\$left" -gt 0 \]; do\n[^]*?tools\/publish\.mjs[^]*?released\.mjs --count[^]*?-lt "\$left"[^]*?done/);
     // The verdict after the rounds stands alone: nothing may excuse it.
     expect(publish).toMatch(/done\n *node tools\/released\.mjs --registry --wait \d+$/m);
+  });
+
+  // Yarn packs, because `yarn pack` rewrites `workspace:^` and runs each
+  // `prepack`; npm publishes, because Yarn's signing client gives the
+  // transparency log five seconds and reads its own retry's conflict as a
+  // failure (ADR-0060).
+  it('packs with changesets and publishes with npm, never with Yarn', () => {
+    const publish = job('publish');
+    expect(publish).toMatch(/yarn changeset pack --out-dir "\$PACKED"/);
+    expect(publish.indexOf('changeset pack')).toBeLessThan(publish.indexOf('node tools/publish.mjs'));
+    expect(WORKFLOW).not.toMatch(/^\s*(yarn )?changeset publish\b|yarn npm publish|release:publish/m);
   });
 
   // `check` ran every file on this commit when it reached `main`, so a press
@@ -140,8 +168,8 @@ describe('the release workflow', () => {
   });
 
   // npm no longer issues a token that publishes without a second factor, so a
-  // token in this job cannot publish: it answers YN0033, or 404 once it expires.
-  // The run's OIDC token is the credential, and Yarn trades it only when no
+  // token in this job cannot publish: it is refused, or 404s once it expires.
+  // The run's OIDC token is the credential, and npm trades it only when no
   // other is set (ADR-0060).
   it('publishes through the trusted publisher, with no npm token to set', () => {
     expect(job('publish')).toMatch(/id-token: write/);

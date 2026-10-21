@@ -15,7 +15,7 @@
 # `yarn add` in the world resolves, and "who merged that" is not a recovery plan.
 #
 # The publish job holds no npm token. npm no longer issues one that publishes
-# without a second factor, so a token here answers YN0033 at best. It is trusted
+# without a second factor, so a token here is refused at best. It is trusted
 # publishing: the job exchanges GitHub's OIDC token for a registry credential
 # that lives seconds, which the registry grants only to this repository, this
 # workflow file and the `npm` environment, because that is what the trusted
@@ -34,12 +34,13 @@
 #
 # The version itself is derived — `.changeset/config.json` holds all packages in
 # one `fixed` group, because they are one product with `workspace:^` between
-# them. `changeset publish` reads the package manager from the workspace and
-# runs `yarn npm publish`, which matters: npm would ship that protocol verbatim
-# and break every install. It publishes in dependency order, skips versions the
-# registry already has — so a second press is a no-op, not a disaster — and takes
-# the dist-tag from the version each manifest carries rather than from anything
-# typed here.
+# them. `changeset pack` packs with Yarn, which matters: the tarball carries the
+# version `workspace:^` names, where npm packing would ship that protocol
+# verbatim and break every install. npm publishes those tarballs, in the
+# dependency order changesets planned, skipping versions the registry already
+# has — so a second press is a no-op, not a disaster — at the dist-tag changesets
+# took from the version each manifest carries rather than from anything typed
+# here.
 
 name: release
 
@@ -303,7 +304,7 @@ jobs:
     environment: npm
     permissions:
       contents: write
-      # What authenticates the publish and what signs it: `yarn npm publish`
+      # What authenticates the publish and what signs it: `npm publish`
       # trades this run's OIDC token for a registry credential that lives
       # seconds and cannot leave the runner, and npm mints provenance from it.
       id-token: write
@@ -365,26 +366,33 @@ jobs:
 
       - name: Publish, and tag what was published
         env:
-          # No credential is set, and that is what makes Yarn trade the run's
-          # OIDC token: it attempts the exchange only when nothing else
-          # authenticates. Setting a token here turns trusted publishing off.
-          YARN_NPM_PUBLISH_PROVENANCE: 'true'
+          PACKED: ${{ runner.temp }}/packed
+        # No credential is set, and that is what makes npm trade the run's OIDC
+        # token: it attempts the exchange only when nothing else authenticates.
+        # Setting a token here turns trusted publishing off.
         run: |
+          # Yarn packs and npm publishes. `changeset pack` plans the release in
+          # dependency order and packs each name with `yarn pack`, which
+          # rewrites `workspace:^` and runs every `prepack`. `tools/publish.mjs`
+          # sends each tarball with `npm publish --provenance`: Yarn's signing
+          # client gives the transparency log five seconds and reads its own
+          # retry's "an equivalent entry already exists" as a failure, which
+          # cost 0.17.1 two names and 0.18.0 one to three on every attempt.
+          yarn changeset pack --out-dir "$PACKED"
+
           # Asking the registry rather than believing the exit code, either
           # way. 0.5.6 reached five of the thirty-eight names and stopped, and
-          # the step that did it was green. 0.17.1 lost two names to a
-          # transparency-log 409 and the step stopped on the exit code, so the
-          # retry below never ran. Yarn's sigstore client gives rekor five
-          # seconds, retries the same signed envelope when rekor is slower, and
-          # reads rekor's "an equivalent entry already exists" for the entry it
-          # just made as a failure. A new attempt signs a new envelope.
-          yarn release:publish || echo "::warning::the publish failed on some names; the registry decides what is missing"
+          # the step that did it was green. 0.17.1 lost two names and the step
+          # stopped on the exit code, so the retry below never ran.
+          node tools/publish.mjs "$PACKED" || echo "::warning::the publish failed on some names; the registry decides what is missing"
 
-          # `changeset publish` skips versions the registry already has, so
-          # the repair for a truncated release is the same command again — it
+          # The publisher skips versions the registry already has, so the
+          # repair for a truncated release is the same command again — it
           # completes the missing names and no others. In rounds, because a
-          # name that fails holds every package that depends on it: the round
-          # that finishes `package` is the first that attempts what imports it.
+          # name that fails holds every package that depends on it, and for as
+          # long as a round finishes names: 0.18.0 went 41, 34, 27, 22, 14
+          # missing and stopped at a cap of three with every round still
+          # finishing names. A round that finishes none is the stop.
           #
           # No round's exit code is the verdict either. npm processes a
           # publish asynchronously, and a version it has accepted but not yet
@@ -392,10 +400,15 @@ jobs:
           # published all thirty-eight, showed twenty-five after two minutes,
           # and showed `core` about six minutes after it was sent. So a round
           # may fail, and the registry, given ten minutes, decides.
-          for round in 1 2 3; do
-            node tools/released.mjs --registry --wait 120 && break
-            echo "::warning::the publish was partial — round $round for the names still missing"
-            yarn release:publish || echo "::warning::round $round was refused on some names; a 409 'previously staged' is a version npm accepted and has not shown yet"
+          left=$(node tools/released.mjs --count --wait 120)
+          round=0
+          while [ "$left" -gt 0 ]; do
+            round=$((round + 1))
+            echo "::warning::$left names are not on the registry — round $round"
+            node tools/publish.mjs "$PACKED" || echo "::warning::round $round was refused on some names; a 409 'previously staged' is a version npm accepted and has not shown yet"
+            now=$(node tools/released.mjs --count --wait 120)
+            [ "$now" -lt "$left" ] || { echo "::warning::round $round finished no name"; break; }
+            left=$now
           done
           node tools/released.mjs --registry --wait 600
 

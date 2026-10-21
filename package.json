@@ -22,7 +22,6 @@
     "lint": "oxlint",
     "measure": "vitest run --config vitest.measure.config.ts",
     "release:version": "changeset version && node tools/changelog-tidy.mjs",
-    "release:publish": "changeset publish",
     "test": "vitest run && vitest run --config vitest.integration.config.mts && vitest run --config vitest.chromium.config.mts",
     "test:unit": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.mts",
