@@ -1,5 +1,11 @@
 # @variance-authority/playwright-test
 
+## 0.17.1
+
+### Patch Changes
+
+- a438b9a: Accept typed Playwright configurations without casts and preserve their custom fixture types. Return a mutable loader tuple from `testSelectionRule` so it can be used directly in Rspack rules.
+
 ## 0.17.0
 
 ### Minor Changes
