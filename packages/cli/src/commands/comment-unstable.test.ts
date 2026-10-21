@@ -106,7 +106,7 @@ describe('an unstable subject in the pull-request comment', () => {
 
   it('does not offer accept beside a subject that failed to render, which accept cannot take either', () => {
     const report: CliRunReport = {
-      ...reportOf([ticking]),
+      ...reportOf([]),
       notObserved: [{ subject: 'story:case-surface--broken', kind: 'failed', because: 'the story threw' }],
     };
     const body = renderComment({ project: 'storybook-case', report, toAccept: TO_ACCEPT });
