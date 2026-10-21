@@ -1,5 +1,5 @@
-import { arrivalLine, carriedLine } from '@variance-authority/report';
-import type { NotObserved, RunReport } from '@variance-authority/report';
+import { NO_RECORD, arrivalLine, carriedLine, isUnstable, unstableOf } from '@variance-authority/report';
+import type { FlakinessRecord, NotObserved, RunReport } from '@variance-authority/report';
 import { presentationSummary } from '../presentation.js';
 import { indexed } from './locate.js';
 import { narrowing } from './narrowing.js';
@@ -80,8 +80,7 @@ export const summarize: Tool = {
     // what agreeing with a baseline does not say — so it was not an edge.
     const notable = report.observations.filter(
       (o) =>
-        (o.verdict !== 'unchanged' && o.verdict !== 'ignored') ||
-        (o.unstable !== undefined && o.unstable.absorbed === undefined),
+        (o.verdict !== 'unchanged' && o.verdict !== 'ignored') || isUnstable(o),
     );
 
     return [
@@ -101,10 +100,7 @@ export const summarize: Tool = {
               // that it does not assert on what moved, so it is neither a defect
               // nor a different word for its verdict — it is listed further down,
               // under a heading that says so.
-              const reported =
-                observation.unstable !== undefined && observation.unstable.absorbed === undefined
-                  ? observation.unstable
-                  : undefined;
+              const reported = isUnstable(observation) ? observation.unstable : undefined;
               const label = reported
                 ? 'unstable'
                 : observation.alone?.reproduced === false
@@ -154,15 +150,10 @@ export const summarize: Tool = {
  * rather than a tolerance to widen.
  */
 function instability(report: RunReport): readonly string[] {
-  const unstable = report.observations.filter(
-    (o) => o.unstable !== undefined && o.unstable.absorbed === undefined,
-  );
+  const { subjects: unstable, unrecorded } = unstableOf(report);
   if (unstable.length === 0) return absorbedInstability(report);
 
-  const bands = new Set(unstable.flatMap((o) => o.unstable?.bands ?? []));
-  // Said once when no subject has a record, which is every subject on a run
-  // with no history configured; per subject only when some do.
-  const unrecorded = unstable.every((o) => report.flakiness?.[o.subject] === undefined);
+  const bands = new Set(unstable.flatMap((entry) => entry.bands));
 
   return [
     '',
@@ -170,17 +161,16 @@ function instability(report: RunReport): readonly string[] {
     '  and the readings disagreed. Do not review or accept them (`accept` refuses).',
     ...(unrecorded ? [`  ${NO_RECORD}.`] : []),
     '  Fix what differs between the two readings:',
-    ...unstable.flatMap((observation) => {
-      const moved = observation.unstable;
-      const named = (moved?.components ?? [])
+    ...unstable.flatMap((entry) => {
+      const named = entry.components
         .map((component) =>
           component.file === undefined ? component.name : `${component.name} ${component.file}`,
         )
         .join(', ');
       const where = named === '' ? '' : ` — ${named}`;
-      const inBands = moved === undefined || moved.bands.length === 0 ? '' : ` (${moved.bands.join(', ')})`;
-      const history = unrecorded ? [] : recurrence(report, observation.subject);
-      return [`    ${observation.subject}${where}${inBands}`, ...history];
+      const inBands = entry.bands.length === 0 ? '' : ` (${entry.bands.join(', ')})`;
+      const history = unrecorded ? [] : recurrence(entry.record);
+      return [`    ${entry.subject}${where}${inBands}`, ...history];
     }),
     ...remedies(bands),
     // The loop closes here. Everything above tells a reader what moved and how
@@ -188,7 +178,7 @@ function instability(report: RunReport): readonly string[] {
     // they are about to make worked — without re-running three hundred subjects
     // and without waiting for tomorrow's build to be the experiment.
     '  Check a fix; it exits 1 while the readings disagree, even with every verdict green:',
-    ...unstable.map((observation) => `    variance run --subjects '${observation.subject}' --flakes`),
+    ...unstable.map((entry) => `    variance run --subjects '${entry.subject}' --flakes`),
     ...absorbedInstability(report),
   ];
 }
@@ -218,9 +208,6 @@ function drift(report: RunReport): readonly string[] {
   ];
 }
 
-/** A subject no history record answered for. Silence, never a first occurrence. */
-const NO_RECORD = 'No history record: recurrence unknown';
-
 /**
  * What the record says about a subject that just read differently.
  *
@@ -233,9 +220,7 @@ const NO_RECORD = 'No history record: recurrence unknown';
  * Silence here would read as "first time", which is a claim — and it is the claim
  * a reader most wants to be true.
  */
-function recurrence(report: RunReport, subject: string): readonly string[] {
-  const record = report.flakiness?.[subject];
-
+function recurrence(record: FlakinessRecord | undefined): readonly string[] {
   if (record === undefined) return [`      ${NO_RECORD.toLowerCase()}`];
 
   const shape =

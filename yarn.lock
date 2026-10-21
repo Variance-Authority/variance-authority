@@ -12808,6 +12808,7 @@ __metadata:
   resolution: "variance-authority@workspace:."
   dependencies:
     "@changesets/cli": "npm:^3.0.1"
+    "@changesets/read": "npm:^1.0.0"
     "@jscpd/core": "npm:^4.2.5"
     "@jscpd/tokenizer": "npm:^4.2.6"
     "@playwright/test": "npm:^1.62.1"

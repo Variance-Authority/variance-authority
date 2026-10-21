@@ -40,7 +40,7 @@ others, in as many shards per slice as `variance shards` counts them worth. It
 posts nothing.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
-nightly, and the shards on demand only — sharding fourteen subjects across two
+nightly, and the shards on demand only — sharding thirteen subjects across two
 installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
