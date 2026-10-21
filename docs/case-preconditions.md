@@ -60,8 +60,8 @@ variance covering --file src/checkout/total.ts --function total
 ```text
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/2
-    applies the discount — read nothing, flags:discount (test/flags.ts:6)
-    charges the regular price — read nothing, flags:discount=false (test/flags.ts:6)
+    applies the discount — flags:discount (test/flags.ts:6)
+    charges the regular price — flags:discount=false (test/flags.ts:6)
 ```
 
 `covering` calls each test a case, as the runners do: one `it` or `test`, by
@@ -70,9 +70,6 @@ names you choose, so `discount` is recorded as `flags:discount`. A value `true`
 prints as the bare name, so `flags:discount` means the discount was on. Each value
 carries the `file:line` of the call that recorded it. Here that is the line in
 the helper, so every test that uses `setDiscountFlag` points back to one place.
-
-`read nothing` says the code under test left no breadcrumb in that case.
-[Check what the code read](#check-what-the-code-read) adds one.
 
 ## Record state where you arrange it
 
@@ -140,10 +137,10 @@ and the test body over both.
 ```text
 4 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 4/4
-    applies the discount — read nothing, flags:discount (test/flags.ts:6), mocks:prices=full (test/prices.ts:12)
-    charges the regular price — read nothing, flags:discount=false (test/flags.ts:6), mocks:prices=full (test/prices.ts:12)
-    sale prices > applies the discount — read nothing, flags:discount (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
-    sale prices > charges the sale price — read nothing, flags:discount=false (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
+    applies the discount — flags:discount (test/flags.ts:6), mocks:prices=full (test/prices.ts:12)
+    charges the regular price — flags:discount=false (test/flags.ts:6), mocks:prices=full (test/prices.ts:12)
+    sale prices > applies the discount — flags:discount (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — flags:discount=false (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
 ```
 
 The test does not need a second description of what its helpers already did.
@@ -160,8 +157,8 @@ variance covering --file src/checkout/total.ts --function total --where mocks:pr
 Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded mocks:prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > applies the discount — read nothing, flags:discount (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
-    sale prices > charges the sale price — read nothing, flags:discount=false (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
+    sale prices > applies the discount — flags:discount (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — flags:discount=false (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
 ```
 
 - `--where mocks:prices` keeps every test that recorded `mocks:prices`, whatever
@@ -367,10 +364,10 @@ text, and its answer has `where: {asked, read, kept, of, unmeasured}`, with
 
 A case recorded by a runner that records preconditions and that said nothing
 has none. A case recorded by a runner that does not has no answer, and whether
-that test set any state is unmeasured. Reads are the same: under a runner that
-listens to breadcrumbs a case that read nothing prints `read nothing`, and
-under one that does not, a case prints nothing about reads. Unmeasured is never
-read as none.
+that test set any state is unmeasured. Reads are kept the same way, but a case that
+read nothing prints nothing about reads under either runner: in a codebase
+that leaves no breadcrumb, that is every case. Unmeasured is never read as
+none.
 
 When no case was recorded with what you asked for, `--where` or `--read` keeps
 none and says that none of them was recorded with preconditions or reads, never

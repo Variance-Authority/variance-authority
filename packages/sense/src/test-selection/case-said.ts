@@ -173,7 +173,8 @@ export function heldValues(said: readonly CasePrecondition[], named: string): re
  * flags:checkout=true said true`, or `said nothing`, then what the case said in
  * the dimensions the code never read, as spec 0093 prints it. A key said in a
  * dimension the code read, and never read itself, is left out. Where nobody
- * listened to reads, what the case said alone; nothing when it heard nothing.
+ * listened to reads or the code read nothing, what the case said alone;
+ * nothing when it heard nothing.
  */
 export function heldText(test: { readonly said?: Said | undefined }): string {
   if (test.said === undefined) return '';
@@ -186,7 +187,9 @@ export function heldText(test: { readonly said?: Said | undefined }): string {
   });
   const unread = said.filter((held) => !consulted.has(dimension(held.name)));
   const parts = [
-    ...reads === undefined ? [] : reads.length === 0 ? ['read nothing'] : reads,
+    // A case whose code read nothing prints nothing: in a codebase that leaves
+    // no breadcrumb, that is every case. The record keeps it apart from absent.
+    ...reads ?? [],
     ...unread.length === 0 ? [] : [preconditionText(unread)],
   ];
   return parts.length === 0 ? '' : ` — ${parts.join(', ')}`;

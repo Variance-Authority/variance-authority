@@ -671,8 +671,7 @@ each case prints what the code read beside what the case said under the same
 name, `read flags:discount=true said true`, and `--read` keeps the cases by
 what the code read, in the same forms. The two filters never stand in for each
 other: `--where flags:discount=true --read flags:discount=false` keeps the
-cases whose claim never reached the code. A case recorded by a runner that
-listens to reads and that read nothing prints `read nothing`. Two values recorded at one level print as a
+cases whose claim never reached the code. Two values recorded at one level print as a
 contradiction, and match a `--where` naming either. A record made before cases
 recorded preconditions keeps none and counts every case as unmeasured, rather
 than answering that no test covered it, and a case from a runner that does not

@@ -23,8 +23,8 @@ variance covering --file src/checkout/total.ts --function total --where mocks:pr
 Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded mocks:prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > applies the discount — read nothing, flags:discount (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
-    sale prices > charges the sale price — read nothing, flags:discount=false (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
+    sale prices > applies the discount — flags:discount (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — flags:discount=false (test/flags.ts:6), mocks:prices=discounted (test/prices.ts:12)
 ```
 
 `Kept the 2 of 4` is out of the cases that covered the function before
@@ -32,8 +32,7 @@ Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and r
 a case is kept only when it recorded all of them. `--where mocks` keeps any key
 of the dimension; a bare `--where mocks:seeded-cart` keeps every value, so it
 also keeps a case that recorded `false`; `--where mocks:seeded-cart=true` keeps
-only `true`. A `true` value prints as the bare name. `read nothing` says the
-code left no breadcrumb in the case.
+only `true`. A `true` value prints as the bare name.
 
 ## Did the code read the flag the test says it set
 

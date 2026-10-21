@@ -33,7 +33,7 @@ rule needs:
 checkout/pay.ts  lines 41-58  (changed)
   pay › charges a new card   read flags:new-checkout=true   said true
   pay › retries on 502       read flags:new-checkout=true   said nothing
-  cart › totals              read nothing
+  cart › totals
 ```
 
 Variance does not judge the row. Whether `cart › totals` reaching new code with
@@ -162,8 +162,10 @@ distinct facts, not with the cases; the size that adds to this repository's
 recording is measured and stated.
 
 Absent is not empty. A record made before this column existed answers
-**unmeasured**. A case from a recording that listened and read nothing answers
-*read nothing*.
+**unmeasured**. A case from a recording that listened and read nothing keeps an
+empty read: its case line prints nothing about reads, since in a codebase that
+leaves no breadcrumb that is every case, and a region's split counts it under
+`not by`.
 
 A breadcrumb, like a precondition, **never selects and never excludes** a test.
 

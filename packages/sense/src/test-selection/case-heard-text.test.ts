@@ -14,8 +14,9 @@ describe('what a reader prints of what a case heard', () => {
     ))).toBe(' — read flags:new-checkout=true said true, read flags:retries=2 said nothing');
   });
 
-  it('prints read nothing for a case of a recording that listened to reads and heard none', () => {
-    expect(heldText(heard([], []))).toBe(' — read nothing');
+  it('prints nothing about reads for a case whose code read nothing, which every case of a codebase without breadcrumbs is', () => {
+    expect(heldText(heard([], []))).toBe('');
+    expect(heldText(heard([item('flags:new-checkout', true, 'pay.test.ts:3')], []))).toBe(' — flags:new-checkout (pay.test.ts:3)');
   });
 
   it('drops a key said and never read in a dimension the case read, and prints a dimension never read as it was said', () => {
