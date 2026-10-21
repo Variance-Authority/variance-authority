@@ -151,6 +151,27 @@ describe('two sides of a case', () => {
     ]);
   });
 
+  it('name the arm of a second declaration of one name by the line its own `then` starts on', () => {
+    const regions: Region[] = [
+      { kind: 'function', name: 'handle', path: 'entry', startLine: 1, endLine: 5 },
+      { kind: 'branch', name: 'handle', path: 'if#0/then', startLine: 2, endLine: 3 },
+      { kind: 'function', name: 'handle', path: 'entry', startLine: 7, endLine: 11 },
+      { kind: 'branch', name: 'handle', path: 'if#0/then', startLine: 9, endLine: 9 },
+      { kind: 'branch', name: 'handle', path: 'if#0/else', startLine: 10, endLine: 10 },
+    ];
+    const route = (visits: number[], stopped: boolean): Loaded => ({
+      story: { ...reading([], [], stopped).story, rows: [['src/route.ts', 5]], visits: Int32Array.from(visits) },
+      files: ['src/route.ts'],
+      regions: [regions],
+    });
+    const comparison = compareLoaded(ROOT, [passed(route([2, 3], false), route([2, 3], false)), threw(route([2, 4], true), route([2, 4], true))]);
+
+    expect(comparison.only.flatMap((only) => only.places.map(({ at, constructLine }) => ({ at, constructLine })))).toEqual([
+      { at: 'src/route.ts#handle~2/if#0/then', constructLine: 9 },
+      { at: 'src/route.ts#handle~2/if#0/else', constructLine: 9 },
+    ]);
+  });
+
   it('meet one region across two texts of its file, as a reading from before an edit meets one after it', () => {
     // The edit added a helper above `removeItem`: every ordinal after it moved,
     // and the module holds a region more, but the arm each side took is the

@@ -257,7 +257,9 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
         ? { file, name: '', kind: 'module', at: file }
         : declarations[row]!.places[ordinal]!;
       if (!names.has(key)) {
-        const construct = own === undefined ? undefined : ifLine(own, regions[row]!);
+        const construct = own === undefined || coordinate === undefined
+          ? undefined
+          : ifLine(coordinate, regions[row]!, declarations[row]!.at);
         names.set(key, {
           place,
           path: own?.path ?? `region ${ordinal}`,
@@ -278,12 +280,12 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
 }
 
 /** Where the `then` of the `if` an arm belongs to starts, from the module's regions; nothing for any other region. */
-function ifLine(arm: Region, regions: readonly Region[]): number | undefined {
-  const parts = arm.path.split('/');
-  const [construct, label] = parts.slice(-2);
-  if (!construct?.startsWith('if#') || (label !== 'then' && label !== 'else')) return undefined;
-  const then = [...parts.slice(0, -1), 'then'].join('/');
-  return regions.find((region) => region.name === arm.name && region.path === then)?.startLine;
+function ifLine(arm: string, regions: readonly Region[], at: readonly string[]): number | undefined {
+  const match = /\/if#\d+\/(then|else)$/.exec(arm);
+  if (match === null) return undefined;
+  const then = `${arm.slice(0, -match[1]!.length)}then`;
+  const index = at.indexOf(then);
+  return index === -1 ? undefined : regions[index]?.startLine;
 }
 
 /**

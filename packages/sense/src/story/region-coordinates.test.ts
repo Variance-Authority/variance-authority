@@ -28,4 +28,21 @@ describe('a region coordinate', () => {
       'src/price.js#total~2/if#0/then',
     ]);
   });
+
+  it('carries the number of a declaration into the declarations nested in it', () => {
+    expect(coordinatesOf('src/route.js', [
+      { name: 'handle', path: 'entry' },
+      { name: 'handle', path: 'entry' },
+      { name: 'handle/inner', path: 'entry' },
+      { name: 'handle/inner', path: 'if#0/then' },
+      { name: 'handle/inner', path: 'entry' },
+    ])).toEqual([
+      'src/route.js#handle/entry',
+      'src/route.js#handle~2/entry',
+      // The first `handle` has no `inner`, and this one is still the second's.
+      'src/route.js#handle~2/inner/entry',
+      'src/route.js#handle~2/inner/if#0/then',
+      'src/route.js#handle~2/inner~2/entry',
+    ]);
+  });
 });

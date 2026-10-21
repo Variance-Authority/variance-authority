@@ -56,7 +56,7 @@ export interface Place {
   /** The declaration's name path, `Cart/removeItem`; empty for the module's top level. */
   readonly name: string;
   readonly kind: BlockKind;
-  /** The coordinate of the declaration's own region, `src/cart.ts#Cart/removeItem/entry`; the file alone where the record does not hold its regions. */
+  /** The coordinate of the region the place is drawn by, `src/cart.ts#Cart/removeItem/entry` — its first region where it has no `entry`; the file alone where the record does not hold its regions. */
   readonly at: string;
   readonly startLine?: number;
   readonly endLine?: number;
