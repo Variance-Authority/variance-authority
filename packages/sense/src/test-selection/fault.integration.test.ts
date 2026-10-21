@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
@@ -6,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FAULT_VARIABLE } from './cache-layers.js';
+import { faultReadIn } from './fault.js';
 import { decodeTestCoverage } from './format.js';
 
 /**
@@ -33,6 +35,8 @@ interface Outcome {
   /** What the runner said of the files that failed. */
   readonly messages: string;
   readonly coverageFile: string;
+  /** Whether the run marked its cache as having read the file with the region left out. */
+  readonly marked: boolean;
 }
 
 interface Report {
@@ -90,7 +94,7 @@ describe.each(RUNNERS)('a fault under $runner', ({ fixture: name, command }) => 
     const passed = titled('passed');
     const refused = testResults.some((file) => file.status === 'failed' && file.assertionResults.every((test) => test.status !== 'failed'));
     const messages = testResults.map((file) => file.message).join('\n');
-    return { failed, passed, refused, messages, coverageFile };
+    return { failed, passed, refused, messages, coverageFile, marked: existsSync(faultReadIn(directory)) };
   };
 
   const ordinalOf = async (coverageFile: string, name: string, path: string): Promise<number> => {
@@ -120,6 +124,15 @@ describe.each(RUNNERS)('a fault under $runner', ({ fixture: name, command }) => 
     const faulted = await run(`${pick}#${await ordinalOf(plain.coverageFile, 'checked', 'if#0/then')}`, plain);
     expect(faulted.failed).toEqual(['checks what checked returns']);
     expect(faulted.passed).toEqual([]);
+  }, 60_000);
+
+  it('marks a run read with the region left out, a second time served from the runner\'s cache too', async () => {
+    const plain = await run();
+    expect(plain.marked).toBe(false);
+    const fault = `${pick}#${await ordinalOf(plain.coverageFile, 'unchecked', 'if#0/then')}`;
+
+    expect((await run(fault)).marked).toBe(true);
+    expect((await run(fault)).marked).toBe(true);
   }, 60_000);
 
   it('refuses a region with no text of its own', async () => {
