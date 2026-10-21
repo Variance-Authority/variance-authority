@@ -366,7 +366,8 @@ seen, so the answer says who can reach it is not recorded. CommonJS is read on
 a best-effort basis: the static keys of an object literal that `export =` or
 `module.exports =` assigns at the top level are the file's exports, and naming
 a declaration there passes it on, which is no use of it. An object with a
-spread or a computed key exports nothing, because its names cannot be spelled.
+spread or a computed key with no literal name exports nothing, because its
+names cannot be spelled.
 A script or CommonJS file, a module that hands itself out with `export =` and
 a `macro_rules!` hand a name out in ways their readers cannot tell, so the
 answer says who can reach it is not recorded. `docs_uses`
@@ -395,9 +396,9 @@ local or an inner item of the same name is another name and is not listed, and
 neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
 its imports alone.
 
-A name your code reads off `import * as`, off `import()` or off a default
+A name your code reads off `import * as` or `import type * as`, off `import()` or off a default
 import is a site too, and the site names the line that loads the module. In a
-type, `typeof ns.x` and `ns.T` read `x` and `T` off the namespace. An `import()` loads it when that call
+type, `typeof ns.x` and `ns.T` read `x` and `T` off whatever holds the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
 loading. An `import()` written in a type, `import('./x').T` or
 `typeof import('./x')`, loads nothing: TypeScript resolves it as it resolves

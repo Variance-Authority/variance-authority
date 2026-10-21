@@ -38,6 +38,16 @@ fn an_object_handed_out_whole_exports_each_key_it_spells() {
 }
 
 #[test]
+fn a_module_that_hands_itself_out_keeps_no_recorded_reach() {
+    let reach = |source: &str| -> Vec<Option<&'static str>> {
+        read_module("a.ts", source, &Allocator::default(), true).symbols.iter().map(|symbol| symbol.reach).collect()
+    };
+    assert_eq!(reach("import x from './x';\nfunction a() {}\n"), [Some("file")]);
+    assert_eq!(reach("import x from './x';\nfunction a() {}\nmodule.exports = { a };\n"), [None]);
+    assert_eq!(reach("import x from './x';\nfunction a() {}\nexport = { a };\n"), [None]);
+}
+
+#[test]
 fn a_default_import_holds_the_module_default() {
     // A name read off it is read through `default`; passed on, it is the
     // `default` moving, which the binding already records.
@@ -60,8 +70,13 @@ fn a_type_query_reads_the_name_off_a_holder() {
         "type A = ReturnType<typeof ns.a>;\n",
         "type B = typeof kit.b.deeper;\n",
         "type C = ns.C;\n",
+        "import type * as types from './types';\n",
+        "type D = ReturnType<typeof types.d>;\n",
     );
-    assert_eq!(members("a.ts", source), [read("./ns", "C", 5, false), read("./ns", "a", 3, false), read("./kit", "b", 4, true)]);
+    assert_eq!(
+        members("a.ts", source),
+        [read("./ns", "C", 5, false), read("./ns", "a", 3, false), read("./kit", "b", 4, true), read("./types", "d", 7, false)]
+    );
 }
 
 #[test]

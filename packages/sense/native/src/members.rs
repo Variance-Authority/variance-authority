@@ -70,14 +70,14 @@ pub struct Member {
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
 /// read through an `import m = require()` as if `loads.required` followed those,
 /// and one read through an `import()` type as if `loads.typed` followed those.
-/// `dynamic` is whether the module record lists any `import()`.
 pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
     let mut holders = HashMap::new();
     for (index, request) in requests.iter().enumerate() {
-        for binding in request.bindings.iter().filter(|binding| !binding.type_only) {
+        // `import type * as ns` holds the module for its types; a type-only default holds nothing.
+        for binding in &request.bindings {
             let held = match binding.imported.as_str() {
                 "*" => Held::whole(Via::Indexed(index as u32)),
-                "default" => Held::whole(Via::Indexed(index as u32)).default(),
+                "default" if !binding.type_only => Held::whole(Via::Indexed(index as u32)).default(),
                 _ => continue,
             };
             if let Some(symbol) = scoping.get_root_binding(binding.local.as_str().into()) {

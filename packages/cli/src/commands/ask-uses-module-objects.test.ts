@@ -11,7 +11,7 @@ import { checkout, run } from './ask-packages-fixture.js';
  * holds through a type. CommonJS is read on a best-effort basis: the object's
  * static keys are the module's exports, and a read off a default import of it
  * is a read through `default`, which may be the key. A type query
- * `typeof m.name` off a holder reads `name`; `typeof import('m')` reads no
+ * `typeof m.name` off a holder, `import type * as m` among them, reads `name`; `typeof import('m')` reads no
  * name until a value it types is read; and naming the object in `export =`
  * passes its keys on, which is no use of them.
  */
@@ -39,6 +39,7 @@ const OBJECTS = {
   'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport { split } from './split.js';\n",
   'packages/lib/src/split.ts': "export function split(text: string): string[] {\n  return text.split(',');\n}\n",
   'apps/app/src/splitter.ts': "import { split } from '@acme/lib';\nexport const parts = split('a,b');\n",
+  'apps/app/src/split-type.ts': "import type * as lib from '@acme/lib';\nexport type Parts = ReturnType<typeof lib.split>;\n",
   'apps/app/src/typed.ts': "type Lib = typeof import('@acme/lib');\nexport const use = (lib: Lib) => lib.greet('x');\n",
   'apps/app/src/mocked.test.ts':
     "import { vi } from 'vitest';\nvi.mock('@acme/lib', async (original) => ({ ...(await original<typeof import('@acme/lib')>()) }));\n",
@@ -66,6 +67,13 @@ describe('variance ask uses over a module object', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     expect(await uses('quiet')).toMatch(/^apps\/app\/src\/quiet\.ts:2 — @acme\/app.* \(namespace, line 1, through `default`: may read it\)$/m);
+  });
+
+  it('lists a type query off a type-only namespace import as a type use', async () => {
+    checkout(OBJECTS);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect(await uses('split')).toMatch(/^apps\/app\/src\/split-type\.ts:2 — @acme\/app.*type only/m);
   });
 
   it('does not count naming a declaration in `export =` as a use of it', async () => {
