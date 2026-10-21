@@ -153,8 +153,10 @@ cannot be read — and a fact that fails decides before one that cannot be read.
 **No recorded witness** is said only when the witness count is zero, no case is
 *unmeasured* or *outcome unsaid*, and the target is no hole in spec 0067's
 sense: no case that holds the asked state stopped before it could reach the
-target. Those cases are printed as their own line. Otherwise the answer says the
-record cannot tell, and names how many cases it could not read.
+target. Those cases are printed as their own line. A record that cannot say
+which cases stopped before the target (no relations, a missing file, no
+recorded reach) has an unknown hole, never an empty one. Otherwise the answer
+says the record cannot tell, and names how many cases it could not read.
 *Contradicted*, *unfinished* and *at load only* are printed and never turn into
 a negative: the reader sees them and decides.
 
@@ -197,7 +199,8 @@ sites, and `M` for the measured set.
   whose test file imports the module are read from the file graph, as
   selection reads them, and the entered set is subtracted.
 - **A hole:** the cases `stoppedBefore` names for the target, as spec 0067
-  reads them.
+  reads them. Its `undefined`, a record it cannot read, is an unknown hole and
+  blocks the negative.
 - **Named:** a scan of the case-name column, the one step linear in cases. It
   runs only when `--named` is given.
 - **Finished, unfinished, outcome unsaid:** the `stopped` column, read as its
