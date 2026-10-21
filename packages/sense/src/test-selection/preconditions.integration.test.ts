@@ -188,7 +188,7 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
 
   it.todo('a Jest test.concurrent pair — needs a Jest recording under continuations, whose concurrent bodies start before their hooks run');
 
-  describe.runIf(runnerName === 'vitest')('what the code under test read', () => {
+  describe('what the code under test read', () => {
     const flags = `${relative(repository, fixture)}/src/flags.ts`;
     const read = async (name: string, value: CasePrecondition['value'], call: string, level: number): Promise<CasePrecondition> => {
       const lines = (await readFile(resolve(repository, flags), 'utf8')).split('\n');

@@ -25,8 +25,7 @@ import {
   coveringTestsInFile,
   distanceToSource,
   hunksOf,
-  readsOf,
-  rowOf,
+  saidRow,
   type CoveringRegion,
   type ExecutionIndex,
   type LineRange,
@@ -167,8 +166,8 @@ export function regionsOf(
       tests: [...new Set(called.map((test) => test.file))].sort(order),
       called: called
         .map((test) => {
-          const reads = readsOf(test);
-          return { id: test.id, file: test.file, name: test.name, ...(test.said === undefined ? {} : { preconditions: rowOf(test)! }), ...(reads === undefined ? {} : { reads }) };
+          const row = test.said === undefined ? undefined : saidRow(test.said);
+          return { id: test.id, file: test.file, name: test.name, ...(row === undefined ? {} : { preconditions: row.said! }), ...(row?.read === undefined ? {} : { reads: row.read }) };
         })
         .sort(caseOrder),
     };

@@ -97,8 +97,9 @@ type Where =
  * around one of them is read by the other.
  * @param siteNamed How a warning names a call site, where the realm can name it as
  * the row does, from the checkout; as the realm spelled it otherwise.
- * @param reads Whether the realm listens to `varianceBreadcrumb` too, which a
- * runner does where it tells the recorder when its file has loaded.
+ * @param reads Whether the realm listens to `varianceBreadcrumb` too: a test
+ * runner's realm, which tells the recorder when its file has loaded, does; the
+ * Playwright listener's, which runs no code under test, does not.
  */
 function recorder(
   holder: object,

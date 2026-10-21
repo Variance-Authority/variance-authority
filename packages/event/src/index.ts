@@ -183,10 +183,7 @@ export function vaEnd(location: string, subject: string, action: string): void {
  * recording installs on `globalThis`; without one, the call is one property
  * read and a return. It never throws: a recorder's failure is swallowed, and a
  * misuse is recorded on the case rather than thrown at the code that read.
- */
-
-
-/**
+ *
  * Record that the code read `key` under `dimension` as `value`, and return
  * `value` unchanged: `if (varianceBreadcrumb('flags', 'new-checkout', flags['new-checkout']))`.
  *

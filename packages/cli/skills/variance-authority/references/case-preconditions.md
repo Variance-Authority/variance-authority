@@ -59,7 +59,7 @@ variance covering --file src/checkout/total.ts --function total --read flags:dis
 `--read` takes the forms `--where` takes and filters by reads only;
 `--where flags:discount=true --read flags:discount=false` keeps exactly the
 mismatches. A read is laid on the case running it, and a read made while the
-test file loads on every case of the file. Only Vitest in Node records reads;
+test file loads on every case of the file. Vitest, Jest and Rstest in Node record reads;
 elsewhere the answer prints nothing about them.
 
 `variance review` splits each changed region's cases by what they read:

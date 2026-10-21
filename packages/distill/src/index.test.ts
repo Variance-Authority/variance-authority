@@ -231,9 +231,17 @@ describe('distill', () => {
     expect(parsed.tests[2]).not.toHaveProperty('said');
     expect(() => parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: {} }] }))
       .toThrow('execution test 0 preconditions must be an array');
+    // A value is any JSON value, as the recorder holds it.
+    expect(parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: [
+      { name: 'pay:cart', value: { items: [1, 2] }, site: 'test/pay.test.ts:4', level: 1 },
+      { name: 'pay:user', value: null, site: 'test/pay.test.ts:5', level: 1 },
+    ] }] }).tests[0]?.said).toBe(JSON.stringify({ said: [
+      ['pay:cart', '{"items":[1,2]}', 'test/pay.test.ts:4', 1],
+      ['pay:user', 'null', 'test/pay.test.ts:5', 1],
+    ] }));
     expect(() => parseExecutionIndex({ ...spelled, tests: [{ ...spelled.tests[0], preconditions: [
-      { name: 'network', value: null, site: 'test/pay.test.ts:4', level: 1 },
-    ] }] })).toThrow('execution test 0 precondition 0 value must be a string, number or boolean');
+      { name: 'pay:network', site: 'test/pay.test.ts:4', level: 1 },
+    ] }] })).toThrow('execution test 0 precondition 0 value is missing');
   });
 
   it('carries whether each case stopped and how long it ran, and leaves an untimed, unsettled case without either', () => {

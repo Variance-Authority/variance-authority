@@ -184,7 +184,7 @@ Kept none of the 4 cases that covered function total of src/checkout/total.ts: n
 A test says what it arranged, and that is a claim. When a mock does not reach
 the provider the code reads from, the test says one thing and the code runs
 another. `varianceBreadcrumb` records what the code read, in the source, where
-it reads. Vitest records reads in Node; under Jest, Rstest and Playwright the
+it reads. Vitest, Jest and Rstest record reads in Node; under Playwright the
 call does nothing yet, and the answer prints nothing about reads.
 
 ```ts
@@ -291,7 +291,7 @@ value unchanged. It names the read `dimension:key`, as `variancePrecondition`
 names what a test said, and keeps each value a case read once, at the site it
 was first read. It never throws and never changes what the code does: without a
 recording it is one property read and a return, so it ships with your source.
-Vitest records it in Node when the suite is recorded with
+Vitest, Jest and Rstest record it in Node when the suite is recorded with
 [test-level coverage](test-level-coverage.md).
 
 | Where the read runs | What is recorded |

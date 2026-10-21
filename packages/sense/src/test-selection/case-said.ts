@@ -7,7 +7,7 @@
  */
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeSaid } from '../native-said.js';
-import { codeUnitOrder } from './instrumented-modules.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 
 /**
  * Every item a case said and read, unresolved — overridden ones too — as

@@ -40,9 +40,7 @@ function parsePreconditions(value: unknown, testAt: number): NonNullable<Executi
     const where = `execution test ${testAt} precondition ${at}`;
     const item = object(value, where);
     const held = item['value'];
-    if (typeof held !== 'string' && typeof held !== 'number' && typeof held !== 'boolean') {
-      throw new Error(`${where} value must be a string, number or boolean`);
-    }
+    if (held === undefined) throw new Error(`${where} value is missing`);
     return [
       string(item['name'], `${where} name`),
       JSON.stringify(held),

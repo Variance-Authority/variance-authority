@@ -3221,6 +3221,7 @@
         "rowOf": "function",
         "runsAsBefore": "function",
         "saidAcross": "function",
+        "saidRow": "function",
         "seedTestCoverage": "function",
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
