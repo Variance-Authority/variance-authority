@@ -234,12 +234,6 @@ end to end; the other runners and readings follow.
   case through the journey's trace context
   ([spec 0036](0036-a-journey-crosses-processes.md)); nothing carries it there
   yet.
-- **The twin of spec 0093** reads a precondition against a `names.axes` axis, and
-  an axis is named by one word with a closed vocabulary. A name is now a
-  `(dimension, key)` pair with an untyped value, so the twin needs an axis that
-  names a pair and a value spelled as the case said it. Until that is settled,
-  no precondition is read against an axis: `--where` filters by its grammar
-  alone, and no twin is printed.
 - **The site of a read in a page** is a bundled location. Turning it into a
   repository file needs the bundle's source map; what is recorded without one
   is open.
