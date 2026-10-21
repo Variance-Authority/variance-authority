@@ -31,6 +31,7 @@
  * is marked after the transform.
  */
 
+import { markFaultRead, readFaulted, runFault } from './fault.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -183,6 +184,8 @@ export async function createTransformer(
       .update(cuts ? 'cadence' : '')
       .update('\0')
       .update(how.placement)
+      .update('\0')
+      .update(faultKey(path))
       .digest('hex')
       .slice(0, 32);
   // A transformer that rewrote a module and returned no map leaves nothing to
@@ -205,6 +208,18 @@ export async function createTransformer(
     }
     return again();
   };
+  // A fault skips its region in the file as Jest read it, so every step after
+  // this one takes the skipped text as the file; its key is the file's alone.
+  const fault = runFault();
+  const skips = (path: string): boolean => fault?.file === projectPath(root, path);
+  const read = (source: string, path: string): string => skips(path) ? readFaulted(fault!.file, source, undefined, fault).code : source;
+  // Jest keys a file whether or not its cache holds the transform, so the key
+  // is where a run served the skipped text from that cache marks it read.
+  const faultKey = (path: string): string => {
+    if (!skips(path)) return '';
+    markFaultRead(fault!);
+    return String(fault!.ordinal);
+  };
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
   const innerProcessAsync = inner?.processAsync ?? inner?.process;
 
@@ -214,7 +229,8 @@ export async function createTransformer(
       keyOf(source, path, options, inner?.getCacheKey?.(source, path, forInner(options))),
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
-    processAsync: async (source, path, options) => {
+    processAsync: async (disk, path, options) => {
+      const source = read(disk, path);
       const cut = cutOf(source, path, options);
       const text = cut?.code ?? source;
       if (innerProcessAsync === undefined) return bare(root, path, options, text, how, cut);
@@ -227,7 +243,8 @@ export async function createTransformer(
   };
   const innerProcess = inner?.process?.bind(inner);
   if (inner === undefined || innerProcess !== undefined) {
-    transformer.process = (source, path, options) => {
+    transformer.process = (disk, path, options) => {
+      const source = read(disk, path);
       const cut = cutOf(source, path, options);
       const text = cut?.code ?? source;
       if (innerProcess === undefined) return bare(root, path, options, text, how, cut);

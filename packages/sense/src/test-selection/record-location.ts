@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { statSync } from 'node:fs';
 import { link, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
-import { layeredFiles, repositoryLayers } from './cache-layers.js';
+import { faultedRecordInside, layeredFiles, repositoryLayers } from './cache-layers.js';
 import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf, sharedRecord } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
@@ -82,7 +82,9 @@ export function recordFileFor(
     );
   }
 
-  return resolve(from, options.coverageFile);
+  const file = resolve(from, options.coverageFile);
+  faultedRecordInside(file);
+  return file;
 }
 
 /**

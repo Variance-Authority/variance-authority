@@ -137,6 +137,11 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
+      if (parsed.checked !== undefined) {
+        const { checkedAnswer, formatCheckedAnswer } = await import('./covering-checked.js');
+        streams.out(formatCheckedAnswer(await checkedAnswer({ ...parsed, checked: parsed.checked }), parsed.format === 'json' ? 'json' : 'text'));
+        return EXIT_CLEAN;
+      }
       const { coveringAnswer, formatCoveringAnswer } = await import('./covering-suites.js');
       try {
         streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
