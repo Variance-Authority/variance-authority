@@ -83,8 +83,25 @@ export interface Move {
   readonly unchanged: number;
 }
 
+/**
+ * A subject read twice in a row, with nothing changed between, whose readings
+ * disagreed — and whose declaration did not absorb the movement.
+ *
+ * Kept out of {@link Docket.causes} because a cause says what this change moved,
+ * and this subject moves on its own: its verdict came from whichever reading was
+ * taken first, so a reviewer handed its largest region as the edit is handed a
+ * coin flip in the voice of a finding.
+ */
+export interface UnstableEntry {
+  readonly subject: string;
+  readonly components: NonNullable<ObservationRecord['unstable']>['components'];
+  readonly bands: readonly string[];
+}
+
 export interface Docket {
   readonly causes: readonly CauseEntry[];
+  /** In report order. Neither a change nor a pass; `exitFor` holds the run open over each. */
+  readonly unstable: readonly UnstableEntry[];
   /** Largest first; empty when every subject was painted under its baseline's identity. */
   readonly moves: readonly Move[];
   readonly collateral: Collateral;
@@ -149,6 +166,7 @@ export function docketOf(report: CliRunReport): Docket {
   const collateralComponents = new Set<string>();
   const collateralSubjects = new Set<string>();
   const moves = new Map<string, { identity: Move['identity']; moved: readonly string[]; changed: string[]; ignored: number; unchanged: number }>();
+  const unstable: UnstableEntry[] = [];
 
   let reviewable = 0;
   let fresh = 0;
@@ -171,6 +189,14 @@ export function docketOf(report: CliRunReport): Docket {
       else if (observation.verdict === 'ignored') move.ignored += 1;
       else move.unchanged += 1;
       moves.set(key, move);
+    }
+
+    // Before the green verdicts, because under `--flakes` an `unchanged` verdict
+    // can carry one: it agreed with its baseline and not with itself.
+    if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
+      const { components, bands } = observation.unstable;
+      unstable.push({ subject: observation.subject, components, bands });
+      continue;
     }
 
     if (observation.verdict === 'unchanged' || observation.verdict === 'ignored') continue;
@@ -247,6 +273,7 @@ export function docketOf(report: CliRunReport): Docket {
 
   return {
     causes: entries,
+    unstable,
     moves: [...moves.values()].sort(
       (a, b) => b.changed.length + b.ignored + b.unchanged - (a.changed.length + a.ignored + a.unchanged),
     ),
