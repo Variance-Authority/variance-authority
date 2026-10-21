@@ -141,6 +141,30 @@ describe('a story read as a route', () => {
     ]);
   });
 
+  it('draws two declarations of one name in a file each with the arms it never went into', () => {
+    const handle = (at: string, startLine: number, endLine: number) =>
+      ({ token: { place: { file: 'src/route.ts', name: 'handle', kind: 'function' as const, at, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
+    const route: Route = {
+      ...ROUTE,
+      before: [],
+      route: [handle('src/route.ts#handle/entry', 1, 5), handle('src/route.ts#handle~2/entry', 7, 11)],
+      files: ['src/route.ts'],
+      untaken: [
+        { place: handle('src/route.ts#handle/entry', 1, 5).token.place, arms: [{ path: 'if#0/then', startLine: 2, endLine: 3 }] },
+        { place: handle('src/route.ts#handle~2/entry', 7, 11).token.place, arms: [{ path: 'if#0/then', startLine: 9, endLine: 10 }] },
+      ],
+      interleaved: 0,
+    };
+    const text = formatStory({ route }, 'text').split('\n');
+    expect(text.slice(text.indexOf('  1  handle  route.ts:1-5'))).toEqual([
+      '  1  handle  route.ts:1-5',
+      '       if 2  then ✗',
+      '  2  handle  route.ts:7-11',
+      '       if 9  then ✗',
+      '',
+    ]);
+  });
+
   it('draws a long route at the finest level that fits, and names the level below and how to reach it', () => {
     const long: Route = { ...ROUTE, before: [], route: [...through('src/a.ts', 150), ...through('src/b.ts', 150, 150)], interleaved: 0 };
     expect(formatStory({ route: long }, 'text')).toBe(

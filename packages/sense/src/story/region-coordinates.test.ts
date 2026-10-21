@@ -16,17 +16,16 @@ describe('a region coordinate', () => {
     ]);
   });
 
-  it('numbers a second region at one name and path from 2, in the order the module holds them', () => {
+  it('numbers a second declaration of one name from 2, and every region inside it with it', () => {
     expect(coordinatesOf('src/price.js', [
       { name: 'total', path: 'entry' },
-      { name: 'total', path: 'if#0/then' },
       { name: 'total', path: 'entry' },
       { name: 'total', path: 'if#0/then' },
     ])).toEqual([
       'src/price.js#total/entry',
-      'src/price.js#total/if#0/then',
-      'src/price.js#total/entry~2',
-      'src/price.js#total/if#0/then~2',
+      'src/price.js#total~2/entry',
+      // The first `total` has no `if`, and this one is still the second's.
+      'src/price.js#total~2/if#0/then',
     ]);
   });
 });

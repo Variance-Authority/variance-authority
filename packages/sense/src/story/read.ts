@@ -44,7 +44,7 @@ import { BLOCK_KINDS } from '../test-selection/format-layout.js';
 import type { TestCoverageView } from '../test-selection/format-view.js';
 import { findModules } from '../test-selection/lookup.js';
 import moduleIds from '../test-selection/module-id.cjs';
-import { coordinatesOf } from '../test-selection/region-coordinates.js';
+import { coordinatesOf } from './region-coordinates.js';
 import { NO_LINE } from '../test-selection/written-lines.js';
 import { recordOfStories, storyDirectories } from './directory.js';
 import { foldSteps, type Step } from './fold.js';

@@ -133,10 +133,10 @@ describe('a route', () => {
     const route = drawRoute(ROOT, story([1, 2, 3]), ['src/cart.ts', 'src/format.ts'], [twins, undefined]);
     expect(route.route).toMatchObject([
       { token: { place: { at: 'src/cart.ts#handle/entry', startLine: 2 }, arms: [{ at: 'src/cart.ts#handle/if#0/then' }] } },
-      { token: { place: { at: 'src/cart.ts#handle/entry~2', startLine: 10 }, arms: [] } },
+      { token: { place: { at: 'src/cart.ts#handle~2/entry', startLine: 10 }, arms: [] } },
     ]);
     expect(route.untaken).toEqual([
-      { place: expect.objectContaining({ at: 'src/cart.ts#handle/entry~2' }), arms: [{ path: 'if#0/then', at: 'src/cart.ts#handle/if#0/then~2', startLine: 11, endLine: 11 }] },
+      { place: expect.objectContaining({ at: 'src/cart.ts#handle~2/entry' }), arms: [{ path: 'if#0/then', at: 'src/cart.ts#handle~2/if#0/then', startLine: 11, endLine: 11 }] },
     ]);
   });
 });
