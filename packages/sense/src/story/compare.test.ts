@@ -59,8 +59,9 @@ describe('two sides of a case', () => {
     expect(comparison.only).toEqual([{
       sides: ['passed'],
       places: [{
-        place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 },
+        place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 },
         path: 'for#0/body/if#0/then',
+        at: 'src/cart.ts#removeItem/for#0/body/if#0/then',
         startLine: 19,
         endLine: 19,
         constructLine: 19,
@@ -143,11 +144,33 @@ describe('two sides of a case', () => {
     });
     const comparison = compareLoaded(ROOT, [passed(checkout([0, 2], false), checkout([0, 2], false)), threw(checkout([0, 1], true), checkout([0, 1], true))]);
 
-    const place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 };
+    const place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', at: 'src/checkout.ts#checkout/entry', startLine: 10, endLine: 16 };
     expect(comparison.only.map((only) => only.places)).toEqual([
-      [{ place, path: 'if#0/else', startLine: 15, endLine: 15, constructLine: 13 }],
-      [{ place, path: 'if#0/then', startLine: 13, endLine: 15, constructLine: 13 }],
+      [{ place, path: 'if#0/else', at: 'src/checkout.ts#checkout/if#0/else', startLine: 15, endLine: 15, constructLine: 13 }],
+      [{ place, path: 'if#0/then', at: 'src/checkout.ts#checkout/if#0/then', startLine: 13, endLine: 15, constructLine: 13 }],
     ]);
+  });
+
+  it('meet one region across two texts of its file, as a reading from before an edit meets one after it', () => {
+    // The edit added a helper above `removeItem`: every ordinal after it moved,
+    // and the module holds a region more, but the arm each side took is the
+    // same arm.
+    const edited: Region[] = [
+      CART[0]!,
+      { kind: 'function', name: 'round', path: 'entry', startLine: 2, endLine: 4 },
+      ...CART.slice(1).map((region) => ({ ...region, startLine: region.startLine! + 4, endLine: region.endLine! + 4 })),
+    ];
+    const after = (visits: number[], stopped: boolean): Loaded => ({
+      story: { ...reading([], [], stopped).story, rows: [['src/cart.ts@1f', 6], ['src/format.ts', 2]], visits: Int32Array.from(visits) },
+      files: ['src/cart.ts', 'src/format.ts'],
+      regions: [edited, undefined],
+    });
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 2, 3, 4]), reading([1, 2, 3, 4])),
+      threw(after([2, 3, 4, 5], true), after([2, 3, 4, 5], true)),
+    ]);
+    expect(comparison.only).toEqual([]);
+    expect(comparison.orders).toEqual([]);
   });
 
   it('say so when a side has one reading, since one run cannot be told apart from a run that went another way', () => {

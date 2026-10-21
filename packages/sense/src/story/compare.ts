@@ -35,7 +35,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { declarationsOf, inCheckout, regionsOfStory, type Place, type Region, type StoryEntry } from './read.js';
+import { inCheckout, placesOf, regionsOfStory, type Place, type Region, type StoryEntry } from './read.js';
 import stories from './format.cjs';
 
 /** The readings one side of a comparison is made of, and what to call it. */
@@ -49,6 +49,8 @@ export interface PlaceDifference {
   readonly place: Place;
   /** Where in the declaration: `entry` for the declaration itself, `if#0/else` for an arm. */
   readonly path: string;
+  /** The region's coordinate, `src/price.js#lineTotal/if#0/else`; absent where the record does not hold the module's regions. */
+  readonly at?: string;
   readonly startLine?: number;
   readonly endLine?: number;
   /**
@@ -210,12 +212,14 @@ function acrossRuns(said: string): string {
 }
 
 /**
- * One reading's regions, lines and first arrivals. Region keys carry the
- * module's region count beside its file, so two texts of one file never meet.
+ * One reading's regions, lines and first arrivals. A region is keyed by its
+ * coordinate, so one region of two texts of a file is one region; a region of
+ * a module the record does not hold is keyed by its row's id and ordinal, so
+ * two texts of one file never meet.
  */
 function readReading(root: string, { story, files, regions }: Loaded, names: Map<string, PlaceDifference>, moments: Map<string, Moment>, before: boolean): Read {
   const shown = files.map((file) => inCheckout(root, file));
-  const declarations = regions.map((own, row) => (own === undefined ? undefined : declarationsOf(shown[row]!, own)));
+  const declarations = regions.map((own, row) => (own === undefined ? undefined : placesOf(shown[row]!, own)));
   const bases: number[] = [];
   let total = 0;
   for (const [, count] of story.rows) {
@@ -246,16 +250,18 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
       while (bases[row]! > index) row -= 1;
       const ordinal = index - bases[row]!;
       const file = shown[row]!;
-      const key = `${file}\0${story.rows[row]![1]}\0${ordinal}`;
       const own = regions[row]?.[ordinal];
+      const coordinate = declarations[row]?.at[ordinal];
+      const key = coordinate ?? `${story.rows[row]![0]}\0${ordinal}`;
       const place: Place = own === undefined
-        ? { file, name: '', kind: 'module' }
-        : declarations[row]!.get(own.name)!;
+        ? { file, name: '', kind: 'module', at: file }
+        : declarations[row]!.places[ordinal]!;
       if (!names.has(key)) {
         const construct = own === undefined ? undefined : ifLine(own, regions[row]!);
         names.set(key, {
           place,
           path: own?.path ?? `region ${ordinal}`,
+          ...(coordinate === undefined ? {} : { at: coordinate }),
           ...(own?.startLine === undefined ? {} : { startLine: own.startLine, endLine: own.endLine }),
           ...(construct === undefined ? {} : { constructLine: construct }),
         });
@@ -263,7 +269,7 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
       read.regions.add(key);
       if (!read.first.has(`r${key}`)) read.first.set(`r${key}`, clock);
       if (visit & stories.EVALUATING) arrive(`m\0loaded\0${file}`, { loaded: file });
-      else arrive(`m\0${place.file}\0${place.name}`, { place });
+      else arrive(`m\0${place.at}`, { place });
     }
   };
   if (before) walk(story.before, story.beforeNotes);

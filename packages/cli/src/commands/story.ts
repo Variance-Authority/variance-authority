@@ -324,7 +324,7 @@ function linesText(
   text: string[],
 ): void {
   const names = shortNames(lines);
-  const never = new Map(untaken.map(({ place: at, arms }) => [`${at.file}\0${at.name}`, arms]));
+  const never = new Map(untaken.map(({ place: at, arms }) => [at.at, arms]));
   text.push('', ...filesIn(names), '');
   let before: boolean | undefined;
   const blank = ' '.repeat(width);
@@ -355,7 +355,7 @@ function linesText(
       text.push(`  ${number}  ${indent}${loaded(stop.loaded.map((file) => names.get(file) ?? file))}`);
     } else {
       text.push(`  ${number}  ${indent}${placeText(stop.place, stop.entered, names)}`);
-      const key = `${stop.place.file}\0${stop.place.name}`;
+      const key = stop.place.at;
       const tree = armTree(stop.arms, never.get(key) ?? [], starts.get(key) ?? new Map());
       for (const branch of tree) text.push(`  ${blank}  ${indent}  ${branch}`);
     }
@@ -378,7 +378,7 @@ type Starts = ReadonlyMap<string, ReadonlyMap<string, number>>;
 function armStarts(lines: readonly Line[], untaken: readonly Untaken[]): Starts {
   const starts = new Map<string, Map<string, number>>();
   const add = (at: Place, arms: readonly { readonly path: string; readonly startLine?: number }[]) => {
-    const key = `${at.file}\0${at.name}`;
+    const key = at.at;
     const known = starts.get(key) ?? starts.set(key, new Map()).get(key)!;
     for (const arm of arms) if (arm.startLine !== undefined) known.set(arm.path, arm.startLine);
   };
@@ -396,8 +396,8 @@ function lineJson(line: Line | Gap | Through): unknown {
 /** What the declarations a drawing draws never went into: the route carries it once, and so does the reading. */
 function drawnUntaken(lines: readonly (Line | Gap | Through)[], untaken: readonly Untaken[]): Untaken[] {
   const drawn = new Set(lines.flatMap((line) =>
-    'gap' in line || 'through' in line || line.stop === undefined || 'loaded' in line.stop ? [] : [`${line.stop.place.file}\0${line.stop.place.name}`]));
-  return untaken.filter(({ place: at }) => drawn.has(`${at.file}\0${at.name}`));
+    'gap' in line || 'through' in line || line.stop === undefined || 'loaded' in line.stop ? [] : [line.stop.place.at]));
+  return untaken.filter(({ place: at }) => drawn.has(at.at));
 }
 
 /**
