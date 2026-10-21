@@ -20,6 +20,11 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/covering-checked.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/cli/src/commands/covering-files.ts",
     "count": 1

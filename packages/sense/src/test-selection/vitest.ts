@@ -169,7 +169,7 @@ export function withTestSelection(
 
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   // Each reading notes the record it read against the record this run lands in, which names it.
-  const asked = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
+  const asked = options.selection ?? selectionFrom(process.env, { root, from: configRoot, landing: coverageFile, ...suite });
   const selection = asked && notingRead(coverageFile, asked);
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   const reporter = selectionReporter(run, settle);

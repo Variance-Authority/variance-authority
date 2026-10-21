@@ -31,6 +31,7 @@ mod carry;
 mod crossing;
 mod cut;
 mod dialect;
+mod fault;
 /// The digest every stored text is named by; [`module_id`] is the one a
 /// pipeline needs.
 #[doc(hidden)]
@@ -41,6 +42,7 @@ mod place;
 mod walk;
 
 pub use cadence::{cadence, Cadence};
+pub use fault::faulted;
 pub use header::EVALUATING;
 
 /// How many regions a module is cut into.

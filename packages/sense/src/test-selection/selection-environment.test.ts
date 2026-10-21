@@ -58,6 +58,31 @@ describe('the selection the environment asks for', () => {
     }
   });
 
+  it('asks the cli for the cases that entered the region a run skips', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-fault-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectFault(request) { return { notes: [request.fault, request.record] }; }');
+      const landing = resolve(root, 'cache/coverage.bin');
+      const selection = selectionFrom({ VARIANCE_AUTHORITY_FAULT: 'src/a.js#3' }, { root, landing }, () => {});
+
+      // From the record the run lands in, which is the one its caller put there.
+      expect((await selection!()).notes).toEqual(['src/a.js#3', landing]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a run that skips a region and selects by a change at once', () => {
+    expect(() => selectionFrom(
+      { VARIANCE_AUTHORITY_FAULT: 'src/a.js#3', VARIANCE_AUTHORITY_SINCE: 'main' },
+      { root: '/checkout' },
+      () => {},
+    )).toThrow('VARIANCE_AUTHORITY_FAULT selects the cases that entered the region it skips, so VARIANCE_AUTHORITY_SINCE is not read beside it');
+  });
+
   it('refuses by name where the checkout does not resolve the cli that reads it', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-environment-'));
     try {

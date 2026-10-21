@@ -7,7 +7,9 @@
  * cuts the selection to one leg by import hops, as `--at-distance` does, and is
  * read only beside it. `VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each
  * file that runs, the cases that ran none of the change; the file is the grain
- * otherwise.
+ * otherwise. `VARIANCE_AUTHORITY_FAULT` names a region the run skips
+ * (`fault.ts`), and selects the cases that entered it, which are the only ones
+ * that can notice; it is not read beside a change.
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
@@ -24,6 +26,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { recordedTimes } from '../recorded-durations.js';
 import { distanceRange } from './at-distance.js';
+import { FAULT_VARIABLE } from './cache-layers.js';
 import { notingRead } from './record-base.js';
 import type { SuiteSelection, SuiteTimes } from './suite-selection.js';
 
@@ -38,10 +41,18 @@ export interface SelectionRequest {
    * it. The checkout when absent.
    */
   readonly from?: string;
+  /**
+   * The record this run lands in. A run with a region skipped reads its
+   * selection from it, because that is the record its caller put in the cache
+   * the run alone writes; the suite's nearest record otherwise.
+   */
+  readonly landing?: string;
 }
 
 /** What `@variance-authority/cli` is asked for; its own types stay on its side of the cycle. */
 interface Selector {
+  /** Absent from a cli older than faulted runs. */
+  selectFault?(request: { readonly root: string; readonly suite?: string; readonly record?: string; readonly fault: string }): Promise<SuiteSelection>;
   selectSuite(request: {
     readonly root: string;
     readonly since?: string;
@@ -69,6 +80,8 @@ export function selectionFrom(
 ): (() => Promise<SuiteSelection>) | undefined {
   const since = env['VARIANCE_AUTHORITY_SINCE'];
   const distance = env['VARIANCE_AUTHORITY_AT_DISTANCE'];
+  const fault = env[FAULT_VARIABLE];
+  if (fault !== undefined && fault !== '') return faultSelection(fault, since, request);
   if (since === undefined) {
     if (distance !== undefined && !toldDistance) {
       say('variance-authority: VARIANCE_AUTHORITY_AT_DISTANCE is read beside VARIANCE_AUTHORITY_SINCE, which is not set, so every file runs');
@@ -95,6 +108,26 @@ export function selectionFrom(
       ...(request.suite === undefined ? {} : { suite: request.suite }),
       ...(leg === undefined ? {} : { atDistance: leg }),
       ...(grain === 'case' ? { grain } : {}),
+    });
+  };
+}
+
+/** The cases that entered the region `fault` names, as the cli reads them from the record the run starts from. */
+function faultSelection(fault: string, since: string | undefined, request: SelectionRequest): () => Promise<SuiteSelection> {
+  if (since !== undefined) {
+    throw new Error(`${FAULT_VARIABLE} selects the cases that entered the region it skips, so VARIANCE_AUTHORITY_SINCE is not read beside it: unset one`);
+  }
+  return async () => {
+    const from = request.from ?? request.root;
+    const { selectFault } = await selector(from, FAULT_VARIABLE);
+    if (selectFault === undefined) {
+      throw new Error(`${FAULT_VARIABLE} is set, and the ${CLI} ${from} resolves predates faulted runs: upgrade it`);
+    }
+    return selectFault({
+      root: request.root,
+      fault,
+      ...(request.suite === undefined ? {} : { suite: request.suite }),
+      ...(request.landing === undefined ? {} : { record: request.landing }),
     });
   };
 }
@@ -142,11 +175,11 @@ async function installed(from: string): Promise<Selector | undefined> {
 }
 
 /** `@variance-authority/cli` as the project installed it, or a refusal that names it. */
-async function selector(from: string): Promise<Selector> {
+async function selector(from: string, variable = 'VARIANCE_AUTHORITY_SINCE'): Promise<Selector> {
   const cli = await installed(from);
   if (cli === undefined) {
     throw new Error(
-      `VARIANCE_AUTHORITY_SINCE is set, and the selection is read by ${CLI}, which ${from} does not resolve: ` +
+      `${variable} is set, and the selection is read by ${CLI}, which ${from} does not resolve: ` +
         `add it to the project's devDependencies, or unset the variable to run every file`,
     );
   }

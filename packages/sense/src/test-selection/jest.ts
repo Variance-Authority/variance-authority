@@ -348,7 +348,7 @@ export function withTestSelection(
   };
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   // Each reading notes the record it read against the record this run lands in, which names it.
-  const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
+  const asked = options.selection ?? selectionFrom(process.env, { root, from: rootDir, landing: coverageFile, ...suite });
   const selection = asked && notingRead(coverageFile, asked);
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 

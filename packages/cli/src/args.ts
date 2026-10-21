@@ -58,6 +58,7 @@ export const BOOLEAN = new Set([
   '--publish',
   '--in-package',
   '--hops',
+  '--checked',
   '--just-answer',
   '--no-git',
   '--wait',

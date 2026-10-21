@@ -188,7 +188,7 @@ has no attribution to read; it is not a case whose statements ran nothing.
 Use those lines to connect the regions in [coverage
 composition](own-fewer-tests.md#connect-the-regions-to-test-statements) to the
 actions of a flow test. To read every visit in order, including repeats, record
-a [test story](test-stories.md#why-the-journey-has-no-order).
+a [test story](test-stories.md#why-coverage-keeps-no-order).
 Statement attribution is what this run observed: asynchronous work can be
 attributed to a different statement on another run. It does not prove which
 assertion checks the region, and [test
