@@ -127,6 +127,10 @@ const PACKAGES: {
         name: "ioc",
         role: "module-level state that outlives the test that wrote it, reset by the module that owns it on the runner's schedule — wiring a test run drives and a production build ignores",
       },
+      {
+        name: "isolator",
+        role: "the same reset without a handler: a build transform that gives every module-level variable one value per test, request or run",
+      },
     ],
   },
   {
@@ -139,6 +143,10 @@ const PACKAGES: {
       },
       { name: "dom", role: "extraction, and CSS applicability pruning" },
       { name: "react", role: "fibers → owner chains, props digests, portals" },
+      {
+        name: "jest-transformer",
+        role: "a project's own Jest transformer, run inside another one: loaded the way Jest loads it, with its own options",
+      },
       {
         name: "jsx-source",
         role: "the file and line that wrote an element, carried as far as the DOM node",

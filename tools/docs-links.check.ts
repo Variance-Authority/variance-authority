@@ -70,6 +70,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/checkout.ts': "a reader's own module, quoted from a sample comparison of readings",
   'src/price.ts': "a reader's own module, quoted from a sample comparison of readings",
   'src/env.ts': "a reader's own module, quoted from a sample tech-stack answer",
+  'src/mode.ts': "a reader's own module, quoted from a sample isolator warning",
   'apps/app/src/checkout.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'apps/app/src/total.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'packages/lib/src/internal/math.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
