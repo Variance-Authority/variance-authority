@@ -9,7 +9,7 @@
  * titles are the JSON's: a comment has a length limit and a review does not.
  */
 
-import { valued } from '@variance-authority/sense/test-selection';
+import { readSplit, valued } from '@variance-authority/sense/test-selection';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
@@ -112,7 +112,7 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   for (const [file, region] of rows.slice(0, ROWS)) {
     const named = region.tests.slice(0, TEST_FILES).map((test) => `\`${test}\``).join(', ');
     const more = region.tests.length > TEST_FILES ? ` and ${region.tests.length - TEST_FILES} more` : '';
-    lines.push(`| ${mark(region)} | \`${region.name}\` | ${editLabel(file, region)} | ${place(review, file, region)} | ${region.cases}${spanned(region.called)} | ${
+    lines.push(`| ${mark(region)} | \`${region.name}\` | ${editLabel(file, region)} | ${place(review, file, region)} | ${region.cases}${spanned(region.called)}${readsMarkdown(region.called)} | ${
       region.changedLineCases
     } | ${named}${more} |`);
   }
@@ -148,6 +148,12 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
   } ran under is unmeasured.`, ''];
 }
 
+/** How the cases that entered a region split by what the code read, after its count. */
+function readsMarkdown(called: readonly ReviewCase[]): string {
+  const split = readSplit(called.map((one) => one.reads));
+  return split === '' ? '' : `; ${escape(split).replaceAll('|', '\\|')}`;
+}
+
 /**
  * Every value of a name the cases said, where they said more than one: the
  * conditions the function ran under, which a reader would otherwise ask
@@ -157,8 +163,8 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
 function spanned(called: readonly ReviewCase[]): string {
   const byName = new Map<string, Map<string, NonNullable<ReviewCase['preconditions']>[number]>>();
   for (const held of called.flatMap((one) => one.preconditions ?? [])) {
-    // `true` and `'true'` print apart (`flag`, `flag=true`), so they are two values; the text leads so the order is the printed one.
-    byName.set(held.name, (byName.get(held.name) ?? new Map()).set(`${String(held.value)}\0${typeof held.value}`, held));
+    // A value is keyed by how it prints: `true` and `'true'` print apart (`flag`, `flag=true`), and a record as its JSON.
+    byName.set(held.name, (byName.get(held.name) ?? new Map()).set(valued(held), held));
   }
   const said = [...byName]
     .filter(([, values]) => values.size > 1)

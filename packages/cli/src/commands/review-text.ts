@@ -37,7 +37,7 @@ const EDITS = [
   ['load', 'what the module loads'],
 ] as const;
 
-/** Each answer in a few words, for a line that names a place: the handover's breadcrumbs. */
+/** Each answer in a few words, for a line that names a place: the handover's pointers. */
 export const REACH_WORD: Readonly<Record<Reach, string>> = {
   near: 'near',
   far: 'far',

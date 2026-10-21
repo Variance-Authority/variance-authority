@@ -90,7 +90,7 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
   const testDuration = opened.found.has('tests.duration') ? columnWords(opened, 'tests.duration') : undefined;
   const testCount = testId.length;
   // Written since a case's said items are crossing sets; a file without it listened to none.
-  const testSaid = opened.found.has(SAID_SECTION) ? saidOf(opened, testCount) : undefined;
+  const testSaid = opened.found.has(SAID_SECTION) || opened.found.has(READ_SECTION) ? saidOf(opened, testCount) : undefined;
   if (testFile.length !== testCount || testName.length !== testCount) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testCount) throw invalid();
   for (let test = 0; test < testCount && testStopped !== undefined; test += 1) {
@@ -104,10 +104,18 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
 /** The section `case_said.rs` lays what each case said in. */
 export const SAID_SECTION = 'tests.said';
 
-/** What each case said, read by the addon off the section and the index's crossing-set pool. */
+/** The section `case_said.rs` lays what the code read in each case in. */
+export const READ_SECTION = 'tests.read';
+
+/** What each case heard, read by the addon off the sections and the index's crossing-set pool. */
 function saidOf(opened: OpenedSections, testCount: number): readonly (Said | undefined)[] {
   const offsets = columnWords(opened, 'sets.off');
-  return saidRead(columnBytes(opened, SAID_SECTION), { bytes: columnBlob(opened, 'sets.blob', offsets), offsets }, testCount);
+  const section = (name: string) => (opened.found.has(name) ? { [name === SAID_SECTION ? 'said' : 'read']: columnBytes(opened, name) } : {});
+  return saidRead(
+    { ...section(SAID_SECTION), ...section(READ_SECTION) },
+    { bytes: columnBlob(opened, 'sets.blob', offsets), offsets },
+    testCount,
+  );
 }
 
 function linesTable(opened: OpenedSections, testCount: number): LinesTable {

@@ -111,6 +111,8 @@ export interface ReviewCase {
   readonly name: string;
   /** What it said it arranged, as `covering` reads it: empty is heard-nothing, absent is a record that did not listen. */
   readonly preconditions?: readonly CasePrecondition[];
+  /** What the code it ran read, as `covering` reads it: empty is read-nothing, absent is a record that did not listen. */
+  readonly reads?: readonly CasePrecondition[];
 }
 
 export interface ReviewFile {

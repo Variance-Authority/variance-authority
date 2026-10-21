@@ -68,7 +68,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
                 return Err(format!("case id {:?} names two cases", test.id));
             }
             before.settled = journey_journal::settled_across(before.settled, test.settled);
-            before.said = case_said::join(before.said.take(), test.said.clone());
+            before.heard = case_said::join(before.heard.take(), test.heard.clone());
         } else {
             tests_by_key.insert(key(test), test.clone());
         }

@@ -33,24 +33,22 @@ export function parseExecutionIndex(value: unknown): ExecutionIndex {
   return { tests, modules };
 }
 
-/** The preconditions as a frame field spells them, `[[name, value, site, level], …]`, joined by the addon as every writer joins them. */
+/** The preconditions as a frame field spells them, `{"said":[[name, value, site, level], …]}` with each value as JSON text, joined by the addon as every writer joins them. */
 function parsePreconditions(value: unknown, testAt: number): NonNullable<ExecutionTest['said']> {
   if (!Array.isArray(value)) throw new Error(`execution test ${testAt} preconditions must be an array`);
-  const items = JSON.stringify(value.map((value, at) => {
+  const said = value.map((value, at) => {
     const where = `execution test ${testAt} precondition ${at}`;
-    const said = object(value, where);
-    const held = said['value'];
-    if (typeof held !== 'string' && typeof held !== 'number' && typeof held !== 'boolean') {
-      throw new Error(`${where} value must be a string, number or boolean`);
-    }
+    const item = object(value, where);
+    const held = item['value'];
+    if (held === undefined) throw new Error(`${where} value is missing`);
     return [
-      string(said['name'], `${where} name`),
-      held,
-      string(said['site'], `${where} site`),
-      integer(said['level'], `${where} level`, true),
+      string(item['name'], `${where} name`),
+      JSON.stringify(held),
+      string(item['site'], `${where} site`),
+      integer(item['level'], `${where} level`, true),
     ];
-  }));
-  return saidAcross(items, undefined).said!;
+  });
+  return saidAcross(JSON.stringify({ said }), undefined).said!;
 }
 
 function parseBlock(

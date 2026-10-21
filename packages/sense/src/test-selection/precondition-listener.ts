@@ -64,10 +64,10 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
     }
   };
   return {
-    take: (key) => heardFrom(root, heard.take(key)),
+    take: (key) => heardFrom(root, heard.take(key).said),
     held: (key) => {
       const said = heardFrom(root, heard.held(key));
-      return said === undefined ? [] : saidRow(said);
+      return said === undefined ? [] : (saidRow(said).said ?? []);
     },
     close: () => {
       if (before === undefined) delete holder[preconditions.PRECONDITION];
@@ -78,5 +78,5 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
 
 /** What a recorder held for a case, its sites named from the checkout; absent when it said nothing. */
 function heardFrom(root: string, said: readonly unknown[]): Said | undefined {
-  return said.length === 0 ? undefined : saidJoined(root, [JSON.stringify(said)]);
+  return said.length === 0 ? undefined : saidJoined(root, [JSON.stringify({ said })]);
 }

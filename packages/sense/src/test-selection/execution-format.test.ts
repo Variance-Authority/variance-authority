@@ -75,7 +75,7 @@ describe('the execution index as columns', () => {
   });
 
   it('reads rows written before a region carried the flag as flagging nothing', () => {
-    variancePrecondition({ record: 'older' });
+    variancePrecondition('fixture', { record: 'older' });
     const index: ExecutionIndex = {
       tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
       modules: [{
@@ -249,7 +249,7 @@ describe('the duration each case carries', () => {
   });
 
   it('is absent from every case of an index written before cases carried one', () => {
-    variancePrecondition({ record: 'older' });
+    variancePrecondition('fixture', { record: 'older' });
     const bytes = encodeExecutionIndex(timed);
     const headerLength = bytes.readUInt32LE(0);
     const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
@@ -271,13 +271,13 @@ describe('the preconditions each case named', () => {
     tests: [
       {
         id: 'a.test.ts > one', file: 'a.test.ts', name: 'one',
-        said: JSON.stringify([
-          ['flag', 'ff-on', 'a.test.ts:4', 65535],
-          ['retries', 3, 'a.test.ts:5', 1],
-          ['seeded', true, 'a.test.ts:2', 0],
-        ]),
+        said: JSON.stringify({ said: [
+          ['fixture:flag', '"ff-on"', 'a.test.ts:4', 65535],
+          ['fixture:retries', '3', 'a.test.ts:5', 1],
+          ['fixture:seeded', 'true', 'a.test.ts:2', 0],
+        ] }),
       },
-      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', said: '[]' },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', said: '{"said":[]}' },
       { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three' },
     ],
     modules: [],
@@ -287,7 +287,7 @@ describe('the preconditions each case named', () => {
     const back = decodeExecutionIndex(encodeAsSetExecutionIndex(said));
 
     expect(back.tests).toEqual(said.tests);
-    expect(back.tests[1]!.said).toBe('[]');
+    expect(back.tests[1]!.said).toBe('{"said":[]}');
     expect('said' in back.tests[2]!).toBe(false);
   });
 

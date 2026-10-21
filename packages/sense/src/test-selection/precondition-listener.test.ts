@@ -9,7 +9,8 @@ const ROOT = resolve(import.meta.dirname, '../../../..');
 const SITE = /^packages\/sense\/src\/test-selection\/precondition-listener\.test\.ts:\d+$/;
 
 // What a listener hands over for a case: every item it said, unresolved, in the order the addon stores them.
-const taken = (listener: { take(key: string): string | undefined }, key: string): unknown[] => JSON.parse(listener.take(key) ?? '[]') as unknown[];
+const taken = (listener: { take(key: string): string | undefined }, key: string): unknown[] =>
+  (JSON.parse(listener.take(key) ?? '{"said":[]}') as { said: unknown[] }).said;
 
 // The suite may itself run under a recording, which installed its own recorder.
 let recording: unknown;
@@ -28,13 +29,13 @@ describe('a realm whose runner places each call itself', () => {
     let standing: PreconditionStanding = { at: 'case', key: 'pays' };
     const listener = listenForPreconditions(ROOT, () => standing);
 
-    variancePrecondition({ network: 'mocked' });
+    variancePrecondition('fixture', { network: 'mocked' });
     standing = { at: 'beforeEach', key: 'refunds', depth: 1 };
-    variancePrecondition({ seeded: true });
+    variancePrecondition('fixture', { seeded: true });
     listener.close();
 
-    expect(taken(listener, 'pays')).toEqual([['network', 'mocked', expect.stringMatching(SITE), 0xffff]]);
-    expect(taken(listener, 'refunds')).toEqual([['seeded', true, expect.stringMatching(SITE), 1]]);
+    expect(taken(listener, 'pays')).toEqual([['fixture:network', '"mocked"', expect.stringMatching(SITE), 0xffff]]);
+    expect(taken(listener, 'refunds')).toEqual([['fixture:seeded', 'true', expect.stringMatching(SITE), 1]]);
     expect(taken(listener, 'pays')).toEqual([]);
   });
 
@@ -42,20 +43,20 @@ describe('a realm whose runner places each call itself', () => {
     let standing: PreconditionStanding = { at: 'beforeEach', key: 'pays', depth: 0 };
     const listener = listenForPreconditions(ROOT, () => standing);
 
-    variancePrecondition({ network: 'live', seeded: true });
+    variancePrecondition('fixture', { network: 'live', seeded: true });
     standing = { at: 'case', key: 'pays' };
-    variancePrecondition({ network: 'mocked' });
+    variancePrecondition('fixture', { network: 'mocked' });
     const held = listener.held('pays');
-    variancePrecondition({ flag: 'on' });
+    variancePrecondition('fixture', { flag: 'on' });
     listener.close();
 
     expect(held).toEqual([
-      { name: 'network', value: 'mocked', site: expect.stringMatching(SITE), level: 0xffff },
-      { name: 'seeded', value: true, site: expect.stringMatching(SITE), level: 0 },
+      { name: 'fixture:network', value: 'mocked', site: expect.stringMatching(SITE), level: 0xffff },
+      { name: 'fixture:seeded', value: true, site: expect.stringMatching(SITE), level: 0 },
     ]);
     expect(listener.held('refunds')).toEqual([]);
     // The overridden `network=live` is kept: a row is resolved when it is read.
-    expect(taken(listener, 'pays').map((item) => (item as [string])[0])).toEqual(['flag', 'network', 'network', 'seeded']);
+    expect(taken(listener, 'pays').map((item) => (item as [string])[0])).toEqual(['fixture:flag', 'fixture:network', 'fixture:network', 'fixture:seeded']);
   });
 
   it('reports a call made in an afterEach and records it on no case', () => {
@@ -63,7 +64,7 @@ describe('a realm whose runner places each call itself', () => {
     const listener = listenForPreconditions(ROOT, () => standing);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    variancePrecondition({ network: 'mocked' });
+    variancePrecondition('fixture', { network: 'mocked' });
     standing = { at: 'case', key: 'pays' };
     listener.close();
 
@@ -75,7 +76,7 @@ describe('a realm whose runner places each call itself', () => {
   it('throws for a call no case is running, finishing the sentence with the runner\'s reason', () => {
     const listener = listenForPreconditions(ROOT, () => ({ at: 'outside', because: 'ran in a beforeAll' }));
 
-    expect(() => variancePrecondition({ network: 'mocked' })).toThrow(/ran in a beforeAll — a precondition belongs to the case/);
+    expect(() => variancePrecondition('fixture', { network: 'mocked' })).toThrow(/ran in a beforeAll — a precondition belongs to the case/);
     listener.close();
   });
 

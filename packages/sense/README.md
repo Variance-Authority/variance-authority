@@ -2393,16 +2393,24 @@ import { flags } from '../src/flags.js';
 
 export function setDiscountFlag(enabled: boolean): void {
   flags.discount = enabled;
-  variancePrecondition({ discount: enabled ? 'on' : 'off' });
+  variancePrecondition('flags', { discount: enabled });
 }
 ```
 
-The entry point has no dependencies, and without a recording the call does
-nothing, in Node and in a page. Vitest, Jest, Rstest and Playwright record it; a
-seam that drives its own recorder calls `listenForPreconditions` from
-`@variance-authority/sense/journal`. A case row without a `preconditions` field
-was recorded by a runner that does not record preconditions: its preconditions
-are unmeasured, never none.
+The first argument is a dimension you choose, so the key is recorded as
+`flags:discount`. The entry point has no dependencies, and without a recording
+the call does nothing, in Node and in a page. Vitest, Jest, Rstest and
+Playwright record it; a seam that drives its own recorder calls
+`listenForPreconditions` from `@variance-authority/sense/journal`. A case row
+that holds no answer was recorded by a runner that does not record
+preconditions: its preconditions are unmeasured, never none.
+
+What the test says is a claim. A **breadcrumb**, `varianceBreadcrumb` from
+`@variance-authority/event`, records what the code under test read, on the case
+that ran it, and the readers print each read beside what the case said under
+the same name. The Vitest integration records reads in Node; `tests.read` is
+absent from a row whose runner did not listen, and empty for a case that read
+nothing.
 
 [Case preconditions](https://variance-authority.dev/docs/case-preconditions)
 is the full page, and

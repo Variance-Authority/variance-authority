@@ -232,7 +232,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
         project: None,
         runner: Some(runner.to_owned()),
         settled: FINISHED,
-        said: None,
+        heard: None,
     }];
     let regions_of = Module {
         id: "src/a.ts".to_owned(),

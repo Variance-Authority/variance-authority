@@ -17,7 +17,7 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, rowOf } from '@variance-authority/sense/test-selection';
+import { heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
@@ -160,7 +160,7 @@ class Table {
       if (test.file !== file) lines.push((file = test.file));
       lines.push(`  ${this.number.get(test.id)} ${
         test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`
-      }${heldText(rowOf(test))}`);
+      }${heldText(test)}`);
     }
     return lines;
   }

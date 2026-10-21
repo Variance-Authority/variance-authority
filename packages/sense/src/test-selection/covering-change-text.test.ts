@@ -146,12 +146,12 @@ describe('formatCoveringChange', () => {
   });
 
   it('carries what each listed case said on its line, and nothing under it', () => {
-    const said = (name: string): CoveringTest => ({ ...witness(name), said: JSON.stringify([['flag', 'ff-on', 'test/cart.test.ts:3', 1]]) });
+    const said = (name: string): CoveringTest => ({ ...witness(name), said: JSON.stringify({ said: [['fixture:flag', '"ff-on"', 'test/cart.test.ts:3', 1]] }) });
     const text = formatCoveringChange(
       [file({ regions: [region({ tests: [said('guest')] })] }), file({ file: 'test/cart.test.ts', cases: [said('member')] })],
     );
 
-    expect(text).toContain('    test/cart.test.ts > guest — flag=ff-on (test/cart.test.ts:3)\n\n');
-    expect(text).toContain('    test/cart.test.ts > member — flag=ff-on (test/cart.test.ts:3)\n');
+    expect(text).toContain('    test/cart.test.ts > guest — fixture:flag=ff-on (test/cart.test.ts:3)\n\n');
+    expect(text).toContain('    test/cart.test.ts > member — fixture:flag=ff-on (test/cart.test.ts:3)\n');
   });
 });

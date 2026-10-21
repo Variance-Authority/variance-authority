@@ -917,7 +917,8 @@
         "EventPhase": "type",
         "vaEnd": "function",
         "vaStart": "function",
-        "vae": "function"
+        "vae": "function",
+        "varianceBreadcrumb": "function"
       },
       "./collect": {
         "EVENT_HEAD_VARIABLE": "const",
@@ -3196,10 +3197,12 @@
         "readFetchedMainline": "function",
         "readJourneyChange": "function",
         "readOwnLayer": "function",
+        "readSplit": "function",
         "readTestCoverage": "function",
         "readableTestCoverage": "function",
         "readingFrom": "function",
         "readingLines": "function",
+        "readsOf": "function",
         "recordBase": "function",
         "recordDigestAt": "function",
         "recordFileFor": "function",
@@ -3218,6 +3221,7 @@
         "rowOf": "function",
         "runsAsBefore": "function",
         "saidAcross": "function",
+        "saidRow": "function",
         "seedTestCoverage": "function",
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
@@ -3344,7 +3348,6 @@
         "unsettledScopes": "function"
       },
       "./precondition": {
-        "PreconditionValue": "type",
         "variancePrecondition": "function"
       },
       "./story": {

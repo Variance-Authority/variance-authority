@@ -181,6 +181,28 @@ compare the runs of a test that fails on some of them, the announcement is
 ordered with the steps around it, so the comparison shows whether the decision
 came before or after the code it raced on every run that failed.
 
+## Leave a breadcrumb of what the code read
+
+An announcement marks when the code decided; a **breadcrumb** records what it
+read to decide, so you can check that the state a test claims to set is the one
+the code saw. `varianceBreadcrumb(dimension, key, value)` returns `value`
+unchanged, so it wraps the read where it happens:
+
+```ts
+import { varianceBreadcrumb } from '@variance-authority/event';
+
+export function isOn(key: string): boolean {
+  return varianceBreadcrumb('flags', key, flags[key] === true);
+}
+```
+
+A Vitest, Jest or Rstest run in Node recorded with `@variance-authority/sense`
+lays each read on the case that made it, and `variance covering` prints it beside what the test
+said: `read flags:discount=false said true` is a claim that never reached the
+code. The [case preconditions](https://variance-authority.dev/docs/case-preconditions#check-what-the-code-read)
+page has the questions it answers. Where nothing records, the call costs one
+property read and a `typeof` check, and it never throws.
+
 ## Listen without Playwright, from `@variance-authority/event/collect`
 
 The listening half is a separate entrypoint because it ships somewhere else: a
