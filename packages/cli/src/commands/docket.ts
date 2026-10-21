@@ -1,4 +1,12 @@
-import { byReason, type ObservationRecord, type RegionRecord } from '@variance-authority/report';
+import {
+  byReason,
+  isUnstable,
+  promotionOf,
+  unstableOf,
+  type ObservationRecord,
+  type RegionRecord,
+  type UnstableSubject,
+} from '@variance-authority/report';
 import type { CliRunReport, NotObserved } from './run.js';
 
 /**
@@ -85,6 +93,17 @@ export interface Move {
 
 export interface Docket {
   readonly causes: readonly CauseEntry[];
+  /**
+   * Subjects read twice in a row, with nothing changed between, whose readings
+   * disagreed outside what they declared they assert on. In report order.
+   *
+   * Kept out of {@link Docket.causes} because a cause says what this change
+   * moved, and this subject moves on its own: its verdict came from whichever
+   * reading was taken first, so a reviewer handed its largest region as the edit
+   * is handed a coin flip in the voice of a finding. Neither a change nor a pass;
+   * `exitFor` holds the run open over each.
+   */
+  readonly unstable: readonly UnstableSubject[];
   /** Largest first; empty when every subject was painted under its baseline's identity. */
   readonly moves: readonly Move[];
   readonly collateral: Collateral;
@@ -105,6 +124,12 @@ export interface Docket {
    * nothing moved, and nobody has yet said what the subject should look like.
    */
   readonly fresh: number;
+  /**
+   * Subjects `accept` would promote, asked of `promotionOf` rather than decided
+   * here: the comment offers accept only when it would land, and a second rule
+   * for that would drift from the one `accept` applies.
+   */
+  readonly promotable: number;
   readonly failed: readonly NotObserved[];
   readonly excluded: number;
   /**
@@ -152,12 +177,15 @@ export function docketOf(report: CliRunReport): Docket {
 
   let reviewable = 0;
   let fresh = 0;
+  let promotable = 0;
   let collateralRegions = 0;
   let collateralPixels = 0;
   let unrecorded = 0;
   let unrecordedPixels = 0;
 
   for (const observation of report.observations) {
+    if (promotionOf(observation).kind === 'promotable') promotable += 1;
+
     for (const font of observation.missingFonts ?? []) {
       missingFonts.set(font, (missingFonts.get(font) ?? 0) + 1);
     }
@@ -172,6 +200,11 @@ export function docketOf(report: CliRunReport): Docket {
       else move.unchanged += 1;
       moves.set(key, move);
     }
+
+    // Before the green verdicts, because under `--flakes` an `unchanged` verdict
+    // can carry one: it agreed with its baseline and not with itself.
+    // Listed by `unstableOf`, which every surface reads.
+    if (isUnstable(observation)) continue;
 
     if (observation.verdict === 'unchanged' || observation.verdict === 'ignored') continue;
     if (observation.verdict === 'new') fresh += 1;
@@ -247,6 +280,7 @@ export function docketOf(report: CliRunReport): Docket {
 
   return {
     causes: entries,
+    unstable: unstableOf(report).subjects,
     moves: [...moves.values()].sort(
       (a, b) => b.changed.length + b.ignored + b.unchanged - (a.changed.length + a.ignored + a.unchanged),
     ),
@@ -265,6 +299,7 @@ export function docketOf(report: CliRunReport): Docket {
     })),
     reviewable,
     fresh,
+    promotable,
     failed: notObserved.filter((entry) => entry.kind === 'failed'),
     excluded: notObserved.filter((entry) => entry.kind === 'excluded').length,
     unreached: notObserved.filter((entry) => entry.kind === 'unreached').length,
