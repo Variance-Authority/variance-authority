@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
@@ -200,7 +201,7 @@ export function withTestSelection(
   // Under `loads` no region is probed, so no line of a test can be said to
   // have reached one first: the cut would cost a call per statement for nothing.
   const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = run.cases && options.continuations === true;
@@ -239,8 +240,7 @@ export function withTestSelection(
       ...(config.test?.runner === undefined
         ? {
           runner: writeSeamModule(run, runnerId, caseRunnerSource({
-            module: runnerImport(configRoot, runnerId, '@vitest/runner'),
-            utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
+            ...runnerImports(configRoot, runnerId),
             finished: run.finishedDirectory,
             cut: run.cutFile,
             recording: { continuations, story: story !== undefined },
@@ -285,7 +285,7 @@ function selecting(
 }
 
 /**
- * How the case runner should spell a package of Vitest's own.
+ * How the case runner should spell `@vitest/runner`, on a Vitest that ships it.
  *
  * The runner is a file in the project root, and `@vitest/runner` is Vitest's
  * dependency rather than the project's. A layout that hoists answers a bare
@@ -304,15 +304,43 @@ function selecting(
  * Vite. To the file Vitest itself loads, because a second copy of
  * `@vitest/runner` is a second `getFn` over a different map, and that one
  * answers `undefined` for every task.
+ *
+ * Nothing where Vitest's manifest declares no `@vitest/runner`: Vitest 5
+ * ships none, and the runner reads its class instead. A Vitest the root
+ * cannot resolve leaves the bare specifiers, as before.
  */
-function runnerImport(root: string, runnerId: string, specifier: string): string {
+function runnerImports(root: string, runnerId: string): { module?: string; utils?: string } {
+  let entry: string;
   try {
-    const fromRoot = createRequire(resolve(root, 'package.json'));
-    const file = createRequire(fromRoot.resolve('vitest')).resolve(specifier);
-    const path = relative(dirname(runnerId), file).split(sep).join('/');
-    return path.startsWith('.') ? path : `./${path}`;
+    entry = createRequire(resolve(root, 'package.json')).resolve('vitest');
   } catch {
-    return specifier;
+    return { module: '@vitest/runner', utils: '@vitest/runner/utils' };
+  }
+  if (!dependsOnRunner(entry)) return {};
+  const fromVitest = createRequire(entry);
+  const spelling = (specifier: string): string => {
+    const path = relative(dirname(runnerId), fromVitest.resolve(specifier)).split(sep).join('/');
+    return path.startsWith('.') ? path : `./${path}`;
+  };
+  return { module: spelling('@vitest/runner'), utils: spelling('@vitest/runner/utils') };
+}
+
+/**
+ * Whether the Vitest whose entry this is declares `@vitest/runner` among its
+ * dependencies. Its manifest answers, not resolution: inside a monorepo whose
+ * root runs an older Vitest, the specifier resolves from Vitest 5 by walking up
+ * to the root's copy, which is another Vitest's runner.
+ */
+function dependsOnRunner(entry: string): boolean {
+  for (let directory = dirname(entry); ; directory = dirname(directory)) {
+    let manifest: { name?: string; dependencies?: Record<string, string> };
+    try {
+      manifest = JSON.parse(readFileSync(resolve(directory, 'package.json'), 'utf8'));
+    } catch {
+      manifest = {};
+    }
+    if (manifest.name === 'vitest') return manifest.dependencies?.['@vitest/runner'] !== undefined;
+    if (dirname(directory) === directory) return true;
   }
 }
 
