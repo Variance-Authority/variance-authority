@@ -175,6 +175,9 @@ describe('isolate: what it leaves, and says so', () => {
     ['an object that holds an object every session shares', 'export {};\nconst b = { n: 0 };\nconst a = { b };\nexport { b };', 'a', 'shares'],
     ['an object handed an object every session shares', 'export {};\nconst state = { items: [] };\nconst keep = [];\nkeep.push(state.items);', 'keep', 'shares'],
     ['an object assigned an object every session shares', 'export {};\nconst b = {};\nconst a = {};\na.child = b;', 'a', 'shares'],
+    ['an object that holds an import', "import { b } from './b';\nconst a = { b };", 'a', 'shares'],
+    ['an array that holds an import', "import b from './b';\nconst routes = [b];", 'routes', 'shares'],
+    ['a map handed an import', "import * as b from './b';\nconst m = new Map([['b', b]]);", 'm', 'shares'],
     ['an instance of a class', 'export {};\nconst client = new Client();', 'client', 'instance'],
     ['a var a block declares', 'export {};\nif (a) { var w = 0; }\nexport const bump = () => ++w;', 'w', 'block'],
     ['a var a loop head declares', 'export {};\nfor (var i = 0; i < 1; i++);', 'i', 'block'],
@@ -182,6 +185,11 @@ describe('isolate: what it leaves, and says so', () => {
     const result = isolate(code, 'a.mjs');
     expect(result.left).toContainEqual({ line: expect.any(Number), name, reason: expect.stringContaining(reason) });
     expect(result.code).not.toContain(`__frame.$.${name}`);
+  });
+
+  it('moves an object that holds only a type it imports', () => {
+    const code = "import type { B } from './b';\nimport { type C } from './c';\nconst a: { b?: B; c?: C } = {};\nexport const set = (b: B) => { a.b = b; };";
+    expect(isolate(code, 'a.ts').code).toContain('__frame.$.a');
   });
 
   it('leaves a module that calls eval whole', () => {

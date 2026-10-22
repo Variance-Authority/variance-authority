@@ -66,8 +66,8 @@ export const next = () => {
 ```
 
 Only state a session can change moves. A `let` or `var` the module writes
-somewhere — an assignment, an update, a loop head — becomes a step of the
-module's frame, and every place that names it reads the frame. So does any
+somewhere — an assignment, an update, a loop head — and does not export
+becomes a step of the module's frame, and every place that names it reads the frame. So does any
 declaration that holds an object literal, an array literal, or a new `Map`,
 `Set`, `Array` or `Object`. A `let` nobody writes is a `const` in all but name,
 and it stays as it is. A function or a class is never wrapped, however it is
@@ -116,8 +116,9 @@ const { isolateConcurrentTests } = require('@variance-authority/isolator/node');
 isolateConcurrentTests(test);
 ```
 
-`transformer` names the transformer that would have run without this one,
-as Jest's configuration would: a name, or a name and its options. It runs on
+`transformer` names the transformer that would have run without this one —
+`@swc/jest` here, `babel-jest` or `ts-jest` in your project — as Jest's
+configuration would: a name, or a name and its options. It runs on
 the rewritten text, and its source map is composed with this one, so a stack
 trace and a coverage report still name the line on disk.
 
@@ -212,9 +213,10 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
   call such as `register(handlers)` or `register(state.items)`. Whoever took it
   holds that reference. Without types the transform cannot tell a part that is
   a number from one that is an object, so `log(state.count)` leaves `state` too.
-- **An object that holds one of those**, or is handed one as the module loads:
-  `const a = { b }`, `keep.push(state.items)` or `a.child = b`, where `b` and
-  `state` stay. A session's copy of `a` would hold a copy of `b`, not `b`.
+- **An object that holds one of those, or an import**, or is handed one as the
+  module loads: `const a = { b }`, `const routes = [home]`,
+  `keep.push(state.items)` or `a.child = b`, where `b` and `state` stay and
+  `home` is imported. A session's copy of `a` would hold a copy of `b`, not `b`.
 - **An instance of a class**, such as `new Client()`. A session cannot copy it.
 - **A function the module reassigns**, such as `let handler = () => {}` with
   `handler = next` later. A function is never wrapped.

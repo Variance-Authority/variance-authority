@@ -689,7 +689,8 @@ covers both.
 A handler per variable is a lot of handlers in a codebase that never wrote one.
 [`@variance-authority/isolator`](https://variance-authority.dev/reference/packages/isolator) writes them at build
 time instead: its Jest transformer and its loader for Rspack and webpack give
-every module-level `let` the module writes, and every object it keeps to itself,
+every module-level `let` the module writes and does not export, and every object
+it keeps to itself,
 one value per test, and the
 same driver starts each test on a copy of what the module held once it loaded. A declaration marked
 `@isolator-ignore` stays shared.

@@ -146,7 +146,8 @@ function isolateParsed(
   // Only what a session can change moves: a `let` or `var` nobody writes is a
   // `const` by another name, and a function, however declared, is never state.
   const declaredAt = new Set(declarators.map(({ node }) => node.id as Node).filter((id) => id.type === 'Identifier').map((id) => id.start));
-  const found = moduleReferences(program, new Set(declarators.flatMap(({ names }) => names)), declaredAt);
+  // An import is one binding every session shares, so an object that holds one cannot be copied.
+  const found = moduleReferences(program, new Set([...declarators.flatMap(({ names }) => names), ...importedNames(body)]), declaredAt);
   if (found.evaluates) {
     return unchanged([{ line: 1, name: 'eval', reason: 'a direct `eval` can name any variable, so none is rewritten' }]);
   }
@@ -202,24 +203,24 @@ function isolateParsed(
     const container = containerOf(at);
     if (container !== undefined) return [roleOf.get(container)!];
     const statement = statementOf(at)!;
-    return atLoad.filter(({ start }) => start >= statement.start && start < statement.end).map(({ name }) => ownerOf.get(name)!);
+    return atLoad.filter(({ start }) => start >= statement.start && start < statement.end).flatMap(({ name }) => ownerOf.get(name) ?? []);
   };
   for (let changed = true; changed; ) {
     changed = false;
     for (const reference of atLoad) {
       if (!reference.stored) continue;
-      const owner = ownerOf.get(reference.name)!;
-      if (owner.role === 'step' && owner.object !== undefined) {
-        const container = containerOf(reference.start);
-        if (container === owner.node || (container !== undefined && roleOf.get(container)!.role === 'step' && flowing.get(container)!.has(reference.start))) continue;
-        leave(owner, LEAVES);
-        changed = true;
-      } else if (owner.role === 'keep' && !primitive(owner.node.init as Node | null)) {
+      const owner = ownerOf.get(reference.name);
+      if (owner === undefined || (owner.role === 'keep' && !primitive(owner.node.init as Node | null))) {
         for (const holder of holders(reference.start)) {
           if (holder === owner || holder.role !== 'step') continue;
           leave(holder, HOLDS);
           changed = true;
         }
+      } else if (owner.role === 'step' && owner.object !== undefined) {
+        const container = containerOf(reference.start);
+        if (container === owner.node || (container !== undefined && roleOf.get(container)!.role === 'step' && flowing.get(container)!.has(reference.start))) continue;
+        leave(owner, LEAVES);
+        changed = true;
       }
     }
   }
@@ -401,6 +402,14 @@ function functionNames(body: readonly Node[]): Set<string> {
     if ((node?.type === 'FunctionDeclaration' || node?.type === 'ClassDeclaration') && isNode(node.id)) names.add(node.id.name as string);
   }
   return names;
+}
+
+/** Names the module imports as values; a type it imports holds nothing at run time. */
+function importedNames(body: readonly Node[]): string[] {
+  return body
+    .filter((statement) => statement.type === 'ImportDeclaration' && statement.importKind !== 'type')
+    .flatMap((statement) => (statement.specifiers as Node[]).filter((specifier) => specifier.importKind !== 'type'))
+    .map((specifier) => (specifier.local as Node).name as string);
 }
 
 /** Whether a node `test` accepts is in a value, inside its functions too only when `deep`. */

@@ -41,7 +41,7 @@ import {
   loadTransformer,
   slashed,
   type JestTestFiles,
-  type JestTransformer as ProjectTransformer,
+  type JestTransformer as JestShapedTransformer,
   type JestTransformOptions,
 } from '@variance-authority/jest-transformer';
 import { cadence, type CutTestFile } from '../instrument/cadence.js';
@@ -86,7 +86,7 @@ export interface JestTransformedSource {
 }
 
 /** The shape of a transformer as Jest loads one, sync or async. */
-export interface JestTransformer extends ProjectTransformer<JestTransformRequest, JestTransformedSource> {
+export interface JestTransformer extends JestShapedTransformer<JestTransformRequest, JestTransformedSource> {
   /**
    * The recipe this transformer places sense's probes with under `mode`, from
    * the instrumenter crate's `recipe`. A transformer that has one is handed
