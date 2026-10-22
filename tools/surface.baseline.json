@@ -1238,7 +1238,8 @@
       ],
       "engines": {
         "node": ">=22"
-      }
+      },
+      "sideEffects": true
     },
     "names": {
       "./reset": {
@@ -1291,7 +1292,8 @@
       ],
       "engines": {
         "node": ">=22"
-      }
+      },
+      "sideEffects": true
     },
     "names": {
       ".": {
