@@ -44,7 +44,7 @@ export function ignoredNotes(ignored: readonly string[]): readonly string[] {
   return [
     `the suite ignores ${many(ignored.length, 'changed file')} ` +
       `(${ignored.slice(0, 3).join(', ')}${ignored.length > 3 ? ', …' : ''}) by its \`ignore\`, ` +
-      `so ${ignored.length === 1 ? 'it keeps' : 'they keep'} no test in the run`,
+      `so only a test that declares ${ignored.length === 1 ? 'it' : 'one'}, as a precondition or by a \`/// <depends>\`, runs for ${ignored.length === 1 ? 'it' : 'them'}`,
   ];
 }
 

@@ -205,7 +205,7 @@ that render it.
 suite selects nothing and says why:
 
 ```text
-the suite ignores 1 changed file (src/card.css) by its `ignore`, so it keeps no test in the run
+the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a test that declares it, as a precondition or by a `/// <depends>`, runs for it
 ```
 
 and `--format json` carries the same list as `"ignored": ["src/card.css"]`.

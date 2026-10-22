@@ -244,6 +244,31 @@ describe('a file the suite ignores, read off a snapshot', () => {
     });
   });
 
+  it('still follows a `/// <depends>` on it in a suite that declines relations', () => {
+    const reads = relationsOf({ relations: [{ from: file('src/decide.ts'), to: file('src/logo.png'), kind: 'depends' }] });
+
+    expect(
+      narrowByExecutionFromView(view(), edit('src/logo.png'), { relations: reads, ignore: ['**/*.png'], unmeasured: 'nothing' }),
+    ).toMatchObject({ entered: ['test/alpha.test.ts', 'test/beta.test.ts'], ignored: ['src/logo.png'] });
+  });
+
+  it('goes on from a module that declares it and holds no row, to the modules that import that one', () => {
+    const reads = relationsOf({
+      relations: [
+        { from: file('src/reader.ts'), to: file('src/logo.png'), kind: 'depends' },
+        { from: file('src/decide.ts'), to: file('src/reader.ts'), kind: 'imports' },
+      ],
+    });
+
+    expect(narrowByExecutionFromView(view(), edit('src/logo.png'), { relations: reads, ignore: ['**/*.png'] })).toMatchObject({
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/logo.png', 'src/reader.ts', 'src/decide.ts'] }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/logo.png', 'src/reader.ts', 'src/decide.ts'] }] },
+      ],
+    });
+  });
+
   it('ignores at a graph precision too', () => {
     expect(
       narrowByExecutionFromView(view(), edit('src/card.css'), { relations, ignore: ['**/*.css'], precision: 'file' }),

@@ -1,15 +1,5 @@
 import {
-  EDGE_KINDS,
-  NOTHING,
-  RUNTIME_EDGES,
-  WHOLE,
-  carried,
-  dependentsOf,
-  idOf,
-  nodeAt,
-  trailOf,
-  type NodeId,
-  type Relations,
+  EDGE_KINDS, NOTHING, RUNTIME_EDGES, WHOLE, carried, dependentsOf, idOf, nodeAt, trailOf, type NodeId, type Relations,
 } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
@@ -244,7 +234,9 @@ export function answerByImporters(
 ): ImporterAnswer {
   const { relations } = options;
   const ignores = ignoreMatcher(options.ignore);
-  if (relations === undefined || changed.length + wholes.length === 0 || options.unmeasured === 'nothing') {
+  // A suite that declines relations still follows what a module declares it reads of an ignored file.
+  const declines = options.unmeasured === 'nothing';
+  if (relations === undefined || changed.length + wholes.length === 0 || (declines && ignores === undefined)) {
     return { selected: new Map(), unread: changed.filter((file) => ignores?.(file) !== true), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map() };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
@@ -312,7 +304,7 @@ export function answerByImporters(
   for (const file of changed) {
     const id = idOf(relations, 'file', file);
     const ignored = ignores?.(file) === true;
-    if (id === undefined) {
+    if (id === undefined || (declines && !ignored)) {
       if (!ignored) unread.push(file);
       continue;
     }
@@ -326,7 +318,12 @@ export function answerByImporters(
         // is a step on the way to the module that carries it, and the walk went
         // on through it.
         if (other === id || importedAsAsset(relations, other)) continue;
-        read(other, trailOf(traversal, other).map((step) => relations.names[step]!), seed, undefined);
+        const trail = trailOf(traversal, other).map((step) => relations.names[step]!);
+        // The declaration stands for the file's own reach: a reader no row answers leads on to its importers.
+        if (read(other, trail, seed, undefined) || !ignored) continue;
+        importersUntil(relations, other, walk, (next, rest) =>
+          read(next, [...trail, ...rest.slice(1).map((step) => relations.names[step]!)], seed, undefined),
+        );
       }
     } else if (!seed.some((name) => rowed.has(name))) {
       importersUntil(relations, id, walk, (other, trail) =>
@@ -337,7 +334,7 @@ export function answerByImporters(
   // A file answered whole is its own first step: a test that holds it, or a row
   // of it without probes, loaded it. No test declares it as a changed file, so
   // nothing is left to the preconditions.
-  for (const file of wholes) {
+  for (const file of declines ? [] : wholes) {
     const id = idOf(relations, 'file', file);
     if (id === undefined || read(id, [file], [], file, file)) continue;
     importersUntil(relations, id, walk, (other, trail) =>
