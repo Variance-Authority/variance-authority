@@ -18,17 +18,13 @@ function legacyRunner(module: string, utils: string): string {
   return `import { getFn, getHooks } from ${JSON.stringify(module)};
 import { getNames } from ${JSON.stringify(utils)};
 const VitestTestRunner = vitest.TestRunner ?? (await import('vitest/runners')).VitestTestRunner;
-// A case's declaration path under its file, and how many suites a suite sits
-// under, file included.
-const testName = (task) => getNames(task).slice(1).join(' > ');
-const depthOf = (suite) => getNames(suite).length - 1;`;
+// A case's declaration path under its file.
+const testName = (task) => getNames(task).slice(1).join(' > ');`;
 }
 
 /**
  * The same, on Vitest 5: the class hands out what `@vitest/runner` did, and a
- * task carries its declaration path as `fullTestName`. Depth is the suites
- * walked up to the file, counted as `getNames` counted them: a suite with no
- * name is not one, and the file is one whether or not the walk reached it.
+ * task carries its declaration path as `fullTestName`.
  */
 const VITEST_5 = `const VitestTestRunner = vitest.TestRunner;
 if (typeof VitestTestRunner?.getTestFn !== 'function' || typeof VitestTestRunner.getSuiteHooks !== 'function') {
@@ -36,8 +32,14 @@ if (typeof VitestTestRunner?.getTestFn !== 'function' || typeof VitestTestRunner
 }
 const getFn = (test) => VitestTestRunner.getTestFn(test);
 const getHooks = (suite) => VitestTestRunner.getSuiteHooks(suite);
-const testName = (task) => task.fullTestName ?? '';
-const depthOf = (suite) => {
+const testName = (task) => task.fullTestName ?? '';`;
+
+/**
+ * How many suites a suite sits under, file included, on every line: the suites
+ * walked up to the file, counted as `getNames` counts them. A suite with no
+ * name is not one, and the file is one whether or not the walk reached it.
+ */
+const DEPTH = `const depthOf = (suite) => {
   let depth = 0;
   let at = suite;
   while (at?.suite) {
@@ -53,5 +55,6 @@ const depthOf = (suite) => {
  * are absent. The source expects `vitest` imported as a namespace.
  */
 export function runnerHelpersSource(module?: string, utils?: string): string {
-  return module === undefined || utils === undefined ? VITEST_5 : legacyRunner(module, utils);
+  return `${module === undefined || utils === undefined ? VITEST_5 : legacyRunner(module, utils)}
+${DEPTH}`;
 }

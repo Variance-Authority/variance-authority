@@ -97,6 +97,8 @@ export function selectionPlugin(
   const before = placement === 'before-transforms';
   /** The modules of this seam's own, and a `globalSetup` file, which no probe may sit in. */
   const own = (file: string): boolean => file === setupId || file === runnerId || globalSetup.has(file);
+  /** A file the transforms may read and probe; the module cache is kept from the same ones. */
+  const takes = (file: string): boolean => mayTake(file, (at) => run.include(at) || run.unprobed?.(at) === true);
   /** A test file the run cuts: the file itself only, since a query asks for a module built from it. */
   const cutting = (id: string, file: string): boolean => cut !== undefined && id === file && run.cases && cut(file);
   /** The modules probed first because their files name their own maps, until the probes plugin passes them by. */
@@ -167,13 +169,13 @@ export function selectionPlugin(
       // so a module the seam takes would run with probes whose identity this
       // process never learned, and the fold would refuse the run. Vitest 5
       // turns that cache on by default. Every module the transforms below may
-      // take is kept out of it, by the same gate they read it with; the rest
-      // stay cached.
+      // take is kept out of it, through the same `takes` they read it with; the
+      // rest stay cached.
       const define = context.defineCacheKeyGenerator ?? context.experimental_defineCacheKeyGenerator;
       define?.(({ id }) => {
         const file = cleanId(id);
         if (own(file)) return undefined;
-        return mayTake(file, (at) => run.include(at) || run.unprobed?.(at) === true) || cutting(id, file) ? false : undefined;
+        return takes(file) || cutting(id, file) ? false : undefined;
       });
     },
     // A file changed on disk, so its reading describes text the disk no longer
@@ -228,7 +230,7 @@ export function selectionPlugin(
       const late = !inPage && !before;
       if (id !== file && late) return null;
       // Under `node_modules`, `include` is asked first: no map there is read.
-      const read = id === file && late && mayTake(file, (at) => run.include(at) || run.unprobed?.(at) === true);
+      const read = id === file && late && takes(file);
       const text = read ? fileOrNone(file, (at) => readFileSync(at, 'utf8')) : undefined;
       if (id === file && late) {
         if (text === undefined || !namesItsMap(text)) {
