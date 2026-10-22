@@ -254,7 +254,8 @@ interface Opened {
   read(section: Section): Uint8Array;
 }
 
-function opened(file: Bytes): Opened {
+/** The physical directory shared by case reads and storage inspection. */
+function directoryOf(file: Bytes): { readonly header: Header; readonly base: number } {
   if (file.length < 4) throw invalid();
   const head = file.read(0, 4);
   const headerLength = Buffer.from(head.buffer, head.byteOffset, head.byteLength).readUInt32LE(0);
@@ -263,6 +264,11 @@ function opened(file: Bytes): Opened {
   const header = JSON.parse(text) as Header;
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
+  return { header, base };
+}
+
+function opened(file: Bytes): Opened {
+  const { header, base } = directoryOf(file);
   const unknown = header.sections.find((section) => !KNOWN.has(section.name));
   if (unknown !== undefined) {
     throw new UnknownSection(unknown.name);
