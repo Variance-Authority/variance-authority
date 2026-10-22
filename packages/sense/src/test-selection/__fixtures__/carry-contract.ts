@@ -30,7 +30,6 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { INSTRUMENTATION_ID, instrument } from '../../instrument/index.js';
 import { caseSectionsAt } from '../case-record.js';
-import { lastCaseRunOf } from '../case-landing.js';
 import { landRun } from '../commit-runs.js';
 import { coverageBlocks, lineAt } from '../coverage-rows.js';
 import { CrossingSets } from '../crossing-sets.js';
@@ -450,6 +449,8 @@ export function touching(text: string, label: string): string {
 
 /** The exact cases the record names as its last run. */
 export async function lastCases(walk: Walk): Promise<readonly string[]> {
+  // Defer the reader so the fault-injection harness installs its edit-reading mock before the landing loads.
+  const { lastCaseRunOf } = await import('../case-landing.js');
   return lastCaseRunOf(caseSectionsAt(walk.coverageFile))!.cases;
 }
 
