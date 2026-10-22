@@ -21,11 +21,12 @@ afterEach(async () => {
 });
 
 /** What the loader handed on for `file` under `options`: code, map, or the error. */
-function load(file: string, code: string, map: HandedMap, options: ProbesLoaderOptions & { collector?: string }) {
+function load(file: string, code: string, map: HandedMap, options: ProbesLoaderOptions & { collector?: string }, loaders?: readonly { path: string }[]) {
   let handed: { error: Error | null; code?: string; map?: HandedMap } | undefined;
   const context: ProbesLoaderContext = {
     resourcePath: file,
     getOptions: () => options,
+    ...(loaders === undefined ? {} : { loaders }),
     callback: (error, text, given) => {
       handed = { error, code: text, map: given };
     },
@@ -170,6 +171,17 @@ describe('the probes loader', () => {
     const { error } = load(resolve(root, 'cart.js'), `// rewritten\n${SOURCE}`, undefined, { root });
 
     expect(error?.message).toMatch(/`cart\.js`.*devtool/s);
+  });
+
+  it.each([
+    ['missing map', undefined],
+    ['mismatched source text', { ...IDENTITY, sourcesContent: [`// rewritten\n${SOURCE}`] }],
+  ] as const)('names the configured loader chain when refusing a %s', async (_, map) => {
+    const root = await checkout();
+    const loaders = [{ path: '/loaders/rewrite.js' }, { path: '/loaders/compiler.js' }];
+    const { error } = load(resolve(root, 'cart.js'), `// rewritten\n${SOURCE}`, map, { root }, loaders);
+
+    expect(error?.message).toContain('Loader chain as listed by the bundler:\n  /loaders/rewrite.js\n  /loaders/compiler.js');
   });
 
   it('passes a module the default `include` refuses untouched', async () => {
