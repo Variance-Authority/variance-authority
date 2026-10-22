@@ -65,8 +65,13 @@ export function fetchingReader(
   const pull = async (files: readonly string[]): Promise<void> => {
     toplevel ??= locate(cwd, run);
     const top = await toplevel;
-    const patterns = await Promise.all(files.map(async (file) => patternFor(top, await realpath(file))));
-    for (const include of chunked(patterns)) await pullOnce(cwd, run, include);
+    const paths = await Promise.all(files.map(async (file) => pathFor(top, await realpath(file))));
+    const plain = paths.filter((path) => !path.includes(','));
+    for (const include of chunked(plain.map(patternFor))) await pullOnce(cwd, run, include, '');
+    for (const path of paths.filter((each) => each.includes(','))) {
+      const others = await namesakes(top, run, path);
+      await pullOnce(cwd, run, patternFor(path), others.map(patternFor).join(','));
+    }
   };
 
   const drain = (): void => {
@@ -178,23 +183,55 @@ async function locate(cwd: string, run: CommandRunner): Promise<string> {
   return realpath(result.stdout.trim());
 }
 
+/** A file's path from the work tree's root, with `/` between its segments. */
+function pathFor(toplevel: string, file: string): string {
+  return relative(toplevel, file).split(sep).join('/');
+}
+
 /**
- * A file's path as a `--include` pattern matches it, and nothing else.
+ * A path as a `--include` or `--exclude` pattern matches it, and nothing else
+ * that has no comma.
  *
- * git-lfs reads the list as gitignore patterns separated by commas. `[`, `]`,
- * `*`, `?` and `\` are special anywhere and a backslash makes each literal. `!`
- * and `#` are special only at the start, and escaped anywhere else git-lfs 3.7
- * matches nothing. A comma cannot be escaped, so it is answered by `?`, which
- * matches the comma and any file that differs from this one there alone — at
- * worst an extra image fetched, never one missed.
+ * git-lfs reads the list as gitignore patterns separated by commas. The leading
+ * `/` anchors the pattern at the work tree's root, where a bare name would match
+ * that name in every directory. `[`, `]`, `*`, `?` and `\` are special anywhere
+ * and a backslash makes each literal; `!` and `#` are special only at the start,
+ * which the `/` now holds. A comma cannot be escaped, so it is answered by `?`,
+ * which matches the comma and any one other character there — the namesakes that
+ * {@link namesakes} lists, so that the pull can exclude them.
  */
-function patternFor(toplevel: string, file: string): string {
-  return relative(toplevel, file)
-    .split(sep)
-    .join('/')
-    .replace(/[[\]*?\\]/g, '\\$&')
-    .replace(/^[!#]/, '\\$&')
-    .replaceAll(',', '?');
+function patternFor(path: string): string {
+  return `/${path.replace(/[[\]*?\\]/g, '\\$&').replaceAll(',', '?')}`;
+}
+
+/**
+ * The tracked files a comma path's pattern matches besides the path itself.
+ *
+ * The same directory, the same length, and different only where the path has a
+ * comma. Each one is handed to `--exclude`, so the pull downloads the one image
+ * asked for: a namesake's image is not this run's to fetch, and one whose object
+ * the remote lacks would fail a lookup that has its own image. A namesake's own
+ * pattern never matches the path: it is literal where it differs from it.
+ */
+async function namesakes(toplevel: string, run: CommandRunner, path: string): Promise<string[]> {
+  const slash = path.lastIndexOf('/');
+  const directory = slash === -1 ? '.' : path.slice(0, slash);
+  const result = await ran(run, ['ls-files', '-z', '--full-name', '--', `:(top,literal)${directory}`], toplevel);
+  if (result.code !== 0) {
+    throw new RasterStoreError(
+      `a baseline image is a git-LFS pointer at ${path}, and \`git ls-files\` exited ` +
+        `${result.code} (${firstLine(result.stderr)}), so the files its \`--include\` would ` +
+        `also match are unknown. ${REFUSAL}.`,
+    );
+  }
+  return result.stdout
+    .split('\0')
+    .filter(
+      (other) =>
+        other !== path &&
+        other.length === path.length &&
+        [...other].every((char, index) => char === path[index] || path[index] === ','),
+    );
 }
 
 /** The patterns, joined into `--include` values that each fit the budget. */
@@ -213,8 +250,16 @@ function* chunked(patterns: readonly string[]): Generator<string> {
   if (current.length > 0) yield current.join(',');
 }
 
-async function pullOnce(cwd: string, run: CommandRunner, include: string): Promise<void> {
-  const result = await ran(run, ['lfs', 'pull', `--include=${include}`], cwd);
+/**
+ * One `git lfs pull` of exactly these patterns.
+ *
+ * `--exclude` is always passed, empty when nothing is excluded: `--include`
+ * replaces `lfs.fetchinclude`, but `lfs.fetchexclude` applies unless `--exclude`
+ * replaces it, and a repository that excludes its baselines from fetching would
+ * otherwise exit 0 with every requested pointer left where it was.
+ */
+async function pullOnce(cwd: string, run: CommandRunner, include: string, exclude: string): Promise<void> {
+  const result = await ran(run, ['lfs', 'pull', `--include=${include}`, `--exclude=${exclude}`], cwd);
   if (result.code === 0) return;
   throw new RasterStoreError(
     `a baseline image is a git-LFS pointer, and \`git lfs pull --include=${include}\` exited ` +

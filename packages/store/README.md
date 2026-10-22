@@ -349,8 +349,11 @@ That last case is the one worth naming. An un-smudged checkout — LFS not
 installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you about 130 bytes of text
 where a PNG should be, and comparing two of those reports `unchanged` for every
 subject in the suite. When `find` reads a pointer, the store runs `git lfs pull
---include=<that file>` and reads the image it fetched. Pointers met while a pull
-runs go into the next one. If the image cannot be fetched, the lookup throws a
+--include=<that file>` and reads the image it fetched. The pull fetches that
+file and no other: the pattern is anchored at the work tree's root, a
+`lfs.fetchexclude` in your git config does not apply to it, and a path with a
+comma gets its own pull, since git-lfs cannot escape a comma. Pointers met while
+a pull runs go into the next one. If the image cannot be fetched, the lookup throws a
 `RasterStoreError` rather than reporting a missing baseline.
 
 So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1`, run `git lfs install

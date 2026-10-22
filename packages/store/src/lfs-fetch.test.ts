@@ -7,7 +7,7 @@ import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 import { fetchingReader } from './lfs-fetch.js';
-import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
+import { createLfsStore, runCommand, type CommandResult, type CommandRunner } from './lfs.js';
 
 /**
  * A clone that skipped the smudge, and the images a run actually compares.
@@ -126,7 +126,7 @@ describe('a clone that skipped the smudge', () => {
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.raster.bytes).toBe(IMAGE);
-    expect(pulls).toEqual([['todo--empty-chromium.png']]);
+    expect(pulls).toEqual([['/todo--empty-chromium.png']]);
     expect(await readFile(join(root, 'todo--full-chromium.png'), 'utf8')).toBe(POINTER);
   });
 
@@ -166,8 +166,8 @@ describe('a clone that skipped the smudge', () => {
     for (const found of await Promise.all([first, ...rest])) expect(found?.raster.bytes).toBe(IMAGE);
     // Within a batch, the order is whichever read finished first.
     expect(pulls.map((pull) => [...pull].sort())).toEqual([
-      ['a-chromium.png'],
-      ['b-chromium.png', 'c-chromium.png'],
+      ['/a-chromium.png'],
+      ['/b-chromium.png', '/c-chromium.png'],
     ]);
   });
 
@@ -192,7 +192,7 @@ describe('a clone that skipped the smudge', () => {
     const includes = calls.filter((call) => call.startsWith('git lfs pull')).slice(1);
     expect(includes.length).toBeGreaterThan(1);
     for (const call of includes) expect(call.length).toBeLessThan(8100);
-    expect(pulls.slice(1).flat().sort()).toEqual(names.map((name) => `${name}-chromium.png`));
+    expect(pulls.slice(1).flat().sort()).toEqual(names.map((name) => `/${name}-chromium.png`));
   });
 
   it('refuses, naming the pull, when git-lfs could not fetch the image', async () => {
@@ -333,6 +333,62 @@ describe('against a real git with git-lfs', () => {
       expect(git(clone, 'status', '--porcelain')).toBe('');
     },
   );
+});
+
+describe.skipIf(!hasLfs)('a real git that would fetch more, or less, than was asked', () => {
+  /**
+   * An origin with these images committed through LFS, and a clone of it that
+   * skipped the smudge. `lost` names images whose object the origin then loses,
+   * the way a pruned LFS server does.
+   */
+  async function cloneOf(files: readonly string[], lost: readonly string[] = []): Promise<string> {
+    const origin = join(root, 'origin.git');
+    const work = join(root, 'work');
+    const clone = join(root, 'clone');
+    git(root, 'init', '--quiet', '--bare', origin);
+    git(root, 'clone', '--quiet', origin, work);
+    git(work, 'lfs', 'install', '--local');
+    git(work, 'lfs', 'track', '*.png');
+    for (const file of files) {
+      await mkdir(join(work, file, '..'), { recursive: true });
+      await writeFile(join(work, file), `image of ${file}`);
+    }
+    git(work, 'add', '.');
+    git(work, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'baselines');
+    git(work, 'push', '--quiet', 'origin', 'HEAD');
+    for (const file of lost) {
+      const oid = git(work, 'lfs', 'ls-files', '--long', '--include', file).split(' ')[0] ?? '';
+      await rm(join(origin, 'lfs', 'objects', oid.slice(0, 2), oid.slice(2, 4), oid));
+    }
+    git(root, 'clone', '--quiet', origin, clone, { GIT_LFS_SKIP_SMUDGE: '1' });
+    git(clone, 'lfs', 'install', '--local', '--skip-smudge');
+    return clone;
+  }
+
+  const read = (clone: string, file: string): Promise<string> =>
+    fetchingReader(clone, runCommand)(join(clone, file)).then((bytes) => bytes.toString('utf8'));
+
+  it('fetches a baseline the repository excludes from fetching', async () => {
+    const clone = await cloneOf(['baselines/page.png']);
+    git(clone, 'config', 'lfs.fetchexclude', 'baselines/**');
+
+    expect(await read(clone, 'baselines/page.png')).toBe('image of baselines/page.png');
+  });
+
+  it('fetches the file at the root, not the one of the same name below it', async () => {
+    const clone = await cloneOf(['page.png', 'nested/page.png']);
+
+    expect(await read(clone, 'page.png')).toBe('image of page.png');
+    expect(await readFile(join(clone, 'nested/page.png'), 'utf8')).toMatch(/^version https:\/\/git-lfs/);
+  });
+
+  it('fetches a path with a comma alone, past a namesake the origin lost', async () => {
+    const clone = await cloneOf(['baselines/a,b.png', 'baselines/axb.png'], ['baselines/axb.png']);
+
+    expect(await read(clone, 'baselines/a,b.png')).toBe('image of baselines/a,b.png');
+    expect(await readFile(join(clone, 'baselines/axb.png'), 'utf8')).toMatch(/^version https:\/\/git-lfs/);
+    expect(git(clone, 'status', '--porcelain')).toBe('');
+  });
 });
 
 function git(cwd: string, ...args: (string | Record<string, string>)[]): string {
