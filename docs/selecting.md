@@ -271,9 +271,10 @@ the components the change reached, so the run prints the subjects it kept that
 way. A changed module it has no row for, such as a new file, is read as a module
 with a row is, with every export counted as changed: the subjects that entered a
 function reading one of them are selected. A path that reading cannot answer,
-such as a stylesheet, a module whose loading does something, or a text that does
-not parse, is answered by the measured files that import it, and one nothing
-measured imports keeps no subject in the run. A suite that declares
+such as a stylesheet, a module whose loading does something, a module that
+exports no name it can follow, such as one that assigns `module.exports`, or a
+text that does not parse, is answered by the measured files that import it, and
+one nothing measured imports keeps no subject in the run. A suite that declares
 [`"relations":
 false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) does
 not consult the graph: a file its record did not measure keeps no subject in
