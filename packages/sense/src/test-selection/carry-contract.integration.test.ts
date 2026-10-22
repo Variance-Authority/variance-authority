@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import { comparedByCli } from './__fixtures__/carry-comparison.js';
-import { selectedByCli } from './__fixtures__/carry-contract.js';
+import { lastCasesByCli, selectedByCli } from './__fixtures__/carry-contract.js';
 import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
 import {
   branchDeletedThenRun,
@@ -8,12 +8,17 @@ import {
   commentThenRunElsewhere,
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
+  lastRunAfterCarry,
   typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
 
 // The same histories, each last selection asked of `variance select --execution`
 // in a process of its own: the record is opened cold, by the native reader.
 describe('a record carried through a history, asked by the CLI after a restart', () => {
+  it('keeps compact last-run membership through a carry and a later partial run', async () => {
+    await lastRunAfterCarry(selectedByCli, lastCasesByCli);
+  });
+
   it('selects an edit in each effect by the test that ran it after a comment and a run of other tests', async () => {
     await commentThenRunElsewhere(selectedByCli);
   });

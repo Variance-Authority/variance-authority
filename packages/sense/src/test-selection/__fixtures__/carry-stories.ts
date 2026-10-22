@@ -9,8 +9,9 @@
  */
 
 import { expect } from 'vitest';
+import { caseSectionsAt } from '../case-record.js';
 import { keepRecord, type Compare } from './carry-comparison.js';
-import { commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
+import { caseOf, commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
 
 export const A = 'test/a.test.ts';
 export const B = 'test/b.test.ts';
@@ -209,5 +210,24 @@ export async function importEditedThenRunElsewhere(compare: Compare): Promise<vo
     // The import reached the top level both entered, so both are owed a run.
     check(walk, 'owed after the import', await owed(walk), [A, B]);
     check(walk, 'the comparison', await compare(walk, base), { lost: 0, unmeasured: 1, left: {} });
+  });
+}
+
+/** A later partial run names its own cases after a carried edit changes the index's row numbering. */
+export async function lastRunAfterCarry(ask: Ask, scope: (walk: Walk) => Promise<readonly string[]>): Promise<void> {
+  // Defer the reader so the fault-injection harness installs its edit-reading mock before the landing loads.
+  const { lastCaseRunOf } = await import('../case-landing.js');
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [B, A]);
+    const first = caseSectionsAt(walk.coverageFile);
+    check(walk, 'compact last-run membership', Array.isArray(JSON.parse(Buffer.from(first.last!).toString()).cases), false);
+    const before = walk.head;
+    await commit(walk, effects({ note: true }), 'a comment before a partial run');
+    await runElsewhere(walk);
+    await runTests(walk, [A]);
+    check(walk, 'the before commit survives the carry', lastCaseRunOf(caseSectionsAt(walk.coverageFile))?.before, before);
+    check(walk, 'the first effect still selects only its observer', await ask(walk, touching(walk.text, 'first')), [A]);
+    check(walk, 'the carried effect keeps its observer', await ask(walk, touching(walk.text, 'second')), [B]);
+    check(walk, 'only the last run owns the scope', await scope(walk), [caseOf(A)]);
   });
 }

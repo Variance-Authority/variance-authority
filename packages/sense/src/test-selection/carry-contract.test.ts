@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import { comparedInProcess } from './__fixtures__/carry-comparison.js';
-import { selected } from './__fixtures__/carry-contract.js';
+import { lastCases, selected } from './__fixtures__/carry-contract.js';
 import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
 import {
   branchDeletedThenRun,
@@ -8,10 +8,15 @@ import {
   commentThenRunElsewhere,
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
+  lastRunAfterCarry,
   typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
 
 describe('a record carried through a history, asked in-process', () => {
+  it('keeps compact last-run membership through a carry and a later partial run', async () => {
+    await lastRunAfterCarry(selected, lastCases);
+  });
+
   it('selects nothing for a comment and, after a run of other tests, selects an edit in each effect by the test that ran it', async () => {
     await commentThenRunElsewhere(selected);
   });
