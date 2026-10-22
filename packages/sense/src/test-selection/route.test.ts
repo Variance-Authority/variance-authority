@@ -244,8 +244,6 @@ describe('a file the suite ignores, read off a snapshot', () => {
     });
   });
 
-  it.todo('leaves a file it ignores out of the undone files — needs a fixture whose kept text was undone by the tree');
-
   it('ignores at a graph precision too', () => {
     expect(
       narrowByExecutionFromView(view(), edit('src/card.css'), { relations, ignore: ['**/*.css'], precision: 'file' }),

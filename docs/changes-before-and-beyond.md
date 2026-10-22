@@ -210,6 +210,11 @@ the suite ignores 1 changed file (src/card.css) by its `ignore`, so it keeps no 
 
 and `--format json` carries the same list as `"ignored": ["src/card.css"]`.
 
+`variance run --since` reads the list of the suite it runs for, named by
+`--suite` or the only one declared. A matching file there moves no subject and
+no `before`, a subject whose module declares it with a `/// <depends>` is still
+observed, and the run's notes name the file.
+
 ## What comes with a declared entry point
 
 A declared file is one name. The fixture only the setup imports, the polyfill,

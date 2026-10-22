@@ -100,7 +100,8 @@ file back out. A matching changed file loses its regions, its import and asset
 edges and its `before`, and `select` lists it under `ignored`. A test that
 declares it, as a precondition or through a `/// <depends>` in the module it
 tests, still runs. Each suite uses only its own list, so a visual suite over the
-same components still selects on the stylesheet. A file a test reads as data,
+same components still selects on the stylesheet. `variance run --since` reads the
+list of the suite it runs for (`--suite`, or the only one declared) the same way. A file a test reads as data,
 such as a CSS module whose class names a snapshot prints, takes a
 `/// <depends>` in that test rather than leaving the `ignore`.
 

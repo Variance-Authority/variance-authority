@@ -122,3 +122,11 @@ export async function journeySuite(root: string, named: string | undefined): Pro
   const declared = selection.declaredSuites(root);
   return declared?.length === 1 ? declared[0]!.name : undefined;
 }
+
+/** The `ignore` globs of the suite {@link journeySuite} names; absent ignores nothing. */
+export async function suiteIgnore(root: string, named: string | undefined): Promise<readonly string[] | undefined> {
+  const suite = await journeySuite(root, named);
+  if (suite === undefined) return undefined;
+  const selection = await import('@variance-authority/sense/test-selection');
+  return selection.declaredSuites(root)?.find((one) => one.name === suite)?.ignore;
+}
