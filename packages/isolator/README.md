@@ -35,7 +35,7 @@ npm install --save-dev @variance-authority/isolator @variance-authority/ioc
 
 ## Requirements
 
-Node 22 or newer, on macOS (Apple silicon), Linux (glibc, x64 or arm64) or
+Node 22.15 or newer, on macOS (Apple silicon), Linux (glibc, x64 or arm64) or
 Windows (x64): which modules declare side effects is read by
 [Sense](https://variance-authority.dev/reference/packages/sense)'s native reader. React 19 only for the React entry. The transform is one
 function, `isolate(code, file)`; Jest 30, Rspack 2 and webpack 5 get a seam
