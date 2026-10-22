@@ -252,18 +252,42 @@ describe('a file the suite ignores, read off a snapshot', () => {
     ).toMatchObject({ entered: ['test/alpha.test.ts', 'test/beta.test.ts'], ignored: ['src/logo.png'] });
   });
 
-  it('names a module that declares it and holds no row as unread, and walks past it to nothing', () => {
+  it('walks on from a module that declares it and holds no row to its importers, as from any file the record did not measure', () => {
     const reads = relationsOf({
       relations: [
         { from: file('src/reader.ts'), to: file('src/logo.png'), kind: 'depends' },
-        { from: file('src/decide.ts'), to: file('src/reader.ts'), kind: 'imports' },
+        { from: file('test/alpha.test.ts'), to: file('src/reader.ts'), kind: 'imports' },
       ],
     });
 
     expect(narrowByExecutionFromView(view(), edit('src/logo.png'), { relations: reads, ignore: ['**/*.png'] })).toMatchObject({
-      entered: [],
-      unread: ['src/reader.ts'],
+      entered: ['test/alpha.test.ts'],
+      because: [{ test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/logo.png', 'src/reader.ts', 'test/alpha.test.ts'] }] }],
+      unread: [],
       ignored: ['src/logo.png'],
+    });
+  });
+
+  it('declines a module that declares it and holds no row in a suite that declines relations', () => {
+    const reads = relationsOf({
+      relations: [
+        { from: file('src/reader.ts'), to: file('src/logo.png'), kind: 'depends' },
+        { from: file('test/alpha.test.ts'), to: file('src/reader.ts'), kind: 'imports' },
+      ],
+    });
+
+    expect(
+      narrowByExecutionFromView(view(), edit('src/logo.png'), { relations: reads, ignore: ['**/*.png'], unmeasured: 'nothing' }),
+    ).toMatchObject({ entered: [], declined: ['src/reader.ts'], ignored: ['src/logo.png'] });
+  });
+
+  it('still follows a `/// <depends>` on it from a module the suite ignores as well', () => {
+    const reads = relationsOf({ relations: [{ from: file('src/decide.ts'), to: file('src/logo.png'), kind: 'depends' }] });
+    const diff = `${edit('src/logo.png')}\n${edit('src/decide.ts', 4)}`;
+
+    expect(narrowByExecutionFromView(view(), diff, { relations: reads, ignore: ['src/**'] })).toMatchObject({
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      ignored: ['src/decide.ts', 'src/logo.png'],
     });
   });
 

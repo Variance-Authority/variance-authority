@@ -197,8 +197,9 @@ regions tests entered in it, the import and asset edges into it, and the
 suite's `before`. It keeps what somebody declared. A test that lists it as a
 precondition still runs, and so does every test the recording saw enter a
 module with a `/// <depends>` on it, because that edge says the module reads
-the bytes. A declaring module the recording holds nothing for is listed as
-`unread`, and nothing is selected past it through its importers. A
+the bytes. A declaring module the recording holds nothing for is read as any
+file it did not measure: the tests that import it run, or, in a suite that
+declines relations, it is listed. A
 `!` pattern takes a file back out of the list. A suite uses only its own
 `ignore` list. In the example, the same stylesheet still selects the stories
 that render it.

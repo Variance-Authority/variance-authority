@@ -172,21 +172,43 @@ describe('selecting off a journey file in the addon', () => {
     expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], ignored: ['src/http.ts'] });
   });
 
-  it('still follows a `/// <depends>` on a file the suite ignores by its row, and no asset edge, as narrowByJourneys does', async () => {
-    // `http.ts` imports the picture; `card.ts`, which holds a row, and `solo.ts`, which holds none, declare they read its bytes.
-    const records = RECORDS.map((record) =>
+  // `http.ts` imports the picture; `card.ts`, which holds a row, and `solo.ts`, which holds none, declare they read its bytes.
+  const reading = relationsOfFiles(
+    RECORDS.map((record) =>
       record.file === 'src/http.ts'
         ? { ...record, edges: [{ to: 'src/logo.png', kind: 'asset' as const }] }
         : record.file === 'src/card.ts' || record.file === 'src/solo.ts'
           ? { ...record, edges: [...(record.edges ?? []), { to: 'src/logo.png', kind: 'depends' as const }] }
           : record,
-    );
+    ),
+    { depends },
+  );
+
+  it('still follows a `/// <depends>` on a file the suite ignores, by the row or past a module with none, and no asset edge, as narrowByJourneys does', async () => {
     const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []]]);
-    const options = { relations: relationsOfFiles(records, { depends }), ignore: ['**/*.png'] };
+    const options = { relations: reading, ignore: ['**/*.png'] };
     const selected = await selectJourneyFile(FILE, changed, options);
 
     expect(selected).toEqual(narrowByJourneys(index, changed, options));
-    expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], unread: ['src/solo.ts'], ignored: ['src/logo.png'] });
+    expect(selected).toMatchObject({ entered: ['test/other.test.ts', 'test/plain.test.ts'], unread: [], ignored: ['src/logo.png'] });
+  });
+
+  it('declines a module that declares an ignored file and holds no row in a suite that declines relations, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []]]);
+    const options = { relations: reading, ignore: ['**/*.png'], unmeasured: 'nothing' as const };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], declined: ['src/solo.ts'] });
+  });
+
+  it('still follows a `/// <depends>` from a module the suite ignores as well, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []], ['src/card.ts', []]]);
+    const options = { relations: reading, ignore: ['src/**'] };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected).toMatchObject({ entered: ['test/other.test.ts', 'test/plain.test.ts'], ignored: ['src/card.ts', 'src/logo.png'] });
   });
 
   it('declines a file the journey has no row for when the suite declines relations', async () => {

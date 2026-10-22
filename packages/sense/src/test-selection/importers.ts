@@ -194,7 +194,7 @@ export interface ImporterAnswer {
   readonly governed: GovernedTests;
   /** Test rows that loaded a file the caller asked to have answered whole → those files. */
   readonly wholes: ReadonlyMap<number, readonly string[]>;
-  /** Modules declaring an ignored file that no row holds and no test declares: unread, whatever else measured them. */
+  /** In a suite that declines relations, modules declaring an ignored file that no row holds and no test declares. */
   readonly unheld: readonly string[];
 }
 
@@ -321,10 +321,11 @@ export function answerByImporters(
         if (other === id || importedAsAsset(relations, other)) continue;
         const trail = trailOf(traversal, other).map((step) => relations.names[step]!);
         if (read(other, trail, seed, undefined) || !ignored || answers.get(other)?.governs.length !== 0) continue;
-        // A reader of an ignored file no row holds is not guessed past: the tests that declare it answer, or it is named.
+        // A reader of an ignored file no row holds goes where any unmeasured file goes: on to its importers, or named.
         const name = relations.names[other]!;
-        if (!readers.includes(name)) readers.push(name);
         for (const known of knownAs(name)) governing.set(known, [...(governing.get(known) ?? []), { reason: { kind: 'importer', trail }, seed, from: undefined }]);
+        if (declines && !readers.includes(name)) readers.push(name);
+        else if (!declines) importersUntil(relations, other, walk, (next, rest) => read(next, [...trail, ...rest.slice(1).map((step) => relations.names[step]!)], seed, name));
       }
     } else if (!seed.some((name) => rowed.has(name))) {
       importersUntil(relations, id, walk, (other, trail) =>

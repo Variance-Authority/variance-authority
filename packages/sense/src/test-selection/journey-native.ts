@@ -55,7 +55,7 @@ export async function selectJourneyFile(
   const projected = readers.length === 0 ? undefined : await projectJourneyFile(file, new Map(readers.map((reader) => [reader, []])));
   if (readers.length > 0 && projected === undefined) return undefined;
   const index: ExecutionIndex = projected?.index ?? { tests: selected.whole.map((test) => ({ id: test, file: test, name: test })), modules: [] };
-  const declared = declaredReach(index, options.relations, ignored);
+  const declared = declaredReach(index, options.relations, ignored, options.unmeasured);
   const unread = declines ? selected.unread : [...selected.unread, ...declared.unread];
   return {
     whole: [...selected.whole].sort(codeUnitOrder),

@@ -303,8 +303,8 @@ A changed file selects by how the snapshot records it.
   `ignore`, globs from the repository root (`!` takes a file back out), and a
   changed file one matches loses its regions and its import and asset edges,
   keeps its preconditions and `/// <depends>` edges, and is listed in `ignored`.
-  A module that declares it answers by its own row, and one with no row is
-  listed in `unread` rather than walked past to its importers. A
+  A module that declares it answers by its own row, and one with no row as
+  any unmeasured file does: by its importers, or declined. A
   unit suite under jsdom paints nothing, so `ignore: ['**/*.css', '**/*.png']`
   keeps a changed stylesheet from selecting every test that imports the
   component. `variance select` passes the `ignore` list of the suite it reads,

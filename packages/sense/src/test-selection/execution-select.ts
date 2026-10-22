@@ -99,7 +99,7 @@ export function narrowByJourneys(
   const everyEntrant = (module: ExecutionModule): void => enterEvery(index, module, owned, entered);
 
   const ignored = ignoredBy(options.ignore, changed.keys());
-  const declared = declaredReach(index, relations, ignored);
+  const declared = declaredReach(index, relations, ignored, options.unmeasured);
   for (const test of declared.entered) entered.add(test);
   // A declaring file the record holds nothing for is named as any unread path is, or declined with them.
   (options.unmeasured === 'nothing' ? declined : unread).push(...declared.unread);
@@ -160,8 +160,12 @@ export function narrowByJourneys(
 /** The modules that declare they read an ignored file (`/// <depends>`), by name. */
 export function dependsReaders(relations: Relations | undefined, ignored: readonly string[]): readonly string[] {
   if (relations === undefined) return [];
-  const ids = ignored.flatMap((file) => idOf(relations, 'file', file) ?? []);
-  return [...dependentsOf(relations, ids, { through: ['depends'] }).nodes].filter((id) => !ids.includes(id)).map((id) => relations.names[id]!);
+  // Each file on its own: a reader the suite ignores as well still declared it reads another.
+  const readers = ignored.flatMap((file) => {
+    const id = idOf(relations, 'file', file);
+    return id === undefined ? [] : [...dependentsOf(relations, [id], { through: ['depends'] }).nodes].filter((other) => other !== id);
+  });
+  return [...new Set(readers)].map((id) => relations.names[id]!);
 }
 
 /**
@@ -169,8 +173,9 @@ export function dependsReaders(relations: Relations | undefined, ignored: readon
  * is a test the record holds, and each module that declares it reads the file
  * by the cases the record saw enter it, or a test file by its own. The import
  * and asset edges into the file are what `ignore` cuts; a declaration was drawn
- * on purpose. A declaring file the record holds nothing for is not guessed past
- * through its importers: it is `unread`.
+ * on purpose. A declaring file the record holds nothing for goes where any
+ * unmeasured file goes: to the tests the graph says import it, or, in a suite
+ * that declines relations or a graph that cannot answer, to `unread`.
  *
  * `index` holds the readers' modules: the whole journey, or its projection onto them.
  */
@@ -178,6 +183,7 @@ export function declaredReach(
   index: ExecutionIndex,
   relations: Relations | undefined,
   ignored: readonly string[],
+  unmeasured?: Unmeasured,
 ): { readonly entered: readonly string[]; readonly unread: readonly string[] } {
   const held = new Set(index.tests.map((test) => test.file));
   const owned = shadowedFor(relations);
@@ -186,8 +192,11 @@ export function declaredReach(
   for (const reader of dependsReaders(relations, ignored)) {
     const module = index.modules.find((candidate) => candidate.file === reader);
     if (held.has(reader)) entered.add(reader);
-    else if (module === undefined) unread.push(reader);
     if (module !== undefined) enterEvery(index, module, owned, entered);
+    if (held.has(reader) || module !== undefined) continue;
+    const affected = relations === undefined || unmeasured === 'nothing' ? undefined : affectedBy(relations, [reader], { through: RUNTIME_EDGES });
+    if (affected === undefined || affected.missing.length > 0) unread.push(reader);
+    else for (const test of affected.files) if (held.has(test)) entered.add(test);
   }
   return { entered: [...entered], unread };
 }
