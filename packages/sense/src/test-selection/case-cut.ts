@@ -66,8 +66,8 @@ export function removeCut(file: string | undefined): void {
 /**
  * The part of the Vitest case runner that reads the cut at `cutFile` and marks
  * its cases skipped: `cutOf(filepath)` and `skipCut(task, names, skipped)`,
- * for the runner's `onCollected`. It expects `readFileSync` and `getNames`
- * imported where it lands.
+ * for the runner's `onCollected`. It expects `readFileSync` and `testName`, a
+ * case's declaration path under its file, defined where it lands.
  *
  * A worker runs many files, so the cut is read at each file's collection. A
  * test it names is marked skipped, as `it.skip` would have; one the file
@@ -90,7 +90,7 @@ const cutOf = (filepath) => {
   }
 };
 const skipCut = (task, names, skipped) => {
-  if (task.type === 'test' && (task.mode === 'run' || task.mode === 'queued') && names.has(getNames(task).slice(1).join(' > '))) {
+  if (task.type === 'test' && (task.mode === 'run' || task.mode === 'queued') && names.has(testName(task))) {
     task.mode = 'skip';
     task.result = { state: 'skip' };
     skipped.push([task.id, task.result, task.meta]);

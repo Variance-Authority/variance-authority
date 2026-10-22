@@ -37,7 +37,18 @@ interface VitePlugin extends ConfigPlugin {
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
   /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
-  readonly configureVitest: (context: { readonly vitest: BannerContext }) => void;
+  readonly configureVitest: (context: VitestContext) => void;
+}
+
+/**
+ * What Vitest hands `configureVitest`. A key generator is how a plugin keeps a
+ * module out of the file-system module cache: `defineCacheKeyGenerator` from
+ * Vitest 5, `experimental_defineCacheKeyGenerator` on 4.1, neither before.
+ */
+interface VitestContext {
+  readonly vitest: BannerContext;
+  readonly defineCacheKeyGenerator?: (generate: (context: { readonly id: string }) => string | undefined | false) => void;
+  readonly experimental_defineCacheKeyGenerator?: VitestContext['defineCacheKeyGenerator'];
 }
 
 /** The plugin that places the probes, last; Vite hands its transform the map it composed. */
@@ -150,8 +161,20 @@ export function selectionPlugin(
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
     // Vitest 3.1 and on, before any reporter starts: a command-line
     // `--reporter` leaves plugins in place, so the banner still names the seed.
-    configureVitest({ vitest }) {
-      seedInBanner(vitest);
+    configureVitest(context) {
+      seedInBanner(context.vitest);
+      // A module served from Vitest's file-system cache skips every transform,
+      // so a module the seam takes would run with probes whose identity this
+      // process never learned, and the fold would refuse the run. Vitest 5
+      // turns that cache on by default. Every module the transforms below may
+      // take is kept out of it, by the same gate they read it with; the rest
+      // stay cached.
+      const define = context.defineCacheKeyGenerator ?? context.experimental_defineCacheKeyGenerator;
+      define?.(({ id }) => {
+        const file = cleanId(id);
+        if (own(file)) return undefined;
+        return mayTake(file, (at) => run.include(at) || run.unprobed?.(at) === true) || cutting(id, file) ? false : undefined;
+      });
     },
     // A file changed on disk, so its reading describes text the disk no longer
     // holds, and a rerun transforms it again only if a test still loads it.

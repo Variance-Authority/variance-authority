@@ -14,6 +14,7 @@
  */
 
 import { vitestCutSource } from './case-cut.js';
+import { runnerHelpersSource } from './runner-helpers-source.js';
 import { CASE_SCOPE } from './cases.js';
 import { scopeGlobalsSource } from './precondition-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
@@ -216,11 +217,14 @@ export function caseWriterSource(caseDirectory: string): string {
  * through the serializer is credited with what it called.
  *
  * @param runner How this module should spell `@vitest/runner`, and its `utils`
- * entry. The runner is a file in the project root, and `@vitest/runner` is a
- * dependency of Vitest rather than of the project — under a node_modules layout
- * that does not hoist, a bare specifier there resolves to nothing and every
- * test file fails to load. The caller resolves it; see `runnerImport` in
- * [`vitest.ts`](./vitest.ts). `recording` is the engine the setup module's
+ * entry, on the Vitest lines that ship it: 2, 3 and 4. The runner is a file in
+ * the project root, and `@vitest/runner` is a dependency of Vitest rather than
+ * of the project — under a node_modules layout that does not hoist, a bare
+ * specifier there resolves to nothing and every test file fails to load. The
+ * caller resolves it; see `runnerImports` in [`vitest.ts`](./vitest.ts). Absent,
+ * the module imports nothing but `vitest`, as Vitest 5 needs: it ships neither
+ * `@vitest/runner` nor `vitest/runners`, and its `TestRunner` hands out the
+ * test's function and a suite's hooks itself. `recording` is the engine the setup module's
  * collector will ask for, which a realm decides once: the same `continuations`
  * and story answers the caller hands {@link setupSource}.
  */
@@ -240,21 +244,11 @@ export function caseRunnerSource(
     }, ${runner.recording.story});\n`;
   return `
 import * as vitest from 'vitest';
-import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
-import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
+${runnerHelpersSource(runner.module, runner.utils)}
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-
-// The class this runner extends. Vitest 4.1 exports it from the package root as
-// \`TestRunner\` and deprecates \`vitest/runners\`, which prints a line saying so
-// in every worker that imports it; the root's \`VitestTestRunner\` there is a
-// type and nothing at run time. Vitest 2, 3 and 4.0 export the class only from
-// \`vitest/runners\`, so that entry is imported only where the root has none.
-// The root is read as a namespace because a named import it lacks fails to
-// link.
-const VitestTestRunner = vitest.TestRunner ?? (await import('vitest/runners')).VitestTestRunner;
 
 ${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The
@@ -300,12 +294,11 @@ const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection
 // are two cases.
 let caseOwner;
 const caseKey = (test) => {
-  const names = getNames(test);
-  const file = test.file?.filepath ?? names[0] ?? '';
+  const file = test.file?.filepath ?? test.file?.name ?? '';
   // Required here, where a case is recorded, and not at the top: a runner that
   // records nothing never loads it.
   caseOwner ??= createRequire(${JSON.stringify(HERE)})('./case-owner.cjs');
-  return caseOwner.packCase(file, names.slice(1).join(' > '), test.id, test.file?.projectName);
+  return caseOwner.packCase(file, testName(test), test.id, test.file?.projectName);
 };
 
 // Where a \`variancePrecondition\` call stands. Hooks are wrapped when their
@@ -341,7 +334,7 @@ export default class extends VitestTestRunner {
     const scope = caseScope();
     const hooks = scope?.within === undefined ? undefined : getHooks(suite);
     if (hooks === undefined) return;
-    const depth = getNames(suite).length - 1;
+    const depth = depthOf(suite);
     for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll']) {
       const registered = hooks[kind] ?? [];
       const kept = [];
