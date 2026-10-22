@@ -17,7 +17,7 @@
 
 import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { cleanId, defaultInclude } from './instrumented-modules.js';
-import { placeModule, type Captured } from './captured-modules.js';
+import { MapRefusal, placeModule, type Captured } from './captured-modules.js';
 import { handedMap, probeHanded, type HandedMap } from './loader-probes.js';
 import { shifted } from './map-segments.js';
 import { executionCollectorSource } from './probes.js';
@@ -31,6 +31,8 @@ export interface ProbesLoaderContext {
   /** The project's directory, which a rule with no `root` names the checkout from. */
   readonly rootContext?: string;
   readonly getOptions: () => ProbesLoaderOptions & { readonly collector?: string };
+  /** The configured loader paths, in the order the bundler lists them. */
+  readonly loaders?: readonly { readonly path: string }[];
   readonly callback: (error: Error | null, code?: string, map?: HandedMap) => void;
 }
 
@@ -46,6 +48,9 @@ function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMa
   try {
     written = options.collector === undefined ? probed(this, options, code, handed) : { code: executionCollectorSource(recipe(options.collector)) };
   } catch (error) {
+    if (error instanceof MapRefusal && this.loaders !== undefined && this.loaders.length > 0) {
+      error.message += '\nLoader chain as listed by the bundler:\n' + this.loaders.map((loader) => `  ${loader.path}`).join('\n');
+    }
     this.callback(error as Error);
     return;
   }
