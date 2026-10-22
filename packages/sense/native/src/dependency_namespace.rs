@@ -39,11 +39,8 @@ pub(crate) fn doc(source: &[u16], span: Option<TextSpan>) -> Option<String> {
 /// scopes that name resolves in: the statements around it, then the file's.
 fn assigned<'p, 'a>(program: &'p Program<'a>) -> Option<(String, Vec<&'p [Statement<'a>]>)> {
     fn name(statements: &[Statement]) -> Option<String> {
-        statements.iter().find_map(|statement| match statement {
-            Statement::TSExportAssignment(it) => match &it.expression {
-                Expression::Identifier(name) => Some(name.name.to_string()),
-                _ => None,
-            },
+        statements.iter().find_map(|statement| match crate::assigned_object::handed_out(statement)? {
+            Expression::Identifier(name) => Some(name.name.to_string()),
             _ => None,
         })
     }

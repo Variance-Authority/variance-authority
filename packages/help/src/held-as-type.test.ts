@@ -11,6 +11,7 @@ import { uses } from './tools/uses.js';
  * A name read off a module through an `import()` type — `import('alpha').x` or
  * `typeof import('alpha')` — is a type-only site, as `import type` would be,
  * from the reading of the workspace as from the index's: the module never loads.
+ * A bare `typeof import('alpha')` names the module's type and reads no name.
  */
 
 const FILES: Readonly<Record<string, string>> = {
@@ -65,10 +66,10 @@ function sitesOf(name: string): readonly string[] {
 }
 
 describe('a name read off a module through an `import()` type', () => {
-  it('is a type-only site of the name it takes, and of every name when it holds the module whole', () => {
+  it('is a type-only site of the name it takes, and of no name when it names the module whole', () => {
     expect(sitesOf('narrow')).toEqual(['packages/beta/src/index.ts:1 type dynamic 1']);
     for (const name of ['narrow', 'widen']) {
-      expect(uses.run(help, { name })).toContain('packages/beta/src/index.ts:2 — beta (type only) (import() on line 2, passed on whole: may read it)');
+      expect(uses.run(help, { name })).not.toContain('packages/beta/src/index.ts:2');
     }
   });
 

@@ -3,8 +3,9 @@
 use std::collections::HashMap;
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{Program, Statement};
+use oxc_ast::ast::Program;
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
 use serde::Serialize;
@@ -88,6 +89,9 @@ pub struct Export {
     /// The role tags its doc declares, as `declared_role` bits.
     #[serde(rename = "roles", skip_serializing_if = "is_zero", serialize_with = "crate::declared_role::serialize")]
     pub(crate) tags: u8,
+    /// A key of the object `export =` or `module.exports =` hands out.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) assigned: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -168,7 +172,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     // A module's own top level is its alone; a script's is global, or handed
     // out through `module.exports`, and `export =` hands out what it names,
     // neither of which the record holds.
-    let assigned = parsed.program.body.iter().any(|statement| matches!(statement, Statement::TSExportAssignment(_)));
+    let assigned = parsed.program.body.iter().any(|statement| crate::assigned_object::handed_out(statement).is_some());
     if record.has_module_syntax && !assigned {
         for symbol in &mut harvest.symbols {
             symbol.reach = Some("file");
@@ -270,6 +274,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             line,
             signature: Some(harvest.span(entry.statement_span)),
             doc: harvest.doc(entry.statement_span.start),
+            assigned: false,
             tags,
         });
 
@@ -299,6 +304,29 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             });
         }
     }
+    // An object the module hands out whole exports each key, when it spells them all.
+    for statement in &parsed.program.body {
+        let Some(object) = crate::assigned_object::assigned(statement).filter(|it| crate::assigned_object::spelled(it)) else { continue };
+        let at = oxc_span::GetSpan::span(statement);
+        for key in crate::assigned_object::keys(object) {
+            let local = key.local.map(|it| it.name.to_string());
+            let tags = roles.of(at.start, local.as_deref());
+            // A key is declared where it is written, and documented there or on the statement.
+            let doc = harvest.doc(key.span.start).or_else(|| harvest.doc(at.start));
+            exports.push(Export {
+                exported: Some(key.name),
+                local,
+                from: None,
+                imported: None,
+                type_only: false,
+                line: lines.at(key.span.start),
+                signature: Some(harvest.span(key.span)),
+                doc,
+                tags,
+                assigned: true,
+            });
+        }
+    }
     requests.extend(republished.into_iter().map(|group| Request {
         value: group.value,
         kind: if group.only_types {
@@ -312,7 +340,10 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     }));
 
     let mut reasons = Vec::new();
-    let (members, loads) = members_and_loads_in(&parsed.program, &lines, &requests, !record.dynamic_imports.is_empty());
+    // One scope tree serves every reader that resolves a name by scope.
+    let built = SemanticBuilder::new().build(&parsed.program);
+    let scoping = built.semantic.scoping();
+    let (members, loads) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);
@@ -342,11 +373,12 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         members,
         member_declarations: member_declarations_in(&parsed.program, &lines),
         member_uses: member_uses_in(&parsed.program, &lines),
-        own_uses: own_uses_in(&parsed.program, &lines),
+        own_uses: own_uses_in(&parsed.program, scoping, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
         doc: harvest.module_doc,
     };
+    drop(built);
     (read, parsed.program)
 }
 
@@ -385,3 +417,7 @@ fn source_name(name: &ExportImportName<'_>) -> Option<String> {
 #[cfg(test)]
 #[path = "read_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "read_objects_tests.rs"]
+mod objects_tests;

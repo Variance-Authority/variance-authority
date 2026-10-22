@@ -362,10 +362,15 @@ path inside the file, `tests::helper`, and answers to that path or to its own
 name. A `macro_rules!` inside one keeps its own name, because a macro has no
 module path. If it is not `pub`, the same rule names who can reach it: `tests` and the
 modules inside it. If it is `pub`, the modules around it decide how far it is
-seen, so the answer says who can reach it is not recorded. A script or
-CommonJS file, a module that hands itself out with `export =` and a
-`macro_rules!` hand a name out in ways their readers cannot tell, so the answer
-says who can reach it is not recorded. `docs_uses`
+seen, so the answer says who can reach it is not recorded. CommonJS is read on
+a best-effort basis: the static keys of an object literal that `export =` or
+`module.exports =` assigns at the top level are the file's exports, and naming
+a declaration there passes it on, which is no use of it. An object with a
+spread or a computed key with no literal name exports nothing, because its
+names cannot be spelled.
+A script or CommonJS file, a module that hands itself out with `export =` and
+a `macro_rules!` hand a name out in ways their readers cannot tell, so the
+answer says who can reach it is not recorded. `docs_uses`
 answers with the same kind, file, line and rule in one sentence, before any member
 declared by that name, and after the imports of an export of that name elsewhere.
 The kind tells apart two declarations that share a spelling: a Rust `mod walk;`
@@ -391,12 +396,21 @@ local or an inner item of the same name is another name and is not listed, and
 neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
 its imports alone.
 
-A name your code reads off `import * as` or off `import()` is a site too, and the
-site names the line that loads the module. An `import()` loads it when that call
+A name your code reads off a namespace or default import, written with
+`import type` or without, or off `import()`, is a site too, and the site names the line that loads the module. In a
+type, `typeof ns.x` and `ns.T` read `x` and `T` off whatever holds the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
 loading. An `import()` written in a type, `import('./x').T` or
 `typeof import('./x')`, loads nothing: TypeScript resolves it as it resolves
-`import type`, so its site is marked type only. A name read off the module's
+`import type`, so its site is marked type only. `typeof import('./x')` names
+the module's type and reads no name of it. A value that type is written on — a
+cast, or an annotated variable or parameter, directly or through a top-level
+alias — holds the module, and a name read off that value is a type-only site,
+as `M['x']` off the module type `M` is. What a call returns is TypeScript's
+answer, and the reader does not work it out: a name read off the value
+`await importOriginal<typeof import('./x')>()` returns is not listed, because
+the reader cannot tell which module the value came from, not because the line
+reads no name. A name read off the module's
 `default` is marked "through `default`": `default` holds the name only when the
 module is CommonJS, so the line may read it and is counted apart from the
 imports. A module your code passes on whole —

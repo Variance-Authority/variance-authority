@@ -182,8 +182,6 @@ fn a_destructured_import_call_takes_each_name_it_destructures() {
             // module in a result: either holds it whole where the walk cannot follow.
             ("./after-spread", "*"),
             ("./settled", "*"),
-            // The cast's `typeof import('./cast')` is a type that holds the module whole.
-            ("./cast", "*"),
         ]
             .map(|(value, name)| (value.to_owned(), name.to_owned()))
     );
@@ -242,8 +240,6 @@ fn a_name_read_off_the_default_of_an_import_call_is_read_through_default() {
             off("./held", "e", true),
             off("./cast", "default", false),
             off("./cast", "f", true),
-            // The cast's `typeof import('./cast')` is a type that holds the module whole.
-            off("./cast", "*", false),
         ]
     );
 }
@@ -294,7 +290,7 @@ fn a_module_held_whole_that_escapes_is_a_read_of_star() {
 fn a_member_is_read_through_an_import_equals_require() {
     // TypeScript's `import x = require('m')` holds the module whole, as a
     // namespace import does, from its own line on, as the `const` it compiles
-    // to does; a type-only one holds nothing. Its request follows the stated
+    // to does; a type-only one holds it for its types. Its request follows the stated
     // ones and every `import()`, so `./later`'s read names the index past it.
     let source = concat!(
         "whole.early;\n",
@@ -302,13 +298,13 @@ fn a_member_is_read_through_an_import_equals_require() {
         "import type typed = require('./typed');\n",
         "whole.a;\n",
         "whole['b'];\n",
-        "typed.x;\n",
+        "type X = typeof typed.x;\n",
         "const later = await import('./later');\n",
         "later.c;\n",
     );
     assert_eq!(
         members(source),
-        [("./later", "c"), ("./whole", "a"), ("./whole", "b")].map(|(value, name)| (value.to_owned(), name.to_owned()))
+        [("./later", "c"), ("./whole", "a"), ("./whole", "b"), ("./typed", "x")].map(|(value, name)| (value.to_owned(), name.to_owned()))
     );
 }
 

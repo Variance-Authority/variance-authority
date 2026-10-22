@@ -237,6 +237,13 @@ export interface Export {
    * once is a contradiction the reader keeps, so the check can name it.
    */
   readonly roles?: readonly DeclaredRole[];
+
+  /**
+   * A key of the object literal `export =` or `module.exports =` assigns at the
+   * top level, which CommonJS hands out as the module itself. Read on a
+   * best-effort basis: what an importer's `default` is, the reader does not say.
+   */
+  readonly assigned?: true;
 }
 
 /**
