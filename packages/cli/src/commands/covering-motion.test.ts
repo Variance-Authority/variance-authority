@@ -231,6 +231,16 @@ describe('what the last run moved', () => {
 });
 
 describe('what the runs at one commit moved', () => {
+  it('compares no files when last-run membership references a case row the index does not hold', async () => {
+    const execution = join(await records(), 'coverage.bin');
+    await keep(execution, index([0], [1]), {
+      last: { commit: 'c', files: ['total.test.ts'], cases: { references: [2] } },
+    });
+
+    expect(await runsWrote(execution, { commit: 'c', files: ['total.test.ts'] } as CommitRuns))
+      .toEqual({ lastRunUnread: execution });
+  });
+
   it('compares only the files a run before them recorded, and names the rest', async () => {
     // TanStack Query's first cycle: a whole run into an empty cache, then the
     // selected file again. `flow.test.tsx` ran once, over no index, so no case
