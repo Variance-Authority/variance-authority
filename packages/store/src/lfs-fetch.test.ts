@@ -46,15 +46,20 @@ function rasterOf(bytes = IMAGE): Raster {
  * pointer until `git lfs pull` names it.
  *
  * `hold` keeps a pull running until the test lets it finish, which is the only
- * way to see what queues behind it.
+ * way to see what queues behind it. `pulling` settles when the first pull starts.
  */
 function skippedSmudge(options: { hold?: Promise<void>; pull?: CommandResult } = {}): {
   git: CommandRunner;
   calls: string[];
   pulls: string[][];
+  pulling: Promise<void>;
 } {
   const calls: string[] = [];
   const pulls: string[][] = [];
+  let started = (): void => undefined;
+  const pulling = new Promise<void>((resolve) => {
+    started = resolve;
+  });
   const git: CommandRunner = async (command, args) => {
     calls.push([command, ...args].join(' '));
     if (args[0] === 'check-attr') return { ...OK, stdout: 'probe.png: filter: lfs\n' };
@@ -63,6 +68,7 @@ function skippedSmudge(options: { hold?: Promise<void>; pull?: CommandResult } =
     if (args[0] === 'lfs' && args[1] === 'pull') {
       const included = (args[2] ?? '').replace(/^--include=/, '').split(',');
       pulls.push(included);
+      started();
       await options.hold;
       if (options.pull !== undefined) return options.pull;
       for (const path of included) await writeFile(join(root, path), Buffer.from(IMAGE, 'base64'));
@@ -70,7 +76,7 @@ function skippedSmudge(options: { hold?: Promise<void>; pull?: CommandResult } =
     }
     return OK;
   };
-  return { git, calls, pulls };
+  return { git, calls, pulls, pulling };
 }
 
 /**
@@ -152,11 +158,11 @@ describe('a clone that skipped the smudge', () => {
     const hold = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const { git, pulls } = skippedSmudge({ hold });
+    const { git, pulls, pulling } = skippedSmudge({ hold });
     const { store, landed } = watchedReads(git);
 
     const first = store.find({ subject: 'a' }, MAC);
-    await until(() => pulls.length === 1);
+    await pulling;
     const rest = [store.find({ subject: 'b' }, MAC), store.find({ subject: 'c' }, MAC)];
     // Both lookups have read their pointers, and a read joins the queue in the
     // same turn it lands.
@@ -179,11 +185,11 @@ describe('a clone that skipped the smudge', () => {
     const hold = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const { git, calls, pulls } = skippedSmudge({ hold });
+    const { git, calls, pulls, pulling } = skippedSmudge({ hold });
     const { store, landed } = watchedReads(git);
 
     const first = store.find({ subject: 'a' }, MAC);
-    await until(() => pulls.length === 1);
+    await pulling;
     const rest = names.map((subject) => store.find({ subject }, MAC));
     await landed(1 + names.length);
     release();
@@ -398,13 +404,4 @@ function git(cwd: string, ...args: (string | Record<string, string>)[]): string 
   const result = spawnSync('git', argv, { cwd, encoding: 'utf8', env: { ...process.env, ...env } });
   if (result.status !== 0) throw new Error(`git ${argv.join(' ')}: ${result.stderr}`);
   return result.stdout.trim();
-}
-
-/** Yield to the event loop until the condition holds: the lookups read files first. */
-async function until(condition: () => boolean | Promise<boolean>): Promise<void> {
-  for (let turn = 0; turn < 1000; turn += 1) {
-    if (await condition()) return;
-    await new Promise((resolve) => setImmediate(resolve));
-  }
-  throw new Error('the condition never held');
 }
