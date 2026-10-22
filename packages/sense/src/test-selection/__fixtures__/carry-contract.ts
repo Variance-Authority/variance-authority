@@ -30,6 +30,7 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { INSTRUMENTATION_ID, instrument } from '../../instrument/index.js';
 import { caseSectionsAt } from '../case-record.js';
+import { lastCaseRunOf } from '../case-landing.js';
 import { landRun } from '../commit-runs.js';
 import { coverageBlocks, lineAt } from '../coverage-rows.js';
 import { CrossingSets } from '../crossing-sets.js';
@@ -445,4 +446,17 @@ function testsOf(output: unknown): readonly string[] {
 export function touching(text: string, label: string): string {
   const call = `hit('${label}');`;
   return text.replace(call, `${call} again();`);
+}
+
+/** The exact cases the record names as its last run. */
+export async function lastCases(walk: Walk): Promise<readonly string[]> {
+  return lastCaseRunOf(caseSectionsAt(walk.coverageFile))!.cases;
+}
+
+/** The same scope read by a fresh CLI process, including its before comparison. */
+export async function lastCasesByCli(walk: Walk): Promise<readonly string[]> {
+  const { stdout } = await run(process.execPath, [BIN, 'covering', '--file', SUBJECT, '--execution', walk.coverageFile, '--cases', 'last', '--format', 'json'], {
+    cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024,
+  });
+  return (JSON.parse(stdout) as { readonly scope: { readonly tests: readonly string[] } }).scope.tests;
 }

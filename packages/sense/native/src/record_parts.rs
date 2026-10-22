@@ -31,7 +31,36 @@ struct Last {
     before_texts: Option<BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     began: Option<bool>,
-    cases: Vec<String>,
+    cases: Cases,
+}
+
+/// Legacy identities, or references into the case index beside this layer.
+/// The object spelling refuses in older readers instead of looking like ids.
+#[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+enum Cases {
+    Ids(Vec<String>),
+    Rows { references: Vec<Reference> },
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+enum Reference {
+    Row(u32),
+    Id(String),
+}
+
+impl Cases {
+    fn resolved(&self, rows: Option<&Vec<String>>) -> Result<Vec<String>, String> {
+        match self {
+            Self::Ids(ids) => Ok(ids.clone()),
+            Self::Rows { references } => references.iter().map(|reference| match reference {
+                Reference::Id(id) => Ok(id.clone()),
+                Reference::Row(row) => rows.and_then(|ids| ids.get(*row as usize)).cloned()
+                    .ok_or_else(|| format!("its last-run layer names an unresolved case row: {row}")),
+            }).collect(),
+        }
+    }
 }
 
 /// The texts by file, their files in code-unit order.
@@ -75,7 +104,11 @@ fn read_last(bytes: &[u8]) -> Result<Last, String> {
 /// against another plan, so it fails as [`unstable`] too.
 /// Shards that ran at two commits, over two before layers, or over two texts
 /// of one module started from different records, and fail as [`unstable`].
-pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> Result<Vec<u8>, String> {
+pub(crate) fn fold_last(
+    shards: &[(&str, &[u8], &HashMap<String, String>)],
+    rows: &HashMap<String, Vec<String>>,
+    combined: &[String],
+) -> Result<Vec<u8>, String> {
     let read: Vec<(&str, Last, &HashMap<String, String>)> = shards
         .iter()
         .map(|(name, bytes, renames)| read_last(bytes).map(|last| (*name, last, *renames)).map_err(|error| format!("{name}: {error}")))
@@ -92,6 +125,14 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
         .collect();
     let started = last_started(&starts)?;
     let unbased = sorted(read.iter().flat_map(|(_, last, _)| last.unbased.iter().flatten().cloned()));
+    let recorded = read.iter().map(|(name, last, renames)| {
+        last.cases.resolved(rows.get(*name)).map(|ids| ids.into_iter().map(|id| renamed(renames, &id).to_owned()).collect::<Vec<_>>())
+            .map_err(|error| format!("{name}: {error}"))
+    }).collect::<Result<Vec<_>, _>>()?;
+    let positions: HashMap<&str, u32> = combined.iter().enumerate().map(|(at, id)| (id.as_str(), at as u32)).collect();
+    let references = sorted(recorded.into_iter().flatten()).into_iter().map(|id| {
+        positions.get(id.as_str()).map_or_else(|| Reference::Id(id.clone()), |row| Reference::Row(*row))
+    }).collect();
     let folded = Last {
         commit: started.commit,
         before: started.before,
@@ -100,7 +141,7 @@ pub(crate) fn fold_last(shards: &[(&str, &[u8], &HashMap<String, String>)]) -> R
         unbased: (!unbased.is_empty()).then_some(unbased),
         before_texts: (!started.texts.is_empty()).then_some(started.texts),
         began: started.began.then_some(true),
-        cases: sorted(read.iter().flat_map(|(_, last, renames)| last.cases.iter().map(|id| renamed(renames, id).to_owned()))),
+        cases: Cases::Rows { references },
     };
     let mut bytes = serde_json::to_vec_pretty(&folded).map_err(|error| error.to_string())?;
     bytes.push(b'\n');
