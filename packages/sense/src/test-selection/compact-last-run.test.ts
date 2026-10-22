@@ -45,3 +45,16 @@ it('reads legacy identities without needing an index and refuses unresolved row 
   }
   expect(lastCaseRunOf({ last: Buffer.from(JSON.stringify({ ...named, cases: { references: [0] } })) })).toBeUndefined();
 });
+
+it('refuses malformed last-run files and membership shapes', () => {
+  const named = { at: '2026-10-01T00:00:00.000Z', files: ['test/a.test.ts'], cases: ['test/a.test.ts > old'] };
+  for (const run of [
+    null,
+    { ...named, files: null },
+    { ...named, cases: [0] },
+    { ...named, cases: undefined },
+    { ...named, cases: { references: 0 } },
+  ]) {
+    expect(lastCaseRunOf({ last: Buffer.from(JSON.stringify(run)) })).toBeUndefined();
+  }
+});
