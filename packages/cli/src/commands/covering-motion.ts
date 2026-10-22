@@ -469,10 +469,16 @@ export async function baseCommit(against: string): Promise<string | undefined> {
  * read.
  */
 function lastRun(record: string): LastCaseRun | 'unreadable' | undefined {
+  let last: Uint8Array | undefined;
   try {
-    const sections = caseSectionsAt(record);
-    if (sections.last === undefined) return undefined;
-    return lastCaseRunOf(sections) ?? 'unreadable';
+    last = caseSectionsAt(record).last;
+  } catch {
+    return 'unreadable';
+  }
+  if (last === undefined) return undefined;
+  try {
+    const run = JSON.parse(Buffer.from(last).toString('utf8')) as Partial<LastCaseRun> | null;
+    return typeof run === 'object' && run !== null && Array.isArray(run.files) ? run as LastCaseRun : 'unreadable';
   } catch {
     return 'unreadable';
   }
