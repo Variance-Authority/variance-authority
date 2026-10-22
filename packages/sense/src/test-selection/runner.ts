@@ -29,9 +29,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { registerHooks, type ModuleHooks } from 'node:module';
+import type { ModuleHooks } from 'node:module';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { cadence } from '../instrument/cadence.js';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
@@ -41,6 +40,7 @@ import { saidSite } from './case-said.js';
 import collectors from './collectors.cjs';
 import { evaluatedCut } from './cut-map.js';
 import journalFormat from './journal-format.cjs';
+import nodeLoads from './node-loads.cjs';
 import { recordFileFor } from './record-location.js';
 import { defaultInclude, insideRoot } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
@@ -271,32 +271,17 @@ export function registerRecording(options: RegisterRecordingOptions = {}): Modul
   if (recording === undefined) return undefined;
   collectors.attach(globalThis as { __VA__?: unknown }, recording.continuations);
   const include = options.include ?? ((file: string) => insideRoot(recording.root, file) && defaultInclude(file));
-  return registerHooks({
-    load(url, context, nextLoad) {
-      const loaded = nextLoad(url, context);
-      if (!url.startsWith('file:') || loaded.source === undefined || loaded.source === null) return loaded;
-      // TypeScript is instrumented as written, and Node strips its types after.
-      if (!EVALUATED.has(loaded.format ?? '')) return loaded;
-      const file = fileURLToPath(url);
-      // The observed file is the test: not a module other files run, so it
-      // carries no probes, only the cut that says which of its lines ran.
-      if (file === observing) return { ...loaded, source: cutTestFile(textOf(loaded.source), file) };
-      const marked = insideRoot(recording.root, file) && options.unprobed?.(file) === true;
-      if (!marked && !include(file)) return loaded;
-      const code = textOf(loaded.source);
-      if (!marked) return { ...loaded, source: instrumentModule(code, file) };
-      const original = (at: string) => (at === file ? code : readFileSync(at, 'utf8'));
-      return { ...loaded, source: markModule(recording.root, file, code, () => true, original)?.code ?? code };
-    },
+  return nodeLoads.hookLoads((file, text) => {
+    // The observed file is the test: not a module other files run, so it
+    // carries no probes, only the cut that says which of its lines ran.
+    if (file === observing) return cutTestFile(text(), file);
+    const marked = insideRoot(recording.root, file) && options.unprobed?.(file) === true;
+    if (!marked && !include(file)) return undefined;
+    const code = text();
+    if (!marked) return instrumentModule(code, file);
+    const original = (at: string) => (at === file ? code : readFileSync(at, 'utf8'));
+    return markModule(recording.root, file, code, () => true, original)?.code ?? code;
   });
-}
-
-/** The formats Node evaluates from source text; `json`, `wasm`, `builtin` and `addon` are not. */
-const EVALUATED = new Set(['module', 'commonjs', 'module-typescript', 'commonjs-typescript']);
-
-/** A loaded module's source as text, however the loader handed it over. */
-function textOf(source: string | ArrayBuffer | NodeJS.TypedArray): string {
-  return typeof source === 'string' ? source : new TextDecoder().decode(source);
 }
 
 /** Everything the runner reports about one test file while it runs. */
