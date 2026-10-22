@@ -53,6 +53,10 @@
       "types": "./dist/test-selection/cache-root.d.ts",
       "default": "./dist/test-selection/cache-root.js"
     },
+    "./side-effects": {
+      "types": "./dist/side-effects.d.ts",
+      "default": "./dist/side-effects.js"
+    },
     "./journal": {
       "types": "./dist/test-selection/journal.d.ts",
       "default": "./dist/test-selection/journal.js"
