@@ -30,12 +30,14 @@ describe('a changed file only a measured module loads', () => {
 
   it.each([
     // The import of `twice` is read inside `sum`, which `sum.test` alone entered.
-    { format: 'an ES module', twice: 'twice.mjs', index: 'index.mjs', skipped: ['test/beta.test.ts', 'test/load.test.ts'] },
+    { format: 'an ES module', fixture: 'esm', twice: 'twice.mjs', index: 'index.mjs', skipped: ['test/beta.test.ts', 'test/load.test.ts'] },
     // `module.exports` names no export the reading can follow, so every test that loaded the importer runs.
-    { format: 'CommonJS', twice: 'twice.cjs', index: 'index.cjs', skipped: ['test/beta.test.ts'] },
-  ])('answers a change in $format by the importer that loads it', async ({ twice, index, skipped }) => {
-    const sources = SOURCES[twice]!;
-    const root = await recorded(twice, index);
+    { format: 'CommonJS', fixture: 'cjs', twice: 'twice.cjs', index: 'index.cjs', skipped: ['test/beta.test.ts'] },
+    // An ES module that exports nothing has no name to follow either.
+    { format: 'an ES module that exports nothing', fixture: 'bare', twice: 'twice.mjs', index: 'index.mjs', skipped: ['test/beta.test.ts'] },
+  ])('answers a change in $format by the importer that loads it', async ({ fixture, twice, index, skipped }) => {
+    const sources = SOURCES[fixture]!;
+    const root = await recorded(fixture, twice, index);
 
     write(root, `src/${twice}`, sources.twice.replace('n * 2', 'n * 3'));
     const said = await selectOutput({ cwd: root, format: 'plain' });
@@ -47,20 +49,24 @@ describe('a changed file only a measured module loads', () => {
 });
 
 const SOURCES: Record<string, { readonly twice: string; readonly index: string }> = {
-  'twice.mjs': {
+  esm: {
     twice: ['export function twice(n) {', '  return n * 2;', '}', ''].join('\n'),
     index: ["import { twice } from './twice.mjs';", 'export function sum(n) {', '  return twice(n) + 1;', '}', ''].join('\n'),
   },
-  'twice.cjs': {
+  cjs: {
     twice: ['function twice(n) {', '  return n * 2;', '}', 'module.exports = { twice };', ''].join('\n'),
     index: ["const { twice } = require('./twice.cjs');", 'function sum(n) {', '  return twice(n) + 1;', '}', 'module.exports = { sum };', ''].join('\n'),
+  },
+  bare: {
+    twice: ['globalThis.twice = function twice(n) {', '  return n * 2;', '};', ''].join('\n'),
+    index: ["import './twice.mjs';", 'export function sum(n) {', '  return globalThis.twice(n) + 1;', '}', ''].join('\n'),
   },
 };
 const PAD = ['export function pad(text: string): string {', "  return text.padStart(4, ' ');", '}', ''].join('\n');
 
 /** A checkout whose `src/<index>` loads `src/<twice>`, its index built, and a record at its head. */
-async function recorded(twice: string, index: string): Promise<string> {
-  const { twice: twiceText, index: indexText } = SOURCES[twice]!;
+async function recorded(fixture: string, twice: string, index: string): Promise<string> {
+  const { twice: twiceText, index: indexText } = SOURCES[fixture]!;
   const root = mkdtempSync(join(tmpdir(), 'va-select-require-chain-'));
   const git = (args: readonly string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git(['init', '--quiet', '--initial-branch', 'main']);
