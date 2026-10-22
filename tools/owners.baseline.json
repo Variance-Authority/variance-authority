@@ -620,11 +620,6 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/select.ts",
-    "count": 1
-  },
-  {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/stage.ts",
     "count": 1

@@ -21,9 +21,10 @@ import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
 import type { LineRange } from './diff-lines.js';
-import type { JourneySelectionOptions } from './execution-select.js';
+import { declaredReach, type JourneySelectionOptions } from './execution-select.js';
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
+import { ignoredBy, withoutPaths } from './route.js';
 import type { ExecutionNarrowing } from './select.js';
 
 /**
@@ -44,14 +45,19 @@ export async function selectJourneyFile(
   if (select === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
   const declines = options.unmeasured === 'nothing';
-  const selected = select(file, nativeChange(changed, options.read), graph, declines);
+  // What the suite ignores never reaches the addon, as it never reaches `narrowByJourneys`'s loop.
+  const ignored = ignoredBy(options.ignore, changed.keys());
+  const selected = select(file, nativeChange(withoutPaths(changed, ignored), options.read), graph, declines);
   // An addon that cannot decline walked the graph anyway, and its answer is not this suite's.
   if (declines && selected.declined === undefined) return undefined;
+  // What a test declared of an ignored file is the record's, as `narrowByJourneys` reads it.
+  const declared = declaredReach(options.relations, ignored, new Set(selected.whole));
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
-    entered: [...selected.entered].sort(codeUnitOrder),
+    entered: [...new Set([...selected.entered, ...declared])].sort(codeUnitOrder),
     unread: [...selected.unread].sort(codeUnitOrder),
     ...(declines ? { declined: [...selected.declined!].sort(codeUnitOrder) } : {}),
+    ...(options.ignore === undefined ? {} : { ignored }),
     stale: [],
   };
 }

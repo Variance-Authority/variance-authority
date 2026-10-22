@@ -299,6 +299,14 @@ A changed file selects by how the snapshot records it.
   declares it and the graph has no node for it either.
 - **A stylesheet, image, or JSON file** can take no probe, so it never has a
   row. Pass `relations` to answer it through the graph instead (below).
+- **A file the suite ignores** selects only the tests that declared it. Pass
+  `ignore`, globs from the repository root (`!` takes a file back out), and a
+  changed file one matches loses its regions and its import and asset edges,
+  keeps its preconditions and `/// <depends>` edges, and is listed in `ignored`. A
+  unit suite under jsdom paints nothing, so `ignore: ['**/*.css', '**/*.png']`
+  keeps a changed stylesheet from selecting every test that imports the
+  component. `variance select` passes the `ignore` list of the suite it reads,
+  from `variance.config.json`.
 
 Each changed file is first read from both of its texts, and the verdict decides
 what is charged, as [running less of the

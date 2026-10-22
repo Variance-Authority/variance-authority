@@ -30,18 +30,19 @@
  * knows selects nothing and is named in `unread`, by the rule the snapshot
  * reader applies (`ExecutionNarrowing.unread`). In a suite that declines
  * relations a file with no row is not asked of the graph at all, and is named
- * in `declined` instead (`route.ts`).
+ * in `declined` instead, and a file the suite ignores is read by nothing and
+ * named in `ignored` (`route.ts`).
  *
  * A bumped package arrives as the files that import it, changed whole
  * (`beyondReach`), and is answered as they are.
  */
 
-import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, dependentsOf, idOf, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { ownedIn, type ExecutionIndex, type ExecutionModule } from './reverse.js';
 import type { ExecutionNarrowing } from './select.js';
-import { routeOf, type Unmeasured } from './route.js';
+import { ignoredBy, routeOf, type Unmeasured } from './route.js';
 import { shadowedFor } from './shadowed.js';
 
 export interface JourneySelectionOptions {
@@ -58,6 +59,11 @@ export interface JourneySelectionOptions {
    * test file it holds a case of still selects itself.
    */
   readonly unmeasured?: Unmeasured;
+  /**
+   * The suite's `ignore` globs (`route.ts`): a changed file one matches is
+   * read by nothing and named in `ignored`. Absent ignores nothing.
+   */
+  readonly ignore?: readonly string[];
   /** What reading a changed file's two texts proved, by path (`readJourneyChange`). */
   readonly read?: ReadonlyMap<string, JourneyRead>;
 }
@@ -97,7 +103,11 @@ export function narrowByJourneys(
     }
   };
 
+  const ignored = ignoredBy(options.ignore, changed.keys());
+  for (const test of declaredReach(relations, ignored, held)) entered.add(test);
+  const ignoring = new Set(ignored);
   for (const [file, ranges] of changed) {
+    if (ignoring.has(file)) continue;
     if (held.has(file)) entered.add(file);
     const module = modules.get(file);
 
@@ -144,8 +154,27 @@ export function narrowByJourneys(
     entered: [...entered].sort(codeUnitOrder),
     unread: unread.sort(codeUnitOrder),
     ...(options.unmeasured === 'nothing' ? { declined: declined.sort(codeUnitOrder) } : {}),
+    ...(options.ignore === undefined ? {} : { ignored }),
     stale: [],
   };
+}
+
+/**
+ * The tests an ignored file still reaches: itself when it is a test the record
+ * holds, and every test that loads a module declaring it reads the file
+ * (`/// <depends>`). The import and asset edges into it are what `ignore` cuts;
+ * a declaration was drawn on purpose, and no glob undoes it.
+ */
+export function declaredReach(relations: Relations | undefined, ignored: readonly string[], held: ReadonlySet<string>): readonly string[] {
+  const reached = new Set(ignored.filter((file) => held.has(file)));
+  if (relations === undefined) return [...reached];
+  const ids = ignored.flatMap((file) => idOf(relations, 'file', file) ?? []);
+  const readers = [...dependentsOf(relations, ids, { through: ['depends'] }).nodes]
+    .filter((id) => !ids.includes(id))
+    .map((id) => relations.names[id]!);
+  if (readers.length === 0) return [...reached];
+  for (const test of affectedBy(relations, readers, { through: RUNTIME_EDGES }).files) if (held.has(test)) reached.add(test);
+  return [...reached];
 }
 
 function codeUnitOrder(left: string, right: string): number {

@@ -277,7 +277,12 @@ measured imports keeps no subject in the run. A suite that declares
 [`"relations":
 false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) does
 not consult the graph: a file its record did not measure keeps no subject in
-that suite's run, and the run names it declined. Two refusals stand over the
+that suite's run, and the run names it declined. A suite can also list globs
+under
+[`ignore`](changes-before-and-beyond.md#what-a-suite-ignores),
+such as a unit suite's stylesheets and images. A changed file that matches
+selects only the tests that declared it, by a precondition or a
+`/// <depends>`, and the run lists it as ignored. Two refusals stand over the
 record, because it never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.

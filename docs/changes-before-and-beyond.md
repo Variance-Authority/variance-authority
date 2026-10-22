@@ -4,8 +4,10 @@ Two changes widen a run that no import graph can narrow: a config file nothing
 imports, and a package you never wrote. Selection answers from the names files
 import from each other, so a change with no name in those imports is either the
 whole suite or nothing at all — and which of the two is a choice you make rather
-than one the walk makes for you. This page is about those two changes, and
-[selection](selecting.md) is about everything between them.
+than one the walk makes for you. This page is about those two changes, about
+[the files a suite ignores](#what-a-suite-ignores) because none of its results
+can move with them, and [selection](selecting.md) is about everything between
+them.
 
 Read a run from left to right. The harness starts it, the tests it started run
 your code, and your code goes out into what the install provides and never comes
@@ -171,6 +173,42 @@ accident. Give such a suite `"relations": false` and list the files it rests on
 in its own `before`. A changed file its record did not measure then selects
 nothing in that suite, without a walk, and `select` names it declined; a change
 to an entry point runs the suite whole.
+
+## What a suite ignores
+
+The opposite case is a file a suite imports but that cannot change any of its
+results. A unit test that imports a component also imports its stylesheet and
+its icons, but jsdom paints nothing, so a changed `.css` or `.png` leaves every
+assertion where it was. The graph still reaches each test that imports the
+component. List those files in the suite's `ignore`, as globs from the
+repository root:
+
+```json
+{
+  "suites": {
+    "unit": { "kind": "unit", "ignore": ["**/*.css", "**/*.png"] },
+    "stories": { "kind": "visual" }
+  }
+}
+```
+
+A changed file that matches loses what selection would infer from it: the
+regions tests entered in it, the import and asset edges into it, and the
+suite's `before`. It keeps what somebody declared. A test that lists it as a
+precondition still runs, and so does every test that loads a module with a
+`/// <depends>` on it, because that edge says the module reads the bytes. A
+`!` pattern takes a file back out of the list. A suite uses only its own
+`ignore` list. In the example, the same stylesheet still selects the stories
+that render it.
+
+`select` names what it left out. With only `src/card.css` changed, the unit
+suite selects nothing and says why:
+
+```text
+the suite ignores 1 changed file (src/card.css) by its `ignore`, so it keeps no test in the run
+```
+
+and `--format json` carries the same list as `"ignored": ["src/card.css"]`.
 
 ## What comes with a declared entry point
 

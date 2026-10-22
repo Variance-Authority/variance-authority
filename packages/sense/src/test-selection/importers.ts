@@ -14,7 +14,7 @@ import {
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
 import type { Precision } from './precision.js';
-import type { Unmeasured } from './route.js';
+import { ignoreMatcher, type Unmeasured } from './route.js';
 import type { Disowned } from './shadowed.js';
 
 /**
@@ -33,8 +33,8 @@ import type { Disowned } from './shadowed.js';
  * The scan answers which files those are without anybody naming an extension:
  * an import of anything that is not a module is an `asset` edge, and a module
  * is never the target of one. So a changed file is walked to its dependents
- * through `asset` edges only. That reaches the stylesheets that import the
- * stylesheet and the modules that import those, and stops there by itself.
+ * through `asset` edges only, which reaches the stylesheets that import it and
+ * the modules that import those, and stops there by itself.
  * Each module reached answers for itself: one with a row selects every test
  * that entered it, one without selects nobody, and neither changes what the
  * chain beside it selects.
@@ -63,19 +63,15 @@ import type { Disowned } from './shadowed.js';
  * loaded it is what can be said. A row without probes of its own is asked of
  * the table, as one on the way is.
  *
- * A test the snapshot says *holds* the changed file — it is a precondition of
- * the test, under any of its names — is left to the preconditions, which
- * already select it.
+ * A test the snapshot says *holds* the changed file, under any of its names,
+ * is left to the preconditions, which already select it.
  *
- * What stays `unread` is a changed path the graph does not hold, and it is a
- * report, never a widening. A file the graph holds that no measured chain
- * leaves is connected to nothing the suite ran, and mostly for a reason — it
- * is documentation, tooling, a fixture, a configuration. What a harness loads
- * without importing is not this walk's to find: the Vitest seam writes every
- * setup file the configuration names, and every file its `preconditions`
- * option lists, as a precondition of every test (`vitest.ts`), so a change to
- * one selects the whole suite through the table. A configuration file nothing
- * imports is declared the same way, and so is a fixture a test reads with `fs`.
+ * What stays `unread` is a changed path the graph does not hold: a report,
+ * never a widening. A held file no measured chain leaves is connected to
+ * nothing the suite ran — documentation, tooling, a fixture, a configuration.
+ * What a harness loads without importing is the seam's to declare: every setup
+ * file and every `preconditions` entry is a precondition of every test
+ * (`vitest.ts`), and so is a fixture a test reads with `fs`.
  */
 export interface ExecutionNarrowingOptions {
   /**
@@ -91,6 +87,14 @@ export interface ExecutionNarrowingOptions {
    * speaking and not the graph.
    */
   readonly unmeasured?: Unmeasured;
+  /**
+   * The suite's `ignore` globs (`route.ts`): a changed file one matches loses
+   * its rows, its import and asset edges and its place in `unread`, and keeps
+   * what a test declared — a precondition, a `/// <depends>` — since no glob
+   * undoes a declaration. It is named in `ExecutionNarrowing.ignored`. Absent
+   * ignores nothing.
+   */
+  readonly ignore?: readonly string[];
   /**
    * The suite's precision (`precision.ts`): the import graph alone
    * (`file`, `symbol`), the files, functions or regions a test entered. Absent
@@ -239,8 +243,9 @@ export function answerByImporters(
   arrived: ReadonlyMap<string, string>,
 ): ImporterAnswer {
   const { relations } = options;
+  const ignores = ignoreMatcher(options.ignore);
   if (relations === undefined || changed.length + wholes.length === 0 || options.unmeasured === 'nothing') {
-    return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map() };
+    return { selected: new Map(), unread: changed.filter((file) => ignores?.(file) !== true), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map() };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // Every test a walk reached, with what reached it — held rather than
@@ -306,15 +311,16 @@ export function answerByImporters(
   };
   for (const file of changed) {
     const id = idOf(relations, 'file', file);
+    const ignored = ignores?.(file) === true;
     if (id === undefined) {
-      unread.push(file);
+      if (!ignored) unread.push(file);
       continue;
     }
     const seed = knownAs(file);
-    if (importedAsAsset(relations, id)) {
-      // A module that declares it reads the file is a step to it as much as
-      // one that imports it: nothing else in its syntax names the file.
-      const traversal = dependentsOf(relations, [id], { through: ['asset', 'depends'] });
+    if (ignored || importedAsAsset(relations, id)) {
+      // A module that declares it reads the file is a step to it as much as one that
+      // imports it, and the one step an ignored file keeps: nothing else names it.
+      const traversal = dependentsOf(relations, [id], { through: ignored ? ['depends'] : ['asset', 'depends'] });
       for (const other of traversal.nodes) {
         // The file itself, and a file something imports as an asset: the second
         // is a step on the way to the module that carries it, and the walk went

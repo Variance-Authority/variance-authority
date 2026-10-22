@@ -327,6 +327,7 @@ export async function selectionFor(
  * Both are carried: the install is the reading the structural ground was
  * handed, and the `before` files are the ones its walk refused on.
  */
+// TODO: a `before` file the suite's `ignore` matches still runs the suite whole here; `restingOf` drops it under `variance select`.
 function beyondTheJournal(install: InstallDiff | undefined, answer: Affected): boolean {
   return (install !== undefined && 'whole' in install) || (answer.rests ?? []).length > 0;
 }
