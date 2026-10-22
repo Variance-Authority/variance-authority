@@ -25,6 +25,7 @@
     "node": ">=22"
   },
   "type": "module",
+  "sideEffects": true,
   "exports": {
     ".": {
       "types": "./dist/session.d.ts",

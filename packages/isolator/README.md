@@ -133,7 +133,8 @@ session instead.
 
 Test files are not rewritten. A test file's own `let` carries what a
 `beforeAll` set into the tests after it, which is what a test file means by it.
-Neither is anything under `node_modules`.
+Neither is anything under `node_modules`, nor a module its package lists in
+`sideEffects`.
 
 ## Run it in Rspack or webpack
 
@@ -167,8 +168,8 @@ const { code, map, left } = isolate(source, path);
 `isolate` takes a module's text and its path, whose extension decides how it
 is parsed, and returns the rewritten text, its source map — `undefined` when
 nothing moved — and what it left shared, with the reason. Hand it the file as
-it is on disk, before any other transform, and skip test files and
-`node_modules` as the Jest seam does.
+it is on disk, before any other transform, and skip test files,
+`node_modules` and what `sideEffects` lists, as the Jest seam does.
 
 ## Keep a variable shared
 
@@ -181,6 +182,19 @@ own line:
 let pool = createPool();
 
 const registry = new Map(); // @isolator-ignore
+```
+
+A module that does something when it loads — registers a handler, installs a
+polyfill, keeps a pool — says so where bundlers already look: `sideEffects` in
+its package's `package.json`. Every module that field names is left as it is,
+`true` naming the whole package, a list naming files, and a pattern without a
+slash matching a file name at any depth. A package that leaves the field out,
+or sets it to `false`, is rewritten. This package and
+[ioc](https://variance-authority.dev/reference/packages/ioc) declare `true`,
+so the state they keep across tests stays one.
+
+```json
+{ "sideEffects": ["./src/register.ts", "*.polyfill.js"] }
 ```
 
 Put `@isolator-ignore-file` in a comment anywhere in a file to leave the whole

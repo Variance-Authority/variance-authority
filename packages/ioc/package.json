@@ -24,6 +24,7 @@
     "node": ">=22"
   },
   "type": "module",
+  "sideEffects": true,
   "exports": {
     "./reset": {
       "types": "./dist/reset/index.d.ts",

@@ -22,7 +22,8 @@
  * options, and its source map is composed with this one, so a stack trace and
  * a coverage report name the file on disk. A test file is never isolated: its
  * own variables carry a `beforeAll` into the tests after it, which is what a
- * test file means by them. Neither is anything under `node_modules`.
+ * test file means by them. Neither is anything under `node_modules`, nor a
+ * module its package lists in `sideEffects`.
  */
 
 import { createHash } from 'node:crypto';
