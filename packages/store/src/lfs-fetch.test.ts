@@ -81,15 +81,22 @@ function skippedSmudge(options: { hold?: Promise<void>; pull?: CommandResult } =
  */
 function watchedReads(git: CommandRunner): {
   store: ReturnType<typeof createDurableStore>;
-  reads: string[];
+  landed: (count: number) => Promise<void>;
 } {
-  const reads: string[] = [];
+  let reads = 0;
+  const waiting: { count: number; resolve: () => void }[] = [];
   const read = async (file: string): Promise<Buffer> => {
     const bytes = await readFile(file);
-    reads.push(file);
+    reads += 1;
+    // Once this read's caller has run on, which queues it in the same turn.
+    setImmediate(() => {
+      for (const wait of waiting.filter((each) => reads >= each.count)) wait.resolve();
+    });
     return bytes;
   };
-  return { store: createDurableStore(root, { readImage: fetchingReader(root, git, read) }), reads };
+  const landed = (count: number): Promise<void> =>
+    reads >= count ? Promise.resolve() : new Promise((resolve) => waiting.push({ count, resolve }));
+  return { store: createDurableStore(root, { readImage: fetchingReader(root, git, read) }), landed };
 }
 
 /** Baselines for these subjects, each with a pointer where its image was. */
@@ -146,14 +153,14 @@ describe('a clone that skipped the smudge', () => {
       release = resolve;
     });
     const { git, pulls } = skippedSmudge({ hold });
-    const { store, reads } = watchedReads(git);
+    const { store, landed } = watchedReads(git);
 
     const first = store.find({ subject: 'a' }, MAC);
     await until(() => pulls.length === 1);
     const rest = [store.find({ subject: 'b' }, MAC), store.find({ subject: 'c' }, MAC)];
     // Both lookups have read their pointers, and a read joins the queue in the
     // same turn it lands.
-    await until(() => reads.length === 3);
+    await landed(3);
     release();
 
     for (const found of await Promise.all([first, ...rest])) expect(found?.raster.bytes).toBe(IMAGE);
@@ -173,12 +180,12 @@ describe('a clone that skipped the smudge', () => {
       release = resolve;
     });
     const { git, calls, pulls } = skippedSmudge({ hold });
-    const { store, reads } = watchedReads(git);
+    const { store, landed } = watchedReads(git);
 
     const first = store.find({ subject: 'a' }, MAC);
     await until(() => pulls.length === 1);
     const rest = names.map((subject) => store.find({ subject }, MAC));
-    await until(() => reads.length === 1 + names.length);
+    await landed(1 + names.length);
     release();
     await Promise.all([first, ...rest]);
 
