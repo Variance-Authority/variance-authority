@@ -39,6 +39,7 @@ It reads no config and no run, so it is the whole install check.
 | `covering`, `story`, `select`, `coverage`, `review` | optional; only the root file's `suites` and `cacheRoot` are read | the test-selection recording; with more than one suite declared, `--suite <name>`; `variance --help` lists the flags of `coverage` and `review` |
 | `carry` | optional; with `--config`, its baselines and report | what the host moves between jobs; `variance --help` lists its flags |
 | `layers`, `restrictions` | none | the checkout; `variance --help` lists their flags |
+| `journeys inspect` | none | the record whose storage directory is read |
 
 The config is `variance.config.json` in the working directory, or the file
 `--config <path>` names. There is no search of parent directories and no
@@ -62,6 +63,7 @@ when its condition holds, not before.
 | I changed UI code. Did the edit land, what else moved, and which declaration moved it? | [check an edit](references/check-an-edit.md) | |
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
+| Which sections occupy a record's bytes? | [record storage](references/record-storage.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
 | Which of them ran it with discounted prices mocked or a flag on? What state did a test run under? | [case preconditions](references/case-preconditions.md) | |
 | Where does this one test, or the few I am looking into, go, and in what order? What was each function handed, and where did this object come from? | [story](references/story.md) | |
