@@ -5,16 +5,19 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 // A project that runs Vitest 5 the way a fast suite does: one module graph
 // shared across files in a worker, and every case in a file in flight at once.
 // The test that runs it hands the selection in, as the files to skip in JSON;
-// absent, every file runs.
+// absent, every file runs. It also names where Vitest keeps its module cache,
+// so a run is cold or warm by the test's choice, not by the runs before it.
 const root = fileURLToPath(new URL('.', import.meta.url));
 const coverageFile = process.env['VARIANCE_AUTHORITY_COVERAGE'];
 if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is required');
 const skip = process.env['FIXTURE_SKIP'];
+const moduleCache = process.env['FIXTURE_MODULE_CACHE'];
+if (moduleCache === undefined) throw new Error('FIXTURE_MODULE_CACHE is required');
 
 export default withTestSelection(
   {
     root,
-    test: { include: ['*.case.ts'], isolate: false, pool: 'forks', sequence: { concurrent: true } },
+    test: { include: ['*.case.ts'], fsModuleCachePath: moduleCache, isolate: false, pool: 'forks', sequence: { concurrent: true } },
   },
   {
     coverageFile,

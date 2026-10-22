@@ -33,14 +33,12 @@ seam from `packages/sense/dist`. From the repository root:
 yarn vitest run --config vitest.integration.config.mts cases/vitest-5-case/src/selection.integration.test.ts
 ```
 
-Run it twice: the second run reads the module cache the first one wrote, under
-`node_modules/.vitest-cache` at the repository root.
-
 ## What it shows
 
 - A whole run records both files as complete, and reaches no `@vitest/runner`.
 - Each branch of `add.ts` names the case that took it, while both cases of
-  `one.case.ts` are in flight at once and resume inside `add`.
+  `one.case.ts` are in flight at once and resume inside `add`: on a cold
+  module cache, and again on the warm one the cold run left.
 - A selection that skips one file runs the other, and records only that one.
 
 ## What it does not test
