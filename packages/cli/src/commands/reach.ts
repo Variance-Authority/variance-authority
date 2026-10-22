@@ -399,11 +399,6 @@ function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
 }
 
-/**
- * The clause naming the changed files that seeded nothing. It does not add *so
- * it seeds nothing*: a file that changes nothing that runs has nothing to walk
- * from, and the sentence it sits in already says what was reached.
- */
 /** The modules that declare `file` with a `/// <depends>`, near and far. */
 function declaring(relations: Relations, file: string): readonly string[] {
   const id = idOf(relations, 'file', file);
@@ -416,6 +411,11 @@ export function ignoredSaid(files: readonly string[]): string {
   return `the suite ignores ${listed([...files].sort(byCodeUnit))}`;
 }
 
+/**
+ * The clause naming the changed files that seeded nothing. It does not add *so
+ * it seeds nothing*: a file that changes nothing that runs has nothing to walk
+ * from, and the sentence it sits in already says what was reached.
+ */
 function ranAsBefore(files: readonly string[]): string {
   return `${listed(files)} ${files.length === 1 ? 'changes' : 'change'} nothing that runs`;
 }

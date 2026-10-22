@@ -7,6 +7,7 @@ import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { selectOutput } from './select-command.js';
 import { indexOutput } from './index-command.js';
+import { suiteIgnore } from './select-before.js';
 
 /**
  * `variance select` over a diff that moved what a suite rests on.
@@ -17,6 +18,32 @@ import { indexOutput } from './index-command.js';
  * change anywhere in that closure runs the whole suite. Undeclared, nothing
  * says the suite rests on it, and the record answers as it would for any file.
  */
+/** The `ignore` list `variance run` reads: the named suite's, or the only one declared. */
+describe('the ignore list of the suite a run is for', () => {
+  const configured = (suites: object): string => {
+    const root = mkdtempSync(join(tmpdir(), 'va-suite-ignore-'));
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites }));
+    return root;
+  };
+
+  it("is the named suite's, not another suite's", async () => {
+    const root = configured({ unit: { kind: 'unit', ignore: ['**/*.css'] }, stories: { kind: 'visual' } });
+
+    expect(await suiteIgnore(root, 'unit')).toEqual(['**/*.css']);
+    expect(await suiteIgnore(root, 'stories')).toBeUndefined();
+  });
+
+  it("is the only declared suite's when none is named", async () => {
+    expect(await suiteIgnore(configured({ unit: { kind: 'unit', ignore: ['**/*.png'] } }), undefined)).toEqual(['**/*.png']);
+  });
+
+  it('is nothing when several suites are declared and none is named', async () => {
+    const root = configured({ unit: { kind: 'unit', ignore: ['**/*.css'] }, stories: { kind: 'visual' } });
+
+    expect(await suiteIgnore(root, undefined)).toBeUndefined();
+  });
+});
+
 describe('a diff that moved what the suite rests on', () => {
   const cwd = process.cwd();
 

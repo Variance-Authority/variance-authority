@@ -98,6 +98,28 @@ describe('a changed file the suite ignores', () => {
     expect(answer.observe).toEqual(['story:clock']);
   });
 
+  it('reaches nothing when the file graph does not hold it', () => {
+    const answer = answerFor(['src/ds/new.css'], CSS);
+
+    expect(answer.observe).toEqual([]);
+    expect(answer.because).toContain('the suite ignores src/ds/new.css');
+  });
+
+  it('is named beside a file that changes nothing that runs, without a file graph', () => {
+    const answer = affectedSubjects({
+      planned: PLANNED,
+      changed: ['src/ds/button.css', 'src/ds/Clock.tsx'],
+      source: SOURCE,
+      roots: ROOTS,
+      baselines: BASELINES,
+      movedExports: new Map([['src/ds/Clock.tsx', []]]),
+      ignore: CSS,
+    });
+
+    expect(answer.observe).toEqual([]);
+    expect(answer.because).toContain('src/ds/Clock.tsx changes nothing that runs, and the suite ignores src/ds/button.css');
+  });
+
   it('is read by the report as the selector reads it', () => {
     const reach = reachOf({
       against: 'main',
