@@ -21,6 +21,15 @@ import picomatch from 'picomatch';
 /** Whether a module at an absolute path stays as it is; `exclude` globs are relative to `root`. */
 export function skipper(root: string, exclude: readonly string[] = []): (path: string) => boolean {
   const excluded = exclude.length === 0 ? () => false : picomatch(exclude as string[], { dot: true });
-  return (path) =>
-    /[\\/]node_modules[\\/]/.test(path) || excluded(relative(root, path).replaceAll('\\', '/')) || declaresSideEffects([path]).length > 0;
+  // Jest asks twice for each module, once for its cache key and once to
+  // transform it, and the native read walks the module's manifests each time.
+  const verdicts = new Map<string, boolean>();
+  return (path) => {
+    let skipped = verdicts.get(path);
+    if (skipped === undefined) {
+      skipped = /[\\/]node_modules[\\/]/.test(path) || excluded(relative(root, path).replaceAll('\\', '/')) || declaresSideEffects([path]).length > 0;
+      verdicts.set(path, skipped);
+    }
+    return skipped;
+  };
 }

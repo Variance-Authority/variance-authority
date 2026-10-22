@@ -33,9 +33,16 @@ export interface IsolatorLoaderContext {
   readonly callback: (error: Error | null, code?: string, map?: object) => void;
 }
 
+/** One skip rule per build context and `exclude`, so its verdicts outlive a module. */
+const skippers = new Map<string, (path: string) => boolean>();
+
 function isolatorLoader(this: IsolatorLoaderContext, code: string): void {
   const path = this.resourcePath;
-  if (skipper(this.rootContext, this.getOptions()?.exclude)(path)) {
+  const exclude = this.getOptions()?.exclude;
+  const key = JSON.stringify([this.rootContext, exclude ?? []]);
+  let skipped = skippers.get(key);
+  if (skipped === undefined) skippers.set(key, (skipped = skipper(this.rootContext, exclude)));
+  if (skipped(path)) {
     this.callback(null, code);
     return;
   }
