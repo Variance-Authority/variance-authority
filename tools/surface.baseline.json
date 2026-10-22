@@ -1251,6 +1251,121 @@
       }
     }
   },
+  "@variance-authority/isolator": {
+    "declared": {
+      "type": "module",
+      "exports": {
+        ".": {
+          "types": "./dist/session.d.ts",
+          "default": "./dist/session.js"
+        },
+        "./runtime": {
+          "types": "./dist/runtime.d.ts",
+          "default": "./dist/runtime.js"
+        },
+        "./node": {
+          "types": "./dist/node.d.ts",
+          "default": "./dist/node.js"
+        },
+        "./react": {
+          "types": "./dist/react.d.ts",
+          "default": "./dist/react.js"
+        },
+        "./jest": {
+          "types": "./dist/jest.d.ts",
+          "default": "./dist/jest.js"
+        },
+        "./loader": {
+          "types": "./dist/loader.d.ts",
+          "default": "./dist/loader.js"
+        },
+        "./transform": {
+          "types": "./dist/transform.d.ts",
+          "default": "./dist/transform.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "SessionSource": "type",
+        "addSessionSource": "function",
+        "currentSession": "function",
+        "nextSession": "function"
+      },
+      "./runtime": {
+        "Frame": "interface",
+        "Kind": "type",
+        "frame": "function"
+      },
+      "./node": {
+        "Registrar": "type",
+        "isolateConcurrentTests": "function",
+        "isolated": "function"
+      },
+      "./react": {
+        "requestSessions": "function"
+      },
+      "./jest": {
+        "IsolatorTransformerConfig": "interface",
+        "JestTransformer": "type",
+        "createTransformer": "function",
+        "default": "object"
+      },
+      "./loader": {
+        "IsolatorLoaderContext": "interface",
+        "IsolatorLoaderOptions": "interface",
+        "default": "function"
+      },
+      "./transform": {
+        "Isolated": "interface",
+        "Left": "interface",
+        "isolate": "function"
+      }
+    }
+  },
+  "@variance-authority/jest-transformer": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "JestTestFiles": "interface",
+        "JestTransformOptions": "interface",
+        "JestTransformer": "interface",
+        "ProjectTransformer": "interface",
+        "TransformerEntry": "type",
+        "globMatcher": "function",
+        "isTestFile": "function",
+        "jestCacheKey": "function",
+        "loadTransformer": "function",
+        "slashed": "function"
+      }
+    }
+  },
   "@variance-authority/jsx-source": {
     "declared": {
       "type": "module",

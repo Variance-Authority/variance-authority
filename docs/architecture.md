@@ -198,6 +198,7 @@ before anything else.**
 | `report` | nothing | what a run leaves behind, so several readers can share one shape |
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
 | `ioc` | nothing | the seam a module declares its own state reset through, and the per-test hook a suite drives it with |
+| `isolator` | `ioc`; its `node` entrypoint additionally needs a Node runtime, its `react` entrypoint React 19 | an experimental build transform that gives every module-level variable a module writes, and every object it keeps, one value per session, so ioc's per-test hook resets state no module declared |
 | `reads` | nothing | the files an element showed, said on the element, so a recorded page run keeps them for the next run's selection |
 | `wire` | nothing; the driver's end of it needs a Node runtime and a loopback socket | one id per execution and one address to answer on, whether the participant is the page, a service in another process, or a server the suite started inside itself |
 | `event` | nothing; its `collect` entrypoint additionally needs a Node runtime and a loopback socket | announcements a running system makes about its own decisions, and the log a test waits on |
@@ -211,6 +212,7 @@ before anything else.**
 | `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |
+| `jest-transformer` | a Node runtime and Jest | a project's own Jest transformer run inside another one, loaded the way Jest loads it and handed its own options |
 | `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |
 | `session` | a live DOM | many subjects in one standing world |
 | `scenario` | semantic snapshots; its archive entrypoint additionally needs a filesystem | witnessed AAA paths, transition-effect assessment, a partial state machine, and opt-in semantic retention |

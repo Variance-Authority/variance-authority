@@ -135,6 +135,7 @@
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
+    "@variance-authority/jest-transformer": "workspace:^",
     "@variance-authority/wire": "workspace:^",
     "jest-util": "^30.5.1",
     "oxc-parser": "^0.144.0",

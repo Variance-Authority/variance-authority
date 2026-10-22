@@ -4735,6 +4735,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/react@npm:^19.2.14":
+  version: 19.3.0
+  resolution: "@types/react@npm:19.3.0"
+  dependencies:
+    csstype: "npm:^3.2.2"
+  checksum: 10c0/fbcabf303f935ca9f36ed2dcf81751cf84744098c5a683c8a62a0fa7edd31714b48d5c46b12fd0014f7f2dfe4d9ec6de428a850748eec719a70294e51029551b
+  languageName: node
+  linkType: hard
+
 "@types/resolve@npm:^1.20.2":
   version: 1.20.6
   resolution: "@types/resolve@npm:1.20.6"
@@ -5485,9 +5494,43 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/ioc@workspace:packages/ioc":
+"@variance-authority/ioc@workspace:^, @variance-authority/ioc@workspace:packages/ioc":
   version: 0.0.0-use.local
   resolution: "@variance-authority/ioc@workspace:packages/ioc"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/isolator@workspace:packages/isolator":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/isolator@workspace:packages/isolator"
+  dependencies:
+    "@jridgewell/remapping": "npm:^2.3.5"
+    "@rspack/core": "npm:^2.2.6"
+    "@swc/jest": "npm:^0.2.39"
+    "@types/picomatch": "npm:^4.0.3"
+    "@types/react": "npm:^19.2.14"
+    "@variance-authority/ioc": "workspace:^"
+    "@variance-authority/jest-transformer": "workspace:^"
+    jest: "npm:^30.5.1"
+    magic-string: "npm:^0.30.21"
+    oxc-parser: "npm:^0.144.0"
+    picomatch: "npm:^4.0.7"
+    react: "npm:^19.2.8"
+    react-server-dom-parcel: "npm:^19.3.1"
+  peerDependencies:
+    react: ">=19"
+  peerDependenciesMeta:
+    react:
+      optional: true
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/jest-transformer@workspace:^, @variance-authority/jest-transformer@workspace:packages/jest-transformer":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/jest-transformer@workspace:packages/jest-transformer"
+  dependencies:
+    "@types/picomatch": "npm:^4.0.3"
+    picomatch: "npm:^4.0.7"
   languageName: unknown
   linkType: soft
 
@@ -5741,6 +5784,7 @@ __metadata:
     "@swc/jest": "npm:^0.2.39"
     "@types/picomatch": "npm:^4.0.3"
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/jest-transformer": "workspace:^"
     "@variance-authority/sense-darwin-arm64": "workspace:*"
     "@variance-authority/sense-linux-arm64-gnu": "workspace:*"
     "@variance-authority/sense-linux-x64-gnu": "workspace:*"
@@ -11143,6 +11187,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-server-dom-parcel@npm:^19.3.1":
+  version: 19.3.1
+  resolution: "react-server-dom-parcel@npm:19.3.1"
+  peerDependencies:
+    react: ^19.3.1
+    react-dom: ^19.3.1
+  checksum: 10c0/7757e23f7e6def44798f136de40cf7b0c9197ba7813760e531b6164506aee0b80b1c54bea73439ee6972799d9330c9110c67f40876217bb23da5e8fa2ac47954
+  languageName: node
+  linkType: hard
+
 "react-style-singleton@npm:^2.2.2, react-style-singleton@npm:^2.2.3":
   version: 2.2.3
   resolution: "react-style-singleton@npm:2.2.3"
@@ -11163,6 +11217,13 @@ __metadata:
   version: 19.2.8
   resolution: "react@npm:19.2.8"
   checksum: 10c0/5f86bdb56426652fd6d989d30a6f2e603c057272c47c9ca3a3fbe190a3a39ee9ccce937d63cfc039717abed1b8891d6a499134bc35311acc07eafdacd86537cd
+  languageName: node
+  linkType: hard
+
+"react@npm:^19.2.8":
+  version: 19.3.1
+  resolution: "react@npm:19.3.1"
+  checksum: 10c0/f0ed036d1223562c09c8347858ca712733ea6e27a30db709ee9c3f3f176d3e9e767afce735d59956addf3d030102e256bba82dea635fc1bdb0e01107e98fef10
   languageName: node
   linkType: hard
 
