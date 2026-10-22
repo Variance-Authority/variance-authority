@@ -470,7 +470,7 @@ function readDiff(
   // name beside it. A file `knownAs` gives no name at all was asked about
   // under nothing, and is reported.
   const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
-  const unmeasured = answered.unread.filter((name) => !measured(name)).sort(codeUnitOrder);
+  const unmeasured = [...answered.unread.filter((name) => !measured(name)), ...answered.unheld].sort(codeUnitOrder);
   // A suite that declines relations never asked the graph, so nothing it
   // holds is unread: what the record did not measure was declined.
   const declining = options.unmeasured === 'nothing';

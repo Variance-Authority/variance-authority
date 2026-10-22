@@ -252,7 +252,7 @@ describe('a file the suite ignores, read off a snapshot', () => {
     ).toMatchObject({ entered: ['test/alpha.test.ts', 'test/beta.test.ts'], ignored: ['src/logo.png'] });
   });
 
-  it('goes on from a module that declares it and holds no row, to the modules that import that one', () => {
+  it('names a module that declares it and holds no row as unread, and walks past it to nothing', () => {
     const reads = relationsOf({
       relations: [
         { from: file('src/reader.ts'), to: file('src/logo.png'), kind: 'depends' },
@@ -261,11 +261,18 @@ describe('a file the suite ignores, read off a snapshot', () => {
     });
 
     expect(narrowByExecutionFromView(view(), edit('src/logo.png'), { relations: reads, ignore: ['**/*.png'] })).toMatchObject({
-      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
-      because: [
-        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/logo.png', 'src/reader.ts', 'src/decide.ts'] }] },
-        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/logo.png', 'src/reader.ts', 'src/decide.ts'] }] },
-      ],
+      entered: [],
+      unread: ['src/reader.ts'],
+      ignored: ['src/logo.png'],
+    });
+  });
+
+  it('runs the tests that declare a module that declares it and holds no row', () => {
+    const reads = relationsOf({ relations: [{ from: file('vitest.config.ts'), to: file('src/logo.png'), kind: 'depends' }] });
+
+    expect(narrowByExecutionFromView(view(), edit('src/logo.png'), { relations: reads, ignore: ['**/*.png'] })).toMatchObject({
+      entered: ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'],
+      unread: [],
     });
   });
 

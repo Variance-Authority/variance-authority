@@ -96,15 +96,13 @@ export function narrowByJourneys(
     const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
     return affected.missing.length > 0 ? undefined : affected.files.filter((test) => held.has(test));
   };
-  const everyEntrant = (module: ExecutionModule): void => {
-    const own = ownedIn(index, module, owned);
-    for (const block of module.blocks) {
-      for (const crossing of block.crossings) if (own(crossing)) entered.add(index.tests[crossing.test]!.file);
-    }
-  };
+  const everyEntrant = (module: ExecutionModule): void => enterEvery(index, module, owned, entered);
 
   const ignored = ignoredBy(options.ignore, changed.keys());
-  for (const test of declaredReach(relations, ignored, held)) entered.add(test);
+  const declared = declaredReach(index, relations, ignored);
+  for (const test of declared.entered) entered.add(test);
+  // A declaring file the record holds nothing for is named as any unread path is, or declined with them.
+  (options.unmeasured === 'nothing' ? declined : unread).push(...declared.unread);
   const ignoring = new Set(ignored);
   for (const [file, ranges] of changed) {
     if (ignoring.has(file)) continue;
@@ -159,22 +157,47 @@ export function narrowByJourneys(
   };
 }
 
-/**
- * The tests an ignored file still reaches: itself when it is a test the record
- * holds, and every test that loads a module declaring it reads the file
- * (`/// <depends>`). The import and asset edges into it are what `ignore` cuts;
- * a declaration was drawn on purpose, and no glob undoes it.
- */
-export function declaredReach(relations: Relations | undefined, ignored: readonly string[], held: ReadonlySet<string>): readonly string[] {
-  const reached = new Set(ignored.filter((file) => held.has(file)));
-  if (relations === undefined) return [...reached];
+/** The modules that declare they read an ignored file (`/// <depends>`), by name. */
+export function dependsReaders(relations: Relations | undefined, ignored: readonly string[]): readonly string[] {
+  if (relations === undefined) return [];
   const ids = ignored.flatMap((file) => idOf(relations, 'file', file) ?? []);
-  const readers = [...dependentsOf(relations, ids, { through: ['depends'] }).nodes]
-    .filter((id) => !ids.includes(id))
-    .map((id) => relations.names[id]!);
-  if (readers.length === 0) return [...reached];
-  for (const test of affectedBy(relations, readers, { through: RUNTIME_EDGES }).files) if (held.has(test)) reached.add(test);
-  return [...reached];
+  return [...dependentsOf(relations, ids, { through: ['depends'] }).nodes].filter((id) => !ids.includes(id)).map((id) => relations.names[id]!);
+}
+
+/**
+ * What an ignored file still reaches, read off the record alone: itself when it
+ * is a test the record holds, and each module that declares it reads the file
+ * by the cases the record saw enter it, or a test file by its own. The import
+ * and asset edges into the file are what `ignore` cuts; a declaration was drawn
+ * on purpose. A declaring file the record holds nothing for is not guessed past
+ * through its importers: it is `unread`.
+ *
+ * `index` holds the readers' modules: the whole journey, or its projection onto them.
+ */
+export function declaredReach(
+  index: ExecutionIndex,
+  relations: Relations | undefined,
+  ignored: readonly string[],
+): { readonly entered: readonly string[]; readonly unread: readonly string[] } {
+  const held = new Set(index.tests.map((test) => test.file));
+  const owned = shadowedFor(relations);
+  const entered = new Set(ignored.filter((file) => held.has(file)));
+  const unread: string[] = [];
+  for (const reader of dependsReaders(relations, ignored)) {
+    const module = index.modules.find((candidate) => candidate.file === reader);
+    if (held.has(reader)) entered.add(reader);
+    else if (module === undefined) unread.push(reader);
+    if (module !== undefined) enterEvery(index, module, owned, entered);
+  }
+  return { entered: [...entered], unread };
+}
+
+/** Adds every test file the record saw enter `module`, but for a case that mocked it. */
+function enterEvery(index: ExecutionIndex, module: ExecutionModule, owned: ReturnType<typeof shadowedFor>, entered: Set<string>): void {
+  const own = ownedIn(index, module, owned);
+  for (const block of module.blocks) {
+    for (const crossing of block.crossings) if (own(crossing)) entered.add(index.tests[crossing.test]!.file);
+  }
 }
 
 function codeUnitOrder(left: string, right: string): number {

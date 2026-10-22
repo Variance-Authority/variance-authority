@@ -194,6 +194,8 @@ export interface ImporterAnswer {
   readonly governed: GovernedTests;
   /** Test rows that loaded a file the caller asked to have answered whole → those files. */
   readonly wholes: ReadonlyMap<number, readonly string[]>;
+  /** Modules declaring an ignored file that no row holds and no test declares: unread, whatever else measured them. */
+  readonly unheld: readonly string[];
 }
 
 /** Tests holding a set of names, and the names no test declared. */
@@ -237,7 +239,7 @@ export function answerByImporters(
   // A suite that declines relations still follows what a module declares it reads of an ignored file.
   const declines = options.unmeasured === 'nothing';
   if (relations === undefined || changed.length + wholes.length === 0 || (declines && ignores === undefined)) {
-    return { selected: new Map(), unread: changed.filter((file) => ignores?.(file) !== true), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map() };
+    return { selected: new Map(), unread: changed.filter((file) => ignores?.(file) !== true), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map(), unheld: [] };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // Every test a walk reached, with what reached it — held rather than
@@ -296,6 +298,7 @@ export function answerByImporters(
   };
 
   const unread: string[] = [];
+  const readers: string[] = [];
   // One mark and one parent per node for every module walk, cleared behind each.
   const walk = {
     mask: new Uint8Array(relations.names.length),
@@ -314,16 +317,14 @@ export function answerByImporters(
       // imports it, and the one step an ignored file keeps: nothing else names it.
       const traversal = dependentsOf(relations, [id], { through: ignored ? ['depends'] : ['asset', 'depends'] });
       for (const other of traversal.nodes) {
-        // The file itself, and a file something imports as an asset: the second
-        // is a step on the way to the module that carries it, and the walk went
-        // on through it.
+        // The file itself, and an asset something imports: a step to the module that carries it, walked through.
         if (other === id || importedAsAsset(relations, other)) continue;
         const trail = trailOf(traversal, other).map((step) => relations.names[step]!);
-        // The declaration stands for the file's own reach: a reader no row answers leads on to its importers.
-        if (read(other, trail, seed, undefined) || !ignored) continue;
-        importersUntil(relations, other, walk, (next, rest) =>
-          read(next, [...trail, ...rest.slice(1).map((step) => relations.names[step]!)], seed, undefined),
-        );
+        if (read(other, trail, seed, undefined) || !ignored || answers.get(other)?.governs.length !== 0) continue;
+        // A reader of an ignored file no row holds is not guessed past: the tests that declare it answer, or it is named.
+        const name = relations.names[other]!;
+        if (!readers.includes(name)) readers.push(name);
+        for (const known of knownAs(name)) governing.set(known, [...(governing.get(known) ?? []), { reason: { kind: 'importer', trail }, seed, from: undefined }]);
       }
     } else if (!seed.some((name) => rowed.has(name))) {
       importersUntil(relations, id, walk, (other, trail) =>
@@ -376,7 +377,8 @@ export function answerByImporters(
     }
   }
 
-  return { selected, unread: unread.sort(codeUnitOrder), governed: asked(held, also), wholes: whole };
+  const unheld = readers.filter((name) => knownAs(name).every((known) => held.unread.includes(known)));
+  return { selected, unread: unread.sort(codeUnitOrder), governed: asked(held, also), wholes: whole, unheld: unheld.sort(codeUnitOrder) };
 }
 
 /** What one file a walk reached answers, before a walk's trail is put on it. */

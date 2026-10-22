@@ -172,13 +172,13 @@ describe('selecting off a journey file in the addon', () => {
     expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], ignored: ['src/http.ts'] });
   });
 
-  it('still follows a `/// <depends>` on a file the suite ignores, and no asset edge, as narrowByJourneys does', async () => {
-    // `card.ts` imports the picture; `solo.ts` declares it reads its bytes.
+  it('still follows a `/// <depends>` on a file the suite ignores by its row, and no asset edge, as narrowByJourneys does', async () => {
+    // `http.ts` imports the picture; `card.ts`, which holds a row, and `solo.ts`, which holds none, declare they read its bytes.
     const records = RECORDS.map((record) =>
-      record.file === 'src/card.ts'
-        ? { ...record, edges: [...(record.edges ?? []), { to: 'src/logo.png', kind: 'asset' as const }] }
-        : record.file === 'src/solo.ts'
-          ? { ...record, edges: [{ to: 'src/logo.png', kind: 'depends' as const }] }
+      record.file === 'src/http.ts'
+        ? { ...record, edges: [{ to: 'src/logo.png', kind: 'asset' as const }] }
+        : record.file === 'src/card.ts' || record.file === 'src/solo.ts'
+          ? { ...record, edges: [...(record.edges ?? []), { to: 'src/logo.png', kind: 'depends' as const }] }
           : record,
     );
     const changed = new Map<string, readonly LineRange[]>([['src/logo.png', []]]);
@@ -186,7 +186,7 @@ describe('selecting off a journey file in the addon', () => {
     const selected = await selectJourneyFile(FILE, changed, options);
 
     expect(selected).toEqual(narrowByJourneys(index, changed, options));
-    expect(selected).toMatchObject({ entered: ['test/other.test.ts'], unread: [], ignored: ['src/logo.png'] });
+    expect(selected).toMatchObject({ entered: ['test/plain.test.ts'], unread: ['src/solo.ts'], ignored: ['src/logo.png'] });
   });
 
   it('declines a file the journey has no row for when the suite declines relations', async () => {
