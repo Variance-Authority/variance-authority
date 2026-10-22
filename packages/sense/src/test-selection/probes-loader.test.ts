@@ -181,9 +181,7 @@ describe('the probes loader', () => {
     const loaders = [{ path: '/loaders/rewrite.js' }, { path: '/loaders/compiler.js' }];
     const { error } = load(resolve(root, 'cart.js'), `// rewritten\n${SOURCE}`, map, { root }, loaders);
 
-    expect(error?.message).toContain('Loader chain as listed by the bundler:');
-    expect(error?.message).toContain('/loaders/rewrite.js');
-    expect(error?.message).toContain('/loaders/compiler.js');
+    expect(error?.message).toContain('Loader chain as listed by the bundler:\n  /loaders/rewrite.js\n  /loaders/compiler.js');
   });
 
   it('passes a module the default `include` refuses untouched', async () => {
