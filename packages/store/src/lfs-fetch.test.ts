@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
+import { createDurableStore } from './durable.js';
+import { fetchingReader } from './lfs-fetch.js';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
 
 /**
@@ -71,6 +73,25 @@ function skippedSmudge(options: { hold?: Promise<void>; pull?: CommandResult } =
   return { git, calls, pulls };
 }
 
+/**
+ * The store `createLfsStore` builds, with every image read it makes recorded.
+ *
+ * A lookup queues for the next pull in the turn its pointer read lands, so the
+ * reads say when every lookup has joined the queue.
+ */
+function watchedReads(git: CommandRunner): {
+  store: ReturnType<typeof createDurableStore>;
+  reads: string[];
+} {
+  const reads: string[] = [];
+  const read = async (file: string): Promise<Buffer> => {
+    const bytes = await readFile(file);
+    reads.push(file);
+    return bytes;
+  };
+  return { store: createDurableStore(root, { readImage: fetchingReader(root, git, read) }), reads };
+}
+
 /** Baselines for these subjects, each with a pointer where its image was. */
 async function pointersFor(subjects: readonly string[]): Promise<void> {
   const writer = await createLfsStore({ root, verify: false });
@@ -125,15 +146,14 @@ describe('a clone that skipped the smudge', () => {
       release = resolve;
     });
     const { git, pulls } = skippedSmudge({ hold });
-    const store = await createLfsStore({ root, git });
+    const { store, reads } = watchedReads(git);
 
     const first = store.find({ subject: 'a' }, MAC);
     await until(() => pulls.length === 1);
     const rest = [store.find({ subject: 'b' }, MAC), store.find({ subject: 'c' }, MAC)];
-    // Time for both lookups to read their pointers and queue. Nothing outside the
-    // store can see the queue, and a pull released early splits the batch, which
-    // fails the assertion rather than passing it.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // Both lookups have read their pointers, and a read joins the queue in the
+    // same turn it lands.
+    await until(() => reads.length === 3);
     release();
 
     for (const found of await Promise.all([first, ...rest])) expect(found?.raster.bytes).toBe(IMAGE);
@@ -153,12 +173,12 @@ describe('a clone that skipped the smudge', () => {
       release = resolve;
     });
     const { git, calls, pulls } = skippedSmudge({ hold });
-    const store = await createLfsStore({ root, git });
+    const { store, reads } = watchedReads(git);
 
     const first = store.find({ subject: 'a' }, MAC);
     await until(() => pulls.length === 1);
     const rest = names.map((subject) => store.find({ subject }, MAC));
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await until(() => reads.length === 1 + names.length);
     release();
     await Promise.all([first, ...rest]);
 

@@ -49,8 +49,15 @@ export function isPointer(bytes: Buffer): boolean {
  * A pull that fails refuses every lookup that was waiting on it: the pointer is
  * still all there is, and a pointer read as an absent baseline is `new`, which
  * re-records whatever is on screen over the baseline nobody could download.
+ *
+ * `read` is the reader it fetches behind: the file system, unless the caller
+ * needs to see each read land.
  */
-export function fetchingReader(cwd: string, run: CommandRunner): ImageReader {
+export function fetchingReader(
+  cwd: string,
+  run: CommandRunner,
+  read: ImageReader = readFile,
+): ImageReader {
   let toplevel: Promise<string> | undefined;
   let running = false;
   let next: Batch | undefined;
@@ -85,10 +92,10 @@ export function fetchingReader(cwd: string, run: CommandRunner): ImageReader {
   };
 
   return async (file) => {
-    const bytes = await readFile(file);
+    const bytes = await read(file);
     if (!isPointer(bytes)) return bytes;
     await fetched(file);
-    return reread(file);
+    return reread(file, read);
   };
 }
 
@@ -101,10 +108,10 @@ export function fetchingReader(cwd: string, run: CommandRunner): ImageReader {
  * remedy is not the one for a machine without git-lfs. A file gone since the
  * pull is refused too: read as ENOENT, it would be an absent baseline.
  */
-async function reread(file: string): Promise<Buffer> {
+async function reread(file: string, read: ImageReader): Promise<Buffer> {
   let bytes: Buffer;
   try {
-    bytes = await readFile(file);
+    bytes = await read(file);
   } catch (error) {
     throw refusal([file], error);
   }
