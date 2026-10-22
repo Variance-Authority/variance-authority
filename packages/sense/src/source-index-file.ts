@@ -47,14 +47,10 @@ export interface SourceIndexFile {
   ): Promise<string | undefined>;
 }
 
-/**
- * A parse layer already encoded by the native cold scanner, and the keys it
- * still answers for: a parse JavaScript harvested since is deleted from them,
- * and written with the rest of JavaScript's parses.
- */
+/** A parse layer already encoded by the native cold scanner, and the keys it answers for. */
 export interface EncodedParseLayer {
   readonly bytes: Uint8Array;
-  readonly keys: { has(key: ParseKey): boolean; delete(key: ParseKey): unknown };
+  readonly keys: { has(key: ParseKey): boolean };
 }
 
 interface Opened {
@@ -255,16 +251,26 @@ function same(left: readonly Digest[], right: readonly Digest[]): boolean {
 }
 
 async function load(read: ImmutableLog): Promise<Opened> {
-  const decoded: StoredSourceIndex[] = [];
+  // Newest first, so a layer decodes only the rows no later one decided: an
+  // update that read every file again would otherwise hold the graph once per
+  // layer. A segment that does not read still ends the chain there, so what was
+  // decoded above it is dropped and the layers below are read as the last.
+  let decoded: StoredSourceIndex[] = [];
+  let decided = { parses: new Set<ParseKey>(), records: new Set<string>(), directories: new Set<string>() };
   // The segment that stopped the read, when it is one another release wrote:
   // the same rebuild as a damaged one, for a reason the reader is told apart.
   let written: number | undefined;
-  for (const bytes of read.segments) {
+  for (let at = read.segments.length - 1; at >= 0; at -= 1) {
     try {
-      decoded.push(decodeSourceIndex(bytes));
+      const part = decodeSourceIndex(read.segments[at]!, decided);
+      decoded.unshift(part);
+      decide(decided.parses, part.parses, part.deletedParses);
+      decide(decided.records, part.records, part.deletedRecords);
+      decide(decided.directories, part.directories, part.deletedDirectories);
     } catch (error) {
-      if (error instanceof OtherSegmentVersion) written = error.written;
-      break;
+      written = error instanceof OtherSegmentVersion ? error.written : undefined;
+      decoded = [];
+      decided = { parses: new Set(), records: new Set(), directories: new Set() };
     }
   }
   const log = read.keep(decoded.length);
@@ -292,6 +298,11 @@ async function load(read: ImmutableLog): Promise<Opened> {
       records: orderedMap(recordLayers),
     },
   };
+}
+
+function decide<K>(decided: Set<K>, puts: ReadonlyMap<K, unknown>, deletes: ReadonlySet<K> | undefined): void {
+  for (const key of puts.keys()) decided.add(key);
+  for (const key of deletes ?? []) decided.add(key);
 }
 
 function segment(

@@ -24,7 +24,7 @@ import { awaitFollowUps } from './commands/index-follow-ups.js';
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 
-/** The packages a run of the built program loaded, by name, each once. */
+/** The packages a run of the built program loaded, by name, each once; the run must answer with 0. */
 async function packagesLoaded(args: readonly string[]): Promise<string[]> {
   const at = realpathSync(mkdtempSync(join(tmpdir(), 'va-bin-load-')));
   const hook = join(at, 'hook.mjs');
@@ -67,6 +67,19 @@ describe('what the program loads before it answers', () => {
     const loaded = await packagesLoaded(args);
     expect(loaded).toContain('cli');
     expect(loaded.filter((name) => UNCALLED.includes(name))).toEqual([]);
+  });
+
+  // A question about names reads the source index, never a pixel: a half-built `png` or `observe`
+  // dist must not stop it. In this empty checkout nothing declares the name, which is an answer, so the run exits 0.
+  it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x']])('loads no pixel package for `%s %s %s %s`', async (...args) => {
+    const loaded = await packagesLoaded(args);
+    expect(loaded).toContain('cli');
+    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
+  });
+
+  it('loads no pixel package for `ask search --query x`', async () => {
+    const loaded = await packagesLoaded(['ask', 'search', '--query', 'x']);
+    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
   // FIXME: parsing `--at-distance` loads `@variance-authority/sense/test-selection` whole, about 30 ms, for `distanceRange`.

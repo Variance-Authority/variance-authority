@@ -1,6 +1,6 @@
 # Selection wiring: what the run rests on, and what it costs
 
-Read this before you write a suite's `before` or `relations` in
+Read this before you write a suite's `before`, `relations` or `precision` in
 `variance.config.json`, when a selection came back whole, when a config file you
 changed selected nothing, or when a recorded run times out.
 
@@ -88,6 +88,60 @@ a `.nvmrc` or a workflow, which have nothing under them to read. It is not
 normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
 scan has no reader for.
+
+## Declare a suite's precision
+
+A suite's `precision` says how precisely selection decides which tests to
+skip, coarsest first: `file` (every recorded test that imports a changed
+file, through the graph, and every test `file-use` runs), `symbol` (the same
+walk through only the importers of the exports the change moved, and every test
+`file-use` runs), `file-use` (every test that loaded a changed
+file), `function-use` (every test that entered the function a changed line is
+in, with the top level read as at `region-use` and each charged region
+widened to its function: a changed top-level value runs every test that entered
+a function reading it, and a change that runs as the module loads runs every
+test that loaded the file), `region-use` (the default: every test that entered the changed region).
+A step reads only what the run recorded, and `withTestSelection`'s `mode`
+decides that (below): a step finer than the record answers as the finest step
+the record holds.
+
+Leave it unset unless the person adopting selection asks to start coarser; the
+step is theirs to choose, and they move it finer when the runs have earned it.
+`file` and `symbol` read the import graph, so a suite with `"relations": false`
+cannot declare them and the config is refused. Each step runs every test a finer
+step runs. To compare steps for one change, run `variance select` once per
+step; nothing composes them.
+
+## Choose what the run records
+
+`withTestSelection` takes the same recording options under Vitest, Jest and
+Rstest. Record at the step the suite declares and no finer, because each step
+down costs run time. Added to this repository's unit suite under Vitest:
+
+| `mode` | the record holds | finest `precision` it answers | added |
+|---|---|---|---|
+| `'loads'` | the modules each test file loaded; one line after each module, nothing parsed, no cases | `file-use` | about 3% |
+| `'entries'` | the functions each case entered | `function-use` | about 7% |
+| `'presence'` (default) | the regions each case entered | `region-use` | about 9% |
+
+The other recording options:
+
+- `cadence` (on): the test line that first reached each region. `false`
+  leaves test files untransformed.
+- `continuations` (off): a case keeps the asynchronous work it started after
+  it returns. Turn it on for a concurrent suite, or one whose work outlives
+  its cases.
+- `placement` (`'after-transforms'`): `'before-transforms'` probes the file as
+  read, for a run whose transforms only strip types or JSX. Keep the default
+  when a compiler that reads syntax, such as React Compiler or Compiled, is in
+  the run.
+- `unprobed`: modules that take the `loads` line instead of probes, inside a
+  finer recording. Jest takes globs; Vitest and Rstest take a predicate.
+
+Under `'loads'`, `cadence`, `continuations` and stories do not apply. A run
+fails rather than lay itself over a record made under another `mode`:
+when you change `mode`, give the run a new `coverageFile` or delete the
+old record.
 
 ## What selection refuses to narrow
 

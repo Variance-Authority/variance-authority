@@ -36,10 +36,14 @@ export interface EvidencePlan {
   readonly notObserved: readonly NotObserved[];
 }
 
-/** What became of one owned subject. */
+/**
+ * What became of one subject. `of` is the planned subject at `position` when
+ * the visit realized this one from it — a story read at one of its widths —
+ * and absent when the subject is the planned one.
+ */
 export type SubjectOutcome =
-  | { readonly position: number; readonly subject: string; readonly outcome: 'collected'; readonly snapshot: boolean }
-  | { readonly position: number; readonly subject: string; readonly outcome: NotObservedKind; readonly because: string };
+  | { readonly position: number; readonly subject: string; readonly of?: string; readonly outcome: 'collected'; readonly snapshot: boolean }
+  | { readonly position: number; readonly subject: string; readonly of?: string; readonly outcome: NotObservedKind; readonly because: string };
 
 export interface EvidenceDiagnostic {
   /** Absent for what the plan or a worker said rather than one subject. */
@@ -81,8 +85,12 @@ export interface EvidencePart extends SuitePart {
   /** Each environment its snapshots were read in, as the engine reported it, once, in canonical order. */
   readonly environments: readonly EvidenceEnvironment[];
   readonly plan: EvidencePlan;
-  /** How the plan was cut. Apart from the recipe, so a sharded collection compares to a whole one. */
-  readonly assignment: 'checksum';
+  /**
+   * How the plan was cut. Apart from the recipe, so a sharded collection
+   * compares to a whole one. This version writes `count`; `checksum` is a part
+   * an earlier version wrote, read so the merge can name it.
+   */
+  readonly assignment: 'count' | 'checksum';
   /** `--subjects`, when the collection was narrowed to part of the plan. */
   readonly scope?: string;
   /** One per subject this job owned, in plan order. */

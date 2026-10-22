@@ -19,7 +19,13 @@ pub fn code_unit(a: &str, b: &str) -> Ordering {
     let (left, right) = (a.as_bytes(), b.as_bytes());
     let common = left.len().min(right.len());
 
+    // Eight bytes at a time to the first word that differs: most strings
+    // compared here share a long path prefix.
     let mut at = 0;
+    let word = |bytes: &[u8], at: usize| u64::from_ne_bytes(bytes[at..at + 8].try_into().unwrap_or_default());
+    while at + 8 <= common && word(left, at) == word(right, at) {
+        at += 8;
+    }
     while at < common {
         if left[at] != right[at] {
             // Both sides ASCII at the first difference: the byte order is the
@@ -49,6 +55,9 @@ mod tests {
         assert_eq!(code_unit("a/b", "a/c"), Ordering::Less);
         assert_eq!(code_unit("Z", "a"), Ordering::Less);
         assert_eq!(code_unit("ab", "abc"), Ordering::Less);
+        assert_eq!(code_unit("packages/a/src/x.ts", "packages/a/src/y.ts"), Ordering::Less);
+        assert_eq!(code_unit("packages/a/src/x.ts", "packages/a/src/x.ts"), Ordering::Equal);
+        assert_eq!(code_unit("packages/a/src/x.ts", "packages/a/src"), Ordering::Greater);
     }
 
     #[test]
@@ -57,5 +66,6 @@ mod tests {
         // puts it first, because it is written as a pair starting at U+D83D.
         assert_eq!(code_unit("\u{1F600}", "\u{FFFD}"), Ordering::Less);
         assert_eq!(code_unit("\u{FFFD}", "\u{1F600}"), Ordering::Greater);
+        assert_eq!(code_unit("packages/\u{1F600}", "packages/\u{FFFD}"), Ordering::Less);
     }
 }

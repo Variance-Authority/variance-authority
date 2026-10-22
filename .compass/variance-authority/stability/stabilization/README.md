@@ -106,6 +106,8 @@ appear in anybody's attribution.
 - `packages/playwright/src/network.ts` — routing as an intervention and as a
   reading: asset bodies hashed into the environment inputs, requests asked for
   and not yet answered counted as the honest version of *the images have loaded*.
+  `pause.ts` holds the requests either through routing, which turns the HTTP
+  cache off, or through the DevTools protocol, which leaves it on.
 - `packages/playwright/src/blank.ts` — `BlankRule` and `blankPng`: a rule with
   no matcher is refused rather than read as *everything*.
 - `packages/playwright/src/gif.ts` — the first frame of an animated image, as a

@@ -20,7 +20,6 @@
 import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
-import { preconditionsSpelled } from './case-precondition-column.js';
 import type { LineRange } from './diff-lines.js';
 import type { JourneySelectionOptions } from './execution-select.js';
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
@@ -54,11 +53,11 @@ export async function selectJourneyFile(
     unread: [...selected.unread].sort(codeUnitOrder),
     ...(declines ? { declined: [...selected.declined!].sort(codeUnitOrder) } : {}),
     stale: [],
-    because: [],
   };
 }
 
-function flatten(relations: Relations): NativeJourneyGraph {
+/** The file graph as the addon's walks read it. */
+export function flatten(relations: Relations): NativeJourneyGraph {
   return {
     names: relations.names,
     kinds: relations.kinds,
@@ -104,7 +103,7 @@ export async function projectJourneyFile(
       file: test.file,
       name: test.name,
       ...(test.stopped == null ? {} : { stopped: test.stopped }),
-      ...(test.preconditions == null ? {} : preconditionsSpelled(test.preconditions)),
+      ...(test.said == null ? {} : { said: test.said }),
     })),
     modules: projected.modules.map((module) => ({
       file: module.file,

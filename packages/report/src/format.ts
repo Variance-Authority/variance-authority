@@ -465,6 +465,12 @@ export interface ObservationRecord {
     readonly after?: string;
     readonly diff?: string;
     /**
+     * The change at its own size: each of the largest regions cropped with the
+     * rows around it, before beside after with the change marked. Absent
+     * when no region was isolated, and then `before` and `after` are the picture.
+     */
+    readonly change?: string;
+    /**
      * The candidate's sidecar — document digest, component hashes, ARIA tree.
      *
      * Written for every subject, and for a subject that occupies no pixels it is

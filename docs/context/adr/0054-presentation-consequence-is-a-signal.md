@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-08-26
+**Amended by:** [ADR-0090](0090-a-moved-identity-is-a-cause-not-a-verdict.md) — a side with no presentation reading, or no layout findings, is `changed`, names that side and carries no effects; neither side measured is no signal. It still changes no subject's verdict
 **Extends:** ADR-0015 (findings do not change verdicts by default), ADR-0050
 (presentation evidence is not a regression lifecycle), ADR-0053 (product meaning
 names hierarchy roles)

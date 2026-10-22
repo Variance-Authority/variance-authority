@@ -16,7 +16,8 @@ import type {
   PresentationEffectRecord,
 } from '@variance-authority/report';
 import type { CliObservationRecord } from './run-report.js';
-import { cmd, copy, markers, px, section, slug, text } from './report-html-elements.js';
+import { cmd, copy, markers, opening, px, section, slug, text } from './report-html-elements.js';
+import type { Picture, Placement } from './report-html-pictures.js';
 
 /**
  * A subject: the comparison, what moved in it, and what to type next.
@@ -29,13 +30,23 @@ import { cmd, copy, markers, px, section, slug, text } from './report-html-eleme
 
 /* --- subjects ------------------------------------------------------------- */
 
-export function subjects(reviewable: readonly CliObservationRecord[]): string {
-  if (reviewable.length === 0) return '';
-  return section(
-    'Subjects',
-    `${reviewable.length} to look at`,
-    reviewable.map((entry) => subject(entry)).join(''),
-  );
+/**
+ * Every subject the page shows, a card at a time.
+ *
+ * In pieces rather than one string, because this is the part of the page that
+ * grows with the run: a reader that writes as it is handed them holds a card,
+ * not the suite.
+ */
+export function* subjects(reviewable: readonly CliObservationRecord[], placement: Placement): Generator<string> {
+  if (reviewable.length === 0) return;
+  yield opening('Subjects', `${reviewable.length} to look at`);
+  for (const entry of reviewable) yield subject(entry, placement);
+  yield '</section>';
+}
+
+/** Both green verdicts are excluded, for the reason `Docket.reviewable` gives. */
+export function needsReview(verdict: ObservationRecord['verdict']): boolean {
+  return verdict !== 'unchanged' && verdict !== 'ignored';
 }
 
 /** Relationship consequences stay visible without changing which verdicts need review. */
@@ -43,10 +54,10 @@ export function presentationImpact(observations: readonly ObservationRecord[]): 
   const entries = observations.flatMap((entry) => {
     const signal = entry.signals?.presentation;
     if (signal === undefined || signal.verdict === 'unchanged') return [];
-    if (signal.verdict === 'incomparable') {
+    if ('because' in signal) {
       return [
         `<li><code>${text(entry.subject)}</code> ` +
-          `<span class="mark warn">incomparable</span>${text(signal.because)}</li>`,
+          `<span class="mark warn">changed</span>${text(signal.because)}</li>`,
       ];
     }
     const information = signal.information.contentPreserved
@@ -88,24 +99,37 @@ function evidenceHtml(side: string, evidence: PresentationEffectEvidence): strin
 /**
  * One subject: the comparison, what moved in it, and what to type next.
  *
- * The viewer's default is `regions` for the reason `tribunal`'s is — a reviewer
- * arriving at a subject should first be told *which boxes moved and who owns
- * them*, because that is the question a screenshot cannot answer and the one that
- * decides whether the change is the one somebody meant to make. The other modes
- * are the category's and are genuinely useful once you already know that.
+ * The viewer opens on `change` when the run cut one: the largest regions
+ * cropped with the rows around them, before beside after with the change
+ * marked on both, at one image pixel per screen pixel. A full-page capture
+ * fitted to the column is a few pixels per sentence, so the crop is the only picture of a tall page a
+ * reviewer can read without leaving it. Without a crop it opens on `regions`
+ * for the reason `tribunal` does — a reviewer arriving at a subject should first
+ * be told *which boxes moved and who owns them*, because that is the question a
+ * screenshot cannot answer and the one that decides whether the change is the
+ * one somebody meant to make. The other modes are the category's and are
+ * genuinely useful once you already know that.
  *
  * When three images exist the arrangement is **before · diff · after**: the diff
  * is the reason the page is open, and putting it third makes the reader's eye
  * travel past the two things they are trying to compare in order to reach it.
  */
-function subject(entry: CliObservationRecord): string {
-  const images = entry.images ?? {};
+function subject(entry: CliObservationRecord, placement: Placement): string {
+  const named = entry.images ?? {};
+  const left = SIDES.flatMap((side) => {
+    const page = named[side] === undefined ? undefined : placement.omitted(named[side]);
+    return page === undefined ? [] : [[side, page] as const];
+  });
+  const images: Partial<Record<Side, string>> = { ...named };
+  for (const [side] of left) delete images[side];
   const has = {
     before: images.before !== undefined,
     after: images.after !== undefined,
     diff: images.diff !== undefined,
+    change: images.change !== undefined,
   };
   const modes = modesFor(has, entry.regions.length);
+  const opens = new Set(OPENS[modes[0] ?? 'trio']);
 
   const stage =
     modes.length === 0
@@ -113,11 +137,10 @@ function subject(entry: CliObservationRecord): string {
       : '<div class="stage" data-mode="' +
         text(modes[0] ?? 'trio') +
         '">' +
-        (has.before ? `<img class="before" src="${text(images.before ?? '')}" alt="before">` : '') +
-        (has.diff ? `<img class="diff" src="${text(images.diff ?? '')}" alt="diff">` : '') +
-        (has.after ? `<img class="after" src="${text(images.after ?? '')}" alt="after">` : '') +
+        SIDES.map((side) => picture(side, images[side], placement, opens.has(side))).join('') +
         '<div class="boxes"></div><div class="handle"></div>' +
-        '</div>';
+        '</div>' +
+        leftOut(left);
 
   const toolbar =
     modes.length < 2
@@ -155,11 +178,54 @@ function subject(entry: CliObservationRecord): string {
   );
 }
 
+type Side = 'before' | 'diff' | 'after' | 'change';
+
+/** In the order the stage lays them out. */
+const SIDES: readonly Side[] = ['before', 'diff', 'after', 'change'];
+
+/** The pictures each mode shows, so the ones a card opens on are carried first. */
+const OPENS: Readonly<Record<string, readonly Side[]>> = {
+  change: ['change'],
+  regions: ['after'],
+  wipe: ['before', 'after'],
+  blend: ['before', 'after'],
+  blink: ['before', 'after'],
+  trio: ['before', 'diff', 'after'],
+  diff: ['diff'],
+};
+
+/**
+ * The full pages the page does not carry, by name and size, for the reason
+ * `report-html-pictures` gives. Each is still a file beside `report.json`.
+ */
+function leftOut(pages: readonly (readonly [Side, Picture])[]): string {
+  if (pages.length === 0) return '';
+  const sizes = pages.map(([side, page]) => `${side} ${dimensions(page)}`).join(' · ');
+  return (
+    `<p class="left" title="Longer than 16,384 pixels, so this file does not carry it; the change picture shows what moved in it. Each is a file beside report.json.">` +
+    `${text(sizes)}<span class="mark quiet">full page not carried</span></p>`
+  );
+}
+
+function dimensions({ width, height }: Picture): string {
+  return `${width ?? '?'}×${height ?? '?'}`;
+}
+
+/**
+ * One side of the comparison. Lazy, because a run's pictures decoded at once
+ * are gigabytes of bitmap and a reviewer looks at a few of them at a time.
+ */
+function picture(side: Side, path: string | undefined, placement: Placement, opens: boolean): string {
+  if (path === undefined) return '';
+  return `<img class="${side}" ${placement.attributes(path, opens)} alt="${side === 'change' ? 'before beside after, the change marked' : side}" loading="lazy" decoding="async">`;
+}
+
 function modesFor(
-  has: { before: boolean; after: boolean; diff: boolean },
+  has: { before: boolean; after: boolean; diff: boolean; change: boolean },
   regionCount: number,
 ): readonly string[] {
   const modes: string[] = [];
+  if (has.change) modes.push('change');
   if (has.after && regionCount > 0) modes.push('regions');
   if (has.before && has.after) modes.push('wipe', 'blend', 'blink');
   if (has.before && has.diff && has.after) modes.push('trio');

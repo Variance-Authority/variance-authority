@@ -26,7 +26,7 @@ import {
 import { UNTIMED, type CaseDurations } from './case-durations.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
-import { heardAcross, preconditionsHeard, type Said } from './case-precondition-column.js';
+import { saidJoined, type Said } from './case-said.js';
 import preconditions from './case-preconditions.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
@@ -60,8 +60,8 @@ export interface CaseFold {
 interface Coordinate extends CaseCoordinate {
   /** How the case settled across its frames, by `settledAcross`. */
   stopped?: boolean;
-  /** What the case said it arranged, across its frames; absent where no frame listened. */
-  said?: Said;
+  /** What each of its frames said it arranged, as the realm wrote it; absent where a frame's writer never listened. */
+  readonly said: (Said | undefined)[];
   /** Every frame written under this coordinate, in replay order. */
   readonly frames: number[];
   /** Whether a module row of the case's own frames was cut at its statements. */
@@ -106,7 +106,7 @@ export async function inspectCaseRun(
         const located = { ...coordinate, file: projectPath(root, coordinate.file) };
         const key = caseKey(located);
         // A case that watched is a case, whether or not it crossed anything.
-        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), frames: [] });
+        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), said: [], frames: [] });
         const rows = looked.get(key) ?? [];
         if (eyes.journal !== undefined) rows.push({ attempt: eyes.attempt, journal: eyes.journal });
         looked.set(key, rows);
@@ -121,12 +121,12 @@ export async function inspectCaseRun(
             const located = { ...coordinate, file: projectPath(root, coordinate.file) };
             const key = caseKey(located);
             const held = coordinates.get(key);
-            const said = preconditions.saidOf(packed);
+            const said = preconditions.heardField(packed);
             if (held === undefined) {
               scanning = {
                 ...caseOf(located),
                 ...settledAcross(coordinate.stopped, undefined),
-                ...(said === undefined ? {} : { said }),
+                said: [said],
                 frames: [frame],
               };
               coordinates.set(key, scanning);
@@ -135,8 +135,7 @@ export async function inspectCaseRun(
               held.frames.push(frame);
               const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
               if (settled !== undefined) held.stopped = settled;
-              const heard = heardAcross(held.said, said);
-              if (heard !== undefined) held.said = heard;
+              held.said.push(said);
             }
             frame += 1;
           } else {
@@ -161,13 +160,14 @@ export async function inspectCaseRun(
   const tests = ordered.map((coordinate, at): ExecutionTest => {
     for (const written of coordinate.frames) frameTests[written] = at;
     const duration = durations(coordinate.file, coordinate.name, coordinate.id);
+    const said = coordinate.said.some((field) => field !== undefined) ? saidJoined(root, coordinate.said) : undefined;
     return {
       id: ids.get(caseKey(coordinate))!,
       file: coordinate.file,
       name: coordinate.name,
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
       ...(duration === undefined ? {} : { duration }),
-      ...preconditionsHeard(root, coordinate.said),
+      ...(said === undefined ? {} : { said }),
     };
   });
   const testsByFile = new Map<string, readonly [number, number]>();

@@ -26,4 +26,29 @@ describe('scanSource', () => {
       Button: [{ file: join('src', 'Button.tsx'), line: 4, via: 'function' }],
     });
   });
+
+  it('walks an absolute directory where it is, and names its files from the root', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
+    made.push(root);
+    await mkdir(join(root, 'src'));
+    await writeFile(join(root, 'src', 'Button.tsx'), 'export function Button() { return null; }\n');
+
+    expect(scanSource(root, { dirs: [join(root, 'src')] })).toEqual({
+      Button: [{ file: join('src', 'Button.tsx'), line: 1, via: 'function' }],
+    });
+  });
+
+  it('refuses a dirs list that matches no source file, naming the directories it walked', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
+    const outside = await mkdtemp(join(tmpdir(), 'variance-source-'));
+    made.push(root, outside);
+    const elsewhere = join(outside, 'absent');
+
+    expect(() => scanSource(root, { dirs: ['missing', elsewhere] })).toThrow(
+      expect.objectContaining({
+        message: expect.stringContaining(`no source files under ${join(root, 'missing')}, ${elsewhere} matching`),
+        varianceOperatorError: true,
+      }),
+    );
+  });
 });

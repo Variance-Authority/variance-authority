@@ -68,6 +68,14 @@ first.
   `mintJourney`, and the per-execution factory behind the probe's global
 - `packages/sense/src/test-selection/stitch.ts` — `stitchJourneys`, the driver's
   join, and the name unattributed regions report under
+- `packages/sense/src/test-selection/journey-driver.ts` — `driveJourneys`, the
+  driver's listener, the two cookies one execution rides on, and the wait for
+  scopes still open
+- `packages/sense/src/test-selection/subject-recorder.ts` — `createSubjectRecorder`,
+  one row per **subject** of a visual run, page and heads joined; the story and
+  route collectors record through it
+- `packages/route-collector/src/execution.ts` — a page's journey on its browser
+  context, and the files its root names in `data-variance-reads`
 - `packages/cli/src/commands/journey.ts` — the ground the joined observations become
 
 ## Diagram

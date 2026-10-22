@@ -1,6 +1,6 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Documented, Entry, Opening } from '@variance-authority/package/help';
-import { opening } from '@variance-authority/package/help';
+import { mayBeRead, opening, undecided } from '@variance-authority/package/help';
 import { specifierOf } from './find.js';
 
 /**
@@ -29,9 +29,16 @@ export function audience(entry: Entry, cap: number): string {
 }
 
 /** How much of the repository reaches for this, in the words an asker ranks on. */
-export function reach(entry: Entry): string {
-  if (entry.usedBy.length === 0) return 'used by nothing outside its own package';
-  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'}`;
+export function reach(published: Documented, held: Opening, entry: Entry): string {
+  // A read off `default`, or the module passed on whole, may read the name and is no use of it.
+  const may = undecided(published.name, held, entry);
+  if (entry.usedBy.length === 0) {
+    return may.length === 0
+      ? 'used by nothing outside its own package'
+      : `not imported by name outside its own package; it ${mayBeRead(may)}, so whether it is used is unknown`;
+  }
+  const also = may.length === 0 ? '' : `; it also ${mayBeRead(may)}`;
+  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'}${also}`;
 }
 
 /** What a list line reads of a published name: the audience counted, never named. */
@@ -96,7 +103,7 @@ export function block(published: Documented, held: Opening, entry: Entry): strin
     `${entry.name} [${entry.kind}]`,
     importing(published, held, entry),
     `declared at ${entry.at}:${entry.line}`,
-    reach(entry),
+    reach(published, held, entry),
   ];
 
   if (entry.signature !== undefined) lines.push('', entry.signature);

@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
-import { decodeExecutionIndex } from './execution-format.js';
+import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { editsBetween } from './region-edit.js';
@@ -115,7 +115,7 @@ export interface LastCaseRun {
  * which is the text it was cut from. A module the run recorded from another
  * text lands its held cases through the edit between the two: the regions the
  * edit left alone keep them, at the lines it places them, and the regions it
- * touched keep none. A module whose text is not known on both sides, or not
+ * touched keep them only where the edit's reading spares their kind. A module whose text is not known on both sides, or not
  * found, is read as changed whole.
  *
  * `stands` is the commit the record's snapshot stands at. When `previous`
@@ -203,7 +203,7 @@ export function layCases(
   const journals = layEyes(previous.eyes, eyes, cases, announced);
   return {
     index: merged,
-    last: spelledLast(named),
+    last: spelledLast(named, merged),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
@@ -243,7 +243,20 @@ function textsOfBefore(
 export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
   if (sections.last === undefined) return undefined;
   try {
-    return JSON.parse(Buffer.from(sections.last).toString('utf8')) as LastCaseRun;
+    const run = JSON.parse(Buffer.from(sections.last).toString('utf8')) as Omit<LastCaseRun, 'cases'> & {
+      readonly cases: readonly string[] | { readonly references: readonly (number | string)[] };
+    };
+    if (run === null || !Array.isArray(run.files)) return undefined;
+    if (Array.isArray(run.cases)) return run.cases.every((id) => typeof id === 'string') ? { ...run, cases: run.cases } : undefined;
+    const references = (run.cases as { readonly references?: unknown } | undefined)?.references;
+    if (!Array.isArray(references)) return undefined;
+    const tests = references.some((id) => typeof id === 'number') ? decodeExecutionTests(sections.index!) : [];
+    const cases = references.map((id: unknown) => {
+      if (typeof id === 'string') return id;
+      if (typeof id !== 'number' || !Number.isInteger(id) || id < 0 || tests[id] === undefined) throw new Error('unresolved last-run case row');
+      return tests[id]!.id;
+    });
+    return { ...run, cases };
   } catch {
     return undefined;
   }
@@ -264,11 +277,11 @@ export type CaseLanding =
   /** `shards` shards' cases were laid into the record at `laid`, in the order they were named. */
   | { readonly laid: string; readonly shards: number }
   /**
-   * A shard that finished a test file kept no cases this build can read, so
-   * the record at `unanswered` can answer for none of that file's cases.
+   * Shards that finished a test file kept no cases this build can read, so
+   * the record at `unanswered` can answer for none of those files' cases.
    * `removed` says whether it held any to drop.
    */
-  | { readonly unanswered: string; readonly shard: string; readonly removed: boolean };
+  | { readonly unanswered: string; readonly shards: readonly string[]; readonly removed: boolean };
 
 /**
  * The case sections of `record` once a landing lays its shards' cases into it,
@@ -345,7 +358,7 @@ export function landCases(
       laid += 1;
     } else if (run.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);
-      return { landing: { unanswered: record, shard: shard.path, removed }, sections: {} };
+      return { landing: { unanswered: record, shards: [shard.path], removed }, sections: {} };
     }
   }
   return { landing: { laid: record, shards: laid }, sections: laid > 1 ? lastOfEveryShard(sections, ran) : sections };
@@ -362,12 +375,16 @@ function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): Cas
   const last = lastCaseRunOf(sections)!;
   const index = openSetExecutionIndex(sections.index!)!;
   const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
-  return { ...sections, last: spelledLast({ ...last, cases }) };
+  return { ...sections, last: spelledLast({ ...last, cases }, sections.index!) };
 }
 
-/** The last-run section's bytes. */
-function spelledLast(named: LastCaseRun): Buffer {
-  return Buffer.from(`${JSON.stringify(named, null, 2)}\n`);
+/** The last-run section: references into its index, with an exact identity for a case the index no longer holds. */
+function spelledLast(named: LastCaseRun, index: Uint8Array): Buffer {
+  const rows = new Map(decodeExecutionTests(index).map((test, at) => [test.id, at]));
+  // References name this index's case rows, never files inferred from them.
+  // An identity the index retired remains exact rather than disappearing.
+  const references = named.cases.map((id) => rows.get(id) ?? id);
+  return Buffer.from(`${JSON.stringify({ ...named, cases: { references } }, null, 2)}\n`);
 }
 
 /** The run a shard's own last-run section names, every file of it finished; `undefined` when it names none. */

@@ -450,7 +450,7 @@ export async function askPerStand<Distance extends TestDistance>(
   const stale = new Set<string>();
   const keep = (answer: StandAnswer<Distance>, at: number): void => {
     for (const test of answer.narrowing.entered) if (mine(at)(test)) entered.add(test);
-    for (const cause of answer.narrowing.because) {
+    for (const cause of answer.narrowing.because ?? []) {
       if (!mine(at)(cause.test)) continue;
       const via = because.get(cause.test) ?? new Map<string, SelectionReason>();
       for (const reason of cause.via) via.set(JSON.stringify(reason), reason);

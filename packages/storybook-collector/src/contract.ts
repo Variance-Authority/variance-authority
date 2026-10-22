@@ -94,8 +94,8 @@ export interface PlannedSubject {
    * from — and it is the right one anyway: what a subject *is* belongs in its
    * own name, next to it, rather than in a central file repeating every id.
    * How a story is *read* — excluded, resized, read at several widths — comes
-   * from its parameters, which `withParameters` lays over this plan from the
-   * running preview.
+   * from its parameters, which are read when the story is reached: see
+   * {@link Visit}.
    *
    * Selection lives here; definition lives in the config. A tag is a word a
    * story wears, and what that word *means* is the operator's to write down
@@ -139,7 +139,44 @@ export type Collected =
        */
       readonly diagnostics?: readonly Diagnostic[];
     }
-  | { readonly ok: false; readonly because: string };
+  | {
+      readonly ok: false;
+      readonly because: string;
+      /**
+       * The subject asked not to be read, and was not: an exclusion the run
+       * reports with its reason, not a failure. Absent for every other refusal.
+       */
+      readonly excluded?: true;
+    };
+
+/** One subject a visit read: the subject as it was realized, and its reading. */
+export interface VisitedSubject {
+  readonly planned: PlannedSubject;
+  readonly collected: Collected;
+}
+
+/**
+ * What reaching one planned subject produced, when it is not one reading.
+ *
+ * A plan is made before any subject is visited, and some of what decides how a
+ * subject is read is only known at the visit: a story's widths live in its
+ * parameters, which are read when its file is loaded. So a visit may realize
+ * several subjects — one per width, each the planned id at that width,
+ * `<id>@<digits>` — or the planned subject at a viewport it declared, and say
+ * what it could not read on the way. A visit that realizes any other id fails
+ * its story.
+ */
+export interface Visit {
+  readonly subjects: readonly VisitedSubject[];
+  readonly warnings?: readonly string[];
+  /**
+   * Present when the visit could not learn every subject the planned one
+   * realizes — a story whose parameters were not read, so its widths are
+   * unknown. The run then treats what the store holds of the planned subject
+   * as it does for a subject it did not visit: planned, not left behind.
+   */
+  readonly incomplete?: true;
+}
 
 export interface CollectorContext {
   readonly config: CollectorConfig;
@@ -149,7 +186,7 @@ export interface CollectorContext {
 
 export interface Collector {
   plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
+  collect(subject: PlannedSubject): Promise<Collected | Visit>;
 
   /**
    * The frames a snapshot carries, spent on demand.

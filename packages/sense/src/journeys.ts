@@ -14,14 +14,14 @@
 
 // compass: variance-authority.reach.relations
 
-import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { checkoutListing, checkoutPath, type CheckoutListing } from './checkout-path.js';
+import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
 import { BUILTINS } from './native-index-graph.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
+import { declaredTsconfig } from './typescript.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
@@ -111,21 +111,10 @@ function knownOf(root: string, file: string, recording: string, listing: Checkou
   // commit-runs' `standing`; carry that instead.
   const at = commitOf(recording);
   if (at.commit == null) return { module, ...now, ...(at.unread == null ? {} : { unread: at.unread }) };
-  const then = gitLists(root, ['ls-tree', '--name-only', at.commit, '--', file]);
+  const then = existedAt(root, at.commit, file);
   return typeof then === 'boolean'
     ? { module, ...now, commit: at.commit, existed: then }
-    : { module, ...now, commit: at.commit, unread: then.unread || `git could not list ${at.commit}` };
-}
-
-/** Whether a git listing names anything, or the first line git gave for not answering. */
-function gitLists(root: string, args: readonly string[]): boolean | { unread: string } {
-  try {
-    const listed = execFileSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    return listed.trim() !== '';
-  } catch (error) {
-    const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);
-    return { unread: said.trim().split('\n')[0] ?? '' };
-  }
+    : { module, ...now, commit: at.commit, unread: then.unread };
 }
 
 /** One suite's prepared journeys, or why none were prepared. */
@@ -147,6 +136,8 @@ export async function prepareJourneys(
 ): Promise<readonly PreparedJourneys[]> {
   const listing = scanned?.listing;
   const walk = listing?.prepareJourneys?.bind(listing) ?? entry('prepareJourneys');
+  // A call lands where the scan that built the index put it.
+  const tsconfig = declaredTsconfig(root);
   const prepared: PreparedJourneys[] = [];
   for (const { suite, recording, looked } of recordings(root)) {
     const named = suite === undefined ? {} : { suite };
@@ -161,7 +152,7 @@ export async function prepareJourneys(
       continue;
     }
     const at = commitOf(recording);
-    const made = walk(root, index, recording, at, out, BUILTINS);
+    const made = walk(root, index, recording, at, out, BUILTINS, tsconfig);
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });
   }
   return prepared;

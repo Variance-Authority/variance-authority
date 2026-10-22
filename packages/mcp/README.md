@@ -5,6 +5,7 @@
 > Let an agent ask questions about a test run that has already finished.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Use this package only to hand an already-finished run, or an execution index,
 to an agent that speaks MCP.
@@ -38,7 +39,7 @@ variance run --config variance.config.json
 `variance run` writes the report at the path the config's `report` key names,
 `.variance/report.json` unless you change it. Setting up the config and the
 collector that mounts each UI state is
-[run visual review from the command line](https://variance-authority.dev/docs/start-cli).
+[run visual review from the command line](https://variance-authority.dev/start/cli).
 
 The report lists one record per **subject** — one named UI state you asked for
 and can ask for again, such as `checkout/empty`. Storybook stories become
@@ -61,7 +62,7 @@ When that report is not on disk, `variance serve` answers from the report CI
 published to the share for your branch or mainline, and every report answer
 opens with the line and commit it was read from. The CLI's page says [which
 record it reads and what it
-prints](../cli/README.md#a-checkout-with-no-run-of-its-own).
+prints](https://variance-authority.dev/reference/packages/cli#a-checkout-with-no-run-of-its-own).
 `variance-authority-mcp` reads only the path it is given.
 
 Install this package when you want the server without the CLI, or when the
@@ -241,7 +242,7 @@ three different people:
 
 | label | what happened | what to do |
 |---|---|---|
-| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band show where. Do not review the pixel regions — which ones appear was decided by a race |
+| `unstable` | read twice in a row, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band show where. Do not review the pixel regions — which ones appear was decided by a race |
 | `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
 | `changed` | it survived both | review it |
 
@@ -359,7 +360,7 @@ It is a subject of its own rather than a report because the times a reader
 wants are usually the mainline's, which cover the whole suite, and no report
 anybody has open holds them. `variance serve` reads them from the share, and
 `variance ask costs` calls the same tool from a shell; see
-[the CLI](../cli/README.md).
+[the CLI](https://variance-authority.dev/reference/packages/cli).
 
 ```js
 import { COSTS_TOOLS } from '@variance-authority/mcp/tools';
@@ -392,7 +393,7 @@ token, which reads what review settled and never decides, so an agent holding
 this connection cannot approve or reject anything. Keep the token in an
 environment variable that the share declaration names:
 `"token": { "env": "VARIANCE_SHARE_TOKEN" }`. `variance ask decisions` calls the
-same tool from a shell; see [the CLI](../cli/README.md).
+same tool from a shell; see [the CLI](https://variance-authority.dev/reference/packages/cli).
 
 ```js
 import { REVIEW_TOOLS } from '@variance-authority/mcp/tools';
@@ -512,7 +513,7 @@ against a suite in flight the same way it works against a report.
 The same three questions, and `variance_diff` with them, are on the command line
 without a client: `variance watch` hosts the run and `variance ask <question>
 --at <address>` reads it. Same functions, same text, no client configuration to
-edit — see [ask a run from the command line](https://variance-authority.dev/docs/agent-cli).
+edit — see [ask a run from the command line](https://variance-authority.dev/agents/cli).
 
 ## Give an agent the tests for source
 
@@ -633,10 +634,10 @@ the producer and route for every unavailable domain:
 
 | unavailable domain | supply it from | integration contract |
 |---|---|---|
-| visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](https://variance-authority.dev/docs/start-cli) |
+| visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](https://variance-authority.dev/start/cli) |
 | presentation readings | `@variance-authority/presentation/playwright` | call `sensePresentation` on the live subject and supply the returned full graph; see [presentation](https://variance-authority.dev/docs/presentation) |
 | runtime journey | a Vitest run wrapped with `withTestSelection`, or any other per-test collector | supply an `ExecutionIndex` with stable per-test ids; see [record which case covered a region](https://variance-authority.dev/reference/packages/sense#record-which-case-covered-a-region) |
-| live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/docs/agent-live-run) |
+| live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/agents/live-run) |
 | Eyes attention | `@variance-authority/eyes` | compose the host adapter in a recording run, so each case's journal lands in its record under the case's id, author AAA phase markers, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
 | scenario AAA | `@variance-authority/scenario` | record host-produced semantic snapshots and authored Acts, then use the archive entrypoint when the evidence must survive the process; see the [scenario reference](https://variance-authority.dev/reference/packages/scenario) |
 
@@ -673,6 +674,8 @@ composes when the report does not come from a file:
 | `output` | the `Writable` responses leave on |
 | `served` | the `Served<Subject>` name and tools for the subject; use `REPORTS` for a `RunReport` or supply a set for another serializable subject |
 | `subject` | supplies the current subject. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
+| `again` | a subject to ask a refused call of once more, for a host whose subject is a reading it reuses and may predate the file that answers, and a footer for a refusal that still stands |
+| `answered` | the text a well-formed call still refused after `again` answers with instead, as a result rather than an error, given what its tool threw and what your `again` returned; return nothing to let the refusal stand. It runs with or without `again`: a host that reads its subject fresh for every call still says its thrown answers here. A tool that throws an answer so `again` reads it once more, such as a name nothing declares, is answered here |
 
 A `Served` is a name, a version and the tools. It may also include
 `instructions`, a function of the subject whose answer the client puts in front
@@ -701,4 +704,4 @@ pin the version.
 
 ---
 
-**[@variance-authority/mcp](https://variance-authority.dev/reference/packages/mcp)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/mcp](https://variance-authority.dev/reference/packages/mcp)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/mcp) · MIT

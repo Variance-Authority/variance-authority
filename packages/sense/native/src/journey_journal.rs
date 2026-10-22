@@ -4,10 +4,12 @@ use std::path::{Path, PathBuf};
 
 use crate::case_id::{self, CaseIds};
 use crate::case_owner::{journey_of, project_of, project_path, unpack_case};
-use crate::case_preconditions::{self, Precondition};
+use crate::case_said::{self, Heard};
 use crate::order;
 
-const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
+const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x03];
+/// The moment a file's collection ended, a double after the frame's name: Jest's timing, not this fold's.
+const TIME_BYTES: usize = 8;
 /// `VAEYS`: an Eyes frame rides beside the case frames (`eyes-frame.cts`) and
 /// crosses nothing, so every fold steps over it.
 const EYES_MAGIC: [u8; 8] = [0x56, 0x41, 0x45, 0x59, 0x53, 0x00, 0x00, 0x01];
@@ -33,8 +35,9 @@ pub struct Test {
     pub runner: Option<String>,
     /// How the case settled: [`UNSETTLED`], [`FINISHED`] or [`STOPPED`].
     pub settled: u8,
-    /// What the case said it arranged, resolved; `None` where nobody listened.
-    pub preconditions: Option<Vec<Precondition>>,
+    /// Everything the case said it arranged and the code read, unresolved;
+    /// `None` where nobody listened.
+    pub heard: Option<Heard>,
 }
 
 /// The `tests.stopped` column's three states, as `execution-set-format.ts`
@@ -88,8 +91,8 @@ struct Coordinate {
     settled: u8,
     /// Every journey a frame of the case handed out, in replay order.
     journeys: Vec<String>,
-    /// What the case said across its frames, by [`case_preconditions::heard_across`].
-    said: Option<Vec<Precondition>>,
+    /// What the case heard across its frames, by [`case_said::join`].
+    heard: Option<Heard>,
     /// Every frame written under this coordinate, in replay order.
     frames: Vec<usize>,
 }
@@ -129,7 +132,7 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
             project: coordinate.project,
             runner: Some(coordinate.id),
             settled: coordinate.settled,
-            preconditions: coordinate.said.map(case_preconditions::resolve),
+            heard: coordinate.heard,
         });
     }
     let mut tests_by_file = HashMap::new();
@@ -269,7 +272,7 @@ impl Visitor for InspectVisitor<'_> {
             // A case is written when it settles, so work that outlived it
             // arrives as a second frame under the same coordinate: one case,
             // joined as `inspectCaseRun` joins it.
-            let said = case_preconditions::said_of(packed)?.map(|said| case_preconditions::checkout(self.root, said));
+            let heard = case_said::of_frame(packed)?.map(|heard| case_said::heard(self.root, heard));
             let journey = journey_of(packed);
             let key = (project_path(self.root, file), name.to_owned(), id.to_owned(), project_of(packed).map(str::to_owned));
             match self.at.get(&key) {
@@ -277,7 +280,7 @@ impl Visitor for InspectVisitor<'_> {
                     let coordinate = &mut self.coordinates[held];
                     coordinate.frames.push(self.frame);
                     coordinate.settled = settled_across(coordinate.settled, settled);
-                    coordinate.said = case_preconditions::heard_across(coordinate.said.take(), said);
+                    coordinate.heard = case_said::join(coordinate.heard.take(), heard);
                     if !journey.is_empty() && !coordinate.journeys.iter().any(|known| known == journey) {
                         coordinate.journeys.push(journey.to_owned());
                     }
@@ -288,7 +291,7 @@ impl Visitor for InspectVisitor<'_> {
                     self.coordinates.push(Coordinate {
                         file, name, id, project, settled,
                         journeys: if journey.is_empty() { Vec::new() } else { vec![journey.to_owned()] },
-                        said,
+                        heard,
                         frames: vec![self.frame],
                     });
                 }
@@ -362,6 +365,7 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
         }
     }
     visitor.test(&read.text()?)?;
+    read.take(TIME_BYTES)?;
     let count = read.number()?;
     let mut scratch = Vec::new();
     for _ in 0..count {
@@ -441,14 +445,16 @@ impl<'a> Reader<'a> {
         }
     }
 
+    fn take(&mut self, bytes: usize) -> Result<&'a [u8], String> {
+        let end = self.at.checked_add(bytes).ok_or_else(damaged)?;
+        let taken = self.raw.get(self.at..end).ok_or_else(damaged)?;
+        self.at = end;
+        Ok(taken)
+    }
+
     fn text(&mut self) -> Result<String, String> {
         let length = self.number()? as usize;
-        let end = self.at.checked_add(length).ok_or_else(damaged)?;
-        let value = std::str::from_utf8(self.raw.get(self.at..end).ok_or_else(damaged)?)
-            .map_err(|_| damaged())?
-            .to_owned();
-        self.at = end;
-        Ok(value)
+        std::str::from_utf8(self.take(length)?).map(str::to_owned).map_err(|_| damaged())
     }
 
     fn skip(&mut self) -> Result<(), String> {

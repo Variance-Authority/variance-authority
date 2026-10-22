@@ -98,7 +98,7 @@ function reference(query: string): ReadonlySet<string> {
     held.set(name, doc === '' ? written : `${written} ${doc}`);
   };
   for (const [, , entry] of everyEntry(HELP)) keep(entry.name, entry.doc ?? '');
-  for (const named of HELP.exported) keep(named.name, '');
+  for (const named of HELP.exported) keep(named.name, named.doc ?? '');
 
   const mini = new MiniSearch<{ id: number; name: string; doc: string }>({
     fields: ['name', 'doc'],

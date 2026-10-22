@@ -36,10 +36,10 @@ const live = READY ? describe : describe.skip;
 async function pageScript(): Promise<string> {
   const path = join(fixture, 'cart.js');
   const source = await readFile(path, 'utf8');
-  const { code } = testSelectionProbes({ root: fixture }).transform(source, path) as { code: string };
+  const { code } = testSelectionProbes({ root: fixture }).transform.handler(source, path) as { code: string };
   // A bundler resolves the collector import; a script tag has none, so the
   // collector goes in front of the module in its own block.
-  return `{${executionCollectorSource()}}\n${code.replace(/^import "[^"]+";/, '')}`;
+  return `{${executionCollectorSource()}}\n${code.replace(/\n;import "[^"]+";$/, '')}`;
 }
 
 function playwright(env: Record<string, string>): Promise<{ code: number | null; output: string }> {

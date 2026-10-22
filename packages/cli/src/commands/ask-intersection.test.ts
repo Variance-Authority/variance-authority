@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { main } from '../bin.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { askSource } from './ask.js';
 
 /**
@@ -95,6 +97,25 @@ describe('ask intersection over a checkout', () => {
     const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1 });
     expect(text).toContain('2 files in all of them.');
     expect(text).toContain('1 more not shown');
+  });
+});
+
+describe('ask intersection over a name nothing declares', () => {
+  it('answers that no file is in all of them, names the question that found nothing, and exits 0', async () => {
+    let out = '';
+    let err = '';
+    const code = await main(['ask', 'intersection', 'symbol --name selectBalance', 'uses --name nothingByThisName'], {
+      out: (text) => {
+        out += text;
+      },
+      err: (text) => {
+        err += text;
+      },
+    });
+    expect({ code, err }).toEqual({ code: EXIT_CLEAN, err: '' });
+    expect(out).toContain('1. `symbol --name selectBalance`: 2 files');
+    expect(out).toMatch(/2\. `uses --name nothingByThisName`: 0 files — .*nothingByThisName/u);
+    expect(out).toContain('No file is in all of them.');
   });
 });
 

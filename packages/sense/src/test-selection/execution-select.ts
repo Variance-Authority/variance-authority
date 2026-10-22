@@ -36,7 +36,7 @@
  * (`beyondReach`), and is answered as they are.
  */
 
-import { affectedBy, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { ownedIn, type ExecutionIndex, type ExecutionModule } from './reverse.js';
@@ -87,7 +87,7 @@ export function narrowByJourneys(
 
   const importers = (file: string): readonly string[] | undefined => {
     if (relations === undefined) return undefined;
-    const affected = affectedBy(relations, [file]);
+    const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
     return affected.missing.length > 0 ? undefined : affected.files.filter((test) => held.has(test));
   };
   const everyEntrant = (module: ExecutionModule): void => {
@@ -145,7 +145,6 @@ export function narrowByJourneys(
     unread: unread.sort(codeUnitOrder),
     ...(options.unmeasured === 'nothing' ? { declined: declined.sort(codeUnitOrder) } : {}),
     stale: [],
-    because: [],
   };
 }
 

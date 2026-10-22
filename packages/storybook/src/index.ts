@@ -56,6 +56,8 @@ export {
   collectStories,
   readParameters,
 } from './preview.js';
+export { watchStoryTiming } from './story-timing.js';
+export type { StoryTiming } from './story-timing.js';
 export type {
   BrowserHarness,
   ShowEvents,

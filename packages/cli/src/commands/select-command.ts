@@ -36,7 +36,6 @@
  * that cannot be compared declines to narrow.
  */
 
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -45,15 +44,17 @@ import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
 import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
-import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
+import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
-import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
+import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
 import { handedDiff, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
+import { probesGap, probesNote } from './probes-gap.js';
+import { fetchable } from './execution-input.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
@@ -138,7 +139,12 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   oneRecord(request.suite, request.execution, '--execution');
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
-  const said = (input: SelectInput) => suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+  // The record the selection reads, which a shard's record names; a skip list alone does not say which.
+  const read = found.held ? selection.recordDigestAt(at) : undefined;
+  const said = (input: SelectInput) => {
+    const reading = suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+    return read === undefined ? reading : { ...reading, read };
+  };
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
@@ -163,8 +169,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     await journeyAgainst(request.root, '', undefined, at);
     throw new OperatorError(
       `the execution journal at ${at} names no commit, so there is no coordinate to measure a ` +
-        'diff from. Pass `--since <ref>` to name one, or record the suite again from a git ' +
-        'checkout so the journal carries its own; a selection measured from a guess would skip ' +
+        'diff from. Pass `--since <ref>` to name one; a selection measured from a guess would skip ' +
         'test files for lines nobody changed.',
     );
   }
@@ -189,10 +194,16 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const top = await topLevel(request.root);
   const here = top ?? request.root;
   const own = at === (await landingRecord(request.root, request.suite));
-  const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, own);
+  const whose = own ? '' : " It is another checkout's record, read here because this checkout holds none of its own.";
+  const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, async () => `${whose}${await fetchable(request.root, request.suite)}`);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
-  const standing =
-    stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!);
+  // A record cut under other probes is selected from as it holds it, and the first note says what that leaves open.
+  const gap = await probesGap(at, request.root, request.suite);
+  const standing = [
+    // A note in this list is a clause the reader ends, so the sentence's own period goes.
+    ...(gap === undefined ? [] : [probesNote(gap, undefined, '--execution').replace(/\.$/, '')]),
+    ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
+  ];
   const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
@@ -271,14 +282,14 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   );
   const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
-  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
+  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } });
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.
   // What changed between a stand and the journal's commit is the diff between
   // the two commits, read from both texts like the tree's. Its new side is the
   // stand, never the tree, so a module the landing kept a text for is charged
   // whole there: the kept text is not what the tree holds.
-  const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), distances: request.atDistance !== undefined };
+  const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), precision: declared?.precision, distances: request.atDistance !== undefined };
   const ask = (question: StandQuestion) =>
     question.read === 'stand'
       ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), { ...options, keptTexts: false })
@@ -328,7 +339,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
  * it say, with the files changed since each stand named from the top of
  * `repository`, as the journal names them. `undefined` for a journal
  * that names no commit. A runs record that cannot be read is refused, with the reader's sentence
- * naming the file: every test would otherwise be read from a guess, and a guess
+ * naming the file, then `whose` saying whose record it is and where another can be fetched: every test would otherwise be read from a guess, and a guess
  * can skip a test that should run. Under `--diff` the record feeds only a note,
  * so the note says it could not be read and nothing is refused.
  */
@@ -336,7 +347,7 @@ async function standsOf(
   at: string,
   repository: string,
   handed: boolean,
-  own: boolean,
+  whose: () => Promise<string>,
 ): Promise<{ readonly reading: StandReading; readonly stands: readonly Stand[] } | { readonly unread: string } | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   let runs: CommitRuns | undefined;
@@ -347,25 +358,16 @@ async function standsOf(
     if (handed) {
       return { unread: `${why}, so whether a test file last ran before the journal's commit is not said; a patch handed in with \`--diff\` is read as the whole change either way` };
     }
-    // One case per place a journal is read from: this checkout's own, or another's it reads until it has run.
-    const remedy = own
-      ? 'Run the suite, which rewrites it; delete it first only if it is a directory.'
-      : "It is another checkout's record: run the suite here, which writes this checkout's own.";
+    // Whose record it is, and where the mainline's can be fetched, are what the reader can act on; a run often is not.
     throw new OperatorError(
       `${why}. It says where each test in the journal last ran, and a selection that guessed would skip ` +
-        `tests that should run. ${remedy}`,
+        `tests that should run.${await whose()}`,
       { cause: error },
     );
   }
   const reading = selection.standsAt(at, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
   return reading === undefined ? undefined : { reading, stands: reading.stands };
 }
-
-/** One git invocation in `repository`, answering its stdout. */
-const gitIn =
-  (repository: string) =>
-  (...args: string[]): string =>
-    execFileSync('git', args, { cwd: repository, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
 
 /** What the journal says about where its tests last ran, as notes after the verdict. */
 function standingNotes(reading: StandReading, commit: string): readonly string[] {
@@ -411,7 +413,7 @@ function handedNotes(reading: StandReading, commit: string): readonly string[] {
  */
 export async function recordedOrMainline(
   request: SuiteRequest,
-): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource }> {
+): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource; readonly missed?: MainlineMissed }> {
   const recorded = await recordedSuite(request.root, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
   if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
@@ -424,10 +426,11 @@ export async function recordedOrMainline(
   }
   const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
   if (base.from === 'primary') {
-    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) } };
+    const missed = base.missed === undefined ? {} : { missed: base.missed };
+    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) }, ...missed };
   }
   if (base.missed === undefined) return { at: base.file, held: false };
-  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) } };
+  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) }, missed: base.missed };
 }
 
 /**

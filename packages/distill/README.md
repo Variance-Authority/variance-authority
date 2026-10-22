@@ -5,6 +5,7 @@
 > Find the code one test loads but never uses, and get a concrete substitution to try.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -23,8 +24,9 @@ what the run loaded and ran  −  what the test demonstrably interacts with
 ```
 
 You get an ordered list of files. For a file whose import ran but whose
-functions never did, you also get the substitution to try, spelled out:
-`vi.mock('src/heavy-chart.tsx')`.
+functions never did, you also get the substitution to try: the module to mock
+in that test's file, and why. How to write the mock is your runner's, so the
+reading names no runner's call.
 
 `distill` reads files and prints. It does not open a browser, run a test, or
 edit your source, and it reads no project configuration. Rerunning the test
@@ -219,7 +221,7 @@ Covered with no addressed target attributed to the same file: 2.
 Loaded but not covered: 1 module(s).
   src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
     never covered: HeavyChart (lines 5-8)
-    substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
+    substitution to try: mock src/heavy-chart.tsx in this test's file; loading it is all this test used of it. Stand in for what it exports: an automock loads the module to read its shape
 ```
 
 Reading it:
@@ -235,8 +237,8 @@ Reading it:
   covered files are never split across Arrange, Act and Assert.
 - **`depth`** is a call depth from the test. Every entry the Vitest recorder
   writes sets it to `0`; the field exists for a recorder that measures one.
-- **`sb.mock`** is Storybook's, from `storybook/test`. `vi.mock`, `jest.mock`
-  and `sb.mock` are the three forms of the same substitution.
+- **`substitution to try`** names the module, not a call. Write it the way the
+  test file's runner mocks a module.
 - **The two finding lines** are the two classes of answer, below.
 
 ## The two classes of finding
@@ -279,7 +281,7 @@ a measured-empty addressed surface.
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 | `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when the record holds no test file at exactly `file`. |
-| `LoadCause` | Why a file loaded a module no case entered: the one `import` every path to it runs through, `shared` with the file where its paths part, or `unseen` by any static import. Set when `FileDistillInput.imports` gives the static imports of each file. |
+| `LoadCause` | Why a file loaded a module no case entered: the one `import` every path to it runs through, `shared` with the file where its paths part, or `unseen` by any static import. Set when `FileDistillInput.relations` gives the file graph. |
 | `formatFileDistillation(result)` | The text of a file reading, as the CLI prints it for `--file` alone. |
 | `scopeRows(input)` | `ScopeDistillInput` in, one `ScopeRow` a test file out, as `variance distill --format jsonl` writes them: the file's `suite`, `cases`, what it `loaded` and its lines, and what no case of it `unentered`, or `withheld` with the reason. Throws when the scope holds no recorded test file. |
 
@@ -296,7 +298,16 @@ range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 `loadedOnly` is the flag behind the loaded-but-not-covered finding.
 
 `FileDistillInput` carries the test file's repository-relative path as `file`, the
-record's case index as `execution`, and its coverage rows as `coverage`.
+record's bytes as `record` — its coverage rows and its case index, as the run
+wrote them — and optionally the file graph as `relations`. The cases and the
+regions a charge reads come from the record itself. `ScopeDistillInput` carries one `record` per suite. The
+records are read once, by the native addon, however many test files a scope
+asks about.
+
+`distillFile`, `distillScope` and `scopeRows` require the
+`@variance-authority/sense` native addon, which installs as an optional
+dependency on macOS arm64, Linux arm64 and x64, and Windows x64. Where it did
+not install, they throw and name why.
 `FileDistillation` counts what the file `loaded` and their `lines`, and lists `LoadedModule` entries — `file`, `lines`, and
 `entered`, how many of the file's cases entered the module — fewest entered
 first, then most lines, then by path. `modules` is absent, and `withheld` says
@@ -307,4 +318,4 @@ Ordering is deterministic. The same record produces the same answer.
 
 ---
 
-**[@variance-authority/distill](https://variance-authority.dev/reference/packages/distill)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/distill](https://variance-authority.dev/reference/packages/distill)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/distill) · MIT

@@ -5,15 +5,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
-import {
-  oneRowPerFile,
-  reportedComplete,
-  runnerSkipped,
-  taskComplete,
-  type ReportedModule,
-  type RunnerTask,
-} from './finished-files.js';
-import { mergeCoverage, withTestSelection } from './vitest.js';
+import { oneRowPerFile, reportedComplete, runnerSkipped, taskComplete, type ReportedModule, type RunnerTask } from './finished-files.js';
+import { laidCoverage } from './__fixtures__/laid.js';
+import { withTestSelection } from './vitest.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 
 describe('what a finished test file is worth', () => {
@@ -219,11 +213,14 @@ describe('what the seam refuses to instrument', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile });
-      const plugin = (configured.plugins as unknown as Array<{
+      const plugins = configured.plugins as unknown as Array<{
         transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
+      }>;
 
-      expect(plugin.transform.handler('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+      // Neither the cut nor the probes.
+      for (const plugin of plugins) {
+        expect(plugin.transform.handler('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -237,17 +234,13 @@ describe('a module named unprobed', () => {
     try {
       const page = resolve(root, 'page.ts');
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, unprobed: (file) => file === page });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>).at(-1)!;
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(page, 'export function f(x) { if (x) { return 1; } return 2; }');
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', page);
       await reporter.onFinished([]);
 
-      expect(placed!.code).toMatch(/^export function f\(x\) \{ if \(x\) \{ return 1; \} return 2; \}\n;[^]*__vaE\(\);$/);
+      expect(placed!.code).toMatch(/^export function f\(x\) \{ if \(x\) \{ return 1; \} return 2; \}\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/);
       expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([
         expect.objectContaining({ file: 'page.ts', instrumented: false, blocks: [] }),
       ]);
@@ -263,16 +256,11 @@ describe('coverage generations', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): unknown };
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>).at(-1)!;
-
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'broken.ts'), 'const =');
       // It still runs marked as loaded, so a test that loaded it still says so.
       expect(plugin.transform.handler('const =', resolve(root, 'broken.ts'))).toEqual({
-        code: expect.stringMatching(/^const =\n;[^]*__vaE\(\);$/),
+        code: expect.stringMatching(/^const =\n;globalThis\.__VA__\.m\("[^"\n]*"\);$/),
         map: null,
       });
       await reporter.onFinished([]);
@@ -340,12 +328,8 @@ describe('coverage generations', () => {
     const coverageFile = resolve(root, 'coverage.bin');
     try {
       const configured = withTestSelection({}, { root, coverageFile, include: () => true, mode: 'entries' });
-      const plugin = (configured.plugins as unknown as Array<{
-        transform: { handler(code: string, id: string): { code: string } | null };
-      }>)[0]!;
-      const reporter = (configured.test!.reporters as unknown as Array<{
-        onFinished(files: readonly []): Promise<void>;
-      }>).at(-1)!;
+      const { plugin, reporter } = seamOf(configured);
+      await writeFile(resolve(root, 'f.ts'), 'export function f(x) { if (x) { return 1; } return 2; }');
 
       const placed = plugin.transform.handler('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
       await reporter.onFinished([]);
@@ -365,7 +349,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(true, 'test:new');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.modules[0]?.blocks.flatMap((block) => block.testFiles)).toEqual([]);
@@ -375,7 +359,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:same', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:same');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.modules[0]?.blocks.flatMap((block) => block.testFiles)).toContain('case.test.ts');
@@ -385,7 +369,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:new');
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
 
     expect(merged.tests).toEqual(current.tests);
     expect(merged.tests[0]?.complete).toBe(false);
@@ -410,7 +394,7 @@ describe('coverage generations', () => {
       module('source:new', [], { entry: 'entry:new', outcome: 'outcome:same' }),
     );
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
     expect(blocks.find((block) => block.path === 'entry')?.testFiles).toEqual(['case.test.ts']);
@@ -435,7 +419,7 @@ describe('coverage generations', () => {
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:old', module('source:new', [], {}, 'chose'));
 
-    const merged = mergeCoverage(previous, current);
+    const merged = laidCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
     expect(blocks.find((block) => block.name === 'chose')?.testFiles)
@@ -443,6 +427,16 @@ describe('coverage generations', () => {
     expect(blocks.find((block) => block.path === 'module')?.testFiles).toEqual(['case.test.ts']);
   });
 });
+
+/** The probes plugin and the recording reporter of a configuration the seam wrapped. */
+function seamOf(configured: ReturnType<typeof withTestSelection>) {
+  const plugins = configured.plugins as unknown as Array<{
+    name: string;
+    transform: { handler(code: string, id: string): { code: string } | null };
+  }>;
+  const reporters = configured.test!.reporters as unknown as Array<{ onFinished(files: readonly []): Promise<void> }>;
+  return { plugin: plugins.find(({ name }) => name === 'variance-authority:test-selection-probes')!, reporter: reporters.at(-1)! };
+}
 
 function coverage(
   complete: boolean,

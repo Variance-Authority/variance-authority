@@ -14,10 +14,11 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
-import { defaultInclude, type CapturedModule } from './instrumented-modules.js';
+import { probesRegions } from '../instrument/identity.js';
+import { defaultInclude, type CapturedModule, type ProbePlacement } from './instrumented-modules.js';
 
 export interface SelectionRun {
   readonly root: string;
@@ -36,6 +37,8 @@ export interface SelectionRun {
    * See `case-cut.ts`.
    */
   readonly cutFile: string;
+  /** When the run, or the rerun a watching runner reopened it for, began: see `runTexts`. */
+  startedAt: number;
   /** The cases the selection skips in the files this run kept: each such file is recorded incomplete. */
   readonly cut: Map<string, readonly string[]>;
   readonly modules: Map<ModuleId, CapturedModule>;
@@ -66,6 +69,8 @@ export interface SelectionRun {
    * them, carried for the same reason as `include`; absent cuts nothing.
    */
   cadence: ((file: string) => boolean) | undefined;
+  /** Where the loaders place the probes, carried for the same reason as `include`. */
+  placement: ProbePlacement;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
   /**
@@ -74,7 +79,18 @@ export interface SelectionRun {
    * project's, whatever is in it.
    */
   readonly made: Set<string>;
-  /** Whether this run records per-case crossings: every run does, unless its files run in a page. */
+  /**
+   * The files a bundler's first loader passed on to be probed after the
+   * project's own loaders, until the loader that probes them reaches each one.
+   * Any left at the end were never probed: a configuration that carries the
+   * first loader without the second.
+   */
+  readonly awaiting: Set<string>;
+  /**
+   * Whether this run records per-case crossings: every run does, unless its
+   * files run in a page or it records under `loads`, where a module is marked
+   * as its file loads it, before any case opens.
+   */
   cases: boolean;
   /**
    * Whether the run in progress has been folded.
@@ -124,6 +140,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     caseDirectory: `${runDirectory}-cases`,
     finishedDirectory: `${runDirectory}-files`,
     cutFile: `${runDirectory}-cut.json`,
+    startedAt: Date.now(),
     cut: new Map<string, readonly string[]>(),
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
@@ -133,9 +150,11 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     include: defaultInclude,
     unprobed: undefined,
     cadence: undefined,
+    placement: 'after-transforms',
     shims: new Set<string>(),
     made: new Set<string>(),
-    cases: true,
+    awaiting: new Set<string>(),
+    cases: probesRegions(mode),
     settled: false,
     watching: false,
     alone: false,
@@ -143,14 +162,16 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
 }
 
 /**
- * Open the run for the next end the runner announces: the start of a rerun.
+ * Open the run for the next end the runner announces: the start of a rerun,
+ * at `startedAt`, no later than the runner's first read of a file this cycle.
  *
  * The directories are the ones the workers were handed when the shims were
  * written. The last fold removed them, and each worker recreates the one it
  * writes to, so a rerun's journals are its own.
  */
-export function reopenRun(run: SelectionRun): void {
+export function reopenRun(run: SelectionRun, startedAt: number): void {
   run.settled = false;
+  run.startedAt = startedAt;
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */
@@ -190,6 +211,42 @@ export function writeSeamModule(run: Pick<SelectionRun, 'made'>, id: string, sou
   }
 }
 
+/** What every module this seam writes is named after, whichever runner wrote it. */
+const SEAM_MODULE = 'test-selection-';
+const IGNORE_FILE = '.gitignore';
+
+/**
+ * Where a seam's module for `role` in this run goes: `.variance-authority/` in
+ * the configuration's directory, named for the run rather than for the seam.
+ * These are files on disk, so two processes over one project — a watch run
+ * beside a CLI one, or this repository's own integration tests — would otherwise
+ * write each other's shim, and a shim carries the directory its journals go to.
+ * The run directory already carries a pid and a uuid; the same stamp names it.
+ */
+export function seamModuleId(configRoot: string, run: SelectionRun, role: 'setup' | 'case-runner'): string {
+  return resolve(configRoot, '.variance-authority', `${SEAM_MODULE}${role}-${runStamp(run)}.mjs`);
+}
+
+/**
+ * What the seam's directory says to git: the seam's modules, and this file, are
+ * not the change's.
+ *
+ * A shim is a file the run wrote, not one the change made, and every reader of
+ * what a change touched asks git — the scan, the landing of this very run, the
+ * review of a head — and git leaves out what an ignore file names. So the
+ * directory carries its own, as `.pytest_cache` does, wherever in the checkout
+ * the configuration put it and whether or not the project's ignore file names
+ * it. It names the seam's modules and nothing else, so a file the project keeps
+ * beside them is what it was to git before the run.
+ *
+ * It is written only where there is none, so an ignore file the project put
+ * there is the project's, and it comes off once no seam module is left beside
+ * it, so a directory is left as the run found it. The seam knows its own by the
+ * first line, which every release writes alike.
+ */
+const IGNORE_HEADER = '# Written by @variance-authority/sense for the run in progress.\n';
+const IGNORE = `${IGNORE_HEADER}${IGNORE_FILE}\n${SEAM_MODULE}*\n`;
+
 function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string): string {
   // `mkdirSync` answers with the first directory it had to create, and with
   // nothing when every one was there: whether this run made it is that answer.
@@ -200,7 +257,12 @@ function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string):
       if (made === first || made === dirname(made)) break;
     }
   }
+  // Before the shim, so no reader sees the shim and not the rule; and again
+  // after it, because another run's end may have taken the rule off in between
+  // — see {@link removeIgnoreFile}.
+  writeIgnoreFile(dirname(id));
   writeFileSync(id, source, 'utf8');
+  writeIgnoreFile(dirname(id));
   leaveOnExit(run, id);
   return id;
 }
@@ -243,10 +305,13 @@ function leaveOnExit(run: Pick<SelectionRun, 'made'>, id: string): void {
  * platform would not let go of — a lock, a scanner, a read-only mount.
  */
 export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterable<string>): void {
+  const held = new Set<string>();
   for (const shim of shims) {
     rmSync(shim, { force: true });
     onDisk.delete(shim);
+    held.add(dirname(shim));
   }
+  for (const directory of held) removeIgnoreFile(directory);
   for (const directory of run.made) {
     try {
       rmdirSync(directory);
@@ -259,11 +324,41 @@ export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterab
   }
 }
 
+/** Put the seam's ignore file in `directory`, unless one is there: the seam's, or the project's. */
+function writeIgnoreFile(directory: string): void {
+  try {
+    writeFileSync(resolve(directory, IGNORE_FILE), IGNORE, { encoding: 'utf8', flag: 'wx' });
+  } catch (error) {
+    if (!isErrno(error, 'EEXIST')) throw error;
+  }
+}
+
+/**
+ * Take this seam's ignore file out of `directory` once no seam module is left
+ * there. Another run's shim beside it keeps it, and that run's end takes it.
+ *
+ * Another run can find the file, and so not write it, between the look and the
+ * removal. Each side looks again after it acts — the writer once its shim is
+ * down, this once the file is gone — and puts the file back if it finds a shim,
+ * so whichever acts last leaves the rule beside it.
+ */
+function removeIgnoreFile(directory: string): void {
+  const file = resolve(directory, IGNORE_FILE);
+  const holdsShim = (): boolean => readdirSync(directory).some((entry) => entry.startsWith(SEAM_MODULE));
+  try {
+    if (holdsShim() || !readFileSync(file, 'utf8').startsWith(IGNORE_HEADER)) return;
+    rmSync(file);
+    if (holdsShim()) writeIgnoreFile(directory);
+  } catch {
+    // Tidied, not required gone, for the reason the directories are.
+  }
+}
+
 function isErrno(error: unknown, code: string): boolean {
   return (error as NodeJS.ErrnoException | undefined)?.code === code;
 }
 
 /** The pid-and-uuid stamp a run names its directories and its shims after. */
-export function runStamp(run: SelectionRun): string {
+function runStamp(run: SelectionRun): string {
   return basename(run.runDirectory).replace(/^\.run-/, '');
 }

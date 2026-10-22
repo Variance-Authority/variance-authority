@@ -2,7 +2,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { readOfferings } from './manifest.js';
-import { readUsage, usageFrom } from './use.js';
+import { readUsage } from './read-usage.js';
+import { usageFrom } from './use.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 

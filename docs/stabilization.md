@@ -142,6 +142,7 @@ once you need it.
 | stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
 | record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
 | skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+| read no components on a site React does not render | `wiring: false` | [hydration, before anything is read](#hydration-before-anything-is-read) |
 
 ## Before your first run
 
@@ -716,13 +717,15 @@ cannot prevent.
 
 ### Waiting on what was actually requested
 
-`network.settle()` resolves when nothing is in flight. Not a poll over the nodes
-that existed at one moment: a count of what has been asked for and not yet
-answered, which is the honest version of "the images have loaded".
+`network.settle()` resolves when none of the images, fonts and media the page
+requested is in flight. Not a poll over the nodes that existed at one moment: a
+count of what has been asked for and not yet answered, which is the honest
+version of "the images have loaded".
 
-On timeout it does not throw. A page holding a long-poll open is a normal page,
-so the outstanding URLs become a diagnostic and the subject is read anyway —
-recorded, which is what the reader of a surprising diff needs.
+An asset still in flight when the wait runs out refuses the subject, and the
+refusal names its URL. Read without it, the subject records bytes nobody
+hashed. A long-poll or a streaming `fetch` never holds the wait open, because
+only images, fonts and media are counted.
 
 ### What the wire costs
 
@@ -840,11 +843,122 @@ spinner in an `<aside>` is not this `<section>`'s problem.
 waiting for hydration, which is a different state to report than a fetch in
 flight.
 
+### Hydration, before anything is read
+
+A changed region in a report names the component that rendered it, and the
+route collector reads that component off React's tree in the page. A
+server-rendered route is complete on screen before React owns it: until React
+commits the root the route belongs to, there is no component to read, and
+neither `load` nor a settled network says when that commit happens. So the
+collector waits for React to hydrate a route for as long as React or the page
+can still get it there. A root React cannot finish is refused. A route with no
+root is read without its components.
+
+No clock decides how long that is. React's own record does, and the wire:
+
+- **React has work.** While a root has a render React can do, or a commit has
+  effects React has not run yet, the collector waits for React. A route React
+  has already committed is read as soon as its effects have run.
+- **React is stuck on a promise.** While React waits on a chunk or a payload,
+  the collector waits for as long as anything the page requested is still
+  arriving, however long that takes. A request that fails has stopped arriving.
+- **Nothing is arriving.** When React is stuck and nothing is arriving, the
+  route is refused at once, counting the roots that had not committed. The
+  collector watches what the page receives, not what it schedules, so a promise
+  a timer settles is refused too, even when the timer would fire a moment
+  later.
+- **React has loaded and has no root yet.** The collector waits for as long as
+  anything the page requested is still arriving: the client that creates the
+  root may be waiting on it. Once nothing is arriving, the route is read with a
+  `react-root-absent` warning.
+- **React has not loaded.** The collector waits only for scripts still
+  arriving, because only a script brings a renderer. It watches React's commits
+  from before the page's first script, so it knows when none has loaded. Once
+  no script is arriving, the route is read with a `react-root-absent` warning.
+- **Not counted.** An event stream, a WebSocket or a playing video is a
+  channel, not a response anything waits on. A font or an image is not counted
+  either: React waits on neither, and
+  [`wait-for-fonts` and `wait-for-images`](#what-runs-and-what-it-absorbs) name
+  the one that never answers.
+
+A request that stays open, such as a long poll, counts while React is stuck or
+has loaded without a root. The collector cannot tell it apart from the response
+React waits on, so one that never closes holds the route until your test
+runner's timeout or the job's stops the run, and that failure names the request.
+Open the long poll from an effect: an effect runs after the root commits, so the
+request opens once nothing waits on the wire. The
+[asset wait](#waiting-on-what-was-actually-requested) does the opposite and
+reads a page past a long poll. There, the markup is final and only a late image
+is missing. Here, the markup on screen is the server's, and the render that
+replaces it has not happened.
+
+A route refused uncommitted is refused for the reason an open Suspense boundary
+is: the image is not the one the route settles on. The markup the server sent is
+on screen, but an effect that runs after hydration — a mounted flag, a theme
+read from storage, a layout measured on the client — paints something else, so
+a slow machine and a fast one record different pixels:
+
+```
+`page/app` stopped hydrating with 1 of 1 React root(s) uncommitted: React had no
+work it could do, and nothing the page requested was still arriving to give it
+some. A root holds like that on a promise the wire does not settle — one settled
+by a timer, one whose request failed, one never settled — read outside any
+<Suspense>. An effect that runs after hydration can paint a different image, so
+the server's markup is not recorded in its place. Find the promise the first
+render holds on.
+```
+
+A refusal means the first render React hydrates, the shell, read a promise
+outside any `<Suspense>` that the wire does not settle: one a timer settles, one
+whose request failed, or one that never settles. Settle a timer's promise from
+the request it stands in for, and let a failed request reject, so an error
+boundary renders its error instead of the shell waiting on it. Or move the read
+under a `<Suspense>` boundary, whose fallback the next section's wait handles.
+`loading` and `suspenseTimeoutMs` do not apply here: they decide what a
+fallback means, and a root that has not committed has no boundary React has
+finished reading. The one setting that skips this wait is `wiring: false`,
+which reads no components either.
+
+A route where no root is found is collected, not refused, with a
+`react-root-absent` `warn` diagnostic on that subject, which the report
+carries. No component could have been read there: either React does not render
+it, or its client never created a root, and the warning says which, and is how
+you tell that apart from a node no component rendered. When React renders none
+of your routes, set `wiring: false`: the collector then reads no components,
+waits for nothing and says nothing.
+
+A route that hydrates is read twice: its markup as React's hydration commit
+found it, copied in that commit, and again once React has nothing left to do.
+The copy is taken at the commit rather than when the collector looked, so a
+fast machine and a slow one compare the same two pages. When the two differ,
+the route is collected as it ended, the page a visitor is left with, and
+carries a `hydration-changed-markup` `warn` diagnostic that quotes both and
+names the components that committed after hydrating, in every root that reaches the subject:
+
+```
+Hydration changed the markup of page/app: the hydration commit left `<main id="app"><p>early</p></main>`
+and the client then left `<main id="app"><p>client</p></main>`. Flip committed after
+hydrating. The reading is of the page after hydration; a visitor sees the
+server's page first. Render the same markup on the server, or move the
+difference into a client-only component.
+```
+
+The copy is taken once the hydration commit has written the DOM, so what that
+commit writes compares as no change. Two cases are missed that way: a mismatch
+React recovers from by rendering the root on the client, and a layout effect
+that writes the DOM. React reports the mismatch itself, through
+`onRecoverableError`.
+
+The roots read are every root on the subject, above it up to the `Document`,
+under it, and behind a portal the subject renders through. No component is read
+off a node whose root has not committed, because that render may never reach
+the screen.
+
 ### The wait, and the decision it forces
 
-Every collector waits for that reading to come back clean before it reads the
-page. `awaitSuspense` is the *first* thing a page agent does, ahead of
-stabilization — content that arrives late brings its own images and fonts, and a
+Every collector waits for the Suspense reading to come back clean before it
+reads the page. `awaitSuspense` runs ahead of stabilization, and in the route collector
+right after hydration — content that arrives late brings its own images and fonts, and a
 `waitForImages` that ran first would have waited for the fallback's images
 instead of the content's.
 
@@ -891,7 +1005,9 @@ test a failed assertion is what the person who can decide sees.
 **The declaration is checked in both directions.** A subject declared as a
 loading capture that turns out to have settled is refused too: a declaration
 nobody deleted is a baseline that flips with the weather, which is the same flake
-arriving from the other side.
+arriving from the other side. So is a declared subject that holds no Suspense
+boundary at all, such as a spinner an effect renders: it has no fallback to
+record on purpose, and what gets recorded depends on how fast the machine is.
 
 `suspenseTimeoutMs: 0` keeps the reading and skips the wait, for a suite whose
 own markers already cover its data.
@@ -987,13 +1103,22 @@ a red build rather than a slow CI job nobody attributes to anything.
 
 The standard observation path holds CSS animation, fonts, images, scrollbars,
 carets, hover, focus and the clock still, asks for reduced motion, reads the
-wire for the bytes behind each asset, and checks that Suspense has resolved. It does not redefine application state, and it does not
-install framework hooks before the application loads.
+wire for the bytes behind each asset, waits for React to hydrate a
+server-rendered route, and checks that Suspense has resolved. It does not
+redefine application state, and the only framework hook it installs before the
+application loads is React's commit hook, in the route collector.
 
-Collectors inspect Suspense directly, but they do not install `tapCommits` or
-call `awaitQuiet`. The commit tap remains an explicit host integration because
-it must attach before `react-dom`; silence from a late tap cannot prove that the
-page is quiet.
+Content an effect sets after it loads something is outside every wait here. An
+effect that starts an import, a request or a timer and then calls `setState`
+leaves React with nothing pending, so the subject is read with its placeholder
+and no diagnostic. [Content that loads late](late-content.md) shows how to put
+that work under `<Suspense>`, or mark the subject ready, so a run waits for it.
+
+The route collector installs `tapCommits` from its page agent before the page's
+first script, and reads it only to know whether React loaded, when the effects
+a commit scheduled have run, and what the markup was at the hydration commit. No collector calls `awaitQuiet`: silence
+is not a reason to stop waiting, and a tap attached after `react-dom` cannot
+prove the page is quiet.
 
 Randomized data, `requestAnimationFrame` mutations in a page that ignores
 `prefers-reduced-motion`, sticky or fixed positioning during full-page capture,
@@ -1012,5 +1137,6 @@ timing change cannot be mistaken for an isolation change.
 ---
 
 **See also.** [Flakiness](flakiness.md) — what kind of thing variance is ·
+[Content that loads late](late-content.md) — making late work something a run waits for ·
 [Ignore rules](ignores.md) — absorbing what cannot be stabilized ·
 [Comparison](compare-visual-review.md) — where each operating model fits

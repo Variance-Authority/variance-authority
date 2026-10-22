@@ -4,13 +4,14 @@
 to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
 function. Of the root `variance.config.json` it reads only `suites` and
-`cacheRoot`, and `names`, whose axes give `--where` its base values and each
-listed case its twin. None of it is a verdict: execution records where a test
+`cacheRoot`. None of it is a verdict: execution records where a test
 went, never why it was worth running.
 
 ```bash
 variance covering --file src/checkout/total.ts --line 48
+variance covering --file src/checkout/total.ts --line 40-60
 variance covering --file src/checkout/total.ts --function applyDiscount --format json
+variance covering --file src/checkout/total.ts --function Cart   # every recorded method of the class
 variance covering --file src/checkout/total.ts                  # per recorded range
 variance covering --file src/checkout/total.ts --format refs    # each case once, ranges by number
 ```
@@ -18,14 +19,36 @@ variance covering --file src/checkout/total.ts --format refs    # each case once
 A line or a function is answered per test file first: `total.test.ts — 2/3`
 means two of that file's three cases ran through it, and the cases follow.
 
+A line lands on the regions an edit to it charges, the same ones `variance
+select` reads, so the list is what a selection over your edit would run.
+`--line <a>-<b>` asks a run of lines and lands on every region one of them is
+charged to. `--function` takes the name the record writes for a function,
+`Cart/total` for a method, or a scope that holds recorded functions: `Cart`
+answers every case that entered one of its methods. A name nothing recorded is
+under is refused with the names the file has; a constant or a type has no region
+of its own, so ask about its lines instead.
+
+The record holds a line no finer than its region does. A line whose edit
+charges the module's own region is held at file grain: a module-level
+statement, and the first or last line of a top-level function, which an edit
+charges to the module too. Its cases are the ones that loaded the file, and the
+answer says so with `At file grain`, `grain: "file"` under `--format json`. In
+a run of lines, the lines held at file grain are named in `fileGrain`, and the
+lines no region holds, such as imports, types or blank lines, in `outside`.
+Lines of a run your edit wrote are named in `written` and left out; when your
+edit wrote every line asked, the answer says that no case has run them. When
+no line asked is in a recorded region, the answer names no case and says, for
+each line, whether your edit wrote it or no region holds it.
+
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
-  It needs `--line` or `--function`, is refused with `--since`, and costs a scan
-  of the tree, so ask for it when the list is long, not on every edit.
+  It needs `--line` or `--function`, and a run of lines or any `--function` is
+  measured from the file. It is refused with `--since`, and costs a scan of the
+  tree, so ask for it when the list is long, not on every edit.
 - `--cases last` answers from the cases the last run recorded; `--cases <test
   file>` from the ones that test file declares.
 - `--where <name>[=<value>]` keeps the cases that recorded that precondition
-  with `variancePrecondition`. Reading the state each case ran under, its twin
-  and an `unmeasured` refusal is in [case preconditions](case-preconditions.md).
+  with `variancePrecondition`. Reading the state each case ran under and a record
+  that holds no preconditions is in [case preconditions](case-preconditions.md).
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
   costs one table, not eleven names per range. It is the shortest answer to hand
@@ -42,9 +65,14 @@ the whole command. `--execution <path>` names an index recorded elsewhere, and
 in [producers](producers.md).
 
 When the root config declares `suites`, the question is asked of each suite's
-record, and the answer is one block per suite, headed `<suite> (<kind>):`.
-Once any suite answers, the answers come first, then any suite with no recording
-yet. Suites that never loaded the file are named together on the last line,
+record, and the answer is one block per suite, headed `<suite> (<kind>):`,
+nearest kind first: unit, integration, e2e, visual. Once any suite answers, the
+answers come first, then any suite with no recording yet. A suite whose record
+was made at a commit that did not hold the file says so in full, with that
+commit, refused as `older` under `--format json`: the record is older than the
+file, so it has no answer for it. When git cannot read that commit
+— a shallow clone — the suite says so instead of claiming either. Suites that
+never loaded the file are named together on the last line,
 `Not loaded by <suite> (<kind>): …`: no answer from them, which is not *no test
 covers it*. When no suite answers, each block says why in full, with the record
 it read, since a wrong path is then the likely cause. The record names files
@@ -121,10 +149,12 @@ The answer's `frame` names the coordinates its numbers are in:
 - `recorded` — the recording's, and the text matches it.
 - `mapped` — every range was carried into your text; ranges an edit touched are
   marked `moved`.
-- `stale` — the recorded text could not be found, so no ranges are given. Run
-  the suite.
+- `stale` — the recorded text could not be found, so no ranges are given. The
+  answer names the cases that ran code in the file and says that which of them
+  ran your line cannot be said.
 
-A `--line` your edit wrote is refused, because no case has run it. Do not read
+A `--line` your edit wrote is answered with no case, because no case has run
+it, and in a run of lines it is named in `written` and left out. Do not read
 that as a gap.
 
 ## Ask about the whole change at review time

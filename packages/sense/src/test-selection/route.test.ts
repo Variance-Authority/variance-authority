@@ -57,6 +57,14 @@ describe('a file added after the record, read off a snapshot', () => {
     expect(narrowing.declined).toBeUndefined();
   });
 
+  it('selects no test that imports it for its types alone', () => {
+    const typesOnly = relationsOf({
+      relations: [{ from: file('test/alpha.test.ts'), to: file('src/added.ts'), kind: 'type' }],
+    });
+
+    expect(narrowByExecutionFromView(view(), added, { relations: typesOnly }).entered).toEqual([]);
+  });
+
   it('selects nothing in a suite that declines relations, and names it declined', () => {
     const narrowing = narrowByExecutionFromView(view(), added, { relations, unmeasured: 'nothing' });
 
@@ -117,6 +125,16 @@ describe('a file added after the record, read off a journey file', () => {
 
     expect(narrowing.entered).toEqual(['test/other.test.ts']);
     expect(narrowing.declined).toBeUndefined();
+  });
+
+  it('selects no test that imports it for its types alone', () => {
+    const typesOnly = relationsOfFiles([
+      { file: 'src/added.ts' },
+      { file: 'test/card.test.ts', edges: [{ to: 'src/added.ts', kind: 'type' }] },
+      { file: 'test/other.test.ts', edges: [{ to: 'src/added.ts', kind: 'imports' }] },
+    ]);
+
+    expect(narrowByJourneys(index, added, { relations: typesOnly }).entered).toEqual(['test/other.test.ts']);
   });
 
   it('selects nothing in a suite that declines relations, and names it declined', () => {

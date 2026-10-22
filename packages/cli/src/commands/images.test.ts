@@ -36,7 +36,7 @@ function baselineOf(document: RenderDocument, bytes: string): Found {
   return { raster, comparable: true, storedUnder: raster.identity };
 }
 
-function observationOf(verdict: Observation['verdict']): Observation {
+function observationOf(verdict: Observation['verdict'], isolation?: Observation['isolation']): Observation {
   return {
     subject: SUBJECT,
     verdict,
@@ -44,13 +44,14 @@ function observationOf(verdict: Observation['verdict']): Observation {
     regions: [],
     rendered: true,
     missingFonts: [],
+    ...(isolation === undefined ? {} : { isolation }),
   };
 }
 
 /** The candidate in the render cache, the baseline behind `find`, nothing on disk. */
 async function writtenFor(
   verdict: Observation['verdict'],
-  options: { baseline?: boolean; ephemeral?: boolean } = {},
+  options: { baseline?: boolean; ephemeral?: boolean; isolation?: Observation['isolation'] } = {},
 ): Promise<{ written: string[]; record: Awaited<ReturnType<typeof images>> }> {
   const document = documentFor(SUBJECT);
   const renderer = fakeRenderer();
@@ -69,7 +70,7 @@ async function writtenFor(
 
   const record = await images(
     SUBJECT,
-    observationOf(verdict),
+    observationOf(verdict, options.isolation),
     document,
     renderer,
     configOf(),
@@ -93,6 +94,24 @@ describe('which verdicts get a pair', () => {
       before: 'images/fixture%3Aa.before.png',
       after: 'images/fixture%3Aa.after.png',
       diff: 'images/fixture%3Aa.diff.png',
+    });
+  });
+
+  it('writes the change, cropped, for a subject whose regions were isolated', async () => {
+    const { written, record } = await writtenFor('changed', {
+      isolation: {
+        regions: [{ x: 0, y: 0, width: 4, height: 4, pixels: 16, density: 1 }],
+        truncated: 0,
+        truncatedPixels: 0,
+      },
+    });
+    expect(written).toContain('/repo/out/images/fixture%3Aa.change.png');
+    expect(record.images).toEqual({
+      record: 'images/fixture%3Aa.after.json',
+      before: 'images/fixture%3Aa.before.png',
+      after: 'images/fixture%3Aa.after.png',
+      diff: 'images/fixture%3Aa.diff.png',
+      change: 'images/fixture%3Aa.change.png',
     });
   });
 

@@ -9,12 +9,13 @@ import {
 import type { Band } from '@variance-authority/core/compare';
 import {
   documentDigest,
+  timeOn,
   type ComponentHash,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import { absorbsEntirely, type Level } from '@variance-authority/core/judge';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
-import type { Collected, PlannedSubject } from './collector.js';
+import { visited, type Collected, type PlannedSubject, type Visit } from './collector.js';
 import type { ObserveContext } from './run-context.js';
 import type { CliObservationRecord } from './run-report.js';
 
@@ -54,7 +55,7 @@ import type { CliObservationRecord } from './run-report.js';
  * One collection, and **never a rasterization.** A `RenderDocument` is a complete
  * statement of what is to be painted, so two documents with the same digest
  * cannot paint differently — the same argument `settle` makes to skip a render
- * against a baseline, made here between two readings taken seconds apart. The
+ * against a baseline, made here between two readings taken in a row. The
  * check is therefore a document digest comparison, at the cost of the cheap tier
  * (~3.4ms on a semantic collection, ADR-0010) against the ~65ms paint this
  * subject has already paid.
@@ -106,26 +107,31 @@ export async function again(
   // asked for the sweep asked about the suite, and a run that answered for the
   // first twenty subjects while printing a whole-suite heading would be the
   // silently-partial answer this tool refuses everywhere else.
+  //
+  // A subject the budget reaches spends one share of it, whichever of this pass
+  // and `alone` reaches a finding: `alone` asks the same share and gets the same
+  // answer. A sweep asks nothing here, so the clean-world pass keeps its budget.
   if (limit === 0) return {};
-  if (!sweep && budget.remaining <= 0) return {};
+  if (!sweep && !(await budget.claim())) return {};
 
   // Through the collector's one lane, for the reason every other collection goes
   // through it: the world is a single standing page and two collections at once
   // render into the same one.
-  const second = await collecting(async () => deps.collector.collect(planned));
+  const result = await collecting(async () => timeOn(context.steps, 'again.collect', async () => deps.collector.collect(planned)));
+  if ('subjects' in result) for (const warning of result.warnings ?? []) context.said?.(warning);
+  const second = sameSubject(planned, result);
 
   if (!second.ok) {
     // Not silence, and not a `failed` coverage entry either — the subject *was*
     // observed, once. A collector that produced this subject and then could not
     // produce it again has already answered the question this pass asks, and the
     // answer is the loudest form of yes.
-    if (!sweep) budget.remaining -= 1;
     return {
       unstable: {
         components: [],
         bands: [],
         because:
-          'collected once and then failed to collect a second time, seconds later, with ' +
+          'collected once and then failed to collect a second time, right after, with ' +
           `nothing changed in between: ${second.because}. Whatever the comparison said ` +
           'about this subject was said about a reading that cannot be taken twice',
       },
@@ -133,13 +139,6 @@ export async function again(
   }
 
   if (documentDigest(collected.document) === documentDigest(second.document)) return {};
-
-  // Charged here rather than in `alone`, because `alone` is about to be skipped
-  // and this subject must still count against the run's cap. Every investigated
-  // subject spends exactly one, whichever of the two passes reached a finding.
-  // A sweep charges nothing: it is not spending a red build's investigation
-  // budget, and letting it do so would leave the clean-world pass with none.
-  if (!sweep) budget.remaining -= 1;
 
   const moved = movedBetween(collected.snapshot, second.snapshot, collected.source);
 
@@ -164,7 +163,7 @@ export async function again(
       // Unabsorbed, no comparison of this subject means anything until the
       // instability is fixed: the next run may take the other reading.
       because:
-        `two readings seconds apart, with nothing changed between, differ${describeMovement(moved)}. ` +
+        `two readings in a row, with nothing changed between, differ${describeMovement(moved)}. ` +
         (absorbed !== undefined
           ? `Every band that moved is not asserted on, by \`${absorbed.rule}\` ` +
             `(${sensitivity?.reason ?? absorbed.level}); nothing gates and nothing is refused`
@@ -233,4 +232,18 @@ function describeMovement(moved: Movement | undefined): string {
     )
     .join(', ');
   return `: ${named}${bands}`;
+}
+
+/**
+ * The reading of `planned` itself out of what collecting it again produced. A
+ * width asked for by its own id comes back alone; anything else — the story no
+ * longer declares that width, or read at another — is not a second reading of
+ * this subject.
+ */
+function sameSubject(planned: PlannedSubject, result: Collected | Visit): Collected {
+  const entries = visited(planned, result);
+  const own = entries.find((entry) => entry.planned.subject.id === planned.subject.id);
+  if (own !== undefined) return own.collected;
+  const read = entries.map((entry) => `\`${entry.planned.subject.id}\``).join(', ');
+  return { ok: false, because: `reading it again produced ${read} and not \`${planned.subject.id}\`` };
 }

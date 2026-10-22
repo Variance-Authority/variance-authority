@@ -1,0 +1,15 @@
+// The Worker a recorded run serves: the site's own handler inside the journey
+// head, which sends what each request ran to the address its cookie names.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "variance-authority-site-recorded",
+  "compatibility_date": "2026-08-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./worker.ts",
+  "assets": {
+    "directory": "../dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "vars": { "VARIANCE_AUTHORITY_JOURNEYS": "1", "VARIANCE_AUTHORITY_HEAD": "site" }
+}

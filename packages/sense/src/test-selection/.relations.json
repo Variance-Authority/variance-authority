@@ -1,0 +1,10 @@
+[
+  { "from": "jest*", "to": "jest*", "type": "allowed" },
+  { "from": "rstest*", "to": "rstest*", "type": "allowed" },
+  { "from": "vitest*", "to": "vitest*", "type": "allowed" },
+  { "from": "*.test.*", "to": ".", "type": "allowed" },
+  { "from": "index.ts", "to": ".", "type": "allowed" },
+  { "from": ".", "to": "jest*", "type": "restricted", "message": "a runner-neutral file reads no Jest integration; the shared answer moves into a runner-neutral file and the integration calls it" },
+  { "from": ".", "to": "rstest*", "type": "restricted", "message": "a runner-neutral file reads no Rstest integration; the shared answer moves into a runner-neutral file and the integration calls it" },
+  { "from": ".", "to": "vitest*", "type": "restricted", "message": "a runner-neutral file reads no Vitest integration; the shared answer moves into a runner-neutral file and the integration calls it" }
+]

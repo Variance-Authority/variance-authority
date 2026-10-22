@@ -126,6 +126,10 @@ Look around:
   <path>`. A test is amended or added first, and fails on the code as it is,
   before the code changes. Behaviour nothing covers is pinned green first, in
   addition to that test, not instead of it.
+- Whether it changes how a record is carried, indexed by case, or read by a
+  selection or a comparison. If it does, the PR names the contract clause it
+  keeps and the carry journey that exercises it, and quotes the regression test
+  failing on the code before the fix.
 - Where each piece of writing goes. A top-layer page — the root `README.md` or
   `docs/` — gets its structure from
   [content flow](.agents/references/content-flow.md) before it is outlined: a
@@ -142,6 +146,10 @@ Look around:
   run by something, every answer has an owner, one browser and one page, no
   magic and not alone, a path is the file, stop only what you started, a status
   claim is a marker.
+
+After each edit, run `yarn test:loop` and read its verdict before the next
+edit: the compiler, then the unit tests within one import of what changed. A
+red is fixed before any other edit.
 
 What the task needs, and a defect in its own diff, are fixed on its branch
 before it merges; a finding it neither needs nor wrote goes on its own branch,
@@ -189,11 +197,13 @@ Look around:
 Write the body to
 [`.github/pull_request_template.md`](.github/pull_request_template.md): the
 problem, the solution, and one row per block the change touches. Before
-anything is pushed, three subagents with no other context review the change,
+anything is pushed, four subagents with no other context review the change,
 each for one question: does the body say the problem and the solution, should the change
-happen at all, and does the diff do what the body says. A change that writes a
-top-layer page gets a fourth, the `content-flow` reviewer, and it runs first:
-the other three wait until the page's structure passes. Fix what they mark
+happen at all, does the diff do what the body says, and is its shape ours — one
+implementation, the right role, no runner favoured, nothing a neighbour owns
+(the `alignment` reviewer). A change that writes a
+top-layer page gets a fifth, the `content-flow` reviewer, and it runs first:
+the other four wait until the page's structure passes. Fix what they mark
 blocking and run them again until none does; a finding still blocking after the
 second round is yours to fix or set aside, and every finding not fixed is named
 in the body. Then push the branch and open the PR, so CodeRabbit reviews
@@ -205,14 +215,16 @@ Each cycle on the PR, from opening it or from picking up a failure, a comment
 or a conflict, puts the `agent:debugging` label on. Handing over swaps it for
 `agent:done`; stopping short of that takes it off and puts nothing on. Nothing
 announces a PR that has finished passing, so a cycle that is not stopping
-blocked ends by watching every check until it has finished,
-`gh pr checks <n> --watch`, never with `agent:debugging` left on.
+blocked ends by watching every check until it has finished, never with
+`agent:debugging` left on. `site` is the exception: it reports a change as a
+warning rather than failing on it, and nothing waits for it.
 
 ### 6. Validate
 
 Look around:
 
-- Every check, until each has finished: `gh pr checks <n> --watch`.
+- Every check but `site`, until each has finished, with the watch in
+  [validate and correct](.agents/references/outer-loop.md).
 - CodeRabbit's inline comments, once its check reads `Review completed`.
 - The coverage and "What this change might do" comments CI posts. Do they
   describe the change you meant to make?
@@ -229,9 +241,10 @@ pre-verify. A failure is not called flaky, pre-existing or unrelated without the
 same failure on `main`. A CodeRabbit comment is a signal, not an instruction: fix
 what is real, set aside what is not, and never reply to or resolve a thread.
 
-A PR is handed over only when every check is green and every finding is
-classified. The report starts from the task as it was set — where it stands,
-what is not done — and ends with what you need from the person who asked.
+A PR is handed over only when every check but a running `site` is green and
+every finding is classified. The report starts from the task as it was set —
+where it stands, what is not done — and ends with what you need from the person
+who asked.
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.50.1 -->

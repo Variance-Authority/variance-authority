@@ -1,19 +1,21 @@
 use std::collections::HashMap;
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 
 use serde::{Deserialize, Serialize};
 
-const ALIGNMENT: usize = 8;
-const PACK_ABOVE: usize = 1 << 16;
-pub(crate) const RUN: usize = 4096;
-pub(crate) const BLOB_RUN: usize = 512;
-const RAW: u8 = 0;
-const ZSTD: u8 = 2;
+use crate::record_layout::LAYOUT;
 
+#[path = "journey_columns_decode.rs"]
+mod decode;
+
+/// A column as it goes to the file. `Bytes`, `Words` and `Blob` are stored as
+/// runs when that pays (`record-layout.json` says when); `Plain` holds bytes of
+/// its own, a part of a record, and is stored as it is.
 pub enum Column {
     Bytes(&'static str, Vec<u8>),
     Words(&'static str, Vec<u32>),
     Blob(&'static str, Vec<u8>, Vec<u32>),
+    Plain(&'static str, Vec<u8>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -32,12 +34,14 @@ struct Header {
     sections: Vec<Section>,
 }
 
+/// A column as it is written: its bytes, packed where packing is smaller.
+/// Only the form written is kept, so encoding a record holds it once.
 struct Stored {
     name: &'static str,
     width: u8,
     rows: usize,
     bytes: Vec<u8>,
-    packed: Option<Vec<u8>>,
+    packed: bool,
 }
 
 pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
@@ -46,15 +50,14 @@ pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
     let sections = stored
         .iter()
         .map(|column| {
-            let bytes = column.packed.as_ref().unwrap_or(&column.bytes);
             let section = Section {
                 name: column.name.to_owned(),
                 offset,
-                length: bytes.len(),
+                length: column.bytes.len(),
                 width: column.width,
-                rows: column.packed.as_ref().map(|_| column.rows),
+                rows: column.packed.then_some(column.rows),
             };
-            offset = aligned(offset + bytes.len());
+            offset = aligned(offset + column.bytes.len());
             section
         })
         .collect();
@@ -66,7 +69,7 @@ pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
     out.extend_from_slice(&header);
     out.resize(4 + header_length, 0);
     for column in stored {
-        out.extend_from_slice(column.packed.as_ref().unwrap_or(&column.bytes));
+        out.extend_from_slice(&column.bytes);
         let end = aligned(out.len());
         out.resize(end, 0);
     }
@@ -74,37 +77,75 @@ pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
 }
 
 pub struct Decoded {
-    columns: HashMap<String, (u8, Vec<u8>)>,
+    columns: HashMap<String, Plain>,
+}
+
+/// A column decoded: words where it is four bytes wide, its bytes otherwise.
+enum Plain {
+    Bytes(u8, Vec<u8>),
+    Words(Vec<u32>),
 }
 
 impl Decoded {
+    /// Whether no column was decoded: the bytes held none of those asked for.
+    pub fn is_empty(&self) -> bool {
+        self.columns.is_empty()
+    }
+
     pub fn has(&self, name: &str) -> bool {
         self.columns.contains_key(name)
     }
 
-    pub fn bytes(&self, name: &str) -> Result<Vec<u8>, String> {
-        let (width, bytes) = self
-            .columns
-            .get(name)
-            .ok_or_else(|| format!("journey artifact has no {name} column"))?;
-        if *width != 1 {
-            return Err(format!("journey artifact column {name} has the wrong width"));
+    /// Every column the file holds, by name.
+    pub fn names(&self) -> Vec<&String> {
+        self.columns.keys().collect()
+    }
+
+    fn column(&self, name: &str) -> Result<&Plain, String> {
+        self.columns.get(name).ok_or_else(|| format!("journey artifact has no {name} column"))
+    }
+
+    /// A width-1 column's bytes, borrowed.
+    pub fn held(&self, name: &str) -> Result<&[u8], String> {
+        match self.column(name)? {
+            Plain::Bytes(1, bytes) => Ok(bytes),
+            _ => Err(format!("journey artifact column {name} has the wrong width")),
         }
-        Ok(bytes.clone())
+    }
+
+    pub fn bytes(&self, name: &str) -> Result<Vec<u8>, String> {
+        self.held(name).map(<[u8]>::to_vec)
+    }
+
+    /// A column of bytes or of words, widened to words.
+    pub fn values(&self, name: &str) -> Result<Vec<u32>, String> {
+        match self.columns.get(name) {
+            Some(Plain::Bytes(1, bytes)) => Ok(bytes.iter().map(|byte| u32::from(*byte)).collect()),
+            _ => self.words(name),
+        }
     }
 
     pub fn words(&self, name: &str) -> Result<Vec<u32>, String> {
-        let (width, bytes) = self
-            .columns
-            .get(name)
-            .ok_or_else(|| format!("journey artifact has no {name} column"))?;
-        if *width != 4 || bytes.len() % 4 != 0 {
-            return Err(format!("journey artifact column {name} has the wrong width"));
+        match self.column(name)? {
+            Plain::Words(words) => Ok(words.clone()),
+            Plain::Bytes(..) => Err(format!("journey artifact column {name} has the wrong width")),
         }
-        Ok(bytes
-            .chunks_exact(4)
-            .map(|word| u32::from_le_bytes(word.try_into().unwrap_or_default()))
-            .collect())
+    }
+
+    /// A width-1 column's bytes, moved out, so a reader does not hold it twice.
+    pub fn take_bytes(&mut self, name: &str) -> Result<Vec<u8>, String> {
+        match self.columns.remove(name) {
+            Some(Plain::Bytes(1, bytes)) => Ok(bytes),
+            _ => Err(format!("journey artifact has no {name} column of bytes")),
+        }
+    }
+
+    /// A width-4 column's words, moved out.
+    pub fn take_words(&mut self, name: &str) -> Result<Vec<u32>, String> {
+        match self.columns.remove(name) {
+            Some(Plain::Words(words)) => Ok(words),
+            _ => Err(format!("journey artifact has no {name} column of words")),
+        }
     }
 }
 
@@ -117,34 +158,31 @@ pub(crate) struct Placed {
     pub stored: std::ops::Range<usize>,
 }
 
-/// Every column the header names, placed in `bytes` and not decoded.
-pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
-    if bytes.len() < 4 {
-        return Err("not a variance-authority journey artifact".to_owned());
-    }
-    let header_length = u32::from_le_bytes(bytes[..4].try_into().unwrap_or_default()) as usize;
-    if header_length == 0 || 4 + header_length > bytes.len() {
-        return Err("not a variance-authority journey artifact".to_owned());
-    }
-    let header_end = bytes[4..4 + header_length]
-        .iter()
-        .position(|byte| *byte == 0)
-        .map_or(4 + header_length, |at| 4 + at);
-    let header: Header = serde_json::from_slice(&bytes[4..header_end])
-        .map_err(|_| "not a variance-authority journey artifact".to_owned())?;
-    if header.version != version {
-        return Err(format!("unsupported journey artifact version: {}", header.version));
-    }
+/// Every column the header names, placed in `bytes` and not decoded, and the
+/// version the header states, whatever it is.
+pub(crate) fn framed(bytes: &[u8]) -> Result<(u8, Vec<Placed>), String> {
+    framed_within(bytes, bytes.len())
+}
+
+/// [`framed`] for a file of `length` bytes of which `bytes` holds a prefix at
+/// least as long as its header: the sections are placed against the whole file.
+pub(crate) fn framed_within(bytes: &[u8], length: usize) -> Result<(u8, Vec<Placed>), String> {
+    let refused = || "not a variance-authority journey artifact".to_owned();
+    let header_length = u32::from_le_bytes(bytes.get(..4).ok_or_else(refused)?.try_into().unwrap_or_default()) as usize;
+    let fits = header_length != 0 && header_length <= length.saturating_sub(4);
+    let held = bytes.get(4..4 + header_length).filter(|_| fits).ok_or_else(refused)?;
+    let header_end = held.iter().position(|byte| *byte == 0).unwrap_or(header_length);
+    let header: Header = serde_json::from_slice(&held[..header_end]).map_err(|_| refused())?;
     let base = 4 + header_length;
-    header
+    let placed = header
         .sections
         .into_iter()
         .map(|section| {
             let end = section
                 .offset
                 .checked_add(section.length)
-                .filter(|end| base + *end <= bytes.len())
-                .ok_or_else(|| "not a variance-authority journey artifact".to_owned())?;
+                .filter(|end| *end <= length - base)
+                .ok_or_else(refused)?;
             Ok(Placed {
                 name: section.name,
                 width: section.width,
@@ -152,114 +190,128 @@ pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
                 stored: base + section.offset..base + end,
             })
         })
-        .collect()
+        .collect::<Result<_, String>>()?;
+    Ok((header.version, placed))
+}
+
+/// Every column the header names, placed in `bytes` and not decoded.
+pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
+    let (stated, placed) = framed(bytes)?;
+    if stated != version {
+        return Err(format!("unsupported journey artifact version: {stated}"));
+    }
+    Ok(placed)
 }
 
 /// The case index a recording holds: the `cases` section when `bytes` are a
 /// coverage record that carries one, and `bytes` themselves otherwise, which
 /// the journey reader then opens or refuses on its own terms.
 pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
-    let cases = place_any(&bytes).ok().and_then(|placed| {
-        placed.into_iter().find(|column| column.name == "cases" && column.rows.is_none())
-    });
-    match cases {
-        Some(column) => bytes[column.stored].to_vec(),
+    match cases_section(&bytes) {
+        Some(stored) => bytes[stored].to_vec(),
         None => bytes,
     }
 }
 
-fn place_any(bytes: &[u8]) -> Result<Vec<Placed>, String> {
-    if bytes.len() < 4 {
-        return Err(String::new());
+/// [`recorded_cases`] for a caller that holds the bytes elsewhere: the part of
+/// `bytes` that is the case index, borrowed.
+pub(crate) fn recorded_cases_in(bytes: &[u8]) -> &[u8] {
+    match cases_section(bytes) {
+        Some(stored) => &bytes[stored],
+        None => bytes,
     }
-    let header_length = u32::from_le_bytes(bytes[..4].try_into().unwrap_or_default()) as usize;
-    if header_length == 0 || 4 + header_length > bytes.len() {
-        return Err(String::new());
-    }
-    let header_end = bytes[4..4 + header_length]
-        .iter()
-        .position(|byte| *byte == 0)
-        .map_or(4 + header_length, |at| 4 + at);
-    let header: Header = serde_json::from_slice(&bytes[4..header_end]).map_err(|_| String::new())?;
-    place(bytes, header.version)
+}
+
+fn cases_section(bytes: &[u8]) -> Option<std::ops::Range<usize>> {
+    let index = LAYOUT.coverage.part("index");
+    framed(bytes).ok().and_then(|(_, placed)| {
+        placed.into_iter().find(|column| column.name == index && column.rows.is_none()).map(|column| column.stored)
+    })
+}
+
+/// The version a container's header names, or nothing when `bytes` are not one.
+pub(crate) fn version_of(bytes: &[u8]) -> Option<u8> {
+    framed(bytes).ok().map(|(version, _)| version)
 }
 
 pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
-    let mut columns = HashMap::new();
-    for column in place(bytes, version)? {
-        let stored = &bytes[column.stored];
-        let plain = match column.rows {
-            None => stored.to_vec(),
-            Some(rows) if column.width == 4 => unpack_words(stored, rows)?,
-            Some(rows) if column.name.ends_with(".blob") => unpack_blob(stored, rows)?,
-            Some(rows) => unpack_bytes(stored, rows)?,
-        };
-        if columns.insert(column.name, (column.width, plain)).is_some() {
-            return Err("journey artifact repeats a column".to_owned());
-        }
-    }
-    Ok(Decoded { columns })
+    decode::decode_placed(bytes, place(bytes, version)?)
+}
+
+/// Every column of a framed file at whatever version its header states, with
+/// that version: the caller decides which it reads.
+pub fn decode_any(bytes: &[u8]) -> Result<(u8, Decoded), String> {
+    let (version, placed) = framed(bytes)?;
+    Ok((version, decode::decode_placed(bytes, placed)?))
+}
+
+/// The columns named in `wanted` of a container in whatever version its header
+/// names, decoded, and that version: a reader that asks a few columns of a large
+/// record decompresses those, and judges the version itself.
+pub(crate) fn decode_wanted(bytes: &[u8], wanted: &[&str]) -> Result<(u8, Decoded), String> {
+    let (version, placed) = framed(bytes)?;
+    let placed = placed.into_iter().filter(|column| wanted.contains(&column.name.as_str())).collect();
+    Ok((version, decode::decode_placed(bytes, placed)?))
 }
 
 fn store(column: Column) -> Result<Stored, String> {
+    let pack_above = LAYOUT.pack_above;
     match column {
         Column::Bytes(name, bytes) => {
-            let rows = bytes.len();
-            let packed = (bytes.len() > PACK_ABOVE)
-                .then(|| pack_byte_runs(&bytes, 6))
-                .transpose()?
-                .filter(|packed| packed.len() < bytes.len());
-            Ok(Stored { name, width: 1, rows, bytes, packed })
+            let packed = (bytes.len() > pack_above).then(|| pack_byte_runs(&bytes, LAYOUT.levels.numbers)).transpose()?;
+            Ok(smaller(name, 1, bytes.len(), bytes, packed))
         }
         Column::Words(name, words) => {
             let rows = words.len();
-            let mut bytes = Vec::with_capacity(rows * 4);
-            for word in &words {
-                bytes.extend_from_slice(&word.to_le_bytes());
-            }
-            let packed = (bytes.len() > PACK_ABOVE)
-                .then(|| pack_word_runs(&words))
-                .transpose()?
-                .filter(|packed| packed.len() < bytes.len());
-            Ok(Stored { name, width: 4, rows, bytes, packed })
+            let packed = (rows * 4 > pack_above).then(|| pack_word_runs(&words)).transpose()?.filter(|packed| packed.len() < rows * 4);
+            Ok(match packed {
+                Some(bytes) => Stored { name, width: 4, rows, bytes, packed: true },
+                None => Stored { name, width: 4, rows, bytes: words.iter().flat_map(|word| word.to_le_bytes()).collect(), packed: false },
+            })
         }
         Column::Blob(name, bytes, offsets) => {
-            let rows = bytes.len();
-            let packed = (bytes.len() > PACK_ABOVE)
-                .then(|| pack_blob_runs(&bytes, &offsets))
-                .transpose()?
-                .filter(|packed| packed.len() < bytes.len());
-            Ok(Stored { name, width: 1, rows, bytes, packed })
+            let packed = (bytes.len() > pack_above).then(|| pack_blob_runs(&bytes, &offsets)).transpose()?;
+            Ok(smaller(name, 1, bytes.len(), bytes, packed))
         }
+        Column::Plain(name, bytes) => Ok(Stored { name, width: 1, rows: bytes.len(), bytes, packed: false }),
+    }
+}
+
+/// The packed form of a column where it is smaller than `plain`, else `plain`.
+fn smaller(name: &'static str, width: u8, rows: usize, plain: Vec<u8>, packed: Option<Vec<u8>>) -> Stored {
+    match packed.filter(|packed| packed.len() < plain.len()) {
+        Some(bytes) => Stored { name, width, rows, bytes, packed: true },
+        None => Stored { name, width, rows, bytes: plain, packed: false },
     }
 }
 
 fn pack_word_runs(values: &[u32]) -> Result<Vec<u8>, String> {
     let mut runs = Vec::new();
-    for values in values.chunks(RUN) {
-        runs.push(compress(&varints(values), 6)?);
+    for values in values.chunks(LAYOUT.run) {
+        runs.push(compress(&varints(values), LAYOUT.levels.numbers)?);
     }
     Ok(lay(runs))
 }
 
 fn pack_byte_runs(values: &[u8], level: i32) -> Result<Vec<u8>, String> {
     let mut runs = Vec::new();
-    for values in values.chunks(RUN) {
+    for values in values.chunks(LAYOUT.run) {
         runs.push(compress(values, level)?);
     }
     Ok(lay(runs))
 }
 
 fn pack_blob_runs(values: &[u8], offsets: &[u32]) -> Result<Vec<u8>, String> {
+    let blob_run = LAYOUT.blob_run;
     let mut runs = Vec::new();
-    for first in (0..offsets.len().saturating_sub(1)).step_by(BLOB_RUN) {
-        let last = (first + BLOB_RUN).min(offsets.len() - 1);
+    for first in (0..offsets.len().saturating_sub(1)).step_by(blob_run) {
+        let last = (first + blob_run).min(offsets.len() - 1);
         let from = offsets[first] as usize;
         let to = offsets[last] as usize;
         if to < from || to > values.len() {
             return Err("journey blob offsets are invalid".to_owned());
         }
-        runs.push(compress(&values[from..to], 1)?);
+        runs.push(compress(&values[from..to], LAYOUT.levels.text)?);
     }
     Ok(lay(runs))
 }
@@ -284,50 +336,18 @@ fn compress(bytes: &[u8], level: i32) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("cannot compress journey column: {error}"))?;
     let mut out = Vec::with_capacity(1 + packed.len().min(bytes.len()));
     if packed.len() < bytes.len() {
-        out.push(ZSTD);
+        out.push(LAYOUT.codecs.zstd);
         out.extend_from_slice(&packed);
     } else {
-        out.push(RAW);
+        out.push(LAYOUT.codecs.raw);
         out.extend_from_slice(bytes);
     }
     Ok(out)
 }
 
-fn unpack_words(stored: &[u8], rows: usize) -> Result<Vec<u8>, String> {
-    let runs = runs(stored, rows.div_ceil(RUN))?;
-    let mut out = Vec::with_capacity(rows * 4);
-    let mut remaining = rows;
-    for run in runs {
-        let values = unvarints(&decompress(run)?, remaining.min(RUN))?;
-        for value in values {
-            out.extend_from_slice(&value.to_le_bytes());
-        }
-        remaining = remaining.saturating_sub(RUN);
-    }
-    Ok(out)
-}
-
-fn unpack_bytes(stored: &[u8], rows: usize) -> Result<Vec<u8>, String> {
-    let runs = runs(stored, rows.div_ceil(RUN))?;
-    let mut out = Vec::with_capacity(rows);
-    for run in runs {
-        out.extend_from_slice(&decompress(run)?);
-    }
-    if out.len() != rows {
-        return Err("journey byte column has the wrong length".to_owned());
-    }
-    Ok(out)
-}
-
-fn unpack_blob(stored: &[u8], rows: usize) -> Result<Vec<u8>, String> {
-    let mut out = Vec::with_capacity(rows);
-    for run in runs_any(stored)? {
-        out.extend_from_slice(&decompress(run)?);
-    }
-    if out.len() != rows {
-        return Err("journey blob column has the wrong length".to_owned());
-    }
-    Ok(out)
+/// The most bytes one run of words can decode to: a varint is at most five bytes.
+pub(crate) fn word_run_limit() -> usize {
+    LAYOUT.run * 5
 }
 
 pub(crate) fn runs(stored: &[u8], expected: usize) -> Result<Vec<&[u8]>, String> {
@@ -346,11 +366,14 @@ pub(crate) fn runs_any(stored: &[u8]) -> Result<Vec<&[u8]>, String> {
         return Err("journey run column is truncated".to_owned());
     }
     let count = u32::from_le_bytes(stored[..4].try_into().unwrap_or_default()) as usize;
-    if 4 + (count + 1) * 4 > stored.len() {
-        return Err("journey run column has an invalid index".to_owned());
-    }
-    let index = &stored[4..4 + (count + 1) * 4];
-    let body = &stored[4 + (count + 1) * 4..];
+    let table = count
+        .checked_add(1)
+        .and_then(|bounds| bounds.checked_mul(4))
+        .and_then(|bytes| bytes.checked_add(4))
+        .filter(|end| *end <= stored.len())
+        .ok_or_else(|| "journey run column has an invalid index".to_owned())?;
+    let index = &stored[4..table];
+    let body = &stored[table..];
     let mut out = Vec::with_capacity(count);
     for at in 0..count {
         let from = u32::from_le_bytes(index[at * 4..at * 4 + 4].try_into().unwrap_or_default()) as usize;
@@ -363,11 +386,31 @@ pub(crate) fn runs_any(stored: &[u8]) -> Result<Vec<&[u8]>, String> {
     Ok(out)
 }
 
-pub(crate) fn decompress(run: &[u8]) -> Result<Vec<u8>, String> {
+/// One run's bytes, refused once they would decode past `limit`: a run holds
+/// at most what its column says one run holds, so a run that decodes to more
+/// is damage, and is stopped before it is held.
+pub(crate) fn decompress(run: &[u8], limit: usize) -> Result<Vec<u8>, String> {
+    let too_long = || "journey column run decodes past its length".to_owned();
     match run.split_first() {
-        Some((tag, bytes)) if *tag == RAW => Ok(bytes.to_vec()),
-        Some((tag, bytes)) if *tag == ZSTD => zstd::stream::decode_all(Cursor::new(bytes))
-            .map_err(|error| format!("cannot decompress journey column: {error}")),
+        Some((tag, bytes)) if *tag == LAYOUT.codecs.raw => {
+            if bytes.len() > limit {
+                return Err(too_long());
+            }
+            Ok(bytes.to_vec())
+        }
+        Some((tag, bytes)) if *tag == LAYOUT.codecs.zstd => {
+            let decoder = zstd::stream::read::Decoder::new(Cursor::new(bytes))
+                .map_err(|error| format!("cannot decompress journey column: {error}"))?;
+            let mut out = Vec::new();
+            decoder
+                .take(limit as u64 + 1)
+                .read_to_end(&mut out)
+                .map_err(|error| format!("cannot decompress journey column: {error}"))?;
+            if out.len() > limit {
+                return Err(too_long());
+            }
+            Ok(out)
+        }
         _ => Err("journey column uses an unknown codec".to_owned()),
     }
 }
@@ -389,7 +432,7 @@ fn varints(values: &[u32]) -> Vec<u8> {
 }
 
 pub(crate) fn unvarints(bytes: &[u8], rows: usize) -> Result<Vec<u32>, String> {
-    let mut out = Vec::with_capacity(rows);
+    let mut out = Vec::with_capacity(rows.min(bytes.len()));
     let mut at = 0;
     let mut previous = 0_u32;
     for _ in 0..rows {
@@ -418,5 +461,10 @@ pub(crate) fn unvarints(bytes: &[u8], rows: usize) -> Result<Vec<u32>, String> {
 }
 
 fn aligned(value: usize) -> usize {
-    (value + ALIGNMENT - 1) & !(ALIGNMENT - 1)
+    let alignment = LAYOUT.alignment;
+    value.div_ceil(alignment) * alignment
 }
+
+#[cfg(test)]
+#[path = "journey_columns_tests.rs"]
+mod tests;

@@ -39,7 +39,7 @@ export { describeIdentity, familiesOf, identityAtScale, identityCause, recipeOnl
 export type { ComparedSides, IdentityCause, Renderer } from './renderer.js';
 
 export { DEFAULT_POLICY, STRICT_POLICY } from './policy.js';
-export type { DiffPolicy, RasterComparison, CompareOptions } from './policy.js';
+export type { DiffPolicy, RasterComparison, CompareOptions, RowAlignment, RowSpan } from './policy.js';
 
 export {
   REFUSAL,

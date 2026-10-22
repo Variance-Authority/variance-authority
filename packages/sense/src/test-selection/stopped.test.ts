@@ -33,6 +33,16 @@ describe('a case that stopped before reaching a region', () => {
     expect(ids(stoppedBefore(settled(true, true), refund, { relations }))).toEqual(['staff', 'other']);
   });
 
+  it('does not name a case whose file imports the module for its types alone', () => {
+    // Nothing behind `import type` runs, so `other` could never have reached the region.
+    const typesOnly = relationsOfFiles([
+      { file: 'src/cart/total.ts' },
+      { file: 'test/cart.test.ts', edges: [{ to: 'src/cart/total.ts', kind: 'imports' }] },
+      { file: 'test/other.test.ts', edges: [{ to: 'src/cart/total.ts', kind: 'type' }] },
+    ]);
+    expect(ids(stoppedBefore(settled(true, true), refund, { relations: typesOnly }))).toEqual(['staff']);
+  });
+
   it('is not named where it entered', () => {
     expect(ids(stoppedBefore(settled(true, true), { file: 'src/cart/total.ts', line: 2 }, { relations })))
       .toEqual(['other']);

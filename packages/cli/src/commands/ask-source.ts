@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
 import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -23,6 +23,10 @@ export interface Answering {
   /** The answer as data, for the one question that has a shape: `search`. */
   readonly data?: () => SearchAnswer;
   readonly at: string | undefined;
+  /** True when the reading was opened at its age and nothing compared it with the checkout. */
+  readonly unseen?: boolean;
+  /** The published files that were there and did not open; absent when none failed. */
+  readonly unopened?: readonly Unopened[];
 }
 
 /** The question `search` was asked, read off the input its schema accepted. */
@@ -54,7 +58,7 @@ export async function searchSource(
   options: SourceReadOptions,
 ): Promise<Answering> {
   let tree: Tree | undefined;
-  const index = await readSearchForAnswer(root, {
+  const { index, compared, unopened } = await readSearchForAnswer(root, {
     index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
@@ -65,6 +69,8 @@ export async function searchSource(
     answer: () => answerSearch(index, input, tree, root),
     data: () => searchNames(index, searchQuestion(input), tree, root),
     at: index.generation?.generatedAt,
+    unseen: !compared,
+    ...(unopened === undefined ? {} : { unopened }),
   };
 }
 
@@ -138,6 +144,7 @@ export async function readSource(root: string, options: SourceReadOptions = {}):
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
+    ...(options.current === true ? { refreshAfterMs: 0 } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
   return { help, tree: () => tree };

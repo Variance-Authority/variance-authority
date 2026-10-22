@@ -1,6 +1,16 @@
+import { stepClock, timeOn, type StepClock } from '@variance-authority/core/format';
 import type { Page } from 'playwright';
 import { AGENT_GLOBAL } from './agent.js';
+import { stillArriving } from './arrivals.js';
 import type { NetworkObservation } from './network.js';
+
+/**
+ * An image, font or media request the read asked for and never got. The subject
+ * is refused, not the run: a collector catches this and goes on to the next one.
+ */
+export class UnansweredAssets extends Error {
+  override readonly name = 'UnansweredAssets';
+}
 
 /**
  * Call the page agent, over an asset set the page has finished asking for.
@@ -49,6 +59,13 @@ export async function acquireFromAgent<Request extends object>(
   page: Page,
   network: NetworkObservation | undefined,
   request: Request,
+  /**
+   * Takes this function's own steps, in the order they ran: `read`, the page's
+   * whole answer from request to string, the page's own steps inside it;
+   * `network`, the wait for the wire to stop after it; and when the wire moved,
+   * that first answer as `stale` and the second as `read`.
+   */
+  steps?: StepClock,
 ): Promise<string> {
   const observed = (): Readonly<Record<string, string>> =>
     network === undefined ? {} : { ...network.assets };
@@ -59,24 +76,46 @@ export async function acquireFromAgent<Request extends object>(
       { ...request, ...(Object.keys(assets).length > 0 ? { assets } : {}) },
     ];
 
-    return page.evaluate(([global, sent]: readonly [string, object]) => {
-      const agent = (
-        globalThis as unknown as Record<string, { acquire(r: object): Promise<string> }>
-      )[global];
-      if (agent === undefined) throw new Error(`missing page agent ${global}`);
-      return agent.acquire(sent);
-    }, payload);
+    try {
+      return await page.evaluate(([global, sent]: readonly [string, object]) => {
+        const agent = (
+          globalThis as unknown as Record<string, { acquire(r: object): Promise<string> }>
+        )[global];
+        if (agent === undefined) throw new Error(`missing page agent ${global}`);
+        return agent.acquire(sent);
+      }, payload);
+    } catch (error) {
+      // An agent waiting on the wire waits as long as a request is open, and
+      // whatever ends the run ends it with Playwright's word for a closed page.
+      const open = stillArriving(page);
+      if (open.length === 0) throw error;
+      const requests = open.length === 1 ? '1 request' : `${open.length} requests`;
+      throw new Error(`the page agent was waiting with ${requests} still arriving: ${open.join(', ')}`, {
+        cause: error,
+      });
+    }
   };
 
   const sent = observed();
-  const first = await acquire(sent);
+  // Taken aside until the wire says whether the first answer is kept.
+  const aside = stepClock(() => performance.now());
+  const first = await aside.time('read', async () => acquire(sent));
 
-  if (network === undefined) return first;
+  if (network === undefined) {
+    steps?.add(aside.taken);
+    return first;
+  }
 
-  await network.settle();
+  const unanswered = await aside.time('network', async () => network.settle());
+  if (unanswered !== undefined) throw new UnansweredAssets(unanswered);
   const settled = observed();
 
-  return sameAssets(sent, settled) ? first : acquire(settled);
+  if (sameAssets(sent, settled)) {
+    steps?.add(aside.taken);
+    return first;
+  }
+  steps?.add(aside.taken.map((step, k) => (k === 0 ? { ...step, step: 'stale' } : step)));
+  return timeOn(steps, 'read', async () => acquire(settled));
 }
 
 /** Whether two asset maps would produce the same key. */

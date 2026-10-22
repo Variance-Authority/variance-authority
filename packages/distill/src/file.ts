@@ -1,16 +1,20 @@
 // compass: variance-authority/runtime/attention
-import type {
-  ExecutionIndex,
-  ExecutionTest,
-  FileReferences,
-  TestCoverage,
+import type { Relations } from '@variance-authority/core/relate';
+import {
+  rankDistillCauses,
+  readDistillRecords,
+  type DistillRecords,
+  type ExecutionTest,
+  type FileReferences,
+  type NativeDistillCause,
+  type NativeDistillFile,
 } from '@variance-authority/sense/test-selection';
 import type { ShadowReach } from '@variance-authority/sense/taint';
 import { chargeLine, chargesOf, reachLine } from './charge.js';
 import { misplacedLines, misplacedOf, type MisplacedMock } from './mocks.js';
-import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
+import { importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
-/** What names one test file, and the two readings of the record it is read from. */
+/** What names one test file, and the record it is read from. */
 export interface FileDistillInput {
   /**
    * The test file's repository-relative path, as the record spells it. Only
@@ -18,29 +22,17 @@ export interface FileDistillInput {
    * another file.
    */
   readonly file: string;
-  /** The record's case index: which cases entered which regions. */
-  readonly execution: ExecutionIndex;
-  /** The record's coverage rows: which test files loaded which modules. */
-  readonly coverage: TestCoverage;
+  /** The record as it is written: its coverage rows, which say which test files loaded which modules, and its case index. */
+  readonly record: Uint8Array;
   /**
-   * The files a file imports statically — imports, re-exports and assets, not
-   * dynamic imports — by the names the record uses. Given, each module no case
-   * entered carries the import that made the file load it.
+   * The file graph, by the names the record uses. Given, each module no case
+   * entered carries the import that made the file load it: imports, re-exports
+   * and assets load a module, a literal `import()` owns what only it reaches,
+   * and a file that re-exports all it loads is a barrel.
    */
-  readonly imports?: (file: string) => readonly string[];
+  readonly relations?: Relations;
   /**
-   * The files a file imports dynamically, by a quoted string. Given with
-   * `imports`, what only a lazy import reaches is owned by it; unsaid, it
-   * reads as unseen.
-   */
-  readonly lazy?: (file: string) => readonly string[];
-  /**
-   * Whether every file a file imports, it also re-exports: a barrel. Unsaid,
-   * no file reads as one.
-   */
-  readonly republishes?: (file: string) => boolean;
-  /**
-   * Where a file references what it imports. Given with `imports`, each
+   * Where a file references what it imports. Given with `relations`, each
    * static import a used file writes carries where that file reads it.
    */
   readonly references?: (file: string) => FileReferences | undefined;
@@ -59,7 +51,7 @@ export interface LoadedModule {
   readonly lines?: number;
   /** How many of the file's cases entered a function the module declares. */
   readonly entered: number;
-  /** Why the file loaded it. Present for a module no case entered, when the imports were given. */
+  /** Why the file loaded it. Present for a module no case entered, when the file graph was given. */
   readonly cause?: LoadCause;
 }
 
@@ -86,6 +78,36 @@ export interface FileDistillation {
   readonly mocks?: readonly MisplacedMock[];
 }
 
+/** A reading's withheld code, as the addon spells it. */
+const NO_CASES = 1;
+const INCOMPLETE = 2;
+const UNSETTLED = 3;
+
+/** Why a reading is withheld, by its code; nothing when it was read. */
+export function withheldOf(file: string, code: number, unsettled: number, cases: number): string | undefined {
+  switch (code) {
+    case NO_CASES:
+      return `the record keeps no cases for ${file}.`;
+    case INCOMPLETE:
+      return `the coverage row for ${file} is incomplete — a filtered, cancelled or stopped run, or source changed ` +
+        'since it was recorded — so it cannot say what the file did without.';
+    case UNSETTLED:
+      return `${unsettled} of ${cases} case(s) stopped or did not say whether they finished, ` +
+        'so what they would have entered is unknown.';
+    default:
+      return undefined;
+  }
+}
+
+const read = new WeakMap<Uint8Array, DistillRecords>();
+
+/** The record read once, however many times one of its test files is asked. */
+function recordOf(bytes: Uint8Array): DistillRecords {
+  let found = read.get(bytes);
+  if (found === undefined) read.set(bytes, (found = readDistillRecords([bytes])));
+  return found;
+}
+
 /**
  * Read one test file's loads against its cases' entries.
  *
@@ -100,175 +122,95 @@ export interface FileDistillation {
  * a file of constants runs all it has when it loads, and a read of a constant
  * is not recorded, so the record cannot say the file did without it. An
  * uninstrumented module is left out because the record cannot say what entered
- * it.
+ * it. The reading is the addon's (`native/src/distill_gather.rs` in
+ * `@variance-authority/sense`).
  */
 export function distillFile(input: FileDistillInput): FileDistillation {
-  return readTestFile(testFileOf(input.coverage, input.file), input);
-}
-
-/** {@link distillFile} without the refusal of a test file the record does not hold. */
-export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>): FileDistillation {
-  const index = indexed(input.coverage, input.execution);
-  const cases = index.cases.get(file) ?? [];
-  const candidates = (index.loads.get(file) ?? []).filter((module) => module.file !== file);
+  const file = input.file;
+  const record = recordOf(input.record);
+  const found = record.file(file, input.relations);
+  // A refusal names no other path: two paths are two files, so none the record holds is the one asked.
+  if (!found.held) {
+    throw new Error(
+      `The record holds no test file \`${file}\`. It names each test file by its path from the repository root, with \`/\`.`,
+    );
+  }
   const mocks = input.shadows === undefined ? [] : misplacedOf(input.shadows(file));
   const base = {
     file,
-    cases: cases.map(({ test }) => test),
-    loaded: candidates.length,
-    lines: candidates.reduce((sum, module) => sum + (linesOf(module) ?? 0), 0),
+    cases: record.cases(file),
+    loaded: found.loaded,
+    lines: found.lines,
     ...(mocks.length === 0 ? {} : { mocks }),
   };
-  if (cases.length === 0) return { ...base, withheld: `the record keeps no cases for ${file}.` };
-  if (index.incomplete.has(file)) {
-    return {
-      ...base,
-      withheld: `the coverage row for ${file} is incomplete — a filtered, cancelled or stopped run, or source changed ` +
-        'since it was recorded — so it cannot say what the file did without. Run the file again.',
-    };
-  }
-  const unsettled = cases.filter(({ test }) => test.stopped !== false).length;
-  if (unsettled > 0) {
-    return {
-      ...base,
-      withheld: `${unsettled} of ${cases.length} case(s) stopped or did not say whether they finished, ` +
-        'so what they would have entered is unknown.',
-    };
-  }
+  const withheld = withheldOf(file, found.withheld, found.unsettled, found.cases);
+  if (withheld !== undefined) return { ...base, withheld };
 
-  const mine = new Set(cases.map(({ at }) => at));
-  const entered = new Map(candidates.map((module) => {
-    const executed = index.executed.get(module.file);
-    return [module.file, executed === undefined ? 0 : enteredBy(executed, mine).size];
-  }));
-  const imports = input.imports;
-  const cause = imports === undefined ? undefined : causesOf({
-    file,
-    imports,
-    ...(input.lazy === undefined ? {} : { lazy: input.lazy }),
-    ...(input.republishes === undefined ? {} : { republishes: input.republishes }),
-    coverage: input.coverage,
-    entered,
-  });
+  const name = (id: number): string => found.names[id]!;
+  const loading = new Map<string, number>();
+  for (let at = 0; at < found.module.length; at += 1) {
+    if (found.kind[at] === IMPORT) loading.set(name(found.importer[at]!), found.loading[at]!);
+  }
   // Each file is read once however many owned modules ask for it, by the charge or for its exports.
-  const read = new Map<string, FileReferences | undefined>();
-  const references = input.references === undefined ? undefined : (at: string) => {
-    if (!read.has(at)) read.set(at, input.references!(at));
-    return read.get(at);
-  };
-  const charge = references === undefined ? undefined : chargesOf({
+  const references = input.references === undefined ? undefined : once(input.references);
+  const charge = references === undefined || input.relations === undefined ? undefined : chargesOf({
     references,
-    coverage: input.coverage,
-    execution: input.execution,
-    mine,
+    loading: (importer) => loading.get(importer) ?? 0,
+    regions: once((importer) => record.regions(file, importer)),
   });
-  const charged = (module: string): LoadCause => {
-    const found = cause!(module);
-    if (found.kind !== 'import' || found.lazy === true) return found;
-    const reach = found.importer === file ? 'test' : imports!(file).includes(found.importer) ? 'subject' : 'beyond';
-    const reading = charge?.(found.importer, found.imported);
-    const exports = reach === 'subject' ? references?.(found.imported)?.exports : undefined;
-    return { ...found, ...(reading === undefined ? {} : { charge: reading }), reach, ...(exports === undefined ? {} : { exports }) };
+  const subjects = new Set(Array.from(found.subjects, name));
+  const charged = (cause: LoadCause): LoadCause => {
+    if (cause.kind !== 'import' || cause.lazy === true) return cause;
+    const reach = cause.importer === file ? 'test' : subjects.has(cause.importer) ? 'subject' : 'beyond';
+    const reading = charge?.(cause.importer, cause.imported);
+    const exports = reach === 'subject' ? references?.(cause.imported)?.exports : undefined;
+    return { ...cause, ...(reading === undefined ? {} : { charge: reading }), reach, ...(exports === undefined ? {} : { exports }) };
   };
-  const modules = candidates
-    .map((module): LoadedModule => {
-      const lines = linesOf(module);
-      const count = entered.get(module.file)!;
-      return {
-        file: module.file,
-        ...(lines === undefined ? {} : { lines }),
-        entered: count,
-        ...(cause === undefined || count > 0 ? {} : { cause: charged(module.file) }),
-      };
-    })
-    .filter(({ entered }) => entered < cases.length)
-    .sort((left, right) =>
-      left.entered - right.entered ||
-      (right.lines ?? -1) - (left.lines ?? -1) ||
-      compare(left.file, right.file));
+  const modules = Array.from(found.module, (module, at): LoadedModule => {
+    const cause = causeOf(found, at, name);
+    return {
+      file: name(module),
+      ...(found.hasLines[at] === 1 ? { lines: found.moduleLines[at]! } : {}),
+      entered: found.entered[at]!,
+      ...(cause === undefined ? {} : { cause: charged(cause) }),
+    };
+  });
   return { ...base, modules };
 }
 
-type CoverageModule = TestCoverage['modules'][number];
+/** A cause's kind in the addon's columns: none, an import, shared, unseen. */
+const IMPORT = 1;
+const SHARED_KIND = 2;
+const UNSEEN_KIND = 3;
 
-/** A record's rows by the test file they belong to. */
-interface Indexed {
-  readonly cases: ReadonlyMap<string, readonly { readonly test: ExecutionTest; readonly at: number }[]>;
-  readonly incomplete: ReadonlySet<string>;
-  /** The instrumented modules each test file evaluated that declare a function below their top level. */
-  readonly loads: ReadonlyMap<string, readonly CoverageModule[]>;
-  readonly executed: ReadonlyMap<string, ExecutionIndex['modules'][number]>;
+function causeOf(found: NativeDistillFile, at: number, name: (id: number) => string): LoadCause | undefined {
+  switch (found.kind[at]) {
+    case IMPORT:
+      return {
+        kind: 'import',
+        importer: name(found.importer[at]!),
+        imported: name(found.imported[at]!),
+        ...(found.lazy[at] === 1 ? { lazy: true as const } : {}),
+      };
+    case SHARED_KIND:
+      return { kind: 'shared', parts: name(found.imported[at]!) };
+    case UNSEEN_KIND:
+      return { kind: 'unseen' };
+    default:
+      return undefined;
+  }
 }
 
-const indexes = new WeakMap<TestCoverage, WeakMap<ExecutionIndex, Indexed>>();
-
-/** The record indexed once, however many of its test files are read. */
-function indexed(coverage: TestCoverage, execution: ExecutionIndex): Indexed {
-  let byExecution = indexes.get(coverage);
-  if (byExecution === undefined) indexes.set(coverage, (byExecution = new WeakMap()));
-  const found = byExecution.get(execution);
-  if (found !== undefined) return found;
-  const cases = new Map<string, { test: ExecutionTest; at: number }[]>();
-  execution.tests.forEach((test, at) => push(cases, test.file, { test, at }));
-  const loads = new Map<string, CoverageModule[]>();
-  for (const module of coverage.modules) {
-    if (!module.instrumented || !module.blocks.some((block) => block.kind === 'function' && block.source)) continue;
-    // The file's top level ran for each of these test files before their first case.
-    for (const file of new Set(module.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [])) push(loads, file, module);
-  }
-  const index: Indexed = {
-    cases,
-    incomplete: new Set(coverage.tests.filter((test) => !test.complete).map((test) => test.file)),
-    loads,
-    executed: new Map(execution.modules.map((module) => [module.file, module])),
+function once<T>(ask: (file: string) => T): (file: string) => T {
+  const asked = new Map<string, T>();
+  return (file) => {
+    if (!asked.has(file)) asked.set(file, ask(file));
+    return asked.get(file)!;
   };
-  byExecution.set(execution, index);
-  return index;
-}
-
-/** A module's lines: where its top level ends, or absent when it kept none. */
-function linesOf(module: CoverageModule): number | undefined {
-  return module.blocks.find((block) => block.kind === 'module')?.endLine;
-}
-
-function push<T>(map: Map<string, T[]>, key: string, value: T): void {
-  const list = map.get(key);
-  if (list === undefined) map.set(key, [value]);
-  else list.push(value);
-}
-
-/**
- * The cases among `mine` that called into the module: crossed a region below
- * its root, other than while it evaluated.
- */
-function enteredBy(module: ExecutionIndex['modules'][number], mine: ReadonlySet<number>): ReadonlySet<number> {
-  const entered = new Set<number>();
-  for (const block of module.blocks) {
-    if (block.kind === 'module') continue;
-    for (const crossing of block.crossings) {
-      if (crossing.loaded !== true && mine.has(crossing.test)) entered.add(crossing.test);
-    }
-  }
-  return entered;
 }
 
 /** How many cases a refusal names. */
 const AVAILABLE_SHOWN = 5;
-
-/**
- * `file`, when the record holds a test file by that name. A refusal names no
- * other path: two paths are two files, so none the record holds is the one asked.
- */
-function testFileOf(coverage: TestCoverage, file: string): string {
-  if (coverage.tests.some((test) => test.file === file)) return file;
-  throw new Error(
-    `The record holds no test file \`${file}\`. It names each test file by its path from the repository root, with \`/\`.`,
-  );
-}
-
-function compare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
 
 /** Render a file distillation for a person or agent. */
 export function formatFileDistillation(result: FileDistillation): string {
@@ -315,22 +257,27 @@ export function formatFileDistillation(result: FileDistillation): string {
   ].join('\n');
 }
 
-/** The modules grouped by what brought them in: imports heaviest first, then the shared, then the unseen. */
+/** The modules grouped by what brought them in, in the order a scope reads its spills: imports heaviest first, then the shared, then the unseen. */
 function byCause(modules: readonly LoadedModule[]): readonly (readonly [string, readonly LoadedModule[]])[] {
-  const groups = new Map<string, LoadedModule[]>();
+  const groups = new Map<string, { readonly head: string; readonly cause: NativeDistillCause; readonly modules: LoadedModule[] }>();
   for (const module of modules) {
     const cause = module.cause;
-    const head = cause?.kind === 'import'
-      ? importOf(cause)
-      : cause?.kind === 'shared' ? SHARED : UNSEEN;
-    const group = groups.get(head);
-    if (group === undefined) groups.set(head, [module]);
-    else group.push(module);
+    const [head, kind] = cause?.kind === 'import'
+      ? [importOf(cause), IMPORT]
+      : cause?.kind === 'shared' ? [SHARED, SHARED_KIND] : [UNSEEN, UNSEEN_KIND];
+    let group = groups.get(head);
+    if (group === undefined) {
+      const named = cause?.kind === 'import'
+        ? { importer: cause.importer, imported: cause.imported, lazy: cause.lazy === true }
+        : { importer: '', imported: '', lazy: false };
+      groups.set(head, (group = { head, cause: { kind, ...named, lines: 0 }, modules: [] }));
+    }
+    group.modules.push(module);
   }
+  const held = [...groups.values()];
   const weight = (group: readonly LoadedModule[]): number => group.reduce((sum, module) => sum + (module.lines ?? 0), 0);
-  const rank = (head: string): number => (head === SHARED ? 1 : head === UNSEEN ? 2 : 0);
-  return [...groups].sort(([left, a], [right, b]) =>
-    rank(left) - rank(right) || weight(b) - weight(a) || compare(left, right));
+  return rankDistillCauses(held.map(({ cause, modules }) => ({ ...cause, lines: weight(modules) })))
+    .map((at) => [held[at]!.head, held[at]!.modules] as const);
 }
 
 /** How many imports, modules under one group, and modules in a flat list the text names; the JSON names every one. */

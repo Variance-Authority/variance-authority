@@ -89,6 +89,15 @@ describe('parseConfig', () => {
     expect(attempt({ ...VALID, entrypoints: { 'apps/main': ['../widget/main.tsx'] } }).field).toBe('entrypoints.apps/main');
   });
 
+  it('takes `typescript.tsconfig` as auto, a path or false, and refuses anything else by the field', () => {
+    for (const tsconfig of ['auto', 'tsconfig.app.json', false]) {
+      expect(() => parseConfig({ ...VALID, typescript: { tsconfig } }, OPTIONS)).not.toThrow();
+    }
+    expect(attempt({ ...VALID, typescript: { tsconfig: true } }).field).toBe('typescript.tsconfig');
+    expect(attempt({ ...VALID, typescript: { paths: false } }).field).toBe('typescript.paths');
+    expect(attempt({ ...VALID, typescript: false }).field).toBe('typescript');
+  });
+
   it('refuses `tiers` that do not decrease, by the field', () => {
     expect(() => parseConfig({ ...VALID, tiers: [200000, 5000, 1000] }, OPTIONS)).not.toThrow();
     expect(attempt({ ...VALID, tiers: [1000, 5000] }).field).toBe('tiers');

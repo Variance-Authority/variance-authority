@@ -25,6 +25,7 @@ import {
   coveringTestsInFile,
   distanceToSource,
   hunksOf,
+  caseHeard,
   type CoveringRegion,
   type ExecutionIndex,
   type LineRange,
@@ -34,6 +35,7 @@ import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder as order } from '@variance-authority/core/segment';
 import { regionState } from './covering-frame.js';
+import { caseOrder } from './review-json.js';
 import type { Reach, ReviewRegion } from './review.js';
 
 /** The test files near a changed module, and those whose distance to it was not measured. */
@@ -163,8 +165,8 @@ export function regionsOf(
       changedLineCases: changedLines.size,
       tests: [...new Set(called.map((test) => test.file))].sort(order),
       called: called
-        .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
-        .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
+        .map((test) => ({ id: test.id, file: test.file, name: test.name, ...caseHeard(test) }))
+        .sort(caseOrder),
     };
   });
 }

@@ -62,11 +62,20 @@ describe('a name the substring cannot reach', () => {
     // and contains the query as text nowhere.
     const text = ask({ query: 'numbers order' });
     expect(text).toContain('Span');
-    expect(text).toContain('loosely');
+  });
+
+  it('leaves a name the described section holds to it, since that section prints first', () => {
+    // Both readings hold `Span`; it is offered once, where the reader meets it first.
+    const text = ask({ query: 'numbers order' });
+    expect(text).toMatch(/Span .*\[holds: numbers, order\]/);
+    expect(text).not.toContain('loosely');
   });
 
   it('requires every word to land, so a two-word query is not the union', () => {
-    expect(ask({ query: 'numbers unwritten' })).not.toContain('Span');
+    // Half the words is the described section's rule, and it says which it holds.
+    const text = ask({ query: 'numbers unwritten' });
+    expect(text).not.toContain('loosely');
+    expect(text).toMatch(/Span .*\[holds: numbers\]/);
   });
 });
 

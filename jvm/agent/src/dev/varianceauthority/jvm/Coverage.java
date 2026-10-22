@@ -68,6 +68,14 @@ public final class Coverage {
   private static final int FORMAT = 8;
   private static final int MODEL = 3;
   private static final String INSTRUMENTATION = "sense:instrument/entries-v3";
+  /**
+   * The record this run started from, which combining shards compares: it read
+   * {@code unknown}, and was laid over none. Surefire or Gradle hands the JVM the
+   * classes a separate {@code variance select} chose, so the agent never sees which
+   * record that selection read; it builds the snapshot from its own rows rather than
+   * laying the run over a record. Combining checks no read of such a shard, and says so.
+   */
+  private static final String BASE = "unknown over none";
   private static final int NO_OWNER = 0xffffffff;
   private static final int KIND_MODULE = 0;
   private static final int KIND_FUNCTION = 1;
@@ -686,6 +694,10 @@ public final class Coverage {
     out.words("blocks.loadedSet", loadedSet);
     out.add("sets.blob", sets.bytes(), 1);
     out.words("sets.off", sets.offsets());
+    // FIXME: a JVM shard cannot name the record its skip list came from, so two shards
+    // that selected from two records still combine as one start: it writes `unknown`,
+    // and combining says it checked no read of it.
+    out.add("run.base", BASE.getBytes(StandardCharsets.UTF_8), 1);
     return out.bytes();
   }
 

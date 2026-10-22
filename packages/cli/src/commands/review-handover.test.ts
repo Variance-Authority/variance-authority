@@ -6,7 +6,7 @@ import { main } from '../bin.js';
 import { readFlags } from '../args.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { AFTER, DISCOUNTS, block, changed, git } from './review-fixture.js';
+import { AFTER, BEFORE, DISCOUNTS, block, changed, git } from './review-fixture.js';
 import { formatHandover, HANDOVER_END, HANDOVER_LINES, HANDOVER_START } from './review-handover.js';
 import type { Review, ReviewRegion } from './review.js';
 import { REVIEW_MARKER } from './review-text.js';
@@ -26,7 +26,7 @@ describe('a review handed over in the pull request body, before CI', () => {
   const cwd = process.cwd();
   afterEach(() => process.chdir(cwd));
 
-  it('leaves breadcrumbs: each changed function, whether a case reached it and from how far, and the test file to open', async () => {
+  it('points at each changed function, whether a case reached it and from how far, and the test file to open', async () => {
     const { root, first } = await changed();
     await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
 
@@ -51,6 +51,32 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(out).not.toContain(REVIEW_MARKER);
   });
 
+  it('names a changed source file no record holds, a Rust one, rather than saying the change touched no function, as the review comment names it', async () => {
+    const walk = (step: number): string => `pub fn walk() -> u32 {\n    ${step}\n}\n`;
+    const { root, first } = await changed({ tree: BEFORE, others: { 'src/walk.rs': [walk(1), walk(2)] } });
+
+    const { code, out } = await printed(['--since', first, '--root', root, '--format', 'handover']);
+
+    expect(code).toBe(0);
+    expect(out).toContain('<summary>🧭 Coverage of the changed area: no changed function in the record, 1 changed file not in it</summary>');
+    expect(out).toContain('\nNot in the record, so no function in it is named: `src/walk.rs`.\n');
+    expect(out).not.toContain('config.json');
+    // The review comment names the same file, and not the test file whose cases the record holds.
+    const text = await printed(['--since', first, '--root', root]);
+    expect(text.out).toContain('\n- Not in the record, so not counted: src/walk.rs.\n');
+  });
+
+  it('names a file not in the record only when no suite read holds it, as many as twelve by name', () => {
+    const outside = Array.from({ length: 14 }, (_, at) => ({ file: `src/w${String(at).padStart(2, '0')}.rs`, recorded: false, indexed: true }));
+    const at = (files: readonly object[]): Review => ({ from: 'a'.repeat(40), record: 'before', base: 'since', files } as unknown as Review);
+    // The second suite holds the first file, so only the other thirteen are outside every record.
+    const out = formatHandover([{ suite: 'unit', review: at(outside) }, { suite: 'browser', review: at([{ ...outside[0], recorded: true, regions: [] }, ...outside.slice(1)]) }]);
+
+    expect(out).toContain('<summary>🧭 Coverage of the changed area: no changed function in the record, 13 changed files not in it</summary>');
+    const named = outside.slice(1, 13).map(({ file }) => `\`${file}\``).join(', ');
+    expect(out).toContain(`\nNot in the record, so no function in them is named: ${named} and 1 more.\n`);
+  });
+
   it('stays a handful of lines however many functions the change touched, absences first', () => {
     const region = (name: string, reach: ReviewRegion['reach'], tests: readonly string[]): ReviewRegion => ({
       kind: 'function', name, startLine: 1, endLine: 2, reach, edit: 'modified', changedLineCases: tests.length, cases: tests.length, tests, called: [],
@@ -63,11 +89,11 @@ describe('a review handed over in the pull request body, before CI', () => {
     const review = { from: 'a'.repeat(40), record: 'before', base: 'since', files } as unknown as Review;
 
     const out = formatHandover([{ review }]);
-    const crumbs = out.split('\n').filter((line) => line.startsWith('- '));
+    const pointers = out.split('\n').filter((line) => line.startsWith('- '));
 
-    expect(crumbs).toHaveLength(HANDOVER_LINES);
-    expect(crumbs.slice(0, 4).every((line) => line.startsWith('- 🔴'))).toBe(true);
-    expect(crumbs[4]).toBe('- 🟡 `f3` in `src/f03.ts` — 2 cases, far: `test/a.test.ts` and 1 more');
+    expect(pointers).toHaveLength(HANDOVER_LINES);
+    expect(pointers.slice(0, 4).every((line) => line.startsWith('- 🔴'))).toBe(true);
+    expect(pointers[4]).toBe('- 🟡 `f3` in `src/f03.ts` — 2 cases, far: `test/a.test.ts` and 1 more');
     expect(out).toContain('<summary>🧭 Coverage of the changed area: 40 changed functions, 4 with code the record holds no case for</summary>');
     expect(out).toContain('And 28 more, every one reached by a case: 4 far, 24 near.');
   });
@@ -82,6 +108,43 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
       '- ⚪ `loaded` in `src/loaded.ts` — 1 case, ran only while its module loaded: `test/a.test.ts`',
       '- 🟠 `unplaced` in `src/unplaced.ts` — 1 case, distance not measured: `test/a.test.ts`',
+    ]);
+  });
+
+  it('says how the cases that reached a named function split by what the code read, and nothing of a record that did not listen', () => {
+    const read = (value: boolean) => [{ name: 'flags:checkout', value, site: 'src/a.ts:3', level: 0xffff }];
+    const called = [
+      { id: 'a > off', file: 'test/a.test.ts', name: 'off', preconditions: [], reads: read(false) },
+      { id: 'a > on', file: 'test/a.test.ts', name: 'on', preconditions: [], reads: read(true) },
+    ];
+    const region = (name: string, cases: ReviewRegion['called']): ReviewRegion => ({
+      kind: 'function', name, startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 2, cases: 2, tests: ['test/a.test.ts'], called: cases,
+    });
+    const files = [
+      { file: 'src/a.ts', recorded: true, regions: [region('total', called)] },
+      { file: 'src/b.ts', recorded: true, regions: [region('round', called.map(({ reads: _, ...unheard }) => unheard))] },
+    ];
+    const review = { from: 'a'.repeat(40), record: 'ran', base: 'since', files } as unknown as Review;
+
+    expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
+      '- 🟡 `total` in `src/a.ts` — 2 cases, far: `test/a.test.ts`; flags:checkout read false by 1, true by 1',
+      '- 🟡 `round` in `src/b.ts` — 2 cases, far: `test/a.test.ts`',
+    ]);
+  });
+
+  it('names a misused breadcrumb the cases that reached a named function met after their reads, never as a read', () => {
+    const misused = [{ argument: 'key', value: 7, site: 'src/a.ts:3', level: 0xffff }];
+    const called = [
+      { id: 'a > off', file: 'test/a.test.ts', name: 'off', preconditions: [], reads: [], misused },
+      { id: 'a > on', file: 'test/a.test.ts', name: 'on', preconditions: [], reads: [] },
+    ];
+    const region = {
+      kind: 'function', name: 'total', startLine: 1, endLine: 2, reach: 'far', edit: 'modified', changedLineCases: 2, cases: 2, tests: ['test/a.test.ts'], called,
+    } as unknown as ReviewRegion;
+    const review = { from: 'a'.repeat(40), record: 'ran', base: 'since', files: [{ file: 'src/a.ts', recorded: true, regions: [region] }] } as unknown as Review;
+
+    expect(formatHandover([{ review }]).split('\n').filter((line) => line.startsWith('- '))).toEqual([
+      '- 🟡 `total` in `src/a.ts` — 2 cases, far: `test/a.test.ts`; misused varianceBreadcrumb at src/a.ts:3 by 1: the key 7 is not a string',
     ]);
   });
 

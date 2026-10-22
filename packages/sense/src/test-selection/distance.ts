@@ -42,7 +42,7 @@
  * first, which is the right place for it and the wrong reason.
  */
 
-import { dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
@@ -179,7 +179,7 @@ export function distanceFromView(
   options: DistanceOptions = {},
 ): readonly TestDistance[] {
   const entered = enteredByTest(coverage);
-  const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
+  const placed = (narrowing.because ?? []).map((cause) => place(coverage, cause, entered, options));
   const selected = new Set(narrowing.entered);
   const read = (narrowing.readings ?? []).filter(reachesThrough).map((reading) => reading.file);
   for (const test of narrowing.incomplete ?? []) {
@@ -362,7 +362,7 @@ function walk(
   const avoid: NodeId[] = [];
   for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
 
-  const traversal = dependenciesOf(relations, start, { avoid });
+  const traversal = dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid });
   let best: readonly NodeId[] | undefined;
   for (const id of wanted.keys()) {
     if (traversal.mask[id] !== 1) continue;

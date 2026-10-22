@@ -17,11 +17,11 @@ use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::fs;
 
-use crate::case_preconditions;
-use crate::journey_format;
+use crate::case_said::{self, Heard};
 use crate::journey_lazy::{Handle, Lazy};
-use crate::journey_stitch::decode_set;
+use crate::crossing_sets::decode_set;
 use crate::order;
+use crate::record_layout::LAYOUT;
 
 /// One region of a module, as the columns spell it.
 #[derive(Clone, Copy)]
@@ -46,8 +46,12 @@ struct Columns {
     test_names: Handle,
     /// `tests.stopped`, absent in a file written before cases carried it.
     test_settled: Option<Handle>,
-    /// `tests.casePreconditions`, absent where no case was listened to.
-    test_said: Option<Handle>,
+    /// `tests.said`, absent where no case was listened to.
+    said: Option<Handle>,
+    /// `tests.read`, absent where no case was listened to, as in a record from before breadcrumbs.
+    read: Option<Handle>,
+    /// `tests.misused`, absent where no case was listened to for reads.
+    misused: Option<Handle>,
     module_files: Handle,
     module_blocks: Handle,
     kinds: Handle,
@@ -82,7 +86,7 @@ impl Journey {
     /// a coverage record's case index, or a case index on its own.
     pub fn of(file: &str, bytes: Vec<u8>) -> Result<Journey, String> {
         let bytes = crate::journey_columns::recorded_cases(bytes);
-        let lazy = Lazy::new(bytes, journey_format::FORMAT)
+        let lazy = Lazy::new(bytes, LAYOUT.cases.format)
             .map_err(|error| format!("cannot read journey file {file}: {error}"))?;
         let columns = Columns {
             strings: lazy.column("strings.blob", 1)?,
@@ -91,7 +95,9 @@ impl Journey {
             test_files: lazy.column("tests.file", 4)?,
             test_names: lazy.column("tests.name", 4)?,
             test_settled: if lazy.has("tests.stopped") { Some(lazy.column("tests.stopped", 1)?) } else { None },
-            test_said: if lazy.has(case_preconditions::COLUMN) { Some(lazy.column(case_preconditions::COLUMN, 4)?) } else { None },
+            said: if lazy.has(case_said::SAID_SECTION) { Some(lazy.column(case_said::SAID_SECTION, 1)?) } else { None },
+            read: if lazy.has(case_said::READ_SECTION) { Some(lazy.column(case_said::READ_SECTION, 1)?) } else { None },
+            misused: if lazy.has(case_said::MISUSED_SECTION) { Some(lazy.column(case_said::MISUSED_SECTION, 1)?) } else { None },
             module_files: lazy.column("modules.file", 4)?,
             module_blocks: lazy.column("modules.blocks", 4)?,
             kinds: lazy.column("blocks.kind", 4)?,
@@ -122,7 +128,6 @@ impl Journey {
         if rows(c.test_files) != self.tests
             || rows(c.test_names) != self.tests
             || c.test_settled.is_some_and(|column| rows(column) != self.tests)
-            || c.test_said.is_some_and(|column| rows(column) != self.tests)
         {
             return Err("test columns disagree".to_owned());
         }
@@ -183,12 +188,12 @@ impl Journey {
         self.columns.test_settled.map(|column| self.lazy.byte(column, test)).transpose()
     }
 
-    /// What the case said it arranged, as the column spells it, when it was listened to.
-    pub fn test_said(&self, test: usize) -> Result<Option<&str>, String> {
-        match self.columns.test_said.map(|column| self.lazy.word(column, test)).transpose()? {
-            None | Some(case_preconditions::UNHEARD) => Ok(None),
-            Some(word) => self.text(word).map(Some),
-        }
+    /// What each case said it arranged and the code read, `None` for a case
+    /// nobody listened to.
+    pub fn heard(&self) -> Result<Vec<Option<Heard>>, String> {
+        let bytes = |column: Option<Handle>| column.map(|column| self.lazy.all_bytes(column)).transpose();
+        let (said, read, misused) = (bytes(self.columns.said)?, bytes(self.columns.read)?, bytes(self.columns.misused)?);
+        case_said::read([said.as_deref(), read.as_deref(), misused.as_deref()], self.tests, |set| self.members(set))
     }
 
     /// Each test's file, by test index.

@@ -5,7 +5,7 @@
  * Playwright compiles every spec through Babel, and `babelPlugins` under
  * `'@playwright/test'` in the configuration is the one place it lets a project
  * add to that, which is where `withTestSelection` puts this. The cut is the one
- * every runner's seam makes ([`cadence`](../../sense/src/instrument/cadence.ts)),
+ * every runner's seam makes ([`cadence`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/instrument/cadence.ts)),
  * awaited: the page is outside the test's realm, so each statement of an async
  * body waits while the `context` fixture drains what the statement before it
  * reached ([`documents.ts`](./documents.ts)).

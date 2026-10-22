@@ -87,7 +87,8 @@ impl Walker {
         let edit = self.edits[slot.edit];
         let from = self.texts.len() as u32;
         self.texts.extend_from_within(edit.from as usize..edit.to as usize);
-        let _ = write!(self.texts, "__va({ordinal}){}", slot.after);
+        let probe = self.probe(ordinal);
+        let _ = write!(self.texts, "{probe}{}", slot.after);
         self.edits[slot.edit] = Edit { at: edit.at, from, to: self.texts.len() as u32 };
     }
 }

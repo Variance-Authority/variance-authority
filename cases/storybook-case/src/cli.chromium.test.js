@@ -90,7 +90,7 @@ let tickingConfigPath = '';
  * story order rather than an edit. It is a cause the case runs — in
  * `alone.chromium.test.js` — and never a subject.
  *
- * `ticking` is the cycle's own exclusion. A reading of `Clock — ticking` agrees
+ * `ticking` matches it too. A reading of `Clock — ticking` agrees
  * with its baseline, another mount, only when both were taken the same 50 ms
  * step after mounting, so the cycle, which asserts `unchanged`, leaves it to the
  * sweep below.
@@ -205,7 +205,7 @@ live('the durable workflow, end to end', () => {
     // because this cycle asserts `unchanged` and one reading of it cannot
     // promise that. See `writeConfig`.
     expect(out).toContain('13 of 17 subject(s) observed');
-    expect(out).toContain('0 the run could not see, 4 excluded by configuration');
+    expect(out).toContain('0 the run could not see, 4 excluded on purpose');
     expect(out).toContain('[excluded] story:case-surface--leaks-a-sheet: excluded by tag `no-variance`');
     expect(out).toContain('[excluded] story:case-surface--finishes-late: excluded by tag `no-variance`');
     expect(out).toContain('[excluded] story:case-surface--ticking: excluded by tag `ticking`');

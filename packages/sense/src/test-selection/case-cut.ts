@@ -12,7 +12,7 @@
  *
  * A file run in part is recorded incomplete, whatever its cases did: the cases
  * it skipped did not record their reach, and a whole record would replace the
- * reach they had with none. See `mergeCoverage`.
+ * reach they had with none.
  */
 
 // compass: variance-authority.reach
@@ -77,6 +77,7 @@ export function removeCut(file: string | undefined): void {
  * not run, so the runner sends each skip as a result through its own update.
  */
 export function vitestCutSource(cutFile: string | undefined): string {
+  // FIXME: a Vitest answer in a runner-neutral file; it moves beside `vitest.ts` (No runner is the default).
   return `
 const cutFile = ${JSON.stringify(cutFile ?? null)};
 const cutOf = (filepath) => {

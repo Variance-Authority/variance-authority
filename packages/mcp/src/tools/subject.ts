@@ -75,7 +75,7 @@ export function unobserved(entry: NotObserved): string {
 export function notObservedSentence(kind: NotObserved['kind']): string {
   switch (kind) {
     case 'excluded':
-      return 'This was excluded by configuration, not by a failure.';
+      return 'This was excluded on purpose, not by a failure.';
     case 'unreached':
       return 'The change under review cannot reach this subject, so it was not rendered.';
     default:

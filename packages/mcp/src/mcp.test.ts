@@ -242,15 +242,12 @@ describe('the protocol', () => {
     expect(handle({ jsonrpc: '2.0', method: 'notifications/initialized' }, () => REPORT, REPORTS)).toBeNull();
   });
 
-  it('refuses an unknown method and an unknown tool differently', () => {
+  it('refuses an unknown method differently from an unknown or unnamed tool', () => {
     expect(handle({ jsonrpc: '2.0', id: 1, method: 'nope' }, () => REPORT, REPORTS)!.error?.code).toBe(-32601);
-    expect(
-      handle(
-        { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'nope' } },
-        () => REPORT,
-        REPORTS,
-      )!.error?.code,
-    ).toBe(-32602);
+    const call = (params: Record<string, unknown>) =>
+      handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params }, () => REPORT, REPORTS)!.error;
+    expect(call({ name: 'nope' })?.code).toBe(-32602);
+    expect(call({})).toEqual({ code: -32602, message: 'tools/call requires a name' });
   });
 
   it('every declared tool can actually be called', () => {

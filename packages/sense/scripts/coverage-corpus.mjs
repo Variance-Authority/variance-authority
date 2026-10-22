@@ -19,7 +19,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID, instrument } from '../dist/instrument/index.js';
-import { coverageBlock } from '../dist/test-selection/instrumented-modules.js';
+import { coverageBlock } from '../dist/test-selection/coverage-rows.js';
 import { sourceLines } from '../dist/test-selection/source-lines.js';
 
 /** Tests per module, from this repository's own snapshot: 343 test files over 852 modules. */
@@ -52,7 +52,7 @@ export async function instrumentedSources(root = ROOT) {
     } catch {
       continue;
     }
-    const done = instrument(code, file, built.length);
+    const done = instrument(code, file);
     if (done === undefined) continue;
     const lineOf = sourceLines(code, undefined, file);
     built.push({

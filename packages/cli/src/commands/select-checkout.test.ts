@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -57,9 +58,11 @@ describe('reading this checkout', () => {
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, 'this is not a snapshot');
 
-    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(
-      /could not be read/,
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(
+      /could not be read: .*\. A run that ignored it would look exactly like a run that never had one\./su,
     );
+    await expect(refused).rejects.not.toThrow(/[Dd]elete it|run once|record a new one/);
   });
 
   it('refuses a readable snapshot that names no commit when no change is given', async () => {
@@ -69,7 +72,9 @@ describe('reading this checkout', () => {
     const { commit: _, ...uncommitted } = snapshot('c0ffee');
     await writeTestCoverage(testCoverageFile(root), uncommitted);
 
-    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+    await expect(refused).rejects.not.toThrow(/record the suite|run the suite/i);
   });
 
   it('skips the test files a real journal and a real diff rule out', async () => {
@@ -102,6 +107,8 @@ describe('reading this checkout', () => {
     expect([...selected.skip]).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
     expect([...selected.whole]).toEqual(['test/alpha.test.ts', 'test/beta.test.ts', 'test/gamma.test.ts']);
     expect(selected.declined).toBeUndefined();
+    // The record it chose them from, which a shard's record names (`record-base.ts`).
+    expect(selected.read).toBe(`sha256:${createHash('sha256').update(readFileSync(testCoverageFile(root))).digest('hex')}`);
   });
 
   it('hands a runner nothing to skip, and which reading declined, where nothing was recorded', async () => {
@@ -111,6 +118,7 @@ describe('reading this checkout', () => {
 
     expect(selected.skip.size).toBe(0);
     expect(selected.declined).toBe(`no execution journal at ${testCoverageFile(root)}`);
+    expect(selected.read).toBeUndefined();
   });
 
   it('reads a snapshot named by path, as a recorder in another runtime writes one', async () => {

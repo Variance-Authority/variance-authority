@@ -120,6 +120,8 @@ export interface LandedJourneys {
    * busy index: that refuses the landing, and nothing is written to report on.
    */
   readonly cases?: CaseLanding;
+  /** Shards whose record names the record its selection read `unknown`, so no read of theirs was checked. */
+  readonly unchecked?: readonly string[];
 }
 
 export interface JourneysInput extends JourneyReading {
@@ -225,7 +227,7 @@ function poolSentence(pool: JourneyPool, recorded: RecordedJourneys): string {
       return pool.report === undefined
         ? `${whole}: the whole journal, because \`--suite\` reads no project config and has no report to narrow it by; a deleted subject still counts`
         : `${whole}: the whole journal, because there is no report at ${pool.report}, so a ` +
-            'deleted subject still counts; run once to narrow it to this run, or pass --all';
+            'deleted subject still counts';
   }
 }
 
@@ -322,7 +324,23 @@ export function formatLanding(landed: LandedJourneys): string {
     `  ${many(landed.observations, 'observation')} over ${many(landed.modules, 'module')}` +
       (landed.commit === undefined ? '' : `, recorded at ${landed.commit.slice(0, 12)}`),
     ...(landed.cases === undefined ? [] : [casesLine(landed.cases)]),
+    ...(landed.unchecked === undefined || landed.unchecked.length === 0 ? [] : [`  ${uncheckedReads(landed.unchecked)}`]),
   ].join('\n');
+}
+
+/**
+ * The shards a combine checked no read of: each record names the record its
+ * selection read `unknown`, as a run that never sees its selection does (the
+ * JVM agent). The combine passes them, and this says so.
+ */
+export function uncheckedReads(shards: readonly string[]): string {
+  const one = shards.length === 1;
+  const named = one ? shards[0] : `${shards.slice(0, -1).join(', ')} and ${shards.at(-1)}`;
+  return one
+    ? `the read of ${named} was not checked: its record names the record its selection read \`unknown\`, ` +
+        'so nothing says it chose its tests from the record the other shards read'
+    : `the reads of ${named} were not checked: their records name the record their selection read \`unknown\`, ` +
+        'so nothing says they chose their tests from the record the other shards read';
 }
 
 function casesLine(cases: CaseLanding): string {
@@ -331,10 +349,12 @@ function casesLine(cases: CaseLanding): string {
       ? `  case index at ${cases.laid} left as it was: no snapshot finished a test file`
       : `  cases of ${many(cases.shards, 'snapshot')} laid over ${cases.laid}`;
   }
-  const why = `${cases.shard} ran a test file to the end, and its record keeps no case index this build can read`;
+  const why = cases.shards.length === 1
+    ? `${cases.shards[0]} ran a test file to the end, and its record keeps no case index this build can read`
+    : `${cases.shards.slice(0, -1).join(', ')} and ${cases.shards.at(-1)} ran test files to the end, and ` +
+      'their records keep no case index this build can read';
   return cases.removed
-    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line. ` +
-        'Record cases in the runs that write the shards, or run the suite here, to write one.'
+    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line.`
     : `  no case index at ${cases.unanswered}: ${why}`;
 }
 

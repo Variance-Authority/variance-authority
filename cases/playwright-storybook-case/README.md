@@ -11,6 +11,10 @@ specs a change could not have touched.
 
 Storybook is built by its own CLI, with `testSelectionProbes()` added in
 `viteFinal`, and served as static files, the way a deployed Storybook is served.
+The probes go in by hand rather than through the
+`@variance-authority/storybook-collector` addon, because here the Playwright
+collector drives the Storybook as an application, and the addon is for the
+Storybook collector.
 Seven ordinary specs then run against it through the real Playwright CLI, on
 two workers:
 

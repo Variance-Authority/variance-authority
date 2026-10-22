@@ -45,6 +45,11 @@ describe('variance_costs', () => {
     expect(() => costs.run(SUBJECT, { limit: 0 })).toThrow(/at least 1/);
   });
 
+  it('reads `limit` as every listing does: digits from the shell, and the same refusal', () => {
+    expect(costs.run(SUBJECT, { limit: '1' })).toContain('  and 3 more subjects; `--limit` lists more');
+    expect(() => costs.run(SUBJECT, { limit: 'many' })).toThrow(/takes a whole number of rows/);
+  });
+
   it('leaves the file table out when no subject names a file', () => {
     const answer = costs.run({ from: 'x', subjects: [{ subject: 'route:/', ms: 5 }] }, {});
     expect(answer).not.toContain('Slowest files');

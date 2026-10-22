@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { distillFiles, formatDistill } from './distill.js';
+import { distillFiles, distillPieces } from './distill.js';
+
+/** The text the CLI writes for a distillation, joined. */
+const written = (...args: Parameters<typeof distillPieces>): string => [...distillPieces(...args)].join('');
 
 // A test file recorded through the real Jest seam, whose imports reach three
 // distances from it: one it writes itself, two its subject writes (one read only
@@ -31,7 +34,7 @@ beforeAll(async () => {
     { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: execution, VARIANCE_AUTHORITY_JEST_CACHE: join(cache, 'jest') } },
   );
   await updateSourceIndex(repository);
-  text = formatDistill(await distillFiles({ file: `${at}/test/dialog.case.ts`, execution, root: repository }), 'text');
+  text = written(await distillFiles({ file: `${at}/test/dialog.case.ts`, execution, root: repository }), 'text');
 }, 60_000);
 
 afterAll(async () => {
@@ -46,18 +49,23 @@ describe('an import no case of a Jest test file needs, by how far from the file 
   });
 
   it('is mocked in the test file when the test file\'s subject reads it only in a function no case runs', () => {
-    expect(text).toContain(`Or mock it in this file, so ${at}/src/dialog.ts does not load it: jest.mock('../src/editor', () => ({ edit: jest.fn(), format: jest.fn() }));`);
+    expect(text).toContain(
+      `Or mock ${at}/src/editor.ts in this file, so ${at}/src/dialog.ts does not load it: ` +
+        'stand a function in for each value it exports (edit, format); an automock loads the module to read its shape.',
+    );
+    // A Jest test file, and still no runner's call: the reader writes the mock for the file's runner.
+    expect(text).not.toMatch(/\b(?:jest|vi|sb)\.(?:mock|doMock|unstable_mockModule|fn)\b|\bmock\.module\b/);
   });
 
   it('is fixed in the subject, not mocked, when the subject reads it when it loads', () => {
     // A stand-in read at load is kept for whatever reads `handlers` later.
     expect(text).toContain(`${at}/src/dialog.ts reads fallback from ${at}/src/fallback.ts at line 14 when it loads`);
-    expect(text).not.toContain(`jest.mock('../src/fallback'`);
+    expect(text).not.toContain(`Or mock ${at}/src/fallback.ts`);
   });
 
   it('is a warning to fix where it is written when a module further away writes it', () => {
     expect(text).toContain(`${at}/src/confirm.ts reads ${at}/src/format.ts only in padded (line 6), which no case of this file ran`);
     expect(text).toContain(`warning: this file does not import ${at}/src/confirm.ts; mocking ${at}/src/format.ts here would tie it to code it does not know`);
-    expect(text).not.toContain(`jest.mock('../src/format'`);
+    expect(text).not.toContain(`Or mock ${at}/src/format.ts`);
   });
 });

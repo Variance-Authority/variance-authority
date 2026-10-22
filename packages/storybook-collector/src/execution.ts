@@ -3,8 +3,9 @@
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
  * transport differs, which is the rule
- * [spec 0028](../../../docs/specs/0028-the-instrument.md) states. The preview is
- * built with `testSelectionProbes()`, the page counts block crossings, and this
+ * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The preview is
+ * built with the package's addon, which adds the probes whichever builder runs
+ * it ([`preset.ts`](./preset.ts)), the page counts block crossings, and this
  * closes one window per story and joins them at the end of the run.
  *
  * A story is its own owner. Storybook is an execution surface this tool drives
@@ -16,55 +17,21 @@
 import { readFile } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 import {
-  drainExecution,
+  createSubjectRecorder,
   preconditionOf,
-  recordExecution,
   type EvaluatingPage,
-  type InstrumentMode,
-  type ObservedCase,
-  type ObservedSubject,
+  type SubjectNote,
+  type SubjectRecording,
 } from '@variance-authority/sense/journal';
-import { parseStoryIndex } from '@variance-authority/storybook';
-import { repositoryRoot } from '@variance-authority/sense/test-selection';
+import { parseStoryIndex, type StoryTiming } from '@variance-authority/storybook';
 import { storyIdOf } from './parameters.js';
 
-/** Where a story run's execution evidence is joined, read and kept. */
-export interface StoryExecutionOptions {
-  /**
-   * A directory inside the repository; defaults to the cwd. Recorded paths are
-   * relative to the checkout it sits in, never to it. A story's `importPath` is
-   * read from here, because it is relative to the directory Storybook ran in.
-   */
-  readonly root?: string;
-  /** Where the coverage layers live. Defaults to the repository's cache. */
-  readonly cacheRoot?: string;
-  /** Coverage index. Defaults to the repository-keyed cache the runner seams share. */
-  readonly coverageFile?: string;
-  /** The suite this run is, as the root `variance.config.json` declares it under `suites`. */
-  readonly suite?: string;
-  /**
-   * The probe recipe the preview was built with, matching
-   * `testSelectionProbes()`'s `mode`. `presence` when absent, as it is there.
-   *
-   * Both sides answer the same or neither works: a journal cut by one recipe
-   * and folded as another is refused, and a snapshot a runner seam also writes
-   * under a different recipe has each run retire the other's evidence.
-   */
-  readonly mode?: InstrumentMode;
-  /**
-   * Files whose contents are preconditions of every story this run recorded.
-   *
-   * A `.storybook/preview` file, a theme module every decorator reads — a
-   * story *file* is already a precondition of its own stories, and this is for
-   * the ones no story declares and nothing enters.
-   */
-  readonly preconditions?: readonly string[];
-  /**
-   * Where this recording stands. Defaults to the checkout's `HEAD`, which is
-   * the answer in every case except a caller that already knows better.
-   */
-  readonly commit?: string;
-}
+/**
+ * Where a story run's execution evidence is joined, read and kept: the shared
+ * recording, with `root` also the directory a story's `importPath` is read
+ * from, because it is relative to the directory Storybook ran in.
+ */
+export type StoryExecutionOptions = Omit<SubjectRecording, 'heads'>;
 
 /** One run's accumulation: a window per story, written once at the end. */
 export interface StoryRecorder {
@@ -74,8 +41,17 @@ export interface StoryRecorder {
    * `complete` is false for a story this run refused. A refused story still
    * executed code, so its crossings are kept — what it may never do is justify
    * excluding itself from a later run.
+   *
+   * `timing` is where the page spent the story: the preview's load is the
+   * story's `prepare`, 0 for a story the preview switched to, its file's
+   * import its `collect`, its render its `cases`.
    */
-  readonly note: (page: EvaluatingPage, subjectId: string, complete: boolean) => Promise<void>;
+  readonly note: (
+    page: EvaluatingPage,
+    subjectId: string,
+    complete: boolean,
+    timing?: StoryTiming,
+  ) => Promise<void>;
   /**
    * Merge the run into the index, or say on stderr why it could not.
    *
@@ -93,18 +69,22 @@ export async function createStoryRecorder(
   options: StoryExecutionOptions,
 ): Promise<StoryRecorder> {
   const ran = resolve(options.root ?? process.cwd());
-  const root = repositoryRoot(ran);
+  const recorder = createSubjectRecorder(
+    {
+      subject: 'story',
+      uninstrumented:
+        '`tests` is on and the Storybook preview has no execution ' +
+        "collector in it — add `addons: ['@variance-authority/storybook-collector']` " +
+        'to its `.storybook/main.js` and build it with `storybook build --test`, or the ' +
+        'next `--since` will run everything',
+    },
+    options,
+  );
+  const root = recorder.root;
   const storyFiles = await storyFilesFrom(index, ran, root);
-  const observed: ObservedSubject[] = [];
-  // Each case with the subject it was noted for, so the run's time finds it.
-  const cases: { readonly subject: string; readonly observed: ObservedCase }[] = [];
-  let seen = false;
 
   return {
-    note: async (page, subjectId, complete) => {
-      const journal = await drainExecution(page);
-      if (journal === undefined) return;
-      seen = true;
+    note: async (page, subjectId, complete, timing) => {
       // A story read at several widths is one declaration and several cases:
       // each width executed the story on its own, and a hook that reads the
       // width took a different branch at each.
@@ -113,12 +93,6 @@ export async function createStoryRecorder(
       const story = storyFiles.get(storyId);
       const precondition =
         story === undefined ? undefined : await preconditionOf(root, story.file);
-      observed.push({
-        owner: subjectId,
-        journal,
-        complete,
-        ...(precondition === undefined ? {} : { preconditions: [precondition] }),
-      });
       // The index names a story by where it is declared, which is the same
       // coordinate a person reads in the sidebar and the same one a diff
       // touches. A story the driving index does not know — a subject named on
@@ -130,102 +104,33 @@ export async function createStoryRecorder(
       // the rows. No row names a story file, so no case is ever retired by a
       // run: a story removed or renamed keeps its case until its file is
       // deleted.
-      if (story !== undefined) {
-        cases.push({
-          subject: subjectId,
-          observed: {
-            file: story.file,
-            name: `${story.title}/${story.name}${widened.slice(storyId.length)}`,
-            id: widened,
-            stopped: !complete,
-            journal,
-          },
-        });
-      }
+      await recorder.note(page, subjectId, complete, {
+        ...(precondition === undefined ? {} : { preconditions: [precondition] }),
+        ...(story === undefined
+          ? {}
+          : {
+              case: {
+                file: story.file,
+                name: `${story.title}/${story.name}${widened.slice(storyId.length)}`,
+                id: widened,
+              },
+            }),
+        ...phasesOf(timing),
+      });
     },
-
-    close: async (costs) => {
-      if (!seen) {
-        process.stderr.write(
-          'variance-authority: `tests` is on and the Storybook preview has no execution ' +
-            'collector in it — build it with `testSelectionProbes()` from ' +
-            '`@variance-authority/sense/journal`, or the next `--since` will run ' +
-            'everything\n',
-        );
-        return;
-      }
-      // A refusal is written and the run continues. Recording is an addition to
-      // a visual run: losing it costs the *next* selection its narrowing, which
-      // is a full suite — the safe direction — while failing the run over it
-      // would cost this one its baselines, which is not.
-      //
-      // That holds for a throw as much as for a refusal. The recorder reports
-      // what it declined in `because`, but it is a file format, a lock and a
-      // filesystem underneath, and any of them can raise something it has no
-      // sentence for. Letting that escape ends the run *after* every subject
-      // has been rendered and compared — the most expensive possible moment to
-      // lose a set of baselines, and over the half of the work that was only
-      // ever an addition.
-      let record: Awaited<ReturnType<typeof recordExecution>>;
-      try {
-        record = await recordExecution({
-          root,
-          subjects: zip(observed, timedOnce(observed.map((one) => one.owner), costs)),
-          ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
-          // Against `root`, as the runner seams resolve them, never the checkout.
-          ...(options.coverageFile === undefined
-            ? {}
-            : { coverageFile: resolve(ran, options.coverageFile) }),
-          ...(options.suite === undefined ? {} : { suite: options.suite }),
-          ...(options.mode === undefined ? {} : { mode: options.mode }),
-          ...(options.preconditions === undefined
-            ? {}
-            : { preconditions: options.preconditions }),
-          ...(options.commit === undefined ? {} : { commit: options.commit }),
-          ...(cases.length === 0
-            ? {}
-            : { cases: zip(cases.map((one) => one.observed), timedOnce(cases.map((one) => one.subject), costs)) }),
-        });
-      } catch (error) {
-        process.stderr.write(
-          'variance-authority: recorded no story execution — the recorder failed with ' +
-            `${error instanceof Error ? error.message : String(error)}; this run is ` +
-            'unaffected and the next `--since` will run everything\n',
-        );
-        return;
-      }
-      if (!record.recorded) {
-        process.stderr.write(
-          `variance-authority: recorded no story execution — ${record.because}\n`,
-        );
-      }
-    },
+    close: recorder.close,
   };
 }
 
-/**
- * The run's time for each noted subject, given to the first note of that
- * subject only.
- *
- * A subject read again — once more in the same world, once alone — is noted
- * each time, and the record sums what its entries carry; the run's time
- * already covers every reading, from the first collection to the decision.
- */
-function timedOnce(
-  subjects: readonly string[],
-  costs: ReadonlyMap<string, number> | undefined,
-): { readonly duration?: number }[] {
-  const given = new Set<string>();
-  return subjects.map((subject) => {
-    const duration = costs?.get(subject);
-    if (duration === undefined || given.has(subject)) return {};
-    given.add(subject);
-    return { duration };
-  });
-}
-
-function zip<T>(entries: readonly T[], timed: readonly { readonly duration?: number }[]): T[] {
-  return entries.map((entry, index) => ({ ...entry, ...timed[index] }));
+/** A story's timing under the names the record gives a test file's phases. */
+function phasesOf(timing: StoryTiming | undefined): Pick<SubjectNote, 'phases'> {
+  if (timing === undefined) return {};
+  const phases = {
+    ...(timing.ready === undefined ? {} : { prepare: timing.ready }),
+    ...(timing.collect === undefined ? {} : { collect: timing.collect }),
+    ...(timing.cases === undefined ? {} : { cases: timing.cases }),
+  };
+  return Object.keys(phases).length === 0 ? {} : { phases };
 }
 
 /**

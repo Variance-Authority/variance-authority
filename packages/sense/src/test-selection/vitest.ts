@@ -1,25 +1,26 @@
-import { existsSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
-import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
-import { pathOf, placeModule, type Captured } from './captured-modules.js';
-import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
+import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
+import type { UnmappedStep } from './unmapped-transforms.js';
+import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { writeCut } from './case-cut.js';
-import { readFinished, type FinishedFile } from './finished-files.js';
-import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
+import { caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
-import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
-import { removeSeamModules, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { declareConfig } from './governing-config.js';
+import { selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
+import { runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor, recordsAlone } from './record-location.js';
 import { testFilesAt } from './test-files.js';
 import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
-import { selectionFrom, timesFrom } from './selection-environment.js';
-import { readCommandLine, seedInBanner, selectingSequencer, type BannerContext, type SequencerClass } from './vitest-sequencer.js';
+import { notingRead } from './record-base.js';
+import { landingTimes, selectionFrom } from './selection-environment.js';
+import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
+import { shardArgument } from './shard-placement.js';
 
 export interface TestSelectionOptions {
   /**
@@ -54,11 +55,23 @@ export interface TestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
-   * `presence` probes every arrival region; `entries` probes modules and
-   * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * `presence`, the default, probes every arrival region; `entries` probes
+   * modules and functions only, so a suite reads it no finer than
+   * `function-use`. Both record which functions ran before the file's first
+   * test. `loads` probes nothing: each module
+   * runs with one line after its own text, the record says which files each
+   * test loaded, and a change to a file selects every test that loaded it.
+   * Under it `cadence` is off, whatever it says.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Where the probes go. `after-transforms`, the default, places them in what
+   * the project's transforms wrote, through the map Vite composes, so a
+   * compiler that reads syntax reads none. `before-transforms` places them in
+   * the file as read, one parse and no map: for a suite whose transforms only
+   * strip types or JSX.
+   */
+  readonly placement?: ProbePlacement;
   /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
@@ -101,29 +114,6 @@ export interface TestSelectionOptions {
   readonly selection?: () => Promise<SuiteSelection>;
 }
 
-interface ConfigPlugin {
-  readonly name: string;
-  readonly configResolved: (config: ResolvedViteConfig) => void;
-}
-
-/** The part of the configuration Vite hands a plugin that decides where a file runs, and how files are ordered. */
-interface TestConfig {
-  test?: { browser?: { enabled?: boolean }; runner?: string; sequence?: { sequencer?: unknown } };
-}
-
-interface VitePlugin extends ConfigPlugin {
-  readonly enforce: 'pre';
-  readonly config: (config: TestConfig) => Promise<void>;
-  readonly transform: {
-    readonly order: 'pre';
-    readonly handler: (code: string, id: string) => { code: string; map: CutSourceMap | null } | null;
-  };
-  readonly closeBundle: () => Promise<void>;
-  readonly watchChange: (id: string) => void;
-  /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
-  readonly configureVitest: (context: { readonly vitest: BannerContext }) => void;
-}
-
 /**
  * Add source instrumentation, test-file attribution, and coverage persistence to
  * an ordinary Vitest configuration.
@@ -141,14 +131,8 @@ export function withTestSelection(
   const coverageFile = recordFileFor(root, configRoot, options);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
-  // Named for the run rather than for the seam. These are files on disk now, so
-  // two Vitest processes over one project — a watch run beside a CLI one, or
-  // this repository's own integration tests — would otherwise write each other's
-  // setup shim, and a shim carries the directory its journals go to. The run
-  // directory already carries a pid and a uuid; the same stamp names the shim.
-  const stamp = runStamp(run);
-  const setupId = resolve(configRoot, `.variance-authority/test-selection-setup-${stamp}.mjs`);
-  const runnerId = resolve(configRoot, `.variance-authority/test-selection-case-runner-${stamp}.mjs`);
+  const setupId = seamModuleId(configRoot, run, 'setup');
+  const runnerId = seamModuleId(configRoot, run, 'case-runner');
   // A `globalSetup` file runs once, in the Vitest process, before any test
   // environment exists — the setup shim that installs `globalThis.__VA__` is a
   // `setupFiles` entry and has never run there. Instrumented, such a file
@@ -166,15 +150,27 @@ export function withTestSelection(
   const marked = options.unprobed;
   const unprobed = marked === undefined ? undefined : (file: string): boolean => !globalSetup.has(file) && marked(file);
   // A module `unprobed` names runs as it is, marked as loaded at its end, whatever `include` says.
-  const capture = (file: string, code: string): Captured | undefined =>
-    placeModule(root, file, code, include, unprobed, mode);
+  const capture = (file: string, code: string, original: (at: string) => string): Captured | undefined =>
+    placeModule(root, file, code, include, unprobed, mode, original);
+  // A module's probes go in after every transform, through the map Vite
+  // composed back to the file, so a compiler that reads syntax reads none.
+  const after = (
+    file: string,
+    code: string,
+    map: () => ComposedMap,
+    unmapped: readonly UnmappedStep[],
+    variant: boolean,
+    original: (at: string) => string,
+  ): CapturedAfter | undefined => captureAfter(root, file, code, include, mode, map, { unprobed, unmapped, variant, original });
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
+  // Each reading notes the record it read against the record this run lands in, which names it.
+  const asked = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
+  const selection = asked && notingRead(coverageFile, asked);
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   const reporter = selectionReporter(run, settle);
   // Ahead of the project's reporters, so the banner the first of them prints
@@ -201,15 +197,17 @@ export function withTestSelection(
     };
   }
 
-  const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
-  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, capture, mode, declared, settle, cut);
+  // Under `loads` no region is probed, so no line of a test can be said to
+  // have reached one first: the cut would cost a call per statement for nothing.
+  const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
-  const continuations = options.continuations === true;
-  const story = askedForStories(coverageFile);
+  const continuations = run.cases && options.continuations === true;
+  const story = run.cases ? askedForStories(coverageFile) : undefined;
   return {
     ...config,
-    plugins: [...array(config.plugins), plugin],
+    plugins: [...array(config.plugins), ...plugins],
     test: {
       ...config.test,
       ...selecting(config, root, configRoot, options, coverageFile, selection, run),
@@ -222,7 +220,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
         ),
         ...setupFiles,
       ],
@@ -253,7 +251,13 @@ export function withTestSelection(
   };
 }
 
-/** The sequencer that drops what the selection skips and places a `--shard` by recorded time. */
+/**
+ * The sequencer that drops what the selection skips and places a `--shard` by
+ * recorded time. Under `--shard` the run passes with no tests unless the
+ * configuration says otherwise: Vitest 4 refuses a run with fewer files than
+ * shards before any sequencer places one, and a shard left no file is a
+ * placement, as it is under Jest.
+ */
 function selecting(
   config: UserConfig,
   root: string,
@@ -262,13 +266,11 @@ function selecting(
   coverageFile: string,
   selection: (() => Promise<SuiteSelection>) | undefined,
   run: SelectionRun,
-): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
+): Pick<NonNullable<UserConfig['test']>, 'sequence' | 'passWithNoTests'> {
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
-  // A record named by file is the one this run lands in, so its times are read
-  // there; a suite's are read where `variance select` reads its record.
-  const times = timesFrom({ root, from: configRoot, ...suite, ...(options.coverageFile === undefined ? {} : { recording: coverageFile }) });
+  const times = landingTimes(coverageFile, { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
@@ -278,7 +280,8 @@ function selecting(
     },
   });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
-  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };
+  const empty = shardArgument(process.argv) !== undefined && config.test?.passWithNoTests === undefined ? { passWithNoTests: true } : {};
+  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> }, ...empty };
 }
 
 /**
@@ -313,175 +316,9 @@ function runnerImport(root: string, runnerId: string, specifier: string): string
   }
 }
 
-function selectionPlugin(
-  root: string,
-  setupId: string,
-  runnerId: string,
-  globalSetup: ReadonlySet<string>,
-  run: SelectionRun,
-  capture: (file: string, code: string) => Captured | undefined,
-  mode: InstrumentMode,
-  declared: readonly string[],
-  settle: (files: readonly FinishedFile[]) => Promise<void>,
-  cut: ((file: string) => boolean) | undefined,
-): VitePlugin {
-  const { modules } = run;
-  let closing: Promise<void> | undefined;
-  let inPage = false;
-  return {
-    name: 'variance-authority:test-selection',
-    // First, on the file as it is on disk: the record is named, digested and
-    // counted in the text a diff is written against, and Vite's own transforms
-    // — TypeScript, JSX, the mock hoisting — carry the probes along after it.
-    enforce: 'pre',
-    // A command-line `--reporter` replaces the configured reporters rather
-    // than adding to them, and an editor that runs a test from the gutter
-    // passes its own. Vitest 2 has no hook that could put this seam's back.
-    // The server closes when the run does, in every major, so the run is
-    // folded here from what the case runner wrote, if no reporter folded it.
-    // Once, because a server with two environments closes each of them.
-    closeBundle() {
-      return closing ??= closeRun(run, settle, [setupId, runnerId]);
-    },
-    // Where a file runs is the runner's to say, and `--browser` says it after
-    // the configuration was written, so it is read here, where the command line
-    // has already been merged in. A file in a page has no disk, no builtins and
-    // no runner of this seam's: its setup module hands the runner what it ran.
-    // TODO: record cases in a page — a drain per test in `beforeEach` and
-    // `afterEach`, carried on each test's `meta` as the file's is.
-    async config(config) {
-      // Vite awaits this hook before the banner prints or a sequencer is
-      // made, and both ask whether files are shuffled.
-      const reading = readCommandLine(config.test?.sequence?.sequencer);
-      if (config.test?.browser?.enabled === true) {
-        inPage = true;
-        // FIXME: a `snapshotSerializers` or `diff` file that imports product
-        // source throws at its first probe in a page. `@vitest/browser` 3.2.7 and
-        // 4.1.2 load them in `initiateRunner`, before `startTests` runs the first
-        // file's setup files, and the setup module written here is what installs
-        // the page's root. A module that installs it, imported ahead of them,
-        // would carry what they load to the file the way the case runner does.
-        writeSeamModule(run, setupId, browserSetupSource(mode));
-        if (config.test.runner === runnerId) delete config.test.runner;
-        // An index with no case in it answers *which cases walk this line* with
-        // none, so a run that recorded no case writes no index.
-        if (run.cases) {
-          run.cases = false;
-          console.warn(
-            'variance-authority: a test file that runs in a page is recorded per file, not per case; ' +
-              'this run writes the file-level snapshot only.',
-          );
-        }
-      }
-      await reading;
-    },
-    configResolved: declareConfig(run, declared, [setupId, runnerId]),
-    // Vitest 3.1 and on, before any reporter starts: a command-line
-    // `--reporter` leaves plugins in place, so the banner still names the seed.
-    configureVitest({ vitest }) {
-      seedInBanner(vitest);
-    },
-    // A file changed on disk, so its reading describes text the disk no longer
-    // holds, and a rerun transforms it again only if a test still loads it.
-    // So does every reading named after it: a build's regions sit on the lines
-    // the file had when the build was made, and a rerun would join them to the
-    // file's new ones. Nothing else goes: Vite serves an unchanged file from
-    // its cache, and a reading of it is the text that runs.
-    watchChange(id) {
-      const changed = projectPath(root, cleanId(id));
-      for (const [moduleId, module] of modules) {
-        if (pathOf(moduleId) === changed || module.file === changed) modules.delete(moduleId);
-      }
-    },
-    // Ahead of every transform not ordered first, wherever its plugin sits: a
-    // compiler at `enforce: 'pre'` would otherwise hand the seam its output.
-    transform: { order: 'pre', handler(code, id) {
-      // The setup module installs the probe log; instrumented, its own header
-      // would ask for the log's root before the module has installed it.
-      // The runner module is this seam's too, and both sit under the root the
-      // default include reaches. Compared after the query suffix is stripped,
-      // because the runner is a file on disk now and a real file is the kind of
-      // id a bundler decorates.
-      const file = cleanId(id);
-      // A `globalSetup` file is refused by the file it is as well as by the name
-      // `include` is asked about, which a build's map may have changed.
-      if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
-      // A test file is probed when `include` takes it, and then cut, so its
-      // case also says which of its lines was running. The file itself only —
-      // a query asks for a module built from it. Both keep every line where it
-      // was; the cut's map moves its columns back, so an inline snapshot is
-      // written into the call the test wrote.
-      const cutting = cut !== undefined && id === file && run.cases && cut(file);
-      const cutOf = (text: string) => {
-        const cutFile = cutting ? cadence(text, file) : undefined;
-        return cutFile === undefined ? undefined : { code: cutFile.code, map: cutFile.map };
-      };
-      // Its probes report under the file the transform was handed: a source and
-      // its build both answer to the name, each with its own regions, and the
-      // fold joins them (see `joinReadings`). Vitest re-transforms every run in
-      // this process, so the modules stay in this map.
-      const captured = capture(file, code);
-      if (captured === undefined) return cutOf(code) ?? null;
-      // Only the file itself: any query, such as `?raw`, asks for a module built
-      // from it. In a page, `vi.mock` loads its mock under the file's name.
-      // Otherwise its lines are not the author's, so it fails its importers.
-      if (captured.changed === true && id === file) {
-        if (inPage) return null;
-        throw new Error(
-          `\`${projectPath(root, file)}\` reached \`withTestSelection\` already changed: a \`load\` hook or a plugin placed ahead ` +
-            'of it rewrote the file, and its lines no longer match the file on disk. Let the file load as it is on disk, or leave it out of `include`.',
-        );
-      }
-      modules.set(captured.module.id, captured.module);
-      return cutOf(captured.code) ?? { code: captured.code, map: null };
-    } },
-  };
-}
-
-/**
- * Fold a run no reporter folded, from the trees its workers wrote, and take
- * the shims off, with the directory the run made for them once they leave it
- * empty: a watching run kept them for its reruns, and this is its last.
- *
- * A run whose runner is the project's own left journals and no tree, and a
- * journal alone cannot say whether its file passed: it is said, and nothing is
- * written, rather than a record that calls every file complete.
- */
-async function closeRun(
-  run: SelectionRun,
-  settle: (files: readonly FinishedFile[]) => Promise<void>,
-  shims: readonly string[],
-): Promise<void> {
-  try {
-    await foldUnfolded(run, settle);
-  } finally {
-    removeSeamModules(run, shims);
-  }
-}
-
-async function foldUnfolded(
-  run: SelectionRun,
-  settle: (files: readonly FinishedFile[]) => Promise<void>,
-): Promise<void> {
-  if (run.settled) return;
-  const files = await readFinished(run.finishedDirectory);
-  if (files.length > 0) return settle(files);
-  if (!existsSync(run.runDirectory)) return;
-  run.settled = true;
-  console.warn(
-    'variance-authority: this run recorded nothing. A command-line `--reporter` replaced the ' +
-      'reporter that writes the record, and the configured `runner` is the project\'s own, so no ' +
-      'worker reported which files passed. Run without `--reporter` to record.',
-  );
-  rmSync(run.runDirectory, { recursive: true, force: true });
-  rmSync(run.caseDirectory, { recursive: true, force: true });
-}
-
 function array<T>(value: T | readonly T[] | undefined): T[] {
   return value === undefined ? [] : Array.isArray(value) ? [...value] : [value as T];
 }
-
-export { mergeCoverage } from './merge.js';
 
 /**
  * Which files this configuration runs as tests: its `test.include` globs, under
