@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
+import { answerLoads } from './node-load-answers.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
 import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
@@ -9,7 +10,7 @@ import { writeCut } from './case-cut.js';
 import { caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { declareConfig } from './governing-config.js';
-import { selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
+import { changedOnArrival, selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
 import { runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor, recordsAlone } from './record-location.js';
 import { testFilesAt } from './test-files.js';
@@ -200,7 +201,10 @@ export function withTestSelection(
   // Under `loads` no region is probed, so no line of a test can be said to
   // have reached one first: the cut would cost a call per statement for nothing.
   const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
+  // What a worker's Node loads past Vite's module runner — a `require` chain,
+  // a dependency Vite leaves to Node — is probed here, where `include` is.
+  const answers = answerLoads(run, capture, (file) => changedOnArrival(root, file));
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after, answers }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = run.cases && options.continuations === true;
@@ -220,7 +224,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }) + answers.asking,
         ),
         ...setupFiles,
       ],

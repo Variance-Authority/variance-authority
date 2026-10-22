@@ -67,6 +67,12 @@ file has its lines marked for its cases first, so a compiler that reads a test
 file's syntax reads those marks. Under browser mode, every file is probed first,
 as it was before.
 
+What Vitest hands to Node rather than to Vite is probed as well: each file a
+CommonJS module `require`s, and a dependency Vitest leaves external. Each
+worker asks the process that holds your configuration whether `include` takes
+the file, so `include` stays a function of yours and the record names the same
+files whichever loader read them.
+
 ```ts
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';

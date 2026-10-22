@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
+import type { LoadAnswers } from './node-load-answers.js';
 import { heldOriginal, pathOf, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import { cleanId, fileOrNone, mayTake, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
@@ -62,8 +63,10 @@ export function selectionPlugin(
   runnerId: string,
   globalSetup: ReadonlySet<string>,
   run: SelectionRun,
-  { capture, after }: {
+  { capture, after, answers }: {
     readonly capture: (file: string, code: string, original: (at: string) => string) => Captured | undefined;
+    /** What answers the workers for the files Node loads past the transforms, closed with the run. */
+    readonly answers?: LoadAnswers;
     readonly after: (
       file: string,
       code: string,
@@ -113,6 +116,7 @@ export function selectionPlugin(
     // folded here from what the case runner wrote, if no reporter folded it.
     // Once, because a server with two environments closes each of them.
     closeBundle() {
+      answers?.close();
       return closing ??= closeRun(run, settle, [setupId, runnerId]);
     },
     // Where a file runs is the runner's to say, and `--browser` says it after
@@ -274,7 +278,7 @@ export function selectionPlugin(
 const PROBES = 'variance-authority:test-selection-probes';
 
 /** The refusal of a file whose lines no longer match the file on disk when it reaches the seam, naming the `load` hooks that rewrote it with no map. */
-function changedOnArrival(root: string, file: string, loaders: readonly string[] = []): Error {
+export function changedOnArrival(root: string, file: string, loaders: readonly string[] = []): Error {
   const by = loaders.length === 0
     ? 'a `load` hook or a plugin placed ahead of it rewrote the file'
     : `the \`load\` hook of ${loaders.map((name) => `\`${name}\``).join(', ')} rewrote the file`;
