@@ -5511,6 +5511,7 @@ __metadata:
     "@types/react": "npm:^19.2.14"
     "@variance-authority/ioc": "workspace:^"
     "@variance-authority/jest-transformer": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     jest: "npm:^30.5.1"
     magic-string: "npm:^0.30.21"
     oxc-parser: "npm:^0.144.0"

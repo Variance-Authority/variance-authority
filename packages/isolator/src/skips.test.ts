@@ -28,6 +28,19 @@ describe('skipper: a package that declares side effects', () => {
     expect(skipped(join(dir, 'src/a.ts'))).toBe(false);
   });
 
+  it('reads a single pattern as a list of one', () => {
+    const dir = pack(join(root, 'single'), '*.polyfill.js');
+    expect(skipper(root)(join(dir, 'src/fetch.polyfill.js'))).toBe(true);
+  });
+
+  it('leaves a source whose built output the list names', () => {
+    const dir = pack(join(root, 'built'), ['./dist/register.js']);
+    writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { rootDir: 'src', outDir: 'dist' } }));
+    const skipped = skipper(root);
+    expect(skipped(join(dir, 'src/register.ts'))).toBe(true);
+    expect(skipped(join(dir, 'src/a.ts'))).toBe(false);
+  });
+
   it('rewrites a package that declares none, or says it has none', () => {
     const skipped = skipper(root);
     expect(skipped(join(pack(join(root, 'pure'), false), 'src/a.ts'))).toBe(false);

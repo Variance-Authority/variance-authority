@@ -187,9 +187,12 @@ const registry = new Map(); // @isolator-ignore
 A module that does something when it loads — registers a handler, installs a
 polyfill, keeps a pool — says so where bundlers already look: `sideEffects` in
 its package's `package.json`. Every module that field names is left as it is,
-`true` naming the whole package, a list naming files, and a pattern without a
-slash matching a file name at any depth. A package that leaves the field out,
-or sets it to `false`, is rewritten. This package and
+`true` naming the whole package, a pattern or a list naming files, and a
+pattern without a slash matching a file name at any depth. A pattern that names
+built output, such as `./dist/register.js`, leaves the source its `tsconfig`
+builds it from. A package that leaves the field out, or sets it to `false`, is
+rewritten: where a bundler keeps a silent package's modules, the isolator reads
+the silence as no side effects. This package and
 [ioc](https://variance-authority.dev/reference/packages/ioc) declare `true`,
 so the state they keep across tests stays one.
 

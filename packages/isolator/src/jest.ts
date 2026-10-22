@@ -83,6 +83,10 @@ export async function createTransformer(config: IsolatorTransformerConfig = {}):
       .update('\u0000')
       .update(path)
       .update('\u0000')
+      // A package that declares side effects in a manifest the source never
+      // names still changes what this module becomes.
+      .update(skipped(path) ? 'shared' : 'isolated')
+      .update('\u0000')
       .update(JSON.stringify([inner?.options ?? null, root, config.exclude ?? []]))
       .digest('hex');
   const isolated = (source: string, path: string, options: JestTransformOptions): Isolated => {
