@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vitest/config';
 import type { InstrumentMode } from '../instrument/index.js';
-import { answerLoads } from './node-load-answers.js';
+import { answerLoads } from './vitest-load-answers.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
 import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';

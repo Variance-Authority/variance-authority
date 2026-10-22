@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { connect } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Captured } from './captured-modules.js';
-import { answerLoads, type LoadAnswers } from './node-load-answers.js';
+import { answerLoads, type LoadAnswers } from './vitest-load-answers.js';
 
 // What a worker hears back for each file its Node loads past Vite: whether the
 // run takes it, and the text to evaluate. Asked over the socket, line by line,

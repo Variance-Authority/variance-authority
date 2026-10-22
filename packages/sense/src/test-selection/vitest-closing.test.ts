@@ -94,3 +94,17 @@ describe('a run the seam\'s reporter folded', () => {
     expect(existsSync(journals)).toBe(true);
   });
 });
+
+describe('a run that answered its workers\' Node loads, closed', () => {
+  it.skipIf(process.platform === 'win32')('removes the socket the workers asked at', async () => {
+    const configured = withTestSelection({}, { root, coverageFile: resolve(root, 'coverage.bin'), include: () => true });
+    const plugin = (configured.plugins as unknown as Plugin[]).find(({ name }) => name === 'variance-authority:test-selection')!;
+    const setup = await readFile((configured.test!.setupFiles as string[])[0]!, 'utf8');
+    const address = JSON.parse(/answeredBy\(("[^"]+")/.exec(setup)![1]!) as string;
+    await vi.waitUntil(() => existsSync(address));
+
+    await plugin.closeBundle!.call(plugin);
+
+    expect(existsSync(address)).toBe(false);
+  });
+});

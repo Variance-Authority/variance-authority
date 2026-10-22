@@ -68,8 +68,10 @@ function answeredBy(address: string, realm: object): void {
   const carrier = globalThis as { [ASKING]?: string };
   if (carrier[ASKING] !== undefined) return;
   carrier[ASKING] = address;
-  const ask = asking(address);
+  // The thread and its socket start with the first file Node loads, so a worker that loads none pays for neither.
+  let ask: ReturnType<typeof asking> | undefined;
   hookLoads((file, text) => {
+    ask ??= asking(address);
     const asked = ask({ file });
     if (!('take' in asked) || !asked.take) return failed(asked);
     const answer = ask({ file, code: text() });
@@ -144,6 +146,11 @@ const lost = (reason) => {
 };
 socket.on('error', (error) => lost(error.message));
 socket.on('close', () => lost('the process that answers closed it'));
+// The worker waits on this thread alone, so a failure of its own answers too.
+process.on('uncaughtException', (error) => {
+  broken = { error: 'variance-authority stopped asking ' + address + ': ' + error.message };
+  answer(broken);
+});
 port.on('message', (question) => {
   if (broken !== undefined) return answer(broken);
   asked = true;

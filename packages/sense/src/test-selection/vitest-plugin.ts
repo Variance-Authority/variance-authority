@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { cadence, type CutSourceMap } from '../instrument/cadence.js';
 import type { InstrumentMode } from '../instrument/index.js';
-import type { LoadAnswers } from './node-load-answers.js';
+import type { LoadAnswers } from './vitest-load-answers.js';
 import { heldOriginal, pathOf, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import { cleanId, fileOrNone, mayTake, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { readFinished, type FinishedFile } from './finished-files.js';
@@ -66,7 +66,7 @@ export function selectionPlugin(
   { capture, after, answers }: {
     readonly capture: (file: string, code: string, original: (at: string) => string) => Captured | undefined;
     /** What answers the workers for the files Node loads past the transforms, closed with the run. */
-    readonly answers?: LoadAnswers;
+    readonly answers: LoadAnswers;
     readonly after: (
       file: string,
       code: string,
@@ -116,7 +116,7 @@ export function selectionPlugin(
     // folded here from what the case runner wrote, if no reporter folded it.
     // Once, because a server with two environments closes each of them.
     closeBundle() {
-      answers?.close();
+      answers.close();
       return closing ??= closeRun(run, settle, [setupId, runnerId]);
     },
     // Where a file runs is the runner's to say, and `--browser` says it after
