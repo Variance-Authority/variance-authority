@@ -203,7 +203,7 @@ export function withTestSelection(
   const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
   // What a worker's Node loads past Vite's module runner — a `require` chain,
   // a dependency Vite leaves to Node — is probed here, where `include` is.
-  const answers = answerLoads(run, capture, (file) => changedOnArrival(root, file));
+  const answers = answerLoads(run, (file) => include(file) || unprobed?.(file) === true, capture, (file) => changedOnArrival(root, file));
   const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after, answers }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.

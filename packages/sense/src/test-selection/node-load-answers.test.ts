@@ -19,7 +19,8 @@ const module = (file: string) => ({ id: `${file}@1`, file }) as unknown as Captu
 function answering(capture: (file: string, code: string) => Captured | undefined) {
   const modules = new Map<string, Captured['module']>();
   const answers = answerLoads(
-    { include: (file) => file.startsWith('/repo/src/'), modules },
+    { modules },
+    (file) => file.startsWith('/repo/src/'),
     capture,
     (file) => new Error(`${file} changed`),
   );
@@ -48,7 +49,7 @@ async function ask(address: string, lines: readonly string[]): Promise<unknown[]
 }
 
 describe('the answers to what a worker loads through Node', () => {
-  it('takes what `include` takes, and no dependency it does not', async () => {
+  it('takes what the configuration takes, and no dependency it does not', async () => {
     const { answers } = answering(() => undefined);
     const replies = await ask(answers.address, [
       JSON.stringify({ file: '/repo/src/add.cjs' }),

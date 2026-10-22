@@ -63,6 +63,7 @@ const ASKING = Symbol.for('variance-authority.test-selection.node-loads');
  * no collector is installed, and is not hooked.
  */
 function answeredBy(address: string, realm: object): void {
+  // FIXME: `vmThreads` and `vmForks` land here, and a `require` chain under them goes unrecorded.
   if (realm !== globalThis) return;
   const carrier = globalThis as { [ASKING]?: string };
   if (carrier[ASKING] !== undefined) return;
@@ -110,7 +111,10 @@ const ASKER = `
 const { connect } = require('node:net');
 const { workerData } = require('node:worker_threads');
 const { address, signal, port } = workerData;
+// One question is out at a time, and the worker waits on it until answered.
+let asked = false;
 const answer = (message) => {
+  asked = false;
   port.postMessage(message);
   Atomics.store(signal, 0, 1);
   Atomics.notify(signal, 0);
@@ -122,18 +126,28 @@ socket.on('data', (chunk) => {
   pending += chunk;
   let end;
   while ((end = pending.indexOf('\\n')) !== -1) {
-    answer(JSON.parse(pending.slice(0, end)));
+    const line = pending.slice(0, end);
     pending = pending.slice(end + 1);
+    try {
+      answer(JSON.parse(line));
+    } catch (error) {
+      answer({ error: 'variance-authority was answered what it cannot read from ' + address + ': ' + error.message });
+    }
   }
 });
+// Once the socket is gone every question is answered with why, the one in flight first.
 let broken;
-socket.on('error', (error) => {
-  broken = { error: 'variance-authority could not reach ' + address + ': ' + error.message };
-  answer(broken);
-});
+const lost = (reason) => {
+  if (broken !== undefined) return;
+  broken = { error: 'variance-authority lost ' + address + ': ' + reason };
+  if (asked) answer(broken);
+};
+socket.on('error', (error) => lost(error.message));
+socket.on('close', () => lost('the process that answers closed it'));
 port.on('message', (question) => {
-  if (broken === undefined) socket.write(JSON.stringify(question) + '\\n');
-  else answer(broken);
+  if (broken !== undefined) return answer(broken);
+  asked = true;
+  socket.write(JSON.stringify(question) + '\\n');
 });
 `;
 

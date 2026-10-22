@@ -36,12 +36,15 @@ interface Question {
 type Reply = { readonly take: boolean } | { readonly code: string | null } | { readonly error: string };
 
 /**
- * Answer the workers of `run`, probing a file `capture` takes and adding its
- * module to the run, as the transform does for what Vite evaluates. A file
- * whose text no longer matches the file on disk is refused with `refusal`.
+ * Answer the workers of a run, probing a file `capture` takes and adding its
+ * module to `run.modules`, as the transform does for what Vite evaluates.
+ * `takes` is the configuration's own `include` or `unprobed`, as the transform
+ * asks them. A file whose text no longer matches the file on disk is refused
+ * with `refusal`.
  */
 export function answerLoads(
-  run: Pick<SelectionRun, 'include' | 'unprobed' | 'modules'>,
+  run: Pick<SelectionRun, 'modules'>,
+  takes: (file: string) => boolean,
   capture: (file: string, code: string, original: (at: string) => string) => Captured | undefined,
   refusal: (file: string) => Error,
 ): LoadAnswers {
@@ -50,7 +53,7 @@ export function answerLoads(
     : join(tmpdir(), `va-${randomUUID().slice(0, 8)}.sock`);
   const reply = (question: Question): Reply => {
     if (question.code === undefined) {
-      return { take: mayTake(question.file, (at) => run.include(at) || run.unprobed?.(at) === true) };
+      return { take: mayTake(question.file, takes) };
     }
     const captured = capture(question.file, question.code, heldOriginal(question.file, undefined));
     if (captured === undefined) return { code: null };
@@ -72,12 +75,12 @@ export function answerLoads(
     // A worker that ends mid-question has nobody left to answer.
     socket.on('error', () => socket.destroy());
   });
+  server.on('error', (error) => {
+    throw new Error(`variance-authority could not answer Node's loads at ${address}: ${error.message}`, { cause: error });
+  });
   server.listen(address);
   server.unref();
-  const remove = (): void => {
-    if (process.platform !== 'win32') rmSync(address, { force: true });
-  };
-  process.once('exit', remove);
+  listening.add(address);
   let closed = false;
   return {
     address,
@@ -86,11 +89,19 @@ export function answerLoads(
     close: () => {
       if (closed) return;
       closed = true;
-      process.off('exit', remove);
       server.close();
-      remove();
+      listening.delete(address);
+      remove(address);
     },
   };
+}
+
+/** The sockets this process still listens on, removed when it exits however it ends. */
+const listening = new Set<string>();
+process.once('exit', () => listening.forEach(remove));
+
+function remove(address: string): void {
+  if (process.platform !== 'win32') rmSync(address, { force: true });
 }
 
 /** A worker waits on every answer, so a failure to probe is an answer too, said in the worker that loads the file. */
