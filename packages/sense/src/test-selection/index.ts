@@ -54,7 +54,7 @@ export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf,
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
-export { unmeasuredOf, type Unmeasured } from './route.js';
+export { ignoredBy, unmeasuredOf, type Unmeasured } from './route.js';
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';

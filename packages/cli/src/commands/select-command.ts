@@ -275,7 +275,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const declared = (await recordedSuite(here, request.suite, 'landing')).declared;
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])]);
+  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])], declared?.ignore);
   // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
   const install = installReached(installs, beyond, (stand) =>
     handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
@@ -289,7 +289,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // the two commits, read from both texts like the tree's. Its new side is the
   // stand, never the tree, so a module the landing kept a text for is charged
   // whole there: the kept text is not what the tree holds.
-  const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), precision: declared?.precision, distances: request.atDistance !== undefined };
+  const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
   const ask = (question: StandQuestion) =>
     question.read === 'stand'
       ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), { ...options, keptTexts: false })

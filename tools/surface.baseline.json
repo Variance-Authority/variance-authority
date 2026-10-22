@@ -3273,6 +3273,7 @@
         "heldValues": "function",
         "hunksByFile": "function",
         "hunksOf": "function",
+        "ignoredBy": "function",
         "importReferences": "function",
         "indexFaces": "function",
         "innermostAt": "function",

@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { blocksAround, regionOf } from './blocks-around.js';
 import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
@@ -12,7 +13,7 @@ import { rebasedChange } from './text-diff.js';
 import { readChange, readRowless, rowlessNames, type FileReading } from './reading.js';
 import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
-import { routeOf } from './route.js';
+import { ignoreMatcher, ignoredBy, routeOf, withoutPaths } from './route.js';
 import { byRelations, declarationOf, withGraph } from './precision.js';
 
 export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
@@ -76,6 +77,9 @@ export interface ExecutionNarrowing {
    * graph; empty when it declines and every changed path was measured.
    */
   readonly declined?: readonly string[];
+
+  /** Changed paths the suite's `ignore` matched, read by nothing. Absent when it ignores nothing. */
+  readonly ignored?: readonly string[];
 
   /**
    * Changed modules whose recording was cut from a different text than the one
@@ -213,14 +217,18 @@ function readDiff(
   diff: string,
   asked: ExecutionNarrowingOptions,
 ): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> &
-  Pick<ExecutionNarrowing, 'declined'> {
+  Pick<ExecutionNarrowing, 'declined' | 'ignored'> {
+  const named = changedLines(diff);
+  const ignores = ignoreMatcher(asked.ignore);
+  const ignoring = ignoredBy(asked.ignore, named.keys());
+  const changed = withoutPaths(named, ignoring);
+  const hunks = withoutPaths(hunksOf(diff), ignoring);
   // A checkout to read layouts in lets the record say which of its names are
   // built from which source, and the graph's walk asks under the same names.
-  const changed = changedLines(diff);
   const known: ExecutionNarrowingOptions =
     asked.knownAs !== undefined || asked.root === undefined
       ? asked
-      : { ...asked, knownAs: builtNamesOf(coverage, asked.root, changed.keys()) };
+      : { ...asked, knownAs: builtNamesOf(coverage, asked.root, named.keys()) };
   // Every changed name the loop below reads a recorded text under, named to
   // `sourceAt` with each ask: filled before the first ask, so a reader fetches
   // those texts together and none of the rest of the diff.
@@ -231,19 +239,19 @@ function readDiff(
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // A graph step adds what the import walk reaches to what `file-use` reads, so
   // it runs every test any finer step runs.
-  if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, diff, { ...asked, precision: 'file-use' }), [...changed.keys()], hunksOf(diff), options);
+  if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, diff, { ...asked, precision: 'file-use' }), [...changed.keys()], hunks, options);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
     const reasons = selected.get(test) ?? [];
     reasons.push(reason);
     selected.set(test, reasons);
   };
-  const governing = new Set<string>();
+  // An ignored file is cut from what selection infers, not from what a test declared: its names still govern.
+  const governing = new Set<string>(ignoring.flatMap((file) => [...knownAs(file)]));
   const rowed = new Set<string>();
   const stale = new Set<string>();
   // A test that mocked the module is not the audience of what it only loaded there (`shadowed.ts`).
   const disowned = disownedIn(coverage, options.relations);
-  const hunks = hunksOf(diff);
   const readings: FileReading[] = [];
   const seen = new Set<string>();
   const enter = (file: string, block: number, reason: SelectionReason): void => {
@@ -272,12 +280,10 @@ function readDiff(
   };
   const context = { coverage, options, knownAs, hunks, charge, pick: select, whole };
 
-  // Every row recorded under every name. One build reading a path is one
-  // row; two builds reading it are two, each with its own crossings, and the
-  // answer is all of them. `instrumented: false` is the build saying it never
-  // read this module — not that nothing ran in it — and its zero blocks
-  // would otherwise select nobody and look like an answer, so it takes
-  // nothing from the instrumented row beside it.
+  // Every row recorded under every name. Two builds reading a path are two
+  // rows, each with its own crossings, and the answer is all of them.
+  // `instrumented: false` is the build saying it never read this module, and
+  // its zero blocks take nothing from the instrumented row beside it.
   const rowsByFile = new Map<string, Map<string, readonly number[]>>();
   for (const [file, lines] of changed) {
     // Every changed name is asked of the precondition table, whatever its
@@ -311,7 +317,8 @@ function readDiff(
   const undone = new Set(
     options.keptDigests === undefined || options.keptText === undefined || options.sourceAt === undefined
       ? []
-      : recordedOverKept(coverage, options.keptDigests(), (file) => changed.has(file) || knownAs(file).some((name) => rowed.has(name))),
+      : recordedOverKept(coverage, options.keptDigests(), (file) => named.has(file) || knownAs(file).some((name) => rowed.has(name)))
+          .filter((file) => ignores?.(file) !== true),
   );
   for (const file of undone) {
     // Under every name, as a changed file is: a built twin's rows are in frame
@@ -420,7 +427,7 @@ function readDiff(
   // be the query.
   const answered = answerByImporters(
     coverage,
-    [...changed.keys()].sort(codeUnitOrder),
+    [...named.keys()].sort(codeUnitOrder),
     rowed,
     options,
     disowned,
@@ -463,7 +470,7 @@ function readDiff(
   // name beside it. A file `knownAs` gives no name at all was asked about
   // under nothing, and is reported.
   const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
-  const unmeasured = answered.unread.filter((name) => !measured(name)).sort(codeUnitOrder);
+  const unmeasured = [...answered.unread.filter((name) => !measured(name)), ...answered.unheld].sort(codeUnitOrder);
   // A suite that declines relations never asked the graph, so nothing it
   // holds is unread: what the record did not measure was declined.
   const declining = options.unmeasured === 'nothing';
@@ -476,6 +483,7 @@ function readDiff(
     entered: because.map((cause) => cause.test),
     unread: declining ? [] : unmeasured,
     ...(declining ? { declined: unmeasured } : {}),
+    ...(asked.ignore === undefined ? {} : { ignored: ignoring }),
     stale: [...stale].sort(codeUnitOrder),
     because,
     readings: withRanOver(readings, ranOver).map((reading) =>
@@ -489,8 +497,4 @@ function readDiff(
 /** Every region of one row. */
 function chargeAll(coverage: TestCoverageView, module: number, charge: (block: number) => void): void {
   for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) charge(block);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

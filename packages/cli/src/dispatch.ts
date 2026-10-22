@@ -42,6 +42,7 @@ import { changelog, changelogStoreFor, formatChangelog } from './commands/change
 import { formatRemoteChangelog, readRemoteChangelog } from './commands/changelog-remote.js';
 import { runJourneys } from './commands/journeys-command.js';
 import { refiningRecord } from './commands/suite-record.js';
+import { suiteIgnore } from './commands/select-before.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
@@ -127,9 +128,12 @@ export async function dispatch(
         process.env,
       );
 
+      const ignore = await suiteIgnore(process.cwd(), parsed.suite);
+
       try {
         const report = await run({
           config: effective,
+          ...(ignore !== undefined ? { ignore } : {}),
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
           ...(parsed.shard !== undefined ? { shard: parsed.shard } : {}),
           ...(await costsToPlace(effective)),
