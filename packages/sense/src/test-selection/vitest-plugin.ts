@@ -73,6 +73,7 @@ export function selectionPlugin(
   runnerId: string,
   globalSetup: ReadonlySet<string>,
   run: SelectionRun,
+  taken: { readonly include: (file: string) => boolean; readonly unprobed: ((file: string) => boolean) | undefined },
   { capture, after }: {
     readonly capture: (file: string, code: string, original: (at: string) => string) => Captured | undefined;
     readonly after: (
@@ -97,8 +98,12 @@ export function selectionPlugin(
   const before = placement === 'before-transforms';
   /** The modules of this seam's own, and a `globalSetup` file, which no probe may sit in. */
   const own = (file: string): boolean => file === setupId || file === runnerId || globalSetup.has(file);
-  /** A file the transforms may read and probe; the module cache is kept from the same ones. */
-  const takes = (file: string): boolean => mayTake(file, (at) => run.include(at) || run.unprobed?.(at) === true);
+  /**
+   * A file the transforms may read and probe; the module cache is kept from the
+   * same ones. Read from this configuration's own predicates: the run's are
+   * shared by every project in it.
+   */
+  const takes = (file: string): boolean => mayTake(file, (at) => taken.include(at) || taken.unprobed?.(at) === true);
   /** A test file the run cuts: the file itself only, since a query asks for a module built from it. */
   const cutting = (id: string, file: string): boolean => cut !== undefined && id === file && run.cases && cut(file);
   /** The modules probed first because their files name their own maps, until the probes plugin passes them by. */

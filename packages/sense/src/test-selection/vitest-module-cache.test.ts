@@ -2,18 +2,20 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { withTestSelection } from './vitest.js';
+import { withTestSelection, type TestSelectionOptions } from './vitest.js';
 
 type Generate = (context: { readonly id: string }) => string | undefined | false;
 
 /** The key generator the seam's plugin hands Vitest, under the name the given Vitest calls it by. */
-async function generatorFor(name: 'defineCacheKeyGenerator' | 'experimental_defineCacheKeyGenerator') {
+async function generatorFor(
+  name: 'defineCacheKeyGenerator' | 'experimental_defineCacheKeyGenerator',
+  predicates: (root: string) => Pick<TestSelectionOptions, 'include' | 'unprobed'> = (root) => ({
+    include: (file) => file.startsWith(resolve(root, 'src')),
+  }),
+) {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-module-cache-'));
   try {
-    const config = withTestSelection(
-      { root },
-      { root, coverageFile: resolve(root, 'coverage.bin'), include: (file) => file.startsWith(resolve(root, 'src')) },
-    );
+    const config = withTestSelection({ root }, { root, coverageFile: resolve(root, 'coverage.bin'), ...predicates(root) });
     const plugin = (config.plugins as unknown as { name: string; configureVitest?: (context: object) => void }[])
       .find((one) => one.name === 'variance-authority:test-selection');
     const generators: Generate[] = [];
@@ -45,5 +47,28 @@ describe('Vitest\'s file-system module cache', () => {
 
     expect(generators).toHaveLength(1);
     expect(generators[0]!({ id: resolve(root, 'src/add.ts') })).toBe(false);
+  });
+
+  // A dependency under `node_modules` is taken only when the configuration's
+  // own predicate names it, so the cache reads that predicate, not the default.
+  it('keeps a dependency the configuration\'s include takes out of the cache', async () => {
+    const inlined = (root: string): string => resolve(root, 'node_modules/inlined/index.js');
+    const { root, generators } = await generatorFor('defineCacheKeyGenerator', (root) => ({
+      include: (file) => file === inlined(root),
+    }));
+
+    expect(generators[0]!({ id: inlined(root) })).toBe(false);
+    expect(generators[0]!({ id: resolve(root, 'node_modules/left-pad/index.js') })).toBeUndefined();
+  });
+
+  it('keeps a dependency the configuration marks unprobed out of the cache', async () => {
+    const marked = (root: string): string => resolve(root, 'node_modules/marked/index.js');
+    const { root, generators } = await generatorFor('defineCacheKeyGenerator', (root) => ({
+      include: () => false,
+      unprobed: (file) => file === marked(root),
+    }));
+
+    expect(generators[0]!({ id: marked(root) })).toBe(false);
+    expect(generators[0]!({ id: resolve(root, 'node_modules/left-pad/index.js') })).toBeUndefined();
   });
 });

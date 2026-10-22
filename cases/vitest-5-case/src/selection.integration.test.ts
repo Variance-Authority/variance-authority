@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,12 +21,21 @@ const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 // The Vitest this case installs, not the repository's own: the run under test is Vitest 5's.
 const vitest = resolve(here, '../node_modules/vitest/vitest.mjs');
 
+// A dependency the fixture inlines and probes, written here since `node_modules`
+// is not tracked: a module the transforms read from `node_modules` only because
+// the configuration's own `include` names it.
+const inlined = resolve(fixture, 'node_modules/inlined');
+
 let directory: string;
 beforeAll(async () => {
   directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-5-'));
+  await mkdir(inlined, { recursive: true });
+  await writeFile(resolve(inlined, 'package.json'), JSON.stringify({ name: 'inlined', type: 'module', main: 'index.js' }));
+  await writeFile(resolve(inlined, 'index.js'), 'export function twice(n) {\n  return n * 2;\n}\n');
 });
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
+  await rm(inlined, { recursive: true, force: true });
 });
 
 /**
@@ -90,6 +99,11 @@ describe('a Vitest 5 run that shares a module graph and runs its cases concurren
       // took it.
       expect(named(4), name).toEqual([`${at('one.case.ts')}: add > adds one`]);
       expect(named(7), name).toEqual([`${at('one.case.ts')}: add > adds more`, `${at('two.case.ts')}: adds two`]);
+      // The inlined dependency's probes are this run's own, warm as well as cold.
+      expect(
+        coveringTests(index, { file: at('node_modules/inlined/index.js'), line: 2 }).map((test) => `${test.file}: ${test.name}`),
+        name,
+      ).toEqual([`${at('two.case.ts')}: doubles through a dependency`]);
       // The cold run filled the cache the warm one reads.
       expect((await readdir(moduleCacheOf('shared'))).length).toBeGreaterThan(0);
     }

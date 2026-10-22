@@ -201,7 +201,7 @@ export function withTestSelection(
   // Under `loads` no region is probed, so no line of a test can be said to
   // have reached one first: the cut would cost a call per statement for nothing.
   const cut = options.cadence === false || !run.cases ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = run.cases && options.continuations === true;
