@@ -772,6 +772,7 @@
         "EyesAttempt": "interface",
         "FileDistillInput": "interface",
         "FileDistillation": "interface",
+        "FileTime": "type",
         "ImportCharge": "type",
         "ImportReach": "type",
         "LoadCause": "type",
