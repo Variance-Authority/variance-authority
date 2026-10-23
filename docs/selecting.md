@@ -316,7 +316,34 @@ xychart-beta horizontal
   bar [0, 0, 0, 0, 0, 0]
 ```
 
-Why three steps tie here, and how to part them, is in [from `file` to
+`file`, `symbol` and `file-use` tie because Vitest, like Jest, loads every
+static import, so every test that imports a file loads it. What limits
+`file-use` is then what your tests import, not the step. `query-core`'s index
+loads every module it re-exports, so `hydration.ts`, which the index
+re-exports, is loaded by 149 test files, and 21 of them call a function in it.
+The other 128 call nothing in it. An edit to
+`hydration.ts` runs all 149 at `file-use`. Where the module is loaded only by
+the tests that use it, the same step runs at most those 21, in orange here:
+
+```mermaid
+---
+config:
+  xyChart:
+    height: 200
+---
+xychart-beta horizontal
+  accTitle: Test files that load hydration.ts in TanStack Query, and the ones that call a function in it
+  x-axis ["every test file", "file", "file-use", "call into it"]
+  y-axis "test files, of 188" 0 --> 188
+  bar [0, 0, 0, 21]
+  bar [0, 149, 149, 0]
+  bar [188, 0, 0, 0]
+  bar [0, 0, 0, 0]
+```
+
+`file` stays at 149 however the module loads, because it walks the imports.
+How to load a module where it is used is in
+[from `file` to
 `file-use`](#from-file-to-file-use-load-a-module-where-it-is-used); what the
 finer steps read is in [from `file-use` to
 `region-use`](#from-file-use-to-region-use-read-inside-the-file).
@@ -327,8 +354,9 @@ trust:
 - **Start at `file`** if your suite comes from a graph selector such as `nx
   affected`. It runs every test that imports a changed file.
 - **Declare `file-use` once you trust the record.** It never runs a test
-  `file` would skip, and it needs only to know which test loaded which file. It
-  runs fewer tests once your modules load where they are used.
+  `file` would skip, and it needs only to know which test loaded which file.
+  Once your modules load where they are used, it runs only the tests that use
+  them.
 - **Declare `region-use` once every project the suite runs records regions**,
   as [below](#record-as-finely-as-you-select).
 

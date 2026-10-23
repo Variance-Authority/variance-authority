@@ -133,6 +133,12 @@ through a lazy `import()`, so four tests import `PiPContext.tsx` and never load
 it: `file` and `symbol` run them, and `file-use` does not. The graph runs more
 than coverage, never less.
 
+What limits `file-use` is what the tests load, not the step: where a module
+loads later than it is imported, as `PiPContext.tsx` does through its lazy
+`import()`, `file-use` runs fewer than `file`. [What the index costs `file-use`](#what-the-index-costs-file-use)
+shows the other side: an edit to `hydration.ts` runs 149 test files at
+`file-use`, and 21 of them use it.
+
 The steps that read inside the file run fewer. 83 test files entered `Query.fetch`, and 9
 the branch the edit changed; 4 entered `PiPProvider`, and nothing in it splits
 them further.
