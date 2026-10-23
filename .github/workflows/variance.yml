@@ -357,6 +357,9 @@ jobs:
           # catch, in the same run that found it, and the next run is green: the
           # check has stopped being a gate and has become a recorder.
           commit-baselines: ${{ env.VARIANCE_REVIEW == 'git' && steps.accept.outputs.promote == 'true' }}
+          # On under `git`, on a push to `main`: the merge was the accept, and
+          # `main` has no branch to commit the images it renders to.
+          exit-zero-on-changes: ${{ steps.accept.outputs['exit-zero-on-changes'] }}
 
       # Under `tribunal`, the build goes to the service whatever the verdict, red
       # or green: a red one is what a person decides on there, and a green one
@@ -649,6 +652,10 @@ jobs:
   # both keyed by the config's `project`. The label is the only way it accepts:
   # a push to `main` compares and promotes nothing, because under `git` the
   # images arrived in the merge, and a dispatch has no branch to commit to.
+  # Merging is the accept, so on `main` a change is a warning, never red: the
+  # pull request merged with what it committed, and `main` cannot commit the
+  # images it renders without a pull request of its own. A subject `main`
+  # could not observe stays red.
   #
   # It also asserts what a checkout without git-lfs does, because that is the
   # failure an adopter meets first: once baselines are committed, a checkout
@@ -768,6 +775,7 @@ jobs:
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
           to-accept: 'check the report, then add the **variance: accept lfs** label. The accepted images are committed to this branch through git-LFS, and the next run compares against them.'
           commit-baselines: ${{ steps.accept.outputs.promote == 'true' }}
+          exit-zero-on-changes: ${{ steps.accept.outputs['exit-zero-on-changes'] }}
 
       - if: always()
         uses: actions/upload-artifact@v4
