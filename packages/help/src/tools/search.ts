@@ -66,8 +66,9 @@ import { searched, searchedFiles } from './search-answer.js';
  * An agent that cannot name the thing describes it, and a description holds
  * words the name does not: `which tests entered a file`. Beside the loose pass
  * runs the reading the installed packages already get — the question cut into
- * stems, stopwords dropped, and a name answering when it holds any of them —
- * so the repository's own names answer before any package that says the same
+ * stems, stopwords dropped — with one difference: a package answers when it
+ * holds half of them, and the repository's own name when it holds any. So the
+ * repository's own names answer before any package that says the same
  * words, and a name holding one word of three is answered rather than reported
  * as nothing. A file answers beside them, by its own name and the doc it opens with,
  * since what a file is for is said once at its top and by no one declaration
@@ -239,9 +240,12 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     // A miss of the text is not a miss of the code: when this repository's own
     // names answer the words, the line above them says only that the text was
     // not written, so a reader who stops at the first line does not stop at *nothing*.
+    // Inside an area the text may be written outside it, so the way to widen stays.
     const nowhere =
       own.length > 0
-        ? `No name or doc ${area === undefined ? 'in this repository' : 'in reach of that start point'} writes \`${query}\` as typed. The nearest follow.`
+        ? area === undefined
+          ? `No name or doc in this repository writes \`${query}\` as typed. The nearest follow.`
+          : `No name or doc in reach of that start point writes \`${query}\` as typed — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
         : area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;

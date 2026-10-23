@@ -102,6 +102,16 @@ describe('what it may never do', () => {
     expect(ask({ query: 'meesure', from: 'packages/beta/src/again.ts' })).toContain('measure');
   });
 
+  it('says a miss inside an area is a fact about the area, even when the nearest in reach follow', () => {
+    // The text may be written outside the start point's reach, so the nearest
+    // names in reach do not replace the way to widen.
+    const text = ask({ query: 'meesure', from: 'packages/beta/src/again.ts' });
+    expect(text).toContain('measure');
+    expect(text).toContain('No name or doc in reach of that start point writes `meesure` as typed');
+    expect(text).toContain('ask again without `from`/`to` to search the whole workspace');
+    expect(text).not.toContain('Nothing in reach');
+  });
+
   it('leaves an empty answer empty when the wider net catches nothing either', () => {
     const text = ask({ query: 'zzz' });
     expect(text).toContain('Nothing in this repository is named or documented with `zzz`');

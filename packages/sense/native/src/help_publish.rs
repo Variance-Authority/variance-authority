@@ -153,14 +153,14 @@ pub fn declared_of(root: String, index: String, query: String, containing: bool,
     opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
 }
 
-/// The declarations no export binds whose name and doc hold at least `needed`
-/// of `stems` — `describedWords`' stems of `query` — in `files` when they
-/// are named, each with the positions of the stems it holds and how near its
-/// doc writes `query`; and the files whose name and module doc hold as many.
+/// The declarations no export binds whose name and doc hold any of `stems` —
+/// `describedWords`' stems of `query` — in `files` when they are named, each
+/// with the positions of the stems it holds and how near its doc writes
+/// `query`; and the files whose name and module doc hold any, the same way.
 /// `None` when there is no index.
 #[napi]
-pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, needed: u32, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
-    let matching = Matching::Described { stems, needed: needed.max(1) as usize, query };
+pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = Matching::Described { stems, query };
     opened_chain(&index, |layers| declared(&root, layers, "", matching, files.as_deref()))
 }
 

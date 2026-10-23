@@ -190,7 +190,7 @@ export function describedDeclarations(
   if (root === undefined || asked.length === 0) return undefined;
   let read: ReturnType<typeof declaredDescribedOf>;
   try {
-    read = declaredDescribedOf(root, query, asked.map(([stem]) => stem as string), 1, files);
+    read = declaredDescribedOf(root, query, asked.map(([stem]) => stem as string), files);
   } catch {
     return undefined;
   }
