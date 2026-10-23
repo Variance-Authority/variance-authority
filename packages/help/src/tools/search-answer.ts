@@ -384,7 +384,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // described section's, which prints first, and the loose pass offers none of
   // them a second time. A name holding fewer is the loose section's when every
   // word reaches it there, since every word one character off says more than
-  // one stem of three: held on its one stem, it would sort past the rows shown.
+  // under half the stems do: held on so few, it would sort past the rows shown.
   const strong = Math.ceil(describedWordsNative(query).length / 2);
   const held = (one: Reached): boolean => one.words.length >= strong;
 

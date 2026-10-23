@@ -80,8 +80,8 @@ import { searched, searchedFiles } from './search-answer.js';
  * holding the one rare word is shown however many holding a common one sort
  * before it. It prints first, so a name holding at least half the stems
  * is not offered again by the loose pass. A name holding fewer is the loose
- * pass's when that pass reaches it, by every word, so a long list of names
- * holding one stem cannot sort it past the rows shown.
+ * pass's when that pass reaches it, by every word, so on three words or more a
+ * long list of names holding one stem cannot sort it past the rows shown.
  *
  * ## Where the substring stops being enough
  *
@@ -210,7 +210,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       : [
           '',
           `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held at all, then the words in the name, then the phrase its doc writes.',
+            'read by stem as the packages are, best first: the words held at all, then the words in the name, then the phrase its doc writes; each word\'s best holder is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),

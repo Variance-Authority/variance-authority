@@ -47,10 +47,11 @@ import { admittedBy, termsOfStems } from './loose.js';
  * leaves level.
  *
  * The rows shown hold every word anything reached holds: the best holder of a
- * word no better row holds is shown in place of the last row, so `mermaid
- * chart palette` shows the one name holding `mermaid` however many names
- * holding `chart` sort before it. The phrase is counted only for a name that
- * can be shown, since a doc is decoded to count it.
+ * word no row shown holds takes the place of the last row whose every word
+ * another row shown also holds, so `mermaid chart palette` shows the one name
+ * holding `mermaid` however many names holding `chart` sort before it. The
+ * phrase is counted only for a name that can be shown, since a doc is decoded
+ * to count it.
  */
 
 /** What a reached name is ordered on. */
