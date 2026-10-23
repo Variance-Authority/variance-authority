@@ -217,10 +217,10 @@ describe('creating a name npm has never held', () => {
     expect(ran.map((args) => args[0])).toEqual(['publish']);
   });
 
-  it('finishes a name a failed trust left created, without publishing it again', async () => {
+  it('finishes a name npm already holds by trusting it, without publishing onto it', async () => {
     const ran: string[][] = [];
     const created = await placeholders(['shown', 'staged'], {
-      registry: async (name: string, version: string) => name === 'shown' && version === '0.0.0-placeholder.0',
+      registry: async (name: string, version?: string) => name === 'shown' && version === undefined,
       npm: async (args: readonly string[]) => {
         ran.push([...args]);
         if (args[0] === 'publish') {

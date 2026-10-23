@@ -274,7 +274,8 @@ if `release` refuses it again, run it again.
 If a step fails, say a second factor timed out between the publish and the
 trust, the run stops and prints the command that finishes the names it left,
 such as `node tools/publish.mjs --placeholders @variance-authority/isolator`.
-Run that: a placeholder npm already holds is not sent again. A release that
+Run that: a name npm already holds only gets its trusted publisher, never a
+placeholder. A release that
 stops on `ENEEDAUTH` names the same command for the package it stopped on.
 
 ## Where the rest lives

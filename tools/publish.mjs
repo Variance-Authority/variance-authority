@@ -120,7 +120,7 @@ export async function publish(dir, run = { registry: onRegistry, npm }) {
           failed.push(named);
           console.error(`${named} did not publish: ${error.message}`);
           if (untrusted(error)) {
-            console.error(`npm holds ${release.name} with no trusted publisher; create or finish it by hand: ${placeholdersCommand([release.name])}`);
+            console.error(`npm asked for a login, which it does for a name with no trusted publisher for release.yml; if ${release.name} is new or half made, finish it by hand: ${placeholdersCommand([release.name])}`);
           }
         }
       }
@@ -154,15 +154,16 @@ export function placeholdersCommand(names) {
  * half made: a second factor that timed out leaves it created and untrusted,
  * and the release check reads such a name as held. So the first failure stops
  * the rest and is refused with the names still unfinished, and running it again
- * on those names finishes them: a placeholder the registry shows, or one npm
- * refuses as previously staged because it does not show it yet, is not sent
- * again. `npm` and the registry are handed in by a test.
+ * on those names finishes them: a name the registry shows is not published
+ * again, so a placeholder never lands on a package with real versions, and one
+ * npm refuses as previously staged because it does not show it yet is read as
+ * created. `npm` and the registry are handed in by a test.
  */
 export async function placeholders(names, run = { npm: byHand, registry: onRegistry }) {
   const created = [];
   for (const [at, name] of names.entries()) {
     try {
-      if (!(await run.registry(name, PLACEHOLDER))) {
+      if (!(await run.registry(name))) {
         const dir = mkdtempSync(join(tmpdir(), 'placeholder-'));
         try {
           writeFileSync(join(dir, 'package.json'), `${JSON.stringify({ name, version: PLACEHOLDER }, null, 2)}\n`);
