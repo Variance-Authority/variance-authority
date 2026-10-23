@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/jest-transformer",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "Run a project's own Jest transformer inside yours: loaded the way Jest loads it, handed its own options, and asked which files Jest calls tests.",
   "keywords": [
     "variance-authority",
