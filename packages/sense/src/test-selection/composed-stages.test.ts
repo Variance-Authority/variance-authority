@@ -103,4 +103,50 @@ describe('the composition is its stages', () => {
     expect(composed).toEqual([DECLARING]);
     expect([...new Set(chained)]).toEqual(composed);
   });
+
+  it('charges a file handed over under two of its names once, as the composition does', () => {
+    const BUILT = 'dist/two.js';
+    const twice = { lines: new Map([[SOURCE, []], [BUILT, []]]), hunks: new Map() };
+    const knownAs = (file: string): readonly string[] => [SOURCE, BUILT].includes(file) ? [SOURCE, BUILT] : [file];
+
+    const alone = testsEnteringFromView(view(), twice, { knownAs, precision: 'file-use' });
+
+    expect(alone.because).toEqual(testsEnteringFromView(view(), { lines: new Map([[SOURCE, []]]), hunks: new Map() }, { knownAs, precision: 'file-use' }).because);
+    expect(narrowByChangeFromView(view(), twice, { knownAs, precision: 'file-use' }).because).toEqual(alone.because);
+  });
+});
+
+/** An undone file the record can say nothing changed for selects nothing. */
+describe('an undone built twin', () => {
+  it('selects nothing when only its source is asked a text, and its own rows are unchecked', () => {
+    const SOURCE = 'src/two.ts';
+    const BUILT = 'dist/two.js';
+    const RAN_OVER = 'export const two = 3;\n';
+    const record: TestCoverage = {
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      commit: 'recorded',
+      tests: [{ file: 'test/one.test.ts', complete: true, preconditions: [] }],
+      modules: [
+        {
+          file: BUILT,
+          // The run recorded over an edit, and the landing kept the text it ran over.
+          sourceDigest: digestString(RAN_OVER),
+          instrumented: true,
+          blocks: [{ ordinal: 0, kind: 'module', digest: 'block:two', name: '', path: 'module', startLine: 1, endLine: 1, source: true, testFiles: ['test/one.test.ts'] }],
+        },
+      ],
+    };
+    const knownAs = (file: string): readonly string[] => ([SOURCE, BUILT].includes(file) ? [SOURCE, BUILT] : [file]);
+
+    const narrowed = narrowByChangeFromView(openTestCoverage(encodeTestCoverage(record)), { lines: new Map(), hunks: new Map() }, {
+      knownAs,
+      // Only the source has a text at the commit, and it has no row: the built twin's frame is unchecked.
+      sourceAt: (file) => (file === SOURCE ? 'export const two = 2;\n' : undefined),
+      keptText: (digest) => (digest === digestString(RAN_OVER) ? RAN_OVER : undefined),
+      keptDigests: () => [digestString(RAN_OVER)],
+    });
+
+    expect(narrowed.entered).toEqual([]);
+  });
 });
