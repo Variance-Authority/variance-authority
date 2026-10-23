@@ -252,6 +252,25 @@ from the Actions tab, on whatever `main` carries at that moment — it refuses t
 run while a changeset is still waiting to be versioned. The dist-tag is derived
 from the version rather than typed at release time.
 
+**A new package is published once by hand.** The workflow publishes through
+npm's trusted publisher, which npm adds only to a package that already exists,
+so the workflow cannot create a name. `release` refuses before it publishes
+anything while a package has never been on npm, and names it. Publish that
+package from your machine, logged in to npm, on `main` as it is:
+
+```bash
+yarn install && yarn build
+packed=$(mktemp -d)
+yarn changeset pack --out-dir "$packed"
+npm publish "$packed/<tarball>" --access public --tag <tag>
+```
+
+`$packed/publish-plan.json` names each package's tarball and tag. Then open the
+package's settings on npmjs.com and add a trusted publisher: GitHub Actions,
+repository `Variance-Authority/variance-authority`, workflow `release.yml`,
+environment `npm`. Run `release` again; it skips every version npm already
+holds.
+
 ## Where the rest lives
 
 The standards a change is held to — where each kind of writing goes, how a

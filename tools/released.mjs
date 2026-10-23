@@ -35,6 +35,7 @@ import read from '@changesets/read';
  *     node tools/released.mjs --wait 120 # the same, tolerating registry lag
  *     node tools/released.mjs --registry # skip the tag half
  *     node tools/released.mjs --lockstep # before publishing: is there one version to publish, and nothing waiting?
+ *     node tools/released.mjs --named    # before publishing: has npm held every name before?
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -124,6 +125,37 @@ export async function onRegistry(name, version) {
   throw new Error(`${at} answered ${answer.status}`);
 }
 
+/**
+ * Whether the registry has ever held a name, at any version.
+ *
+ * The abbreviated packument, the document a package manager installs from, so
+ * the answer is the registry's and not a page's. A 404 is a name nobody has
+ * published.
+ */
+export async function named(name) {
+  const at = `https://registry.npmjs.org/${name.replace('/', '%2f')}`;
+  const answer = await fetch(at, { headers: { accept: 'application/vnd.npm.install-v1+json' } });
+  if (answer.status === 200) return true;
+  if (answer.status === 404) return false;
+  throw new Error(`${at} answered ${answer.status}`);
+}
+
+/**
+ * The packages the registry has never held.
+ *
+ * The workflow publishes through a trusted publisher, and npm adds one only to
+ * a package that exists, so the workflow cannot create a name: 0.20.0
+ * published the first ten names and stopped at the eleventh, a new one, with
+ * ENEEDAUTH. A new name is published once by a person, and the release asks
+ * this before its first publish so it refuses whole rather than in part. A
+ * registry that does not answer refuses too: what it did not say is not that
+ * the name is held. `ask` is handed in by a test.
+ */
+export async function unborn(packages, { ask = named } = {}) {
+  const held = await Promise.all(packages.map((entry) => ask(entry.name)));
+  return packages.filter((_, at) => !held[at]);
+}
+
 /** Every tag on the remote, by name. One call, because thirty-eight is not thirty-eight calls. */
 function tagsOnRemote() {
   const printed = execFileSync('git', ['ls-remote', '--tags', 'origin'], { cwd: ROOT, encoding: 'utf8' });
@@ -189,6 +221,28 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error('unversioned changesets on main:');
       for (const name of unversioned) console.error(`  .changeset/${name}`);
       console.error('merge the version pull request first — its diff is what this would publish');
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (argv.includes('--named')) {
+    const unpublished = await unborn(packages);
+    if (unpublished.length > 0) {
+      console.error(`npm has never held ${unpublished.length === 1 ? 'this package' : 'these packages'}, and the workflow cannot create one:`);
+      for (const entry of unpublished) console.error(`  ${entry.name}`);
+      console.error(`
+Publish each once from your machine, on main as it is now, logged in to npm:
+
+  yarn install && yarn build
+  packed=$(mktemp -d)
+  yarn changeset pack --out-dir "$packed"
+  npm publish "$packed/<tarball>" --access public --tag <tag>
+
+\`packed/publish-plan.json\` names each package's tarball and tag. Then, on the
+package's page on npmjs.com, Settings → Trusted publisher → GitHub Actions:
+repository Variance-Authority/variance-authority, workflow release.yml,
+environment npm. Press release again; it skips what is already published.`);
       process.exit(1);
     }
     process.exit(0);

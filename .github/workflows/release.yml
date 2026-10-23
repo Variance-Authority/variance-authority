@@ -137,6 +137,13 @@ jobs:
       - name: One version, and nothing waiting for one
         run: node tools/released.mjs --lockstep
 
+      # npm adds a trusted publisher only to a package that exists, so this
+      # workflow cannot publish a name for the first time, and finding out
+      # mid-publish leaves the release in part. A new name is published once
+      # by hand and given its trusted publisher; the refusal says how.
+      - name: npm has held every name before
+        run: node tools/released.mjs --named
+
       - name: main's CI passed on this commit
         env:
           GH_TOKEN: ${{ github.token }}
