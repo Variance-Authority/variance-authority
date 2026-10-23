@@ -10,6 +10,7 @@
  * them asks git.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { LineRange } from './diff-lines.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf, type Hunk } from './patch.js';
@@ -42,4 +43,12 @@ export function ignoredChange(
 ): { readonly kept: Change; readonly ignored: readonly string[] } {
   const ignored = ignoredBy(ignore, change.lines.keys());
   return { kept: { lines: withoutPaths(change.lines, ignored), hunks: withoutPaths(change.hunks, ignored) }, ignored };
+}
+
+/**
+ * The change that moves each of `paths` whole, with no lines and no hunks: the
+ * change a caller hands over when it knows which files moved and nothing more.
+ */
+export function changeOfFiles(paths: Iterable<string>): Change {
+  return { lines: new Map([...new Set(paths)].sort(codeUnitOrder).map((path) => [path, []])), hunks: new Map() };
 }

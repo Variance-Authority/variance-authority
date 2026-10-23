@@ -16,10 +16,7 @@ import { askCoverageFile } from './coverage-file.js';
 import { NO_BASE } from './record-base.js';
 import type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion } from './at-source.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
-import {
-  narrowByExecutionFromView,
-  selectTestFilesFromView,
-} from './select.js';
+import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
 import type { ImporterReason } from './importers.js';
 import type { ExecutionNarrowing, ExecutionNarrowingOptions, SelectionCause, SelectionReason } from './narrowing.js';
 
@@ -51,7 +48,20 @@ export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf,
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
-export { ignoredBy, unmeasuredOf, type Unmeasured } from './route.js';
+export { ignoredBy, unmeasuredOf, type Route, type Unmeasured } from './route.js';
+export { changeOfDiff, changeOfFiles, ignoredChange, type Change } from './change.js';
+export { narrowByChangeFromView, narrowByExecutionFromView } from './select.js';
+export {
+  dependsReachFromView,
+  graphReachFromView,
+  importersFromView,
+  readRowlessFromView,
+  routesFromView,
+  testsDeclaringFromView,
+  testsEnteringFromView,
+  testsLoadingFromView,
+  type OperationAnswer,
+} from './operations.js';
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
@@ -82,7 +92,7 @@ export { hunksOf } from './patch.js';
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
-export { keptDigests, keptTexts } from './kept-texts.js';
+export { keptDigests, keptTexts, recordedOverKept } from './kept-texts.js';
 // A landing of shards reads the install each shard's own landing kept.
 export { shardsInstall, type KeptInstall } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a

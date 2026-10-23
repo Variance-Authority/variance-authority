@@ -1,5 +1,5 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { chargeAt, chargeLines, chargeLoaded, entering } from './charging.js';
+import { causesOf, chargeAt, chargeLines, chargeLoaded, entering, selector } from './charging.js';
 import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters } from './importers.js';
@@ -13,12 +13,26 @@ import { readChange, readRowless, rowlessNames, type FileReading } from './readi
 import { disownedIn } from './shadowed.js';
 import { ignoreMatcher, routeOf } from './route.js';
 import { byRelations, withGraph } from './precision.js';
-import type { ExecutionNarrowing, ExecutionNarrowingOptions, SelectionCause, SelectionReason } from './narrowing.js';
+import type { ExecutionNarrowing, ExecutionNarrowingOptions, SelectionReason } from './narrowing.js';
 
 /** Both halves of the question, from one pass over the same columns. */
 export function narrowByExecutionFromView(
   coverage: TestCoverageView,
   diff: string,
+  options: ExecutionNarrowingOptions = {},
+): ExecutionNarrowing {
+  return narrowByChangeFromView(coverage, changeOfDiff(diff), options);
+}
+
+/**
+ * The narrowing of a change handed over as a value (`change.ts`) rather than
+ * written as a diff: every step of selection, composed in the order spec 0091
+ * sets — ignore, route, then the record, the reading, the preconditions and the
+ * graph — over files and ranges a caller may have invented.
+ */
+export function narrowByChangeFromView(
+  coverage: TestCoverageView,
+  change: Change,
   options: ExecutionNarrowingOptions = {},
 ): ExecutionNarrowing {
   const whole: string[] = [];
@@ -30,7 +44,7 @@ export function narrowByExecutionFromView(
   return {
     whole: whole.sort(codeUnitOrder),
     incomplete: incomplete.sort(codeUnitOrder),
-    ...readDiff(coverage, changeOfDiff(diff), options),
+    ...readDiff(coverage, change, options),
   };
 }
 
@@ -81,12 +95,7 @@ function readDiff(
   // A graph step adds what the import walk reaches to what `file-use` reads, so
   // it runs every test any finer step runs.
   if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, change, { ...asked, precision: 'file-use' }), [...changed.keys()], hunks, options);
-  const selected = new Map<number, SelectionReason[]>();
-  const select = (test: number, reason: SelectionReason): void => {
-    const reasons = selected.get(test) ?? [];
-    reasons.push(reason);
-    selected.set(test, reasons);
-  };
+  const { selected, select } = selector();
   // An ignored file is cut from what selection infers, not from what a test declared: its names still govern.
   const governing = new Set<string>(ignoring.flatMap((file) => [...knownAs(file)]));
   const rowed = new Set<string>();
@@ -280,9 +289,7 @@ function readDiff(
   // holds is unread: what the record did not measure was declined.
   const declining = options.unmeasured === 'nothing';
 
-  const because = [...selected]
-    .map(([test, via]): SelectionCause => ({ test: testPathOf(coverage, test), via }))
-    .sort((left, right) => codeUnitOrder(left.test, right.test));
+  const because = causesOf(coverage, selected);
 
   return {
     entered: because.map((cause) => cause.test),

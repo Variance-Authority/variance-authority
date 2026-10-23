@@ -8,11 +8,13 @@
  * (`operations.ts`), which charge what the caller handed over.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { blocksAround, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import type { TestCoverageView } from './format-view.js';
 import { bindsOnly } from './inert.js';
-import type { SelectionReason } from './narrowing.js';
+import { testPathOf } from './lookup.js';
+import type { SelectionCause, SelectionReason } from './narrowing.js';
 import { declarationOf, type Precision } from './precision.js';
 import type { Disowned } from './shadowed.js';
 
@@ -94,4 +96,27 @@ export function chargeLines(
       for (const block of blocks) charge(file, block, regionOf(coverage, name, block));
     }
   }
+}
+
+/** The tests a step selected, each with every reason it was selected for, and the `select` that fills it. */
+export function selector(): {
+  readonly selected: Map<number, SelectionReason[]>;
+  readonly select: (test: number, reason: SelectionReason) => void;
+} {
+  const selected = new Map<number, SelectionReason[]>();
+  return {
+    selected,
+    select: (test, reason) => {
+      const reasons = selected.get(test) ?? [];
+      reasons.push(reason);
+      selected.set(test, reasons);
+    },
+  };
+}
+
+/** The selected tests by path, in code-unit order, each with its reasons. */
+export function causesOf(coverage: TestCoverageView, selected: ReadonlyMap<number, readonly SelectionReason[]>): SelectionCause[] {
+  return [...selected]
+    .map(([test, via]): SelectionCause => ({ test: testPathOf(coverage, test), via }))
+    .sort((left, right) => codeUnitOrder(left.test, right.test));
 }
