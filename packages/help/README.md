@@ -237,17 +237,17 @@ two words that are both written about a name but not written beside each
 other — `read span` appears in no text anywhere, and the declaration you wanted
 has both.
 
-Those get a third section, and only those. Ask for `numbers order` in this
+Those get a third section, and only those. Ask for `meesure` in this
 repository's own fixture and the substring finds nothing, which is printed
-first:
+first, as a miss of the text you typed rather than of the code:
 
 ```
-Nothing in this repository is named or documented with `numbers order`.
+No name or doc in this repository writes `meesure` as typed. The nearest follow.
 
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
-alpha · Span [type] 0 packages, 0 imports — Two numbers, in order.
+alpha · measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,

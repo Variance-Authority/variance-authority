@@ -52,8 +52,9 @@ import { searched, searchedFiles } from './search-answer.js';
  * cannot be reached by a name they already returned. It appends names they did
  * not, under a heading that says how they were matched, and when it has nothing
  * to append it prints nothing at all. So an answer that used to be clean stays
- * clean, and *nothing matched* still means the substring matched nothing — now
- * said over a wider net, and saying so.
+ * clean, and the line above what it appends still says the substring matched
+ * nothing — as a miss of the text typed, since *nothing* over a list of names
+ * would read as a miss of the code.
  *
  * The order inside it is the order the sections above use, by consumers and
  * then by name. The index decides membership; it is never allowed to decide
@@ -65,9 +66,10 @@ import { searched, searchedFiles } from './search-answer.js';
  * An agent that cannot name the thing describes it, and a description holds
  * words the name does not: `which tests entered a file`. Beside the loose pass
  * runs the reading the installed packages already get — the question cut into
- * stems, stopwords dropped, and a name answering when it holds half of them —
+ * stems, stopwords dropped, and a name answering when it holds any of them —
  * so the repository's own names answer before any package that says the same
- * words. A file answers beside them, by its own name and the doc it opens with,
+ * words, and a name holding one word of three is answered rather than reported
+ * as nothing. A file answers beside them, by its own name and the doc it opens with,
  * since what a file is for is said once at its top and by no one declaration
  * in it. Its order is counts, written next to each row as the words it holds:
  * a caller can check `[holds: file, tests]`, and could not check a score.
@@ -202,7 +204,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       ? []
       : [
           '',
-          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} at least half the words of \`${query}\`, ` +
+          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
             'read by stem as the packages are, best first: the words held at all, then the words in the name, then the phrase its doc writes.',
           '',
           ...held.shown.map(describedRow),
@@ -234,8 +236,13 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
         ];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && (third?.total ?? 0) === 0) {
+    // A miss of the text is not a miss of the code: when this repository's own
+    // names answer the words, the line above them says only that the text was
+    // not written, so a reader who stops at the first line does not stop at *nothing*.
     const nowhere =
-      area === undefined
+      own.length > 0
+        ? `No name or doc ${area === undefined ? 'in this repository' : 'in reach of that start point'} writes \`${query}\` as typed. The nearest follow.`
+        : area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
     return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
@@ -302,7 +309,7 @@ export const search: Tool<Help> = {
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
-    'repository holds the query as written, its own names and files holding at least half of your words, ' +
+    'repository holds the query as written, its own names and files holding any of your words, ' +
     'read by stem, come before any installed package, a file by its name and the doc it opens with, best ' +
     'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
     'each labelled with the words it holds; names that match loosely — your words apart, or within a ' +

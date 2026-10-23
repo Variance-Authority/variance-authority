@@ -400,7 +400,7 @@ matches installed third-party declarations from the same lexicon, which is
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names and files holding at least half of your words
+follow an empty answer — names and files holding any of your words
 by stem, in any order, in the name or its doc, whether published, exported,
 declared and not exported, or a file by its name and the doc it opens with, the
 ones holding the most of your words first, then the ones holding more of them

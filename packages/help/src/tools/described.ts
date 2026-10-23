@@ -20,7 +20,10 @@ import { admittedBy, termsOfStems } from './loose.js';
  * word is in it. So the question is cut into stems by the rule the installed
  * packages were cut by — the sense addon owns it, stopwords included — and a
  * name answers when its own words, or the documentation of a row that
- * publishes or exports it, hold at least half of the question's distinct stems. A dictionary term
+ * publishes or exports it, hold any of the question's distinct stems. One word
+ * of three is still the nearest the repository has, and leaving it out would
+ * answer that the repository has nothing; how much it holds decides where it
+ * sits, below. A dictionary term
  * stands for a stem when it reduces to it, so `files` stands for `file` and
  * `filter` does not. A name its file declares and does not export is in no
  * row, so the source index answers for it by the same rule, its name and its
@@ -78,7 +81,7 @@ export interface DescribedFileHit extends DescribedKey {
 export type Described = DescribedName | DescribedDeclaration | DescribedFileHit;
 
 /**
- * Names holding at least half of the description's distinct stems, unordered;
+ * Names holding any of the description's distinct stems, unordered;
  * `undefined` when the question has no word to describe — every word short or
  * a stopword — so it was not asked.
  *
@@ -145,8 +148,7 @@ export function describedNames(
     held.set(name, best);
   }
 
-  const needed = Math.ceil(asked.length / 2);
-  const reached = [...held].filter(([, positions]) => positions.size >= needed);
+  const reached = [...held];
   // One word has no pair to write adjacent, so no doc is decoded for it.
   const near = asked.length > 1 ? nearOfNative(query, reached.map(([name]) => docAbout(index, name, through.get(name)) ?? '')) : [];
   return reached.map(([name, positions], at): DescribedName => {
@@ -174,8 +176,8 @@ function docAbout(index: SearchIndex, name: number, through: number | undefined)
 
 /**
  * The declarations no export binds, and the files, in `files` when they are
- * named, whose name and doc hold at least half of the description's distinct
- * stems; `undefined` when the question has no word to describe or no checkout
+ * named, whose name and doc hold any of the description's distinct stems;
+ * `undefined` when the question has no word to describe or no checkout
  * was named, and when its source index is absent or does not read, which the
  * `declared` section already says.
  */
@@ -188,7 +190,7 @@ export function describedDeclarations(
   if (root === undefined || asked.length === 0) return undefined;
   let read: ReturnType<typeof declaredDescribedOf>;
   try {
-    read = declaredDescribedOf(root, query, asked.map(([stem]) => stem as string), Math.ceil(asked.length / 2), files);
+    read = declaredDescribedOf(root, query, asked.map(([stem]) => stem as string), 1, files);
   } catch {
     return undefined;
   }

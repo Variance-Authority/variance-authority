@@ -429,8 +429,9 @@ ranking. Several words also match a name written in those words, in any order,
 so `kept reading` finds `keptReading` in that answer. Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
-after that answer and never inside it. So do the names holding at least half of
-your words, matched by stem, each labelled with the words it holds; both come
+after that answer and never inside it. So do the names holding any of your
+words, matched by stem, the ones holding most of them first, each labelled with
+the words it holds; both come
 before any installed package.
 
 ## Bound a search to where you are working

@@ -120,15 +120,24 @@ describe('which names the described section holds, and in what order', () => {
 
   it('is absent when every word is a stopword, since there was nothing to describe', async () => {
     const said = await ask('of the');
-    expect(said).not.toContain('hold at least half');
+    expect(said).not.toMatch(/holds? words of/);
     expect(said).not.toContain('[holds:');
   });
 
-  it('leaves out a name holding fewer than half the words', async () => {
-    // Three stems, so two are needed: `evictionPolicyFor` holds two, `cacheEntries` one.
+  it('holds a name holding one of the words, after the name holding more of them', async () => {
+    // Three stems: `evictionPolicyFor` holds two, `cacheEntries` one.
     const said = await ask('cache eviction policy');
     expect(said).toMatch(/evictionPolicyFor .*\[holds: eviction, policy\]/);
-    expect(said).not.toContain('cacheEntries');
+    expect(said).toMatch(/cacheEntries .*\[holds: cache\]/);
+    expect(said.indexOf('evictionPolicyFor')).toBeLessThan(said.indexOf('cacheEntries'));
+  });
+
+  it('answers with the name holding one word of three, and does not call the answer empty', async () => {
+    // No name holds two of `cache`, `chart` and `palette`; `cacheEntries` holds one.
+    const said = await ask('cache chart palette');
+    expect(said).toMatch(/cacheEntries .*\[holds: cache\]/);
+    expect(said).toContain('No name or doc in this repository writes `cache chart palette` as typed. The nearest follow.');
+    expect(said).not.toContain('Nothing in this repository');
   });
 
   it('puts the name holding more of the words in its name first', async () => {

@@ -45,8 +45,9 @@ describe('a name the substring cannot reach', () => {
     const text = ask({ query: 'meesure' });
     expect(text).toContain('measure');
     expect(text).toContain('loosely');
-    // The fact about the substring is still told, whole, above the offer.
-    expect(text).toContain('Nothing in this repository is named or documented with `meesure`');
+    // The fact about the substring is still told above the offer, as a miss of the text and not of the code.
+    expect(text).toContain('No name or doc in this repository writes `meesure` as typed. The nearest follow.');
+    expect(text).not.toContain('Nothing in this repository');
   });
 
   it('allows one character off a long word, and not two, because an agent does not mistype', () => {
@@ -72,7 +73,7 @@ describe('a name the substring cannot reach', () => {
   });
 
   it('requires every word to land, so a two-word query is not the union', () => {
-    // Half the words is the described section's rule, and it says which it holds.
+    // Any of the words is the described section's rule, and it says which it holds.
     const text = ask({ query: 'numbers unwritten' });
     expect(text).not.toContain('loosely');
     expect(text).toMatch(/Span .*\[holds: numbers\]/);

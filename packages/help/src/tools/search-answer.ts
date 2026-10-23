@@ -180,7 +180,7 @@ export interface SearchAnswer {
    */
   readonly loose?: Matches<PublishedMatch | ExportedMatch | DeclaredMatch>;
   /**
-   * This repository's names and files holding at least half of the question's words.
+   * This repository's names and files holding any of the question's words.
    * `loose` holds none of them. Present when `loose` ran, which is when it runs;
    * absent too when the question has no word to describe it by.
    */
@@ -373,7 +373,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // ends the search for names of this repository's own.
   if (hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
 
-  // The empty answer read as a description: names holding half of its words,
+  // The empty answer read as a description: names holding any of its words,
   // stemmed by the rule packages are. It prints first, so it claims its names
   // first, and the loose pass offers none of them a second time.
   // A name its file keeps to itself is in no row: the source index answers for it.
@@ -447,7 +447,7 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * The same answer `variance ask search` prints, before it is written as text:
  * published names first, then the names the source exports without
  * publishing, then — only when both are empty — the names a looser reading
- * finds and the names that hold half of the words.
+ * finds and the names that hold any of the words.
  */
 export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): SearchAnswer {
   return searched(index, question, tree, root).answer;
