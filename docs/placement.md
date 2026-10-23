@@ -319,11 +319,11 @@ to the pull request's branch as `github-actions[bot]`. The images are then in
 the pull request's diff beside the change that caused them, and the merge takes
 them to `main` with the code. Nothing runs on `main` to accept them again.
 
-Merging is still the accept, whatever the check said on the pull request. A push
-to `main` compares what `main` renders against the images that merged, and
-names a change as a warning rather than failing on it: `main` has no branch to
-commit the new images to, and the next pull request's label commits them. It
-goes red only where it could not observe a subject.
+Merging accepts the images the pull request committed, whatever its check said.
+A push to `main` compares what `main` renders against them, and names a
+difference as a warning rather than failing on it: `main` has no branch to
+commit new images to, so the next pull request's label commits them. It goes
+red only where it could not observe a subject.
 
 The approval is the pull-request review you already require. Whether the bot's
 push dismisses an earlier approval is a branch rule, set in GitHub rather than
