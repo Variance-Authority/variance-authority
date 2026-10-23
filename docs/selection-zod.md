@@ -78,12 +78,6 @@ does not speak for, which run every time. The package graph offers 201 of
 error. 197 of the 202 test files load the edited module while they run, so a
 selector that reruns every file that loaded the module selects 197.
 
-The 197 says how Zod loads, not what its tests use. The library's entry
-re-exports its locale index, and the index loads every locale, so every test
-that imports Zod loads `ru.ts`. 2 of the 197 enter `getRussianPlural`, the
-function the edit is in. A selector that reads files runs fewer only where you
-[load a module where it is used](selecting.md#from-file-to-file-use-load-a-module-where-it-is-used).
-
 ## Why the grain is the whole argument
 
 A module's regions are not covered uniformly, and the spread is what a graph

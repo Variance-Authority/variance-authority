@@ -303,10 +303,10 @@ one changed line inside `Query.fetch` in `query.ts`, and five test files:
 
 ```mermaid
 flowchart LR
-  all["5 test files"] --> file["file, symbol, file-use<br/>run the 4 that loaded query.ts"]
+  all["5 test files"] --> file["file, symbol, file-use<br/>run the 4 that imported and loaded query.ts"]
   file --> fn["function-use<br/>runs the 2 that entered Query.fetch"]
   fn --> region["region-use, the default<br/>runs the 1 that entered<br/>the changed line's region"]
-  all -.-> d0["1 never loaded query.ts"]
+  all -.-> d0["1 never imported query.ts"]
   file -.-> d1["2 never entered Query.fetch:<br/>one imports the package index,<br/>one calls Query.setData"]
   fn -.-> d2["1 called fetch<br/>and took the other branch"]
   classDef chosen fill:#ff4a19,stroke:#ff4a19,color:#181b1d
@@ -321,15 +321,15 @@ A suite declares its step in the configuration:
 { "suites": { "unit": { "kind": "unit", "precision": "file" } } }
 ```
 
-Each step runs a test on its own evidence, needs a record at least as fine as
-that evidence, and rests on its own assumption:
+Each step runs a test on its own evidence, answers fully from a record at
+least as fine as that evidence, and rests on its own assumption:
 
-| `precision` | A test runs when | The record it needs | What it assumes |
+| `precision` | A test runs when | The `mode` to record | What it assumes |
 |---|---|---|---|
 | `file` | it imports a changed file, directly or through other files, or it loaded one | any `mode` | nothing the record has to see: the import graph finds every test that imports the change |
 | `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file | any `mode` | the graph tells which exports a change altered |
 | `file-use` | it loaded a changed file | `loads` or finer | every test file that needs a module loads it in [a module graph of its own](#a-record-needs-a-module-graph-per-test-file) |
-| `function-use` | it entered the function a changed line is in | `entries` or finer | the same, and every runner project the suite runs loads the probes |
+| `function-use` | it entered the function a changed line is in | `entries` or finer | the same, every runner project the suite runs loads the probes, and cases run one at a time unless `continuations` is on |
 | `region-use`, the default | it entered the region a changed line is in | `presence` | the same |
 
 A changed value runs the tests that read it, as [a change to a module's top
@@ -374,38 +374,12 @@ xychart-beta horizontal
   bar [0, 0, 0, 0, 0, 0]
 ```
 
-`file`, `symbol` and `file-use` tie because Vitest, like Jest, loads every
-static import, so every test that imports a file loads it. `symbol` runs fewer
-tests than `file` only where a test imports a file without loading it. What limits
-`file-use` is then what your tests import, not the step. `query-core`'s index
-loads every module it re-exports, so `hydration.ts`, which the index
-re-exports, is loaded by 149 test files, and 21 of them call a function in it.
-The other 128 call nothing in it. An edit to
-`hydration.ts` runs all 149 at `file-use`. Where the module is loaded only by
-the tests that use it, the same step would run about those 21, the last bar here:
-
-```mermaid
----
-config:
-  xyChart:
-    height: 200
----
-xychart-beta horizontal
-  accTitle: Test files that load hydration.ts in TanStack Query, and the ones that call a function in it
-  x-axis ["every test file", "file", "file-use", "file-use, loaded where used"]
-  y-axis "test files, of 188" 0 --> 188
-  bar [0, 0, 0, 21]
-  bar [0, 149, 149, 0]
-  bar [188, 0, 0, 0]
-  bar [0, 0, 0, 0]
-```
-
-`file` stays at 149 however the module loads, because it walks the imports.
-How to load a module where it is used is in
-[from `file` to
-`file-use`](#from-file-to-file-use-load-a-module-where-it-is-used); what the
-finer steps read is in [from `file-use` to
-`region-use`](#from-file-use-to-region-use-read-inside-the-file).
+`file`, `symbol` and `file-use` tie here because Vitest loads every module a
+test file imports. [From `file` to
+`file-use`](#from-file-to-file-use-load-a-module-where-it-is-used) says how to
+split them, and [from `file-use` to
+`region-use`](#from-file-use-to-region-use-read-inside-the-file) what the finer
+steps read.
 
 ### Record as finely as you select
 
@@ -454,15 +428,15 @@ the old record. Each option and its edges are in
 The record learns that a test used a module by watching the module run, and a
 module runs its top level once per module graph. So the `-use` steps rest on
 each test file getting a graph of its own: every file that needs a module then
-evaluates it, and the record charges the module to that file. A graph per case
-is finer and works as well; a graph shared by several test files does not.
+evaluates it, and the record charges the module to that file. A graph shared by
+several test files breaks that.
 
 A graph per test file is the default of every runner Sense wraps:
 
 | Runner | Its default | What shares a graph across test files |
 |---|---|---|
 | Vitest | `isolate: true`, in Node and in browser mode | `isolate: false`, or `--no-isolate` |
-| Rstest | `isolate: true`; the `vmThreads` and `vmForks` pools create a fresh context for every file whatever `isolate` says | `isolate: false` |
+| Rstest | `isolate: true` | `isolate: false` |
 | Jest | a module registry per test file | nothing in its configuration |
 
 Under a shared graph, the second file to need a module finds it already
@@ -488,19 +462,18 @@ flowchart TB
 
 What the record then holds depends on its `mode`:
 
-- **`loads`** cannot tell a module the file imported from one already in the
-  graph, so it charges each file with every module the graph held when the
-  file started. No test is missed. A file that imports little runs for changes
-  it never used, and which files those are depends on the order the runner
-  chose and on the worker that ran each file.
+- **`loads`** charges each file with every module the graph already held, so
+  no test is missed, but a file that imports little runs for changes it never
+  used, and which files those are depends on the order the runner chose.
 - **`entries` and `presence`** still charge each case with every function and
-  region it entered, and each file with every module it ran code in. One file
-  goes unseen: a file that only reads a value another file's evaluation left,
-  such as `b.test.ts` above reading a constant from `limits.ts`. A change to
-  `limits.ts` runs `a.test.ts` and skips `b.test.ts`. A memoized result shared
-  across files is the same gap inside a function, as [a result a cache
-  returned](#a-result-a-cache-returned) shows.
+  region it entered. One kind of file goes unseen: a file that only reads a
+  value another file's evaluation left, such as `b.test.ts` above reading a
+  constant from `limits.ts`. A change to `limits.ts` runs `a.test.ts` and skips
+  `b.test.ts`. A memoized result shared across files is the same gap inside a
+  function, as [a result a cache returned](#a-result-a-cache-returned) shows.
 
+How each mode records a shared graph is in
+[Sense](../packages/sense/README.md#options-on-the-vitest-seam).
 So a shared graph costs a `loads` record precision and a finer record
 soundness. `file` and `symbol` read the import graph, which watches nothing
 run, so they find every test that imports a change whatever graph the runner
@@ -526,6 +499,28 @@ selector. A module that an index file re-exports is loaded by every test that
 imports the index, and `file-use` counts each of those tests as a user of it. `symbol` narrows `file`
 to the exports a change altered, but a test that loaded the file still runs,
 so it ties with `file` wherever imports load.
+
+In [TanStack
+Query](selection-tanstack-query.md#what-the-index-costs-file-use), `query-core`'s
+index re-exports `hydration.ts`. The last bar is the test files that call a
+function in it, about what `file-use` would run if the module loaded only where
+it is called:
+
+```mermaid
+---
+config:
+  xyChart:
+    height: 200
+---
+xychart-beta horizontal
+  accTitle: Test files that load hydration.ts in TanStack Query, and the ones that call a function in it
+  x-axis ["every test file", "file", "file-use", "file-use, loaded where used"]
+  y-axis "test files, of 188" 0 --> 188
+  bar [0, 0, 0, 21]
+  bar [0, 149, 149, 0]
+  bar [188, 0, 0, 0]
+  bar [0, 0, 0, 0]
+```
 
 Load the module at its first use instead. Under Jest, a lazy `require` does it:
 a `require` inside the function that needs the module, or Babel's CommonJS
@@ -554,9 +549,9 @@ removing barrel files in Jira: unit tests selected per change fell from about
 `function-use` and `region-use` read inside a changed file, so they run fewer
 tests from the first run wherever a module is loaded widely and used narrowly, without the
 import work above. That work is still what makes `file-use`, the step that
-rests on the least, run fewer tests. On TanStack Query, a one-line edit inside `Query.fetch` runs 149 test files at `file-use`,
-83 at `function-use` and 9 at `region-use`. They read the regions the
-instrumentation recorded, so they are as exact as that instrumentation: every
+rests on the least, run fewer tests, as the [chart
+above](#how-precisely-a-suite-selects) shows on TanStack Query. They read the
+regions the instrumentation recorded, so they are as exact as that instrumentation: every
 project the suite runs has to load it, as
 [TanStack Query's setup](selection-tanstack-query.md#what-it-took-to-fit)
 shows.
@@ -1073,7 +1068,7 @@ disagree with.
 Selection skips a test when the record shows that the test did not run the code
 you changed. The record lists what ran. It cannot list code that would run now
 but did not run when the test was recorded, so a change to that code skips the
-test. This happens in two ways:
+test. This happens in four ways:
 
 - [**A branch no run has taken.**](#a-branch-no-run-has-taken) A subject that
   has never rendered `Button` is not selected by a change to `Button`, even when
@@ -1081,6 +1076,10 @@ test. This happens in two ways:
 - [**A result a cache returned.**](#a-result-a-cache-returned) Memoization
   changes which code runs, so the record sees nothing in a case the cache
   answered, and a change to the function selects only the case that ran it.
+- [**A value another test file evaluated.**](#a-record-needs-a-module-graph-per-test-file)
+  Under a module graph shared across test files, a file that only reads what an
+  earlier file's evaluation left runs nothing in the module, so the record lists
+  nothing a change to it could select.
 - [**A file no code names.**](#a-file-no-code-names) A page that shows a
   document read at build time runs the renderer, not the document, so the
   record lists nothing a change to the document could select.
@@ -1142,12 +1141,12 @@ Which cases share a cache depends on how long the cache lives:
 
 - **Cases in one file share it.** Only the first case that calls with a given
   argument runs the function.
-- **Files in one module graph share it.** This is Vitest with `--no-isolate`,
-  or any runner that evaluates a module once per process. A later file calls
+- **Files in one module graph share it**, which no runner does by
+  [default](#a-record-needs-a-module-graph-per-test-file). A later file calls
   only the memoizer, which the record does not instrument, so nothing in the
   module is recorded for its cases.
-- **A file with its own module graph starts empty.** This is the default in
-  Vitest and Jest. The first case in each file runs the function.
+- **A file with its own module graph starts empty**, as under every runner's
+  default. The first case in each file runs the function.
 - **A cache per render or per request starts empty for each case.** React's
   `useMemo`, `memo` and `cache` are empty when a case renders, so the function
   runs and the record shows it.
