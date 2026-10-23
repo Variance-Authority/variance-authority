@@ -225,12 +225,16 @@ the record never measured, and `changeOfFiles(paths)` to build the change.
 Each answers `{ entered, because, unanswered }`, reads no git, and reads the
 checkout only through `root`; `unanswered` is never a reason to widen. Pass
 `sourceAt` for the frame check and the parser's reading; lines with no hunks
-are charged as given and read by no parser. The entering, declaring and
-rowless stages each take the whole change, because one file can be answered by
-a row and a declaration at once, and `importersFromView` takes
-`changeOfPaths(change, read.unanswered)`, what the reading left. The union of
-what they enter is what `narrowByChangeFromView` answers, and that is what
-`narrowByExecution` runs. The stages before the route, an install's moves and
+are charged as given and read by no parser. One file can be answered by a row
+and a declaration at once, so each stage takes the part of the change it reads
+in the composition: cut by `ignoredChange` first, the entering and rowless
+stages take what is kept, `testsDeclaringFromView` the whole change,
+`importersFromView` `changeOfPaths(kept, read.unanswered)`, and
+`dependsReachFromView` what is ignored. The union of what they enter is what
+`narrowByChangeFromView` answers, and that is what `narrowByExecution` runs; by
+hand the precondition table is read once per walking stage, composed once, and
+the composed `because` names the stage of each reason. Without `root` no
+stage reads a package's `sideEffects`. The stages before the route, an install's moves and
 the harness, are `beyondReach` and `beforeReach` in
 `@variance-authority/core/relate`.
 

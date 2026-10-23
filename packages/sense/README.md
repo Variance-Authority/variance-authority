@@ -266,11 +266,35 @@ as given, and no declaring test counts as having run the text they arrive at.
 
 A file one stage answers can still be another's question. A test can enter a
 file and another declare it, and a file a test declares is still walked up
-its importers for every other test. To get the composition's answer by hand,
-ask `testsEnteringFromView`, `testsDeclaringFromView` and `readRowlessFromView`
-the whole change, ask `importersFromView` only the part the reading left,
-`changeOfPaths(change, read.unanswered)`, and take the union of what they
-enter. The two stages before the route,
+its importers for every other test. So the stages asked by hand give the
+composition's answer only when each one gets the part of the change it reads
+there: the suite's `ignore` cuts the change first, and the preconditions read
+all of it, because no glob undoes a declaration.
+
+```ts
+const { kept, ignored } = ignoredChange(change, ignore);
+const read = readRowlessFromView(view, kept, options);
+const entered = new Set([
+  ...testsEnteringFromView(view, kept, options).entered,
+  ...testsDeclaringFromView(view, change, options).entered,
+  ...read.entered,
+  ...importersFromView(view, changeOfPaths(kept, read.unanswered), options).entered,
+  ...dependsReachFromView(view, ignored, options).entered,
+]);
+```
+
+The three stages that end in the walk each read the precondition table, which
+the composition reads once. When you need the whole answer and which stage
+selected each test, ask `narrowByChangeFromView`: every reason in its
+`because` names its stage, `region` for coverage, `precondition`, `reader`
+for the reading and `importer` for a walk.
+
+Without `root`, no stage reads a package's `sideEffects` or resolves an
+import, so an edit that adds an import is read by its verdict alone. A
+simulation over a record and no checkout answers what the composition answers
+without `root`, not what it answers in the checkout.
+
+The two stages before the route,
 what an install moved and what the harness rests on, are `beyondReach` and
 `beforeReach` in `@variance-authority/core/relate`, and they take values too.
 
