@@ -25,7 +25,7 @@ import { declaredReach, dependsReaders, type JourneySelectionOptions } from './e
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
 import { ignoredBy, withoutPaths } from './route.js';
-import type { ExecutionNarrowing } from './select.js';
+import type { ExecutionNarrowing } from './narrowing.js';
 
 /**
  * `narrowByJourneys` over the journey file at `file`, answered by the addon.

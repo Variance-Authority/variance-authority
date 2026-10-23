@@ -41,7 +41,7 @@ import { RUNTIME_EDGES, affectedBy, dependentsOf, idOf, type Relations } from '@
 import { blocksChargedAt } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { ownedIn, type ExecutionIndex, type ExecutionModule } from './reverse.js';
-import type { ExecutionNarrowing } from './select.js';
+import type { ExecutionNarrowing } from './narrowing.js';
 import { ignoredBy, routeOf, type Unmeasured } from './route.js';
 import { shadowedFor } from './shadowed.js';
 

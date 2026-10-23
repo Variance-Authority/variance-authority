@@ -1,6 +1,6 @@
 import { digestString } from '../digest.js';
 import type { TestCoverageView } from './format-view.js';
-import type { ExecutionNarrowingOptions } from './importers.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
 
 /** The text a module's rows were recorded from, under the name that proved it. */
 export interface Frame {
