@@ -33,9 +33,9 @@
 //   label here would be a second place deciding the same thing.
 //
 // Writes `promote`, `because`, `intent` and `exit-zero-on-changes` to
-// `$GITHUB_OUTPUT`. `fetch` and the
-// REST API only, like `post-comment.mjs`, for the same reason: a dependency here
-// would be a third party deciding what the baseline is.
+// `$GITHUB_OUTPUT`. `fetch` and the REST API only, like `post-comment.mjs`, for
+// the same reason: a dependency here would be a third party deciding what the
+// baseline is.
 
 import { appendFileSync, readFileSync } from 'node:fs';
 
