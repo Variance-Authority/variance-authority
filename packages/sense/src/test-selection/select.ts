@@ -1,23 +1,19 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { blocksAround, regionOf } from './blocks-around.js';
+import { chargeAt, chargeLines, chargeLoaded, entering } from './charging.js';
 import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
-import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
+import { answerByImporters } from './importers.js';
 import { instrumentedRows, testPathOf } from './lookup.js';
-import { changedLines } from './diff-lines.js';
-import { hunksOf } from './patch.js';
+import { changeOfDiff, ignoredChange, type Change } from './change.js';
 import { arrivedDigests, declarable, ranOverAll, ranOverReading, withRanOver } from './ran-over.js';
 import { frameOf } from './frame.js';
 import { recordedOverKept } from './kept-texts.js';
 import { rebasedChange } from './text-diff.js';
 import { readChange, readRowless, rowlessNames, type FileReading } from './reading.js';
-import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
-import { ignoreMatcher, ignoredBy, routeOf, withoutPaths } from './route.js';
-import { byRelations, declarationOf, withGraph } from './precision.js';
-import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './narrowing.js';
-
-export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
+import { ignoreMatcher, routeOf } from './route.js';
+import { byRelations, withGraph } from './precision.js';
+import type { ExecutionNarrowing, ExecutionNarrowingOptions, SelectionCause, SelectionReason } from './narrowing.js';
 
 /** Both halves of the question, from one pass over the same columns. */
 export function narrowByExecutionFromView(
@@ -34,7 +30,7 @@ export function narrowByExecutionFromView(
   return {
     whole: whole.sort(codeUnitOrder),
     incomplete: incomplete.sort(codeUnitOrder),
-    ...readDiff(coverage, diff, options),
+    ...readDiff(coverage, changeOfDiff(diff), options),
   };
 }
 
@@ -44,7 +40,7 @@ export function selectTestFilesFromView(
   diff: string,
   options: ExecutionNarrowingOptions = {},
 ): readonly string[] {
-  return readDiff(coverage, diff, options).entered;
+  return readDiff(coverage, changeOfDiff(diff), options).entered;
 }
 
 /**
@@ -59,15 +55,15 @@ export function selectTestFilesFromView(
  */
 function readDiff(
   coverage: TestCoverageView,
-  diff: string,
+  change: Change,
   asked: ExecutionNarrowingOptions,
 ): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> &
   Pick<ExecutionNarrowing, 'declined' | 'ignored'> {
-  const named = changedLines(diff);
+  const named = change.lines;
   const ignores = ignoreMatcher(asked.ignore);
-  const ignoring = ignoredBy(asked.ignore, named.keys());
-  const changed = withoutPaths(named, ignoring);
-  const hunks = withoutPaths(hunksOf(diff), ignoring);
+  const { kept, ignored: ignoring } = ignoredChange(change, asked.ignore);
+  const changed = kept.lines;
+  const hunks = kept.hunks;
   // A checkout to read layouts in lets the record say which of its names are
   // built from which source, and the graph's walk asks under the same names.
   const known: ExecutionNarrowingOptions =
@@ -84,7 +80,7 @@ function readDiff(
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // A graph step adds what the import walk reaches to what `file-use` reads, so
   // it runs every test any finer step runs.
-  if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, diff, { ...asked, precision: 'file-use' }), [...changed.keys()], hunks, options);
+  if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, change, { ...asked, precision: 'file-use' }), [...changed.keys()], hunks, options);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
     const reasons = selected.get(test) ?? [];
@@ -99,24 +95,7 @@ function readDiff(
   const disowned = disownedIn(coverage, options.relations);
   const readings: FileReading[] = [];
   const seen = new Set<string>();
-  const enter = (file: string, block: number, reason: SelectionReason): void => {
-    for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
-      if (disowned?.(file, test, block) !== true) select(test, reason);
-    }
-  };
-  // At function use a region stands for the declaration it is in, found up its
-  // owner chain: every block that declaration holds, each charged once.
-  const widened = new Set<number>();
-  const charge =
-    options.precision !== 'function-use'
-      ? enter
-      : (file: string, block: number, reason: SelectionReason): void => {
-          for (const one of declarationOf(coverage, block)) {
-            if (widened.has(one)) continue;
-            widened.add(one);
-            enter(file, one, reason.kind === 'region' ? regionOf(coverage, reason.file, one) : reason);
-          }
-        };
+  const charge = chargeAt(coverage, options.precision, entering(coverage, disowned, select));
   // An importer a reading could not read and holds no row for is answered by
   // the graph's walk over its importers, with the reasons the reading gave.
   const wholes = new Map<string, Array<Extract<SelectionReason, { readonly kind: 'reader' }>>>();
@@ -194,9 +173,7 @@ function readDiff(
     seen.add(held);
     // At file use a measured file is every test that loaded it, whatever its lines say.
     if (options.precision === 'file-use') {
-      for (const [name, rows] of rowsOf) {
-        for (const module of rows) chargeAll(coverage, module, (block) => charge(file, block, regionOf(coverage, name, block)));
-      }
+      chargeLoaded(coverage, file, rowsOf, charge);
       continue;
     }
 
@@ -229,10 +206,8 @@ function readDiff(
       }
     }
     if (frame === 'stale') {
-      for (const [name, rows] of rowsOf) {
-        stale.add(name);
-        for (const module of rows) chargeAll(coverage, module, (block) => charge(file, block, regionOf(coverage, name, block)));
-      }
+      for (const name of rowsOf.keys()) stale.add(name);
+      chargeLoaded(coverage, file, rowsOf, charge);
       continue;
     }
     if (frame === 'unchecked') readings.push({ file, unread: 'source' });
@@ -242,25 +217,7 @@ function readDiff(
       if (read.charged) continue;
     }
 
-    for (const [name, rows] of rowsOf) {
-      for (const module of rows) {
-        const first = coverage.moduleBlocks.at(module);
-        const end = coverage.moduleBlocks.at(module + 1);
-        const blocks = new Set<number>();
-        // A file the diff names without lines — a binary, a rename, a mode — is
-        // every region of it.
-        if (ranges.length === 0) for (let block = first; block < end; block += 1) blocks.add(block);
-        for (const range of ranges) {
-          // Text that only binds a name changed nothing that already ran, and
-          // the gap it opens would otherwise be charged to the module itself —
-          // every test that ever imported the file, for a function nobody calls
-          // yet.
-          if (range.added !== undefined && bindsOnly(range.added)) continue;
-          for (const block of blocksAround(coverage, first, end, range)) blocks.add(block);
-        }
-        for (const block of blocks) charge(file, block, regionOf(coverage, name, block));
-      }
-    }
+    chargeLines(coverage, file, rowsOf, ranges, charge);
   }
 
   // A row answers for its file, and the graph is walked only for a file no
@@ -272,13 +229,16 @@ function readDiff(
   // be the query.
   const answered = answerByImporters(
     coverage,
-    [...named.keys()].sort(codeUnitOrder),
-    rowed,
+    {
+      changed: [...named.keys()].sort(codeUnitOrder),
+      ignored: new Set(ignoring),
+      rowed,
+      disowned,
+      also: governing,
+      wholes: [...wholes.keys()].sort(codeUnitOrder),
+      arrived,
+    },
     options,
-    disowned,
-    governing,
-    [...wholes.keys()].sort(codeUnitOrder),
-    arrived,
   );
   // A file every test declaring it ran the arrived text of reads so, whatever its reader made of the diff.
   const unread = new Set(answered.governed.unread);
@@ -337,9 +297,4 @@ function readDiff(
         : reading,
     ),
   };
-}
-
-/** Every region of one row. */
-function chargeAll(coverage: TestCoverageView, module: number, charge: (block: number) => void): void {
-  for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) charge(block);
 }

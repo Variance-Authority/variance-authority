@@ -1,5 +1,8 @@
 // compass: variance-authority.reach
+import type { Relations } from '@variance-authority/core/relate';
 import type { ImporterReason } from './importers.js';
+import type { Precision } from './precision.js';
+import type { Unmeasured } from './route.js';
 import type { FileReading } from './reading.js';
 
 /**
@@ -157,3 +160,104 @@ export type SelectionReason =
       readonly region?: Extract<SelectionReason, { kind: 'region' }>;
     }
   | ImporterReason;
+
+export interface ExecutionNarrowingOptions {
+  /**
+   * The file graph a scan produced, so a changed file with no instrumented row
+   * is answered by the nearest files that import it and have one.
+   */
+  readonly relations?: Relations;
+  /**
+   * What a changed file with no instrumented row goes to: the graph's nearest
+   * measured importers, or nothing (`route.ts`). Absent is `relations`. A suite
+   * that declines them names such a file in `ExecutionNarrowing.declined`; the
+   * tests that declare it still select themselves, since that is the record
+   * speaking and not the graph.
+   */
+  readonly unmeasured?: Unmeasured;
+  /**
+   * The suite's `ignore` globs (`route.ts`): a changed file one matches loses
+   * its rows, its import and asset edges and its place in `unread`, and keeps
+   * what a test declared — a precondition, a `/// <depends>` — since no glob
+   * undoes a declaration. It is named in `ExecutionNarrowing.ignored`. Absent
+   * ignores nothing.
+   */
+  readonly ignore?: readonly string[];
+  /**
+   * The suite's precision (`precision.ts`): the import graph alone
+   * (`file`, `symbol`), the files, functions or regions a test entered. Absent
+   * is `region-use`.
+   */
+  readonly precision?: Precision;
+  /**
+   * Per changed file, the exports its change moved, which narrows the walk at
+   * `symbol`. Absent reads them from the file's two texts where `root` names
+   * the repository; a file it does not name is walked whole.
+   */
+  readonly moved?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * Every name the snapshot may hold a graph file under. When absent, the
+   * record's own names that the `tsconfig` under `root` builds from the file,
+   * and identity without `root`.
+   *
+   * A package's own tests load its `src`; every other package loads its built
+   * output, and the snapshot records each name as its own row. Both rows are one
+   * file to the graph, which knows only the source name, so a changed file and
+   * every importer reached from it are looked up under every name given here.
+   */
+  readonly knownAs?: (file: string) => readonly string[];
+  /**
+   * A module's source as it stood at the position the snapshot names, so the
+   * line ranges the snapshot holds can be checked against the ones the diff is
+   * written in.
+   *
+   * A recording cuts its line ranges from the text on disk at the moment the
+   * suite ran, and labels the whole snapshot with `git rev-parse HEAD`. Those
+   * two agree only when the tree was clean, and a suite is *recorded by being
+   * run*: in the loop this is most wanted in — a developer's, an agent's — the
+   * tree is never clean, so the ranges are the working tree's and the label
+   * says the commit's. Every hunk a later diff produces is then charged to
+   * whatever region happens to occupy those numbers now, which is a different
+   * region, belonging to different tests, or to none.
+   *
+   * Given this, each changed module is asked for its text at the commit on the
+   * label and the answer is hashed against `modules.source`, which the recorder
+   * already wrote for exactly this text. A module whose two do not agree is
+   * charged whole — its own crossings, the widest honest answer — and named in
+   * `stale`. Without this the frame is taken on trust, and a caller that skips
+   * anything on that trust is trusting a number nobody checked.
+   *
+   * `undefined` for a file the commit does not hold is the same disagreement:
+   * the snapshot has a row for a file that did not exist there.
+   *
+   * `asking` is every changed path the selection reads a text under, the same
+   * list with every ask, complete before the first: a reader that fetches
+   * paths together fetches these, and none of the rest of the diff. A path
+   * outside it — an unchanged importer — is still asked.
+   */
+  readonly sourceAt?: (file: string, commit: string | undefined, asking?: readonly string[]) => string | undefined;
+  /**
+   * The text a landing kept for a digest `modules.source` holds, when the
+   * commit on the label does not hold it (`keptTexts`).
+   *
+   * A module recorded over an edit disagrees with its commit, and with this its
+   * rows are read in the text they were cut from: the change is read as the
+   * diff from that text to the diff's new side, so the hunks land on the regions
+   * they touch. Without it, or when nothing was kept, the module is `stale`.
+   */
+  readonly keptText?: (digest: string) => string | undefined;
+  /**
+   * Every digest `keptText` holds a text for (`keptDigests`). With it, a module
+   * whose rows were cut from a kept text and that the diff does not name is
+   * read too: its edit was undone, and the change is read from the kept text to
+   * the commit's. Without it, an undone edit selects nothing.
+   */
+  readonly keptDigests?: () => readonly string[];
+  /**
+   * The checkout every name is relative to, so a package's manifest can say
+   * that loading a module does something (`sideEffects`). Without it, no
+   * manifest is asked, and loading a module is assumed only to declare what it
+   * exports.
+   */
+  readonly root?: string;
+}
