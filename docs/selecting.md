@@ -101,6 +101,8 @@ Each party answers the question it owns. Git answers what changed, the parser
 what the change does, the graph who uses it, and the record which tests ran
 there. When one of them cannot answer, the run falls back to a coarser
 answer, such as the changed lines instead of the edit, and names the file.
+A system that already knows what changed can skip git and [ask one
+stage](#ask-one-stage-without-a-diff) directly.
 
 ## What a CI checkout needs
 
@@ -488,6 +490,26 @@ lines.
 A [journey](journeys.md) file you hand to `variance select --execution` is read
 by its regions, whatever the suite declares: naming the file asks for that
 reading.
+
+## Ask one stage without a diff
+
+`variance run --since` asks git for the diff, then runs every stage of
+selection on it in a fixed order: it traces what an install moved and what
+the harness rests on, sets aside the files the suite ignores,
+routes each file to the record or the graph, charges the regions the changed
+lines fall in, reads the preconditions, and walks the importers of a file the
+record never measured. If your system already knows which files moved, you can
+call one of those stages yourself from the JavaScript API, passing the files
+and lines as values. You can ask which tests loaded a list of paths, which
+tests entered a range you made up at `function-use`, or which tests a file
+the record never measured reaches through its importers. Reading what an
+edit does, which the parser answers, needs both texts of the file: pass the
+text at the recorded commit as `sourceAt`, and the hunks that move it. Lines
+with no hunks are charged as given. No stage reads git, and none reads
+the checkout unless you pass `root`,
+so the refusals [above](#where-selection-widens) do not apply, and a
+simulation needs no checkout. [Sense](../packages/sense/README.md#ask-one-stage-alone)
+lists every stage and what it answers.
 
 ## What a skipped subject looks like
 
@@ -1124,7 +1146,7 @@ run.
 
 ---
 
-**Further:** [`distance.md`](distance.md) for the API that measures how far the
+**Further:** [asking one stage without a diff](#ask-one-stage-without-a-diff) for a system that already holds the changed files · [`distance.md`](distance.md) for the API that measures how far the
 change travelled to selected test files, and the inventory and runner work an
 integration still owns · [`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and

@@ -58,10 +58,11 @@ import { declaredEffects } from './effects.js';
 import { commitFrame, frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { walkImporters } from './importer-walk.js';
-import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
+import { importedAsAsset } from './importers.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
-import type { SelectionReason } from './select.js';
+import type { SelectionReason } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
 export type FileReading =

@@ -207,6 +207,97 @@ it no file is read as `load` on that account.
 `selectTestFiles` returns `entered` alone, for a caller that has established the
 second half some other way.
 
+### Ask one stage alone
+
+`narrowByExecution` runs every stage of selection in a fixed order: it cuts the
+suite's ignored files out, routes each file by whether the record measured it,
+reads the change, charges regions, reads the preconditions and walks the
+graph. A system that already knows which files moved, or a simulation over
+files and lines nobody wrote, needs one of those stages and no diff. Each stage
+takes values and an open record, reads no git, and reads the checkout only
+through `root` when you pass it. The composition calls the same stages, so a
+stage asked alone answers as it does inside the whole:
+
+```ts
+import {
+  askCoverageFile,
+  changeOfFiles,
+  testsEnteringFromView,
+  testsLoadingFromView,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
+
+const files = ['src/cart.ts', 'src/cart.css'];
+const { entered, unanswered } = askCoverageFile(testCoverageFile(process.cwd()), (view) =>
+  testsLoadingFromView(view, files),
+);
+// entered: every test that loaded src/cart.ts; unanswered: ['src/cart.css'], which has no row.
+
+const lines = { lines: new Map([['src/cart.ts', [{ start: 40, end: 42 }]]]), hunks: new Map() };
+askCoverageFile(testCoverageFile(process.cwd()), (view) =>
+  testsEnteringFromView(view, lines, { precision: 'function-use' }),
+);
+```
+
+Every stage answers `{ entered, because, unanswered }`. `unanswered` lists the
+files that stage holds no answer for; no stage selects more because of them.
+
+| Stage | Asks | Answers |
+|---|---|---|
+| `changeOfDiff`, `changeOfFiles` | a unified diff, or a list of paths changed whole | the `Change` every other stage reads |
+| `changeOfPaths` | a change and paths | the part of the change that moves those paths |
+| `ignoredChange` | a change and the suite's `ignore` globs | what is kept and what is ignored |
+| `routesFromView` | paths | `coverage`, `relations` or `nothing` per file |
+| `testsLoadingFromView` | paths | every test that loaded each file: `file-use` |
+| `testsEnteringFromView` | a change, and `region-use`, `function-use` or `file-use` | every test that entered the regions the lines fall in, with `stale` and `readings` |
+| `testsDeclaringFromView` | a change, and `sourceAt` | every test that declared a changed file as a precondition, less one that ran the text it arrives at |
+| `graphReachFromView` | paths and `relations`, and `moved` exports | the tests the import walk reaches: what `file` and `symbol` add; a file `moved` does not name is walked whole |
+| `importersFromView` | a change, `relations` and `sourceAt` | the nearest measured importers' tests of each file with no row |
+| `dependsReachFromView` | ignored paths and `relations` | the tests of the modules that `/// <depends>` on them |
+| `readRowlessFromView` | a change, `relations` and `sourceAt` | the readers of a new or unmeasured module's exports, and its `readings` |
+| `narrowByChangeFromView` | a change, and the options above | all of them composed: what `narrowByExecution` returns |
+
+Given `sourceAt`, `testsEnteringFromView` checks the record's frame and reads
+what the lines moved, as the composition does: rows cut from another text are
+`stale` and charged whole. Without it, lines are read as given, in the
+coordinates of the text the record was cut from. Lines with no hunks say where
+a file moved and not what it became, so no parser reads them: they are charged
+as given, and no declaring test counts as having run the text they arrive at.
+
+A file one stage answers can still be another's question. A test can enter a
+file and another declare it, and a file a test declares is still walked up
+its importers for every other test. So the stages asked by hand give the
+composition's answer only when each one gets the part of the change it reads
+there: the suite's `ignore` cuts the change first, and the preconditions read
+all of it, because no glob undoes a declaration.
+
+```ts
+const { kept, ignored } = ignoredChange(change, ignore);
+const read = readRowlessFromView(view, kept, options);
+const entered = new Set([
+  ...testsEnteringFromView(view, kept, options).entered,
+  ...testsDeclaringFromView(view, change, options).entered,
+  ...read.entered,
+  ...importersFromView(view, changeOfPaths(kept, read.unanswered), options).entered,
+  ...dependsReachFromView(view, ignored, options).entered,
+]);
+```
+
+The three stages that end in the walk each read the precondition table, which
+the composition reads once. When you need the whole answer and which stage
+selected each test, ask `narrowByChangeFromView`: every reason in its
+`because` names its stage, `region` for coverage, `precondition`, `reader`
+for the reading and `importer` for a walk.
+
+Without `root`, no stage reads a package's `sideEffects` or resolves an
+import, so an edit that adds an import is read by its verdict alone. A
+simulation over a record and no checkout answers what the composition answers
+without `root`, not what it answers in the checkout.
+
+The two stages before the route,
+what an install moved and what the harness rests on, are `beyondReach` and
+`beforeReach` in `@variance-authority/core/relate`, and they take values too.
+
 ## Where the snapshot lives, and when it is rebuilt
 
 `withTestSelection` writes outside your checkout by default: the coverage data
