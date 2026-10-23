@@ -129,20 +129,20 @@ export interface ImporterAsk {
    */
   readonly disowned: Disowned | undefined;
   /** Names the caller asks the precondition table about beside the walk's own (`ImporterAnswer.governed`). */
-  readonly also: ReadonlySet<string>;
+  readonly also?: ReadonlySet<string>;
   /** Every file the caller could not read and holds no row for, to be answered by every test that loaded it. */
-  readonly wholes: readonly string[];
+  readonly wholes?: readonly string[];
   /**
    * The digest of the text each rowless changed name arrives at: a test that
    * ran that text is not governed by the name (`testsGovernedBy`).
    */
-  readonly arrived: ReadonlyMap<string, string>;
+  readonly arrived?: ReadonlyMap<string, string>;
 }
 
 /** The walk from each changed file with no row to the nearest files the record holds, with the one read of the precondition table. */
 export function answerByImporters(
   coverage: TestCoverageView,
-  { changed, ignored: ignoring, rowed, disowned, also, wholes, arrived }: ImporterAsk,
+  { changed, ignored: ignoring, rowed, disowned, also = new Set(), wholes = [], arrived = new Map() }: ImporterAsk,
   options: ExecutionNarrowingOptions,
 ): ImporterAnswer {
   const { relations } = options;
