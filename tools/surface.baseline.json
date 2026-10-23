@@ -1334,41 +1334,6 @@
       }
     }
   },
-  "@variance-authority/jest-transformer": {
-    "declared": {
-      "type": "module",
-      "main": "./dist/index.js",
-      "types": "./dist/index.d.ts",
-      "exports": {
-        ".": {
-          "types": "./dist/index.d.ts",
-          "default": "./dist/index.js"
-        }
-      },
-      "files": [
-        "dist",
-        "!dist/**/*.d.ts.map",
-        "mark.svg"
-      ],
-      "engines": {
-        "node": ">=22"
-      }
-    },
-    "names": {
-      ".": {
-        "JestTestFiles": "interface",
-        "JestTransformOptions": "interface",
-        "JestTransformer": "interface",
-        "ProjectTransformer": "interface",
-        "TransformerEntry": "type",
-        "globMatcher": "function",
-        "isTestFile": "function",
-        "jestCacheKey": "function",
-        "loadTransformer": "function",
-        "slashed": "function"
-      }
-    }
-  },
   "@variance-authority/jsx-source": {
     "declared": {
       "type": "module",

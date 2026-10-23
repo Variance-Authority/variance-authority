@@ -204,6 +204,20 @@
   },
   {
     "files": [
+      "packages/isolator/src/jest-test-files.ts",
+      "packages/sense/src/test-selection/jest-test-files.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/isolator/src/jest-transformer.ts",
+      "packages/sense/src/test-selection/jest-transformer.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
       "packages/mcp/src/tools/composition.ts",
       "packages/mcp/src/tools/recall.ts"
     ],

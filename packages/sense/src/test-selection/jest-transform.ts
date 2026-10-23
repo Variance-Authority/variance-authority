@@ -43,7 +43,7 @@ import {
   type JestTestFiles,
   type JestTransformer as JestShapedTransformer,
   type JestTransformOptions,
-} from '@variance-authority/jest-transformer';
+} from './jest-transformer.js';
 import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';

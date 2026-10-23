@@ -110,9 +110,6 @@
       "src/session.ts",
       "src/transform.ts"
     ],
-    "packages/jest-transformer": [
-      "src/index.ts"
-    ],
     "packages/jsx-source": [
       "jest-resolver.cjs",
       "src/jsx-dev-runtime.ts",

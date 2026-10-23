@@ -37,7 +37,7 @@ import {
   type JestTransformer as Transformer,
   type JestTransformOptions,
   type TransformerEntry,
-} from '@variance-authority/jest-transformer';
+} from './jest-transformer.js';
 import { skipper } from './skips.js';
 import { isolate, type Isolated } from './transform.js';
 

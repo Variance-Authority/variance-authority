@@ -111,9 +111,6 @@
       "path": "./packages/ioc"
     },
     {
-      "path": "./packages/jest-transformer"
-    },
-    {
       "path": "./packages/isolator"
     },
     {

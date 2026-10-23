@@ -144,10 +144,6 @@ const PACKAGES: {
       { name: "dom", role: "extraction, and CSS applicability pruning" },
       { name: "react", role: "fibers → owner chains, props digests, portals" },
       {
-        name: "jest-transformer",
-        role: "a project's own Jest transformer, run inside another one: loaded the way Jest loads it, with its own options",
-      },
-      {
         name: "jsx-source",
         role: "the file and line that wrote an element, carried as far as the DOM node",
       },
