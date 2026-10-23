@@ -328,8 +328,8 @@ least as fine as that evidence, and rests on its own assumption:
 |---|---|---|---|
 | `file` | it imports a changed file, directly or through other files, or it loaded one | any `mode` | nothing the record has to see: the import graph finds every test that imports the change |
 | `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file | any `mode` | the graph tells which exports a change altered |
-| `file-use` | it loaded a changed file | `loads` or finer | every test file that needs a module loads it in [a module graph of its own](#a-record-needs-a-module-graph-per-test-file) |
-| `function-use` | it entered the function a changed line is in | `entries` or finer | the same, every runner project the suite runs loads the probes, and cases run one at a time unless `continuations` is on |
+| `file-use` | it loaded a changed file | `loads` or finer | nothing more than `file` where every static import loads, as under Jest and Vitest; it runs fewer only where a module [loads where it is used](#from-file-to-file-use-load-a-module-where-it-is-used) |
+| `function-use` | it entered the function a changed line is in | `entries` or finer | every test file that needs a module evaluates it in [a module graph of its own](#a-record-needs-a-module-graph-per-test-file), every runner project the suite runs loads the probes, and cases run one at a time unless `continuations` is on |
 | `region-use`, the default | it entered the region a changed line is in | `presence` | the same |
 
 A changed value runs the tests that read it, as [a change to a module's top
@@ -344,12 +344,10 @@ trust:
 
 - **Start at `file`** if your suite comes from a graph selector such as `nx
   affected`. It runs every test that imports a changed file.
-- **Declare `file-use` once you trust the record** and each test file has
-  [a module graph of its own](#a-record-needs-a-module-graph-per-test-file),
-  as every runner gives it by default. It never runs a test
-  `file` would skip, and it needs only to know which test loaded which file.
-  Once your modules load where they are used, it runs only the tests that use
-  them.
+- **Declare `file-use`** to run what `file` runs, read from the record: where
+  Jest or Vitest loads every static import, the two run the same tests. It runs
+  fewer only once your modules load where they are used, and then it runs only
+  the tests that loaded them.
 - **Declare `region-use` once every project the suite runs records regions**,
   as [below](#record-as-finely-as-you-select).
 
@@ -426,8 +424,8 @@ the old record. Each option and its edges are in
 ### A record needs a module graph per test file
 
 The record learns that a test used a module by watching the module run, and a
-module runs its top level once per module graph. So the `-use` steps rest on
-each test file getting a graph of its own: every file that needs a module then
+module runs its top level once per module graph. So `function-use` and
+`region-use` rest on each test file getting a graph of its own: every file that needs a module then
 evaluates it, and the record charges the module to that file. A graph shared by
 several test files breaks that.
 
@@ -493,7 +491,10 @@ top level runs every subject the page showed, and none is skipped.
 affected`: it runs what the graph runs, and adds what the record saw load.
 `file-use` drops the graph and keeps what coverage says. The two differ only
 where a test imports a file without loading it, and a runner such as Vitest or
-Jest loads every static import. On most codebases the two steps run the same
+Jest loads every static import. A module loads where it is used through an
+inline or lazy `require`, a dynamic `import()`, or a mock that replaces it in
+the test files that never call it, which is the substitution
+[distill](../packages/distill/README.md) proposes. On most codebases the two steps run the same
 tests, and the size of both answers depends on your imports, not on the
 selector. A module that an index file re-exports is loaded by every test that
 imports the index, and `file-use` counts each of those tests as a user of it.
