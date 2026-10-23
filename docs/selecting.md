@@ -315,10 +315,48 @@ flowchart LR
   class d0,d1,d2 dropped
 ```
 
+A suite declares its step in the configuration:
+
+```json
+{ "suites": { "unit": { "kind": "unit", "precision": "file" } } }
+```
+
+Each step runs a test on its own evidence, needs a record at least as fine as
+that evidence, and rests on its own assumption:
+
+| `precision` | A test runs when | The record it needs | What it assumes |
+|---|---|---|---|
+| `file` | it imports a changed file, directly or through other files, or it loaded one | any `mode` | nothing the record has to see: the import graph finds every test that imports the change |
+| `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file | any `mode` | the graph tells which exports a change altered |
+| `file-use` | it loaded a changed file | `loads` or finer | every test file that needs a module loads it in [a module graph of its own](#a-record-needs-a-module-graph-per-test-file) |
+| `function-use` | it entered the function a changed line is in | `entries` or finer | the same, and every runner project the suite runs loads the probes |
+| `region-use`, the default | it entered the region a changed line is in | `presence` | the same |
+
+A changed value runs the tests that read it, as [a change to a module's top
+level](#what-a-change-to-a-modules-top-level-runs) describes. `region-use`
+runs the tests that entered the region reading it. `function-use` widens each
+region to the function that holds it, so it runs every test that entered a
+function reading the value, at any line of that function. At both steps a
+change that runs as the module loads runs every test that loaded the file.
+
+Choose the step by where your suite comes from and how much of the record you
+trust:
+
+- **Start at `file`** if your suite comes from a graph selector such as `nx
+  affected`. It runs every test that imports a changed file.
+- **Declare `file-use` once you trust the record** and each test file has
+  [a module graph of its own](#a-record-needs-a-module-graph-per-test-file),
+  as every runner gives it by default. It never runs a test
+  `file` would skip, and it needs only to know which test loaded which file.
+  Once your modules load where they are used, it runs only the tests that use
+  them.
+- **Declare `region-use` once every project the suite runs records regions**,
+  as [below](#record-as-finely-as-you-select).
+
 In [TanStack
 Query](selection-tanstack-query.md#two-lines-at-each-precision), a one-line
 edit to `query.ts` runs this many of its 188 test files at each step, next to
-running them all, with the default in orange:
+running them all, with the default, `region-use`, last:
 
 ```mermaid
 ---
@@ -337,13 +375,14 @@ xychart-beta horizontal
 ```
 
 `file`, `symbol` and `file-use` tie because Vitest, like Jest, loads every
-static import, so every test that imports a file loads it. What limits
+static import, so every test that imports a file loads it. `symbol` runs fewer
+tests than `file` only where a test imports a file without loading it. What limits
 `file-use` is then what your tests import, not the step. `query-core`'s index
 loads every module it re-exports, so `hydration.ts`, which the index
 re-exports, is loaded by 149 test files, and 21 of them call a function in it.
 The other 128 call nothing in it. An edit to
 `hydration.ts` runs all 149 at `file-use`. Where the module is loaded only by
-the tests that use it, the same step would run about those 21, in orange here:
+the tests that use it, the same step would run about those 21, the last bar here:
 
 ```mermaid
 ---
@@ -353,7 +392,7 @@ config:
 ---
 xychart-beta horizontal
   accTitle: Test files that load hydration.ts in TanStack Query, and the ones that call a function in it
-  x-axis ["every test file", "file", "file-use", "call into it"]
+  x-axis ["every test file", "file", "file-use", "file-use, loaded where used"]
   y-axis "test files, of 188" 0 --> 188
   bar [0, 0, 0, 21]
   bar [0, 149, 149, 0]
@@ -367,42 +406,6 @@ How to load a module where it is used is in
 `file-use`](#from-file-to-file-use-load-a-module-where-it-is-used); what the
 finer steps read is in [from `file-use` to
 `region-use`](#from-file-use-to-region-use-read-inside-the-file).
-
-A suite declares its step in the configuration:
-
-```json
-{ "suites": { "unit": { "kind": "unit", "precision": "file" } } }
-```
-
-Each step runs a test on its own evidence, needs a record at least as fine as
-that evidence, and rests on its own assumption:
-
-| `precision` | A test runs when | The record it needs | What it assumes |
-|---|---|---|---|
-| `file` | it imports a changed file, directly or through other files, or it loaded one | any `mode` | nothing the record has to see: the import graph finds every test that imports the change |
-| `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file | any `mode` | the graph tells which exports a change altered |
-| `file-use` | it loaded a changed file | `loads` or finer | every test file that needs a module loads it in [a module graph of its own](#a-record-needs-a-module-graph-per-test-file) |
-| `function-use` | it entered the function a changed line is in | `entries` or finer | the same, and every project the suite runs loads the probes |
-| `region-use`, the default | it entered the region a changed line is in | `presence` | the same |
-
-A changed value runs the tests that read it, as [a change to a module's top
-level](#what-a-change-to-a-modules-top-level-runs) describes. `region-use`
-runs the tests that entered the region reading it. `function-use` widens each
-region to the function that holds it, so it runs every test that entered a
-function reading the value, at any line of that function. At both steps a
-change that runs as the module loads runs every test that loaded the file.
-
-Choose the step by where your suite comes from and how much of the record you
-trust:
-
-- **Start at `file`** if your suite comes from a graph selector such as `nx
-  affected`. It runs every test that imports a changed file.
-- **Declare `file-use` once you trust the record.** It never runs a test
-  `file` would skip, and it needs only to know which test loaded which file.
-  Once your modules load where they are used, it runs only the tests that use
-  them.
-- **Declare `region-use` once every project the suite runs records regions**,
-  as [below](#record-as-finely-as-you-select).
 
 ### Record as finely as you select
 
@@ -498,10 +501,11 @@ What the record then holds depends on its `mode`:
   across files is the same gap inside a function, as [a result a cache
   returned](#a-result-a-cache-returned) shows.
 
-`file` and `symbol` read the import graph, which watches nothing run, so they
-find every test that imports a change whatever graph the runner shares. If your
-suite shares a graph across test files, declare `symbol`, or give each file its
-own graph again.
+So a shared graph costs a `loads` record precision and a finer record
+soundness. `file` and `symbol` read the import graph, which watches nothing
+run, so they find every test that imports a change whatever graph the runner
+shares. If your suite shares a graph across test files and records `entries` or
+`presence`, declare `symbol`, or give each file its own graph again.
 
 A page reused between subjects shares one graph the same way: Playwright gives
 each test a new page unless you keep one, and the [Storybook
