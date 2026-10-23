@@ -240,12 +240,12 @@ askCoverageFile(testCoverageFile(process.cwd()), (view) =>
 ```
 
 Every stage answers `{ entered, because, unanswered }`. `unanswered` lists the
-files that stage holds no answer for, which are the next stage's question; no
-stage selects more because of them.
+files that stage holds no answer for; no stage selects more because of them.
 
 | Stage | Asks | Answers |
 |---|---|---|
 | `changeOfDiff`, `changeOfFiles` | a unified diff, or a list of paths changed whole | the `Change` every other stage reads |
+| `changeOfPaths` | a change and paths | the part of the change that moves those paths |
 | `ignoredChange` | a change and the suite's `ignore` globs | what is kept and what is ignored |
 | `routesFromView` | paths | `coverage`, `relations` or `nothing` per file |
 | `testsLoadingFromView` | paths | every test that loaded each file: `file-use` |
@@ -260,11 +260,17 @@ stage selects more because of them.
 Given `sourceAt`, `testsEnteringFromView` checks the record's frame and reads
 what the lines moved, as the composition does: rows cut from another text are
 `stale` and charged whole. Without it, lines are read as given, in the
-coordinates of the text the record was cut from.
+coordinates of the text the record was cut from. Lines with no hunks say where
+a file moved and not what it became, so no parser reads them: they are charged
+as given, and no declaring test counts as having run the text they arrive at.
 
-To get the composition's answer from the stages by hand, ask them in its
-order and hand each stage what the one before left `unanswered`: a rowless
-file the reading charged is not walked. The two stages before the route,
+A file one stage answers can still be another's question. A test can enter a
+file and another declare it, and a file a test declares is still walked up
+its importers for every other test. To get the composition's answer by hand,
+ask `testsEnteringFromView`, `testsDeclaringFromView` and `readRowlessFromView`
+the whole change, ask `importersFromView` only the part the reading left,
+`changeOfPaths(change, read.unanswered)`, and take the union of what they
+enter. The two stages before the route,
 what an install moved and what the harness rests on, are `beyondReach` and
 `beforeReach` in `@variance-authority/core/relate`, and they take values too.
 

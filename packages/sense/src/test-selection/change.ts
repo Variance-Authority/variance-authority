@@ -45,6 +45,13 @@ export function ignoredChange(
   return { kept: { lines: withoutPaths(change.lines, ignored), hunks: withoutPaths(change.hunks, ignored) }, ignored };
 }
 
+/** The part of `change` that moves `paths`: their lines and their hunks, and no other file's. */
+export function changeOfPaths(change: Change, paths: Iterable<string>): Change {
+  const kept = new Set(paths);
+  const only = <Value>(byFile: ReadonlyMap<string, Value>) => new Map([...byFile].filter(([file]) => kept.has(file)));
+  return { lines: only(change.lines), hunks: only(change.hunks) };
+}
+
 /**
  * The change that moves each of `paths` whole, with no lines and no hunks: the
  * change a caller hands over when it knows which files moved and nothing more.

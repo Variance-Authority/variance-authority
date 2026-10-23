@@ -5,12 +5,17 @@ import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import {
   changeOfDiff,
+  changeOfPaths,
   importersFromView,
   narrowByChangeFromView,
+  readRowlessFromView,
   testsDeclaringFromView,
   testsEnteringFromView,
+  type Change,
+  type ExecutionNarrowingOptions,
   type TestCoverage,
 } from './index.js';
+import type { Relations } from '@variance-authority/core/relate';
 
 /**
  * A stage asked alone gives the answer the composition gives for its part,
@@ -212,5 +217,110 @@ describe('lines with no hunks', () => {
 
     expect(importersFromView(view(), invented(HELPER), { sourceAt: helperAt, relations }).entered).toEqual([ENTERING]);
     expect(narrowByChangeFromView(view(), invented(HELPER), { sourceAt: helperAt, relations }).entered).toEqual([ENTERING]);
+  });
+});
+
+/**
+ * The recipe the sense README gives for asking the stages by hand, run as it
+ * is written: each stage asked the whole change, and the importer walk only
+ * what the reading left.
+ */
+function byHand(view: () => ReturnType<typeof openTestCoverage>, change: Change, options: Pick<ExecutionNarrowingOptions, 'sourceAt'> & { readonly relations: Relations }): readonly string[] {
+  const entering = testsEnteringFromView(view(), change, options);
+  const declaring = testsDeclaringFromView(view(), change, options);
+  const read = readRowlessFromView(view(), change, options);
+  const importing = importersFromView(view(), changeOfPaths(change, read.unanswered), options);
+  return [...new Set([...entering.entered, ...declaring.entered, ...read.entered, ...importing.entered])].sort();
+}
+
+describe('the stages asked by hand', () => {
+  const SOURCE = 'src/two.ts';
+  const HELPER = 'src/helper.ts';
+  const ENTERING = 'test/one.test.ts';
+  const DECLARING = 'test/two.test.ts';
+  const IMPORTING = 'test/three.test.ts';
+  const COMMITTED_SOURCE = 'export function two(value) {\n  return value * 2;\n}\n';
+  const COMMITTED_HELPER = 'module.exports = 1;\n';
+  const record: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    commit: 'recorded',
+    tests: [
+      { file: ENTERING, complete: true, preconditions: [] },
+      // Declares both files, and ran neither text the change arrives at.
+      {
+        file: DECLARING,
+        complete: true,
+        preconditions: [
+          { name: SOURCE, digest: digestString(COMMITTED_SOURCE) },
+          { name: HELPER, digest: digestString(COMMITTED_HELPER) },
+        ],
+      },
+      { file: IMPORTING, complete: true, preconditions: [] },
+    ],
+    modules: [
+      {
+        file: SOURCE,
+        sourceDigest: digestString(COMMITTED_SOURCE),
+        instrumented: true,
+        blocks: [
+          { ordinal: 0, kind: 'module', digest: 'block:two', name: '', path: 'module', startLine: 1, endLine: 3, source: true, testFiles: [ENTERING] },
+          { ordinal: 1, kind: 'function', owner: 0, digest: 'block:two:body', name: 'two', path: 'two', startLine: 1, endLine: 3, source: true, testFiles: [ENTERING] },
+        ],
+      },
+    ],
+  };
+  const relations = relationsOf({
+    relations: [
+      { from: { kind: 'file', name: IMPORTING }, to: { kind: 'file', name: HELPER }, kind: 'imports' },
+      { from: { kind: 'file', name: DECLARING }, to: { kind: 'file', name: HELPER }, kind: 'imports' },
+    ],
+  });
+  const sourceAt = (file: string): string | undefined => ({ [SOURCE]: COMMITTED_SOURCE, [HELPER]: COMMITTED_HELPER })[file];
+  const view = () => openTestCoverage(encodeTestCoverage(record));
+  const options = { sourceAt, relations };
+
+  it('selects what the composition selects for a measured file a test also declares', () => {
+    const change = changeOfDiff(`--- a/${SOURCE}
++++ b/${SOURCE}
+@@ -2,1 +2,1 @@
+-  return value * 2;
++  return value + value;
+`);
+    const composed = narrowByChangeFromView(view(), change, options).entered;
+
+    expect(composed).toEqual([ENTERING, DECLARING].sort());
+    expect(byHand(view, change, options)).toEqual(composed);
+  });
+
+  it('selects what the composition selects for a rowless file a test declares and another imports', () => {
+    const change = changeOfDiff(`--- a/${HELPER}
++++ b/${HELPER}
+@@ -1,1 +1,1 @@
+-module.exports = 1;
++module.exports = 2;
+`);
+    const composed = narrowByChangeFromView(view(), change, options).entered;
+
+    expect(composed).toEqual(expect.arrayContaining([DECLARING, IMPORTING]));
+    expect(byHand(view, change, options)).toEqual(composed);
+  });
+
+  it('selects what the composition selects for both at once, and for lines with no hunks', () => {
+    const change = changeOfDiff(`--- a/${SOURCE}
++++ b/${SOURCE}
+@@ -2,1 +2,1 @@
+-  return value * 2;
++  return value + value;
+--- a/${HELPER}
++++ b/${HELPER}
+@@ -1,1 +1,1 @@
+-module.exports = 1;
++module.exports = 2;
+`);
+    const invented = { lines: change.lines, hunks: new Map() };
+
+    expect(byHand(view, change, options)).toEqual(narrowByChangeFromView(view(), change, options).entered);
+    expect(byHand(view, invented, options)).toEqual(narrowByChangeFromView(view(), invented, options).entered);
   });
 });

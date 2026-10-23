@@ -223,10 +223,13 @@ already known, or invented for a simulation, call the stage itself from
 the graph's walk, `readRowlessFromView` for a module
 the record never measured, and `changeOfFiles(paths)` to build the change.
 Each answers `{ entered, because, unanswered }`, reads no git, and reads the
-checkout only through `root`; `unanswered` is the next stage's question, never
-a reason to widen. Pass `sourceAt` for the frame check and the parser's
-reading. Asked in the composition's order, each stage given what the one
-before left, they answer what `narrowByChangeFromView` answers, and that is what
+checkout only through `root`; `unanswered` is never a reason to widen. Pass
+`sourceAt` for the frame check and the parser's reading; lines with no hunks
+are charged as given and read by no parser. The entering, declaring and
+rowless stages each take the whole change, because one file can be answered by
+a row and a declaration at once, and `importersFromView` takes
+`changeOfPaths(change, read.unanswered)`, what the reading left. The union of
+what they enter is what `narrowByChangeFromView` answers, and that is what
 `narrowByExecution` runs. The stages before the route, an install's moves and
 the harness, are `beyondReach` and `beforeReach` in
 `@variance-authority/core/relate`.

@@ -446,7 +446,8 @@ and lines as values. You can ask which tests loaded a list of paths, which
 tests entered a range you made up at `function-use`, or which tests a file
 the record never measured reaches through its importers. Reading what an
 edit does, which the parser answers, needs both texts of the file: pass the
-text at the recorded commit as `sourceAt`. No stage reads git, and none reads
+text at the recorded commit as `sourceAt`, and the hunks that move it. Lines
+with no hunks are charged as given. No stage reads git, and none reads
 the checkout unless you pass `root`,
 so the refusals [above](#where-selection-widens) do not apply, and a
 simulation needs no checkout. [Sense](../packages/sense/README.md#ask-one-stage-alone)

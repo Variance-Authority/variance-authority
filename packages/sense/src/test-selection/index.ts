@@ -49,7 +49,7 @@ export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } f
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
 export { ignoredBy, unmeasuredOf, type Route, type Unmeasured } from './route.js';
-export { changeOfDiff, changeOfFiles, ignoredChange, type Change } from './change.js';
+export { changeOfDiff, changeOfFiles, changeOfPaths, ignoredChange, type Change } from './change.js';
 export { narrowByChangeFromView, narrowByExecutionFromView } from './select.js';
 export {
   dependsReachFromView,
