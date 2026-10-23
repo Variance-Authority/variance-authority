@@ -555,7 +555,9 @@ words it holds. A name its file declares and does not export is among them, and
 so is a file, by its own name and the doc it opens with. They are ordered by
 how many of the words each holds, then by how many of them its name holds, then
 by how many of the query's adjacent word pairs its doc writes adjacent: counts,
-never a score.
+never a score. A name holding fewer than half the words, which the loose
+reading reaches by every word, is told there instead, so names holding one
+common word never sort it out of sight.
 The words every package says about itself — `package`, `module`, `use`,
 `tool`, `get` and the like — are stopwords for an installed package and words
 for your own code, which is named in them.

@@ -180,8 +180,9 @@ export interface SearchAnswer {
    */
   readonly loose?: Matches<PublishedMatch | ExportedMatch | DeclaredMatch>;
   /**
-   * This repository's names and files holding any of the question's words.
-   * `loose` holds none of them. Present when `loose` ran, which is when it runs;
+   * This repository's names and files holding any of the question's words,
+   * but a name holding fewer than half the stems that `loose` holds. Present
+   * when `loose` ran, which is when it runs;
    * absent too when the question has no word to describe it by.
    */
   readonly described?: Matches<DescribedMatch>;

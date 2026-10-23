@@ -171,6 +171,7 @@ describe('which names the described section holds, and in what order', () => {
 
     it('is the loose section\'s however few names sort before it, so the rows shown never decide which section tells it', async () => {
       const said = await ask(3);
+      expect(said).toMatch(LOOSE_SECTION);
       expect(said.search(/^cacheEntriesMagazine /mu)).toBeGreaterThan(said.search(LOOSE_SECTION));
       expect(said).not.toMatch(/cacheEntriesMagazine .*\[holds:/u);
       expect(said).toMatch(/cacheAt0 .*\[holds: cache\]/u);

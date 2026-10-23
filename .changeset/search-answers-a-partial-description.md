@@ -1,7 +1,7 @@
 ---
-'@variance-authority/help': patch
-'@variance-authority/cli': patch
-'@variance-authority/sense': patch
+'@variance-authority/help': minor
+'@variance-authority/cli': minor
+'@variance-authority/sense': minor
 ---
 
 `ask search` answers a description by any of its words. When no name or doc holds the query as written, the repository's own names and files that hold any of its stems come back, ranked as before: the most words held first, then the most in the name, then the phrase the doc writes. Before, a name had to hold at least half of them, so a three-word query whose best match held one word was reported as nothing. Their heading now reads "hold words of `<query>`" rather than "hold at least half the words of `<query>`". Installed packages still answer only when they hold half the words. A name holding fewer than half the stems, which this section did not hold before, is left to the loose reading when that reading reaches it by every word, as it was before. So `cache entriee magazie` still offers `cacheEntriesMagazine` loosely however many names holding `cache` this section shows.

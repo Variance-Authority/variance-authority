@@ -405,7 +405,8 @@ by stem, in any order, in the name or its doc, whether published, exported,
 declared and not exported, or a file by its name and the doc it opens with, the
 ones holding the most of your words first, then the ones holding more of them
 in the name, then the ones whose doc writes your phrase; then names your words
-reach loosely, exported or not — are
+reach loosely, exported or not, which takes a name holding fewer than half your
+words when it reaches it by every one — are
 suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as
