@@ -323,7 +323,7 @@ loads every module it re-exports, so `hydration.ts`, which the index
 re-exports, is loaded by 149 test files, and 21 of them call a function in it.
 The other 128 call nothing in it. An edit to
 `hydration.ts` runs all 149 at `file-use`. Where the module is loaded only by
-the tests that use it, the same step runs at most those 21, in orange here:
+the tests that use it, the same step would run about those 21, in orange here:
 
 ```mermaid
 ---
