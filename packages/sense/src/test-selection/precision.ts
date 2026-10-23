@@ -40,7 +40,7 @@ import type { ExecutionNarrowingOptions, ImporterReason } from './importers.js';
 import { findTest, testPathOf } from './lookup.js';
 import { applied, type Hunk } from './patch.js';
 import { textAtRecording } from './recorded-text.js';
-import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './select.js';
+import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './narrowing.js';
 
 /** The steps of precision, coarsest first. */
 export const PRECISION_STEPS = ['file', 'symbol', 'file-use', 'function-use', 'region-use'] as const;

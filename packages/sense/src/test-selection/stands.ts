@@ -47,7 +47,7 @@ import { sameInstall, type KeptInstall } from './kept-install.js';
 import { askCoverageFile } from './coverage-file.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { nearestFirst, type TestDistance } from './distance.js';
-import type { ExecutionNarrowing, SelectionReason } from './select.js';
+import type { ExecutionNarrowing, SelectionReason } from './narrowing.js';
 
 /** One git invocation, answering its stdout and throwing when git fails. */
 export type Git = (...args: string[]) => string;

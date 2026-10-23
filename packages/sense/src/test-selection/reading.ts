@@ -61,7 +61,7 @@ import { walkImporters } from './importer-walk.js';
 import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
-import type { SelectionReason } from './select.js';
+import type { SelectionReason } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
 export type FileReading =

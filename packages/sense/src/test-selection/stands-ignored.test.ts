@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ExecutionNarrowing } from './select.js';
+import type { ExecutionNarrowing } from './narrowing.js';
 import { askPerStand, type StandQuestion } from './stands.js';
 
 /**

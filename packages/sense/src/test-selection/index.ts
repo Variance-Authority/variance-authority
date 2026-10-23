@@ -19,12 +19,10 @@ import { distanceFromView, type DistanceOptions, type TestDistance } from './dis
 import {
   narrowByExecutionFromView,
   selectTestFilesFromView,
-  type ExecutionNarrowing,
   type ExecutionNarrowingOptions,
   type ImporterReason,
-  type SelectionCause,
-  type SelectionReason,
 } from './select.js';
+import type { ExecutionNarrowing, SelectionCause, SelectionReason } from './narrowing.js';
 
 export {
   coveringChange,
