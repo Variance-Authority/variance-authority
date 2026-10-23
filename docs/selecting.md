@@ -296,11 +296,29 @@ By default a test is skipped unless it entered the code a changed line is in.
 You may not trust that on the first day: a skipped test is a cost you cannot
 see. So a suite declares its `precision`, and each step trusts the record a
 little more. The coarse steps read what a test imports, through the file graph;
-the fine steps read what it loaded and entered, from the record. A one-line edit
-to `query.ts` in [TanStack
-Query](selection-tanstack-query.md#two-lines-at-each-precision) runs this many
-of its 188 test files at each step, next to running them all, with the default
-in orange:
+the fine steps read what it loaded and entered, from the record.
+
+Each finer step drops the tests that went less far into the changed code. Take
+one changed line inside `Query.fetch` in `query.ts`, and five test files:
+
+```mermaid
+flowchart LR
+  all["5 test files"] --> file["file, symbol, file-use<br/>run the 4 that loaded query.ts"]
+  file --> fn["function-use<br/>runs the 2 that entered Query.fetch"]
+  fn --> region["region-use, the default<br/>runs the 1 that entered<br/>the changed line's region"]
+  all -.-> d0["1 never loaded query.ts"]
+  file -.-> d1["2 never entered Query.fetch:<br/>one imports the package index,<br/>one calls Query.setData"]
+  fn -.-> d2["1 called fetch<br/>and took the other branch"]
+  classDef chosen fill:#ff4a19,stroke:#ff4a19,color:#181b1d
+  classDef dropped stroke:#756d67,color:#8f8580
+  class region chosen
+  class d0,d1,d2 dropped
+```
+
+In [TanStack
+Query](selection-tanstack-query.md#two-lines-at-each-precision), a one-line
+edit to `query.ts` runs this many of its 188 test files at each step, next to
+running them all, with the default in orange:
 
 ```mermaid
 ---
@@ -350,6 +368,30 @@ How to load a module where it is used is in
 finer steps read is in [from `file-use` to
 `region-use`](#from-file-use-to-region-use-read-inside-the-file).
 
+A suite declares its step in the configuration:
+
+```json
+{ "suites": { "unit": { "kind": "unit", "precision": "file" } } }
+```
+
+Each step runs a test on its own evidence, needs a record at least as fine as
+that evidence, and rests on its own assumption:
+
+| `precision` | A test runs when | The record it needs | What it assumes |
+|---|---|---|---|
+| `file` | it imports a changed file, directly or through other files, or it loaded one | any `mode` | nothing the record has to see: the import graph finds every test that imports the change |
+| `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file | any `mode` | the graph tells which exports a change altered |
+| `file-use` | it loaded a changed file | `loads` or finer | every test file that needs a module loads it in [a module graph of its own](#a-record-needs-a-module-graph-per-test-file) |
+| `function-use` | it entered the function a changed line is in | `entries` or finer | the same, and every project the suite runs loads the probes |
+| `region-use`, the default | it entered the region a changed line is in | `presence` | the same |
+
+A changed value runs the tests that read it, as [a change to a module's top
+level](#what-a-change-to-a-modules-top-level-runs) describes. `region-use`
+runs the tests that entered the region reading it. `function-use` widens each
+region to the function that holds it, so it runs every test that entered a
+function reading the value, at any line of that function. At both steps a
+change that runs as the module loads runs every test that loaded the file.
+
 Choose the step by where your suite comes from and how much of the record you
 trust:
 
@@ -361,20 +403,6 @@ trust:
   them.
 - **Declare `region-use` once every project the suite runs records regions**,
   as [below](#record-as-finely-as-you-select).
-
-A suite declares its step in the configuration:
-
-```json
-{ "suites": { "unit": { "kind": "unit", "precision": "file" } } }
-```
-
-| `precision` | A test runs when |
-|---|---|
-| `file` | it imports a changed file, directly or through other files, or it loaded one |
-| `symbol` | it imports an export whose behaviour the change altered, directly or through other files, or it loaded a changed file |
-| `file-use` | it loaded a changed file |
-| `function-use` | it entered the function a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes, with each region it charges widened to the function that holds it: a changed value runs every test that entered a function reading it, at any line of that function, and a change that runs as the module loads runs every test that loaded the file |
-| `region-use` | it entered the region a changed line is in, read as [a change to a module's top level](#what-a-change-to-a-modules-top-level-runs) describes: a changed value runs the tests that entered the region reading it. A suite that declares nothing reads this |
 
 ### Record as finely as you select
 
@@ -417,6 +445,70 @@ apply to it. A run fails rather than lay itself over a record made under another
 `mode`, so when you change `mode`, give the run a new `coverageFile` or delete
 the old record. Each option and its edges are in
 [Sense](../packages/sense/README.md#options-on-the-vitest-seam).
+
+### A record needs a module graph per test file
+
+The record learns that a test used a module by watching the module run, and a
+module runs its top level once per module graph. So the `-use` steps rest on
+each test file getting a graph of its own: every file that needs a module then
+evaluates it, and the record charges the module to that file. A graph per case
+is finer and works as well; a graph shared by several test files does not.
+
+A graph per test file is the default of every runner Sense wraps:
+
+| Runner | Its default | What shares a graph across test files |
+|---|---|---|
+| Vitest | `isolate: true`, in Node and in browser mode | `isolate: false`, or `--no-isolate` |
+| Rstest | `isolate: true`; the `vmThreads` and `vmForks` pools create a fresh context for every file whatever `isolate` says | `isolate: false` |
+| Jest | a module registry per test file | nothing in its configuration |
+
+Under a shared graph, the second file to need a module finds it already
+evaluated. When that file only reads a value the module computed, nothing in
+the module runs for it:
+
+```mermaid
+flowchart TB
+  subgraph own["a graph per test file: both files are seen"]
+    direction LR
+    a1["a.test.ts"] -->|evaluates| c1["limits.ts"]
+    b1["b.test.ts"] -->|evaluates| c2["limits.ts"]
+  end
+  subgraph shared["one graph for both files: b.test.ts is not seen"]
+    direction LR
+    a2["a.test.ts"] -->|evaluates| c3["limits.ts"]
+    b2["b.test.ts"] -.->|reads the cached value| c3
+  end
+  own ~~~ shared
+  classDef unseen stroke:#756d67,color:#8f8580
+  class b2 unseen
+```
+
+What the record then holds depends on its `mode`:
+
+- **`loads`** cannot tell a module the file imported from one already in the
+  graph, so it charges each file with every module the graph held when the
+  file started. No test is missed. A file that imports little runs for changes
+  it never used, and which files those are depends on the order the runner
+  chose and on the worker that ran each file.
+- **`entries` and `presence`** still charge each case with every function and
+  region it entered, and each file with every module it ran code in. One file
+  goes unseen: a file that only reads a value another file's evaluation left,
+  such as `b.test.ts` above reading a constant from `limits.ts`. A change to
+  `limits.ts` runs `a.test.ts` and skips `b.test.ts`. A memoized result shared
+  across files is the same gap inside a function, as [a result a cache
+  returned](#a-result-a-cache-returned) shows.
+
+`file` and `symbol` read the import graph, which watches nothing run, so they
+find every test that imports a change whatever graph the runner shares. If your
+suite shares a graph across test files, declare `symbol`, or give each file its
+own graph again.
+
+A page reused between subjects shares one graph the same way: Playwright gives
+each test a new page unless you keep one, and the [Storybook
+collector](cases.md#built-or-served-storybook) shows every story in one
+preview. The page record leans the other way: whatever runs while a module
+evaluates is charged to every subject on the page, so a change to a module's
+top level runs every subject the page showed, and none is skipped.
 
 ### From `file` to `file-use`: load a module where it is used
 
