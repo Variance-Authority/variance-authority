@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { lockstep, missing, publishable, unborn, waiting } from './released.mjs';
+import { lockstep, missing, onRegistry, publishable, unborn, waiting } from './released.mjs';
 
 /**
  * A release is checked against the registry, and stays checked.
@@ -113,6 +113,37 @@ describe('what a release publishes', () => {
       throw new Error('answered 503');
     };
     await expect(unborn(entries, { ask: down })).rejects.toThrow(/answered 503/);
+  });
+
+  describe('asking the registry', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    const answering = (status: number) => {
+      const asked: string[] = [];
+      vi.stubGlobal('fetch', async (at: string) => {
+        asked.push(at);
+        return new Response(null, { status });
+      });
+      return asked;
+    };
+
+    it('asks for one version, or for the name at all', async () => {
+      const asked = answering(200);
+      expect(await onRegistry('@variance-authority/core', '1.2.3')).toBe(true);
+      expect(await onRegistry('@variance-authority/core')).toBe(true);
+      expect(asked).toEqual([
+        'https://registry.npmjs.org/@variance-authority%2fcore/1.2.3',
+        'https://registry.npmjs.org/@variance-authority%2fcore',
+      ]);
+    });
+
+    it('reads a 404 as not held, and refuses any other answer', async () => {
+      answering(404);
+      expect(await onRegistry('brand-new')).toBe(false);
+      answering(503);
+      await expect(onRegistry('brand-new')).rejects.toThrow(/answered 503/);
+    });
   });
 
   it('refuses a version the packages disagree on', () => {

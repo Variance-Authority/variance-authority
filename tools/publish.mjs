@@ -22,12 +22,19 @@
 //
 //   yarn changeset pack --out-dir <dir>
 //   node tools/publish.mjs <dir>
+//
+// A name npm has never held is the exception, because the workflow cannot
+// create one: npm adds a trusted publisher only to a package that exists. A
+// person creates it once, logged in to npm, and the release refuses until then:
+//
+//   node tools/publish.mjs --placeholders
 
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { onRegistry } from './released.mjs';
+import { onRegistry, publishable, unborn } from './released.mjs';
 
 /** How many `npm publish` run at once. */
 export const PARALLEL = 10;
@@ -112,7 +119,60 @@ export async function publish(dir, run = { registry: onRegistry, npm }) {
   return failed;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+/**
+ * Creates each name npm has never held, and trusts the release workflow with it.
+ *
+ * What is published is a manifest at `0.0.0-placeholder.0`, a version no
+ * release carries, under the `placeholder` tag. The real version is the
+ * workflow's to publish: signed, which npm does only from CI, and after the
+ * siblings it depends on, which a hand publish of it would precede. A manifest
+ * needs no build, so a platform package is created from any machine. Then the
+ * trusted publisher, which names this repository, `release.yml` and the `npm`
+ * environment, as ADR-0060 has it. The first name that fails stops the rest.
+ * `npm` is handed in by a test.
+ */
+export async function placeholders(names, run = { npm: byHand }) {
+  const created = [];
+  for (const name of names) {
+    const dir = mkdtempSync(join(tmpdir(), 'placeholder-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), `${JSON.stringify({ name, version: '0.0.0-placeholder.0' }, null, 2)}\n`);
+      await run.npm(['publish', dir, '--access', 'public', '--tag', 'placeholder']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    await run.npm([
+      'trust',
+      'github',
+      name,
+      '--file',
+      'release.yml',
+      '--repo',
+      'Variance-Authority/variance-authority',
+      '--env',
+      'npm',
+      '--allow-publish',
+      '--yes',
+    ]);
+    created.push(name);
+  }
+  return created;
+}
+
+/** `npm` at a person's terminal, which may ask for a second factor. */
+function byHand(args) {
+  return new Promise((done, refuse) => {
+    const child = spawn('npm', args, { stdio: 'inherit' });
+    child.on('error', refuse);
+    child.on('close', (code) => (code === 0 ? done() : refuse(new Error(`npm ${args.join(' ')} exited ${code}`))));
+  });
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href && process.argv[2] === '--placeholders') {
+  const names = (await unborn(publishable())).map((entry) => entry.name);
+  if (names.length === 0) console.log('npm holds every name; nothing to create.');
+  for (const name of await placeholders(names)) console.log(`created ${name} and trusted release.yml with it`);
+} else if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const dir = process.argv[2];
   if (!dir) throw new Error('usage: node tools/publish.mjs <the directory `changeset pack --out-dir` wrote>');
   const failed = await publish(dir);

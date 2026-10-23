@@ -116,25 +116,16 @@ export async function waiting(cwd = ROOT) {
  * all thirty-eight — while `/<name>/<version>` answered immediately. Asking the
  * cheaper question would make this check flap on exactly the release it exists
  * to watch.
+ *
+ * With no version, whether the registry holds the name at all, which only the
+ * packument answers, abbreviated. It lags the same way, so a name created
+ * minutes ago can still read as never held: the refusal it feeds is pressed
+ * again, not worked around.
  */
 export async function onRegistry(name, version) {
-  const at = `https://registry.npmjs.org/${name.replace('/', '%2f')}/${version}`;
-  const answer = await fetch(at, { headers: { accept: 'application/json' } });
-  if (answer.status === 200) return true;
-  if (answer.status === 404) return false;
-  throw new Error(`${at} answered ${answer.status}`);
-}
-
-/**
- * Whether the registry has ever held a name, at any version.
- *
- * The abbreviated packument, the document a package manager installs from, so
- * the answer is the registry's and not a page's. A 404 is a name nobody has
- * published.
- */
-export async function named(name) {
-  const at = `https://registry.npmjs.org/${name.replace('/', '%2f')}`;
-  const answer = await fetch(at, { headers: { accept: 'application/vnd.npm.install-v1+json' } });
+  const at = `https://registry.npmjs.org/${name.replace('/', '%2f')}${version === undefined ? '' : `/${version}`}`;
+  const accept = version === undefined ? 'application/vnd.npm.install-v1+json' : 'application/json';
+  const answer = await fetch(at, { headers: { accept } });
   if (answer.status === 200) return true;
   if (answer.status === 404) return false;
   throw new Error(`${at} answered ${answer.status}`);
@@ -151,7 +142,7 @@ export async function named(name) {
  * registry that does not answer refuses too: what it did not say is not that
  * the name is held. `ask` is handed in by a test.
  */
-export async function unborn(packages, { ask = named } = {}) {
+export async function unborn(packages, { ask = onRegistry } = {}) {
   const held = await Promise.all(packages.map((entry) => ask(entry.name)));
   return packages.filter((_, at) => !held[at]);
 }
@@ -232,17 +223,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error(`npm has never held ${unpublished.length === 1 ? 'this package' : 'these packages'}, and the workflow cannot create one:`);
       for (const entry of unpublished) console.error(`  ${entry.name}`);
       console.error(`
-Publish each once from your machine, on main as it is now, logged in to npm:
+Create ${unpublished.length === 1 ? 'it' : 'them'} once from your machine, logged in to npm, then run release again:
 
-  yarn install && yarn build
-  packed=$(mktemp -d)
-  yarn changeset pack --out-dir "$packed"
-  npm publish "$packed/<tarball>" --access public --tag <tag>
+  node tools/publish.mjs --placeholders
 
-\`packed/publish-plan.json\` names each package's tarball and tag. Then, on the
-package's page on npmjs.com, Settings → Trusted publisher → GitHub Actions:
-repository Variance-Authority/variance-authority, workflow release.yml,
-environment npm. Press release again; it skips what is already published.`);
+CONTRIBUTING.md, under Releasing, says what that publishes and why.`);
       process.exit(1);
     }
     process.exit(0);

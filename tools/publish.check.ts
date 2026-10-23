@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { npmArguments, PARALLEL, planOf, publish } from './publish.mjs';
+import { npmArguments, PARALLEL, placeholders, planOf, publish } from './publish.mjs';
 
 /**
  * What `changeset pack` packed reaches the registry through `npm publish`.
@@ -166,3 +166,53 @@ describe('publishing a packed release', () => {
     expect(sent).toEqual([join(dir, 'packages/a.tgz'), join(dir, 'packages/c.tgz')]);
   });
 });
+
+// npm adds a trusted publisher only to a package that exists, so a new name is
+// created by hand, once. What is created is a manifest at a version no release
+// carries: the real version still ships from the workflow, signed, after the
+// siblings it depends on, and creating it needs no build and no platform's
+// binary.
+describe('creating a name npm has never held', () => {
+  it('publishes a placeholder of each new name, then trusts the release workflow with it', async () => {
+    const ran: string[][] = [];
+    let manifest: unknown;
+    const created = await placeholders(['brand-new'], {
+      npm: async (args: readonly string[]) => {
+        ran.push([...args]);
+        if (args[0] === 'publish') manifest = JSON.parse(readFileSync(join(String(args[1]), 'package.json'), 'utf8'));
+      },
+    });
+    expect(created).toEqual(['brand-new']);
+    const [published, trusted] = ran;
+    expect(published?.slice(0, 1)).toEqual(['publish']);
+    expect(published?.slice(2)).toEqual(['--access', 'public', '--tag', 'placeholder']);
+    expect(manifest).toMatchObject({ name: 'brand-new', version: '0.0.0-placeholder.0' });
+    expect(trusted).toEqual([
+      'trust',
+      'github',
+      'brand-new',
+      '--file',
+      'release.yml',
+      '--repo',
+      'Variance-Authority/variance-authority',
+      '--env',
+      'npm',
+      '--allow-publish',
+      '--yes',
+    ]);
+  });
+
+  it('stops at the first name that fails, and trusts nothing it did not create', async () => {
+    const ran: string[][] = [];
+    await expect(
+      placeholders(['a', 'b'], {
+        npm: async (args: readonly string[]) => {
+          ran.push([...args]);
+          if (args[0] === 'publish') throw new Error('npm publish exited 1');
+        },
+      }),
+    ).rejects.toThrow(/exited 1/);
+    expect(ran.map((args) => args[0])).toEqual(['publish']);
+  });
+});
+
