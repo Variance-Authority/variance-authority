@@ -102,7 +102,7 @@ describe('what it may never do', () => {
     expect(ask({ query: 'meesure', from: 'packages/beta/src/again.ts' })).toContain('measure');
   });
 
-  it('says a miss inside an area is a fact about the area, even when the nearest in reach follow', () => {
+  it('keeps the way to widen when a miss inside an area has the nearest in reach to show', () => {
     // The text may be written outside the start point's reach, so the nearest
     // names in reach do not replace the way to widen.
     const text = ask({ query: 'meesure', from: 'packages/beta/src/again.ts' });

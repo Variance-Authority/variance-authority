@@ -114,6 +114,7 @@ describe('which names the described section holds, and in what order', () => {
       'src/state.ts': '/** What a store manages for a key. */\nexport const stateOf = (key: string): string => key;\n',
       'src/cache.ts': 'export const cacheEntries: readonly string[] = [];\n',
       'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',
+      'src/tint.ts': 'export const tint = 1;\n\n/** Picks the palette for a key. */\nfunction pickFor(key: string): string {\n  return key;\n}\n',
     });
     return answerSearch(searchIndexOf(readHelp(root)), { query }, treeOf([], root), root);
   };
@@ -138,6 +139,14 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/cacheEntries .*\[holds: cache\]/);
     expect(said).toContain('No name or doc in this repository writes `cache chart palette` as typed. The nearest follow.');
     expect(said).not.toContain('Nothing in this repository');
+  });
+
+  it('answers a file and a declaration no export binds by one word of three, as it answers an exported name', async () => {
+    // Both are read from the source index, not the search index: `src/cache.ts`
+    // by its own name, `pickFor` by its doc.
+    const said = await ask('cache chart palette');
+    expect(said).toMatch(/src\/cache\.ts \[file\].*\[holds: cache\]/);
+    expect(said).toMatch(/pickFor .*\[holds: palette\]/);
   });
 
   it('puts the name holding more of the words in its name first', async () => {

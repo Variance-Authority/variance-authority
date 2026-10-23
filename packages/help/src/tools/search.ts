@@ -61,7 +61,7 @@ import { searched, searchedFiles } from './search-answer.js';
  * position, because a caller who can see why a name is in a list can check it,
  * and a caller reading a rank has to trust it.
  *
- * ## A description, read the way a package's is
+ * ## A description, stemmed the way a package's is
  *
  * An agent that cannot name the thing describes it, and a description holds
  * words the name does not: `which tests entered a file`. Beside the loose pass
