@@ -76,7 +76,9 @@ import { searched, searchedFiles } from './search-answer.js';
  * a caller can check `[holds: file, tests]`, and could not check a score.
  * Between two that hold as many, the one whose name holds more of them comes
  * first, then the one whose doc writes more of the question's adjacent word
- * pairs adjacent. It prints first, so a name holding at least half the stems
+ * pairs adjacent. Every word one of them holds is held by a row shown, so a name
+ * holding the one rare word is shown however many holding a common one sort
+ * before it. It prints first, so a name holding at least half the stems
  * is not offered again by the loose pass. A name holding fewer is the loose
  * pass's when that pass reaches it, by every word, so a long list of names
  * holding one stem cannot sort it past the rows shown.
@@ -242,12 +244,14 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     // A miss of the text is not a miss of the code: when this repository's own
     // names answer the words, the line above them says only that the text was
     // not written, so a reader who stops at the first line does not stop at *nothing*.
+    // It names what the substring read, names and their docs: the doc a file
+    // opens with is read only for the words, so a file may still write the phrase.
     // Inside an area the text may be written outside it, so the way to widen stays.
     const nowhere =
       own.length > 0
         ? area === undefined
-          ? `No name or doc in this repository writes \`${query}\` as typed. The nearest follow.`
-          : `No name or doc in reach of that start point writes \`${query}\` as typed — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
+          ? `No name in this repository, nor the doc of one, writes \`${query}\` as typed. The nearest follow.`
+          : `No name in reach of that start point, nor the doc of one, writes \`${query}\` as typed — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
         : area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;

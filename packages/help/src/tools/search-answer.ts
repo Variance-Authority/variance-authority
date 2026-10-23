@@ -6,7 +6,7 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms, termsOfStems } from './loose.js';
-import { describedDeclarations, describedNames, describedOrder, fileMatch, type Described } from './described.js';
+import { describedDeclarations, describedNames, describedShown, fileMatch, type Reached } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches } from './declared.js';
@@ -386,7 +386,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // word reaches it there, since every word one character off says more than
   // one stem of three: held on its one stem, it would sort past the rows shown.
   const strong = Math.ceil(describedWordsNative(query).length / 2);
-  const held = (one: Described): boolean => one.words.length >= strong;
+  const held = (one: Reached): boolean => one.words.length >= strong;
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
@@ -405,7 +405,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
   const keptHere = new Set(kept.map(declaredKey));
   const left = described?.filter((one) => ('match' in one ? !keptHere.has(declaredKey(one.match)) : 'file' in one || !loose.has(one.name)));
-  const told = left === undefined ? undefined : first(left, DESCRIBED_CAP, describedOrder)
+  const told = left === undefined ? undefined : describedShown(index, query, left, DESCRIBED_CAP)
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...one.match, words: one.words }];
       if ('file' in one) return [{ ...fileMatch(root, one.file), words: one.words }];

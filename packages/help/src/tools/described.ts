@@ -45,6 +45,12 @@ import { admittedBy, termsOfStems } from './loose.js';
  * holds none of it is usually saying what the name is used with. The phrase —
  * term proximity, counted as the pairs it shares — settles what the name
  * leaves level.
+ *
+ * The rows shown hold every word anything reached holds: the best holder of a
+ * word no better row holds is shown in place of the last row, so `mermaid
+ * chart palette` shows the one name holding `mermaid` however many names
+ * holding `chart` sort before it. The phrase is counted only for a name that
+ * can be shown, since a doc is decoded to count it.
  */
 
 /** What a reached name is ordered on. */
@@ -80,6 +86,12 @@ export interface DescribedFileHit extends DescribedKey {
 /** What a description reached, of any kind. */
 export type Described = DescribedName | DescribedDeclaration | DescribedFileHit;
 
+/** A name of the search index the description reached, before its doc is read for the phrase. */
+export type ReachedName = Omit<DescribedName, 'near'>;
+
+/** What a description reached, a name's phrase not yet counted. */
+export type Reached = ReachedName | DescribedDeclaration | DescribedFileHit;
+
 /**
  * Names holding any of the description's distinct stems, unordered;
  * `undefined` when the question has no word to describe — every word short or
@@ -94,7 +106,7 @@ export function describedNames(
   query: string,
   within: ReadonlySet<number> | undefined,
   already: ReadonlySet<number>,
-): readonly DescribedName[] | undefined {
+): readonly ReachedName[] | undefined {
   const asked = describedWordsNative(query);
   if (asked.length === 0) return undefined;
 
@@ -148,21 +160,63 @@ export function describedNames(
     held.set(name, best);
   }
 
-  const reached = [...held];
-  // One word has no pair to write adjacent, so no doc is decoded for it.
-  const near = asked.length > 1 ? nearOfNative(query, reached.map(([name]) => docAbout(index, name, through.get(name)) ?? '')) : [];
-  return reached.map(([name, positions], at): DescribedName => {
+  return [...held].map(([name, positions]): ReachedName => {
     const row = through.get(name);
     return {
       name,
       ...(row === undefined ? {} : { through: row }),
       words: asked.filter((_, position) => positions.has(position)).map(([, word]) => word),
-      near: near[at] ?? 0,
       named: named.get(name)?.size ?? 0,
       rows: index.publishedOf(name).length + index.exportedOf(name).length,
       rank: index.rank(name),
     };
   });
+}
+
+/**
+ * The `count` rows of `reached` to show, best first by {@link describedOrder}:
+ * the best of them, but a word anything reached holds is held by one of them,
+ * its best holder taking the place of the last row a better one did not need.
+ *
+ * Words held and words in the name order a row before its phrase does, so a
+ * name's doc is decoded for the phrase only when the name is level on both
+ * with a row that can be shown: in a level the rows above leave room in, or
+ * the best level among a word's holders.
+ */
+export function describedShown(index: SearchIndex, query: string, reached: readonly Reached[], count: number): readonly Described[] {
+  const words = describedWordsNative(query).map(([, word]) => word);
+  const level = (a: Reached, b: Reached): number => b.words.length - a.words.length || b.named - a.named;
+  const levels = [...reached].sort(level);
+
+  const read = new Set<Reached>();
+  for (let at = 0; at < levels.length && at < count; ) {
+    const from = at;
+    while (at < levels.length && level(levels[from] as Reached, levels[at] as Reached) === 0) read.add(levels[at++] as Reached);
+  }
+  for (const word of words) {
+    const best = levels.find((one) => one.words.includes(word));
+    if (best === undefined) continue;
+    for (const one of levels) if (level(best, one) === 0 && one.words.includes(word)) read.add(one);
+  }
+
+  const names = [...read].filter((one): one is ReachedName => !('near' in one));
+  // One word has no pair to write adjacent, so no doc is decoded for it.
+  const near = words.length > 1 ? nearOfNative(query, names.map((one) => docAbout(index, one.name, one.through) ?? '')) : [];
+  const counted = new Map(names.map((one, at) => [one, near[at] ?? 0]));
+  const weighed = [...read].map((one): Described => ('near' in one ? one : { ...one, near: counted.get(one) ?? 0 })).sort(describedOrder);
+
+  const shown = weighed.slice(0, count);
+  for (const word of words) {
+    if (shown.some((one) => one.words.includes(word))) continue;
+    const holder = weighed.find((one) => one.words.includes(word));
+    // The last row whose every word another row shown also holds gives its place.
+    let gives = shown.length - 1;
+    while (gives >= 0 && !(shown[gives] as Described).words.every((held) => shown.some((other, at) => at !== gives && other.words.includes(held)))) gives -= 1;
+    if (holder === undefined || gives < 0) continue;
+    shown.splice(gives, 1);
+    shown.push(holder);
+  }
+  return shown.sort(describedOrder);
 }
 
 /** The doc a reached name is shown with: the row it was reached through, else its first published or exported row's. */

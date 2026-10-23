@@ -137,8 +137,19 @@ describe('which names the described section holds, and in what order', () => {
     // No name holds two of `cache`, `chart` and `palette`; `cacheEntries` holds one.
     const said = await ask('cache chart palette');
     expect(said).toMatch(/cacheEntries .*\[holds: cache\]/);
-    expect(said).toContain('No name or doc in this repository writes `cache chart palette` as typed. The nearest follow.');
+    expect(said).toContain('No name in this repository, nor the doc of one, writes `cache chart palette` as typed. The nearest follow.');
     expect(said).not.toContain('Nothing in this repository');
+  });
+
+  it('says no name or a name\'s doc writes the words, not that no doc does, when only a file\'s opening doc writes them', async () => {
+    // The substring reads names and their docs, and not the doc a file opens with.
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/frogs.ts': '/**\n * Where painted frogs dance.\n */\n\n/** One. */\nexport const pond = 1;\n',
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'painted frogs dance' }, treeOf([], root), root);
+    expect(said).toMatch(/src\/frogs\.ts \[file\].*\[holds: dance, frogs, painted\]/u);
+    expect(said).toContain('No name in this repository, nor the doc of one, writes `painted frogs dance` as typed. The nearest follow.');
+    expect(said).not.toContain('No name or doc');
   });
 
   it('answers a file and a declaration no export binds by one word of three, as it answers an exported name', async () => {
@@ -202,6 +213,30 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/cacheMagazineEntries .*\[holds: cache, magazine\]/u);
     expect(said.indexOf('cacheMagazineEntries')).toBeLessThan(said.indexOf('cacheAt0'));
     expect(said).not.toMatch(/(?:name matches|names match) loosely/u);
+  });
+
+  it('shows a name holding the one word nothing shown holds, past more names holding another word than the section shows', async () => {
+    // Every `chartAt<n>` holds `chart` in its name, so all of them sort before
+    // `diagram`, which holds `mermaid` in its doc alone.
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/charts.ts': Array.from({ length: 16 }, (_, at) => `export const chartAt${at} = ${at};\n`).join(''),
+      'src/diagram.ts': '/** Draws a mermaid diagram. */\nexport const diagram = 1;\n',
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'mermaid chart palette' }, treeOf([], root), root);
+    expect(said).toMatch(/^diagram .*\[holds: mermaid\]/mu);
+    expect(said.search(/^diagram /mu)).toBeGreaterThan(said.search(/^chartAt0 /mu));
+    expect(said).toMatch(/more not shown/u);
+  });
+
+  it('reads the phrase of every name level with the last row shown, so the one writing it is shown first', async () => {
+    // All twenty docs hold the three words; only `keptAt19`'s writes `cache entries` adjacent.
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/kept.ts': Array.from({ length: 20 }, (_, at) =>
+        `/** ${at === 19 ? 'Cache entries kept for each sweep.' : 'Sweeps the entries kept in a cache.'} */\nexport const keptAt${at} = ${at};\n`,
+      ).join('\n'),
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entries sweep' }, treeOf([], root), root);
+    expect(said.split('\n').find((line) => line.startsWith('keptAt'))).toMatch(/^keptAt19 /u);
   });
 
   it('puts the name holding more of the words in its name first', async () => {
