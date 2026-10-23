@@ -61,7 +61,7 @@ import { walkImporters } from './importer-walk.js';
 import { importedAsAsset } from './importers.js';
 import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findModules, findTest } from './lookup.js';
-import { applied, hunksFor, hunksOf } from './patch.js';
+import { applied, hunksOf } from './patch.js';
 import type { SelectionReason } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
@@ -212,8 +212,6 @@ export function readRowless(
   context: ReadingContext,
   file: string,
 ): { readonly reading: FileReading; readonly charged: boolean } | undefined {
-  // No hunks, no text arrived at: the walk over its importers answers it.
-  if (hunksFor(context.hunks, file) === undefined) return undefined;
   const subject = rowlessSubject(context, file);
   if (subject === undefined || 'unread' in subject) return subject && { reading: subject, charged: false };
   const { coverage } = context;

@@ -3238,6 +3238,7 @@
         "casesCutApart": "function",
         "changeOfDiff": "function",
         "changeOfFiles": "function",
+        "changeOfPaths": "function",
         "changedLines": "function",
         "collectedRecord": "function",
         "combineRecords": "function",

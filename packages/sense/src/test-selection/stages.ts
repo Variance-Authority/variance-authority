@@ -175,7 +175,8 @@ export function chargeMeasured(
  * left. Whether it charged anything is returned.
  */
 export function readUnmeasured(run: Run, file: string, lines: readonly unknown[]): boolean {
-  const read = lines.length === 0 ? undefined : readRowless(run, file);
+  // Lines with no hunks arrive at no text to read: the walk over its importers answers it.
+  const read = lines.length === 0 || hunksFor(run.hunks, file) === undefined ? undefined : readRowless(run, file);
   if (read !== undefined) run.readings.push(read.reading);
   if (read?.charged !== true) return false;
   for (const name of run.knownAs(file)) run.rowed.add(name);
