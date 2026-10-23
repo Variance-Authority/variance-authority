@@ -326,15 +326,8 @@ describe('against a real git', () => {
     }
   });
 
-  it.todo(
-    'a committed baseline is a pointer in the object database and a whole PNG in the working tree — needs git-lfs installed and `git lfs install` run in the temporary repository above',
-  );
-
-  it.todo(
-    'a checkout made with GIT_LFS_SKIP_SMUDGE=1 hands `find` a pointer this file did not write by hand, and the refusal fires on that one — needs git-lfs installed, since every pointer here is a string literal the filter never produced',
-  );
-
-  it.todo(
-    'bytes put through the clean filter and read back through smudge are the bytes that went in — needs git-lfs installed, and it is spec 0018 assertion 4',
-  );
+  // What git-lfs itself does to these files — the clean filter, a pointer in the
+  // object database, a clone that skipped the smudge, the bytes coming back — is
+  // asked of a real git-lfs by the `lfs` job of `.github/workflows/variance.yml`,
+  // on this repository's pull requests, where `variance doctor` is asserted too.
 });

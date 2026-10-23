@@ -220,9 +220,11 @@ inputs:
     default: 'false'
 
 outputs:
+  # The doctor step writes `exit-code` only when it refuses, so a run step it
+  # skipped leaves the run's answer empty and the doctor's 2 is the one read.
   exit-code:
     description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
-    value: ${{ steps.run.outputs.exit-code }}
+    value: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
   report:
     description: 'Absolute path to the run report, resolved from the config.'
     value: ${{ steps.carry.outputs.report }}
@@ -269,6 +271,31 @@ runs:
         path: ${{ steps.carry.outputs.baselines-path }}
         key: ${{ steps.carry.outputs.baselines-key }}
         restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
+
+    # Before anything compares, because the run meets an LFS pointer only at a
+    # subject whose document moved: one that did not is settled from its `.json`
+    # sidecar without its image being read, so a checkout that skipped the LFS
+    # fetch would pass green until somebody edits a component. `--baselines`
+    # reads the store's first bytes and nothing else, no browser and no font, and
+    # exits 2 on a pointer; this step then fails, every step that compares or
+    # writes is skipped, and the verdict reports 2. Only for a store in the
+    # checkout: a remote store and ephemeral retention keep nothing here.
+    - id: doctor
+      if: ${{ steps.carry.outputs.baselines-root != '' }}
+      name: refuse a checkout of LFS pointers
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+      run: |
+        set -uo pipefail
+        # shellcheck disable=SC2086
+        if $VARIANCE_COMMAND doctor --config "$VARIANCE_CONFIG" --baselines; then exit 0; else code=$?; fi
+        # Any refusal here means the run did not happen, so the verdict reads 2
+        # whatever doctor exited with; a crash must not read as "changes".
+        echo "exit-code=2" >> "$GITHUB_OUTPUT"
+        exit "$code"
 
     # `--exit-zero-on-changes` because this run is not asking: the person has
     # already decided. It suppresses 1 and never 2, so a run whose browser did
@@ -640,7 +667,7 @@ runs:
       if: ${{ always() }}
       shell: bash
       env:
-        CODE: ${{ steps.run.outputs.exit-code }}
+        CODE: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
         KEPT: ${{ steps.saved.outcome == 'success' }}
         EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes }}
         REPORT: ${{ steps.carry.outputs.report }}
@@ -688,7 +715,7 @@ runs:
           2)
             # Not a finding about the change: no verdict was reached and no
             # subject was observed.
-            echo "::error::variance could not run (exit 2); see the variance run step."
+            echo "::error::variance could not run (exit 2); see the doctor or the variance run step above."
             exit 2
             ;;
           '')

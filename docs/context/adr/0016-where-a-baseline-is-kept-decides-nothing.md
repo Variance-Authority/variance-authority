@@ -87,15 +87,23 @@ the one that drifts is the one that accepts a record the other refuses.
 `describe` reads the `.json` sidecar, which is deliberately outside the tracked
 glob and is therefore real text on every clone. On a broken checkout a run where
 nothing changed passes green without discovering that the tree holds pointers;
-the operator finds out on the first subject that moves, or from
-`tracking.diagnostics` at open. Reading the head of every PNG to say so earlier
-would spend the lookup that method exists to avoid, on every subject, to report a
-condition already reported elsewhere.
+the operator finds out on the first subject that moves, from
+`tracking.diagnostics` at open, or from `variance doctor`, which reads the head of every image once and exits 2 on a
+pointer. Reading it on every run would spend the lookup that method exists to
+avoid, on every subject, to report a condition doctor already reports. The
+composite action asks `variance doctor --baselines`, the store half alone with
+no browser opened, before every run over a store in the checkout, so a job that
+uses the action stops on such a checkout instead of passing. The
+signature is the store's (`isLfsPointer`), not the codec's: the store knows which
+backend can hand back a pointer, and doctor asks the same function the store
+refuses with.
 
-**git-LFS has never been exercised as git-LFS.** `check-attr` resolves the entry
-to the `lfs` filter against a real git — that much is tested — but no clean or
-smudge filter has ever run, because nothing here commits a baseline. The tracking
-is verified; the transport is not.
+**git-LFS is exercised as git-LFS.** The `lfs` job of `variance.yml` keeps the
+case's baselines in git-LFS on this repository's own pull requests: its label
+commits them back to the contributor's branch through the composite action and
+the real clean filter. Once a branch holds them, every run asserts that
+`doctor --baselines` exits 2 on the checkout before git-lfs is installed, then
+fetches the objects and checks each against the digest its pointer names.
 
 **The render cache lands under the baseline root by default, and is therefore
 committed.** That is the correct behaviour rather than an oversight: it is what

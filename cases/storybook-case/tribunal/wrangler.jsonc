@@ -1,0 +1,27 @@
+{
+  // The review service `variance.tribunal.config.json` pushes to, deployed by
+  // `variance.yml`'s `tribunal-service` job on every run that has the
+  // Cloudflare token. The same descriptor an adopter writes, from
+  // `packages/tribunal/README.md`, with two differences: `main` imports the
+  // workspace's build, and `migrations_dir` reads the workspace's migrations
+  // through the link the install made, as an adopter's reads them from the
+  // package they installed.
+  "$schema": "https://developers.cloudflare.com/schemas/wrangler.json",
+  "name": "variance-tribunal-ci",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-08-05",
+  // Named, because a login that can see several accounts makes wrangler ask, and
+  // CI cannot answer. Account-scoped and not a secret, nor is `database_id`.
+  "account_id": "6dcc9521c43dfae93157e550f4d7aab3",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "variance-tribunal-ci",
+      "database_id": "ea1ddf69-dc5c-43df-a3dc-8858ea04c264",
+      "migrations_dir": "../../../node_modules/@variance-authority/tribunal/migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "variance-tribunal-ci" }],
+  "vars": { "PROJECT": "storybook-case-tribunal" }
+}

@@ -53,6 +53,7 @@ export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
  */
 export const BOOLEAN = new Set([
   '--all',
+  '--baselines',
   '--marker',
   '--flakes',
   '--publish',
