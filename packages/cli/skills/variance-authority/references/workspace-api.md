@@ -400,12 +400,14 @@ matches installed third-party declarations from the same lexicon, which is
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names and files holding at least half of your words
+follow an empty answer — names and files holding any of your words
 by stem, in any order, in the name or its doc, whether published, exported,
 declared and not exported, or a file by its name and the doc it opens with, the
 ones holding the most of your words first, then the ones holding more of them
-in the name, then the ones whose doc writes your phrase; then names your words
-reach loosely, exported or not — are
+in the name, then the ones whose doc writes your phrase, every word any of
+them holds held by a row shown; then names your words
+reach loosely, exported or not, which takes a name holding fewer than half your
+words when it reaches it by every one — are
 suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as

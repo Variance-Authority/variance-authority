@@ -83,7 +83,7 @@ pub struct Declared {
     /// its reader did not harvest: unknown, not empty. Code-unit order.
     pub unread: Vec<String>,
     /// Asked by [`Matching::Described`]: the files whose name and module doc
-    /// hold enough of the question, by file in code units; empty otherwise.
+    /// hold any of the question, by file in code units; empty otherwise.
     pub files: Vec<DescribedFile>,
 }
 
@@ -98,10 +98,10 @@ pub(crate) enum Matching {
     /// the doc comment above it does, read as prose.
     Containing,
     /// The words of the name and of its doc, cut into stems as the dependency
-    /// lexicon cuts a package's words, hold at least `needed` of `stems` — the
-    /// question's — in any order and with any words between them.
+    /// lexicon cuts a package's words, hold any of `stems` — the question's —
+    /// in any order and with any words between them.
     /// `query` is the question as written, which [`near`] reads for its phrase.
-    Described { stems: Vec<String>, needed: usize, query: String },
+    Described { stems: Vec<String>, query: String },
     /// The name's search terms, cut as the search index cuts an exported
     /// name, hold one of every group: the terms the loose pass let each word of
     /// the question stand for.
@@ -207,13 +207,13 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
             let mut source: Option<Option<Vec<u16>>> = None;
             let file = match &matching {
-                Matching::Described { stems, needed, query } => {
+                Matching::Described { stems, query } => {
                     let in_name = held_in(stems, file_name(crossing.file));
                     let doc = parses.doc_of_module(row)
                         .and_then(|span| source_of(&mut source, root, crossing.file).and_then(|source| prose(source, span.start, span.end)));
                     let mut held = in_name.clone();
                     if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
-                    (held.len() >= *needed).then(|| {
+                    (!held.is_empty()).then(|| {
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
                         (layer, crossing.file, row, (held.into_iter().collect(), in_name.len() as u32, near))
                     })
@@ -246,12 +246,12 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                         if !groups.iter().all(|group| group.iter().any(|term| terms.contains(term))) { continue }
                         None
                     }
-                    Matching::Described { stems, needed, query } => {
+                    Matching::Described { stems, query } => {
                         let in_name = held_in(stems, name);
                         let doc = doc();
                         let mut held = in_name.clone();
                         if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
-                        if held.len() < *needed { continue }
+                        if held.is_empty() { continue }
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
                         Some((held.into_iter().collect(), in_name.len() as u32, near))
                     }
