@@ -78,8 +78,6 @@ yarn workspace @variance-authority/case-storybook storybook
 | `collector/index.mjs` | the case's collector: which story defers readiness and by what marker, which story is about its own loading state, and where the components live |
 | `variance.config.json` | project, viewport, fonts, baselines, and `excludeTags: ["no-variance", "ticking"]` |
 | `variance.lfs.config.json` | the same subjects, with baselines committed under `baselines/` through git-LFS; run by the `lfs` job of `.github/workflows/variance.yml` |
-| `variance.tribunal.config.json` | the same subjects, with baselines and builds on the review service below; run by its `tribunal-service` job |
-| `tribunal/` | the review service that job deploys to workers.dev: a `wrangler.jsonc` and a one-line Worker over the workspace's build |
 | `.storybook/` | the build every suite but one reads |
 | `.storybook-a11y/` | a second build with `@storybook/addon-a11y` installed |
 | `src/storybook.chromium.test.js` | the adapter against the real index and preview |

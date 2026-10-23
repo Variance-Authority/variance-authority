@@ -1,5 +1,5 @@
 {
-  "documentDigest": "v1:1660d61cc8ff957903c3b53decc0ed27",
+  "documentDigest": "v1:63aec4c27680888d7f8905dacd09390e",
   "identity": {
     "renderer": "playwright-chromium",
     "engine": "chromium@151.0.7922.34",
@@ -9,7 +9,7 @@
       "ui-sans-serif/400/normal/sha256-case-system-stack"
     ],
     "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
-    "rasterization": "v1:330fe135bbab91e3e5de647c260709ee"
+    "rasterization": "v1:66ea57e507094ae95afd1ad467e8cc84"
   },
   "width": 342,
   "height": 179,
