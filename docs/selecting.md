@@ -496,9 +496,9 @@ where a test imports a file without loading it, and a runner such as Vitest or
 Jest loads every static import. On most codebases the two steps run the same
 tests, and the size of both answers depends on your imports, not on the
 selector. A module that an index file re-exports is loaded by every test that
-imports the index, and `file-use` counts each of those tests as a user of it. `symbol` narrows `file`
-to the exports a change altered, but a test that loaded the file still runs,
-so it ties with `file` wherever imports load.
+imports the index, and `file-use` counts each of those tests as a user of it.
+`symbol` narrows `file` to the exports a change altered, but a test that loaded
+the file still runs, so it ties with `file` wherever imports load.
 
 In [TanStack
 Query](selection-tanstack-query.md#what-the-index-costs-file-use), `query-core`'s
