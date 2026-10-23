@@ -140,6 +140,22 @@ export function placeholdersCommand(names) {
 }
 
 /**
+ * The names a person asked to create, refused whole if one is not a package
+ * this repository publishes: a published name cannot be taken back, so a typo
+ * or a stray flag must never reach npm.
+ */
+export function askedFor(asked, packages) {
+  const known = new Set(packages.map((entry) => entry.name));
+  const unknown = asked.filter((name) => !known.has(name));
+  if (unknown.length > 0) {
+    throw new Error(
+      `not a package this repository publishes: ${unknown.join(', ')}\nthe packages are:\n${[...known].map((name) => `  ${name}`).join('\n')}`,
+    );
+  }
+  return asked;
+}
+
+/**
  * Creates each name, and trusts the release workflow with it.
  *
  * What is published is a manifest at `0.0.0-placeholder.0`, a version no
@@ -205,7 +221,13 @@ function byHand(args) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href && process.argv[2] === '--placeholders') {
   const asked = process.argv.slice(3);
-  const names = asked.length > 0 ? asked : (await unborn(publishable())).map((entry) => entry.name);
+  let names;
+  try {
+    names = asked.length > 0 ? askedFor(asked, publishable()) : (await unborn(publishable())).map((entry) => entry.name);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
   if (names.length === 0) console.log('npm holds every name; nothing to create.');
   try {
     for (const name of await placeholders(names)) console.log(`created ${name} and trusted release.yml with it`);

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { npmArguments, PARALLEL, placeholders, planOf, publish, untrusted } from './publish.mjs';
+import { askedFor, npmArguments, PARALLEL, placeholders, planOf, publish, untrusted } from './publish.mjs';
 
 /**
  * What `changeset pack` packed reaches the registry through `npm publish`.
@@ -236,6 +236,13 @@ describe('creating a name npm has never held', () => {
       `publish ${ran[1]?.[1]} --access`,
       'trust github staged',
     ]);
+  });
+
+  it('refuses a name this repository does not publish, or a flag, before anything reaches npm', () => {
+    const packages = [{ name: '@variance-authority/isolator' }];
+    expect(askedFor(['@variance-authority/isolator'], packages)).toEqual(['@variance-authority/isolator']);
+    expect(() => askedFor(['isolater'], packages)).toThrow(/isolater[\s\S]*@variance-authority\/isolator/);
+    expect(() => askedFor(['--help'], packages)).toThrow(/--help/);
   });
 
   it('reads a workflow publish refused for want of a login as a name with no trusted publisher', () => {
