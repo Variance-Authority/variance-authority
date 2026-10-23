@@ -227,7 +227,7 @@ describe('which names the described section holds, and in what order', () => {
     expect(said.search(/^diagram /mu)).toBeGreaterThan(said.search(/^chartAt0 /mu));
     expect(said).toMatch(/more not shown/u);
     // Two `chartAt<n>` that sort before it are not shown, so the heading says why.
-    expect(said).toContain("then the phrase its doc writes; each word's best holder is shown however it sorts.");
+    expect(said).toContain("then the phrase its doc writes; a row holding each word is shown however it sorts.");
   });
 
   it('reads the phrase of every name level with the last row shown, so the one writing it is shown first', async () => {

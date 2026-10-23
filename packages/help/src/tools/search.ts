@@ -210,7 +210,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       : [
           '',
           `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held at all, then the words in the name, then the phrase its doc writes; each word\'s best holder is shown however it sorts.',
+            'read by stem as the packages are, best first: the words held at all, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
