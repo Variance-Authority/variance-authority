@@ -207,9 +207,9 @@ it no file is read as `load` on that account.
 `selectTestFiles` returns `entered` alone, for a caller that has established the
 second half some other way.
 
-### Ask one step alone
+### Ask one stage alone
 
-`narrowByExecution` runs every step of selection in a fixed order: it cuts the
+`narrowByExecution` runs every stage of selection in a fixed order: it cuts the
 suite's ignored files out, routes each file by whether the record measured it,
 reads the change, charges regions, reads the preconditions and walks the
 graph. A system that already knows which files moved, or a simulation over
@@ -237,11 +237,11 @@ askCoverageFile(testCoverageFile(process.cwd()), (view) =>
 );
 ```
 
-Every step answers `{ entered, because, unanswered }`. `unanswered` lists the
-files that step holds no answer for, which are the next step's question; no
-step selects more because of them.
+Every stage answers `{ entered, because, unanswered }`. `unanswered` lists the
+files that stage holds no answer for, which are the next stage's question; no
+stage selects more because of them.
 
-| Step | Asks | Answers |
+| Stage | Asks | Answers |
 |---|---|---|
 | `changeOfDiff`, `changeOfFiles` | a unified diff, or a list of paths changed whole | the `Change` every other step reads |
 | `ignoredChange` | a change and the suite's `ignore` globs | what is kept and what is ignored |
