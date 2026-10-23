@@ -92,7 +92,7 @@ export { hunksOf } from './patch.js';
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
-export { keptDigests, keptTexts, recordedOverKept } from './kept-texts.js';
+export { keptDigests, keptTexts } from './kept-texts.js';
 // A landing of shards reads the install each shard's own landing kept.
 export { shardsInstall, type KeptInstall } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a

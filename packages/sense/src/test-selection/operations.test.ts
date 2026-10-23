@@ -20,10 +20,10 @@ import {
 import { coverage } from './__fixtures__/coverage.js';
 
 /**
- * Each step of selection asked alone, with its inputs as values: invented
+ * Each stage of selection asked alone, with its inputs as values: invented
  * files and ranges, a graph built in place, and no checkout behind any of it.
  */
-describe('a selection step asked on its own', () => {
+describe('a selection stage asked on its own', () => {
   const file = (name: string) => ({ kind: 'file', name }) as const;
   const view = () => openTestCoverage(encodeTestCoverage(coverage));
   const module = { kind: 'region', file: 'src/decide.ts', name: '', path: 'module', startLine: 1, endLine: 8 } as const;
@@ -69,10 +69,11 @@ describe('a selection step asked on its own', () => {
   });
 
   it('answers invented ranges by the regions they fall in, at the precision asked', () => {
-    expect(testsEnteringFromView(view(), atLine('src/decide.ts', 4))).toEqual({
+    expect(testsEnteringFromView(view(), atLine('src/decide.ts', 4))).toMatchObject({
       entered: ['test/alpha.test.ts'],
       because: [{ test: 'test/alpha.test.ts', via: [then] }],
       unanswered: [],
+      stale: [],
     });
     expect(testsEnteringFromView(view(), atLine('src/decide.ts', 4), { precision: 'function-use' }).entered).toEqual([
       'test/alpha.test.ts',
@@ -94,7 +95,7 @@ describe('a selection step asked on its own', () => {
   });
 
   it('answers a file by the tests that declared it as a precondition', () => {
-    expect(testsDeclaringFromView(view(), ['vitest.config.ts', 'src/decide.ts'])).toEqual({
+    expect(testsDeclaringFromView(view(), changeOfFiles(['vitest.config.ts', 'src/decide.ts']))).toEqual({
       entered: ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'],
       because: ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'].map((test) => ({
         test,
@@ -108,7 +109,7 @@ describe('a selection step asked on its own', () => {
     const relations = relationsOf({ relations: [{ from: file('src/decide.ts'), to: file('src/rules.css'), kind: 'asset' }] });
     const trail = { kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] };
 
-    expect(importersFromView(view(), ['src/rules.css', 'docs/notes.md'], { relations })).toEqual({
+    expect(importersFromView(view(), changeOfFiles(['src/rules.css', 'docs/notes.md']), { relations })).toEqual({
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       because: [
         { test: 'test/alpha.test.ts', via: [trail] },

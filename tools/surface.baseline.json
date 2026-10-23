@@ -3352,7 +3352,6 @@
         "recordedCommit": "function",
         "recordedEyesAt": "function",
         "recordedEyesOf": "function",
-        "recordedOverKept": "function",
         "recordedRun": "function",
         "regionRun": "function",
         "remaining": "function",
