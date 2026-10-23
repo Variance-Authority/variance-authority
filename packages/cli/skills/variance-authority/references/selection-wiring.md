@@ -211,6 +211,20 @@ importers; one with none selects nothing and is not reported. In a suite with
 `"relations": false` the graph is not asked: an unmeasured path selects nothing
 and is reported as declined.
 
+## Ask one step without a diff
+
+`variance select` runs every step in the order above. When the files are
+already known, or invented for a simulation, call the step itself from
+`@variance-authority/sense/test-selection` over an open record:
+`testsLoadingFromView(view, paths)` for every test that loaded each path,
+`testsEnteringFromView(view, change, { precision })` for invented ranges,
+`testsDeclaringFromView` for preconditions, `importersFromView` and
+`dependsReachFromView` for the graph's walk, `readRowlessFromView` for a module
+the record never measured, and `changeOfFiles(paths)` to build the change.
+Each answers `{ entered, because, unanswered }` and reads neither git nor the
+tree; `unanswered` is the next step's question, never a reason to widen.
+`narrowByChangeFromView` composes them, and is what `narrowByExecution` runs.
+
 ## A recorded run costs memory, not time
 
 Recording changes the suite's wall-clock time very little, but every module a

@@ -431,6 +431,14 @@ A [journey](journeys.md) file you hand to `variance select --execution` is read
 by its regions, whatever the suite declares: naming the file asks for that
 reading.
 
+Each step is also a function you can call alone, with the files and lines
+handed over as values: the tests that loaded a list of paths, the tests that
+entered an invented range at `function-use`, or the importers' tests of a file
+the record never measured. A system that already knows which files moved asks
+the first without writing a diff, and a simulation asks any of them without a
+checkout. [Sense](../packages/sense/README.md#ask-one-step-alone) lists the
+steps and what each answers.
+
 ## What a skipped subject looks like
 
 It is in the report, with the sentence that skipped it:
