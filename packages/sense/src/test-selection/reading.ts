@@ -39,7 +39,8 @@
  *
  * A file the recording holds no row for — new, or never instrumented — has no
  * regions to charge, so every name it exports counts as moved and its readers
- * answer for it (`readRowless`).
+ * answer for it (`readRowless`). One that names no export, as a CommonJS
+ * module's `module.exports` does not, is left to its importers, answered whole.
  *
  * A file that could not be read is charged as it always was, and the reading
  * says why. A file in no module language — a Rust or Python file the graph
@@ -57,10 +58,11 @@ import { declaredEffects } from './effects.js';
 import { commitFrame, frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { walkImporters } from './importer-walk.js';
-import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
+import { importedAsAsset } from './importers.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
-import type { SelectionReason } from './select.js';
+import type { SelectionReason } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
 export type FileReading =
@@ -100,8 +102,10 @@ export type FileReading =
        * `addon`: no native scanner on this machine.
        * `language`: not a JavaScript or TypeScript module, the only language
        * the verdict reads.
+       * `exports`: a file with no row that names no export to follow, as a
+       * CommonJS module's `module.exports` does not: its importers answer whole.
        */
-      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language';
+      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports';
     };
 
 /** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */
@@ -226,6 +230,11 @@ export function readRowless(
   if (effects.length > 0) return { reading: { file, verdict: 'load', names: [], effects }, charged: false };
 
   const exports = [...new Set([...now.interface, ...verdict.gone])];
+  // Nothing named means no reader can be asked about it, not that nothing reads
+  // it. A test answers for itself, whatever it exports.
+  if (exports.length === 0 && names.every((name) => findTest(coverage, name) === undefined)) {
+    return { reading: { file, unread: 'exports' }, charged: false };
+  }
   readValues(context, file, frame, new Map(), { ...verdict, exports }, now);
   return { reading, charged: true };
 }

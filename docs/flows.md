@@ -117,9 +117,19 @@ Git LFS uses the same durable layout while its filter stores the image bytes:
 ```
 
 Install Git LFS on every machine that checks out or accepts baselines. The store
-maintains the `.gitattributes` tracking declaration beneath its root. A checkout
-that still contains LFS pointer text where an image belongs is refused by name,
-so an unfetched pointer reads as a setup failure rather than as a changed image.
+maintains the `.gitattributes` tracking declaration beneath its root; commit it
+with the first images. A checkout that still contains LFS pointer text where
+an image belongs is refused, naming the subject and `git lfs install && git lfs
+pull`, with exit 2, so an unfetched pointer reads as a setup failure rather than
+as a changed image. The refusal comes only at the first subject whose document
+changed since its baseline: an unchanged subject is settled from its `.json`
+sidecar without its image being read, so on such a checkout a run where nothing
+changed passes. `npx variance doctor --baselines` reads the head of every image
+in the root, opens no browser and, where git-lfs is not set up in the root's
+work tree, counts the pointers, names the first and exits 2.
+The composite action runs it before every run over a store in the checkout, so a
+job that uses the action fails on the checkout. Anywhere else, run it before the
+run.
 
 Choose this when the baseline and its reason belong in the same repository
 change as the code. Acceptance writes files into your working tree; reviewing and

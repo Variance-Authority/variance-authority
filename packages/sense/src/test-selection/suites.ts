@@ -74,6 +74,16 @@ export interface DeclaredSuite {
    */
   readonly before?: readonly string[];
   /**
+   * The changed files that move none of this suite's tests: globs from the
+   * repository root, as the diff spells paths. A unit suite renders no pixel,
+   * so a stylesheet or an image it loads reaches none of its assertions, and
+   * it ignores every `.css` and `.png` file; a `!` glob takes one back out. A
+   * matching file loses its regions, its import and asset edges and its
+   * `before`, and keeps what a test declared of it: a precondition, a
+   * `/// <depends>`. Absent ignores nothing.
+   */
+  readonly ignore?: readonly string[];
+  /**
    * Whether a changed file this suite's record did not measure is asked of the
    * import graph, which names the first tests that import it. Absent asks it.
    * `false` is a suite whose tests import none of what they exercise — an e2e
@@ -98,7 +108,7 @@ export interface DeclaredSuite {
 const SUITE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
 /** The keys one suite's declaration may hold. */
-const SUITE_KEYS: readonly string[] = ['before', 'carry', 'precision', 'kind', 'relations'];
+const SUITE_KEYS: readonly string[] = ['before', 'carry', 'ignore', 'precision', 'kind', 'relations'];
 
 /**
  * A `suites` value the declaration's rules refuse.
@@ -152,6 +162,7 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
     const before = keys === undefined ? undefined : (declared as Record<string, unknown>)['before'];
     const relations = keys === undefined ? undefined : (declared as Record<string, unknown>)['relations'];
     const precision = keys === undefined ? undefined : (declared as Record<string, unknown>)['precision'];
+    const ignore = keys === undefined ? undefined : (declared as Record<string, unknown>)['ignore'];
     if (
       keys === undefined ||
       keys.some((key) => !SUITE_KEYS.includes(key)) ||
@@ -163,7 +174,7 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
       throw new SuitesError(
         where,
         `suites.${name}`,
-        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths], "relations"?: boolean, ` +
+        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths], "ignore"?: [globs], "relations"?: boolean, ` +
           `"precision"?: ${quoted(PRECISION_STEPS)} }, ` +
           `not ${JSON.stringify(declared)}`,
       );
@@ -182,6 +193,7 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
       kind: kind as SuiteKind,
       ...(carry === undefined ? {} : { carry: carry as Carrier }),
       ...(before === undefined ? {} : { before: parseBefore(before, `suites.${name}.before`, where) }),
+      ...(ignore === undefined ? {} : { ignore: parseIgnore(ignore, `suites.${name}.ignore`, where) }),
       ...(relations === undefined ? {} : { relations: relations as boolean }),
       ...(precision === undefined ? {} : { precision: precision as Precision }),
     };
@@ -196,6 +208,17 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
 export function parseBefore(value: unknown, field: string, where: string): readonly string[] {
   if (!Array.isArray(value) || value.length === 0 || value.some((path) => typeof path !== 'string' || path === '')) {
     throw new SuitesError(where, field, `must be a non-empty list of paths, not ${JSON.stringify(value)}`);
+  }
+  return value as readonly string[];
+}
+
+/**
+ * Check an `ignore` list: globs, matched against a diff's paths. An empty list
+ * ignores nothing while looking configured, and is refused.
+ */
+function parseIgnore(value: unknown, field: string, where: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.some((glob) => typeof glob !== 'string' || glob === '')) {
+    throw new SuitesError(where, field, `must be a non-empty list of globs, not ${JSON.stringify(value)}`);
   }
   return value as readonly string[];
 }

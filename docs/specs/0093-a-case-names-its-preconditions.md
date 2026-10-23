@@ -1,9 +1,10 @@
 # Spec 0093 — a case names its preconditions
 
-**Missing:** a test case cannot say what state it arranged. A test that mocks the
-network, turns a flag on or paints the dragon green leaves no trace of it in the
-recording. The only preconditions recorded are files: a test file's own source,
-its setup and configuration, each held by digest.
+**Missing:** the dimension. `variancePrecondition` takes one record, so a name
+is one word and nothing parses `dimension:key`. `covering` reads that word on
+an axis, which this spec withdraws until spec 0102 settles it. A snapshot in
+the Vitest browser realm names no case, a case row names no snapshot, and a
+subject's coordinate is never compared with what its case said.
 **Built on:** the per-file `preconditions` in the coverage record
 (`CoveragePrecondition`, `name` and `digest`), the case scope every producer
 already enters (`CASE_SCOPE` in `@variance-authority/sense`), the case

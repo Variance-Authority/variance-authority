@@ -3,6 +3,7 @@ import { readFile, realpath } from 'node:fs/promises';
 import { relative, sep } from 'node:path';
 import { messageOf, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { ImageReader } from './durable.js';
+import { isLfsPointer } from './lfs-pointer.js';
 import type { CommandRunner } from './lfs.js';
 
 /**
@@ -20,9 +21,6 @@ import type { CommandRunner } from './lfs.js';
  * names that file to `git lfs pull --include`.
  */
 
-/** First bytes of an LFS pointer file, per the git-lfs v1 pointer spec. */
-export const POINTER_PREFIX = 'version https://git-lfs.github.com/spec/';
-
 /**
  * The longest `--include` one pull is handed.
  *
@@ -31,10 +29,6 @@ export const POINTER_PREFIX = 'version https://git-lfs.github.com/spec/';
  * consecutive pulls rather than failing to spawn.
  */
 const INCLUDE_BUDGET = 8000;
-
-export function isPointer(bytes: Buffer): boolean {
-  return bytes.subarray(0, POINTER_PREFIX.length).toString('utf8') === POINTER_PREFIX;
-}
 
 /**
  * A reader that returns the image, fetching it first if the file is a pointer.
@@ -98,7 +92,7 @@ export function fetchingReader(
 
   return async (file) => {
     const bytes = await read(file);
-    if (!isPointer(bytes)) return bytes;
+    if (!isLfsPointer(bytes)) return bytes;
     await fetched(file);
     return reread(file, read);
   };
@@ -120,7 +114,7 @@ async function reread(file: string, read: ImageReader): Promise<Buffer> {
   } catch (error) {
     throw refusal([file], error);
   }
-  if (!isPointer(bytes)) return bytes;
+  if (!isLfsPointer(bytes)) return bytes;
   throw new RasterStoreError(
     `${file} is still a git-LFS pointer after \`git lfs pull\` exited 0, so the image was ` +
       'not checked out. git-lfs skips the checkout in a repository it was never set up in: ' +

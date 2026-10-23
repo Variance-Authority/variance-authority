@@ -1,5 +1,6 @@
 ---
 '@variance-authority/store': minor
+'@variance-authority/cli': minor
 ---
 
 An LFS checkout downloads the baselines it compares, not every baseline
@@ -21,3 +22,6 @@ false` still runs no git, so a pointer is refused as before. A smudged checkout 
 meets a pointer and never runs a pull.
 
 `createDurableStore` takes `readImage`, the reader `find` uses for the image.
+`lfsSetup(cwd, run)` names what keeps git from running git-lfs, and
+`variance doctor --baselines` refuses a pointer only where it says something:
+where git-lfs is set up in the root's work tree, the run fetches the image.

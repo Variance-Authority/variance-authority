@@ -4,8 +4,7 @@
 **Date:** 2026-10-08
 **Amends:** [ADR-0016](0016-where-a-baseline-is-kept-decides-nothing.md)
 (§"Nothing shells out to git to read or write an image")
-**Relates to:** [spec 0018](../../specs/0018-git-lfs-proven-as-git-lfs.md),
-[`packages/store/src/lfs-fetch.ts`](../../../packages/store/src/lfs-fetch.ts)
+**Relates to:** [`packages/store/src/lfs-fetch.ts`](../../../packages/store/src/lfs-fetch.ts)
 
 ## Context
 

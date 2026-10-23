@@ -72,7 +72,8 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   const changed = selection.changedLines(withWhole(text, beyond.files));
   // What the suite rests on, moved by the patch or the install, runs the whole suite.
   const suite = await journeySuite(here, request.suite);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...changed.keys()]);
+  const declared = selection.declaredSuites(here)?.find((one) => one.name === suite);
+  const { whole, ...rest } = await restingOf(here, suite, relations, [...changed.keys()], declared?.ignore);
   const base = { at: request.execution, given: true, ...rest };
   if (whole !== undefined) return suiteOf({ ...base, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, request.atDistance);
   const preimages = await patchPreimages(text, request.root);
@@ -80,8 +81,13 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
     root: request.root,
     relations,
   });
-  const unmeasured = selection.unmeasuredOf(selection.declaredSuites(here)?.find((one) => one.name === suite));
-  const options = { relations, read, ...(unmeasured === undefined ? {} : { unmeasured }) };
+  const unmeasured = selection.unmeasuredOf(declared);
+  const options = {
+    relations,
+    read,
+    ...(unmeasured === undefined ? {} : { unmeasured }),
+    ...(declared?.ignore === undefined ? {} : { ignore: declared.ignore }),
+  };
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();

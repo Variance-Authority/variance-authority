@@ -342,7 +342,11 @@ Three things this needs from the repository:
   image only for a subject whose document changed, and fetches that one image
   with `git lfs pull`. A checkout that fetches them works too, and downloads
   every baseline on every run. Without git-lfs, the run stops with exit 2, an
-  error and not a difference, on the first image it needs.
+  error and not a difference, on the first image it needs. The action runs
+  `variance doctor --baselines` before the run, which names the first pointer
+  git-lfs cannot fetch here and exits 2, so such a job fails on the checkout
+  rather than on the first subject whose document changed. The first
+  commit-back carries the root's `.gitattributes` with the images.
 
 ### A review service
 

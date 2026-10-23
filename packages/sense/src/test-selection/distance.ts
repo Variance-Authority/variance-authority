@@ -47,7 +47,7 @@ import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
 import { reachesThrough } from './reading.js';
-import type { ExecutionNarrowing, SelectionCause } from './select.js';
+import type { ExecutionNarrowing, SelectionCause } from './narrowing.js';
 
 /**
  * What the path from a change to a test is, in one word.

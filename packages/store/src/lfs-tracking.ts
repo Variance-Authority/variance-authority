@@ -63,31 +63,42 @@ export async function checkTracking(
     );
   }
 
+  diagnostics.push(...(await lfsSetup(cwd, run)));
+
+  return { filter, diagnostics };
+}
+
+/**
+ * What keeps git from running git-lfs in `cwd`: nothing when it is installed and
+ * set up there, one sentence per missing step otherwise.
+ *
+ * `checkTracking` asks it at open, for the commit; `variance doctor` asks it of a
+ * checkout of pointers, which the run fetches only where this answers nothing.
+ */
+export async function lfsSetup(cwd: string, run: CommandRunner): Promise<readonly string[]> {
   try {
     const lfs = await run('git', ['lfs', 'version'], { cwd });
     if (lfs.code !== 0) {
-      diagnostics.push(
+      return [
         'git-lfs is not installed on this machine (`git lfs version` exited ' +
           `${lfs.code}); the filter is configured but nothing implements it, so images ` +
           'will be committed whole and a clone will not get pointers',
-      );
-    } else {
-      // Installed is not set up. A package manager installs the binary; `git lfs
-      // install` is what tells git to run it, and `actions/checkout` runs that
-      // only with `lfs: true`.
-      const clean = await run('git', ['config', '--get', 'filter.lfs.clean'], { cwd });
-      if (clean.code !== 0 || clean.stdout.trim() === '') {
-        diagnostics.push(
-          `git-lfs is installed but \`filter.lfs.clean\` is unset in ${cwd}, so git does not ` +
-            'run it: images will be committed whole, and `git lfs pull` leaves pointers in ' +
-            'place. Run `git lfs install --local` (add `--skip-smudge` to keep checkouts ' +
-            'from downloading every image)',
-        );
-      }
+      ];
     }
+    // Installed is not set up. A package manager installs the binary; `git lfs
+    // install` is what tells git to run it, and `actions/checkout` runs that
+    // only with `lfs: true`.
+    const clean = await run('git', ['config', '--get', 'filter.lfs.clean'], { cwd });
+    if (clean.code !== 0 || clean.stdout.trim() === '') {
+      return [
+        `git-lfs is installed but \`filter.lfs.clean\` is unset in ${cwd}, so git does not ` +
+          'run it: images will be committed whole, and `git lfs pull` leaves pointers in ' +
+          'place. Run `git lfs install --local` (add `--skip-smudge` to keep checkouts ' +
+          'from downloading every image)',
+      ];
+    }
+    return [];
   } catch (error) {
-    diagnostics.push(`git-lfs could not be checked (${messageOf(error)})`);
+    return [`git-lfs could not be checked (${messageOf(error)})`];
   }
-
-  return { filter, diagnostics };
 }

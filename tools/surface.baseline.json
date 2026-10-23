@@ -1239,7 +1239,8 @@
       ],
       "engines": {
         "node": ">=22"
-      }
+      },
+      "sideEffects": true
     },
     "names": {
       "./reset": {
@@ -1291,8 +1292,9 @@
         "mark.svg"
       ],
       "engines": {
-        "node": ">=22"
-      }
+        "node": ">=22.15"
+      },
+      "sideEffects": true
     },
     "names": {
       ".": {
@@ -2683,6 +2685,10 @@
           "types": "./dist/test-selection/cache-root.d.ts",
           "default": "./dist/test-selection/cache-root.js"
         },
+        "./side-effects": {
+          "types": "./dist/side-effects.d.ts",
+          "default": "./dist/side-effects.js"
+        },
         "./journal": {
           "types": "./dist/test-selection/journal.d.ts",
           "default": "./dist/test-selection/journal.js"
@@ -3062,6 +3068,7 @@
         "CaseMotionOptions": "interface",
         "CasePrecondition": "interface",
         "CaseSections": "interface",
+        "Change": "interface",
         "CodeExtent": "interface",
         "CombinedRecord": "interface",
         "CombinedShard": "interface",
@@ -3141,6 +3148,7 @@
         "NativeDistillRegion": "interface",
         "NativeDistillScope": "interface",
         "ObservedEyes": "interface",
+        "OperationAnswer": "interface",
         "OwnLayer": "interface",
         "OwnState": "interface",
         "PHASE_NAMES": "const",
@@ -3170,6 +3178,7 @@
         "Repin": "type",
         "RepinRefusal": "type",
         "RootConfig": "interface",
+        "Route": "type",
         "RunsAsBefore": "type",
         "STORY_AGE_MS": "const",
         "SUITE_KINDS": "const",
@@ -3227,6 +3236,9 @@
         "caseSectionsAt": "function",
         "caseSectionsOf": "function",
         "casesCutApart": "function",
+        "changeOfDiff": "function",
+        "changeOfFiles": "function",
+        "changeOfPaths": "function",
         "changedLines": "function",
         "collectedRecord": "function",
         "combineRecords": "function",
@@ -3243,6 +3255,7 @@
         "decodeExecutionIndex": "function",
         "decodeTestCoverage": "function",
         "defaultInclude": "function",
+        "dependsReachFromView": "function",
         "deviationOfTests": "function",
         "distanceByExecution": "function",
         "distanceFromView": "function",
@@ -3260,6 +3273,7 @@
         "foreignProbes": "function",
         "formatCoveringChange": "function",
         "functionsUnder": "function",
+        "graphReachFromView": "function",
         "groupByDistance": "function",
         "heardSplit": "function",
         "heldCommitRuns": "function",
@@ -3267,7 +3281,10 @@
         "heldValues": "function",
         "hunksByFile": "function",
         "hunksOf": "function",
+        "ignoredBy": "function",
+        "ignoredChange": "function",
         "importReferences": "function",
+        "importersFromView": "function",
         "indexFaces": "function",
         "innermostAt": "function",
         "isEncodedExecutionIndex": "function",
@@ -3294,7 +3311,9 @@
         "mainlineReadRoot": "function",
         "mib": "function",
         "nameIndex": "function",
+        "narrowByChangeFromView": "function",
         "narrowByExecution": "function",
+        "narrowByExecutionFromView": "function",
         "narrowByJourneys": "function",
         "nearestFirst": "function",
         "noteSeeded": "function",
@@ -3318,6 +3337,7 @@
         "readFetchedMainline": "function",
         "readJourneyChange": "function",
         "readOwnLayer": "function",
+        "readRowlessFromView": "function",
         "readSplit": "function",
         "readTestCoverage": "function",
         "readableTestCoverage": "function",
@@ -3340,6 +3360,7 @@
         "repositoryLayers": "function",
         "repositoryRoot": "function",
         "rootConfig": "function",
+        "routesFromView": "function",
         "rowOf": "function",
         "runsAsBefore": "function",
         "saidAcross": "function",
@@ -3361,7 +3382,10 @@
         "stoppedBefore": "function",
         "structuralParent": "function",
         "testCoverageFile": "function",
+        "testsDeclaringFromView": "function",
+        "testsEnteringFromView": "function",
         "testsGovernedBy": "function",
+        "testsLoadingFromView": "function",
         "testsReaching": "function",
         "testsReachingFromView": "function",
         "textAtRecording": "function",
@@ -3383,6 +3407,9 @@
       },
       "./cache-root": {
         "cacheRootFor": "function"
+      },
+      "./side-effects": {
+        "declaresSideEffects": "function"
       },
       "./journal": {
         "AfterHook": "type",
@@ -3730,10 +3757,13 @@
       "./lfs": {
         "CommandResult": "interface",
         "CommandRunner": "type",
+        "LFS_POINTER_HEAD_BYTES": "const",
         "LfsStore": "interface",
         "LfsStoreOptions": "interface",
         "LfsTracking": "interface",
         "createLfsStore": "function",
+        "isLfsPointer": "function",
+        "lfsSetup": "function",
         "runCommand": "const"
       },
       "./share": {

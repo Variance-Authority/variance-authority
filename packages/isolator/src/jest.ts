@@ -22,7 +22,8 @@
  * options, and its source map is composed with this one, so a stack trace and
  * a coverage report name the file on disk. A test file is never isolated: its
  * own variables carry a `beforeAll` into the tests after it, which is what a
- * test file means by them. Neither is anything under `node_modules`.
+ * test file means by them. Neither is anything under `node_modules`, nor a
+ * module its package lists in `sideEffects`.
  */
 
 import { createHash } from 'node:crypto';
@@ -81,6 +82,10 @@ export async function createTransformer(config: IsolatorTransformerConfig = {}):
       .update(innerKey)
       .update('\u0000')
       .update(path)
+      .update('\u0000')
+      // A package that declares side effects in a manifest the source never
+      // names still changes what this module becomes.
+      .update(skipped(path) ? 'shared' : 'isolated')
       .update('\u0000')
       .update(JSON.stringify([inner?.options ?? null, root, config.exclude ?? []]))
       .digest('hex');

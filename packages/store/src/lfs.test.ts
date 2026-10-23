@@ -351,7 +351,9 @@ describe('against a real git', () => {
     }
   });
 
-  it.todo(
-    'a checkout made with GIT_LFS_SKIP_SMUDGE=1 on a machine without git-lfs hands `find` a pointer the filter wrote, and the lookup is refused rather than read as absent — needs a git with no `lfs` subcommand on PATH',
-  );
+  // What git-lfs itself does to these files — the clean filter, a pointer in the
+  // object database, a clone that skipped the smudge, the bytes coming back — is
+  // asked of a real git-lfs by `lfs-fetch.test.ts` where git-lfs is installed,
+  // and by the `lfs` job of `.github/workflows/variance.yml`, on this
+  // repository's pull requests, where `variance doctor` is asserted too.
 });
