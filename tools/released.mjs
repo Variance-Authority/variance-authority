@@ -35,6 +35,7 @@ import read from '@changesets/read';
  *     node tools/released.mjs --wait 120 # the same, tolerating registry lag
  *     node tools/released.mjs --registry # skip the tag half
  *     node tools/released.mjs --lockstep # before publishing: is there one version to publish, and nothing waiting?
+ *     node tools/released.mjs --named    # before publishing: has npm held every name before?
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -115,13 +116,35 @@ export async function waiting(cwd = ROOT) {
  * all thirty-eight — while `/<name>/<version>` answered immediately. Asking the
  * cheaper question would make this check flap on exactly the release it exists
  * to watch.
+ *
+ * With no version, whether the registry holds the name at all, which only the
+ * packument answers, abbreviated. It lags the same way, so a name created
+ * minutes ago can still read as never held: the refusal it feeds is pressed
+ * again, not worked around.
  */
 export async function onRegistry(name, version) {
-  const at = `https://registry.npmjs.org/${name.replace('/', '%2f')}/${version}`;
-  const answer = await fetch(at, { headers: { accept: 'application/json' } });
+  const at = `https://registry.npmjs.org/${name.replace('/', '%2f')}${version === undefined ? '' : `/${version}`}`;
+  const accept = version === undefined ? 'application/vnd.npm.install-v1+json' : 'application/json';
+  const answer = await fetch(at, { headers: { accept } });
   if (answer.status === 200) return true;
   if (answer.status === 404) return false;
   throw new Error(`${at} answered ${answer.status}`);
+}
+
+/**
+ * The packages the registry has never held.
+ *
+ * The workflow publishes through a trusted publisher, and npm adds one only to
+ * a package that exists, so the workflow cannot create a name: 0.20.0
+ * published the first ten names and stopped at the eleventh, a new one, with
+ * ENEEDAUTH. A new name is published once by a person, and the release asks
+ * this before its first publish so it refuses whole rather than in part. A
+ * registry that does not answer refuses too: what it did not say is not that
+ * the name is held. `ask` is handed in by a test.
+ */
+export async function unborn(packages, { ask = onRegistry } = {}) {
+  const held = await Promise.all(packages.map((entry) => ask(entry.name)));
+  return packages.filter((_, at) => !held[at]);
 }
 
 /** Every tag on the remote, by name. One call, because thirty-eight is not thirty-eight calls. */
@@ -189,6 +212,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error('unversioned changesets on main:');
       for (const name of unversioned) console.error(`  .changeset/${name}`);
       console.error('merge the version pull request first — its diff is what this would publish');
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (argv.includes('--named')) {
+    const unpublished = await unborn(packages);
+    if (unpublished.length > 0) {
+      console.error(`npm has never held ${unpublished.length === 1 ? 'this package' : 'these packages'}, and the workflow cannot create one:`);
+      for (const entry of unpublished) console.error(`  ${entry.name}`);
+      console.error(`
+Create ${unpublished.length === 1 ? 'it' : 'them'} once from your machine, logged in to npm, then run release again:
+
+  node tools/publish.mjs --placeholders
+
+CONTRIBUTING.md, under Releasing, says what that publishes and why.`);
       process.exit(1);
     }
     process.exit(0);

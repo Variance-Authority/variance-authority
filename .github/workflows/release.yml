@@ -25,12 +25,12 @@
 # account must carry two-factor authentication before the registry will accept
 # any of it.
 #
-# A trusted publisher is configured on a package that already exists, so the
-# first version of a *new* name — each
-# `@variance-authority/sense-<platform>` package, the next time a package is
-# added — is published by a person from a machine, once, and the publisher is
-# configured afterwards. This workflow cannot bootstrap a name it has never
-# published; it will fail the exchange and say so.
+# A trusted publisher is configured on a package that already exists, so this
+# workflow cannot create a name: not the `@variance-authority/sense-<platform>`
+# packages once, not the next package added. `green` refuses while npm has
+# never held one, before anything publishes, and `node tools/publish.mjs
+# --placeholders`, run once by a person logged in to npm, creates it as a bare
+# manifest at a version no release carries and configures its publisher.
 #
 # The version itself is derived — `.changeset/config.json` holds all packages in
 # one `fixed` group, because they are one product with `workspace:^` between
@@ -136,6 +136,14 @@ jobs:
       # answers in seconds.
       - name: One version, and nothing waiting for one
         run: node tools/released.mjs --lockstep
+
+      # npm adds a trusted publisher only to a package that exists, so this
+      # workflow cannot publish a name for the first time, and finding out
+      # mid-publish leaves the release in part. A new name is created once as
+      # a placeholder by `node tools/publish.mjs --placeholders`, which gives
+      # it its trusted publisher; the refusal says so.
+      - name: npm has held every name before
+        run: node tools/released.mjs --named
 
       - name: main's CI passed on this commit
         env:
