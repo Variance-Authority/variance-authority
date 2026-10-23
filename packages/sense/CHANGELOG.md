@@ -1,5 +1,11 @@
 # @variance-authority/sense
 
+## 0.21.0
+
+### Patch Changes
+
+- c67dd01: `sense` and `isolator` each carry their own copy of the code that loads a project's Jest transformer, and `@variance-authority/jest-transformer` is no longer a package.
+
 ## 0.20.0
 
 ### Minor Changes
