@@ -19,6 +19,7 @@ import { answerByImporters, type ImporterAnswer } from './importers.js';
 import { instrumentedRows, testPathOf } from './lookup.js';
 import type { ExecutionNarrowingOptions, SelectionReason } from './narrowing.js';
 import { readChange, readRowless, type FileReading, type ReadingContext } from './reading.js';
+import { hunksFor } from './patch.js';
 import { routeOf, type Route } from './route.js';
 import { disownedIn, type Disowned } from './shadowed.js';
 import { rebasedChange } from './text-diff.js';
@@ -126,6 +127,14 @@ export function chargeMeasured(
   // An undone file read in the commit's own text, or not read at all, ran
   // what is on disk: nothing changed for it.
   if (undone && (typeof frame !== 'object' || frame.kept !== true) && frame !== 'stale') return;
+  // Lines with no hunks say where the file moved and not what it became: no
+  // text is arrived at, so none is rebased or read, and the lines are charged.
+  // An undone file is the exception: the diff never named it, so it arrives
+  // at the commit's own text.
+  const patched = undone || hunksFor(run.hunks, file) !== undefined;
+  // Lines cut against the commit's text cannot be moved onto a kept text
+  // without the hunks, so the record's line numbers say nothing here.
+  if (!patched && typeof frame === 'object' && frame.kept === true) frame = 'stale';
   if (typeof frame === 'object' && frame.kept === true && (ranges.length > 0 || undone)) {
     // The rows were cut from a text the landing kept, and the diff is written
     // against the commit's. The change the tests have not run is the one from
@@ -151,7 +160,7 @@ export function chargeMeasured(
     return;
   }
   if (frame === 'unchecked') run.readings.push({ file, unread: 'source' });
-  else if (ranges.length > 0) {
+  else if (ranges.length > 0 && patched) {
     const read = readChange(reader, file, ranges, frame, rows);
     run.readings.push(read.reading);
     if (read.charged) return;

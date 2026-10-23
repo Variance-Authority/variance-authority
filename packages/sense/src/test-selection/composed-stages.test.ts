@@ -150,3 +150,67 @@ describe('an undone built twin', () => {
     expect(narrowed.entered).toEqual([]);
   });
 });
+
+/**
+ * A change that names lines and no hunks says where a file moved and not what
+ * it became: nothing can apply it to a text, so no parser decides it.
+ */
+describe('lines with no hunks', () => {
+  const SOURCE = 'src/two.ts';
+  const ENTERING = 'test/one.test.ts';
+  const DECLARING = 'test/two.test.ts';
+  const COMMITTED_SOURCE = 'export function two(value) {\n  return value * 2;\n}\n';
+  const COMMITTED_TEST = "it('doubles', () => {\n  expect(1).toBe(1);\n});\n";
+  const record: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    commit: 'recorded',
+    tests: [
+      { file: ENTERING, complete: true, preconditions: [] },
+      // The declaring test ran the text at the commit.
+      { file: DECLARING, complete: true, preconditions: [{ name: DECLARING, digest: digestString(COMMITTED_TEST) }] },
+    ],
+    modules: [
+      {
+        file: SOURCE,
+        sourceDigest: digestString(COMMITTED_SOURCE),
+        instrumented: true,
+        blocks: [
+          { ordinal: 0, kind: 'module', digest: 'block:two', name: '', path: 'module', startLine: 1, endLine: 3, source: true, testFiles: [ENTERING] },
+        ],
+      },
+    ],
+  };
+  const sourceAt = (file: string): string | undefined => ({ [SOURCE]: COMMITTED_SOURCE, [DECLARING]: COMMITTED_TEST })[file];
+  const view = () => openTestCoverage(encodeTestCoverage(record));
+  const invented = (file: string) => ({ lines: new Map([[file, [{ start: 2, end: 2 }]]]), hunks: new Map() });
+
+  it('charges a measured file by its lines, with the text at the commit in hand', () => {
+    expect(testsEnteringFromView(view(), invented(SOURCE), {}).entered).toEqual([ENTERING]);
+    expect(testsEnteringFromView(view(), invented(SOURCE), { sourceAt }).entered).toEqual([ENTERING]);
+    expect(narrowByChangeFromView(view(), invented(SOURCE), { sourceAt }).entered).toEqual([ENTERING]);
+  });
+
+  it('charges a file whose record was cut from a kept text whole, which the lines cannot be moved onto', () => {
+    const KEPT = 'export function two(value) {\n  return value + value;\n}\n';
+    const kept = () => openTestCoverage(encodeTestCoverage({ ...record, modules: [{ ...record.modules[0]!, sourceDigest: digestString(KEPT) }] }));
+    const options = { sourceAt, keptText: (digest: string) => (digest === digestString(KEPT) ? KEPT : undefined) };
+
+    expect(testsEnteringFromView(kept(), invented(SOURCE), options)).toMatchObject({ entered: [ENTERING], stale: [SOURCE] });
+    expect(narrowByChangeFromView(kept(), invented(SOURCE), options)).toMatchObject({ entered: [ENTERING], stale: [SOURCE] });
+  });
+
+  it('keeps a declaring test, which ran the text the lines were cut from and not the one they arrive at', () => {
+    expect(testsDeclaringFromView(view(), invented(DECLARING), { sourceAt }).entered).toEqual([DECLARING]);
+    expect(narrowByChangeFromView(view(), invented(DECLARING), { sourceAt }).entered).toContain(DECLARING);
+  });
+
+  it('walks the importers of a rowless file, which no parser read', () => {
+    const HELPER = 'src/helper.ts';
+    const relations = relationsOf({ relations: [{ from: { kind: 'file', name: ENTERING }, to: { kind: 'file', name: HELPER }, kind: 'imports' }] });
+    const helperAt = (file: string): string | undefined => (file === HELPER ? 'export const one = 1;\nexport const two = 2;\n' : sourceAt(file));
+
+    expect(importersFromView(view(), invented(HELPER), { sourceAt: helperAt, relations }).entered).toEqual([ENTERING]);
+    expect(narrowByChangeFromView(view(), invented(HELPER), { sourceAt: helperAt, relations }).entered).toEqual([ENTERING]);
+  });
+});
