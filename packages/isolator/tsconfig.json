@@ -9,5 +9,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts", "src/**/*.measure.ts"],
-  "references": [{ "path": "../ioc" }, { "path": "../jest-transformer" }, { "path": "../sense" }]
+  "references": [{ "path": "../ioc" }, { "path": "../sense" }]
 }

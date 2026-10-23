@@ -212,7 +212,6 @@ before anything else.**
 | `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |
-| `jest-transformer` | a Node runtime and Jest | a project's own Jest transformer run inside another one, loaded the way Jest loads it and handed its own options |
 | `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |
 | `session` | a live DOM | many subjects in one standing world |
 | `scenario` | semantic snapshots; its archive entrypoint additionally needs a filesystem | witnessed AAA paths, transition-effect assessment, a partial state machine, and opt-in semantic retention |

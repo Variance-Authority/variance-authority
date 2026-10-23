@@ -4,18 +4,21 @@
  * A transformer that wraps the one a project would have used — `@swc/jest`,
  * `ts-jest`, `babel-jest`, anything with Jest's transformer shape — has to load
  * it the way Jest would, hand it the options the project gave it, and ask it
- * for a cache key and a transform the way Jest would have asked. Every wrapping
- * transformer here does that through {@link loadTransformer}, and reads which
- * files are tests through {@link isTestFile}.
+ * for a cache key and a transform the way Jest would have asked. The Jest
+ * transformer next to this file does that through {@link loadTransformer}, and
+ * reads which files are tests through {@link isTestFile}.
+ *
+ * `isolator` keeps a copy of this file and of `jest-test-files.ts`, on purpose: a
+ * package of its own would be one nobody installs for what it does.
  */
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { JestTestFiles } from './test-files.js';
+import type { JestTestFiles } from './jest-test-files.js';
 
-export { globMatcher, isTestFile, slashed, type JestTestFiles } from './test-files.js';
+export { globMatcher, isTestFile, slashed, type JestTestFiles } from './jest-test-files.js';
 
 /** The fields of Jest's `TransformOptions` a wrapping transformer reads. */
 export interface JestTransformOptions {

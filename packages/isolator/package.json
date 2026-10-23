@@ -67,7 +67,6 @@
   "dependencies": {
     "@jridgewell/remapping": "^2.3.5",
     "@variance-authority/ioc": "workspace:^",
-    "@variance-authority/jest-transformer": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.144.0",

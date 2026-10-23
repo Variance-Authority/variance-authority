@@ -1,6 +1,7 @@
 /**
  * Which files Jest calls tests: its reading of `testMatch` and `testRegex`, as
- * a transformer sees them in the project configuration Jest hands it.
+ * a transformer sees them in the project configuration Jest hands it. `isolator`
+ * keeps a copy, as `jest-transformer.ts` says.
  */
 
 import picomatch from 'picomatch';
