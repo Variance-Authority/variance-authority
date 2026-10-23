@@ -294,15 +294,45 @@ By default a test is skipped unless it entered the code a changed line is in.
 You may not trust that on the first day: a skipped test is a cost you cannot
 see. So a suite declares its `precision`, and each step trusts the record a
 little more. The coarse steps read what a test imports, through the file graph;
-the fine steps read what it loaded and entered, from the record. On TanStack
-Query, a one-line edit runs 149 test files at `file` and 9 at `region-use`.
+the fine steps read what it loaded and entered, from the record. A one-line edit
+to `query.ts` in [TanStack
+Query](selection-tanstack-query.md#two-lines-at-each-precision) runs this many
+of its 188 test files at each step, next to running them all, with the default
+in orange:
 
-If your suite comes from a graph selector such as `nx affected`, start at
-`file`, which runs every test that imports a changed file. Declare `file-use`
-once you trust the record: it never runs a test `file` would skip, and it needs
-only to know which test loaded which file. It runs fewer tests once your
-modules load where they are used. Declare `region-use` once every project the
-suite runs records regions, as [below](#record-as-finely-as-you-select):
+```mermaid
+---
+config:
+  xyChart:
+    height: 250
+---
+xychart-beta horizontal
+  accTitle: Test files one edit to query.ts runs in TanStack Query, at each precision
+  x-axis ["every test file", "file", "symbol", "file-use", "function-use", "region-use"]
+  y-axis "test files, of 188" 0 --> 188
+  bar [0, 0, 0, 0, 0, 9]
+  bar [0, 149, 149, 149, 83, 0]
+  bar [188, 0, 0, 0, 0, 0]
+  bar [0, 0, 0, 0, 0, 0]
+```
+
+Why three steps tie here, and how to part them, is in [from `file` to
+`file-use`](#from-file-to-file-use-load-a-module-where-it-is-used); what the
+finer steps read is in [from `file-use` to
+`region-use`](#from-file-use-to-region-use-read-inside-the-file).
+
+Choose the step by where your suite comes from and how much of the record you
+trust:
+
+- **Start at `file`** if your suite comes from a graph selector such as `nx
+  affected`. It runs every test that imports a changed file.
+- **Declare `file-use` once you trust the record.** It never runs a test
+  `file` would skip, and it needs only to know which test loaded which file. It
+  runs fewer tests once your modules load where they are used.
+- **Declare `region-use` once every project the suite runs records regions**,
+  as [below](#record-as-finely-as-you-select).
+
+A suite declares its step in the configuration:
 
 ```json
 { "suites": { "unit": { "kind": "unit", "precision": "file" } } }
