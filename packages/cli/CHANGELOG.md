@@ -1,5 +1,45 @@
 # @variance-authority/cli
 
+## 0.20.0
+
+### Minor Changes
+
+- 1e5d9df: A case records what the code under test read, beside what the test said. `varianceBreadcrumb(dimension, key, value)` from `@variance-authority/event` returns its value and, under a Vitest, Jest or Rstest run in Node recorded with `@variance-authority/sense`, lays `dimension:key` and the value on the case that made the read; a read made while the test file loads lands on every case of the file. `variancePrecondition` now takes a dimension and a record, `variancePrecondition('flags', { discount: true })`, which records `flags:discount`, and holds any value JSON can hold; the one-name form and the `PreconditionValue` type are gone. `variance covering` prints `read flags:discount=false said true` beside each case and takes `--read <name>[=<value>]` to keep the cases by what the code read. `variance review` splits each changed region's cases by what they read, `flags:express read false by 1, true by 1, not by 6`, and `review.json` gives each case its `reads`. The review handover's breadcrumbs are now called pointers. `@variance-authority/distill` reads the new recorded form.
+- a1dcf55: `variance doctor --baselines` refuses a checkout of git-LFS pointers, and the action asks it before every run
+
+  On a clone that skipped the LFS fetch, a subject whose page did not move is
+  settled from its sidecar without its image being read, so `variance run` passed
+  until the first subject that moved met the pointer. `variance doctor` now reads
+  the head of every image the `lfs` store reads — the one beside each record
+  `baselines.path` places, and those in an identity directory — counts the ones that are git-LFS
+  pointers, names the first under *POINTERS, NOT IMAGES*, prints
+  `git lfs install && git lfs pull`, and exits 2, the code the run exits with when
+  it meets one. It exits 2 for that finding under a remote renderer as well.
+
+  `variance doctor --baselines` asks the same of the store alone: no browser is
+  opened and no font measured. The composite action in `.github/actions/variance`
+  runs it before every run over a store in the checkout, so a job that uses the
+  action stops with exit 2 on such a clone instead of passing.
+
+  `@variance-authority/store/lfs` exports the test both use: `isLfsPointer(head)`,
+  and `LFS_POINTER_HEAD_BYTES`, how many leading bytes it needs.
+- 600c158: Add `variance journeys inspect <record> --format text|json` to report stored section sizes by reading only the record's directory. The `recordStorageAt` API exposes the same storage reading without loading section payloads.
+- eed3410: `ask search` answers a description by any of its words. When no name or doc holds the query as written, the repository's own names and files that hold any of its stems come back, ranked as before: the most words held first, then the most in the name, then the phrase the doc writes. Before, a name had to hold at least half of them, so a three-word query whose best match held one word was reported as nothing. Their heading now reads "hold words of `<query>`" rather than "hold at least half the words of `<query>`". Installed packages still answer only when they hold half the words. A name holding fewer than half the stems, which this section did not hold before, is left to the loose reading when that reading reaches it by every word, as it was before. So `cache entriee magazie` still offers `cacheEntriesMagazine` loosely however many names holding `cache` this section shows. The rows this section shows hold every word any of its names holds, so `mermaid chart palette` shows the one name holding `mermaid` however many holding `chart` sort before it — the heading ends "a row holding each word is shown however it sorts" — and a doc is read for the phrase only when its name can be shown.
+
+  When those names, or the ones the loose reading adds, follow, the answer opens with "No name in this repository, nor the doc of one, writes `<query>` as typed. The nearest follow." instead of "Nothing in this repository is named or documented with `<query>`". With `from`/`to` it opens with "No name in reach of that start point, nor the doc of one, writes `<query>` as typed", still says to ask again without `from`/`to`, then gives the nearest in reach. The *nothing* line still opens an answer that has nothing of the repository's own to show.
+
+  `declaredDescribedOf` no longer takes `needed`: a declaration or file answers when it holds any of the stems asked.
+- 67d448a: A story names every declaration and branch it went through by its coordinate, `at`: `src/cart.ts#Cart/removeItem/if#0/then`, and `src/route.ts#handle~2/if#0/then` inside a second declaration of one name. A story now finds its modules' regions in the record beside it, so its places are no longer left as bare files, two declarations of one name stay two places, and a comparison meets one region across two texts of its file.
+- c19599a: A suite in `variance.config.json` can list `ignore` globs. A changed file that matches selects none of that suite's tests by its regions, imports or `before` — only a test that declared it, as a precondition or through a `/// <depends>`, still runs — and `variance select` lists it as `ignored`. `variance run --since` reads the same list for the suite it runs for, and its notes name the file. A `!` glob takes a file back out. This lets a unit suite under jsdom skip changed stylesheets and images, such as `"ignore": ["**/*.css", "**/*.png"]`, while a visual suite over the same components still selects on them.
+
+### Patch Changes
+
+- 1712a85: A `varianceBreadcrumb` call whose dimension or key makes no `dimension:key` — not a non-empty string, or a dimension holding `:` — is recorded as a misuse, a fact of its own beside what the case said and what the code read, and never as a read. It was recorded as a read named `:<dimension>:<key>`, which `covering --read` and `review`'s split treated as a key. A misuse is kept once per argument and value given, at its first site, as a read is once per key and value. `covering` prints `misused varianceBreadcrumb at <site>: the key 7 is not a string` after the reads, `review` names it after a region's split by what the code read with the number of cases that met it, and `review --format json` gives the case `misused: [{argument, value, site, level}]`, an array or an object given by its kind alone.
+- 7c927f3: `ask uses` finds more names read off a module object your code holds by an import or a written type. It now counts `typeof ns.x` and `ns.T` in a type, a read off a default import, `import type` ones included, and a read off a value a cast or an annotation types as `typeof import('./x')`, a cast written in place among them, directly or through a top-level alias, and `M['x']` off such a type. A bare `typeof import('./x')` no longer counts as using every name the module exports, and what a call returns is left to TypeScript, so a mock factory that spreads `await importOriginal<typeof import('./x')>()` no longer lists the test as reading every name: the reader does not tell which module that value came from. CommonJS is read on a best-effort basis: the static keys of the object `export =` or `module.exports =` assigns at the top level are exports when every key is spelled, naming a declaration there is no longer listed as a use of it, and a read of one through a default import is marked "through `default`".
+- d61417a: Expose each test file’s recorded phases in distill --format jsonl as an optional time object, preserving unavailable phases and measured zero values.
+- 027e408: Store last-run case membership as references to the record's case index, reducing records with long case names while preserving exact membership across partial runs and shard folds. Existing records remain readable.
+- 4c63d9b: Each stage of test selection can be asked alone, over an open record and with its inputs as values: `testsLoadingFromView` answers a list of paths with every test that loaded them, `testsEnteringFromView` answers ranges at `region-use`, `function-use` or `file-use`, and `routesFromView`, `testsDeclaringFromView`, `graphReachFromView`, `importersFromView`, `dependsReachFromView` and `readRowlessFromView` answer the other stages. `changeOfFiles` and `changeOfDiff` build the change they read, `changeOfPaths` cuts it to some of its files, `ignoredChange` cuts it by a suite's `ignore`, and `narrowByChangeFromView` calls the same stages in order, as `narrowByExecution` does, so a stage asked alone answers as it does inside the whole. No stage reads git; the checkout is read only through `root`. A change that names lines and no hunks is charged by its lines: no parser reads it, and no declaring test counts as having run the text it arrives at. Asked by hand, the stages give the composition's answer when each takes the part of the change it reads there, cut by the suite's `ignore` first; each walking stage then reads the precondition table again, where the composition reads it once.
+
 ## 0.19.0
 
 ### Minor Changes
