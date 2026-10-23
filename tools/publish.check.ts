@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { npmArguments, PARALLEL, placeholders, planOf, publish } from './publish.mjs';
+import { npmArguments, PARALLEL, placeholders, planOf, publish, untrusted } from './publish.mjs';
 
 /**
  * What `changeset pack` packed reaches the registry through `npm publish`.
@@ -177,6 +177,7 @@ describe('creating a name npm has never held', () => {
     const ran: string[][] = [];
     let manifest: unknown;
     const created = await placeholders(['brand-new'], {
+      registry: async () => false,
       npm: async (args: readonly string[]) => {
         ran.push([...args]);
         if (args[0] === 'publish') manifest = JSON.parse(readFileSync(join(String(args[1]), 'package.json'), 'utf8'));
@@ -202,17 +203,43 @@ describe('creating a name npm has never held', () => {
     ]);
   });
 
-  it('stops at the first name that fails, and trusts nothing it did not create', async () => {
+  it('stops at the first name that fails, trusts nothing it did not create, and names what is left', async () => {
     const ran: string[][] = [];
-    await expect(
-      placeholders(['a', 'b'], {
-        npm: async (args: readonly string[]) => {
-          ran.push([...args]);
-          if (args[0] === 'publish') throw new Error('npm publish exited 1');
-        },
-      }),
-    ).rejects.toThrow(/exited 1/);
+    const refused = placeholders(['a', 'b'], {
+      registry: async () => false,
+      npm: async (args: readonly string[]) => {
+        ran.push([...args]);
+        if (args[0] === 'publish') throw new Error('npm publish exited 1');
+      },
+    });
+    await expect(refused).rejects.toThrow(/exited 1/);
+    await expect(refused).rejects.toMatchObject({ unfinished: ['a', 'b'] });
     expect(ran.map((args) => args[0])).toEqual(['publish']);
   });
-});
 
+  it('finishes a name a failed trust left created, without publishing it again', async () => {
+    const ran: string[][] = [];
+    const created = await placeholders(['shown', 'staged'], {
+      registry: async (name: string, version: string) => name === 'shown' && version === '0.0.0-placeholder.0',
+      npm: async (args: readonly string[]) => {
+        ran.push([...args]);
+        if (args[0] === 'publish') {
+          throw Object.assign(new Error('npm publish exited 1'), {
+            stderr: 'npm error 409 Conflict - Cannot publish over previously staged version',
+          });
+        }
+      },
+    });
+    expect(created).toEqual(['shown', 'staged']);
+    expect(ran.map((args) => args.slice(0, 3).join(' '))).toEqual([
+      'trust github shown',
+      `publish ${ran[1]?.[1]} --access`,
+      'trust github staged',
+    ]);
+  });
+
+  it('reads a workflow publish refused for want of a login as a name with no trusted publisher', () => {
+    expect(untrusted({ stderr: 'npm error code ENEEDAUTH' })).toBe(true);
+    expect(untrusted({ stderr: 'npm error code E403' })).toBe(false);
+  });
+});

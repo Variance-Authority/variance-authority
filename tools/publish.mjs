@@ -27,7 +27,7 @@
 // create one: npm adds a trusted publisher only to a package that exists. A
 // person creates it once, logged in to npm, and the release refuses until then:
 //
-//   node tools/publish.mjs --placeholders
+//   node tools/publish.mjs --placeholders [name...]
 
 import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -58,9 +58,9 @@ export function npmArguments(dir, release) {
  * `npm` with these arguments, its output the job's, refused on a non-zero exit
  * with what it printed to stderr, which is where npm says why.
  */
-function npm(args) {
+function npm(args, input = 'ignore') {
   return new Promise((done, refuse) => {
-    const child = spawn('npm', args, { stdio: ['ignore', 'inherit', 'pipe'] });
+    const child = spawn('npm', args, { stdio: [input, 'inherit', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
@@ -88,6 +88,15 @@ export function held(error) {
 }
 
 /**
+ * Whether npm refused a publish from the workflow for want of a login, which is
+ * what it answers for a name with no trusted publisher: one it never held, as
+ * on 0.20.0, or one a placeholder run created and did not finish trusting.
+ */
+export function untrusted(error) {
+  return /ENEEDAUTH/.test(String(error?.stderr ?? ''));
+}
+
+/**
  * Publishes the plan packed in `dir`, and answers the releases that failed.
  * The registry and the command are handed in by a test.
  */
@@ -110,6 +119,9 @@ export async function publish(dir, run = { registry: onRegistry, npm }) {
           }
           failed.push(named);
           console.error(`${named} did not publish: ${error.message}`);
+          if (untrusted(error)) {
+            console.error(`npm holds ${release.name} with no trusted publisher; create or finish it by hand: ${placeholdersCommand([release.name])}`);
+          }
         }
       }
     };
@@ -119,8 +131,16 @@ export async function publish(dir, run = { registry: onRegistry, npm }) {
   return failed;
 }
 
+/** The version a placeholder carries, which no release does. */
+export const PLACEHOLDER = '0.0.0-placeholder.0';
+
+/** The command that creates these names and trusts the workflow with them. */
+export function placeholdersCommand(names) {
+  return ['node tools/publish.mjs --placeholders', ...names].join(' ');
+}
+
 /**
- * Creates each name npm has never held, and trusts the release workflow with it.
+ * Creates each name, and trusts the release workflow with it.
  *
  * What is published is a manifest at `0.0.0-placeholder.0`, a version no
  * release carries, under the `placeholder` tag. The real version is the
@@ -128,50 +148,70 @@ export async function publish(dir, run = { registry: onRegistry, npm }) {
  * siblings it depends on, which a hand publish of it would precede. A manifest
  * needs no build, so a platform package is created from any machine. Then the
  * trusted publisher, which names this repository, `release.yml` and the `npm`
- * environment, as ADR-0060 has it. The first name that fails stops the rest.
- * `npm` is handed in by a test.
+ * environment, as ADR-0060 has it.
+ *
+ * Publishing and trusting are two calls, and either can fail with the name
+ * half made: a second factor that timed out leaves it created and untrusted,
+ * and the release check reads such a name as held. So the first failure stops
+ * the rest and is refused with the names still unfinished, and running it again
+ * on those names finishes them: a placeholder the registry shows, or one npm
+ * refuses as previously staged because it does not show it yet, is not sent
+ * again. `npm` and the registry are handed in by a test.
  */
-export async function placeholders(names, run = { npm: byHand }) {
+export async function placeholders(names, run = { npm: byHand, registry: onRegistry }) {
   const created = [];
-  for (const name of names) {
-    const dir = mkdtempSync(join(tmpdir(), 'placeholder-'));
+  for (const [at, name] of names.entries()) {
     try {
-      writeFileSync(join(dir, 'package.json'), `${JSON.stringify({ name, version: '0.0.0-placeholder.0' }, null, 2)}\n`);
-      await run.npm(['publish', dir, '--access', 'public', '--tag', 'placeholder']);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
+      if (!(await run.registry(name, PLACEHOLDER))) {
+        const dir = mkdtempSync(join(tmpdir(), 'placeholder-'));
+        try {
+          writeFileSync(join(dir, 'package.json'), `${JSON.stringify({ name, version: PLACEHOLDER }, null, 2)}\n`);
+          await run.npm(['publish', dir, '--access', 'public', '--tag', 'placeholder']);
+        } catch (error) {
+          if (!held(error)) throw error;
+        } finally {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      }
+      await run.npm([
+        'trust',
+        'github',
+        name,
+        '--file',
+        'release.yml',
+        '--repo',
+        'Variance-Authority/variance-authority',
+        '--env',
+        'npm',
+        '--allow-publish',
+        '--yes',
+      ]);
+      created.push(name);
+    } catch (error) {
+      throw Object.assign(error, { unfinished: names.slice(at) });
     }
-    await run.npm([
-      'trust',
-      'github',
-      name,
-      '--file',
-      'release.yml',
-      '--repo',
-      'Variance-Authority/variance-authority',
-      '--env',
-      'npm',
-      '--allow-publish',
-      '--yes',
-    ]);
-    created.push(name);
   }
   return created;
 }
 
-/** `npm` at a person's terminal, which may ask for a second factor. */
+/**
+ * `npm` at a person's terminal, which may ask for a second factor: npm asks
+ * only when both its input and its output are the terminal.
+ */
 function byHand(args) {
-  return new Promise((done, refuse) => {
-    const child = spawn('npm', args, { stdio: 'inherit' });
-    child.on('error', refuse);
-    child.on('close', (code) => (code === 0 ? done() : refuse(new Error(`npm ${args.join(' ')} exited ${code}`))));
-  });
+  return npm(args, 'inherit');
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href && process.argv[2] === '--placeholders') {
-  const names = (await unborn(publishable())).map((entry) => entry.name);
+  const asked = process.argv.slice(3);
+  const names = asked.length > 0 ? asked : (await unborn(publishable())).map((entry) => entry.name);
   if (names.length === 0) console.log('npm holds every name; nothing to create.');
-  for (const name of await placeholders(names)) console.log(`created ${name} and trusted release.yml with it`);
+  try {
+    for (const name of await placeholders(names)) console.log(`created ${name} and trusted release.yml with it`);
+  } catch (error) {
+    console.error(`\n${error.message}\n\nThese are not finished. Run this again once the cause is fixed:\n\n  ${placeholdersCommand(error.unfinished)}`);
+    process.exit(1);
+  }
 } else if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const dir = process.argv[2];
   if (!dir) throw new Error('usage: node tools/publish.mjs <the directory `changeset pack --out-dir` wrote>');
