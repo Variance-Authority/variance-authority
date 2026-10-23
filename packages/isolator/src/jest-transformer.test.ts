@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { globMatcher, isTestFile, jestCacheKey, loadTransformer, slashed, type JestTransformOptions } from './jest-transformer.js';
 
-const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), '../test/fixtures/transformer');
+const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), '../test/fixtures/jest-transformer');
 const given: JestTransformOptions = { config: {}, configString: '{}', instrument: false, transformerConfig: { wrapper: true } };
 
 describe('loadTransformer', () => {
