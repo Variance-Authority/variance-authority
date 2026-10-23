@@ -125,7 +125,8 @@ as a changed image. The refusal comes only at the first subject whose document
 changed since its baseline: an unchanged subject is settled from its `.json`
 sidecar without its image being read, so on such a checkout a run where nothing
 changed passes. `npx variance doctor --baselines` reads the head of every image
-in the root, opens no browser, counts the pointers, names the first and exits 2.
+in the root, opens no browser and, where git-lfs is not set up in the root's
+work tree, counts the pointers, names the first and exits 2.
 The composite action runs it before every run over a store in the checkout, so a
 job that uses the action fails on the checkout. Anywhere else, run it before the
 run.

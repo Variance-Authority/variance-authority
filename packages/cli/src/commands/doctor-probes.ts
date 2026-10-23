@@ -64,7 +64,8 @@ export interface DoctorProbes {
    * else is opened, because a collocated root is the repository, and an LFS
    * file that is no baseline is not a baseline the run would refuse. The
    * signature is the store's own (`isLfsPointer`), so doctor finds exactly what
-   * the run would refuse.
+   * the run would refuse — which is none of them where git-lfs is set up in the
+   * root's work tree, since there the run fetches each image it compares.
    */
   pointers(root: string): Promise<readonly string[]>;
 
@@ -146,12 +147,21 @@ export function machineProbes(config: Config): DoctorProbes {
       }
     },
     pointers: async (root) => {
-      const { isLfsPointer, LFS_POINTER_HEAD_BYTES } = await import('@variance-authority/store/lfs');
+      const { isLfsPointer, LFS_POINTER_HEAD_BYTES, lfsSetup, runCommand } = await import(
+        '@variance-authority/store/lfs'
+      );
       const found: string[] = [];
       for (const file of await storedImages(root, placedBy(config)?.template)) {
         const head = await headOf(join(root, file), LFS_POINTER_HEAD_BYTES);
         if (head !== undefined && isLfsPointer(head)) found.push(file);
       }
+      if (found.length === 0) return [];
+      // A pointer the run can fetch is not one it refuses: in a work tree where
+      // git runs git-lfs, the store pulls the image of each subject it compares
+      // (ADR-0092). Asked only once a pointer is found, so a store of images
+      // costs no git call.
+      const tree = await runCommand('git', ['rev-parse', '--is-inside-work-tree'], { cwd: root }).catch(() => undefined);
+      if (tree?.code === 0 && (await lfsSetup(root, runCommand)).length === 0) return [];
       return found.sort();
     },
     renderCache: async () => readRenderCache(renderCacheRoot(config)),

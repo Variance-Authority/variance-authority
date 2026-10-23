@@ -63,7 +63,9 @@ back produces a decode error blamed on the renderer; reporting it as absent
 re-records. So the signature is checked and the error names
 `git lfs install && git lfs pull`.
 
-**Nothing shells out to git to read or write an image.** LFS is a clean/smudge
+**Nothing shells out to git to read or write an image.** (Amended by
+[ADR-0092](0092-an-lfs-checkout-fetches-what-it-compares.md): a pointer met by
+`find` is fetched with `git lfs pull --include`.) LFS is a clean/smudge
 filter, so a checked-out tree already holds the real PNG at the real path. `git`
 is consulted for exactly one thing — `check-attr`, to ask what the filter
 actually resolves to — and its absence degrades to a diagnostic rather than a
@@ -89,7 +91,7 @@ glob and is therefore real text on every clone. On a broken checkout a run where
 nothing changed passes green without discovering that the tree holds pointers;
 the operator finds out on the first subject that moves, from
 `tracking.diagnostics` at open, or from `variance doctor`, which reads the head of every image once and exits 2 on a
-pointer. Reading it on every run would spend the lookup that method exists to
+pointer git-lfs cannot fetch here ([ADR-0092](0092-an-lfs-checkout-fetches-what-it-compares.md)). Reading it on every run would spend the lookup that method exists to
 avoid, on every subject, to report a condition doctor already reports. The
 composite action asks `variance doctor --baselines`, the store half alone with
 no browser opened, before every run over a store in the checkout, so a job that

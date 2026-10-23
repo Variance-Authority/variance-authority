@@ -3710,6 +3710,7 @@
         "BaselinePathTemplate": "interface",
         "DEFAULT_BASELINE_PATH": "const",
         "DurableStoreOptions": "interface",
+        "ImageReader": "type",
         "RenderCacheBound": "interface",
         "RenderCacheSwept": "interface",
         "createDurableStore": "function",
@@ -3727,6 +3728,7 @@
         "LfsTracking": "interface",
         "createLfsStore": "function",
         "isLfsPointer": "function",
+        "lfsSetup": "function",
         "runCommand": "const"
       },
       "./share": {

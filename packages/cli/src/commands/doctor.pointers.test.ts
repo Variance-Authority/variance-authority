@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -219,6 +220,21 @@ describe('machineProbes pointers', () => {
 
     expect(await machineProbes(lfsConfig()).pointers(root)).toEqual(['Button/Primary-chromium.png']);
   });
+
+  it.skipIf(spawnSync('git', ['lfs', 'version']).status !== 0)(
+    'answers none in a work tree where git runs git-lfs, since the run fetches each image it compares',
+    async () => {
+      const root = await rootWith({
+        'Button/Primary-chromium.json': RECORD,
+        'Button/Primary-chromium.png': POINTER,
+      });
+      for (const args of [['init', '-q'], ['lfs', 'install', '--local', '--skip-smudge']]) {
+        expect(spawnSync('git', args, { cwd: root }).status).toBe(0);
+      }
+
+      expect(await machineProbes(lfsConfig()).pointers(root)).toEqual([]);
+    },
+  );
 
   it('answers none for a root that is not there', async () => {
     expect(await machineProbes(lfsConfig()).pointers(join(tmpdir(), 'variance-no-such-root'))).toEqual([]);

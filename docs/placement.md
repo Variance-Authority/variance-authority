@@ -334,14 +334,19 @@ Three things this needs from the repository:
 - **A branch in this repository.** A pull request from a fork runs with no
   secrets and a read-only token, so its label run cannot push. Its baselines are
   committed by hand.
-- **git-lfs in the job, for `lfs`.** The Playwright image has none. Install it
-  and fetch LFS objects in the checkout, or the store stops on a pointer file
-  where it expected an image. The action runs `variance doctor --baselines`
-  before the run, which counts the pointers in the root, names the first and
-  exits 2, so the job fails on the checkout rather than on the first subject
-  whose document changed; without that step, an unchanged subject passes from
-  its sidecar. The first commit-back carries the root's `.gitattributes` with
-  the images.
+- **git-lfs in the job, for `lfs`.** The Playwright image has none, so install
+  it, and after the checkout run `git lfs install --local --skip-smudge`: an
+  installed git-lfs does nothing until git is told to run it, and a commit
+  without it stores whole images. Leave LFS objects out of the checkout, which
+  `actions/checkout` does unless you set `lfs: true`: the run reads a baseline
+  image only for a subject whose document changed, and fetches that one image
+  with `git lfs pull`. A checkout that fetches them works too, and downloads
+  every baseline on every run. Without git-lfs, the run stops with exit 2, an
+  error and not a difference, on the first image it needs. The action runs
+  `variance doctor --baselines` before the run, which names the first pointer
+  git-lfs cannot fetch here and exits 2, so such a job fails on the checkout
+  rather than on the first subject whose document changed. The first
+  commit-back carries the root's `.gitattributes` with the images.
 
 ### A review service
 

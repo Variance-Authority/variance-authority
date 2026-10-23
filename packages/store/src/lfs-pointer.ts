@@ -53,6 +53,7 @@ export function refuseAPointer(raster: Raster, what: string): void {
   throw new RasterStoreError(
     `${what} is a git-LFS pointer, not an image. The file was checked out without ` +
       'git-lfs installed, so the working tree holds the pointer text where the PNG ' +
-      `should be. Run \`git lfs install && git lfs pull\`. ${REFUSAL}.`,
+      `should be. Run \`git lfs install --local\`, and \`git lfs pull\` to fetch every image, or ` +
+      `drop \`verify: false\` to fetch only the images the run compares. ${REFUSAL}.`,
   );
 }
