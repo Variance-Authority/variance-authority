@@ -492,9 +492,9 @@ affected`: it runs what the graph runs, and adds what the record saw load.
 `file-use` drops the graph and keeps what coverage says. The two differ only
 where a test imports a file without loading it, and a runner such as Vitest or
 Jest loads every static import. A module loads where it is used through an
-inline or lazy `require`, a dynamic `import()`, or a mock that replaces it in
-the test files that never call it, which is the substitution
-[distill](../packages/distill/README.md) proposes. On most codebases the two steps run the same
+inline or lazy `require` or a dynamic `import()`. Loading is not using:
+[distill](../packages/distill/README.md) separates the files a test loaded from
+the ones it ran a function in. On most codebases the two steps run the same
 tests, and the size of both answers depends on your imports, not on the
 selector. A module that an index file re-exports is loaded by every test that
 imports the index, and `file-use` counts each of those tests as a user of it.
