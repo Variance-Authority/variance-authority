@@ -149,6 +149,60 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/pickFor .*\[holds: palette\]/);
   });
 
+  describe('a name every word reaches loosely, though it holds one stem of three', () => {
+    // `cache` is held as typed, `entriee` and `magazie` are each one character
+    // off the name: one stem of three to the described reading, every word to
+    // the loose one.
+    const ask = async (competitors: number): Promise<string> => {
+      const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+        'src/caches.ts': Array.from({ length: competitors }, (_, at) => `export const cacheAt${at} = ${at};\n`).join(''),
+        'src/magazine.ts': 'export const cacheEntriesMagazine = 1;\n',
+      });
+      return answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee magazie' }, treeOf([], root), root);
+    };
+    const LOOSE_SECTION = /(?:name matches|names match) loosely/u;
+
+    it('is the loose section\'s, past more names holding the stem than the described section shows', async () => {
+      const said = await ask(17);
+      expect(said).toMatch(LOOSE_SECTION);
+      expect(said.search(/^cacheEntriesMagazine /mu)).toBeGreaterThan(said.search(LOOSE_SECTION));
+      expect(said).not.toMatch(/cacheEntriesMagazine .*\[holds:/u);
+    });
+
+    it('is the loose section\'s however few names sort before it, so the rows shown never decide which section tells it', async () => {
+      const said = await ask(3);
+      expect(said.search(/^cacheEntriesMagazine /mu)).toBeGreaterThan(said.search(LOOSE_SECTION));
+      expect(said).not.toMatch(/cacheEntriesMagazine .*\[holds:/u);
+      expect(said).toMatch(/cacheAt0 .*\[holds: cache\]/u);
+    });
+  });
+
+  it('leaves the loose section what it reaches that the described section does not, past any number of names both reach', async () => {
+    // Every `cacheEntriesAt<n>` holds `cache`, half the stems, and is reached
+    // loosely too; `kacheEntries` is reached loosely alone, each word one
+    // character off.
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/caches.ts': Array.from({ length: 32 }, (_, at) => `export const cacheEntriesAt${at} = ${at};\n`).join(''),
+      'src/kache.ts': 'export const kacheEntries = 1;\n',
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee' }, treeOf([], root), root);
+    expect(said).toMatch(/^1 more name matches loosely/mu);
+    expect(said).toMatch(/^kacheEntries /mu);
+  });
+
+  it('keeps a name holding two stems of three where it was, rather than moving it below the names holding one', async () => {
+    // `entriee` is one character off: `cacheMagazineEntries` holds `cache` and
+    // `magazine` as typed, and every word loosely.
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/caches.ts': Array.from({ length: 3 }, (_, at) => `export const cacheAt${at} = ${at};\n`).join(''),
+      'src/magazine.ts': 'export const cacheMagazineEntries = 1;\n',
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee magazine' }, treeOf([], root), root);
+    expect(said).toMatch(/cacheMagazineEntries .*\[holds: cache, magazine\]/u);
+    expect(said.indexOf('cacheMagazineEntries')).toBeLessThan(said.indexOf('cacheAt0'));
+    expect(said).not.toMatch(/(?:name matches|names match) loosely/u);
+  });
+
   it('puts the name holding more of the words in its name first', async () => {
     // Both hold `state` and `management`: `managedStateFor` in its name, `stateOf` half in its doc.
     const said = await ask('state management policy');

@@ -76,8 +76,10 @@ import { searched, searchedFiles } from './search-answer.js';
  * a caller can check `[holds: file, tests]`, and could not check a score.
  * Between two that hold as many, the one whose name holds more of them comes
  * first, then the one whose doc writes more of the question's adjacent word
- * pairs adjacent. It prints first, so a name it holds is not offered again by
- * the loose pass.
+ * pairs adjacent. It prints first, so a name holding at least half the stems
+ * is not offered again by the loose pass. A name holding fewer is the loose
+ * pass's when that pass reaches it, by every word, so a long list of names
+ * holding one stem cannot sort it past the rows shown.
  *
  * ## Where the substring stops being enough
  *
