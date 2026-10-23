@@ -218,12 +218,18 @@ already known, or invented for a simulation, call the stage itself from
 `@variance-authority/sense/test-selection` over an open record:
 `testsLoadingFromView(view, paths)` for every test that loaded each path,
 `testsEnteringFromView(view, change, { precision })` for invented ranges,
-`testsDeclaringFromView` for preconditions, `importersFromView` and
-`dependsReachFromView` for the graph's walk, `readRowlessFromView` for a module
+`testsDeclaringFromView(view, change)` for preconditions,
+`importersFromView(view, change, { relations })` and `dependsReachFromView` for
+the graph's walk, `readRowlessFromView` for a module
 the record never measured, and `changeOfFiles(paths)` to build the change.
-Each answers `{ entered, because, unanswered }` and reads neither git nor the
-tree; `unanswered` is the next stage's question, never a reason to widen.
-`narrowByChangeFromView` composes them, and is what `narrowByExecution` runs.
+Each answers `{ entered, because, unanswered }`, reads no git, and reads the
+checkout only through `root`; `unanswered` is the next stage's question, never
+a reason to widen. Pass `sourceAt` for the frame check and the parser's
+reading. Asked in the composition's order, each stage given what the one
+before left, they answer what `narrowByChangeFromView` answers, and that is what
+`narrowByExecution` runs. The stages before the route, an install's moves and
+the harness, are `beyondReach` and `beforeReach` in
+`@variance-authority/core/relate`.
 
 ## A recorded run costs memory, not time
 

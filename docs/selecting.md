@@ -436,7 +436,8 @@ reading.
 ## Ask one stage without a diff
 
 `variance run --since` asks git for the diff, then runs every stage of
-selection on it in a fixed order: it sets aside the files the suite ignores,
+selection on it in a fixed order: it traces what an install moved and what
+the harness rests on, sets aside the files the suite ignores,
 routes each file to the record or the graph, charges the regions the changed
 lines fall in, reads the preconditions, and walks the importers of a file the
 record never measured. If your system already knows which files moved, you can
@@ -444,8 +445,9 @@ call one of those stages yourself from the JavaScript API, passing the files
 and lines as values. You can ask which tests loaded a list of paths, which
 tests entered a range you made up at `function-use`, or which tests a file
 the record never measured reaches through its importers. Reading what an
-edit does, which the parser answers, needs both texts of the file, and runs
-only inside the whole selection. No stage reads git or the tree,
+edit does, which the parser answers, needs both texts of the file: pass the
+text at the recorded commit as `sourceAt`. No stage reads git, and none reads
+the checkout unless you pass `root`,
 so the refusals [above](#where-selection-widens) do not apply, and a
 simulation needs no checkout. [Sense](../packages/sense/README.md#ask-one-stage-alone)
 lists every stage and what it answers.

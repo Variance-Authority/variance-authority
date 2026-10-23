@@ -213,8 +213,10 @@ second half some other way.
 suite's ignored files out, routes each file by whether the record measured it,
 reads the change, charges regions, reads the preconditions and walks the
 graph. A system that already knows which files moved, or a simulation over
-files and lines nobody wrote, needs one of those steps and no diff. Each step
-takes values and an open record, and reads neither git nor the tree:
+files and lines nobody wrote, needs one of those stages and no diff. Each stage
+takes values and an open record, reads no git, and reads the checkout only
+through `root` when you pass it. The composition calls the same stages, so a
+stage asked alone answers as it does inside the whole:
 
 ```ts
 import {
@@ -231,7 +233,7 @@ const { entered, unanswered } = askCoverageFile(testCoverageFile(process.cwd()),
 );
 // entered: every test that loaded src/cart.ts; unanswered: ['src/cart.css'], which has no row.
 
-const lines = { lines: new Map([['src/cart.ts', [{ start: 40, end: 42 }]]]) };
+const lines = { lines: new Map([['src/cart.ts', [{ start: 40, end: 42 }]]]), hunks: new Map() };
 askCoverageFile(testCoverageFile(process.cwd()), (view) =>
   testsEnteringFromView(view, lines, { precision: 'function-use' }),
 );
@@ -243,21 +245,28 @@ stage selects more because of them.
 
 | Stage | Asks | Answers |
 |---|---|---|
-| `changeOfDiff`, `changeOfFiles` | a unified diff, or a list of paths changed whole | the `Change` every other step reads |
+| `changeOfDiff`, `changeOfFiles` | a unified diff, or a list of paths changed whole | the `Change` every other stage reads |
 | `ignoredChange` | a change and the suite's `ignore` globs | what is kept and what is ignored |
 | `routesFromView` | paths | `coverage`, `relations` or `nothing` per file |
 | `testsLoadingFromView` | paths | every test that loaded each file: `file-use` |
-| `testsEnteringFromView` | a change's lines, and `region-use`, `function-use` or `file-use` | every test that entered the regions the lines fall in |
-| `testsDeclaringFromView` | paths | every test that declared one as a precondition |
-| `graphReachFromView` | paths and `relations`, and `moved` exports | the tests the import walk reaches: what `file` and `symbol` add |
-| `importersFromView` | paths with no row, and `relations` | the nearest measured importers' tests |
+| `testsEnteringFromView` | a change, and `region-use`, `function-use` or `file-use` | every test that entered the regions the lines fall in, with `stale` and `readings` |
+| `testsDeclaringFromView` | a change, and `sourceAt` | every test that declared a changed file as a precondition, less one that ran the text it arrives at |
+| `graphReachFromView` | paths and `relations`, and `moved` exports | the tests the import walk reaches: what `file` and `symbol` add; a file `moved` does not name is walked whole |
+| `importersFromView` | a change, `relations` and `sourceAt` | the nearest measured importers' tests of each file with no row |
 | `dependsReachFromView` | ignored paths and `relations` | the tests of the modules that `/// <depends>` on them |
 | `readRowlessFromView` | a change, `relations` and `sourceAt` | the readers of a new or unmeasured module's exports, and its `readings` |
 | `narrowByChangeFromView` | a change, and the options above | all of them composed: what `narrowByExecution` returns |
 
-`testsEnteringFromView` reads lines as given, in the coordinates of the text the
-record was cut from. It checks no frame and reads no verdict: that is what
-`narrowByChangeFromView` adds.
+Given `sourceAt`, `testsEnteringFromView` checks the record's frame and reads
+what the lines moved, as the composition does: rows cut from another text are
+`stale` and charged whole. Without it, lines are read as given, in the
+coordinates of the text the record was cut from.
+
+To get the composition's answer from the stages by hand, ask them in its
+order and hand each stage what the one before left `unanswered`: a rowless
+file the reading charged is not walked. The two stages before the route,
+what an install moved and what the harness rests on, are `beyondReach` and
+`beforeReach` in `@variance-authority/core/relate`, and they take values too.
 
 ## Where the snapshot lives, and when it is rebuilt
 
