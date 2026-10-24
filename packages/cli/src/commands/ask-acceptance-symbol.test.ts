@@ -1,11 +1,6 @@
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EXIT_CLEAN } from '../exit.js';
-import { ACCEPTANCE } from './ask-acceptance-fixture.js';
-import { symbol } from './ask-facts.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { describe, expect, it } from 'vitest';
+import { indexAcceptance } from './ask-acceptance.fixture.js';
+import { symbol } from './ask-facts.fixture.js';
 
 /**
  * `variance ask symbol` held to spec 0104: what a name is, and where each of
@@ -13,18 +8,7 @@ import { checkout, run } from './ask-packages-fixture.js';
  * spec asks for and the answer does not hold yet.
  */
 
-const cwd = process.cwd();
-
-beforeAll(async () => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-acceptance-symbol-'));
-  checkout(ACCEPTANCE);
-  expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-});
-
-afterAll(() => {
-  process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
-});
+indexAcceptance('symbol');
 
 describe('ask symbol', () => {
   it('answers a published name with the import a caller pastes', async () => {

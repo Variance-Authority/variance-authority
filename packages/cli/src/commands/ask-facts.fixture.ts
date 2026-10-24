@@ -20,8 +20,6 @@ export interface Declaration {
   container: string | undefined;
   /** What a caller writes after `from` to import it, where one is answered. */
   specifier: string | undefined;
-  /** The other packages the answer says publish this same declaration. */
-  alsoPublishedBy: string[];
   /** The files that import it under another local name, and that name. */
   aliases: { file: string; local: string }[];
 }
@@ -47,7 +45,7 @@ export async function symbol(name: string): Promise<SymbolAnswer> {
   let header: { name: string; kind: string | undefined } | undefined;
   let specifier: string | undefined;
   const push = (visibility: Visibility, file: string, extra: Partial<Declaration> = {}): void => {
-    declarations.push({ name: header?.name ?? name, kind: header?.kind, visibility, file, container: undefined, specifier: undefined, alsoPublishedBy: [], aliases: [], ...extra });
+    declarations.push({ name: header?.name ?? name, kind: header?.kind, visibility, file, container: undefined, specifier: undefined, aliases: [], ...extra });
   };
   for (const line of out.split('\n')) {
     let m: RegExpExecArray | null;
@@ -62,7 +60,6 @@ export async function symbol(name: string): Promise<SymbolAnswer> {
     else if ((m = new RegExp(`^declared, not exported, at ${AT}`, 'u').exec(line))) push('unexported', m[1]!);
     else if ((m = new RegExp(`^exported, without being published, at ${AT}`, 'u').exec(line))) push('exported', m[1]!);
     else if ((m = new RegExp(`^a member of \`([\\w$]+)\`, declared at ${AT}`, 'u').exec(line))) push('member', m[2]!, { container: m[1] });
-    else if ((m = /^Also published by: (.+)$/u.exec(line)) && declarations.length > 0) declarations.at(-1)!.alsoPublishedBy = m[1]!.split(', ');
     else if (line.startsWith('Imported under another name: ') && declarations.length > 0) {
       for (const a of line.matchAll(new RegExp(`${AT} as \`([\\w$]+)\``, 'gu'))) declarations.at(-1)!.aliases.push({ file: a[1]!, local: a[3]! });
     }
@@ -164,6 +161,46 @@ export async function search(query: string): Promise<SearchAnswer> {
     for (const hit of json[tier]?.shown ?? []) hits.push({ name: hit.name, file: hit.at, visibility: visibility ?? (hit.source as Visibility) });
   }
   return { hits, code };
+}
+
+/** One region of a file and the cases that entered it. */
+export interface Region {
+  start: number;
+  end: number;
+  cases: string[];
+}
+
+/** What `covering --file <path>` answers over one record. */
+export interface CoveringAnswer {
+  /** Per region, the cases that entered it; empty when a line was asked. */
+  regions: Region[];
+  /** The cases that entered the asked line, when one was asked. */
+  cases: string[];
+  /** The record holds no file of that name: the run never loaded it. */
+  unloaded: boolean;
+  /** The record was cut under other probes than this build places. */
+  olderProbes: boolean;
+  code: number;
+}
+
+interface CoveringJson {
+  refused?: string;
+  ranges?: { startLine: number; endLine: number; tests: { id: string }[] }[];
+  tests?: { id: string }[];
+  probes?: { recordedUnder: string; places: string };
+}
+
+/** The facts of `covering --file <path>` over the record at `execution`, and `more` flags. */
+export async function covering(file: string, execution: string, root: string, more: readonly string[] = []): Promise<CoveringAnswer> {
+  const { code, out } = await run(['covering', '--file', file, ...more, '--execution', execution, '--root', root, '--format', 'json']);
+  const json = JSON.parse(out) as CoveringJson;
+  return {
+    regions: (json.ranges ?? []).map((range) => ({ start: range.startLine, end: range.endLine, cases: range.tests.map((test) => test.id) })),
+    cases: (json.tests ?? []).map((test) => test.id),
+    unloaded: json.refused === 'unloaded',
+    olderProbes: json.probes !== undefined && json.probes.recordedUnder !== json.probes.places,
+    code,
+  };
 }
 
 /** The files of `rows`, in the order they are answered. */

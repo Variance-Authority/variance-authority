@@ -1,11 +1,6 @@
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EXIT_CLEAN } from '../exit.js';
-import { ACCEPTANCE } from './ask-acceptance-fixture.js';
-import { filesOf, uses } from './ask-facts.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { describe, expect, it } from 'vitest';
+import { indexAcceptance } from './ask-acceptance.fixture.js';
+import { filesOf, uses } from './ask-facts.fixture.js';
 
 /**
  * `variance ask uses` held to spec 0104: who uses each declaration of a name.
@@ -13,18 +8,7 @@ import { checkout, run } from './ask-packages-fixture.js';
  * answer does not hold yet.
  */
 
-const cwd = process.cwd();
-
-beforeAll(async () => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-acceptance-uses-'));
-  checkout(ACCEPTANCE);
-  expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-});
-
-afterAll(() => {
-  process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
-});
+indexAcceptance('uses');
 
 describe('ask uses', () => {
   it('answers the tests that import a name apart from the source', async () => {
@@ -75,7 +59,7 @@ describe('ask uses', () => {
   it.todo('answers the uses of each declaration of a name apart: `pngSize` in apps/app is used by sizes.ts as `fileSize` — needs uses keyed by declaration, local imports resolved to their file');
   it.todo('never lists the importers of one declaration under another of the same name (`Coverage`) — needs importers grouped by the declaration their specifier resolves to');
   it.todo('counts a name read off an `export * as` namespace (`text.shout` in loud.ts) — needs reads off a namespace import recorded as uses of the member read');
-  it.todo('follows a namespace passed on whole to where it is read, instead of answering "may read it" — needs the namespace followed into the function it is passed to');
+  it.todo('follows a namespace passed on whole to where it is read, instead of answering "may read it" — needs the namespace followed into the function it is passed to, where that function reads the name off its parameter by syntax alone');
   it.todo('counts a destructured dynamic import (`const { greet } = await import(...)`) — needs destructuring of an `await import()` recorded as named imports');
   it.todo('does not mark `typeof lib.x` type-only — needs `typeof` in a type position told apart from a type-only import');
   it.todo('answers a module path (`packages/kit/src/money/tax.ts`) by the files importing it, on every surface — needs `uses` to accept a path and answer the importers of that file');

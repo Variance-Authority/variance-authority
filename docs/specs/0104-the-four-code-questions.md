@@ -12,8 +12,8 @@ renderers in `packages/help/src/tools/` (`symbol.ts`, `uses.ts`, `search`) and
 `packages/cli/src/commands/covering*.ts`. The index already holds the facts
 below; what is missing is mostly how they are answered.
 **Held by:** `packages/cli/src/commands/ask-acceptance-*.test.ts`, over the
-checkout in `ask-acceptance-fixture.ts`. A test asserts a fact through
-`ask-facts.ts` and never a sentence, so a renderer can be replaced by changing
+checkout in `ask-acceptance.fixture.ts`. A test asserts a fact through
+`ask-facts.fixture.ts` and never a sentence, so a renderer can be replaced by changing
 that one file. A fact this spec asks for and the answer does not hold yet is an
 `it.todo` there.
 
@@ -88,9 +88,9 @@ These hold today, and the tests pin them:
   renamed, type-only, `import()` and passed-on-whole notes, own-file uses of
   an unexported name, and a member's uses as reads and writes;
 - search by name words and by documentation words;
-- covering per region and suite, declared preconditions, a record under older
-  probes, and a suite with no record — pinned by the `covering-*.test.ts` files
-  that own them.
+- covering per region, narrowed to a line, a file the run never loaded, and a
+  record under older probes; declared preconditions and a suite with no record
+  stay pinned by the `covering-*.test.ts` files that build their checkout.
 
 The per-gap tests that pin these facts by their sentences retire with the
 renderer they word; the acceptance tests carry the facts across.
