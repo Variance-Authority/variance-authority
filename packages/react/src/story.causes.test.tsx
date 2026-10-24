@@ -163,8 +163,8 @@ describe('why the React story setup says a component rendered after it suspended
 
   // A retry inside `startTransition` keeps the content on screen and shows no
   // fallback, so the boundary reads resolved on both sides and the line says
-  // `its parent rendered`; telling it apart needs the retry lane the commit ran in.
-  it.todo('the boundary above it retried in a transition, which showed no fallback');
+  // `its parent rendered`.
+  it.todo('the boundary above it retried in a transition, which showed no fallback — needs the retry lane the commit ran in');
 });
 
 let reopen: () => void = () => {};
