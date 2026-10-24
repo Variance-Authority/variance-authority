@@ -31,10 +31,11 @@ of its own, so ask about its lines instead.
 When some case entered the function, the answer also names the outermost parts
 of it no case ran — a branch no case took, a nested function no case called —
 under `No case ran a part of it`, as `unrun` in JSON (`kind`, the nested
-`name`, held-text lines, and `hole` or `unwalked` when the record can tell) and
-`; no case ran 112 branch` in refs. These are the parts the review and the
-handover mark 🔴: a function the handover flags is answered here with the part
-to test.
+`name`, held-text lines, and `state`, `hole` or `unwalked`, when the record
+can tell) and `; no case ran 112 branch` in refs. They are read over every
+case, before `--where`, across the whole function, so they include every part
+the review and the handover mark 🔴: a function the handover flags is answered
+here with the part to test.
 
 The record holds a line no finer than its region does. A line whose edit
 charges the module's own region is held at file grain: a module-level

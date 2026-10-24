@@ -424,8 +424,9 @@ file, and the answer says so.
 A function some cases entered can still hold a part none ran: a branch no case
 took, or a callback no case called. `--function` names each one under its
 cases, `No case ran a part of it: the branch at line 112`, and `unrun` under
-`--format json`. They are the parts the review and the handover mark 🔴, read
-region by region from the same record, so the two answers agree.
+`--format json`. They are read over every case, before `--where` narrows the
+list, with the review's own reading over the whole function, so they include
+every part of it the review and the handover mark 🔴.
 
 A module the run loaded without instrumenting it, such as one named in
 `unprobed` or one whose text the run could not parse, has no recorded line. It is a

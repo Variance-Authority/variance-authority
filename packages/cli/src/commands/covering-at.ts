@@ -38,7 +38,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt } from '../covering-args.js';
 import type { Narrowing } from './covering-reach.js';
-import { regionState } from './covering-frame.js';
+import { outermostOf, unrunOf } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { Covering, CoveringTarget } from './covering.js';
 
@@ -140,10 +140,9 @@ export interface UnrunPart {
 }
 
 /**
- * The outermost recorded regions under the scope that no case entered, read
- * region by region as the review and the handover read a changed function —
- * the one reading of a function's parts, so the two answers cannot disagree.
- * A part inside one no case entered is not a second finding.
+ * The outermost recorded regions under the scope that no case called, read
+ * with the review's `unrunOf` and `outermostOf`. A part inside one no case
+ * called is not a second finding.
  */
 function unrunParts(
   index: ExecutionIndex,
@@ -155,23 +154,19 @@ function unrunParts(
   const spans = functionsUnder(module.blocks, scope).map((block) => ({ start: block.startLine, end: block.endLine }));
   const regions = (coveringChange(index, new Map([[module.file, spans]]), graph)[0]?.regions ?? [])
     .filter((region) => region.kind !== 'module' && (region.name === scope || region.name.startsWith(`${scope}/`)))
-    .sort((left, right) => left.startLine - right.startLine || right.endLine - left.endLine);
+    .map((region) => ({ region, kind: region.kind, startLine: region.startLine, endLine: region.endLine, reach: unrunOf(region) ?? ('entered' as const) }));
   const parts: UnrunPart[] = [];
-  let within = 0;
-  for (const region of regions) {
-    if (region.startLine <= within) continue;
-    if (region.tests.length > 0 || (region.passengers ?? []).length > 0) continue;
-    within = region.endLine;
+  for (const { region, reach } of outermostOf(regions)) {
+    if (reach === 'entered' || reach === 'loaded') continue;
     const where = placement === undefined ? { lines: region, moved: false } : placement.place(region);
     // A part every line of which an edit removed has nowhere in the held text to be named.
     if (where === undefined) continue;
-    const state = regionState(region);
     parts.push({
       kind: region.kind,
       ...(region.name === scope ? {} : { name: region.name }),
       startLine: where.lines.startLine,
       endLine: where.lines.endLine,
-      ...(state === undefined ? {} : { state }),
+      ...(reach === 'unknown' ? {} : { state: reach }),
     });
   }
   return parts;

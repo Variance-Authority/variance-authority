@@ -51,7 +51,7 @@ function text(answer: Covering): string {
   const where = targetText(answer.target ?? { function: '' });
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
-    return narrowedText(answer).join('\n');
+    return [...narrowedText(answer), ...unrunText(answer.unrun)].join('\n');
   }
   if (tests.length === 0 && newlyWritten(answer)) {
     // Every asked line is new since the recording: *no named test covered* is true, and the reason is the whole answer.

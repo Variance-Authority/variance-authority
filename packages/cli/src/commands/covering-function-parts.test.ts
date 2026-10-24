@@ -1,11 +1,14 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { main } from '../bin.js';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
+import { AFTER, DISCOUNTS, ROUNDS, block, changed, recordTotal } from './review-fixture.js';
 
 // `moved` is a function both cases entered. Inside it a branch ran, a one-line
 // branch no case took, and a callback no case called, with a branch of its own.
@@ -28,6 +31,11 @@ const INDEX = {
       { kind: 'branch', name: 'movedAgain', path: 'if#0/then', startLine: 42, endLine: 42, source: true, crossings: [] },
       { kind: 'function', name: 'read', path: 'entry', startLine: 50, endLine: 54, source: true, crossings: [{ test: 0, distance: 0 }] },
       { kind: 'branch', name: 'read', path: 'if#0/then', startLine: 52, endLine: 52, source: true, crossings: [{ test: 0, distance: 0 }] },
+      { kind: 'function', name: 'split', path: 'entry', startLine: 60, endLine: 80, source: true, crossings: [{ test: 0, distance: 0 }] },
+      { kind: 'branch', name: 'split', path: 'if#0/then', startLine: 62, endLine: 64, source: true, crossings: [] },
+      { kind: 'branch', name: 'split', path: 'if#0/else', startLine: 64, endLine: 66, source: true, crossings: [] },
+      { kind: 'branch', name: 'split', path: 'cond#0/then', startLine: 70, endLine: 70, source: true, crossings: [] },
+      { kind: 'branch', name: 'split', path: 'cond#0/else', startLine: 70, endLine: 70, source: true, crossings: [] },
     ],
   }],
 };
@@ -58,6 +66,17 @@ describe('a function some cases entered and some part of which none ran', () => 
     expect(formatCovering(answer, 'refs')).toContain('; no case ran 12 branch, 20-26 function moved/each.arg0\n');
   });
 
+  it('names both arms of a branch that share a line, a `} else {` or a one-line ternary', async () => {
+    const answer = await ask('--function', 'split');
+
+    expect(answer.unrun).toEqual([
+      { kind: 'branch', startLine: 62, endLine: 64 },
+      { kind: 'branch', startLine: 64, endLine: 66 },
+      { kind: 'branch', startLine: 70, endLine: 70 },
+      { kind: 'branch', startLine: 70, endLine: 70 },
+    ]);
+  });
+
   it('says nothing of parts when every part ran, or when no case entered the function at all', async () => {
     const ran = await ask('--function', 'read');
     expect(ran.tests?.map((test) => test.id)).toEqual(['reads']);
@@ -68,5 +87,36 @@ describe('a function some cases entered and some part of which none ran', () => 
     const none = await ask('--function', 'moved/each.arg0');
     expect(none.tests).toEqual([]);
     expect(none.unrun).toBeUndefined();
+  });
+});
+
+describe('a function the handover marks as holding a part no case ran', () => {
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
+  it('is answered by covering --function with that part, read from the same record', async () => {
+    const { root, first } = await changed();
+    // `round` is entered, and the branch on its line 6 is not.
+    await recordTotal(testCoverageFile(root, {}), {
+      commit: first,
+      text: AFTER,
+      tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+      entered: { applyDiscount: ['test/total.test.ts'], round: ['test/total.test.ts'] },
+      index: {
+        tests: [DISCOUNTS, ROUNDS],
+        modules: [{ file: 'src/total.ts', blocks: [
+          block('applyDiscount', 1, 3, [0]),
+          block('round', 5, 7, [1]),
+          { kind: 'branch', name: 'round', path: 'round/if#0/then', startLine: 6, endLine: 6, source: true, crossings: [] },
+        ] }],
+      },
+    });
+    let handover = '';
+    await main(['review', '--since', first, '--root', root, '--format', 'handover'], { out: (text) => (handover += text), err: () => {} });
+    let json = '';
+    await main(['covering', '--file', 'src/total.ts', '--function', 'round', '--root', root, '--format', 'json'], { out: (text) => (json += text), err: () => {} });
+
+    expect(handover).toContain('- 🔴 `round` in `src/total.ts` — a part no case ran');
+    expect(JSON.parse(json).unrun).toEqual([{ kind: 'branch', startLine: 6, endLine: 6, state: 'unwalked' }]);
   });
 });

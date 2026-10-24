@@ -52,7 +52,7 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(out).not.toContain(REVIEW_MARKER);
   });
 
-  it('suggests a command for one file that the covering parser takes and answers about that file', async () => {
+  it('suggests a command for one file that the covering parser takes', async () => {
     const { root, first } = await changed();
     await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
 
