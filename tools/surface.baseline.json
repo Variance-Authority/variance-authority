@@ -1492,6 +1492,7 @@
         "entryPoints": "function",
         "eyesToolByName": "function",
         "flagOf": "function",
+        "heldWeight": "function",
         "limitOf": "function",
         "namesOf": "function",
         "notObservedSentence": "function",

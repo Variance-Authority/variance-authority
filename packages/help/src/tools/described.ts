@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { rarity } from '@variance-authority/mcp/tools';
+import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 import { opening } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import { docOf } from '../indexed-surface.js';
@@ -334,7 +334,8 @@ const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
  * The weight of what a row holds of the question: each word's {@link rarity}
  * among `population`, times what the place it holds it in counts — its name
  * its {@link FIELD_WEIGHTS} weight in thousandths, its doc its weight times
- * the doc's {@link lengthCount}, never more than a name — summed. An integer.
+ * the doc's {@link lengthCount}, never more than a name — summed by
+ * {@link heldWeight}. An integer.
  */
 function weightOf(population: readonly Weighed[]): Weight {
   const holders = new Map<string, number>();
@@ -352,7 +353,7 @@ function weightOf(population: readonly Weighed[]): Weight {
   return (key) => {
     // A doc shorter than most counts more than one of the mean length, up to a name.
     const doc = Math.min(name, FIELD_WEIGHTS.doc * lengthCount(key.docLength ?? 0, docBytes, docs));
-    return key.words.reduce((sum, word) => sum + (rare.get(word) ?? 0) * (key.named.includes(word) ? name : doc), 0);
+    return heldWeight(key.words, (word) => rare.get(word) ?? 0, (word) => (key.named.includes(word) ? name : doc));
   };
 }
 
