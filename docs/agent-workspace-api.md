@@ -84,10 +84,13 @@ service for JavaScript and TypeScript, which lists those uses. Members are read
 from JavaScript and TypeScript files only, so a Python class's methods and a
 Rust struct's fields and `impl` methods are not; top-level declarations are read in
 every language the index reads, Python, Rust, Java, Kotlin and Swift
-included. `ask symbol` answers a top-level declaration of the name first, in
-any of those languages; on a name that no top-level declaration or import has,
-it names each container that declares it as a member, with the member's
-`file:line`, and points to `uses`, which lists the members beside any top-level
+included, and a function or an arrow function declared inside another
+function's body is read in JavaScript and TypeScript and answered with the
+function that holds it. `ask symbol` answers a top-level declaration of the
+name first, in any of those languages; on a name that no top-level declaration
+or import has, it names each container that declares it as a member, with the
+member's `file:line`, beside any function that declares it inside its body, and
+points to `uses`, which lists the members beside any top-level
 declaration. When the workspace also holds Python, Rust, Java, Kotlin or Swift
 files, an answer that looked for members ends with a sentence that names those
 languages, whether or not it found one, and sends you to their language
@@ -252,7 +255,9 @@ npx variance ask search --query viewport --from packages/app/ --just-answer
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
 `--query`, `--from`, `--to` and `--limit`; `--just-answer` selects the last published
-generation. [Ask about the code and its runs from the
+generation. An answer names a flag or a next question the same way —
+`--from`, `variance ask symbol` — where the tool over MCP says `from` and
+`docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
 The source questions are also tools on `variance serve`, under the same names as below, so
@@ -334,8 +339,15 @@ passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. When that file only passes on another file's declaration with
 `export … from`, renamed, type-only or through `export *`, both name the
 declaration it reaches, through every file between, and `docs_symbol` shows its
-line as well. A read through an `export * as` namespace and, outside Rust, a call
-through a qualified path are not counted.
+line as well. A name a file passes on inside `export * as ns`, or inside
+`export { ns }` after `import * as ns`, is counted where you read it off `ns`, `ns.name` or `const { name } = ns`, through a namespace
+inside a namespace, `lib.ns.name`, `const { ns } = lib` and then `ns.name`, or
+`const { ns: { name } } = lib`, and through a namespace passed on as
+`default`. An entry that publishes the name only inside such a namespace
+publishes it as `ns.name`, and the first line says so: `published as
+\`shout.greet\` by @acme/lib`. A namespace imported by name that goes
+somewhere whole and, outside Rust, a call through a qualified path are not
+counted.
 
 `docs_symbol` on an interface, a type alias or a class lists its members after
 the signature, one line each as the checkout holds it, so you see what a value
@@ -395,6 +407,15 @@ and for one it keeps. The lines follow the language's scope, so a parameter, a
 local or an inner item of the same name is another name and is not listed, and
 neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
 its imports alone.
+
+Each file that declares a name declares another thing, so `docs_uses` answers
+for every one of them, each kept apart: under the line naming each file that
+exports the name without publishing it come that declaration's own imports, as
+the uses of a kept one come under its own heading. Pass `file`, the file one of
+them is declared in, to answer for that declaration alone: `variance ask uses
+--name greet --file packages/lib/src/greet.ts`. A `file` that only passes the
+name on with `export … from` answers for the declaration it reaches, and a
+`file` that declares nothing by the name is answered with the files that do.
 
 A name your code reads off a namespace or default import, written with
 `import type` or without, or off `import()`, is a site too, and the site names the line that loads the module. In a

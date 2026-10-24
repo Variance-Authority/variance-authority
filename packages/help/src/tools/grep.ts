@@ -1,5 +1,5 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, limitOf, notShown, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { areaLine, areaOf } from './area.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
@@ -65,7 +65,8 @@ export const grep: Tool<unknown> = {
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
   run: (_help, input, invocation) => {
-    const limit = limitOf(input, SHOWN);
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, SHOWN, spell);
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const header = [areaLine(area)];
@@ -94,7 +95,7 @@ export const grep: Tool<unknown> = {
       }
       lines.push(`${hit.file}:${hit.line}:${hit.text}`);
     }
-    if (hits.length > limit) lines.push('', notShown(hits.length - limit));
+    if (hits.length > limit) lines.push('', notShown(hits.length - limit, spell));
     return lines.join('\n');
   },
 

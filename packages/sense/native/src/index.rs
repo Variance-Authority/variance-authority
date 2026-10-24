@@ -66,6 +66,11 @@ impl ParseRow for Read {
             values.insert(&symbol.name);
             values.insert(symbol.kind);
         }
+        for nested in &self.nested {
+            values.insert(&nested.name);
+            values.insert(nested.kind);
+            values.extend(nested.holder.as_deref());
+        }
         values.extend(self.declares.iter().map(String::as_str));
         values.extend(self.mocks.minus.iter().map(String::as_str));
         values.extend(self.mocks.plus.iter().map(String::as_str));
@@ -80,6 +85,11 @@ impl ParseRow for Read {
             values.insert(&used.how);
         }
         values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
+        for read in &self.binding_members {
+            values.insert(&read.binding);
+            values.extend(read.within.iter().map(String::as_str));
+            values.insert(&read.name);
+        }
         values.extend(self.unknown.as_deref());
     }
 
@@ -128,6 +138,13 @@ impl ParseRow for Read {
         }
         for used in &self.own_uses {
             into.own_use(id(&used.name), used.line);
+        }
+        for nested in &self.nested {
+            let holder = strings.optional(nested.holder.as_deref());
+            into.nested(id(&nested.name), id(nested.kind), nested.line, span(Some(nested.signature)), span(nested.doc), holder, nested.holder_line);
+        }
+        for read in &self.binding_members {
+            into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);
         }
     }
 

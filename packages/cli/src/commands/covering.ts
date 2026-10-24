@@ -52,7 +52,7 @@ import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
-import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
+import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
@@ -62,7 +62,7 @@ import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { coveringAt, countOf, fileGraph } from './covering-at.js';
+import { coveringAt, countOf, fileGraph, type UnrunPart } from './covering-at.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
@@ -132,6 +132,8 @@ export interface Covering {
   readonly stopped?: readonly ExecutionTest[];
   /** With `tests`: the one state the line or function is painted as, when it can be told, over the cases before `--where`. */
   readonly state?: RangeState;
+  /** With `--function` and a case that entered it: the outermost parts of it no case ran, as the review reads them, over the cases before `--where`. */
+  readonly unrun?: readonly UnrunPart[];
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
   /**
@@ -353,7 +355,8 @@ async function ask(
     : ranges.map((range) => ({ ...range, tests: range.tests.filter((test) => listed.has(test.id)) }));
   if (before !== undefined) reach?.(listedIn({ tests: found.flatMap((range) => range.tests).filter(near.keep) }));
   if (near.whole) return { file: file, ranges: listing(placeRanges(found, placement)), ...frame, from };
-  const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
+  // The narrowing is read inside the fold, so a range boundary still marks where the claim changes.
+  const narrowed = coveringTestsInFile(before ?? index, file, { ...graph, keep: near.keep });
   return {
     file: file,
     ranges: listing(placeRanges(narrowed, placement)),

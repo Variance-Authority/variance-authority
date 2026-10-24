@@ -28,6 +28,15 @@ answers every case that entered one of its methods. A name nothing recorded is
 under is refused with the names the file has; a constant or a type has no region
 of its own, so ask about its lines instead.
 
+When some case entered the function, the answer also names the outermost parts
+of it no case ran — a branch no case took, a nested function no case called —
+under `No case ran a part of it`, as `unrun` in JSON (`kind`, the nested
+`name`, held-text lines, and `state`, `hole` or `unwalked`, when the record
+can tell) and `; no case ran 112 branch` in refs. They are read over every
+case, before `--where` or `--at-distance`, across the whole function, with the
+review's own reading, in each suite: a function the handover flags is answered
+here with the part to test.
+
 The record holds a line no finer than its region does. A line whose edit
 charges the module's own region is held at file grain: a module-level
 statement, and the first or last line of a top-level function, which an edit
@@ -133,6 +142,21 @@ Every range, and the answer about one line, has a `state`:
 
 Read `hole` as unknown, never as untested. A range with no state is one the
 record cannot rank.
+
+A range's cases are the ones an edit to its lines selects, so the line that
+opens a branch carries the cases of the function around it. A region no case
+entered on such a line, a one-line branch or the opening line of a longer one,
+gets a range of its own in the whole-file answer and a line under it that says
+no case entered it, with its state, here and over MCP alike:
+
+```text
+line 6 — alone
+  the same named test as lines 4-5
+  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.
+```
+
+`--format json` lists those regions under the range's `unentered`, and
+`--format refs` adds `; unentered branch 6 unwalked` to its line.
 
 ## Ask about the text you are editing
 

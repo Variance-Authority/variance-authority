@@ -34,7 +34,9 @@ reading keeps a test.**
    skip. A file that failed last time is never held whole, so it is never
    skipped, and the loop stays red until it passes. A file the record never saw
    is kept the same way, and a declined reading skips nothing. Otherwise the
-   script prints one line and exits 0 without starting a runner. On the
+   script prints what the seam would — the selection's headline and its
+   readings — and a verdict naming the distance, and exits 0 without starting
+   a runner: a test that already ran this text is kept out, not missing. On the
    measurement machine, a run with no change takes 1.4 s; an edit that selects
    one test takes 3.6 s; a type error fails in 0.4 s with no test run.
 3. **No marker of its own.** Each run folds into the record, so the next run
