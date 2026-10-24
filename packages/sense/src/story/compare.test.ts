@@ -121,6 +121,22 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(0);
   });
 
+  it('leave out the number of a ref a note showed a value as', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(
+        reading([1, 4], [[1, 'rendered Row — onPick ref4 function onPick → ref9 function onPick']]),
+        reading([1, 4], [[1, 'rendered Row — onPick ref2 function onPick → ref7 function onPick']]),
+      ),
+      threw(reading([1, 4], [[1, 'rendered Row — its parent rendered']], true), reading([1, 4], [[1, 'rendered Row — its parent rendered']], true)),
+    ]);
+
+    expect(comparison.only.map((only) => only.said)).toEqual([
+      ['rendered Row — onPick ref function onPick → ref function onPick'],
+      ['rendered Row — its parent rendered'],
+    ]);
+    expect(comparison.unsteady.said).toBe(0);
+  });
+
   it('put a line said in order with the places around it', () => {
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, 'eyes click on button "Save"']]), reading([1, 4], [[1, 'eyes click on button "Save"']])),

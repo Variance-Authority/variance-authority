@@ -202,13 +202,16 @@ function summary(side: LoadedSide): SideSummary {
 }
 
 // A ref a story gives an object is the order its run first met it, so one more
-// object early in a run renumbers every ref after it. Across runs a handed
-// value is its kind, and a ref says only that it is an object.
-const REF = /(?<=^(?:handed|holds) (?:.*, )?[\p{ID_Continue}$]+=)ref\d+(?!\d)/gu;
+// object early in a run renumbers every ref after it. Across runs a value the
+// tap showed — handed, held, or between a note's strings — is its kind, and a
+// ref says only that it is an object. The tap writes a ref as a word of its own
+// followed by the kind, or cut short; a console line that spells one alike
+// compares as the tap's would.
+const REF = /(?<=^|[\s=])ref\d+(?=[\s…]|$)/gu;
 
-/** What a line said means in another run: a handed object's ref without its number. */
+/** What a line said means in another run: each object's ref without its number. */
 function acrossRuns(said: string): string {
-  return said.startsWith('handed ') || said.startsWith('holds ') ? said.replace(REF, 'ref') : said;
+  return said.replace(REF, 'ref');
 }
 
 /**
