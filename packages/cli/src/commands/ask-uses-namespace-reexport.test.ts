@@ -69,6 +69,21 @@ describe('variance ask uses through an `export * as` namespace', () => {
     expect(greet.split('\n')[0]).toContain('published as `shout.greet` by @acme/lib');
   });
 
+  it('follows a namespace a barrel imports and exports by its local name, as `export * as` passes it', async () => {
+    checkout({
+      'packages/lib/src/bar.ts': "import * as g from './greet.js';\nexport { g };\n",
+      'packages/lib/src/use-bar.ts': "import { g } from './bar.js';\nexport const k = g.greet('k');\n",
+      'packages/lib/src/star-bar.ts': "import * as bar from './bar.js';\nexport const s = bar.g.greet('s');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const greet = await uses('greet');
+    expect(greet).toMatch(/^packages\/lib\/src\/use-bar\.ts:2 — @acme\/lib \(namespace, line 1\)$/m);
+    expect(greet).toMatch(/^packages\/lib\/src\/star-bar\.ts:2 — @acme\/lib \(namespace, line 1\)$/m);
+    // The barrel passes the namespace on; it reads nothing off it.
+    expect(greet).not.toMatch(/^packages\/lib\/src\/bar\.ts/m);
+  });
+
   it.todo(
     'counts a namespace binding that escapes whole, `[shout]`, as a place that may read each name — needs the walker to record a named holder read whole as a `*` binding member, which the query charges to every name of the namespace it reaches',
   );

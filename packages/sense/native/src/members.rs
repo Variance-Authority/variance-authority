@@ -123,6 +123,7 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
     let mut walker = Walker {
         lines,
         scoping,
+        followed: held::passed_on(program, scoping, &holders),
         holders,
         chains,
         aliases: typed::aliases(program),
@@ -130,7 +131,6 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
         stated: requests.len() as u32,
         loads: Loads::new(lines),
         found: BTreeSet::new(),
-        followed: HashSet::new(),
         mock_factory: None,
     };
     walker.visit_program(program);

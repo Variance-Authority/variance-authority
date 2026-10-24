@@ -1,9 +1,11 @@
 //! What a binding the walk follows holds, the request it reads through, and
 //! what a name read off it holds.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use oxc_ast::ast::{JSXMemberExpressionObject, TSTypeName};
+use oxc_ast::ast::{JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
+use oxc_semantic::Scoping;
+use oxc_syntax::symbol::SymbolId;
 
 use super::Walker;
 
@@ -95,6 +97,26 @@ impl Held {
 /// The token a member read takes when the module goes somewhere the walk does
 /// not follow, as a binding takes it for the namespace whole.
 pub(super) const WHOLE: &str = "*";
+
+/// Where a namespace import is exported by its local name, `export { g }`
+/// after `import * as g from 'm'`. The parse records that as `export * as g
+/// from 'm'`, which the query follows, so the reference passes the module on
+/// and is no read of it whole.
+pub(super) fn passed_on(program: &Program, scoping: &Scoping, holders: &HashMap<SymbolId, Held>) -> HashSet<u32> {
+    let mut followed = HashSet::new();
+    for statement in &program.body {
+        let Statement::ExportNamedDeclaration(it) = statement else { continue };
+        for specifier in &it.specifiers {
+            let ModuleExportName::IdentifierReference(local) = &specifier.local else { continue };
+            let symbol = local.reference_id.get().and_then(|it| scoping.get_reference(it).symbol_id());
+            // Before the walk, a holder of the whole module is a namespace import.
+            if symbol.and_then(|it| holders.get(&it)).is_some_and(|held| held.named.is_none() && !held.off) {
+                followed.insert(local.span.start);
+            }
+        }
+    }
+    followed
+}
 
 impl Walker<'_, '_> {
     /// The value `name` read off what `held` holds: an export of the module,
