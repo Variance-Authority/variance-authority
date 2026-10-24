@@ -1,6 +1,8 @@
 //! What a binding the walk follows holds, the request it reads through, and
 //! what a name read off it holds.
 
+// compass: variance-authority.reach.source-index
+
 use std::collections::{HashMap, HashSet};
 
 use oxc_ast::ast::{Argument, ArrayExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};

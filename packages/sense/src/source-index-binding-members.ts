@@ -1,3 +1,5 @@
+// compass: variance-authority.reach.source-index
+
 import { rangeOf, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
 import type { BindingMember } from './cache.js';
 

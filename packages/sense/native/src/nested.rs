@@ -9,6 +9,8 @@
 //! a callback nobody named has. No other value is recorded: a body's other
 //! locals are its working state, and what it calls is what a caller asks for.
 
+// compass: variance-authority.reach.source-index
+
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
 use oxc_span::Span;

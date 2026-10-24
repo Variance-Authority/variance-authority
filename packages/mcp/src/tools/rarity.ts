@@ -1,3 +1,5 @@
+// compass: variance-authority.report.agent-surface
+
 /**
  * How rare a word is in a population, as an integer from 0 to 1000: of
  * `population` rows, `holders` hold the word. A word every row holds scores
