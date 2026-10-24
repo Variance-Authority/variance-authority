@@ -1,6 +1,6 @@
 //! One module's cacheable facts, extracted without letting its AST cross N-API.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::Program;
@@ -366,8 +366,11 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     let scoping = built.semantic.scoping();
     let (members, binding_members, loads, taken) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
     // A binding destructured off a module it holds is that module's value under
-    // a local name, as an import binds one, and declares nothing of its own.
-    harvest.symbols.retain(|symbol| !taken.contains(&(symbol.name.clone(), symbol.line)));
+    // a local name, as an import binds one, and declares nothing of its own,
+    // unless the file exports it: the export publishes the binding, and the
+    // binding is what says what it is, as `export const s = lib.shout` does.
+    let published: HashSet<&str> = exports.iter().filter(|it| it.from.is_none()).filter_map(|it| it.local.as_deref().or(it.exported.as_deref())).collect();
+    harvest.symbols.retain(|symbol| published.contains(symbol.name.as_str()) || !taken.contains(&(symbol.name.clone(), symbol.line)));
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);

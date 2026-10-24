@@ -99,6 +99,20 @@ describe('variance ask uses through an `export * as` namespace', () => {
     expect(greet).not.toContain('[const]');
   });
 
+  it('answers a name a file exports by destructuring it off a module, as the declaration it is', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport { pulse } from './carrier.js';\n",
+      'packages/lib/src/trace.ts': 'const trace = { pulse: 1 };\nexport default trace;\n',
+      'packages/lib/src/carrier.ts': "import trace from './trace.js';\nexport const { pulse } = trace;\n",
+      'apps/app/src/beat.ts': "import { pulse } from '@acme/lib';\nexport const beat = pulse;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const pulse = await uses('pulse');
+    expect(pulse).toMatch(/^`pulse` \[const\] is imported in 1 place/m);
+    expect(pulse).toMatch(/^apps\/app\/src\/beat\.ts:1 — @acme\/app/m);
+  });
+
   it.todo(
     'counts a namespace binding that escapes whole, `[shout]`, as a place that may read each name — needs the walker to record a named holder read whole as a `*` binding member, which the query charges to every name of the namespace it reaches',
   );

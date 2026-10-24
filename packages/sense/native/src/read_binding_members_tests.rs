@@ -148,3 +148,21 @@ fn a_name_destructured_off_a_holder_holds_the_value_it_takes() {
     let declared: Vec<_> = read.symbols.iter().map(|it| it.name.as_str()).collect();
     assert_eq!(declared, ["loud", "still"]);
 }
+
+#[test]
+fn an_exported_destructured_binding_declares_its_name() {
+    // The export publishes the binding, so the binding is what says what it is,
+    // as `export const shout = lib.shout` would; the reads off it are followed all the same.
+    let source = concat!(
+        "import lib from './lib';\n",
+        "export const { shout } = lib;\n",
+        "const { quiet } = lib;\n",
+        "export { quiet as hush };\n",
+        "const { calm } = lib;\n",
+        "shout.greet('a');\n",
+    );
+    let module = read_module("a.ts", source, &Allocator::default(), true);
+    let declared: Vec<_> = module.symbols.iter().map(|it| it.name.as_str()).collect();
+    assert_eq!(declared, ["shout", "quiet"]);
+    assert_eq!(binding_members(source), [read("./lib", "default.shout", "greet", 6)]);
+}
