@@ -34,7 +34,9 @@ describe('ask uses', () => {
   });
 
   it('follows a barrel to the declaration and never counts the barrel', async () => {
-    expect(filesOf((await uses('greet')).uses)).not.toContain('packages/lib/src/index.ts');
+    const files = filesOf((await uses('greet')).uses);
+    expect(files).toContain('apps/app/src/hello.ts');
+    expect(files).not.toContain('packages/lib/src/index.ts');
   });
 
   it('says which import renames it, which loads it by import(), and which passes the module on whole', async () => {

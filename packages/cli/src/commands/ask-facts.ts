@@ -1,8 +1,8 @@
 import { run } from './ask-packages-fixture.js';
 
 /**
- * The facts `variance ask symbol` and `variance ask uses` answer, read out of
- * the text they print today. `ask-acceptance-*.test.ts` asserts these facts
+ * The facts `variance ask symbol`, `ask uses` and `ask search` answer, read
+ * out of what they print today. `ask-acceptance-*.test.ts` asserts these facts
  * and never a sentence, so an answer that changes its wording, or turns into
  * rows, changes this file and no test.
  */
@@ -31,6 +31,8 @@ export interface SymbolAnswer {
   declarations: Declaration[];
   /** The import that binds `name` locally, when `name` is a local alias. */
   localOf: { file: string; imported: string } | undefined;
+  /** The answer says nothing in the workspace declares the name. */
+  missed: boolean;
   code: number;
 }
 
@@ -41,6 +43,7 @@ export async function symbol(name: string): Promise<SymbolAnswer> {
   const { code, out } = await run(['ask', 'symbol', '--name', name]);
   const declarations: Declaration[] = [];
   let localOf: SymbolAnswer['localOf'];
+  let missed = false;
   let header: { name: string; kind: string | undefined } | undefined;
   let specifier: string | undefined;
   const push = (visibility: Visibility, file: string, extra: Partial<Declaration> = {}): void => {
@@ -48,6 +51,7 @@ export async function symbol(name: string): Promise<SymbolAnswer> {
   };
   for (const line of out.split('\n')) {
     let m: RegExpExecArray | null;
+    if (/No file in this workspace declares `[\w$]+`/u.test(line)) missed = true;
     if ((m = /^`[\w$]+` is a local name: (\S+):\d+ imports `([\w$]+)` as/u.exec(line))) localOf = { file: m[1]!, imported: m[2]! };
     else if ((m = /^([\w$]+)(?: \[(\w+)\])?$/u.exec(line))) {
       header = { name: m[1]!, kind: m[2] };
@@ -63,7 +67,7 @@ export async function symbol(name: string): Promise<SymbolAnswer> {
       for (const a of line.matchAll(new RegExp(`${AT} as \`([\\w$]+)\``, 'gu'))) declarations.at(-1)!.aliases.push({ file: a[1]!, local: a[3]! });
     }
   }
-  return { declarations, localOf, code };
+  return { declarations, localOf, missed, code };
 }
 
 /** Where a use was found. */
@@ -126,6 +130,40 @@ export async function uses(name: string): Promise<UsesAnswer> {
     }
   }
   return { uses: found, memberOf, code };
+}
+
+/** One declaration `search` finds, in the order it ranks them. */
+export interface Hit {
+  name: string;
+  file: string;
+  visibility: Visibility;
+}
+
+/** What `ask search --query <words>` answers. */
+export interface SearchAnswer {
+  hits: Hit[];
+  code: number;
+}
+
+/** The tiers `search` answers in today, and the visibility each one holds. */
+const TIERS = [
+  ['published', 'published'],
+  ['exported', 'exported'],
+  ['declared', 'unexported'],
+  ['described', undefined],
+] as const;
+
+/** The facts of `ask search --query <words>`: its tiers read as one list, a tier above the next. */
+export async function search(query: string): Promise<SearchAnswer> {
+  const { code, out } = await run(['ask', 'search', '--query', query, '--format', 'json']);
+  const json = JSON.parse(out) as Record<string, { shown?: { name: string; at: string; source?: string }[] } | undefined>;
+  // An answer without these tiers is not read as one with no hits.
+  if (!TIERS.some(([tier]) => json[tier] !== undefined)) throw new Error(`search answered none of its tiers: ${out}`);
+  const hits: Hit[] = [];
+  for (const [tier, visibility] of TIERS) {
+    for (const hit of json[tier]?.shown ?? []) hits.push({ name: hit.name, file: hit.at, visibility: visibility ?? (hit.source as Visibility) });
+  }
+  return { hits, code };
 }
 
 /** The files of `rows`, in the order they are answered. */

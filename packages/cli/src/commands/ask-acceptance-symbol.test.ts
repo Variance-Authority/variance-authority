@@ -76,7 +76,7 @@ describe('ask symbol', () => {
   });
 
   it('answers a name nothing declares with no declaration', async () => {
-    expect((await symbol('nothingNamedThis')).declarations).toEqual([]);
+    expect(await symbol('nothingNamedThis')).toMatchObject({ declarations: [], missed: true });
   });
 
   it.todo('answers every declaration of a name, published first: `pngSize` in @acme/core and the exported one in apps/app — needs the reader to return every declaration a name has, not the first published one');

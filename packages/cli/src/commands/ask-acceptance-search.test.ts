@@ -4,37 +4,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { ACCEPTANCE } from './ask-acceptance-fixture.js';
+import { search } from './ask-facts.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
-/**
- * `variance ask search` held to spec 0104: a name found by what it does.
- * Read through its JSON, which already carries the facts.
- */
-
-interface Hit {
-  name: string;
-  at: string;
-}
-
-interface Tier {
-  total: number;
-  shown: Hit[];
-}
-
-interface Found {
-  published: Tier;
-  exported: Tier;
-  declared: Tier;
-  described?: Tier;
-}
+/** `variance ask search` held to spec 0104: a name found by what it does. */
 
 const cwd = process.cwd();
-
-async function search(query: string): Promise<Found> {
-  const { code, out } = await run(['ask', 'search', '--query', query, '--format', 'json']);
-  expect(code).toBe(EXIT_CLEAN);
-  return JSON.parse(out) as Found;
-}
 
 beforeAll(async () => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-acceptance-search-'));
@@ -49,16 +24,15 @@ afterAll(() => {
 
 describe('ask search', () => {
   it('finds a name by the words it is spelled with', async () => {
-    expect((await search('png size')).published.shown[0]).toMatchObject({ name: 'pngSize', at: 'packages/core/src/png.ts' });
+    expect((await search('png size')).hits[0]).toEqual({ name: 'pngSize', file: 'packages/core/src/png.ts', visibility: 'published' });
   });
 
   it('finds a name by the words of its documentation', async () => {
-    expect((await search('repository relative path')).described?.shown.map((hit) => hit.name)).toEqual(['CheckoutPath']);
+    expect((await search('repository relative path')).hits.map((hit) => hit.name)).toEqual(['CheckoutPath']);
   });
 
   it('finds nothing for a word nothing carries', async () => {
-    const found = await search('zzqx');
-    expect([found.published.total, found.exported.total, found.declared.total, found.described?.total ?? 0]).toEqual([0, 0, 0, 0]);
+    expect((await search('zzqx')).hits).toEqual([]);
   });
 
   it.todo('answers one ranked list, each hit with its file, line and visibility — needs the tiers folded into one list ranked by one score');

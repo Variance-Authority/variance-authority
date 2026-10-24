@@ -5,8 +5,8 @@
 notices grown one gap at a time, and only `search` and `covering` answer in
 JSON. A name with two declarations is answered as one: `symbol Coverage` calls
 a second package's own interface "also published by" the first, and `uses`
-lists its importers under the first. A miss is a paragraph, and costs about three
-times a hit. Nothing is answered about the working tree since the last index.
+lists its importers under the first. A miss is a paragraph that also reports on
+installed dependencies and text search. Nothing is answered about the working tree since the last index.
 **Built on:** the source index and its readers in `packages/sense`, and the
 renderers in `packages/help/src/tools/` (`symbol.ts`, `uses.ts`, `search`) and
 `packages/cli/src/commands/covering*.ts`. The index already holds the facts
@@ -91,6 +91,9 @@ These hold today, and the tests pin them:
 - covering per region and suite, declared preconditions, a record under older
   probes, and a suite with no record — pinned by the `covering-*.test.ts` files
   that own them.
+
+The per-gap tests that pin these facts by their sentences retire with the
+renderer they word; the acceptance tests carry the facts across.
 
 ## What is left
 
