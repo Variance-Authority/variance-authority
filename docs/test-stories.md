@@ -207,7 +207,8 @@ variance story --name "saves the total it charges" --compare outcome
 
 `--compare outcome` puts the readings in two groups, the runs that passed and
 the runs that threw. It lists only what is true of every reading in one group
-and of no reading in the other:
+and of no reading in the other, and a line said is compared with how many times
+it was said, `×2` where that is more than once:
 
 ```text
 compare  src/checkout.test.ts > saves the total it charges
@@ -515,8 +516,8 @@ lines out, so their steps read short.
 
 The same setup file says why each React component rendered, at the step the
 test was on when React committed, after a `commit — 3 rendered` line that opens
-each commit and counts the components it rendered, so a step that commits twice
-reads apart from one that commits once: `rendered Summary — expanded false → true`
+each commit and counts the components it rendered, `commit — 0 rendered` for one
+that rendered only host elements: `rendered Summary — expanded false → true`
 for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
 `state` for a class component's, a context by its display name, `mounted` for
 a first render, said once at the top of a subtree that mounts with each component that
@@ -530,7 +531,9 @@ function onPick → ref9 function onPick`. A hook the reader does not know ends
 what it reads, and the line says `state not read past` it, or `state not
 read` alone in a build that keeps no record of its hooks. Two tests that render
 the same tree for different reasons are told apart by these lines: a comparison
-lists each line only one test said, at its step.
+lists each line only one test said, at its step, and a line one test said more
+times than the other with how many, `commit — 1 rendered ×2`, so a test that
+commits twice reads apart from one that commits once.
 When `react-dom` loaded and mounted before the setup file, React announces no
 commit, and the story says `renders not read: react-already-loaded`; any other
 reason the tap was refused is named the same way.

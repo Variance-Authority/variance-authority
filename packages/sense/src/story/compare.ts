@@ -17,7 +17,9 @@
  * - **Where.** A region every reading of some sides went into and no reading of
  *   the rest did: an arm, a loop body, a function.
  * - **What was said.** A note — a console line, an announcement, what Eyes
- *   saw — that every reading of some sides has and none of the rest.
+ *   saw — that every reading of some sides says as many times, and none of
+ *   the rest does: a line said twice on one side and once on the other is
+ *   `×2` on the one and plain on the other.
  * - **In what order.** Two places, or two notes, every side reaches every time,
  *   that each side reaches in one order every time, and not every side in the
  *   same one. Order is compared at first arrival, at the grain of a
@@ -122,7 +124,7 @@ export interface SideSummary {
 interface Read {
   /** Every region it went into, by key. */
   readonly regions: Set<string>;
-  /** Every line it said, by text. */
+  /** Every line it said, by text and how many times: `text\0count`. */
   readonly said: Set<string>;
   /** Each moment's first arrival, by key, in order. */
   readonly first: Map<string, number>;
@@ -176,7 +178,7 @@ export function compareLoaded(root: string, sides: readonly LoadedSide[]): Compa
     only: groups.map((group) => ({
       sides: named(group.split(',').map(Number)),
       places: arrived(places.held.get(group) ?? [], arrival(group, 'r')).map((key) => names.get(key)!),
-      said: arrived(said.held.get(group) ?? [], arrival(group, 's')),
+      said: arrived(said.held.get(group) ?? [], (key) => arrival(group, 's')(textOf(key))).map(shownSaid),
     })),
     orders: order.differing.map(({ pair: [first, then], before }) => ({
       pair: [moments.get(first)!, moments.get(then)!] as const,
@@ -209,6 +211,17 @@ function summary(side: LoadedSide): SideSummary {
 // compares as the tap's would.
 const REF = /(?<=^|[\s=])ref\d+(?=[\s…]|$)/gu;
 
+/** The text a said key holds, without the times it was said. */
+function textOf(key: string): string {
+  return key.slice(0, key.lastIndexOf('\0'));
+}
+
+/** A said key as a person reads it: the text, and `×n` where it was said more than once. */
+function shownSaid(key: string): string {
+  const times = key.slice(key.lastIndexOf('\0') + 1);
+  return times === '1' ? textOf(key) : `${textOf(key)} ×${times}`;
+}
+
 /** What a line said means in another run: each object's ref without its number. */
 function acrossRuns(said: string): string {
   return said.replace(REF, 'ref');
@@ -230,6 +243,9 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
     total += count;
   }
   const read: Read = { regions: new Set(), said: new Set(), first: new Map() };
+  // A line is kept with how many times it was said: an extra commit says its
+  // lines again, and is how two tests most often render apart.
+  const times = new Map<string, number>();
   let clock = 0;
   const arrive = (key: string, moment: Moment): void => {
     if (!moments.has(key)) moments.set(key, moment);
@@ -238,7 +254,7 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
   };
   const hear = (said: string): void => {
     const text = acrossRuns(said);
-    read.said.add(text);
+    times.set(text, (times.get(text) ?? 0) + 1);
     if (!read.first.has(`s${text}`)) read.first.set(`s${text}`, clock);
     arrive(`m\0said\0${text}`, { said: text });
   };
@@ -279,6 +295,7 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
   };
   if (before) walk(story.before, story.beforeNotes);
   walk(story.visits, story.notes);
+  for (const [text, count] of times) read.said.add(`${text}\0${count}`);
   return read;
 }
 

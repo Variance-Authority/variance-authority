@@ -98,6 +98,24 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(3);
   });
 
+  it('are told apart by how many times a line was said, as a step that commits twice is from one that commits once', () => {
+    const twice: [number, string][] = [[1, 'commit — 1 rendered'], [1, 'rendered Cart — useState #0 false → true'], [2, 'commit — 1 rendered'], [2, 'rendered Cart — useState #0 false → true']];
+    const once: [number, string][] = [[1, 'commit — 1 rendered'], [1, 'rendered Cart — useState #0 false → true']];
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], twice), reading([1, 4], twice)),
+      threw(reading([1, 4], once, true), reading([1, 4], once, true)),
+    ]);
+    const flaky = compareLoaded(ROOT, [passed(reading([1, 4], twice), reading([1, 4], once)), threw(reading([1, 4], once, true), reading([1, 4], once, true))]);
+
+    expect(comparison.only.map((only) => [only.sides, only.said])).toEqual([
+      [['passed'], ['commit — 1 rendered ×2', 'rendered Cart — useState #0 false → true ×2']],
+      [['threw'], ['commit — 1 rendered', 'rendered Cart — useState #0 false → true']],
+    ]);
+    expect(comparison.unsteady.said).toBe(0);
+    expect(flaky.only).toEqual([]);
+    expect(flaky.unsteady.said).toBe(4);
+  });
+
   it('are told apart by what a function was handed, and not by the number its run gave an object', () => {
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, 'handed cart=ref2 Object, tax=0']]), reading([1, 4], [[1, 'handed cart=ref3 Object, tax=0']])),

@@ -143,17 +143,21 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
     onCommit: () => {
       const channel = scope[NOTE];
       // A step can hold several commits, and an extra one is how two tests most
-      // often render apart: each commit opens with a line of its own.
-      if (typeof channel === 'function' && lines.length > 0) {
+      // often render apart: each commit opens with a line of its own, one that
+      // rendered no component among them.
+      try {
+        if (typeof channel !== 'function') return;
         (channel as Channel)([`commit — ${rendered} rendered`]);
         for (const { name, causes, below } of lines) {
           const [strings, values] = renderNote(name, causes, below);
           (channel as Channel)(strings, ...values);
         }
+      } finally {
+        // A channel that throws on a value loses the rest of this commit, not the next one's.
+        lines.length = 0;
+        rendered = 0;
+        mounted.clear();
       }
-      lines.length = 0;
-      rendered = 0;
-      mounted.clear();
     },
   });
   // A story with no render lines would read as one where nothing rendered, and

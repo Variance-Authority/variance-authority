@@ -48,7 +48,7 @@ function Tree(): ReactElement {
 }
 
 describe('the React story setup', () => {
-  it('says where each commit starts and how many rendered in it, a mounted subtree once at its top with each component that mounted below it, a render once however often the setup ran, and values through the channel', () => {
+  it('says where each commit starts and how many rendered in it, none among them, a mounted subtree once at its top with each component that mounted below it, a render once however often the setup ran, and values through the channel', () => {
     const root = createRoot(document.createElement('div'));
     act(() => root.render(<Tree />));
     act(() => flip());
@@ -61,6 +61,8 @@ describe('the React story setup', () => {
       'rendered Tree — useState #0 false → true',
       // Branch mounts under a Tree that updated, so it is the top of what mounted, and Leaf mounted with it.
       'rendered Branch — mounted with Leaf',
+      // The unmount commits with no component rendering, and says so, as a commit of host elements alone does.
+      'commit — 0 rendered',
     ]);
   });
 });
