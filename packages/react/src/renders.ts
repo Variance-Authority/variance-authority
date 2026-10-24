@@ -1,6 +1,7 @@
-import { FiberTag, type Fiber } from './fiber.js';
+import { FiberTag, isOwnerFrame, type Fiber } from './fiber.js';
 import { alignedCellsOf, type AlignedCell } from './holding.js';
 import { contextReadsOf, inputPropNames } from './inputs.js';
+import { suspenseStateOf } from './suspense.js';
 
 /**
  * Why a component rendered, read off the commit it rendered in.
@@ -38,6 +39,13 @@ export type RenderCause =
   | { readonly kind: 'context'; readonly name: string; readonly before: unknown; readonly after: unknown }
   /** No input moved and the props object is new: the parent rendered it again. */
   | { readonly kind: 'parent' }
+  /**
+   * No input moved and the nearest Suspense boundary above showed its fallback
+   * last commit and its children in this one: React retried the boundary once
+   * what it suspended on settled, and the input that moved is outside the tree,
+   * in whatever cache the suspending component read.
+   */
+  | { readonly kind: 'resumed' }
   /** No input moved and the props object is the same one. A cause this reader does not see, such as `forceUpdate`. */
   | { readonly kind: 'unseen' };
 
@@ -56,7 +64,23 @@ export function renderCausesOf(fiber: Fiber): readonly RenderCause[] {
 
   const causes: RenderCause[] = [...propsMoved(before, fiber), ...stateMoved(before, fiber), ...contextsMoved(before, fiber)];
   if (causes.length > 0) return causes;
+  if (resumedAbove(fiber)) return [{ kind: 'resumed' }];
   return [before.memoizedProps === fiber.memoizedProps ? { kind: 'unseen' } : { kind: 'parent' }];
+}
+
+/**
+ * Whether the boundary that retried `fiber` came back from its fallback in this
+ * commit. The walk stops at a composite: one between them that rendered is the
+ * cause it says, and the components below it rendered because it did.
+ */
+function resumedAbove(fiber: Fiber): boolean {
+  for (let at = fiber.return ?? null; at !== null; at = at.return ?? null) {
+    if (at.tag === FiberTag.SuspenseComponent) {
+      return at.alternate !== null && suspenseStateOf(at.alternate) === 'pending' && suspenseStateOf(at) === 'resolved';
+    }
+    if (isOwnerFrame(at)) return false;
+  }
+  return false;
 }
 
 /** The props that are inputs on either side, by {@link inputPropNames}. */

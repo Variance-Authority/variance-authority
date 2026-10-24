@@ -66,10 +66,10 @@ Never record:
   are, an object as a ref and its kind, such as `ref5 Object` or
   `ref3 react.memo`, never its contents. A React kind such as `react.memo`
   needs `@variance-authority/react/story` in the suite's setup files; without
-  it, a memo or a context is `Object`. The same setup file opens each commit with `commit — <n> rendered`, `0` for one of host elements alone, and adds a
+  it, a memo or a context is `Object`. The same setup file opens each commit with `commit — <n> rendered`, `0` for one of host elements alone, then `, started by <Component>` where React recorded whose update started it, and adds a
   `rendered <Component> — <cause>` line for each component in it, a keyed component
-  named with its key (`Row key="b"`): the prop, state cell or
-  context that moved, with values shown as handed ones are, `mounted with <each component below>`, `its
+  named with its key (`Row key="b"`) and `(hidden)` inside a hidden `<Activity>` or behind a fallback: the prop, state cell or
+  context that moved, with values shown as handed ones are and `(same source)` or `(equal value)` after a value made anew but alike, `the Suspense boundary above it came back from its fallback`, `mounted with <each component below>`, `its
   parent rendered`, `no input it reads moved`, or `state not read past <hook>`
   where the reader stops (`state not read` where the build keeps no hook record); `renders not read: <reason>` when React announces no
   commit to it. Add a `console.log` of the value in

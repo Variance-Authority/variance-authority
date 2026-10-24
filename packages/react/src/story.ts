@@ -1,4 +1,4 @@
-import { tapCommits } from './commits.js';
+import { tapCommits, type Commit } from './commits.js';
 import { FiberTag, compositeAbove, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
 import { renderCausesOf, type RenderCause } from './renders.js';
@@ -51,18 +51,94 @@ function said(cause: RenderCause): Said {
       return [['mounted'], []];
     case 'parent':
       return [['its parent rendered'], []];
+    case 'resumed':
+      return [['the Suspense boundary above it came back from its fallback'], []];
     case 'unseen':
       return [['no input it reads moved'], []];
     case 'unread':
       return [[cause.hook === undefined ? 'state not read' : `state not read past ${cause.hook}`], []];
     case 'prop':
     case 'context':
-      return [[`${cause.name} `, ' → ', ''], [cause.before, cause.after]];
+      return [[`${cause.name} `, ' → ', alikeNote(cause.before, cause.after)], [cause.before, cause.after]];
     case 'hook':
-      return [[`${cause.hook} #${cause.index} `, ' → ', ''], [cause.before, cause.after]];
+      return [[`${cause.hook} #${cause.index} `, ' → ', alikeNote(cause.before, cause.after)], [cause.before, cause.after]];
     case 'state':
-      return [['state ', ' → ', ''], [cause.before, cause.after]];
+      return [['state ', ' → ', alikeNote(cause.before, cause.after)], [cause.before, cause.after]];
   }
+}
+
+/**
+ * What a value that moved shares with the one before it, when that is all
+ * that moved: a function written by the same source, or an object or array
+ * equal in value. Those are the inputs a parent makes anew each render, which
+ * a `useCallback` or a `useMemo` would have kept, and a story that shows both
+ * as refs cannot say so.
+ */
+function alikeNote(before: unknown, after: unknown): string {
+  if (typeof before === 'function' && typeof after === 'function') return sameSource(before, after) ? ' (same source)' : '';
+  return equalInValue(before, after, VALUE_DEPTH, { left: VALUE_KEYS }) ? ' (equal value)' : '';
+}
+
+function sameSource(before: Function, after: Function): boolean {
+  let source: string;
+  try {
+    source = Function.prototype.toString.call(before);
+    // Two bound or built-in functions print the same and share nothing.
+    if (source.includes('[native code]')) return false;
+    return source === Function.prototype.toString.call(after);
+  } catch {
+    return false;
+  }
+}
+
+/** How deep, and over how many keys in all, two values are compared before they are called unequal. */
+const VALUE_DEPTH = 4;
+const VALUE_KEYS = 64;
+
+/**
+ * Plain objects and arrays compared key by key, leaves by `Object.is`. Anything
+ * else — a class instance, a React element, a value past the bounds — is
+ * unequal, so the note is never said of two values that differ.
+ */
+function equalInValue(before: unknown, after: unknown, depth: number, budget: { left: number }): boolean {
+  if (Object.is(before, after)) return true;
+  if (depth === 0 || !isPlain(before) || !isPlain(after)) return false;
+  if (Array.isArray(before) !== Array.isArray(after)) return false;
+  const keys = Object.keys(before);
+  if (keys.length !== Object.keys(after).length) return false;
+  budget.left -= keys.length;
+  if (budget.left < 0) return false;
+  return keys.every(
+    (key) => Object.prototype.hasOwnProperty.call(after, key) && equalInValue((before as Record<string, unknown>)[key], (after as Record<string, unknown>)[key], depth - 1, budget),
+  );
+}
+
+function isPlain(value: unknown): value is object {
+  if (typeof value !== 'object' || value === null) return false;
+  if (Array.isArray(value)) return true;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return (prototype === Object.prototype || prototype === null) && !Object.prototype.hasOwnProperty.call(value, '$$typeof');
+}
+
+/**
+ * Whether `fiber` rendered inside a tree React keeps hidden: an `<Activity
+ * mode="hidden">`, or the content of a Suspense boundary showing its fallback.
+ * React renders such a tree ahead of showing it, and its line would otherwise
+ * read as a render on screen. A hidden Offscreen fiber holds a state object, a
+ * visible one `null`.
+ */
+function hiddenAbove(fiber: Fiber): boolean {
+  for (let at = fiber.return ?? null; at !== null; at = at.return ?? null) {
+    if (at.tag === FiberTag.OffscreenComponent && at.memoizedState != null) return true;
+  }
+  return false;
+}
+
+/** `, started by ` and the components whose update the commit carried, when React recorded them. */
+function startedBy(commit: Commit): string {
+  const names = (commit.updaters ?? []).flatMap((updater) => updater.path[0]?.name ?? []);
+  if (names.length === 0) return '';
+  return `, started by ${names.join(', ')}${commit.updatersTruncated === true ? ', …' : ''}`;
 }
 
 /** `rendered <Name> — ` and each cause, joined by `, `, as one template. */
@@ -145,7 +221,8 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
     onRender: (fiber) => {
       if (typeof scope[NOTE] !== 'function') return;
       const key = keyOf(fiber);
-      const name = key === undefined ? fiberComponentName(fiber) : `${fiberComponentName(fiber)} key=${JSON.stringify(key)}`;
+      const keyed = key === undefined ? fiberComponentName(fiber) : `${fiberComponentName(fiber)} key=${JSON.stringify(key)}`;
+      const name = hiddenAbove(fiber) ? `${keyed} (hidden)` : keyed;
       const causes = renderCausesOf(fiber);
       rendered += 1;
       if (causes[0]?.kind === 'mount') {
@@ -164,14 +241,14 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
       }
       lines.push({ name, causes, below: [] });
     },
-    onCommit: () => {
+    onCommit: (commit) => {
       const channel = scope[NOTE];
       // A step can hold several commits, and an extra one is how two tests most
       // often render apart: each commit opens with a line of its own, one that
       // rendered no component among them.
       try {
         if (typeof channel !== 'function') return;
-        (channel as Channel)([`commit — ${rendered} rendered`]);
+        (channel as Channel)([`commit — ${rendered} rendered${startedBy(commit)}`]);
         for (const { name, causes, below } of lines) {
           if (below.length > 0) {
             for (const note of mountNotes(name, below)) (channel as Channel)([note]);

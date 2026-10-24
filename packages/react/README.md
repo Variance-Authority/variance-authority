@@ -250,7 +250,7 @@ export default defineConfig({
   1  cart.tsx ×7
        » commit — 3 rendered
        » rendered Cart — mounted with Badge, Summary
-       » commit — 3 rendered
+       » commit — 3 rendered, started by Cart
        » rendered Cart — useState #0 false → true
        » rendered Badge — its parent rendered
        » rendered Summary — expanded false → true
@@ -264,7 +264,16 @@ its ref, so the callback rebuilt on every render is a new ref each time and a
 value passed down keeps the ref it had where it was made. When nothing moved
 and the props object is new, the line says `its parent rendered`; when it is
 the same object, `no input it reads moved`, a cause such as `forceUpdate` that
-the reader does not see. A subtree that mounts says so once, at its top, with each component that
+the reader does not see. A component a Suspense boundary held back says `the
+Suspense boundary above it came back from its fallback` when the boundary
+retries, since what moved is the cache it read. A function that moved but was
+written by the same source says `(same source)` after its values, and a plain
+object or array equal in value `(equal value)`: the props a `useCallback` or a
+`useMemo` would have kept. A commit an update started names the component
+whose update it carried, `started by Cart`, in a development or profiling
+build, where React records it. A component rendered inside a hidden
+`<Activity>`, or behind a fallback, is named `(hidden)`, `rendered Panel
+(hidden) — mounted`, since React renders that tree ahead of showing it. A subtree that mounts says so once, at its top, with each component that
 mounted below it: `mounted with Badge, Summary`, over more lines with the same opening where the names would not fit on one. A component given a key, or
 wrapped in a keyed `memo` or fragment, is named with it, `rendered Row key="b" — …`, so the rows of one list read apart. A hook the reader does not
 know ends what it can read, and the line says `state not read past` that hook

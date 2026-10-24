@@ -57,7 +57,7 @@ describe('the React story setup', () => {
     expect(lines).toEqual([
       'commit — 2 rendered',
       'rendered Tree — mounted with Leaf',
-      'commit — 3 rendered',
+      'commit — 3 rendered, started by Tree',
       'rendered Tree — useState #0 false → true',
       // Branch mounts under a Tree that updated, so it is the top of what mounted, and Leaf mounted with it.
       'rendered Branch — mounted with Leaf',

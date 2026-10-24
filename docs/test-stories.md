@@ -523,11 +523,19 @@ for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
 a first render, said once at the top of a subtree that mounts with each component that
 mounted below it (`mounted with Badge, Summary`, over more lines where the names would not fit on one), and `its parent
 rendered` when none of its inputs moved, or `no input it reads moved` when even
-the props object is the one it had. A component
+the props object is the one it had, and `the Suspense boundary above it came
+back from its fallback` when the boundary retried it after what it suspended
+on settled. A commit an update started names the component whose update it
+carried, `commit — 1 rendered, started by Cart`, in a development or profiling
+build, where React records it. A component rendered inside a hidden
+`<Activity>` or behind a fallback is named `(hidden)`, `rendered Panel (hidden)
+— mounted`, since React renders that tree before it shows it. A component
 given a key, or wrapped in a keyed `memo` or fragment, is named with it, `rendered Row key="b" — …`, so the rows of one
 list read apart. A value that moved is shown as a
 handed one is, so a callback rebuilt on every render reads `onPick ref4
-function onPick → ref9 function onPick`. A hook the reader does not know ends
+function onPick → ref9 function onPick (same source)`, and an object rebuilt
+equal in value ends `(equal value)`: what a `useCallback` or `useMemo` would
+have kept. A hook the reader does not know ends
 what it reads, and the line says `state not read past` it, or `state not
 read` alone in a build that keeps no record of its hooks. Two tests that render
 the same tree for different reasons are told apart by these lines: a comparison
