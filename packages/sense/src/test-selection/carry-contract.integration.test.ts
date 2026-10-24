@@ -3,9 +3,9 @@ import { comparedByCli } from './__fixtures__/carry-comparison.js';
 import { lastCasesByCli, selectedByCli } from './__fixtures__/carry-contract.js';
 import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
 import {
+  bothRanOverAnUnkeptEdit,
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
-  carriedUnprovenOnArrivedText,
   commentThenRunElsewhere,
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
@@ -46,8 +46,8 @@ describe('a record carried through a history, asked by the CLI after a restart',
     await ranOverThenKeptForgotten(selectedByCli, forgetKept);
   });
 
-  it('charges every loader of rows cut from the arrived text when no landing kept it, since nothing says the landing demoted what it carried', async () => {
-    await carriedUnprovenOnArrivedText(selectedByCli, forgetKept);
+  it('charges every loader when both tests ran over an uncommitted edit and no text was kept, since the digest cannot stand in for it', async () => {
+    await bothRanOverAnUnkeptEdit(selectedByCli, forgetKept);
   });
 
   it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {

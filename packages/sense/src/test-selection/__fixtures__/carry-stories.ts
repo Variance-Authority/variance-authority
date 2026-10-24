@@ -259,13 +259,15 @@ export async function ranOverThenKeptForgotten(ask: Ask, forget: (walk: Walk) =>
 }
 
 /**
- * The bytes a landing that carried crossings onto a re-recorded region without
- * demoting them left: rows cut from an uncommitted edit, A and B whole on
- * `outer`, and no text kept. B may have run only the earlier text of `outer`,
- * and nothing in the record says which landing cut the rows, so the change to
- * that edit charges every test that loaded the module.
+ * A run of both tests over an uncommitted edit inside a region both entered,
+ * and the texts landings kept forgotten.
+ *
+ * Both ran the edit, so neither is owed a run. The rows carry the edited
+ * text's digest, but with no text kept the digest alone does not say the
+ * landing that cut them demoted what it carried, so it cannot stand in for the
+ * text: the change to the edit charges every test that loaded the module.
  */
-export async function carriedUnprovenOnArrivedText(ask: Ask, forget: (walk: Walk) => Promise<void>): Promise<void> {
+export async function bothRanOverAnUnkeptEdit(ask: Ask, forget: (walk: Walk) => Promise<void>): Promise<void> {
   await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
     const edited = touching(walk.text, 'outer');
     await runTests(walk, [A, B], { over: edited });

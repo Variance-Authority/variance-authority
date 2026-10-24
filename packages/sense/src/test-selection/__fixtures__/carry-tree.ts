@@ -24,7 +24,14 @@ export async function forgetKept(walk: Walk): Promise<void> {
   walk.actions.push({ action: 'forget kept texts' });
 }
 
-/** What `variance select` reads for the change from HEAD to `next`, in-process: the test files it runs. */
+/**
+ * What `variance select` reads for the change from HEAD to `next`, in-process:
+ * the test files it runs. It mirrors the CLI's `recordAgainst` in
+ * `packages/cli/src/commands/resources.ts`, which hands `narrowByExecution`
+ * the texts at the recording (`textAtRecording`) and the kept texts and their
+ * digests (`keptTexts`, `keptDigests`). The one difference is the cache: the
+ * CLI finds it from the checkout, and the walk names its own `cacheRoot`.
+ */
 export async function selectedFromTree(walk: Walk, next: string): Promise<readonly string[]> {
   const diff = await patchTo(walk, next);
   const recorded = textAtRecording(walk.root, changedLines(diff).keys());
