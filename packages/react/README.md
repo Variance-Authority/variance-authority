@@ -262,7 +262,8 @@ its ref, so the callback rebuilt on every render is a new ref each time and a
 value passed down keeps the ref it had where it was made. When nothing moved
 and the props object is new, the line says `its parent rendered`; when it is
 the same object, `no input it reads moved`, a cause such as `forceUpdate` that
-the reader does not see. A subtree that mounts says so once, at its top. A hook the reader does not
+the reader does not see. A subtree that mounts says so once, at its top. A component given a key is
+named with it, `rendered Row key="b" — …`, so the rows of one list read apart. A hook the reader does not
 know ends what it can read, and the line says `state not read past` that hook
 rather than that nothing moved; a build that keeps no record of its hooks says
 `state not read`. Compare two tests' stories, and each render line only one of

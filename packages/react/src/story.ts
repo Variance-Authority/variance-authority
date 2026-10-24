@@ -106,7 +106,9 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
         // An owner with a previous render did not mount here, whatever a commit that never finished left.
         if (owner !== null && owner.alternate === null && mounted.has(owner)) return;
       }
-      const [strings, values] = renderNote(fiberComponentName(fiber), causes);
+      // A key tells apart the rows of one list, which share a name and often a cause.
+      const name = typeof fiber.key === 'string' ? `${fiberComponentName(fiber)} key=${JSON.stringify(fiber.key)}` : fiberComponentName(fiber);
+      const [strings, values] = renderNote(name, causes);
       (channel as Channel)(strings, ...values);
     },
     onCommit: () => mounted.clear(),

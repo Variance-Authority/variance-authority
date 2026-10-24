@@ -67,7 +67,8 @@ Never record:
   `ref3 react.memo`, never its contents. A React kind such as `react.memo`
   needs `@variance-authority/react/story` in the suite's setup files; without
   it, a memo or a context is `Object`. The same setup file adds a
-  `rendered <Component> — <cause>` line at each commit: the prop, state cell or
+  `rendered <Component> — <cause>` line at each commit, a keyed component
+  named with its key (`Row key="b"`): the prop, state cell or
   context that moved, with values shown as handed ones are, `mounted`, `its
   parent rendered`, `no input it reads moved`, or `state not read past <hook>`
   where the reader stops (`state not read` where the build keeps no hook record); `renders not read: <reason>` when React announces no

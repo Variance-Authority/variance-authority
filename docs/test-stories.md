@@ -519,7 +519,9 @@ for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
 `state` for a class component's, a context by its display name, `mounted` for
 a first render, said once at the top of a subtree that mounts, and `its parent
 rendered` when none of its inputs moved, or `no input it reads moved` when even
-the props object is the one it had. A value that moved is shown as a
+the props object is the one it had. A component
+given a key is named with it, `rendered Row key="b" — …`, so the rows of one
+list read apart. A value that moved is shown as a
 handed one is, so a callback rebuilt on every render reads `onPick ref4
 function onPick → ref9 function onPick`. A hook the reader does not know ends
 what it reads, and the line says `state not read past` it, or `state not

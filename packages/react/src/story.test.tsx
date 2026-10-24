@@ -102,6 +102,29 @@ describe('why the React story setup says a component rendered', () => {
   });
 });
 
+function Row({ picked }: { picked: boolean }): ReactElement {
+  return <li>{String(picked)}</li>;
+}
+
+describe('which component the React story setup says rendered', () => {
+  it('a keyed one by its key, so two tests that render different rows of a list read apart', () => {
+    const root = createRoot(document.createElement('div'));
+    const list = (picked: string): ReactElement => (
+      <ul>
+        {['a', 'b'].map((id) => (
+          <Row key={id} picked={id === picked} />
+        ))}
+      </ul>
+    );
+    act(() => root.render(list('')));
+    lines.length = 0;
+    act(() => root.render(list('b')));
+    act(() => root.unmount());
+
+    expect(lines).toEqual(['rendered Row key="a" — its parent rendered', 'rendered Row key="b" — picked false → true']);
+  });
+});
+
 describe('what a story calls a React object', () => {
   it('the kind React marks it with', () => {
     const Theme = createContext('light');
