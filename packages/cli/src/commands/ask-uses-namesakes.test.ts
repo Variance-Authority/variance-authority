@@ -109,4 +109,20 @@ describe('variance ask uses over a name several files declare', () => {
     expect(out).toMatch(/^apps\/app\/src\/checkout\.ts:2 — @acme\/app, by path from @acme\/kit\/src\/ui\/Button$/m);
     expect(out).toMatch(/^apps\/app\/src\/barreled\.ts:1 — @acme\/app, by path from @acme\/kit\/src\/ui\/index$/m);
   });
+
+  it('answers for the members one file declares when `--file` names it', async () => {
+    checkout({
+      'packages/kit/src/tree.ts': 'export interface Tree {\n  has(key: string): boolean;\n}\n',
+      'packages/kit/src/bag.ts': 'export interface Bag {\n  has(key: string): boolean;\n}\n',
+      'apps/app/src/tree-use.ts': "import type { Tree } from '@acme/kit/src/tree';\nexport const inTree = (tree: Tree): boolean => tree.has('a');\n",
+      'apps/app/src/bag-use.ts': "import type { Bag } from '@acme/kit/src/bag';\nexport const inBag = (bag: Bag): boolean => bag.has('a');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'has', '--file', 'packages/kit/src/tree.ts']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/kit\/src\/tree\.ts:2 — Tree$/m);
+    expect(out).toMatch(/^apps\/app\/src\/tree-use\.ts:2 — @acme\/app, read$/m);
+    expect(out).not.toMatch(/bag/);
+  });
 });

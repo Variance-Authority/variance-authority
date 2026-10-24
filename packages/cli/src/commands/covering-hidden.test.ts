@@ -63,6 +63,20 @@ describe('the whole-file answer over a one-line region no case entered', () => {
     ].join('\n'));
   });
 
+  it('names under the region the stopped cases that could have reached it', async () => {
+    const answer = await ask();
+    const stopped = [{ id: 'b.test.ts > throws', file: 'b.test.ts', name: 'throws', stopped: true }];
+    const ranges = answer.ranges!.map((range) => range.unentered === undefined ? range : { ...range, unentered: range.unentered.map((region) => ({ ...region, stopped })) });
+
+    expect(formatCovering({ ...answer, ranges }, 'text')).toContain([
+      'line 6 — alone',
+      '  the same named test as lines 4-5',
+      '  no case entered the branch on line 6 — a hole: a case that could have reached it stopped first, so the record cannot see it.',
+      '    stopped: b.test.ts > throws',
+      '',
+    ].join('\n'));
+  });
+
   it('says it in the refs an agent reads', async () => {
     expect(formatCovering(await ask(), 'refs')).toContain('6 alone: 1; unentered branch 6 unwalked\n');
   });
