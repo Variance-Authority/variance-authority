@@ -8,6 +8,8 @@
 
 import {
   formatCoveringChange,
+  unenteredSentence,
+  whyUnentered,
   type CoveringTest,
   type ExecutionTest,
   type HeldLines,
@@ -60,7 +62,7 @@ function text(answer: Covering): string {
   }
   if (tests.length === 0) {
     return [
-      `No named test covered ${where} of ${answer.file}${unentered(answer.stopped)}`,
+      `No named test covered ${where} of ${answer.file}${whyUnentered(answer.stopped)}`,
       ...(answer.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`),
       ...grainText(answer, where),
       ...narrowedText(answer),
@@ -189,7 +191,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
       if (!said) {
         lines.push(answer.where === undefined
-          ? `  no named test covered this range${unentered(range.stopped)}`
+          ? `  no named test covered this range${whyUnentered(range.stopped)}`
           : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
       }
       lines.push(...(range.stopped ?? []).map((test) =>
@@ -215,7 +217,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
  */
 function unenteredLines(range: CoveringRange): readonly string[] {
   return (range.unentered ?? []).flatMap((region) => [
-    `  no case entered the ${region.kind} on ${region.startLine === region.endLine ? `line ${region.startLine}` : `lines ${region.startLine}-${region.endLine}`}${unentered(region.stopped)}`,
+    `  ${unenteredSentence(region)}`,
     ...(region.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`),
   ]);
 }
@@ -233,20 +235,6 @@ function loadedOnly(carried: readonly CoveringTest[], more: boolean): readonly s
 function framed(answer: Covering): string {
   if (answer.frame === 'mapped') return ', placed in the text as it is now';
   return '';
-}
-
-/**
- * Why nobody entered: a hole, unwalked, or a record that cannot tell them apart.
- *
- * A case that stopped recorded where it went and nothing past that, so the
- * absence of its name is not evidence. Printing the bare *no named test* over a
- * hole would read as permission to delete the code.
- */
-function unentered(stopped: readonly ExecutionTest[] | undefined): string {
-  if (stopped === undefined) return '.';
-  if (stopped.length === 0) return ', and every case that could have reached it finished: unwalked.';
-  return ` — a hole: ${stopped.length === 1 ? 'a case' : `${stopped.length} cases`} that could have ` +
-    'reached it stopped first, so the record cannot see it.';
 }
 
 /**

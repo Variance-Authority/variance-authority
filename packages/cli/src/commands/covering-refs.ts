@@ -9,7 +9,7 @@
  * for a case that was inside only while the module evaluated.
  */
 
-import type { CoveringTest, ExecutionTest } from '@variance-authority/sense/test-selection';
+import type { CoveringTest, ExecutionTest, Unentered } from '@variance-authority/sense/test-selection';
 import { runsText, targetText } from './covering-at.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
@@ -17,7 +17,7 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText } from '@variance-authority/sense/test-selection';
+import { heldText, stateOf } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
@@ -96,7 +96,13 @@ function rangeLine(range: CoveringRange, table: Table): string {
     witnesses(range.tests, range.stopped, table)
   }${(range.unentered ?? []).map((region) => `; unentered ${region.kind} ${
     region.startLine === region.endLine ? region.startLine : `${region.startLine}-${region.endLine}`
-  }${region.stopped === undefined ? '' : region.stopped.length === 0 ? ' unwalked' : ` hole, stopped first ${table.refs(region.stopped)}`}`).join('')}`;
+  }${unenteredState(region, table)}`).join('')}`;
+}
+
+/** Why nobody entered a region, in the state word a range with no case would carry: ` unwalked`, ` hole, stopped first …`, or nothing. */
+function unenteredState(region: Unentered, table: Table): string {
+  const state = stateOf({ startLine: region.startLine, endLine: region.endLine, tests: [], ...(region.stopped === undefined ? {} : { stopped: region.stopped }) });
+  return state === undefined ? '' : state === 'hole' ? ` hole, stopped first ${table.refs(region.stopped ?? [])}` : ` ${state}`;
 }
 
 function regionLine(region: StatedRegion, table: Table): string {

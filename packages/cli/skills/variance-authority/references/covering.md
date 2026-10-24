@@ -135,10 +135,10 @@ Read `hole` as unknown, never as untested. A range with no state is one the
 record cannot rank.
 
 A range's cases are the ones an edit to its lines selects, so the line that
-opens a branch carries the cases of the function around it. A region with no
-line of its own, such as a one-line branch, gets a range of its own in the
-whole-file answer and a line under it that says no case entered it, with its
-state:
+opens a branch carries the cases of the function around it. A region no case
+entered on such a line, a one-line branch or the opening line of a longer one,
+gets a range of its own in the whole-file answer and a line under it that says
+no case entered it, with its state, here and over MCP alike:
 
 ```text
 line 6 — alone

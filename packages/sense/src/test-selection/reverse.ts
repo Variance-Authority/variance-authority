@@ -1,3 +1,4 @@
+// compass: variance-authority.reach.crossings
 import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
@@ -147,7 +148,7 @@ export function coveringTests(
 ): readonly CoveringTest[] {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return [];
-  const blocks = blocksAt(module, target);
+  const blocks = blocksOfTarget(module.blocks, target);
   return withLoaders(testsForBlocks(index, blocks), blocks, loadersOf(index, module.file, options.relations));
 }
 
@@ -161,7 +162,7 @@ export function coveringTests(
  */
 export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget): boolean {
   const module = index.modules.find((candidate) => candidate.file === target.file);
-  return module !== undefined && blocksAt(module, target).some((block) => block.loaded === true);
+  return module !== undefined && blocksOfTarget(module.blocks, target).some((block) => block.loaded === true);
 }
 
 /**
@@ -180,11 +181,7 @@ export function stoppedBefore(
 ): readonly ExecutionTest[] | undefined {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return undefined;
-  return outside(index, stoppedIn(index, module, options.relations), blocksAt(module, target));
-}
-
-function blocksAt(module: ExecutionModule, target: SourceTestTarget): readonly ExecutionBlock[] {
-  return blocksOfTarget(module.blocks, target);
+  return outside(index, stoppedIn(index, module, options.relations), blocksOfTarget(module.blocks, target));
 }
 
 /** Find named tests for every indexed source line, grouped into equal adjacent ranges. */
