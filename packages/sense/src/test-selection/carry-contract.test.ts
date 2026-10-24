@@ -5,12 +5,15 @@ import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-historie
 import {
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
+  carriedUnprovenOnArrivedText,
   commentThenRunElsewhere,
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
   lastRunAfterCarry,
+  ranOverThenKeptForgotten,
   typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
+import { forgetKept, selectedFromTree } from './__fixtures__/carry-tree.js';
 
 describe('a record carried through a history, asked in-process', () => {
   it('keeps compact last-run membership through a carry and a later partial run', async () => {
@@ -35,6 +38,14 @@ describe('a record carried through a history, asked in-process', () => {
 
   it('keeps every case and the load evidence when a run of other tests carries the record over a type written at the top', async () => {
     await typeWrittenThenRunElsewhere(selected);
+  });
+
+  it('skips a test that ran over a kept edit and owes the one carried from the earlier text, and charges every loader once the text is forgotten', async () => {
+    await ranOverThenKeptForgotten(selectedFromTree, forgetKept);
+  });
+
+  it('charges every loader of rows cut from the arrived text when no landing kept it, since nothing says the landing demoted what it carried', async () => {
+    await carriedUnprovenOnArrivedText(selectedFromTree, forgetKept);
   });
 
   it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {
