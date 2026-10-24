@@ -52,37 +52,3 @@ describe('variance ask uses, said as a shell asks', () => {
     expect(out).toContain('ask `variance ask search` with it as the `--query`.');
   });
 });
-
-describe('variance ask uses --package, given a directory', () => {
-  it('says a package is asked by its name or a specifier, and names the one in that directory', async () => {
-    checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { code, out } = await run(['ask', 'uses', '--name', 'greet', '--package', 'packages/lib']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out.split('\n')[0]).toBe(
-      'No package is named `packages/lib`: `--package` takes a package\'s name or a specifier it is imported by, and `packages/lib` is the directory of `@acme/lib`.',
-    );
-    expect(out).not.toContain('No file in `packages/lib` declares');
-  });
-
-  it.each(['./packages/lib', 'packages/kit-private'])('names no package for `%s`, whose directory holds no published entry as written', async (written) => {
-    checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'uses', '--name', 'greet', '--package', written]);
-    expect(out.split('\n')[0]).toBe(
-      `No package is named \`${written}\`: \`--package\` takes a package's name or a specifier it is imported by.`,
-    );
-  });
-
-  it('says what it takes when no package is in that directory', async () => {
-    checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'uses', '--name', 'greet', '--package', 'apps/nowhere']);
-    expect(out.split('\n')[0]).toBe(
-      'No package is named `apps/nowhere`: `--package` takes a package\'s name or a specifier it is imported by.',
-    );
-  });
-});

@@ -29,12 +29,6 @@ A tool invocation carries the shell it was asked from as `shell`.
 `notShown` take a `Spelling`. The CLI's `questionOf` is removed; `verbOf`
 replaces it.
 
-`--package` given a directory, such as `packages/remote`, answered that the name
-was not published by it. It now says that `--package` takes a package's name or
-a specifier, and names the package whose directory it is: written from the
-root, as `./packages/remote`, or as an absolute path in the checkout, and a
-private package or one that declares no entry by its manifest's name.
-
 `Spelling` and `verbOf` take a declared tool — its name, description and input
 schema — so a hint cannot be spelled from a tool name written as a string, and
 renaming a tool fails the build of every hint that names it.
