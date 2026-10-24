@@ -1,5 +1,5 @@
 ---
-'@variance-authority/sense': patch
+'@variance-authority/sense': minor
 '@variance-authority/cli': patch
 '@variance-authority/mcp': patch
 ---
