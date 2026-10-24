@@ -55,8 +55,8 @@ function target(node: TargetSnapshot): string {
 const found = (targets: readonly TargetSnapshot[]): string =>
   targets.length === 0 ? 'nothing' : targets.length === 1 ? target(targets[0]!) : `${targets.length}: ${targets.map(target).join(', ')}`;
 
-/** One attention entry as the line a route shows beside the step it was recorded at, or nothing for a commit. */
-export function noteOf(draft: AttentionDraft): string | undefined {
+/** One attention entry as the line a route shows beside the step it was recorded at. */
+export function noteOf(draft: AttentionDraft): string {
   switch (draft.kind) {
     case 'eyes-phase':
       return `eyes ${draft.phase}`;
@@ -75,7 +75,7 @@ export function noteOf(draft: AttentionDraft): string | undefined {
     case 'document-event':
       return `eyes ${draft.event}${draft.trusted ? '' : ' (synthetic)'} on ${target(draft.target)}`;
     case 'react-commit':
-      return undefined;
+      return `eyes commit ${draft.commit.components.length === 0 ? '(host only)' : draft.commit.components.join(', ')}`;
     case 'react-tap-refused':
       return `eyes react tap refused: ${draft.reason}`;
   }
@@ -85,10 +85,10 @@ export function noteOf(draft: AttentionDraft): string | undefined {
 export function sayToStory(draft: AttentionDraft): void {
   const channel = (globalThis as { [NOTE]?: Channel })[NOTE];
   if (typeof channel !== 'function') return;
-  const line = noteOf(draft);
-  if (line === undefined) return;
+  // A commit is the React story setup's to say, with why each component rendered.
+  if (draft.kind === 'react-commit') return;
   try {
-    channel(line);
+    channel(noteOf(draft));
   } catch {
     // A recorder's bug may not become a bug in the test it records.
   }

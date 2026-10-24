@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { readRoute, type Route } from '@variance-authority/sense/story';
+import { compareReadings, readRoute, type Route } from '@variance-authority/sense/story';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const execute = promisify(execFile);
@@ -33,11 +33,17 @@ function saidIn(route: Route): string[] {
   return [...(route.opening?.before ?? []), ...(route.opening?.route ?? []), ...saidAt(route.route)];
 }
 
+/** A story as the run wrote it, and the file it is in. */
+interface Written {
+  readonly route: Route;
+  readonly path: string;
+}
+
 let directory: string;
-const routes = new Map<Runner, Map<string, Route>>();
+const routes = new Map<Runner, Map<string, Written>>();
 
 /** The stories one runner's recording run of the fixture wrote, by case name. */
-async function storiesOf(runner: Runner): Promise<Map<string, Route>> {
+async function storiesOf(runner: Runner): Promise<Map<string, Written>> {
   const cache = resolve(directory, runner);
   await execute(process.execPath, [...runners[runner]], {
     cwd: fixture,
@@ -50,10 +56,11 @@ async function storiesOf(runner: Runner): Promise<Map<string, Route>> {
     },
   });
   const stories = resolve(cache, 'coverage.stories');
-  const found = new Map<string, Route>();
+  const found = new Map<string, Written>();
   for (const name of (await readdir(stories)).filter((entry) => entry.endsWith('.story'))) {
-    const route = readRoute(repository, resolve(stories, name));
-    found.set(route.name, route);
+    const path = resolve(stories, name);
+    const route = readRoute(repository, path);
+    found.set(route.name, { route, path });
   }
   return found;
 }
@@ -67,9 +74,16 @@ afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
+/** The story of `name` under `runner`. */
+function storyOf(runner: Runner, name: string): Written {
+  const written = routes.get(runner)!.get(name);
+  if (written === undefined) throw new Error(`no story of "${name}" under ${runner}`);
+  return written;
+}
+
 describe.each(Object.keys(runners) as Runner[])('a story of a React tree under %s', (runner) => {
   it('names the value a provider was given and the one its consumer read by the same ref', () => {
-    const said = saidIn(routes.get(runner)!.get('shows the theme it was given')!);
+    const said = saidIn(storyOf(runner, 'shows the theme it was given').route);
 
     expect(said.find((line) => line.startsWith('holds '))).toMatch(
       /^holds .*ThemeContext=ref\d+ react\.context, Panel=ref\d+ function Panel, Shown=ref\d+ react\.memo, App=ref\d+ function App$/,
@@ -80,13 +94,26 @@ describe.each(Object.keys(runners) as Runner[])('a story of a React tree under %
   });
 
   it('says why each component rendered at the commit it rendered in', () => {
-    const rendered = saidIn(routes.get(runner)!.get('opens the summary on a click')!).filter((line) => line.startsWith('rendered '));
+    const rendered = saidIn(storyOf(runner, 'opens the summary on a click').route).filter((line) => line.startsWith('rendered '));
 
     expect(rendered).toEqual([
       'rendered Cart — mounted',
       'rendered Cart — useState #0 false → true',
       'rendered Badge — its parent rendered',
       'rendered Summary — expanded false → true',
+    ]);
+  });
+
+  it("sets two tests' render lines apart where their causes differ, each under its own test", () => {
+    const side = (name: string) => {
+      const { path } = storyOf(runner, name);
+      return { name, readings: [{ path, file: '', name, visits: 0 }] };
+    };
+    const comparison = compareReadings(repository, [side('opens the summary on a click'), side('renders the cart again unchanged')]);
+
+    expect(comparison.only.map((only) => [only.sides, only.said.filter((line) => line.startsWith('rendered '))])).toEqual([
+      [['opens the summary on a click'], ['rendered Cart — useState #0 false → true', 'rendered Summary — expanded false → true']],
+      [['renders the cart again unchanged'], ['rendered Cart — its parent rendered', 'rendered Summary — its parent rendered']],
     ]);
   });
 });

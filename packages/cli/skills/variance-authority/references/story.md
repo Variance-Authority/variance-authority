@@ -70,7 +70,7 @@ Never record:
   `rendered <Component> — <cause>` line at each commit: the prop, state cell or
   context that moved, with values shown as handed ones are, `mounted`, `its
   parent rendered`, `no input it reads moved`, or `state not read past <hook>`
-  where the reader stops; `renders not read: <reason>` when React announces no
+  where the reader stops (`state not read` where the build keeps no hook record); `renders not read: <reason>` when React announces no
   commit to it. Add a `console.log` of the value in
   the code under test, not in the test, and record again, or use a debugger at
   the line it names.

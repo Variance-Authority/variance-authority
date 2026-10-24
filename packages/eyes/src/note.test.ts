@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createEyesLog, type TargetSnapshot } from './access.js';
-import { noteOf } from './note.js';
+import { noteOf, sayToStory } from './note.js';
 
 const NOTE = Symbol.for('variance-authority.story.note');
 const scope = globalThis as { [NOTE]?: unknown };
@@ -43,7 +43,11 @@ describe('what Eyes says to a story', () => {
   });
 
   it('leaves a commit to the React story setup, which says each component that rendered with its cause', () => {
-    expect(noteOf({ kind: 'react-commit', commit: { components: ['SaveBar'] } } as unknown as Parameters<typeof noteOf>[0])).toBeUndefined();
+    const said: string[] = [];
+    scope[NOTE] = (text: string) => said.push(text);
+    sayToStory({ kind: 'react-commit', commit: { components: ['SaveBar'] } } as unknown as Parameters<typeof sayToStory>[0]);
+    sayToStory({ kind: 'eyes-phase', phase: 'act' });
+    expect(said).toEqual(['eyes act']);
   });
 
   it('is said to the recorder in the realm when one listens, and a recorder that throws reaches nobody', () => {

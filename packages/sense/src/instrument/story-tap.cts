@@ -357,12 +357,7 @@ function createTap(engine: Engine, limit: number): Tap {
       return { tape, taped, visits, at, keys, notes, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
-      if (spoken >= NOTE_LIMIT) {
-        unnoted += 1;
-        return;
-      }
-      spoken += 1;
-      put(text);
+      api.say([text], []);
     },
     say(strings: readonly string[], values: readonly unknown[]): void {
       if (spoken >= NOTE_LIMIT) {

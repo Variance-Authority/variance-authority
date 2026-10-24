@@ -522,8 +522,10 @@ rendered` when none of its inputs moved, or `no input it reads moved` when even
 the props object is the one it had. A value that moved is shown as a
 handed one is, so a callback rebuilt on every render reads `onPick ref4
 function onPick → ref9 function onPick`. A hook the reader does not know ends
-what it reads, and the line says `state not read past` it. Two tests that
-render the same tree for different reasons part at the first of these lines.
+what it reads, and the line says `state not read past` it, or `state not
+read` alone in a build that keeps no record of its hooks. Two tests that render
+the same tree for different reasons are told apart by these lines: a comparison
+lists each line only one test said, at its step.
 When `react-dom` loaded and mounted before the setup file, React announces no
 commit, and the story says `renders not read: react-already-loaded`.
 

@@ -264,9 +264,10 @@ and the props object is new, the line says `its parent rendered`; when it is
 the same object, `no input it reads moved`, a cause such as `forceUpdate` that
 the reader does not see. A subtree that mounts says so once, at its top. A hook the reader does not
 know ends what it can read, and the line says `state not read past` that hook
-rather than that nothing moved. Compare two tests' stories, and the first
-render whose cause differs is where they parted: compare leaves a ref's number
-out, since a run numbers objects in the order it met them.
+rather than that nothing moved; a build that keeps no record of its hooks says
+`state not read`. Compare two tests' stories, and each render line only one of
+them said is listed at its step: compare leaves a ref's number out, since a run
+numbers objects in the order it met them.
 
 The setup reads the cause from the commit React just finished, through the
 DevTools hook, so it has to run before `react-dom` loads, which a setup file
