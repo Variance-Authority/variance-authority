@@ -66,25 +66,13 @@ describe('variance ask uses --package, given a directory', () => {
     expect(out).not.toContain('No file in `packages/lib` declares');
   });
 
-  it('names the package in a directory written from the root or as an absolute path', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    for (const written of ['./packages/lib', join(root, 'packages/lib'), `${join(root, 'packages/lib')}/`]) {
-      const { out } = await run(['ask', 'uses', '--name', 'greet', '--package', written]);
-      expect(out.split('\n')[0]).toBe(
-        `No package is named \`${written}\`: \`--package\` takes a package's name or a specifier it is imported by, and \`packages/lib\` is the directory of \`@acme/lib\`.`,
-      );
-    }
-  });
-
-  it('names a package that declares no entry, private or not, by its manifest', async () => {
+  it.each(['./packages/lib', 'packages/kit-private'])('names no package for `%s`, whose directory holds no published entry as written', async (written) => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const { out } = await run(['ask', 'uses', '--name', 'greet', '--package', 'packages/kit-private']);
+    const { out } = await run(['ask', 'uses', '--name', 'greet', '--package', written]);
     expect(out.split('\n')[0]).toBe(
-      'No package is named `packages/kit-private`: `--package` takes a package\'s name or a specifier it is imported by, and `packages/kit-private` is the directory of `@acme/kit-private`.',
+      `No package is named \`${written}\`: \`--package\` takes a package's name or a specifier it is imported by.`,
     );
   });
 

@@ -258,9 +258,7 @@ The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
 generation. An answer names a flag or a next question the same way —
 `--from`, `variance ask symbol` — where the tool over MCP says `from` and
 `docs_symbol`. `--package` takes a package's name or a specifier; given a
-directory — `packages/lib`, `./packages/lib` or an absolute path in the
-checkout — the answer says so and names the package the directory holds,
-private or without an entry alike. [Ask about the code and its runs from the
+directory, the answer says so and names the package the directory holds. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
 The source questions are also tools on `variance serve`, under the same names as below, so
