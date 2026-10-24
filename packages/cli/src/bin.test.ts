@@ -430,7 +430,6 @@ describe('parseArgs', () => {
     // schemas, so the usage line advertises nothing the parser refuses.
     const refused: string[] = [];
     const accepted = flagsOf('ask');
-
     for (const question of QUESTIONS) {
       for (const argument of argumentsOf(question.tool)) {
         // Questions are typed as words after `intersection`, never behind a flag.
