@@ -99,7 +99,7 @@ describe.each(Object.keys(runners) as Runner[])('a story of a React tree under %
     expect(rendered).toEqual([
       'commit — 3 rendered',
       'rendered Cart — mounted with Badge, Summary',
-      'commit — 3 rendered',
+      'commit — 3 rendered, started by Cart',
       'rendered Cart — useState #0 false → true',
       'rendered Badge — its parent rendered',
       'rendered Summary — expanded false → true',
