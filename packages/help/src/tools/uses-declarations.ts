@@ -48,9 +48,8 @@ export function keptLine(name: string, kept: readonly DeclaredName[], spell: Spe
   ].join('\n');
 }
 
-/** The member declarations in `file`, with their uses, or all of them when no file is named. */
-export function membersIn(members: Members, file: string | undefined): Members {
-  if (file === undefined) return members;
+/** The member declarations in `file`, with their uses. */
+export function membersIn(members: Members, file: string): Members {
   return { ...members, declared: members.declared.filter((one) => one.at === file), used: members.used.filter((one) => one.declared.at === file) };
 }
 
