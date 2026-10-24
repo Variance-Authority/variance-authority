@@ -155,6 +155,10 @@ export function chargeMeasured(
     }
   }
   if (frame === 'stale') {
+    // FIXME: of the rows charged whole here, those whose digest is the arrived
+    // text's and for which no text was kept need not be: the record does not
+    // say the landing that cut them demoted what it carried, and a per-module
+    // landing marker would let the digest stand in for the kept text.
     for (const name of rows.keys()) run.stale.add(name);
     chargeLoaded(coverage, file, rows, run.charge);
     return;
