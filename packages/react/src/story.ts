@@ -71,7 +71,7 @@ function said(cause: RenderCause): string {
 }
 
 /** The line a story shows for one component's render. */
-export function renderNote(fiber: Fiber): string {
+function renderNote(fiber: Fiber): string {
   return `rendered ${fiberComponentName(fiber)} — ${causesOf(fiber).map(said).join(', ')}`;
 }
 
