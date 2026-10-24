@@ -80,6 +80,10 @@ impl ParseRow for Read {
             values.insert(&used.how);
         }
         values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
+        for read in &self.binding_members {
+            values.insert(&read.binding);
+            values.insert(&read.name);
+        }
         values.extend(self.unknown.as_deref());
     }
 
@@ -128,6 +132,9 @@ impl ParseRow for Read {
         }
         for used in &self.own_uses {
             into.own_use(id(&used.name), used.line);
+        }
+        for read in &self.binding_members {
+            into.binding_member(read.request, id(&read.binding), id(&read.name), read.line);
         }
     }
 

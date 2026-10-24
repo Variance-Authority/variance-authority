@@ -52,6 +52,10 @@ use bind::takes;
 #[path = "members_typed.rs"]
 mod typed;
 
+#[path = "members_held.rs"]
+mod held;
+use held::{Held, Via, WHOLE};
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Member {
     /// The index of the request, in the same parse, the name is read through.
@@ -64,21 +68,37 @@ pub struct Member {
     pub(crate) through_default: bool,
 }
 
+/// A name read off the value a named import takes: `ns.x` after `import { ns }
+/// from 'm'`. It reads `x` of a module only where `m` passes `ns` on as a
+/// namespace, `export * as ns`, which the query follows; off any other value
+/// it is a read the type decides, and no use of a module's name.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct BindingMember {
+    /// The index of the request, in the same parse, the binding imports through.
+    pub(crate) request: u32,
+    /// The name the binding imports.
+    pub(crate) binding: String,
+    pub(crate) name: String,
+    pub(crate) line: u32,
+}
+
 /// The loads a module calls for, and the names it reads off what it holds.
 ///
 /// `requests` are the ones the module record states; a member read through an
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
 /// read through an `import m = require()` as if `loads.required` followed those,
 /// and one read through an `import()` type as if `loads.typed` followed those.
-pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
+pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Vec<BindingMember>, Loads<'l>) {
     let mut holders = HashMap::new();
     for (index, request) in requests.iter().enumerate() {
         // A type-only namespace or default holds the module, or its `default`, for its types.
-        for binding in &request.bindings {
+        // A named one holds the value it takes; an `export … from` binds nothing here.
+        for (at, binding) in request.bindings.iter().enumerate() {
             let held = match binding.imported.as_str() {
                 "*" => Held::whole(Via::Indexed(index as u32)),
                 "default" => Held::whole(Via::Indexed(index as u32)).default(),
-                _ => continue,
+                _ if request.republishes => continue,
+                _ => Held::named(Via::Indexed(index as u32), at as u32),
             };
             if let Some(symbol) = scoping.get_root_binding(binding.local.as_str().into()) {
                 holders.insert(symbol, held);
@@ -102,60 +122,20 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
     let required = walker.stated + walker.loads.dynamic.len() as u32;
     let typed = required + walker.loads.required.len() as u32;
     let typed_at = &walker.typed_at;
-    let members: BTreeSet<Member> = walker
-        .found
-        .into_iter()
-        .filter_map(|(held, name, line)| Some(Member { request: held.via.index(required, typed, typed_at)?, name, line, through_default: held.off }))
-        .collect();
-    (members.into_iter().collect(), walker.loads)
-}
-
-/// The request a holder reads through: its index in the parse, its index in
-/// `loads.required`, which the parse appends after every `import()`, or its
-/// index in `loads.typed`, which the parse appends after those, or the
-/// `import()` type starting at an offset, whose index the walk may meet later.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Via {
-    Indexed(u32),
-    Required(u32),
-    Typed(u32),
-    TypedAt(u32),
-}
-
-impl Via {
-    fn index(self, required: u32, typed: u32, typed_at: &HashMap<u32, u32>) -> Option<u32> {
-        Some(match self {
-            Via::Indexed(index) => index,
-            Via::Required(index) => required + index,
-            Via::Typed(index) => typed + index,
-            Via::TypedAt(at) => typed + typed_at.get(&at)?,
-        })
+    let mut members = BTreeSet::new();
+    let mut binding_members = BTreeSet::new();
+    for (held, name, line) in walker.found {
+        let Some(request) = held.via.index(required, typed, typed_at) else { continue };
+        match held.named {
+            None => _ = members.insert(Member { request, name, line, through_default: held.off }),
+            Some(at) => {
+                let binding = requests[request as usize].bindings[at as usize].imported.clone();
+                binding_members.insert(BindingMember { request, binding, name, line });
+            }
+        }
     }
+    (members.into_iter().collect(), binding_members.into_iter().collect(), walker.loads)
 }
-
-/// What a value holds: the module a request loads, or, `off`, that module's
-/// `default`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Held {
-    via: Via,
-    off: bool,
-}
-
-impl Held {
-    fn whole(via: Via) -> Self {
-        Held { via, off: false }
-    }
-
-    /// The module's `default`. Interop nests one level, so the `default` of
-    /// a `default` is the same level: `ns.default.default.x` reads `x` through it.
-    fn default(self) -> Self {
-        Held { via: self.via, off: true }
-    }
-}
-
-/// The token a member read takes when the module goes somewhere the walk does
-/// not follow, as a binding takes it for the namespace whole.
-const WHOLE: &str = "*";
 
 struct Walker<'l, 's> {
     lines: &'l Lines,
@@ -271,8 +251,12 @@ impl Walker<'_, '_> {
     /// A name read off what is held. Off the `default`, the value going on
     /// whole is the `default` moving, a use already recorded, and its own
     /// `default` is the same level.
+    /// A named holder is a plain value far more often than a namespace, so
+    /// only a name read off it by spelling is recorded: neither it going on
+    /// whole nor a read off its `default`.
     fn add(&mut self, held: Held, name: &str, at: u32) {
-        if held.off && (name == WHOLE || name == "default") {
+        let named = held.named.is_some() && (held.off || name == WHOLE);
+        if named || held.off && (name == WHOLE || name == "default") {
             return;
         }
         self.found.insert((held, name.to_owned(), self.lines.at(at)));

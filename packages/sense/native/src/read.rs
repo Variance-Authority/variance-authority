@@ -16,7 +16,7 @@ use crate::harvest::{Harvest, SourceSymbol, TextSpan};
 use crate::help_member_uses::{member_uses_in, MemberUse};
 use crate::help_own_uses::{own_uses_in, OwnUse};
 use crate::help_members::{member_declarations_in, MemberDeclaration};
-use crate::members::{members_and_loads_in, Member};
+use crate::members::{members_and_loads_in, BindingMember, Member};
 use crate::mocks::{mocks_in, Mocks};
 use crate::source_size::{size_of, Size};
 
@@ -109,6 +109,9 @@ pub struct Read {
     pub(crate) mocks: Mocks,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) members: Vec<Member>,
+    /// Every name read off a binding a named import takes.
+    #[serde(rename = "bindingMembers", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) binding_members: Vec<BindingMember>,
     /// Every member of an interface, a type literal or a class the module declares.
     #[serde(rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
     pub(crate) member_declarations: Vec<MemberDeclaration>,
@@ -343,7 +346,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     // One scope tree serves every reader that resolves a name by scope.
     let built = SemanticBuilder::new().build(&parsed.program);
     let scoping = built.semantic.scoping();
-    let (members, loads) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
+    let (members, binding_members, loads) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);
@@ -371,6 +374,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         declares: declarations(file, &parsed.program),
         mocks: mocks_in(source, &parsed.program),
         members,
+        binding_members,
         member_declarations: member_declarations_in(&parsed.program, &lines),
         member_uses: member_uses_in(&parsed.program, &lines),
         own_uses: own_uses_in(&parsed.program, scoping, &lines),
@@ -421,3 +425,7 @@ mod tests;
 #[cfg(test)]
 #[path = "read_objects_tests.rs"]
 mod objects_tests;
+
+#[cfg(test)]
+#[path = "read_binding_members_tests.rs"]
+mod binding_members_tests;

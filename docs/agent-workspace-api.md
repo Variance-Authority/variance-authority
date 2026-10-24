@@ -334,8 +334,10 @@ passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. When that file only passes on another file's declaration with
 `export … from`, renamed, type-only or through `export *`, both name the
 declaration it reaches, through every file between, and `docs_symbol` shows its
-line as well. A read through an `export * as` namespace and, outside Rust, a call
-through a qualified path are not counted.
+line as well. A name a file passes on inside `export * as ns` is counted where
+you read it off `ns`, `ns.name` or `const { name } = ns`. A namespace imported
+by name that goes somewhere whole, a namespace inside a namespace and, outside
+Rust, a call through a qualified path are not counted.
 
 `docs_symbol` on an interface, a type alias or a class lists its members after
 the signature, one line each as the checkout holds it, so you see what a value

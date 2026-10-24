@@ -127,7 +127,7 @@ fn follows_a_renamed_re_export_under_the_name_it_passes() {
 }
 
 #[test]
-fn passes_an_inline_type_re_export_on_as_a_type_and_nothing_through_a_namespace() {
+fn passes_an_inline_type_re_export_on_as_a_type_and_a_namespace_on_only_as_its_members() {
     let root = fixture("typed");
     let bytes = chain(&[
         file("src/greet.ts", &[], &[], &[]),
@@ -148,7 +148,8 @@ fn passes_an_inline_type_re_export_on_as_a_type_and_nothing_through_a_namespace(
 
     // Whatever the importer wrote, a name that came through a type-only hop is a type.
     assert_eq!(uses(&read), ["src/typeuse.ts:1 greet via ./typed type"]);
-    assert_eq!(read.through, ["src/typed.ts"]);
+    // `ns.ts` passes `greet` on as `ns.greet`, so a binding of `greet` out of it is no use.
+    assert_eq!(read.through, ["src/ns.ts", "src/typed.ts"]);
 }
 
 #[test]

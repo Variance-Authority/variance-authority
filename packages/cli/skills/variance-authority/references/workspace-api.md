@@ -250,7 +250,7 @@ no members is left out rather than shown empty.
 A published name that nothing imports is a different answer, not an empty list:
 
 ```
-`PagesOptions` [interface] is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
+`PagesOptions` [interface] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole, a namespace inside a namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
 ```
 
 The imports within the name's own package come from the source index: every
@@ -261,9 +261,13 @@ on the same way, and every import that comes through it is marked `(type only)`.
 A name an entry publishes under another name than its declaration is read from
 that entry. An import of a renamed re-export ends `(as <name>)`. A Rust path
 written in a type or an expression, such as `crate::order::code_unit(…)`, is
-listed as a `use` is. A read through an `export * as` namespace, and outside
-Rust a call through a qualified path, are not listed, and the answer ends by
-saying so. With `--package` naming one subpath specifier, an import through
+listed as a `use` is. A package that passes a module on as `export * as ns`
+passes each of its names as a member of `ns`: `import { ns } from 'pkg'` and
+then `ns.name`, or `const { name } = ns`, is listed on the line that reads it,
+ending `(namespace, line <n>)` with the line of the import. A namespace
+imported by name that goes somewhere whole, such as `[ns]`, a namespace inside
+a namespace, and outside Rust a call through a qualified path, are not listed,
+and the answer ends by saying so. With `--package` naming one subpath specifier, an import through
 another specifier of the same package is left to that one. When the source
 index is missing or does not read, the imports from other packages by their
 published path are still listed, and the answer says why the rest are not.

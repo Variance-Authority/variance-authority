@@ -1,8 +1,9 @@
 //! The parse half of a source-index segment, as columns: the part of
 //! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock, member, member-declaration, member-use and own-use columns
+//! mock, member, member-declaration, member-use, own-use and binding-member columns
 //! `source-index-harvest.ts`, `-mocks.ts`, `-members.ts`,
-//! `-member-declarations.ts`, `-member-uses.ts` and `-own-uses.ts` add.
+//! `-member-declarations.ts`, `-member-uses.ts`, `-own-uses.ts` and
+//! `-binding-members.ts` add.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -98,6 +99,11 @@ pub struct ParseColumns {
     own_uses: Vec<u32>,
     own_use_name: Vec<u32>,
     own_use_line: Vec<u32>,
+    binding_members: Vec<u32>,
+    binding_member_request: Vec<u32>,
+    binding_member_binding: Vec<u32>,
+    binding_member_name: Vec<u32>,
+    binding_member_line: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -146,6 +152,7 @@ impl ParseColumns {
         self.member_declarations.push(self.member_declaration_name.len() as u32);
         self.member_uses.push(self.member_use_name.len() as u32);
         self.own_uses.push(self.own_use_name.len() as u32);
+        self.binding_members.push(self.binding_member_name.len() as u32);
     }
 
     /// One request; `flags` is [`request_flags`] of what its reader said about
@@ -222,6 +229,13 @@ impl ParseColumns {
     pub fn own_use(&mut self, name: u32, line: u32) {
         self.own_use_name.push(name);
         self.own_use_line.push(line);
+    }
+
+    pub fn binding_member(&mut self, request: u32, binding: u32, name: u32, line: u32) {
+        self.binding_member_request.push(request);
+        self.binding_member_binding.push(binding);
+        self.binding_member_name.push(name);
+        self.binding_member_line.push(line);
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -301,6 +315,11 @@ impl ParseColumns {
             u32s("parses.own-uses", self.own_uses),
             u32s("own-uses.name", self.own_use_name),
             u32s("own-uses.line", self.own_use_line),
+            u32s("parses.binding-members", self.binding_members),
+            u32s("binding-members.request", self.binding_member_request),
+            u32s("binding-members.binding", self.binding_member_binding),
+            u32s("binding-members.name", self.binding_member_name),
+            u32s("binding-members.line", self.binding_member_line),
             u32s("declares.name", self.declare_name),
         ]
     }

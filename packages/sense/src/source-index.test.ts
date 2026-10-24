@@ -88,6 +88,12 @@ const PARSED: Parsed = {
     { name: 'shadeOwn', line: 41 },
     { name: 'shadeOwn', line: 43 },
   ],
+  // A binding, a name and lines no other column holds, and the second request,
+  // so a column dropped or read in place of another fails here.
+  bindingMembers: [
+    { request: 1, binding: 'Props', name: 'tintBound', line: 45 },
+    { request: 1, binding: 'Props', name: 'tintFree', line: 47 },
+  ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
   // place of another fails here.

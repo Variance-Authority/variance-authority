@@ -92,6 +92,11 @@ export interface Parsed {
    * reader but the native module reader and the Rust one.
    */
   readonly ownUses?: readonly OwnUse[];
+  /**
+   * Every name read off a binding a named import takes. Absent when there are
+   * none, and absent from any reader but the native module one.
+   */
+  readonly bindingMembers?: readonly BindingMember[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
@@ -154,6 +159,20 @@ export interface MemberUse {
 
 /** One line that uses a name its file declares at its top level. */
 export interface OwnUse {
+  readonly name: string;
+  readonly line: number;
+}
+
+/**
+ * One name read off a binding a named import takes: `ns.name` after
+ * `import { ns } from 'm'`. It reads `name` of a module only where `m` passes
+ * `ns` on as `export * as ns`.
+ */
+export interface BindingMember {
+  /** The index of the request, in the same parse, the binding imports through. */
+  readonly request: number;
+  /** The name the binding imports. */
+  readonly binding: string;
   readonly name: string;
   readonly line: number;
 }

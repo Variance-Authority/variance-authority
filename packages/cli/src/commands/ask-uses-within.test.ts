@@ -25,7 +25,7 @@ afterEach(() => {
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
-const UNCOUNTED_LINE = 'A read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted.';
+const UNCOUNTED_LINE = 'A namespace imported by name that goes somewhere whole, a namespace inside a namespace and, outside Rust, a call through a qualified path are not counted.';
 
 describe('variance ask over the imports of a name within its own package', () => {
   it('answers `uses` for a published name with the imports within its own package as well as across one', async () => {
@@ -134,7 +134,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(out.split('\n')).toContain(
-      '`greet` [function] is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
+      '`greet` [function] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole, a namespace inside a namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
     );
   });
 

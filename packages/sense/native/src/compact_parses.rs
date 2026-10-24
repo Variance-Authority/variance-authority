@@ -82,6 +82,11 @@ pub(crate) struct Parses<'a> {
     pub own_uses: U32s<'a>,
     pub own_use_name: U32s<'a>,
     pub own_use_line: U32s<'a>,
+    pub binding_members: U32s<'a>,
+    pub binding_member_request: U32s<'a>,
+    pub binding_member_binding: U32s<'a>,
+    pub binding_member_name: U32s<'a>,
+    pub binding_member_line: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -100,6 +105,7 @@ impl<'a> Parses<'a> {
         let member_declaration_name = u32s("member-declarations.name")?;
         let member_use_name = u32s("member-uses.name")?;
         let own_use_name = u32s("own-uses.name")?;
+        let binding_member_name = u32s("binding-members.name")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -163,6 +169,11 @@ impl<'a> Parses<'a> {
             own_uses: stored.offsets("parses.own-uses", rows, own_use_name.len())?,
             own_use_line: u32s("own-uses.line")?,
             own_use_name,
+            binding_members: stored.offsets("parses.binding-members", rows, binding_member_name.len())?,
+            binding_member_request: u32s("binding-members.request")?,
+            binding_member_binding: u32s("binding-members.binding")?,
+            binding_member_line: u32s("binding-members.line")?,
+            binding_member_name,
             declare_name,
         };
         parses.lengths()?;
@@ -259,7 +270,12 @@ impl<'a> Parses<'a> {
             ("member-uses.of", self.member_use_of.len()),
             ("member-uses.how", self.member_use_how.len()),
         ])?;
-        same_length(self.own_use_name.len(), &[("own-uses.line", self.own_use_line.len())])
+        same_length(self.own_use_name.len(), &[("own-uses.line", self.own_use_line.len())])?;
+        same_length(self.binding_member_name.len(), &[
+            ("binding-members.request", self.binding_member_request.len()),
+            ("binding-members.binding", self.binding_member_binding.len()),
+            ("binding-members.line", self.binding_member_line.len()),
+        ])
     }
 }
 
@@ -318,6 +334,10 @@ impl ParseRow for ParseView<'_, '_> {
         }
         for at in columns.own_uses.range(row) {
             text(columns.own_use_name, at);
+        }
+        for at in columns.binding_members.range(row) {
+            text(columns.binding_member_binding, at);
+            text(columns.binding_member_name, at);
         }
         for at in self.declares() {
             text(columns.declare_name, at);
@@ -398,6 +418,10 @@ impl ParseRow for ParseView<'_, '_> {
         }
         for at in columns.own_uses.range(row) {
             into.own_use(id(columns.own_use_name, at), columns.own_use_line.at(at));
+        }
+        for at in columns.binding_members.range(row) {
+            let (binding, name) = (id(columns.binding_member_binding, at), id(columns.binding_member_name, at));
+            into.binding_member(columns.binding_member_request.at(at), binding, name, columns.binding_member_line.at(at));
         }
     }
 
