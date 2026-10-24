@@ -20,7 +20,7 @@ import { renderCausesOf, type RenderCause } from './renders.js';
  * after a `commit — <n> rendered` line that says where the commit starts.
  * A value is shown as the story shows any value, so an object keeps its ref.
  * A subtree that mounts says so once, at its top, naming each component that
- * mounted below it. Two cases' routes then part
+ * mounted below it, over more lines where the names need them. Two cases' routes then part
  * at the render whose cause differs. With no story listening nothing is
  * tapped, and a test pays nothing.
  */
@@ -65,8 +65,8 @@ function said(cause: RenderCause): Said {
   }
 }
 
-/** `rendered <Name> — ` and each cause, joined by `, `, then ` with ` the components mounted below it, as one template. */
-function renderNote(name: string, causes: readonly RenderCause[], below: readonly string[]): Said {
+/** `rendered <Name> — ` and each cause, joined by `, `, as one template. */
+function renderNote(name: string, causes: readonly RenderCause[]): Said {
   const strings: string[] = [`rendered ${name} — `];
   const values: unknown[] = [];
   causes.forEach((cause, index) => {
@@ -75,8 +75,33 @@ function renderNote(name: string, causes: readonly RenderCause[], below: readonl
     strings.push(...parts.slice(1));
     values.push(...between);
   });
-  if (below.length > 0) strings[strings.length - 1] += ` with ${below.join(', ')}`;
   return [strings, values];
+}
+
+/** The length a story keeps of a line, `NOTE_LENGTH` in sense's story tap: a line past it is cut. */
+const LINE_LENGTH = 240;
+
+/**
+ * `rendered <Name> — mounted with ` and the components mounted below it, over
+ * as many lines as keep every name inside the length a story keeps, so two
+ * tests that mount different components past the first line still read apart.
+ */
+function mountNotes(name: string, below: readonly string[]): string[] {
+  const head = `rendered ${name} — mounted with `;
+  const notes: string[] = [];
+  let names: string[] = [];
+  let length = head.length;
+  for (const one of below) {
+    if (names.length > 0 && length + 2 + one.length > LINE_LENGTH) {
+      notes.push(head + names.join(', '));
+      names = [];
+      length = head.length;
+    }
+    length += (names.length > 0 ? 2 : 0) + one.length;
+    names.push(one);
+  }
+  notes.push(head + names.join(', '));
+  return notes;
 }
 
 /** Fibers that wrap a component and carry the key written on it: `memo` with a compare, and a keyed fragment. */
@@ -109,8 +134,7 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
   scope[TAPPED] = true;
   // A commit's lines wait for its end, so the top of a mounted subtree can name
   // every component that mounted below it: one line for a provider stack, and
-  // still the components two tests mounted apart, up to the length the story
-  // keeps of a line.
+  // still the components two tests mounted apart.
   const lines: { readonly name: string; readonly causes: readonly RenderCause[]; readonly below: string[] }[] = [];
   // Each component mounted in this commit, to the line of the top it mounted under.
   const mounted = new Map<Fiber, (typeof lines)[number]>();
@@ -149,7 +173,11 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
         if (typeof channel !== 'function') return;
         (channel as Channel)([`commit — ${rendered} rendered`]);
         for (const { name, causes, below } of lines) {
-          const [strings, values] = renderNote(name, causes, below);
+          if (below.length > 0) {
+            for (const note of mountNotes(name, below)) (channel as Channel)([note]);
+            continue;
+          }
+          const [strings, values] = renderNote(name, causes);
           (channel as Channel)(strings, ...values);
         }
       } finally {

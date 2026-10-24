@@ -154,6 +154,26 @@ describe('which component the React story setup says rendered', () => {
   });
 });
 
+describe('how the React story setup says a large mount', () => {
+  it('over as many lines as the names below its top need, each short enough that the story keeps all of it', () => {
+    const names = Array.from({ length: 40 }, (_, at) => {
+      const Named = (): ReactElement => <i />;
+      Object.defineProperty(Named, 'name', { value: `Component${String(at).padStart(2, '0')}` });
+      return Named;
+    });
+    const Shell = (): ReactElement => <>{names.map((Named) => <Named key={Named.name} />)}</>;
+    const root = createRoot(document.createElement('div'));
+    lines.length = 0;
+    act(() => root.render(<Shell />));
+    act(() => root.unmount());
+
+    const mounts = renders();
+    expect(mounts.length).toBeGreaterThan(1);
+    expect(mounts.every((line) => line.startsWith('rendered Shell — mounted with ') && line.length <= 240)).toBe(true);
+    expect(mounts.flatMap((line) => line.slice('rendered Shell — mounted with '.length).split(', '))).toEqual(names.map((Named) => `${Named.name} key="${Named.name}"`));
+  });
+});
+
 describe('which key the React story setup reads through a fragment', () => {
   it('none for components that share one keyed fragment, since its key tells none of them apart', () => {
     const root = createRoot(document.createElement('div'));

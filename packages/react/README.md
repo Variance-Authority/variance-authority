@@ -265,7 +265,7 @@ value passed down keeps the ref it had where it was made. When nothing moved
 and the props object is new, the line says `its parent rendered`; when it is
 the same object, `no input it reads moved`, a cause such as `forceUpdate` that
 the reader does not see. A subtree that mounts says so once, at its top, with each component that
-mounted below it: `mounted with Badge, Summary`. A component given a key, or
+mounted below it: `mounted with Badge, Summary`, over more lines with the same opening where the names would not fit on one. A component given a key, or
 wrapped in a keyed `memo` or fragment, is named with it, `rendered Row key="b" — …`, so the rows of one list read apart. A hook the reader does not
 know ends what it can read, and the line says `state not read past` that hook
 rather than that nothing moved; a build that keeps no record of its hooks says

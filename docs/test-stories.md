@@ -521,7 +521,7 @@ that rendered only host elements: `rendered Summary — expanded false → true`
 for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
 `state` for a class component's, a context by its display name, `mounted` for
 a first render, said once at the top of a subtree that mounts with each component that
-mounted below it (`mounted with Badge, Summary`), and `its parent
+mounted below it (`mounted with Badge, Summary`, over more lines where the names would not fit on one), and `its parent
 rendered` when none of its inputs moved, or `no input it reads moved` when even
 the props object is the one it had. A component
 given a key, or wrapped in a keyed `memo` or fragment, is named with it, `rendered Row key="b" — …`, so the rows of one
