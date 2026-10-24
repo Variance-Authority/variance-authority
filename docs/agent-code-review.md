@@ -183,7 +183,7 @@ Read from the record of `unit` before this change ran.
 
 And 1 more, every one reached by a case: 1 near.
 
-More on one file: `variance covering --file <path>`
+More on one file: `variance covering --file <path> --suite unit`
 </details>
 <!-- /variance-authority: handover -->
 ```
@@ -200,7 +200,8 @@ see [test distance](distance.md). A function every case reached from near is
 only counted: a test file that imports it is easy to find. Functions with code
 no case ran come first. Past twelve lines the rest are only counted, so the
 block stays a handful of lines on a change of any size, and its last line is
-the `covering` command that reads one file in full. For a 🔴 function,
+the `covering` command that reads one file in full, from the suite the block
+read. For a 🔴 function,
 `variance covering --file <path> --function <name> --suite <suite>` names the
 part no case ran, in the suite the line names.
 

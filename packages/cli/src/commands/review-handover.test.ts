@@ -178,6 +178,8 @@ describe('a review handed over in the pull request body, before CI', () => {
       '- 🟡 `total` in `src/a.ts` — 1 case, far: `test/a.test.ts` (`unit`)',
     ]);
     expect(out).toContain('1 changed function, reached by a case');
+    // Each line names its suite, so the command for one file asks for one.
+    expect(out).toContain('\nMore on one file: `variance covering --file <path> --suite <suite>`\n');
   });
 
   it('names a function once however many of its branches changed, with the part no case ran first', () => {
@@ -314,6 +316,21 @@ describe('a review handed over in the pull request body, before CI', () => {
     const out = formatHandover([{ suite: 'browser', review: at('before') }, { suite: 'integration', review: at('ran') }, { suite: 'unit', review: at('ran') }]);
 
     expect(out).toContain('\nRead from the runs on this change for `integration` and `unit`, and from the record before it for the rest.\n');
+  });
+
+  it('suggests a command for one file that runs on the record it read, in a checkout declaring suites', async () => {
+    const { root, first } = await changed({ suites: ['unit', 'browser'] });
+    await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
+
+    for (const named of [[], ['--suite', 'unit']]) {
+      const { out } = await printed(['--since', first, ...named, '--root', root, '--format', 'handover']);
+      const suggested = /More on one file: `variance covering ([^`]+)`/.exec(out)?.[1];
+      expect(suggested).toBe('--file <path> --suite unit');
+      let json = '';
+      const code = await main(['covering', ...suggested!.replace('<path>', 'src/total.ts').split(' '), '--root', root, '--format', 'json'], { out: (text) => (json += text), err: () => {} });
+      expect(code).toBe(0);
+      expect(JSON.parse(json)).toMatchObject({ file: 'src/total.ts' });
+    }
   });
 
   it('reads every declared suite when none is named, and says why one could not be read', async () => {

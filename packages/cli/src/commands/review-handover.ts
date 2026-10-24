@@ -102,7 +102,9 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
     }
   }
   // One file read in full is `--file` alone: `--since` is the whole diff, which this block already is, and the parser refuses the pair.
-  if (pointers.length > 0) lines.push('', 'More on one file: `variance covering --file <path>`');
+  // A checkout declaring suites answers `covering` from one of them: the one read, or the one a line's tag names.
+  const suite = read.length > 1 ? ' --suite <suite>' : read[0]?.suite === undefined ? '' : ` --suite ${read[0].suite}`;
+  if (pointers.length > 0) lines.push('', `More on one file: \`variance covering --file <path>${suite}\``);
   lines.push('</details>', HANDOVER_END);
   return `${lines.join('\n')}\n`;
 }
