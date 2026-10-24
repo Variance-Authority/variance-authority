@@ -3,6 +3,8 @@ import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
 import { declarations, unreadLine } from './declared.js';
 import { type Members, membersStop } from './members.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
+import { search } from './search.js';
 
 /**
  * Locating the thing a question is about, and answering well when it is not there.
@@ -101,7 +103,7 @@ export function entriesNamed(help: Help, name: string): readonly (readonly [Docu
  * saying so costs the caller one hop instead of three; when the name is a
  * substring of several, the count says whether `search` is worth asking.
  */
-export function unfound(help: Help, name: string, within: string | undefined): string {
+export function unfound(help: Help, name: string, within: string | undefined, spell: Spelling): string {
   const where = within === undefined ? 'this workspace' : `\`${within}\``;
   const lowered = name.toLowerCase();
   const published = new Set([...everyEntry(help)].map(([, , entry]) => entry.name));
@@ -126,9 +128,9 @@ export function unfound(help: Help, name: string, within: string | undefined): s
   }
   const around = [...published].filter((held) => held.toLowerCase().includes(lowered)).length;
   if (around > 0) {
-    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`search\` with it as the query.`;
+    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`${spell.tool(search)}\` with it as the \`${spell.input('query')}\`.`;
   }
-  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`search\` with a word from its documentation.`;
+  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`${spell.tool(search)}\` with a word from its documentation.`;
 }
 
 /**
@@ -164,6 +166,7 @@ export function nowhere(
   root: string | undefined,
   members: Members | undefined,
   dependencies: string | undefined,
+  spell: Spelling,
 ): string {
   const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
   const read = declarations(root, name);
@@ -177,5 +180,5 @@ export function nowhere(
     : stop === undefined
       ? `${none}, at its top level or as a member.`
       : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
-  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
+  return [unfound(help, name, wanted, spell), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
 }

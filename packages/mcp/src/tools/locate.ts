@@ -16,6 +16,7 @@ import { renderOrientation } from './place.js';
 import { render } from './locate-print.js';
 import { scopeOf, type Scope } from './scope.js';
 import { startPointArg, START_POINT_SCHEMA } from './start-point.js';
+import { heldWeight, rarity as rarityOf } from './rarity.js';
 import type { Tree } from './tree.js';
 
 export { tokensOf, type LocateField } from './locate-index.js';
@@ -352,8 +353,7 @@ export function locateSubjects(
   const total = within === undefined ? index.subjects.size : within.size;
   const single = collect(index, terms, within, total);
   const together = collect(index, pairs, within, total);
-  const rarity = (match: LocateMatch): number =>
-    Math.floor((1000 * (total - match.holders + 1)) / (total + 1));
+  const rarity = (match: LocateMatch): number => rarityOf(total, match.holders);
 
   const hits: LocateHit[] = [...single.matched].map(([subject, list]) => {
     const held = together.matched.get(subject) ?? [];
@@ -365,7 +365,7 @@ export function locateSubjects(
       together: held,
       terms: new Set(list.map((match) => match.term)).size,
       pairs: new Set(held.map((match) => match.term)).size,
-      weight: list.reduce((sum, match) => sum + FIELD_WEIGHTS[match.field] * rarity(match), 0),
+      weight: heldWeight(list, rarity, (match) => FIELD_WEIGHTS[match.field]),
     };
   });
   hits.sort(

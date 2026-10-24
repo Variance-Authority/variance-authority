@@ -96,7 +96,7 @@ export { formatReport } from './commands/report.js';
 export type { ReportFormat, ReportOptions } from './commands/report.js';
 
 export { ASKED, ask, questions } from './commands/ask.js';
-export { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './commands/asking.js';
+export { QUESTIONS, argumentsOf, questionFor, takes } from './commands/asking.js';
 export type { Argument, Question } from './commands/asking.js';
 export { readVantage, watch, watching } from './commands/watch.js';
 export type { Watching } from './commands/watch.js';

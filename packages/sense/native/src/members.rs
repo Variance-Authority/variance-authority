@@ -1,8 +1,8 @@
 //! The names a module reads off another module it holds as an object.
 //!
-//! A named import says which names it takes. A namespace import, TypeScript's
-//! `import m = require('m')` and an `import()` do not: the file holds the module
-//! whole, and the names it uses are member reads further down — `ns.x`,
+//! A namespace import, TypeScript's `import m = require('m')` and an
+//! `import()` hold the module whole, and the names the file uses are member
+//! reads further down — `ns.x`,
 //! `(await import('m')).x`, `m.x` after `const m = await import('m')` or
 //! `import m = require('m')`, `const { x } = await import('m')`, the element of
 //! `const [{ x }] = await Promise.all([import('m')])` in the same position, and
@@ -20,6 +20,14 @@
 //! parameter, or one typed by a top-level alias of it. A qualified name off a
 //! holder in a type, `typeof ns.x` or `ns.T`, reads its first name, as `ns.x`
 //! does in a value.
+//!
+//! A named import holds the value it takes, and a name read off a holder is a
+//! value inside the module too: `ns.x` after `import { ns } from 'm'`,
+//! `lib.ns.x` after `import * as lib from 'm'`, in a value, a type or a JSX
+//! tag. Each is a [`BindingMember`], the export it starts from and the names
+//! read on the way, which the query answers only where the module passes that
+//! export on as a namespace, `export * as ns`, inside one another as deep as
+//! the chain goes.
 //!
 //! This is a listing of where a name is used, and nothing selects on it: a
 //! request's `bindings` stay what the statement wrote, so a namespace still
@@ -52,6 +60,10 @@ use bind::takes;
 #[path = "members_typed.rs"]
 mod typed;
 
+#[path = "members_held.rs"]
+mod held;
+use held::{all_of, handed_on, Chain, Chains, Held, Via, WHOLE};
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Member {
     /// The index of the request, in the same parse, the name is read through.
@@ -64,21 +76,46 @@ pub struct Member {
     pub(crate) through_default: bool,
 }
 
+/// A name read off a value inside a module: `ns.x` after `import { ns } from
+/// 'm'`, `lib.ns.x` after `import * as lib from 'm'`, `ns.a.x` after either.
+/// It reads `x` of a module only where `m` passes `ns` on as a namespace,
+/// `export * as ns`, and each name of `within` names a namespace inside the
+/// one before, which the query follows; off any other value it is a read the
+/// type decides, and no use of a module's name.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct BindingMember {
+    /// The index of the request, in the same parse, the value is read through.
+    pub(crate) request: u32,
+    /// The export of the module the value is, or is read off: the name a named
+    /// import takes, the first name read off a namespace import, or `default`.
+    pub(crate) binding: String,
+    /// The names read off `binding` before `name`, nearest first.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) within: Vec<String>,
+    pub(crate) name: String,
+    pub(crate) line: u32,
+}
+
 /// The loads a module calls for, and the names it reads off what it holds.
 ///
 /// `requests` are the ones the module record states; a member read through an
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
 /// read through an `import m = require()` as if `loads.required` followed those,
 /// and one read through an `import()` type as if `loads.typed` followed those.
-pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Loads<'l>) {
+/// Last come the bindings a pattern destructures off a holder, by name and
+/// line: the module's values under a local name, as an import binds them.
+pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Vec<BindingMember>, Loads<'l>, HashSet<(String, u32)>) {
     let mut holders = HashMap::new();
+    let mut chains = Chains::default();
     for (index, request) in requests.iter().enumerate() {
         // A type-only namespace or default holds the module, or its `default`, for its types.
+        // A named one holds the value it takes; an `export … from` binds nothing here.
         for binding in &request.bindings {
             let held = match binding.imported.as_str() {
                 "*" => Held::whole(Via::Indexed(index as u32)),
                 "default" => Held::whole(Via::Indexed(index as u32)).default(),
-                _ => continue,
+                _ if request.republishes => continue,
+                imported => Held::named(Via::Indexed(index as u32), chains.of(Chain { export: imported.to_owned(), within: Vec::new() })),
             };
             if let Some(symbol) = scoping.get_root_binding(binding.local.as_str().into()) {
                 holders.insert(symbol, held);
@@ -88,80 +125,44 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
     let mut walker = Walker {
         lines,
         scoping,
+        followed: held::passed_on(program, scoping, &holders),
         holders,
+        chains,
         aliases: typed::aliases(program),
         typed_at: HashMap::new(),
         stated: requests.len() as u32,
         loads: Loads::new(lines),
         found: BTreeSet::new(),
-        followed: HashSet::new(),
         mock_factory: None,
+        taken: HashSet::new(),
     };
     walker.visit_program(program);
     // A required request's index is known only once the walk has met every `import()`.
     let required = walker.stated + walker.loads.dynamic.len() as u32;
     let typed = required + walker.loads.required.len() as u32;
     let typed_at = &walker.typed_at;
-    let members: BTreeSet<Member> = walker
-        .found
-        .into_iter()
-        .filter_map(|(held, name, line)| Some(Member { request: held.via.index(required, typed, typed_at)?, name, line, through_default: held.off }))
-        .collect();
-    (members.into_iter().collect(), walker.loads)
-}
-
-/// The request a holder reads through: its index in the parse, its index in
-/// `loads.required`, which the parse appends after every `import()`, or its
-/// index in `loads.typed`, which the parse appends after those, or the
-/// `import()` type starting at an offset, whose index the walk may meet later.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Via {
-    Indexed(u32),
-    Required(u32),
-    Typed(u32),
-    TypedAt(u32),
-}
-
-impl Via {
-    fn index(self, required: u32, typed: u32, typed_at: &HashMap<u32, u32>) -> Option<u32> {
-        Some(match self {
-            Via::Indexed(index) => index,
-            Via::Required(index) => required + index,
-            Via::Typed(index) => typed + index,
-            Via::TypedAt(at) => typed + typed_at.get(&at)?,
-        })
+    let mut members = BTreeSet::new();
+    let mut binding_members = BTreeSet::new();
+    for (held, name, line) in walker.found {
+        let Some(request) = held.via.index(required, typed, typed_at) else { continue };
+        match held.named {
+            None => _ = members.insert(Member { request, name, line, through_default: held.off }),
+            Some(at) => {
+                let Chain { export, within } = walker.chains.get(at).clone();
+                binding_members.insert(BindingMember { request, binding: export, within, name, line });
+            }
+        }
     }
+    (members.into_iter().collect(), binding_members.into_iter().collect(), walker.loads, walker.taken)
 }
-
-/// What a value holds: the module a request loads, or, `off`, that module's
-/// `default`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Held {
-    via: Via,
-    off: bool,
-}
-
-impl Held {
-    fn whole(via: Via) -> Self {
-        Held { via, off: false }
-    }
-
-    /// The module's `default`. Interop nests one level, so the `default` of
-    /// a `default` is the same level: `ns.default.default.x` reads `x` through it.
-    fn default(self) -> Self {
-        Held { via: self.via, off: true }
-    }
-}
-
-/// The token a member read takes when the module goes somewhere the walk does
-/// not follow, as a binding takes it for the namespace whole.
-const WHOLE: &str = "*";
 
 struct Walker<'l, 's> {
     lines: &'l Lines,
     scoping: &'s Scoping,
     /// A binding to what it holds.
     holders: HashMap<SymbolId, Held>,
+    /// The values inside a module a holder holds, which a [`Held`] names by index.
+    chains: Chains,
     /// A top-level alias of `typeof import()`, to where its `import()` type starts.
     aliases: HashMap<SymbolId, u32>,
     /// Where each `import()` type the walk has met starts, to its index in `loads.typed`.
@@ -170,6 +171,8 @@ struct Walker<'l, 's> {
     stated: u32,
     loads: Loads<'l>,
     mock_factory: Option<String>,
+    /// The bindings a pattern destructures off a holder, by name and line.
+    taken: HashSet<(String, u32)>,
     found: BTreeSet<(Held, String, u32)>,
     /// Where an `import()` or a holder is read in a way the walk follows, by
     /// the offset it starts at: anywhere else, the module escapes whole.
@@ -189,6 +192,11 @@ impl Walker<'_, '_> {
                 Some(held)
             }
             Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).map(Held::default),
+            Expression::StaticMemberExpression(it) => self.held(&it.object).and_then(|held| self.member_of(held, &it.property.name)),
+            Expression::ComputedMemberExpression(it) => match &it.expression {
+                Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, &name.value)),
+                _ => None,
+            },
             _ => None,
         }
         .or_else(|| self.cast(expression))
@@ -271,37 +279,15 @@ impl Walker<'_, '_> {
     /// A name read off what is held. Off the `default`, the value going on
     /// whole is the `default` moving, a use already recorded, and its own
     /// `default` is the same level.
+    /// A named holder is a plain value far more often than a namespace, so
+    /// only a name read off it by spelling is recorded: neither it going on
+    /// whole nor a read off its `default`.
     fn add(&mut self, held: Held, name: &str, at: u32) {
-        if held.off && (name == WHOLE || name == "default") {
+        let named = held.named.is_some() && (held.off || name == WHOLE);
+        if named || held.off && (name == WHOLE || name == "default") {
             return;
         }
         self.found.insert((held, name.to_owned(), self.lines.at(at)));
-    }
-}
-
-/// The promise an expression hands on: `.catch(…)` and `.finally(…)` settle
-/// to the same module, so `import('m').catch(…)` is still `import('m')`.
-fn handed_on<'e, 'a>(expression: &'e Expression<'a>) -> &'e Expression<'a> {
-    let mut expression = expression.get_inner_expression();
-    while let Expression::CallExpression(call) = expression {
-        let Expression::StaticMemberExpression(callee) = call.callee.get_inner_expression() else { break };
-        if !matches!(callee.property.name.as_str(), "catch" | "finally") {
-            break;
-        }
-        expression = callee.object.get_inner_expression();
-    }
-    expression
-}
-
-/// The array of `Promise.all([...])`.
-fn all_of<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e ArrayExpression<'a>> {
-    let Expression::CallExpression(call) = expression.get_inner_expression() else { return None };
-    if !call.callee.get_inner_expression().is_specific_member_access("Promise", "all") {
-        return None;
-    }
-    match call.arguments.first() {
-        Some(Argument::ArrayExpression(array)) => Some(array),
-        _ => None,
     }
 }
 
@@ -377,23 +363,17 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
     }
 
     fn visit_jsx_member_expression(&mut self, it: &JSXMemberExpression<'a>) {
-        if let JSXMemberExpressionObject::IdentifierReference(object) = &it.object {
-            if let Some(held) = self.holder(object) {
-                self.followed.insert(object.span.start);
-                self.add(held, &it.property.name, it.property.span.start);
-            }
+        if let Some(held) = self.jsx_held(&it.object) {
+            self.add(held, &it.property.name, it.property.span.start);
         }
         walk::walk_jsx_member_expression(self, it);
     }
 
-    // `ns.T` in a type reads `T` off the holder, and `ns.a.b` reads `a`: the
-    // name nearest the holder is the one the module exports.
+    // `ns.T` in a type reads `T` off the holder, and `ns.a.b` reads `a` off
+    // it and `b` off the value `ns.a` is, as the same names do in a value.
     fn visit_ts_qualified_name(&mut self, it: &TSQualifiedName<'a>) {
-        if let TSTypeName::IdentifierReference(left) = &it.left {
-            self.followed.insert(left.span.start);
-            if let Some(held) = self.holder(left) {
-                self.add(held, &it.right.name, it.right.span.start);
-            }
+        if let Some(held) = self.qualified_held(&it.left) {
+            self.add(held, &it.right.name, it.right.span.start);
         }
         walk::walk_ts_qualified_name(self, it);
     }

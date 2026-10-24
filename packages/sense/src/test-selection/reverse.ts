@@ -1,8 +1,11 @@
+// compass: variance-authority.reach.crossings
 import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
+import { sameUnentered, unenteredOn, type Unentered } from './unentered.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Said } from './case-said.js';
 
 /** One recorded case: who it is, where it is declared, and whether its journey ended. */
@@ -110,6 +113,8 @@ export interface CoveringOptions {
    * {@link ranWhileLoading} says the list is short.
    */
   readonly relations?: Relations;
+  /** The cases {@link coveringTestsInFile} names, whose ranges fold over what is left; absent keeps every case. */
+  readonly keep?: (test: CoveringTest) => boolean;
 }
 
 /**
@@ -131,6 +136,8 @@ export interface SourceTestRange {
   readonly loaded?: true;
   /** Cases that could have reached the range and stopped first; see {@link stoppedBefore}. */
   readonly stopped?: readonly ExecutionTest[];
+  /** On a range that names cases: its regions no case entered, which no line of their own shows; see `unentered.ts`. */
+  readonly unentered?: readonly Unentered[];
 }
 
 /** Find named tests that reached a source line, lines or scope, nearest first. */
@@ -141,7 +148,7 @@ export function coveringTests(
 ): readonly CoveringTest[] {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return [];
-  const blocks = blocksAt(module, target);
+  const blocks = blocksOfTarget(module.blocks, target);
   return withLoaders(testsForBlocks(index, blocks), blocks, loadersOf(index, module.file, options.relations));
 }
 
@@ -155,7 +162,7 @@ export function coveringTests(
  */
 export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget): boolean {
   const module = index.modules.find((candidate) => candidate.file === target.file);
-  return module !== undefined && blocksAt(module, target).some((block) => block.loaded === true);
+  return module !== undefined && blocksOfTarget(module.blocks, target).some((block) => block.loaded === true);
 }
 
 /**
@@ -174,11 +181,7 @@ export function stoppedBefore(
 ): readonly ExecutionTest[] | undefined {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return undefined;
-  return outside(index, stoppedIn(index, module, options.relations), blocksAt(module, target));
-}
-
-function blocksAt(module: ExecutionModule, target: SourceTestTarget): readonly ExecutionBlock[] {
-  return blocksOfTarget(module.blocks, target);
+  return outside(index, stoppedIn(index, module, options.relations), blocksOfTarget(module.blocks, target));
 }
 
 /** Find named tests for every indexed source line, grouped into equal adjacent ranges. */
@@ -206,16 +209,19 @@ export function coveringTestsInFile(
     const endLine = lines[at + 1]! - 1;
     const blocks = blocksChargedAt(module.blocks, startLine);
     if (blocks.length === 0) continue;
-    const tests = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
+    const named = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
+    const tests = options.keep === undefined ? named : named.filter(options.keep);
     const loaded = blocks.some((block) => block.loaded === true);
     const short = outside(index, stopped, blocks);
+    const unentered = unenteredOn(index, stopped, blocks, tests.length);
     const previous = ranges.at(-1);
     if (
       previous !== undefined &&
       previous.endLine + 1 === startLine &&
       (previous.loaded === true) === loaded &&
       sameTests(previous.tests, tests) &&
-      sameCases(previous.stopped, short)
+      sameCases(previous.stopped, short) &&
+      sameUnentered(previous.unentered, unentered)
     ) {
       ranges[ranges.length - 1] = { ...previous, endLine };
     } else {
@@ -225,6 +231,7 @@ export function coveringTestsInFile(
         tests,
         ...(loaded ? { loaded: true as const } : {}),
         ...(short === undefined ? {} : { stopped: short }),
+        ...(unentered === undefined ? {} : { unentered }),
       });
     }
   }
@@ -251,9 +258,8 @@ function testsForBlocks(
 }
 
 function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]): boolean {
-  return left.length === right.length && left.every((test, at) =>
-    test.id === right[at]!.id && test.distance === right[at]!.distance && test.loaded === right[at]!.loaded,
-  );
+  return left.length === right.length
+    && left.every((test, at) => test.id === right[at]!.id && test.distance === right[at]!.distance && test.loaded === right[at]!.loaded);
 }
 
 /**
@@ -329,10 +335,6 @@ function invalidDistance(): Error {
 
 function invalidTest(test: number): Error {
   return new Error(`invalid execution index: test ${test} does not exist`);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

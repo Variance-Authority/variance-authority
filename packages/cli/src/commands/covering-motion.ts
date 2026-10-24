@@ -29,7 +29,7 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { carriedOver, diffFromBase, movedOnBase } from './base-diff.js';
+import { carriedOver, diffFromBase, movedOnBase, unnamedCommit } from './base-diff.js';
 import { cutElsewhere } from './before-texts.js';
 import { relationsFor } from './source-graph.js';
 import { functionOf, regionKind } from './review-scope.js';
@@ -84,6 +84,12 @@ export interface CoveringMotion {
    * known, so nothing is compared.
    */
   readonly lastRunUnread?: string;
+  /**
+   * Why the layer the runs at this commit retired cannot be paired with the
+   * current regions, when it names no commit to diff from: a second run there
+   * ran a test file again. Nothing is compared, and the review says so.
+   */
+  readonly undiffed?: string;
 }
 
 /**
@@ -246,6 +252,9 @@ export async function motionOfRuns(
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
   const ran = new Set([...wrote.compared, ...(wrote.unwritten ?? []), ...(wrote.unbased ?? [])]);
+  // A layer naming no commit is the record's own state, left uncompared; a
+  // commit it names that this clone cannot diff from is refused.
+  if (wrote.at === undefined) return { base, ...said, undiffed: unnamedCommit(BEFORE_LAYER) };
   return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
 }
 
@@ -294,6 +303,7 @@ export function motionText(
   if (motion.unbased !== undefined && motion.unbased.length > 0) {
     unwritten.push(`Not compared, no case of these was recorded before this commit's first run: ${listedOf(motion.unbased, listed, 'test file')}.`);
   }
+  if (motion.undiffed !== undefined) return ['', `Not compared: ${motion.undiffed}`, ...unwritten];
   if (motion.lastRunUnread !== undefined) {
     return ['', `Not compared: ${motion.lastRunUnread} could not be read, so which test files a run at this commit wrote to the case index is not known.`];
   }

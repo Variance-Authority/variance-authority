@@ -168,7 +168,7 @@ fn default_export<'a>(declared: &ExportDefaultDeclarationKind<'a>, statement: Sp
     }
 }
 
-fn declarator_end(declarator: &VariableDeclarator<'_>) -> u32 {
+pub(crate) fn declarator_end(declarator: &VariableDeclarator<'_>) -> u32 {
     match &declarator.init {
         Some(Expression::ArrowFunctionExpression(value)) => value.body.span().start,
         Some(Expression::FunctionExpression(value)) => value

@@ -142,5 +142,5 @@ export type {
 export { searchNames } from './tools/search-answer.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';
-export { sharedSegments } from './tools/uses.js';
+export { sharedSegments } from './tools/shared-segments.js';
 export { doorOf, entriesNamed, isPackage, openingOf, packageOf, specifierOf, unfound } from './tools/find.js';

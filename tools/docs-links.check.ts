@@ -74,6 +74,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'apps/app/src/checkout.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'apps/app/src/total.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'packages/lib/src/internal/math.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
+  'packages/lib/src/other.ts': 'the workspace ask-uses-namesakes.test.ts builds, quoted from its answers',
   'packages/kit/src/money/rates.ts': 'the workspace ask-passed-on.test.ts builds, quoted from its answers',
   'packages/kit/src/money/tax.ts': 'the workspace ask-packages-fixture.ts builds, quoted from an answer of ask-passed-on.test.ts',
   'save-bar.tsx': "a reader's own component, quoted from a sample test story",

@@ -421,6 +421,13 @@ module's own region, such as a module-level statement or the first line of a
 top-level function, is answered at file grain, with the cases that loaded the
 file, and the answer says so.
 
+Over a whole file, a region no case entered on a line the function around it
+also charges, such as a one-line branch or the line that opens a longer one,
+gets a range of its own and a line saying no case entered it, and whether that
+is unwalked or a hole; `--format json` lists it under the range's `unentered`.
+A narrowed answer and a file edited since the run say the same, at the line the
+region stands on now.
+
 A module the run loaded without instrumenting it, such as one named in
 `unprobed` or one whose text the run could not parse, has no recorded line. It is a
 precondition of every test file that loaded it, and `variance select` selects
@@ -970,7 +977,11 @@ after that commit is left out and named, as in
 this commit wrote to the case index are compared, as are the cases each test
 file added and removed. A run that writes no case index, such as one whose only
 file a browser gate skips, replaced no case: the review names its files and
-compares nothing for them.
+compares nothing for them. A second run at this commit that ran a test file
+again retired cases that name no commit to diff from, so the review compares no
+case and says why, in every format, under `motion.undiffed` in `review.json`;
+the rest of the review is answered as usual. Commit, and the first run after it
+compares again.
 `--against <record>` compares with a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.

@@ -115,6 +115,7 @@ mod module_moved;
 mod module_readers;
 mod module_shape;
 mod module_verdict;
+mod nested;
 mod off_thread;
 mod order;
 mod orient_map;
