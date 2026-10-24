@@ -28,6 +28,15 @@ answers every case that entered one of its methods. A name nothing recorded is
 under is refused with the names the file has; a constant or a type has no region
 of its own, so ask about its lines instead.
 
+When some case entered the function, the answer also names the outermost parts
+of it no case ran — a branch no case took, a nested function no case called —
+under `No case ran a part of it`, as `unrun` in JSON (`kind`, the nested
+`name`, held-text lines, and `state`, `hole` or `unwalked`, when the record
+can tell) and `; no case ran 112 branch` in refs. They are read over every
+case, before `--where` or `--at-distance`, across the whole function, with the
+review's own reading, in each suite: a function the handover flags is answered
+here with the part to test.
+
 The record holds a line no finer than its region does. A line whose edit
 charges the module's own region is held at file grain: a module-level
 statement, and the first or last line of a top-level function, which an edit

@@ -58,11 +58,11 @@ const git = (at: string, args: readonly string[]): void => {
 };
 
 /** A checkout whose test files import `src/cart.ts`, with every function edited since `main`, run from inside it. */
-async function checkout(): Promise<{ root: string; execution: string }> {
+async function checkout(index: ExecutionIndex = INDEX): Promise<{ root: string; execution: string }> {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-where-state-'));
   const execution = join(await mkdtemp(join(tmpdir(), 'variance-covering-where-state-')), 'coverage.bin');
   await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-    index: encodeAsSetExecutionIndex(INDEX),
+    index: encodeAsSetExecutionIndex(index),
   });
   const cart = (edit: boolean) => ['total', 'round', 'discount', 'fee']
     .map((name, at) => `export function ${name}() {\n  return ${at};${edit ? ' // edited' : ''}\n}\n`).join('\n');
@@ -161,5 +161,17 @@ describe('`--where` narrows the cases listed, never the state of what they cover
 
     expect(text).toContain('4 changed regions: 1 nothing covered (1 of them a hole), 0 covered by one case.');
     expect(text).toContain('13-15 function fee — covered only by cases not listed here, and 1 case that could have reached it stopped first');
+  });
+
+  it('names a part no case ran under a function `--where` left no case of', async () => {
+    const [module] = INDEX.modules;
+    const record = await checkout({ ...INDEX, modules: [{ ...module!, blocks: [...module!.blocks,
+      { kind: 'branch', name: 'fee', path: 'if#0/then', startLine: 14, endLine: 14, source: true, crossings: [] }] }] });
+
+    const answer = await ask(record, ['--file', 'src/cart.ts', '--function', 'fee', '--where', 'flags:checkout=ff-on']);
+
+    expect(answer.tests).toEqual([]);
+    expect(answer.unrun).toEqual([{ kind: 'branch', startLine: 14, endLine: 14, state: 'hole' }]);
+    expect(formatCovering(answer, 'text')).toContain('\nNo case ran a part of it: the branch at line 14.');
   });
 });

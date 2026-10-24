@@ -50,6 +50,17 @@ describe('where to look, for a comment', () => {
     ].join('\n'));
   });
 
+  it('counts both arms of a branch no case ran that share a line, a `} else {` or a one-line ternary', () => {
+    const arms = [
+      region('function', 'cap', 3, 20, 'near', ['a.test.ts']),
+      region('branch', 'cap', 9, 11, 'unwalked'),
+      region('branch', 'cap', 11, 13, 'unwalked'),
+      region('branch', 'cap', 16, 16, 'unwalked'),
+      region('branch', 'cap', 16, 16, 'unwalked'),
+    ];
+    expect(uncoveredMarkdown(review(arms), mark).join('\n')).toContain('Where no case ran: 4 places in 1 function');
+  });
+
   it('calls a module\'s own region no case ran the top level', () => {
     expect(uncoveredMarkdown(review([region('module', '', 1, 40, 'unwalked')]), mark)).toContain('- `src/caps.ts:1-40` the top level (new)');
   });

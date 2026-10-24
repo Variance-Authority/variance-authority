@@ -10,6 +10,7 @@
  */
 
 import { heardSplit, valued } from '@variance-authority/sense/test-selection';
+import { outermostOf } from './covering-frame.js';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
@@ -25,22 +26,9 @@ export function uncovered(region: Pick<ReviewRegion, 'reach'>): boolean {
   return UNCOVERED.has(region.reach);
 }
 
-/**
- * The regions a reader counts: each one whose answer differs from the region
- * around it. A function no case covered is one finding, not one per branch
- * inside it. The JSON keeps every region.
- */
+/** The regions a reader counts, `outermostOf` the file's. The JSON keeps every region. */
 export function outermost(file: ReviewFile): readonly ReviewRegion[] {
-  const regions = [...(file.regions ?? [])]
-    .sort((left, right) => left.startLine - right.startLine || right.endLine - left.endLine);
-  const kept: ReviewRegion[] = [];
-  const open: ReviewRegion[] = [];
-  for (const region of regions) {
-    while (open.length > 0 && open.at(-1)!.endLine < region.startLine) open.pop();
-    if (open.at(-1)?.reach !== region.reach) kept.push(region);
-    open.push(region);
-  }
-  return kept;
+  return outermostOf(file.regions ?? []);
 }
 
 /** What every sentence calls a module's own code, the region any import runs. */

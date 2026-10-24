@@ -14,7 +14,7 @@ import {
   type ExecutionTest,
   type HeldLines,
 } from '@variance-authority/sense/test-selection';
-import { runsText, targetText } from './covering-at.js';
+import { runsText, targetText, type UnrunPart } from './covering-at.js';
 import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
@@ -53,7 +53,7 @@ function text(answer: Covering): string {
   const where = targetText(answer.target ?? { function: '' });
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
     // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
-    return narrowedText(answer).join('\n');
+    return [...narrowedText(answer), ...unrunText(answer.unrun)].join('\n');
   }
   if (tests.length === 0 && newlyWritten(answer)) {
     // Every asked line is new since the recording: *no named test covered* is true, and the reason is the whole answer.
@@ -74,9 +74,22 @@ function text(answer: Covering): string {
     }:`,
     ...caseLines(tests, '  ', answer.files),
     ...legend(tests),
+    ...unrunText(answer.unrun),
     ...grainText(answer, where),
     ...narrowedText(answer),
   ].join('\n');
+}
+
+/** The parts of an asked function no case ran, which its cases do not say: `the branch at line 12`. */
+function unrunText(parts: readonly UnrunPart[] | undefined): readonly string[] {
+  if (parts === undefined || parts.length === 0) return [];
+  const named = parts.map((part) => `${unrunPart(part)} at ${part.startLine === part.endLine ? 'line' : 'lines'} ${runsText([part])}`);
+  return [`No case ran ${parts.length === 1 ? 'a part' : `${parts.length} parts`} of it: ${named.join(', ')}.`];
+}
+
+/** A part as a sentence names it: a part of the function's own body by its kind, a nested function by its name too. */
+function unrunPart(part: UnrunPart): string {
+  return part.name === undefined ? `the ${part.kind}` : `${part.kind} ${part.name}`;
 }
 
 /** Which asked lines the record holds at file grain, and which it has no place for. */

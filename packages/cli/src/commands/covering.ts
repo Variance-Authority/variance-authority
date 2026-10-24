@@ -62,7 +62,7 @@ import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { coveringAt, countOf, fileGraph } from './covering-at.js';
+import { coveringAt, countOf, fileGraph, type UnrunPart } from './covering-at.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
@@ -132,6 +132,8 @@ export interface Covering {
   readonly stopped?: readonly ExecutionTest[];
   /** With `tests`: the one state the line or function is painted as, when it can be told, over the cases before `--where`. */
   readonly state?: RangeState;
+  /** With `--function` and a case that entered it: the outermost parts of it no case ran, as the review reads them, over the cases before `--where`. */
+  readonly unrun?: readonly UnrunPart[];
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
   /**
