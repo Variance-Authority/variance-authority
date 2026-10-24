@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { caseSectionsAt, commitRunsFile, encodeExecutionIndex, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { readFlags } from '../args.js';
+import { parseCoveringArgs } from '../covering-args.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { AFTER, BEFORE, DISCOUNTS, block, changed, git } from './review-fixture.js';
@@ -43,12 +44,25 @@ describe('a review handed over in the pull request body, before CI', () => {
       '',
       'And 1 more, every one reached by a case: 1 near.',
       '',
-      `More on one file: \`variance covering --since ${first.slice(0, 12)} --file <path>\``,
+      'More on one file: `variance covering --file <path>`',
       '</details>',
       HANDOVER_END,
       '',
     ].join('\n'));
     expect(out).not.toContain(REVIEW_MARKER);
+  });
+
+  it('suggests a command for one file that the covering parser takes and answers about that file', async () => {
+    const { root, first } = await changed();
+    await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
+
+    const { out } = await printed(['--since', first, '--root', root, '--format', 'handover']);
+    const suggested = /More on one file: `variance covering ([^`]+)`/.exec(out)?.[1];
+
+    expect(suggested).toBeDefined();
+    const argv = [...suggested!.replace('<path>', 'src/total.ts').split(' '), '--root', root];
+    const asked = parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
+    expect(asked).toMatchObject({ file: 'src/total.ts' });
   });
 
   it('names a changed source file no record holds, a Rust one, rather than saying the change touched no function, as the review comment names it', async () => {
