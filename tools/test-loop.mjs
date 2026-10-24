@@ -5,8 +5,8 @@
  * The compiler, then the unit slice at distance `0-1`: the tests that entered
  * the change and those one import from it. The selection is read here, once,
  * by the function every seam asks (`selectSuite`), and the runner starts only
- * when the seam would keep a test (`kept`), so an edit no test covers costs the
- * compiler, the index and one reading. Both functions are loaded from `dist/`
+ * when the seam would keep a test (`kept`), so an edit that keeps no test costs
+ * the compiler, the index and one reading. Both functions are loaded from `dist/`
  * after `tsc --build` has written it, so an edit to the selection is read by
  * the selection it makes. Integration and browser tests are the waves'.
  */

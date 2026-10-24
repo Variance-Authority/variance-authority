@@ -2,14 +2,15 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { selectedLines } from '@variance-authority/sense/test-selection';
 import { afterEach, describe, expect, it } from 'vitest';
 import { inSlice } from './slices.mjs';
 import { discovered, idle } from './test-loop.mjs';
 
 /**
  * `yarn test:loop` starts the unit runner only when the selection keeps a test
- * the runner would discover, so an edit no test covers costs the selection and
- * not a runner boot (ADR-0096).
+ * the runner would discover, so an edit that keeps no test costs the selection
+ * and not a runner boot (ADR-0096).
  */
 
 describe('discovered', () => {
@@ -41,16 +42,12 @@ describe('idle', () => {
       skip: new Set(['packages/a/src/story.test.tsx', 'packages/a/src/other.test.ts']),
       notes: ['read packages/a/src/story.ts: none (the record was taken over this text)'],
     };
-    const said = await idle(selection, ['packages/a/src/story.test.tsx', 'packages/a/src/other.test.ts']);
+    const files = ['packages/a/src/story.test.tsx', 'packages/a/src/other.test.ts'];
+    const said = await idle(selection, files);
 
-    expect(said).toBe(
-      [
-        'variance-authority: selected none of 2',
-        '  read packages/a/src/story.ts: none (the record was taken over this text)',
-        'test:loop: types clean; no unit test runs at 0-1 (2 skipped)',
-        '',
-      ].join('\n'),
-    );
+    // The seam's lines are the seam's to word; the loop adds only its verdict.
+    expect(said).toBe([...selectedLines(selection, files), 'test:loop: types clean; no unit test runs at 0-1 (2 skipped)', ''].join('\n'));
+    expect(said).not.toContain('covers the change');
   });
 });
 
