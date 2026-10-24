@@ -45,8 +45,13 @@ describe('variance ask over the imports of a name within its own package', () =>
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
+    const { code, out: answer } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
+    // The export of other.ts is another declaration, answered in a block of its own.
+    const apart = answer.indexOf('`greet` [const] is imported in 1 place, and no entry publishes it; it is exported at packages/lib/src/other.ts:1.');
+    expect(apart).toBeGreaterThan(0);
+    expect(answer.slice(apart)).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib$/m);
+    const out = answer.slice(0, apart);
     expect(out).toContain('`greet` [function] is imported in 5 places.');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app$/m);
     expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib$/m);

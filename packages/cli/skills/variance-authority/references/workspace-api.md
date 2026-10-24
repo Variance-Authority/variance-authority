@@ -206,7 +206,10 @@ publishes it, and each import of it. A name a file exports and no entry
 publishes is answered too: the file and line that export it, the line as the
 checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
-apart, each with its own count, and an installed name it matches, which a file
+apart, each with its own count. Beside a published name of the same name, each
+such export is answered after it: the published name is one declaration, and a
+Rust `pub(crate)` or `pub(super)` item, or a neighbour's export, in another
+file is another one. An installed name it matches, which a file
 that passes it on exports without declaring, is said after it. A name a file
 declares and does not export is answered from the source index, as below, after
 any export of the same name in another file. A name an import binds with `as`
@@ -281,6 +284,18 @@ declaration:
 
 ```
 `levy` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
+```
+
+Each file that declares and exports the name is answered on its own, after a
+published name of the same name when there is one, with the imports whose path
+resolves to that file. Two Rust items of one name in two modules are two
+answers, and a `use crate::graph::Limits` counts for the `Limits` that
+`graph.rs` declares and for no other. Two declarations a file keeps to itself
+in two files are one answer, its imports said of each file. A Rust answer ends
+by naming what no path says:
+
+```
+In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer's find-references has those.
 ```
 
 `--limit <n>` sets how many rows of each list are shown, 12 when not said:

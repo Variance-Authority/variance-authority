@@ -14,13 +14,26 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
+import type { Documented, Entry, Help, Named, Opening, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../refresh-native.js';
-import { importsByPath } from './by-path.js';
+import { declaration, importsByPath, type PathSite } from './by-path.js';
+import { originOf } from './passed-on.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
 export const UNCOUNTED = 'a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted';
+
+/**
+ * What a Rust answer leaves out: a use no path names. The reading follows the
+ * paths a file writes and never resolves a type, so a glob, a method and a
+ * macro are the type checker's.
+ */
+const RUST_UNREAD = "In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer's find-references has those.";
+
+/** The line that says so, when one of `files` is Rust. */
+export function rustUnread(files: readonly string[]): readonly string[] {
+  return files.some((file) => file.endsWith('.rs')) ? ['', RUST_UNREAD] : [];
+}
 
 /** Every export of `name` from ordinary source, in `within` when one is named. */
 export function exportsNamed(help: Help, name: string, within: string | undefined): readonly Named[] {
@@ -30,6 +43,46 @@ export function exportsNamed(help: Help, name: string, within: string | undefine
       held.kind === 'source' &&
       (within === undefined || held.by === within || fileOf(help, held, within)),
   );
+}
+
+/**
+ * The exports of `name` that are other things than the declarations in
+ * `answered`: an export whose file declares the name, or whose `export … from`
+ * reaches a declaration, in a file `answered` does not hold. A published name
+ * is one declaration, and a crate's `pub(crate)` item or a neighbour's export
+ * of the same name in another file is another one, answered beside it.
+ */
+export function exportsApart(help: Help, root: string | undefined, name: string, within: string | undefined, answered: ReadonlySet<string>): readonly Named[] {
+  const exported = exportsNamed(help, name, within);
+  if (answered.size === 0) return exported;
+  return exported.filter((held) => !answered.has(held.at) && !answered.has(originOf(root, held)?.at ?? held.at));
+}
+
+/**
+ * The exports of a name that declare it, each with the imports the source index
+ * resolved to it: a file that passes on another one's export is left out.
+ */
+export function declaringExports(name: string, exported: readonly Named[], root: string | undefined): readonly (readonly [Named, Within])[] {
+  const read = exported.map((held) => [held, importsOf(root, [held.at], name)] as const);
+  const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
+  // Files that pass the name on to each other and declare it nowhere else are all shown.
+  const declaring = read.filter(([held]) => !passing.has(held.at));
+  return declaring.length > 0 ? declaring : read;
+}
+
+/**
+ * The declaring exports of a name by the file that holds them: an import takes
+ * a name from a file, so `const Shade` and `type Shade` of one file are one
+ * answer, with that file's imports, and each kind in its heading.
+ */
+export function declaringFiles(declaring: readonly (readonly [Named, Within])[]): readonly (readonly [readonly Named[], Within])[] {
+  const files = new Map<string, [Named[], Within]>();
+  for (const [held, within] of declaring) {
+    const file = files.get(held.at);
+    if (file === undefined) files.set(held.at, [[held], within]);
+    else file[0].push(held);
+  }
+  return [...files.values()];
 }
 
 /**
@@ -85,4 +138,16 @@ export function importsOf(root: string | undefined, files: readonly string[], na
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */
 export function indexMissing(name: string, exported: readonly Named[], unread: string): string {
   return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${unread}.`;
+}
+
+/**
+ * The files a published entry or an import by path already answers the name
+ * from: the declaration each entry reaches, the entry file that passes it on,
+ * and the file each import by path names it from.
+ */
+export function answeredBy(help: Help, name: string, found: readonly (readonly [Documented, Opening, Entry])[], byPath: readonly PathSite[]): ReadonlySet<string> {
+  return new Set([
+    ...found.flatMap(([, opening, entry]) => [entry.at, opening.source]),
+    ...byPath.flatMap((site) => [site.held.to ?? declaration(help, name, site)?.at].filter((at): at is string => at !== undefined)),
+  ]);
 }
