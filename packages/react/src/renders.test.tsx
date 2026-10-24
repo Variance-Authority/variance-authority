@@ -3,7 +3,7 @@
 // Arranged as a runner setup file arranges it: the tap exists before
 // `react-dom` runs its module body, so `react-dom/client` is imported below it.
 
-import { act, Component, createContext, memo, useContext, useMemo, useState, type ReactElement } from 'react';
+import { act, Component, createContext, memo, use, useContext, useMemo, useState, type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { tapCommits } from './commits.js';
 import type { Fiber } from './fiber.js';
@@ -92,6 +92,22 @@ describe('why a component rendered', () => {
         </Theme.Provider>,
       ),
     ).toEqual([['Themed', [{ kind: 'context', name: 'Theme', before: 'light', after: 'dark' }]]]);
+  });
+
+  it('names no context a render read for the first time, only the prop that made it read one', () => {
+    function Sometimes({ read }: { read: boolean }): ReactElement {
+      return <p>{read ? use(Theme) : 'none'}</p>;
+    }
+    expect(
+      rerendered(
+        <Theme.Provider value="dark">
+          <Sometimes read={false} />
+        </Theme.Provider>,
+        <Theme.Provider value="dark">
+          <Sometimes read />
+        </Theme.Provider>,
+      ),
+    ).toEqual([['Sometimes', [{ kind: 'prop', name: 'read', before: false, after: true }]]]);
   });
 
   it('calls a context with no display name anonymous', () => {
