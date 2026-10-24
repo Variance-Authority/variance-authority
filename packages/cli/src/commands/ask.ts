@@ -5,7 +5,7 @@ import type { VantageReading } from '@variance-authority/vantage/attach';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { QUESTIONS, inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
+import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -252,24 +252,6 @@ export async function askSource(request: SourceRequest): Promise<string> {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
   }
   const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
-  // A question whose input names what another tool answers is that tool's,
-  // asked here, where it is formed, and answered by that tool's own reading.
-  const restated = crossing ? undefined : restatedOf(tool, input);
-  const other = restated === undefined ? undefined : QUESTIONS.find((question) => question.source?.name === restated.tool)?.source;
-  if (restated === undefined || other === undefined) return answerSource(request, tool, input);
-  const module = await answerSource(request, other, restated.input);
-  const also = restated.also ? await answerSource(request, tool, input, true) : undefined;
-  return `${restated.said}\n\n${module}${also === undefined ? '' : `\n${also}`}`;
-}
-
-/**
- * One source question's answer, read again when its refusal came from what
- * the checkout was before. `quiet` gives nothing for a name not found, where
- * the question is asked beside another that answers.
- */
-async function answerSource(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>): Promise<string>;
-async function answerSource(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>, quiet: true): Promise<string | undefined>;
-async function answerSource(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>, quiet = false): Promise<string | undefined> {
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
@@ -309,25 +291,16 @@ async function answerSource(request: SourceRequest, tool: Tool<Help>, input: Rea
     if (caught?.subject === undefined) {
       // A name not found is an answer, dated like any other, once nothing newer can be read.
       const found = foundNothingAnswer(refusal, caught, answering.at, unseen);
-      if (found !== undefined) return quiet ? undefined : foundNothing(found, unopenedLine(answering.unopened, !unseen));
+      if (found !== undefined) return foundNothing(found, unopenedLine(answering.unopened, !unseen));
       throw refused(refusal, said);
     }
     try {
       return rendered(request, caught.subject, false);
     } catch (still) {
       const found = foundNothingAnswer(still, caught, caught.subject.at, false);
-      if (found !== undefined) return quiet ? undefined : foundNothing(found, unopenedLine(caught.subject.unopened, true));
+      if (found !== undefined) return foundNothing(found, unopenedLine(caught.subject.unopened, true));
       throw refused(still, said);
     }
-  }
-}
-
-/** The question this one is, or its refusal where the input names nothing either tool answers. */
-function restatedOf(tool: Tool<Help>, input: Readonly<Record<string, unknown>>): ReturnType<NonNullable<Tool<Help>['restated']>> {
-  try {
-    return tool.restated?.(input, process.cwd());
-  } catch (refusal) {
-    throw refused(refusal, '');
   }
 }
 

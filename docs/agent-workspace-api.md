@@ -316,15 +316,6 @@ the sites arrive ordered by how many leading path segments they share with it.
 Each kind of site, and each list after the imports, shows twelve and counts the
 rest; pass `limit` to show more.
 
-Asked through `variance ask`, a `name` is a module when your checkout holds a
-file at it, or when Node resolves it from the root to a package. `uses` then
-answers who imports that module, as `discover --imports` does, and its first
-line says so. A package specifier can be a name as well, `react` among them, so
-a package is answered as a name too, after the importers, wherever the name is
-found. A name written as a path, `./` or `../` first, that no file is at is
-told it is no path in your checkout rather than answered with nobody importing
-it. Over MCP, `docs_uses` answers every `name` as a name.
-
 `docs_uses` lists the imports within the name's own package too: every import
 that resolved to the file declaring it, or to a file that passes it on with
 `export … from`. That file is followed under the name it exports and is not

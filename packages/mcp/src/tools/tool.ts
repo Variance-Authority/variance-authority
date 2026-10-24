@@ -45,24 +45,6 @@ export interface Tool<Subject = RunReport> {
   wants?(input: Readonly<Record<string, unknown>>): boolean;
 
   /**
-   * The question this call is when its input names what another tool
-   * answers: the tool by its name, the input it is asked with, and the line
-   * the answer opens with to say so. `also` says this tool is asked the call
-   * too, after the other, and its answer kept where it finds something.
-   *
-   * Asked where a shell forms the question, before anything is read, so the
-   * shell reaches the other tool's own reading. It may ask the checkout what a
-   * path or a specifier is, which is the file system's and the resolver's
-   * answer, and throws where the input names nothing either tool could answer.
-   *
-   * Absent, or `undefined`, means the call is this tool's.
-   */
-  restated?(
-    input: Readonly<Record<string, unknown>>,
-    root: string,
-  ): { readonly tool: string; readonly input: Readonly<Record<string, unknown>>; readonly said: string; readonly also: boolean } | undefined;
-
-  /**
    * Every file this call answers with, uncapped, where its answer is a set of
    * files.
    *

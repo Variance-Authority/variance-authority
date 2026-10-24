@@ -3,8 +3,6 @@ import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine } from './declared.js';
-import { discover } from './discover.js';
-import { restatedUses } from './uses-module.js';
 import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { sharedSegments } from './shared-segments.js';
@@ -163,7 +161,7 @@ function held(use: Use): string {
 
 /**
  * `docs_uses`: every place a name is imported or read, for each declaration of
- * it, or who imports a module when the name is a file or a package.
+ * it.
  */
 export const uses: Tool<Help> = {
   name: 'docs_uses',
@@ -182,13 +180,11 @@ export const uses: Tool<Help> = {
     'A name an entry publishes only inside `export * as ns` is said to be published as `ns.name`, and a read ' +
     'through a namespace inside a namespace or one passed on as `default` is a site. ' +
     'Each file declaring the name declares another thing: the answer lists every one with its own imports, kept ' +
-    'apart, and `file`, the file one is declared in or a file passing it on, answers for that declaration alone. ' +
-    'Asked through `variance ask`, a `name` that is a file of the checkout, or a package the checkout resolves, is a module: ' +
-    'the answer is who imports it, as docs_discover answers `imports`, and a package is answered as a name too.',
+    'apart, and `file`, the file one is declared in or a file passing it on, answers for that declaration alone.',
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The exported name or member name, matched exactly, or a module: a file of the checkout or a package it resolves.' },
+      name: { type: 'string', description: 'The exported name or member name, matched exactly.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         type: 'string',
@@ -210,9 +206,6 @@ export const uses: Tool<Help> = {
     required: ['name'],
     additionalProperties: false,
   },
-
-  // Who imports a module is `discover --imports`, asked where the question is formed.
-  restated: (input, root) => restatedUses(input, root, discover.name),
 
   run(help, input, invocation) {
     const spell = spellingOf(invocation);
