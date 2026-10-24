@@ -1,5 +1,5 @@
 import { tapCommits } from './commits.js';
-import type { Fiber } from './fiber.js';
+import { isOwnerFrame, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
 import { causesOf, type RenderCause } from './renders.js';
 
@@ -15,10 +15,12 @@ import { causesOf, type RenderCause } from './renders.js';
  *
  * A setup file runs before the suite imports `react-dom`, which is the one
  * moment a commit tap can be installed. When a story is listening, this taps
- * every commit and says one line per component that rendered in it, at the
- * step of the case that caused the commit: `rendered Summary — expanded false
- * → true`. Two cases' routes then part at the render whose cause differs. With
- * no story listening nothing is tapped, and a test pays nothing.
+ * every commit and says one line per component that rendered in it, where the
+ * case stands when React commits: `rendered Summary — expanded false → true`.
+ * A value is shown as the story shows any value, so an object keeps its ref.
+ * A subtree that mounts says so once, at its top. Two cases' routes then part
+ * at the render whose cause differs. With no story listening nothing is
+ * tapped, and a test pays nothing.
  */
 
 const KIND = Symbol.for('variance-authority.story.kind');
@@ -36,51 +38,76 @@ const namers = (realm[KIND] ??= []);
 if (!namers.includes(reactKind)) namers.push(reactKind);
 
 const NOTE = Symbol.for('variance-authority.story.note');
+const TAPPED = Symbol.for('variance-authority.react.story.tapped');
 
-/** A value as a render line shows it: a primitive as it is, an object by its kind alone. */
-function shown(value: unknown): string {
-  if (typeof value === 'string') return JSON.stringify(value.length > 39 ? `${value.slice(0, 38)}…` : value);
-  if (typeof value === 'function') return 'a function';
-  if (Array.isArray(value)) return 'an array';
-  if (typeof value === 'object' && value !== null) return 'an object';
-  return String(value);
-}
+/** A line and the values between its strings, which the story's tap shows as it shows what a region was handed. */
+type Said = readonly [strings: readonly string[], values: readonly unknown[]];
 
-/** What moved, in a line: both values when either is a primitive, the kind once when both are objects. */
-function moved(name: string, before: unknown, after: unknown): string {
-  const primitive = (value: unknown) => value === null || (typeof value !== 'object' && typeof value !== 'function');
-  if (!primitive(before) && !primitive(after) && shown(before) === shown(after)) return `${name} ${shown(after).replace(/^an? /, 'a new ')}`;
-  return `${name} ${shown(before)} → ${shown(after)}`;
-}
-
-function said(cause: RenderCause): string {
+function said(cause: RenderCause): Said {
   switch (cause.kind) {
     case 'mount':
-      return 'mounted';
+      return [['mounted'], []];
     case 'parent':
-      return 'its parent rendered';
+      return [['its parent rendered'], []];
     case 'unseen':
-      return 'no input it reads moved';
+      return [['no input it reads moved'], []];
+    case 'unread':
+      return [[cause.hook === undefined ? 'state not read' : `state not read past ${cause.hook}`], []];
     case 'prop':
-      return moved(cause.name, cause.before, cause.after);
-    case 'hook':
-      return moved(`${cause.hook} #${cause.index}`, cause.before, cause.after);
     case 'context':
-      return moved(cause.name, cause.before, cause.after);
+      return [[`${cause.name} `, ' → ', ''], [cause.before, cause.after]];
+    case 'hook':
+      return [[`${cause.hook} #${cause.index} `, ' → ', ''], [cause.before, cause.after]];
+    case 'state':
+      return [['state ', ' → ', ''], [cause.before, cause.after]];
   }
 }
 
-/** The line a story shows for one component's render. */
-function renderNote(fiber: Fiber): string {
-  return `rendered ${fiberComponentName(fiber)} — ${causesOf(fiber).map(said).join(', ')}`;
+/** `rendered <Name> — ` and each cause, joined by `, `, as one template. */
+function renderNote(name: string, causes: readonly RenderCause[]): Said {
+  const strings: string[] = [`rendered ${name} — `];
+  const values: unknown[] = [];
+  causes.forEach((cause, index) => {
+    const [parts, between] = said(cause);
+    strings[strings.length - 1] += `${index === 0 ? '' : ', '}${parts[0]}`;
+    strings.push(...parts.slice(1));
+    values.push(...between);
+  });
+  return [strings, values];
 }
 
-const listening = (realm as { [NOTE]?: unknown })[NOTE];
-if (typeof listening === 'function') {
+/** The nearest composite above `fiber`, the one whose render made it. */
+function ownerOf(fiber: Fiber): Fiber | null {
+  for (let above = fiber.return ?? null; above !== null; above = above.return ?? null) {
+    if (isOwnerFrame(above)) return above;
+  }
+  return null;
+}
+
+type Channel = (strings: readonly string[], ...values: unknown[]) => void;
+const scope = realm as { [NOTE]?: unknown; [TAPPED]?: true };
+
+// A realm that runs this file again, as Vitest does per file without isolation,
+// keeps the one tap it made: a second would say every render twice.
+if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
+  scope[TAPPED] = true;
+  // The components said mounted in this commit: one below them mounted with them,
+  // and saying so again would list the whole subtree a provider stack mounts.
+  const mounted = new Set<Fiber>();
   tapCommits({
+    keep: 1,
     onRender: (fiber) => {
-      const channel = (realm as { [NOTE]?: unknown })[NOTE];
-      if (typeof channel === 'function') channel(renderNote(fiber));
+      const channel = scope[NOTE];
+      if (typeof channel !== 'function') return;
+      const causes = causesOf(fiber);
+      if (causes[0]?.kind === 'mount') {
+        mounted.add(fiber);
+        const owner = ownerOf(fiber);
+        if (owner !== null && mounted.has(owner)) return;
+      }
+      const [strings, values] = renderNote(fiberComponentName(fiber), causes);
+      (channel as Channel)(strings, ...values);
     },
+    onCommit: () => mounted.clear(),
   });
 }
