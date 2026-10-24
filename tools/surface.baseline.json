@@ -3363,6 +3363,7 @@
         "textsOf": "function",
         "timeBeforeCases": "function",
         "unenteredSentence": "function",
+        "unenteredState": "function",
         "unmeasuredOf": "function",
         "valued": "function",
         "wholeEntry": "const",

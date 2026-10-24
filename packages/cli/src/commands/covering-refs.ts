@@ -17,7 +17,7 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, stateOf } from '@variance-authority/sense/test-selection';
+import { heldText, unenteredState } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
@@ -96,12 +96,12 @@ function rangeLine(range: CoveringRange, table: Table): string {
     witnesses(range.tests, range.stopped, table)
   }${(range.unentered ?? []).map((region) => `; unentered ${region.kind} ${
     region.startLine === region.endLine ? region.startLine : `${region.startLine}-${region.endLine}`
-  }${unenteredState(region, table)}`).join('')}`;
+  }${whyNobodyEntered(region, table)}`).join('')}`;
 }
 
 /** Why nobody entered a region, in the state word a range with no case would carry: ` unwalked`, ` hole, stopped first …`, or nothing. */
-function unenteredState(region: Unentered, table: Table): string {
-  const state = stateOf({ startLine: region.startLine, endLine: region.endLine, tests: [], ...(region.stopped === undefined ? {} : { stopped: region.stopped }) });
+function whyNobodyEntered(region: Unentered, table: Table): string {
+  const state = unenteredState(region.stopped);
   return state === undefined ? '' : state === 'hole' ? ` hole, stopped first ${table.refs(region.stopped ?? [])}` : ` ${state}`;
 }
 

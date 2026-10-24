@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { coveringTestsInFile, type ExecutionIndex } from './reverse.js';
+import { stateOf, unenteredState } from './range-state.js';
 import { sameUnentered, unenteredSentence, type Unentered } from './unentered.js';
 
 /**
@@ -68,5 +69,14 @@ describe('the sentence for a region no case entered', () => {
     expect(unenteredSentence({ ...branch, stopped: [index.tests[0]!] }))
       .toBe('no case entered the branch on lines 6-8 — a hole: a case that could have reached it stopped first, so the record cannot see it.');
     expect(unenteredSentence(branch)).toBe('no case entered the branch on lines 6-8.');
+  });
+});
+
+describe('the state of a region no case entered', () => {
+  it('is the word a range no case entered carries: unwalked, a hole, or none when the record cannot tell', () => {
+    for (const stopped of [[], [index.tests[0]!], undefined]) {
+      expect(unenteredState(stopped)).toBe(stateOf({ startLine: 6, endLine: 6, tests: [], ...(stopped === undefined ? {} : { stopped }) }));
+    }
+    expect([unenteredState([]), unenteredState([index.tests[0]!]), unenteredState(undefined)]).toEqual(['unwalked', 'hole', undefined]);
   });
 });
