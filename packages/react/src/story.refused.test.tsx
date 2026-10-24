@@ -28,4 +28,8 @@ describe('the React story setup when React will not announce commits', () => {
   it('says the renders are not read, and why, rather than saying nothing', () => {
     expect(lines).toEqual(['renders not read: react-already-loaded']);
   });
+
+  it('leaves Eyes its commit line, since no render line will say the commit', () => {
+    expect((globalThis as Record<symbol, unknown>)[Symbol.for('variance-authority.react.story.tapped')]).toBeUndefined();
+  });
 });

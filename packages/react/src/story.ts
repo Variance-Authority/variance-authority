@@ -113,6 +113,10 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
     },
     onCommit: () => mounted.clear(),
   });
-  // A story with no render lines would read as one where nothing rendered.
-  if (!tap.attached) (scope[NOTE] as Channel)([`renders not read: ${tap.reason ?? 'unknown'}`]);
+  // A story with no render lines would read as one where nothing rendered, and
+  // Eyes, reading the mark, would leave a commit to lines nobody says.
+  if (!tap.attached) {
+    delete scope[TAPPED];
+    (scope[NOTE] as Channel)([`renders not read: ${tap.reason ?? 'unknown'}`]);
+  }
 }
