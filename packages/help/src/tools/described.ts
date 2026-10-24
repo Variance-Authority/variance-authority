@@ -38,7 +38,12 @@ import { admittedBy, termsOfStems } from './loose.js';
  * rare it is among everything the description reached — {@link rarity}, of the
  * `N` reached and the `n` holding it, counted in this one question and stored
  * nowhere — times the weight of where it holds it, three in its name and two in
- * a doc, as a field-weighted ranking weighs a title over a body. Integers
+ * a doc, as a field-weighted ranking weighs a title over a body. A doc word
+ * also counts by how long the doc is, BM25's length term with a held word's
+ * count of one: a doc of the mean length counts as two, a shorter one more and
+ * a longer one less, the mean taken over the reached rows that write a doc,
+ * and never more than a name word counts. A long doc holds most words in
+ * passing, and a short one holding them is about them. Integers
  * throughout, so the order is counts, never a score, and a tie is a tie
  * (ADR-0057). `N` is everything reached, the names another section shows
  * included, so the weight of a word does not move with what is left. Then the words
@@ -73,7 +78,11 @@ export interface DescribedKey {
   /** Rows that publish or export it. */
   readonly rows: number;
   readonly rank: number;
+  /** The bytes of the doc it is judged by, absent when it has none: what a word its doc holds is counted against. */
+  readonly docLength?: number;
 }
+
+const docLengthOf = (bytes: number | null | undefined): Pick<DescribedKey, 'docLength'> => (bytes == null ? {} : { docLength: bytes });
 
 /** One name of the search index the description reached. */
 export interface DescribedName extends DescribedKey {
@@ -178,6 +187,7 @@ export function describedNames(
       named: asked.filter((_, position) => named.get(name)?.has(position) === true).map(([, word]) => word),
       rows: index.publishedOf(name).length + index.exportedOf(name).length,
       rank: index.rank(name),
+      ...docLengthOf(docLengthAbout(index, name, row)),
     };
   });
 }
@@ -247,6 +257,15 @@ function docAbout(index: SearchIndex, name: number, through: number | undefined)
   return exported === undefined ? undefined : index.exported(exported).doc;
 }
 
+/** The bytes of the doc {@link docAbout} shows a name with, read off the index without decoding it. */
+function docLengthAbout(index: SearchIndex, name: number, through: number | undefined): number | undefined {
+  if (through !== undefined) return index.exportedDocLength(through);
+  const published = index.publishedOf(name)[0];
+  if (published !== undefined) return index.publishedDocLength(published);
+  const exported = index.exportedOf(name)[0];
+  return exported === undefined ? undefined : index.exportedDocLength(exported);
+}
+
 /**
  * The declarations no export binds, and the files, in `files` when they are
  * named, whose name and doc hold any of the description's distinct stems;
@@ -283,9 +302,11 @@ export function describedDeclarations(
   return [
     ...read.names.map((one): DescribedDeclaration => ({
       match: declaredMatch(one), words: words(one.held), near: one.near ?? 0, named: named(one.held, one.name), ...unranked,
+      ...docLengthOf(one.docLength),
     })),
     ...read.files.map((file): DescribedFileHit => ({
       file, words: words(file.held), near: file.near, named: named(file.held, fileName(file.at)), ...unranked,
+      ...docLengthOf(file.docLength),
     })),
   ];
 }
@@ -315,7 +336,7 @@ export function fileMatch(root: string | undefined, file: DescribedFile): FileMa
 const kindOrder = (one: Described): number => ('match' in one ? 1 : 'file' in one ? 2 : 0);
 
 /** The keys a row's weight is read from. */
-type Weighed = Pick<DescribedKey, 'words' | 'named'>;
+type Weighed = Pick<DescribedKey, 'words' | 'named' | 'docLength'>;
 
 /** How much of the question one row holds. */
 type Weight = (key: Weighed) => number;
@@ -325,13 +346,41 @@ const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
 
 /**
  * The weight of what a row holds of the question: each word's {@link rarity}
- * among `population`, times its {@link FIELD_WEIGHTS} weight, summed. An integer.
+ * among `population`, times what the place it holds it in counts — its name
+ * its {@link FIELD_WEIGHTS} weight in thousandths, its doc its weight times
+ * the doc's {@link lengthCount}, never more than a name — summed. An integer.
  */
 function weightOf(population: readonly Weighed[]): Weight {
   const holders = new Map<string, number>();
-  for (const one of population) for (const word of one.words) holders.set(word, (holders.get(word) ?? 0) + 1);
+  let docBytes = 0;
+  let docs = 0;
+  for (const one of population) {
+    for (const word of one.words) holders.set(word, (holders.get(word) ?? 0) + 1);
+    // Absent is not empty: a row without a doc says nothing of how long a doc is.
+    if (one.docLength === undefined || one.docLength === 0) continue;
+    docBytes += one.docLength;
+    docs += 1;
+  }
   const rare = new Map([...holders].map(([word, n]) => [word, rarity(population.length, n)]));
-  return (key) => key.words.reduce((sum, word) => sum + (rare.get(word) ?? 0) * (key.named.includes(word) ? FIELD_WEIGHTS.name : FIELD_WEIGHTS.doc), 0);
+  const name = FIELD_WEIGHTS.name * 1000;
+  return (key) => {
+    // A doc shorter than most counts more than one of the mean length, up to a name.
+    const doc = Math.min(name, FIELD_WEIGHTS.doc * lengthCount(key.docLength ?? 0, docBytes, docs));
+    return key.words.reduce((sum, word) => sum + (rare.get(word) ?? 0) * (key.named.includes(word) ? name : doc), 0);
+  };
+}
+
+/**
+ * BM25's length term for a word held once, in thousandths: how much a word
+ * held in a text of `bytes` counts, against the mean of `docs` docs of
+ * `docBytes` in all. With `k1` six fifths and `b` three quarters,
+ * `1000 (k1 + 1) / (1 + k1 (1 - b) + k1 b L / A)` is `22000 A / (13 A + 9 L)`,
+ * here with `A` as `docBytes / docs` multiplied through: a doc of the mean
+ * length counts 1000, an empty one 1692, ten times the mean 213. With no doc
+ * to measure against, every doc counts 1000.
+ */
+function lengthCount(bytes: number, docBytes: number, docs: number): number {
+  return docBytes === 0 ? 1000 : Math.floor((22000 * docBytes) / (13 * docBytes + 9 * bytes * docs));
 }
 
 /** Weight, then words in the name: the keys that order a row before its phrase is counted. */

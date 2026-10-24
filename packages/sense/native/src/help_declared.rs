@@ -60,6 +60,9 @@ pub struct DeclaredName {
     /// Asked by [`Matching::Described`]: how many of the question's adjacent
     /// word pairs its doc writes adjacent, as [`near`] counts them.
     pub near: Option<u32>,
+    /// Asked by [`Matching::Described`]: the bytes of the doc the words were
+    /// held against, its lines joined by single spaces; absent when it writes none.
+    pub doc_length: Option<u32>,
     /// The name of the function whose body declares it, when that function
     /// has one; absent for a top-level declaration and for one inside a
     /// function nothing names.
@@ -85,6 +88,9 @@ pub struct DescribedFile {
     pub named: u32,
     /// How many of the question's adjacent word pairs its module doc writes adjacent.
     pub near: u32,
+    /// The bytes of the module doc the words were held against, its lines
+    /// joined by single spaces; absent when it writes none.
+    pub doc_length: Option<u32>,
 }
 
 /// What `declared` found, and the files whose declarations it could not read.
@@ -157,8 +163,9 @@ fn prose(source: &[u16], start: u32, end: u32) -> Option<String> {
 type FileHits<'a> = (Vec<Hit<'a>>, Option<&'a str>, Option<FileHit<'a>>);
 
 /// Asked by [`Matching::Described`]: the positions of the stems held, how
-/// many of them the name holds, and how near its doc writes the question.
-type Held = (Vec<u32>, u32, u32);
+/// many of them the name holds, how near its doc writes the question, and the
+/// bytes of that doc.
+type Held = (Vec<u32>, u32, u32, Option<u32>);
 
 /// A row of a parse's top-level symbols, or of its nested table.
 #[derive(Clone, Copy)]
@@ -236,7 +243,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
                     (!held.is_empty()).then(|| {
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.len() as u32, near))
+                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.len() as u32, near, doc.as_ref().map(|doc| doc.len() as u32)))
                     })
                 }
                 _ => None,
@@ -274,7 +281,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                         if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
                         if held.is_empty() { continue }
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        Some((held.into_iter().collect(), in_name.len() as u32, near))
+                        Some((held.into_iter().collect(), in_name.len() as u32, near, doc.as_ref().map(|doc| doc.len() as u32)))
                     }
                     _ => continue,
                 };
@@ -304,7 +311,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
     let owners = owners(root, &paths);
     let files = files
         .into_iter()
-        .map(|(layer, at, row, (held, named, near))| {
+        .map(|(layer, at, row, (held, named, near, doc_length))| {
             let doc = layers[layer].parses.doc_of_module(row);
             DescribedFile {
                 at: at.to_owned(),
@@ -314,6 +321,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 held,
                 named,
                 near,
+                doc_length,
             }
         })
         .collect();
@@ -339,9 +347,10 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 doc_start,
                 doc_end,
                 reach: crate::harvest::reach_of(parses.symbol_reach[symbol]).map(str::to_owned),
-                named: described.as_ref().map(|(_, named, _)| *named),
-                near: described.as_ref().map(|(_, _, near)| *near),
-                held: described.map(|(held, _, _)| held),
+                named: described.as_ref().map(|(_, named, _, _)| *named),
+                near: described.as_ref().map(|(_, _, near, _)| *near),
+                doc_length: described.as_ref().and_then(|(_, _, _, doc_length)| *doc_length),
+                held: described.map(|(held, _, _, _)| held),
                 holder: None,
                 holder_line: None,
             }
@@ -370,6 +379,7 @@ fn nested_name(layers: &[Layer], layer: usize, at: &str, nested: usize, by: &str
         held: None,
         named: None,
         near: None,
+        doc_length: None,
         holder: text.optional(parses.nested_holder.at(nested)).map(str::to_owned),
         holder_line: Some(parses.nested_holder_line.at(nested)),
     }

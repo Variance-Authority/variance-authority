@@ -295,6 +295,8 @@ export interface DeclaredName {
   readonly named?: number | null;
   /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes adjacent. */
   readonly near?: number | null;
+  /** Asked by `declaredDescribedOf`: the bytes of the doc the words were held against, its lines joined by single spaces; absent when it writes none. */
+  readonly docLength?: number | null;
   /** The name of the function whose body declares it, when that function has one. */
   readonly holder?: string | null;
   /** The line the function whose body declares it starts on: present only for a declaration inside a function. */
@@ -315,6 +317,8 @@ export interface DescribedFile {
   readonly named: number;
   /** How many of the question's adjacent word pairs its module doc writes adjacent. */
   readonly near: number;
+  /** The bytes of the module doc the words were held against, its lines joined by single spaces; absent when it writes none. */
+  readonly docLength?: number | null;
 }
 
 /** What `declaredOf` found, and the files whose declarations it could not read. */

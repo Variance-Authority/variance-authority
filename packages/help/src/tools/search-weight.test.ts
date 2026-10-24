@@ -67,7 +67,7 @@ it('never answers a description with a name a function body declares', () => {
 it('weighs a word by how many of everything the description reached hold it, not only the rows left to show', () => {
   const row = (at: string, word: string): DescribedDeclaration => ({
     match: { source: 'declared', name: `${word}Kept`, kind: 'function', at, line: 1 },
-    words: [word], named: [], near: 0, rows: 0, rank: Number.MAX_SAFE_INTEGER,
+    words: [word], named: [], near: 0, rows: 0, rank: Number.MAX_SAFE_INTEGER, docLength: 40,
   });
   const left = [row('a.ts', 'alpha'), row('b.ts', 'beta')];
   // Five more rows hold `alpha`, claimed by another section: `alpha` is common, `beta` is rare.
