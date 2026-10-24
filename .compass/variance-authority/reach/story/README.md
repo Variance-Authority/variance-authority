@@ -68,6 +68,8 @@ by guess.
   of the engine, tapes every hit and forwards it
 - `packages/react/src/story.ts` — the React story setup: a commit tap that says
   each component that rendered, and why, through the note channel
+- `packages/react/src/renders.ts` — why one component rendered: the inputs that
+  moved since `fiber.alternate`, a mount, or a Suspense boundary's retry
 - `packages/sense/src/test-selection/collectors.cts` — where a realm installs
   the tap instead of the engine, and writes each case's story as it settles
 - `packages/sense/src/story/format.cts` — one case's story on disk

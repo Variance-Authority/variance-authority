@@ -41,7 +41,24 @@ function Toggle(): ReactElement {
   return <div>{open ? 'open' : <Leaf />}</div>;
 }
 
+let tick: () => void = () => {};
+function Ticker(): ReactElement {
+  const [count, setCount] = useState(0);
+  if (count === 0) tick = () => setCount(1);
+  return <i>{count}</i>;
+}
+
 describe('which component the React story setup says started a commit', () => {
+  it('a keyed one with its key, so two rows of one list read apart', () => {
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<div>{['a', 'b'].map((key) => <Ticker key={key} />)}</div>));
+    lines.length = 0;
+    act(() => tick());
+    act(() => root.unmount());
+
+    expect(lines[0]).toBe('commit — 1 rendered, started by Ticker key="b"');
+  });
+
   it('the one whose update React committed, and none for a commit nothing updated, as a mount', () => {
     const root = createRoot(document.createElement('div'));
     act(() => root.render(<Toggle />));
@@ -221,6 +238,60 @@ describe('how the React story setup says a prop that moved in kind', () => {
     act(() => root.unmount());
 
     expect(lines.filter((line) => line.startsWith('rendered Row'))).toEqual(['rendered Row — onPick fn → fn, style obj → obj', 'rendered Row — onPick fn → fn, style obj → obj']);
+  });
+});
+
+function Bound(): ReactElement {
+  const [, setTick] = useState(0);
+  rerender = () => setTick((tick) => tick + 1);
+  return <Row onPick={Leaf.bind(null) as never} style={{ color: 'red' }} />;
+}
+
+function Sink({ value }: { value: object }): ReactElement {
+  return <i data-kind={typeof value} />;
+}
+
+let revoke: () => void = () => {};
+function Guarded(): ReactElement {
+  const [, setTick] = useState(0);
+  rerender = () => setTick((tick) => tick + 1);
+  const guard = Proxy.revocable({ color: 'red' }, {});
+  revoke = guard.revoke;
+  return (
+    <>
+      <Sink value={guard.proxy} />
+      <Sink
+        value={{
+          get color(): string {
+            throw new Error('read');
+          },
+        }}
+      />
+      <Leaf />
+    </>
+  );
+}
+
+describe('what the React story setup says of a value it cannot compare safely', () => {
+  it('two bound functions as moved alone, since every bound function prints the same', () => {
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Bound />));
+    lines.length = 0;
+    act(() => rerender());
+    act(() => root.unmount());
+
+    expect(lines.filter((line) => line.startsWith('rendered Row'))).toEqual(['rendered Row — onPick fn → fn, style obj → obj (equal value)']);
+  });
+
+  it('a revoked proxy and a getter as moved alone, run by no read, and every line after them still said', () => {
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Guarded />));
+    revoke();
+    lines.length = 0;
+    act(() => rerender());
+    act(() => root.unmount());
+
+    expect(lines.slice(0, 5)).toEqual(['commit — 4 rendered, started by Guarded', 'rendered Guarded — useState #0 0 → 1', 'rendered Sink — value obj → obj', 'rendered Sink — value obj → obj', 'rendered Leaf — its parent rendered']);
   });
 });
 

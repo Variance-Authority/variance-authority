@@ -76,7 +76,12 @@ function said(cause: RenderCause): Said {
  */
 function alikeNote(before: unknown, after: unknown): string {
   if (typeof before === 'function' && typeof after === 'function') return sameSource(before, after) ? ' (same source)' : '';
-  return equalInValue(before, after, VALUE_DEPTH, { left: VALUE_KEYS }) ? ' (equal value)' : '';
+  try {
+    return equalInValue(before, after, VALUE_DEPTH, { left: VALUE_KEYS }) ? ' (equal value)' : '';
+  } catch {
+    // A revoked proxy throws on the first read; the value moved, and that is all its line can say.
+    return '';
+  }
 }
 
 function sameSource(before: Function, after: Function): boolean {
@@ -97,20 +102,25 @@ const VALUE_KEYS = 64;
 
 /**
  * Plain objects and arrays compared key by key, leaves by `Object.is`. Anything
- * else — a class instance, a React element, a value past the bounds — is
- * unequal, so the note is never said of two values that differ.
+ * else — a class instance, a React element, a getter, a value past the bounds —
+ * is unequal, so the note is never said of two values that differ, and no code
+ * the values carry runs to say it.
  */
 function equalInValue(before: unknown, after: unknown, depth: number, budget: { left: number }): boolean {
   if (Object.is(before, after)) return true;
   if (depth === 0 || !isPlain(before) || !isPlain(after)) return false;
   if (Array.isArray(before) !== Array.isArray(after)) return false;
+  // An array's length is a data property, read before its keys are listed against the budget.
+  if (Array.isArray(before) && Array.isArray(after) && (before.length !== after.length || before.length > budget.left)) return false;
   const keys = Object.keys(before);
   if (keys.length !== Object.keys(after).length) return false;
   budget.left -= keys.length;
   if (budget.left < 0) return false;
-  return keys.every(
-    (key) => Object.prototype.hasOwnProperty.call(after, key) && equalInValue((before as Record<string, unknown>)[key], (after as Record<string, unknown>)[key], depth - 1, budget),
-  );
+  return keys.every((key) => {
+    const left = Object.getOwnPropertyDescriptor(before, key);
+    const right = Object.getOwnPropertyDescriptor(after, key);
+    return left !== undefined && right !== undefined && 'value' in left && 'value' in right && equalInValue(left.value, right.value, depth - 1, budget);
+  });
 }
 
 function isPlain(value: unknown): value is object {
@@ -137,7 +147,11 @@ function hiddenAbove(fiber: Fiber): boolean {
 
 /** `, started by ` and the components whose update the commit carried, when React recorded them. */
 function startedBy(commit: Commit): string {
-  const names = (commit.updaters ?? []).flatMap((updater) => updater.path[0]?.name ?? []);
+  const names = (commit.updaters ?? []).flatMap((updater) => {
+    const frame = updater.path[0];
+    if (frame === undefined) return [];
+    return frame.key === null ? frame.name : `${frame.name} key=${JSON.stringify(frame.key)}`;
+  });
   if (names.length === 0) return '';
   return `, started by ${names.join(', ')}${commit.updatersTruncated === true ? ', …' : ''}`;
 }
