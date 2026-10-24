@@ -101,8 +101,9 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
       lines.push('', `${section.suite === undefined ? 'The record' : `\`${section.suite}\``} not read: ${why}.`);
     }
   }
-  const from = read[0]?.review.from;
-  if (from !== undefined && pointers.length > 0) lines.push('', `More on one file: \`variance covering --since ${from.slice(0, 12)} --file <path>\``);
+  // One file read in full is `--file` alone: `--since` is the whole diff, which this block already is, and the parser refuses the pair.
+  // `covering` with no `--suite` answers from every declared suite, as this block reads them.
+  if (pointers.length > 0) lines.push('', 'More on one file: `variance covering --file <path>`');
   lines.push('</details>', HANDOVER_END);
   return `${lines.join('\n')}\n`;
 }
