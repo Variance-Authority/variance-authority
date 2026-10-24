@@ -1,5 +1,5 @@
-import type { Fiber } from './fiber.js';
-import { alignedCellsOf } from './holding.js';
+import { FiberTag, type Fiber } from './fiber.js';
+import { alignedCellsOf, type AlignedCell } from './holding.js';
 
 /**
  * Why a component rendered, read off the commit it rendered in.
@@ -24,6 +24,15 @@ export type RenderCause =
   | { readonly kind: 'prop'; readonly name: string; readonly before: unknown; readonly after: unknown }
   /** A cell of retained state, by the hook call's position, holds a different value. */
   | { readonly kind: 'hook'; readonly hook: string; readonly index: number; readonly before: unknown; readonly after: unknown }
+  /** A class component's `this.state` is a different object. */
+  | { readonly kind: 'state'; readonly before: unknown; readonly after: unknown }
+  /**
+   * Retained state that could not be read, so whether it moved is not known: a
+   * build with no hook record, or `hook`, the first call the reader does not
+   * know, past which the cells cannot be told apart. Said beside what could be
+   * read, and never as "nothing moved".
+   */
+  | { readonly kind: 'unread'; readonly hook?: string }
   /** A context the component reads was provided a different value. */
   | { readonly kind: 'context'; readonly name: string; readonly before: unknown; readonly after: unknown }
   /** No input moved and the props object is new: the parent rendered it again. */
@@ -36,8 +45,9 @@ const MAX_CONTEXTS = 256;
 
 /**
  * Why `fiber` rendered: every input that moved since its `alternate`, props in
- * key order, then hooks in call order, then contexts in read order; `mount` or
- * `parent` or `unseen` alone when none did.
+ * key order, then state — hooks in call order, or a class's state — then
+ * contexts in read order; `mount` or `parent` or `unseen` alone when none did
+ * and all of them were read.
  *
  * The values are the live ones, so a caller decides what to show of them and
  * nothing is copied for a caller that only counts.
@@ -46,7 +56,7 @@ export function causesOf(fiber: Fiber): readonly RenderCause[] {
   const before = fiber.alternate;
   if (before === null) return [{ kind: 'mount' }];
 
-  const causes: RenderCause[] = [...propsMoved(before, fiber), ...hooksMoved(before, fiber), ...contextsMoved(before, fiber)];
+  const causes: RenderCause[] = [...propsMoved(before, fiber), ...stateMoved(before, fiber), ...contextsMoved(before, fiber)];
   if (causes.length > 0) return causes;
   return [before.memoizedProps === fiber.memoizedProps ? { kind: 'unseen' } : { kind: 'parent' }];
 }
@@ -62,14 +72,30 @@ function propsMoved(before: Fiber, after: Fiber): RenderCause[] {
     .map((name) => ({ kind: 'prop', name, before: was[name], after: now[name] }));
 }
 
+/** A class's state is one object `setState` replaces; a function component's is its hook cells. */
+function stateMoved(before: Fiber, after: Fiber): RenderCause[] {
+  if (after.tag !== FiberTag.ClassComponent) return hooksMoved(before, after);
+  return Object.is(before.memoizedState, after.memoizedState) ? [] : [{ kind: 'state', before: before.memoizedState, after: after.memoizedState }];
+}
+
 /**
  * Cells of retained state whose value moved. Only state: a memo's deps or an
  * effect's are recomputed by the render, so they move because it happened and
- * never cause one.
+ * never cause one. A side the reader could not align ends the list with
+ * `unread`, so what it could not see is never said as held.
  */
 function hooksMoved(before: Fiber, after: Fiber): RenderCause[] {
-  const was = alignedCellsOf(before).cells ?? [];
-  const now = alignedCellsOf(after).cells ?? [];
+  // No cell on either side is a component that retains nothing, whatever the build recorded.
+  if (before.memoizedState == null && after.memoizedState == null) return [];
+  const prior = alignedCellsOf(before);
+  const current = alignedCellsOf(after);
+  const moved = cellsMoved(prior.cells ?? [], current.cells ?? []);
+  if (prior.cells === undefined || current.cells === undefined) return [...moved, { kind: 'unread' }];
+  const hook = current.unread ?? prior.unread;
+  return hook === undefined ? moved : [...moved, { kind: 'unread', hook }];
+}
+
+function cellsMoved(was: readonly AlignedCell[], now: readonly AlignedCell[]): RenderCause[] {
   const previous = new Map(was.map((cell) => [cell.index, cell]));
   const moved: RenderCause[] = [];
   for (const cell of now) {

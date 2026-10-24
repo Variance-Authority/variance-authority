@@ -3,9 +3,10 @@
 // Arranged as a runner setup file arranges it: the tap exists before
 // `react-dom` runs its module body, so `react-dom/client` is imported below it.
 
-import { act, createContext, memo, useContext, useMemo, useState, type ReactElement } from 'react';
+import { act, Component, createContext, memo, useContext, useMemo, useState, type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { tapCommits } from './commits.js';
+import type { Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
 import { causesOf, type RenderCause } from './renders.js';
 
@@ -118,5 +119,48 @@ describe('why a component rendered', () => {
     expect(rerendered(<Priced amount={1} />, <Priced amount={2} />)).toEqual([
       ['Priced', [{ kind: 'prop', name: 'amount', before: 1, after: 2 }]],
     ]);
+  });
+
+  it("names a class component's state when setState moved it", () => {
+    let open: () => void = () => {};
+    class Drawer extends Component<object, { shown: boolean }> {
+      override state = { shown: false };
+      override componentDidMount(): void {
+        open = () => this.setState({ shown: true });
+      }
+      override render(): ReactElement {
+        return <span>{String(this.state.shown)}</span>;
+      }
+    }
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Drawer />));
+    seen.length = 0;
+    act(() => open());
+    expect(seen).toEqual([['Drawer', [{ kind: 'state', before: { shown: false }, after: { shown: true } }]]]);
+    act(() => root.unmount());
+  });
+
+  it('says state was not read, rather than that it held, when the build kept no hook record', () => {
+    const props = {};
+    const before = { tag: 0, alternate: null, memoizedProps: props, memoizedState: { memoizedState: 1, next: null } };
+    const after = { ...before, alternate: before, memoizedState: { memoizedState: 2, next: null } };
+    expect(causesOf(after as unknown as Fiber)).toEqual([{ kind: 'unread' }]);
+  });
+
+  it('says state was not read past a hook the reader does not know, beside what it could read', () => {
+    const shape = (value: number) => ({ memoizedState: value, next: null });
+    const before = { tag: 0, alternate: null, memoizedProps: { n: 1 }, memoizedState: shape(1), _debugHookTypes: ['useSomethingNew'] };
+    const after = { ...before, alternate: before, memoizedProps: { n: 2 }, memoizedState: shape(2) };
+    expect(causesOf(after as unknown as Fiber)).toEqual([
+      { kind: 'prop', name: 'n', before: 1, after: 2 },
+      { kind: 'unread', hook: 'useSomethingNew' },
+    ]);
+  });
+
+  it('says the same props object and no input moved as unseen', () => {
+    const props = {};
+    const before = { tag: 0, alternate: null, memoizedProps: props, memoizedState: null, _debugHookTypes: null };
+    const after = { ...before, alternate: before };
+    expect(causesOf(after as unknown as Fiber)).toEqual([{ kind: 'unseen' }]);
   });
 });
