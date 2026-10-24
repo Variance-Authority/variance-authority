@@ -66,7 +66,9 @@ Never record:
   are, an object as a ref and its kind, such as `ref5 Object` or
   `ref3 react.memo`, never its contents. A React kind such as `react.memo`
   needs `@variance-authority/react/story` in the suite's setup files; without
-  it, a memo or a context is `Object`. Add a `console.log` of the value in
+  it, a memo or a context is `Object`. The same setup file adds a
+  `rendered <Component> — <cause>` line at each commit: the prop, state cell or
+  context that moved, `mounted`, or `its parent rendered`. Add a `console.log` of the value in
   the code under test, not in the test, and record again, or use a debugger at
   the line it names.
 - **When a stack trace already names the line.** Open that line.

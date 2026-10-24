@@ -227,19 +227,17 @@ The options are caller policy rather than hidden defaults:
 
 | call | controls |
 |---|---|
-| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same record, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook` set to `false` skips writing a hook nobody will read |
+| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same record, `onRender` hands over each component that rendered while its previous render is still on `fiber.alternate`, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook` set to `false` skips writing a hook nobody will read |
 | `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, `interval` controls polling; a timeout returns `settled: false` with the restless component names |
 | `awaitSuspense` | `timeoutMs`, `pollMs` and `confirmations`, as above |
 | `walkFiberSubtree` | `limit` caps the fibers one read-only walk visits, 500,000 by default; at the limit the walk returns `truncated: true` rather than a short answer that looks complete |
 
-## Name React objects in a test story
+## React in a test story
 
-A [test story](https://variance-authority.dev/docs/test-stories) shows each
-object a function was handed as a ref and a kind. Without help, a context, a
-memo and an element are each `Object`, because that is their constructor. Add
-this package's `story` entry to your suite's setup files, and the story names
-each by the `$$typeof` mark React gave it — `react.context`, `react.memo`,
-`react.forward_ref`:
+A [test story](https://variance-authority.dev/docs/test-stories) shows where
+one test went and what each function was handed. Add this package's `story`
+entry to your suite's setup files, and the story also says which component
+rendered at each step, and why:
 
 ```ts
 // vitest.config.ts
@@ -248,8 +246,30 @@ export default defineConfig({
 });
 ```
 
-In Jest the same entry goes in `setupFiles`. It reads the mark as a property
-and runs none of React's code.
+```text
+  1  cart.tsx ×7
+       » rendered Cart — mounted
+       » rendered Badge — mounted
+       » rendered Summary — mounted
+       » rendered Cart — useState #0 false → true
+       » rendered Badge — its parent rendered
+       » rendered Summary — expanded false → true
+```
+
+The cause is each input that moved since the component's last render, by
+`Object.is`: a prop other than `children`, a cell of retained state by its hook
+call, or a context value. A primitive is shown before and after; an object that
+moved is `a new object`, `a new array` or `a new function`, which is the
+callback rebuilt on every render. When nothing moved, the component rendered
+because its parent did, and a `memo` would have stopped it. Compare two tests'
+stories, and the first render whose cause differs is where they parted.
+
+The setup reads the cause from the commit React just finished, through the
+DevTools hook, so it has to run before `react-dom` loads, which a setup file
+does. With no story being recorded it taps nothing. It also names each React
+object a function was handed by the `$$typeof` mark React gave it —
+`react.context`, `react.memo`, `react.forward_ref` — where a story would
+otherwise say `Object`. In Jest the same entry goes in `setupFiles`.
 
 ## Where the source location comes from
 

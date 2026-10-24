@@ -513,6 +513,14 @@ whole run, so the same ref at two steps is the same object: here `Panel` read
 the very theme `ThemeProvider` was given. The examples elsewhere on this page leave these
 lines out, so their steps read short.
 
+The same setup file says why each React component rendered, at the step that
+caused the commit: `rendered Summary — expanded false → true` for a prop,
+`rendered Cart — useState #0 false → true` for state, a context by its display
+name, `mounted` for a first render, and `its parent rendered` when none of its
+inputs moved. A prop that holds a new object every render reads `onPick a new
+function`. Two tests that render the same tree for different reasons part at
+the first of these lines.
+
 When you [compare readings](#compare-readings-of-one-test), a handed line is
 compared as a printed one is: a value handed on every reading of one side and
 on no reading of the other is listed with its step. A ref is numbered in the
