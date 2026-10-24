@@ -2,6 +2,7 @@ import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tool
 import { START_POINT_SCHEMA, limitOf, notShown, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { areaLine, areaOf } from './area.js';
 import { ripgrep, type Hit } from './ripgrep.js';
+import { spellingOf } from './spelling.js';
 
 /**
  * `docs_grep` — ripgrep, over the files a start point reaches.
@@ -94,7 +95,7 @@ export const grep: Tool<unknown> = {
       }
       lines.push(`${hit.file}:${hit.line}:${hit.text}`);
     }
-    if (hits.length > limit) lines.push('', notShown(hits.length - limit));
+    if (hits.length > limit) lines.push('', notShown(hits.length - limit, spellingOf(invocation).input('limit')));
     return lines.join('\n');
   },
 

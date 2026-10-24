@@ -8,6 +8,7 @@ import type { SearchIndex } from './search-index.js';
 import { unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
+import { verbNamed } from './tools/spelling.js';
 import { wordsOf } from './words.js';
 
 /**
@@ -27,9 +28,12 @@ import { wordsOf } from './words.js';
  * reachable from this file.
  */
 
+/** The command the verbs are asked through, which every hint in an answer is spelled for. */
+export const SHELL = 'variance-authority-help';
+
 /** What a tool is called from a shell: its wire name without the transport's prefix. */
 export function verbOf(tool: Tool<Help>): string {
-  return tool.name.replace(/^docs_/, '').replace(/_/g, '-');
+  return verbNamed(tool.name);
 }
 
 export function toolNamed(verb: string): Tool<Help> {
@@ -140,7 +144,7 @@ export function ask(
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
-  const answer = tool.run(help, input, { ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }) });
+  const answer = tool.run(help, input, { ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }), shell: SHELL });
   const at = workspaceGeneration(help);
   return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
 }

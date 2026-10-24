@@ -23,6 +23,12 @@ describe('a verb is a tool, not a second implementation of one', () => {
     expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }));
   });
 
+  it('spells the inputs and the questions an answer names as this binary takes them', () => {
+    const text = ask(READING, 'uses', ['behind']);
+    expect(text).toContain('Path order; `--from` sorts nearest first.');
+    expect(() => ask(READING, 'uses', ['nope'])).toThrow(/ask `variance-authority-help search` with it as the `--query`|ask `variance-authority-help search` with a word/);
+  });
+
   it('names what it answers when a verb is not one of them', () => {
     // A model handed "unknown verb" has one move left, which is to guess again.
     expect(() => toolNamed('symbols')).toThrow(/packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowest-tests, journey-map, test-composition, stack, gaps/);

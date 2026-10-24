@@ -8,6 +8,9 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import type { AskRequest, SourceReadOptions, Sourced } from './ask.js';
 
+/** The command these questions are asked through, which every hint in an answer is spelled for. */
+const SHELL = 'variance ask';
+
 /**
  * How `variance ask` reads the checkout for a question about the code.
  *
@@ -46,7 +49,7 @@ export async function wholeSource(
   const sourced = await read(root, reading);
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
   return {
-    answer: () => tool.run(sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }),
+    answer: () => tool.run(sourced.help, input, { ...(tree === undefined ? {} : { tree }), root, shell: SHELL }),
     data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree, root),
     at: workspaceGeneration(sourced.help),
   };
@@ -83,7 +86,7 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
   // Unread is not fatal: `grep` refuses a start point it has no tree for, in
   // the sentence that says so, and a call with no start point needs none.
   const tree = grep.wants?.(input) === true ? await readTree({ root, index: sourceIndexPath(root) }).catch(() => undefined) : undefined;
-  return { answer: () => grep.run(undefined, input, { ...(tree === undefined ? {} : { tree }), root }), at: undefined };
+  return { answer: () => grep.run(undefined, input, { ...(tree === undefined ? {} : { tree }), root, shell: SHELL }), at: undefined };
 }
 
 /**
@@ -93,7 +96,7 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
  */
 export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
   const read = await readNamedTree(root, input);
-  return { answer: () => discover.run(undefined, input, { ...read, root }), at: undefined };
+  return { answer: () => discover.run(undefined, input, { ...read, root, shell: SHELL }), at: undefined };
 }
 
 /**
@@ -113,7 +116,7 @@ export async function intersectionSource(
   const names = namesWanted(input) ? (await readNamedTree(root, input)).names : undefined;
   const drawn = { ...(tree === undefined ? {} : { tree }), ...(names === undefined ? {} : { names }) };
   return {
-    answer: () => intersection.run(sourced.help, input, { ...drawn, root }),
+    answer: () => intersection.run(sourced.help, input, { ...drawn, root, shell: SHELL }),
     at: workspaceGeneration(sourced.help),
   };
 }
@@ -125,7 +128,7 @@ export async function intersectionSource(
  * generation to date the answer with.
  */
 export function orientSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => orient.run(undefined, input, { root }), at: undefined };
+  return { answer: () => orient.run(undefined, input, { root, shell: SHELL }), at: undefined };
 }
 
 /**
@@ -134,7 +137,7 @@ export function orientSource(root: string, input: Readonly<Record<string, unknow
  * to read first and no generation to date the answer with.
  */
 export function slowestSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => slowestTests.run(undefined, input, { root }), at: undefined };
+  return { answer: () => slowestTests.run(undefined, input, { root, shell: SHELL }), at: undefined };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
@@ -171,10 +174,10 @@ export async function readChanged(path: string): Promise<readonly string[]> {
 
 /** `journey-map` opens the same recording `slowest-tests` does, and dates nothing for the same reason. */
 export function journeyMapSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => journeyMapTool.run(undefined, input, { root }), at: undefined };
+  return { answer: () => journeyMapTool.run(undefined, input, { root, shell: SHELL }), at: undefined };
 }
 
 /** `test-composition` opens the same recording `journey-map` does, and dates nothing for the same reason. */
 export function testCompositionSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => testCompositionTool.run(undefined, input, { root }), at: undefined };
+  return { answer: () => testCompositionTool.run(undefined, input, { root, shell: SHELL }), at: undefined };
 }

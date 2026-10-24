@@ -4,6 +4,7 @@ import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@va
 import { entryPoints, limitOf, notShown, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
+import { spellingOf } from './spelling.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
 /**
@@ -416,7 +417,7 @@ export const discover: Tool<unknown> = {
       for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(file, evidence));
       for (const evidence of matched.get(file) ?? []) lines.push(shown(file, evidence));
     }
-    if (answer.length > limit) lines.push('', notShown(answer.length - limit));
+    if (answer.length > limit) lines.push('', notShown(answer.length - limit, spellingOf(invocation).input('limit')));
     return lines.join('\n');
   },
 

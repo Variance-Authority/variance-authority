@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
+import type { Spelling } from './spelling.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
 const DECLARED_CAP = 5;
@@ -64,7 +65,7 @@ export function declarations(
  * documentation are left out when the file no longer holds the name where the
  * index read it.
  */
-function declaredBlock(root: string, held: DeclaredName): string {
+function declaredBlock(root: string, held: DeclaredName, spell: Spelling): string {
   const text = textAt(root, held);
   const signature = text === undefined ? undefined : headOf(text, spanOf(held.signatureStart, held.signatureEnd));
   const doc = text === undefined ? undefined : docOf(text, spanOf(held.docStart, held.docEnd));
@@ -73,7 +74,7 @@ function declaredBlock(root: string, held: DeclaredName): string {
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
     ...(signature === undefined ? [] : [signature]),
     ...(doc === undefined ? [] : [doc]),
-    reachSentences(held).block,
+    reachSentences(held, spell).block,
   ].join('\n');
 }
 
@@ -82,7 +83,7 @@ function declaredBlock(root: string, held: DeclaredName): string {
  * recorded: the sentence `symbol` ends a declaration with, and the clause `uses`
  * ends its line with.
  */
-export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>): { readonly block: string; readonly clause: string } {
+export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>, spell: Spelling): { readonly block: string; readonly clause: string } {
   const { at, name } = held;
   switch (held.reach) {
     case 'file':
@@ -100,7 +101,7 @@ export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>
       const kept = held.reach === 'underscore' ? 'a leading underscore' : '`__all__`';
       return {
         block: `Another module can still import it by name: ${kept} keeps it out of \`from … import *\` only.`,
-        clause: `; another module can still import it by name, which \`ask grep --query '\\b${name}\\b' --to ${at}\` finds`,
+        clause: `; another module can still import it by name, which ${spell.question('docs_grep', [['query', `\\b${name}\\b`], ['to', at]])} finds`,
       };
     }
     default:
@@ -159,14 +160,14 @@ function textAt(root: string, held: DeclaredName): string | undefined {
  * rest, and the files whose declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
  */
-export function declaredBlocks(root: string | undefined, name: string, wanted: string | undefined): readonly string[] {
+export function declaredBlocks(root: string | undefined, name: string, wanted: string | undefined, spell: Spelling): readonly string[] {
   const read = declarations(root, name);
   if (root === undefined || 'refused' in read) return [];
   const held = read.names.filter((one) => wanted === undefined || one.by === wanted);
   if (held.length === 0) return [];
   const more = held.length - DECLARED_CAP;
   return [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one)),
+    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
     ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
     ...unreadLine(read.unread),
   ];

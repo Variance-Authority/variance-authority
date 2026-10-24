@@ -20,7 +20,10 @@ export function limitOf(input: Readonly<Record<string, unknown>>, shown: number)
   return limit;
 }
 
-/** What a listing says of the rows it left out. */
-export function notShown(rest: number): string {
-  return `${rest} more not shown; a higher \`limit\` shows them.`;
+/**
+ * What a listing says of the rows it left out, naming `limit` as the surface
+ * asked takes it: `limit` on the wire, `--limit` from a shell.
+ */
+export function notShown(rest: number, limit = 'limit'): string {
+  return `${rest} more not shown; a higher \`${limit}\` shows them.`;
 }

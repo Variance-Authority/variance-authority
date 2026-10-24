@@ -2,6 +2,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { readsNames } from './discover.js';
 import { FoundNothing } from './find.js';
+import { spellingOf } from './spelling.js';
 import { limitOf, notShown } from '@variance-authority/mcp/tools';
 
 /**
@@ -181,7 +182,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       for (const file of common.slice(0, limit)) {
         lines.push(`${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`);
       }
-      if (common.length > limit) lines.push('', notShown(common.length - limit));
+      if (common.length > limit) lines.push('', notShown(common.length - limit, spellingOf(invocation).input('limit')));
       return lines.join('\n');
     },
   };

@@ -57,7 +57,7 @@ describe('variance ask symbol says what is true of a name', () => {
       expect(code).toBe(EXIT_CLEAN);
       expect(out).toContain('a member of `Scanner`, declared at packages/lib/src/native.ts:2');
       expect(out).toContain(
-        "docs_uses names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
+        "`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
       );
       expect(out).not.toContain('Members are read');
       expect(out).not.toContain('lexicon');
