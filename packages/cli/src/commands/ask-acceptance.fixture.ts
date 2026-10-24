@@ -12,7 +12,7 @@ import { checkout, run } from './ask-packages-fixture.js';
  * name below is spelled for the one case it carries, so a test reads the case
  * from the name alone.
  */
-export const ACCEPTANCE: Readonly<Record<string, string>> = {
+const ACCEPTANCE: Readonly<Record<string, string>> = {
   'packages/core/package.json': JSON.stringify({
     name: '@acme/core',
     exports: { '.': './src/index.ts', './rules': './src/rules/index.ts' },

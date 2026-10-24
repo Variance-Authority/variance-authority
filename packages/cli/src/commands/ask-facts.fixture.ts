@@ -36,6 +36,7 @@ export interface SymbolAnswer {
 
 const AT = String.raw`([^\s:]+):(\d+)`;
 
+// TODO: retire this reading of the text once `symbol` answers `--format json`, the second gap of spec 0104
 /** The facts of `ask symbol --name <name>`. */
 export async function symbol(name: string): Promise<SymbolAnswer> {
   const { code, out } = await run(['ask', 'symbol', '--name', name]);
@@ -93,6 +94,7 @@ export interface UsesAnswer {
   code: number;
 }
 
+// TODO: retire this reading of the text once `uses` answers `--format json`, the second gap of spec 0104
 /** The facts of `ask uses --name <name>`. */
 export async function uses(name: string): Promise<UsesAnswer> {
   const { code, out } = await run(['ask', 'uses', '--name', name, '--limit', '1000']);
@@ -187,7 +189,7 @@ interface CoveringJson {
   refused?: string;
   ranges?: { startLine: number; endLine: number; tests: { id: string }[] }[];
   tests?: { id: string }[];
-  probes?: { recordedUnder: string; places: string };
+  probes?: object;
 }
 
 /** The facts of `covering --file <path>` over the record at `execution`, and `more` flags. */
@@ -198,7 +200,7 @@ export async function covering(file: string, execution: string, root: string, mo
     regions: (json.ranges ?? []).map((range) => ({ start: range.startLine, end: range.endLine, cases: range.tests.map((test) => test.id) })),
     cases: (json.tests ?? []).map((test) => test.id),
     unloaded: json.refused === 'unloaded',
-    olderProbes: json.probes !== undefined && json.probes.recordedUnder !== json.probes.places,
+    olderProbes: json.probes !== undefined,
     code,
   };
 }
