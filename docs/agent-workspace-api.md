@@ -340,7 +340,8 @@ from others. When that file only passes on another file's declaration with
 declaration it reaches, through every file between, and `docs_symbol` shows its
 line as well. A name a file passes on inside `export * as ns`, or inside
 `export { ns }` after `import * as ns`, is counted where you read it off `ns`, `ns.name` or `const { name } = ns`, through a namespace
-inside a namespace, `lib.ns.name`, and through a namespace passed on as
+inside a namespace, `lib.ns.name`, `const { ns } = lib` and then `ns.name`, or
+`const { ns: { name } } = lib`, and through a namespace passed on as
 `default`. An entry that publishes the name only inside such a namespace
 publishes it as `ns.name`, and the first line says so: `published as
 \`shout.greet\` by @acme/lib`. A namespace imported by name that goes

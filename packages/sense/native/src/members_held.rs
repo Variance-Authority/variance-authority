@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use oxc_ast::ast::{JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
+use oxc_ast::ast::{Argument, ArrayExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
 use oxc_semantic::Scoping;
 use oxc_syntax::symbol::SymbolId;
 
@@ -164,5 +164,31 @@ impl Walker<'_, '_> {
             }
             _ => None,
         }
+    }
+}
+
+/// The promise an expression hands on: `.catch(…)` and `.finally(…)` settle
+/// to the same module, so `import('m').catch(…)` is still `import('m')`.
+pub(super) fn handed_on<'e, 'a>(expression: &'e Expression<'a>) -> &'e Expression<'a> {
+    let mut expression = expression.get_inner_expression();
+    while let Expression::CallExpression(call) = expression {
+        let Expression::StaticMemberExpression(callee) = call.callee.get_inner_expression() else { break };
+        if !matches!(callee.property.name.as_str(), "catch" | "finally") {
+            break;
+        }
+        expression = callee.object.get_inner_expression();
+    }
+    expression
+}
+
+/// The array of `Promise.all([...])`.
+pub(super) fn all_of<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e ArrayExpression<'a>> {
+    let Expression::CallExpression(call) = expression.get_inner_expression() else { return None };
+    if !call.callee.get_inner_expression().is_specific_member_access("Promise", "all") {
+        return None;
+    }
+    match call.arguments.first() {
+        Some(Argument::ArrayExpression(array)) => Some(array),
+        _ => None,
     }
 }

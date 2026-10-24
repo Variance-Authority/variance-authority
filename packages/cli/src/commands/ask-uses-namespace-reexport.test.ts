@@ -84,6 +84,21 @@ describe('variance ask uses through an `export * as` namespace', () => {
     expect(greet).not.toMatch(/^packages\/lib\/src\/bar\.ts/m);
   });
 
+  it('follows a namespace destructured off a namespace import, as a name read off it', async () => {
+    checkout({
+      'packages/lib/src/index.ts': "export * as shout from './greet.js';\n",
+      'apps/app/src/taken.ts': "import * as lib from '@acme/lib';\nconst { shout } = lib;\nexport const t = shout.greet('t');\n",
+      'apps/app/src/nested.ts': "import * as lib from '@acme/lib';\nconst { shout: { greet } } = lib;\nexport const n = greet('n');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const greet = await uses('greet');
+    expect(greet).toMatch(/^apps\/app\/src\/taken\.ts:3 — @acme\/app.*\(namespace, line 1\)$/m);
+    expect(greet).toMatch(/^apps\/app\/src\/nested\.ts:2 — @acme\/app.*\(namespace, line 1\)$/m);
+    // The local `greet` the pattern binds is the published one, not a namesake of it.
+    expect(greet).not.toContain('[const]');
+  });
+
   it.todo(
     'counts a namespace binding that escapes whole, `[shout]`, as a place that may read each name — needs the walker to record a named holder read whole as a `*` binding member, which the query charges to every name of the namespace it reaches',
   );

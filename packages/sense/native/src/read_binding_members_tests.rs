@@ -115,3 +115,36 @@ fn a_named_binding_that_escapes_or_is_shadowed_reads_nothing_by_name() {
     let read = read_module("a.ts", source, &Allocator::default(), false);
     assert_eq!(read.members, []);
 }
+
+#[test]
+fn a_name_destructured_off_a_holder_holds_the_value_it_takes() {
+    let source = concat!(
+        "import * as lib from './lib';\n",
+        "const { shout } = lib;\n",
+        "shout.greet('a');\n",
+        "const { quiet: { hush } } = lib;\n",
+        "hush.deep;\n",
+        "let loud;\n",
+        "({ loud } = lib);\n",
+        "loud.again;\n",
+        "let still;\n",
+        "({ calm: { still } } = lib);\n",
+        "still.more;\n",
+    );
+    assert_eq!(
+        binding_members(source),
+        [
+            read("./lib", "calm", "still", 10),
+            read("./lib", "calm.still", "more", 11),
+            read("./lib", "loud", "again", 8),
+            read("./lib", "quiet", "hush", 4),
+            read("./lib", "quiet.hush", "deep", 5),
+            read("./lib", "shout", "greet", 3),
+        ]
+    );
+    // A destructured binding is the module's value under a local name, as an
+    // import binds one; a `let` it is assigned to later declares its own name.
+    let read = read_module("a.ts", source, &Allocator::default(), true);
+    let declared: Vec<_> = read.symbols.iter().map(|it| it.name.as_str()).collect();
+    assert_eq!(declared, ["loud", "still"]);
+}

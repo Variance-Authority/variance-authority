@@ -361,7 +361,10 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     // One scope tree serves every reader that resolves a name by scope.
     let built = SemanticBuilder::new().build(&parsed.program);
     let scoping = built.semantic.scoping();
-    let (members, binding_members, loads) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
+    let (members, binding_members, loads, taken) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
+    // A binding destructured off a module it holds is that module's value under
+    // a local name, as an import binds one, and declares nothing of its own.
+    harvest.symbols.retain(|symbol| !taken.contains(&(symbol.name.clone(), symbol.line)));
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);

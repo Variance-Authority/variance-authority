@@ -62,7 +62,7 @@ mod typed;
 
 #[path = "members_held.rs"]
 mod held;
-use held::{Chain, Chains, Held, Via, WHOLE};
+use held::{all_of, handed_on, Chain, Chains, Held, Via, WHOLE};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Member {
@@ -102,7 +102,9 @@ pub struct BindingMember {
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
 /// read through an `import m = require()` as if `loads.required` followed those,
 /// and one read through an `import()` type as if `loads.typed` followed those.
-pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Vec<BindingMember>, Loads<'l>) {
+/// Last come the bindings a pattern destructures off a holder, by name and
+/// line: the module's values under a local name, as an import binds them.
+pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Vec<BindingMember>, Loads<'l>, HashSet<(String, u32)>) {
     let mut holders = HashMap::new();
     let mut chains = Chains::default();
     for (index, request) in requests.iter().enumerate() {
@@ -132,6 +134,7 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
         loads: Loads::new(lines),
         found: BTreeSet::new(),
         mock_factory: None,
+        taken: HashSet::new(),
     };
     walker.visit_program(program);
     // A required request's index is known only once the walk has met every `import()`.
@@ -150,7 +153,7 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
             }
         }
     }
-    (members.into_iter().collect(), binding_members.into_iter().collect(), walker.loads)
+    (members.into_iter().collect(), binding_members.into_iter().collect(), walker.loads, walker.taken)
 }
 
 struct Walker<'l, 's> {
@@ -168,6 +171,8 @@ struct Walker<'l, 's> {
     stated: u32,
     loads: Loads<'l>,
     mock_factory: Option<String>,
+    /// The bindings a pattern destructures off a holder, by name and line.
+    taken: HashSet<(String, u32)>,
     found: BTreeSet<(Held, String, u32)>,
     /// Where an `import()` or a holder is read in a way the walk follows, by
     /// the offset it starts at: anywhere else, the module escapes whole.
@@ -283,32 +288,6 @@ impl Walker<'_, '_> {
             return;
         }
         self.found.insert((held, name.to_owned(), self.lines.at(at)));
-    }
-}
-
-/// The promise an expression hands on: `.catch(…)` and `.finally(…)` settle
-/// to the same module, so `import('m').catch(…)` is still `import('m')`.
-fn handed_on<'e, 'a>(expression: &'e Expression<'a>) -> &'e Expression<'a> {
-    let mut expression = expression.get_inner_expression();
-    while let Expression::CallExpression(call) = expression {
-        let Expression::StaticMemberExpression(callee) = call.callee.get_inner_expression() else { break };
-        if !matches!(callee.property.name.as_str(), "catch" | "finally") {
-            break;
-        }
-        expression = callee.object.get_inner_expression();
-    }
-    expression
-}
-
-/// The array of `Promise.all([...])`.
-fn all_of<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e ArrayExpression<'a>> {
-    let Expression::CallExpression(call) = expression.get_inner_expression() else { return None };
-    if !call.callee.get_inner_expression().is_specific_member_access("Promise", "all") {
-        return None;
-    }
-    match call.arguments.first() {
-        Some(Argument::ArrayExpression(array)) => Some(array),
-        _ => None,
     }
 }
 

@@ -270,8 +270,10 @@ or as `export { ns }` after `import * as ns`, passes each of its names as a
 member of `ns`: `import { ns } from 'pkg'` and
 then `ns.name`, or `const { name } = ns`, is listed on the line that reads it,
 ending `(namespace, line <n>)` with the line of the import. A namespace inside
-a namespace, `lib.ns.name`, and a namespace passed on as `default` are followed
-the same way. An entry that publishes the name only inside such a namespace
+a namespace, `lib.ns.name`, one destructured off it, `const { ns } = lib` or
+`const { ns: { name } } = lib`, and a namespace passed on as `default` are
+followed the same way, and a name destructured off a namespace is that name,
+not a declaration of its own. An entry that publishes the name only inside such a namespace
 publishes it as `ns.name`, and the first line says `published as \`ns.name\` by
 <package>`. A namespace imported by name that goes somewhere whole, such as
 `[ns]`, and outside Rust a call through a qualified path, are not listed, and
