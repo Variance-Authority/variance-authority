@@ -143,6 +143,11 @@ describe('why the React story setup says a component rendered after it suspended
 
     expect(lines.slice(0, 2)).toEqual(['commit — 1 rendered', 'rendered Price — the Suspense boundary above it came back from its fallback']);
   });
+
+  // A retry inside `startTransition` keeps the content on screen and shows no
+  // fallback, so the boundary reads resolved on both sides and the line says
+  // `its parent rendered`; telling it apart needs the retry lane the commit ran in.
+  it.todo('the boundary above it retried in a transition, which showed no fallback');
 });
 
 let reopen: () => void = () => {};

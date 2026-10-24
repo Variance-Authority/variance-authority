@@ -1,4 +1,4 @@
-import { FiberTag, isOwnerFrame, type Fiber } from './fiber.js';
+import { FiberTag, MAX_FIBER_DEPTH, isOwnerFrame, type Fiber } from './fiber.js';
 import { alignedCellsOf, type AlignedCell } from './holding.js';
 import { contextReadsOf, inputPropNames } from './inputs.js';
 import { suspenseStateOf } from './suspense.js';
@@ -74,7 +74,8 @@ export function renderCausesOf(fiber: Fiber): readonly RenderCause[] {
  * cause it says, and the components below it rendered because it did.
  */
 function resumedAbove(fiber: Fiber): boolean {
-  for (let at = fiber.return ?? null; at !== null; at = at.return ?? null) {
+  let at = fiber.return ?? null;
+  for (let depth = 0; depth < MAX_FIBER_DEPTH && at !== null; depth += 1, at = at.return ?? null) {
     if (at.tag === FiberTag.SuspenseComponent) {
       return at.alternate !== null && suspenseStateOf(at.alternate) === 'pending' && suspenseStateOf(at) === 'resolved';
     }

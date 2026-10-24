@@ -264,7 +264,7 @@ export function isOwnerFrame(fiber: Fiber): boolean {
  * A fiber tree deeper than this is not a real tree; it is a corrupted or cyclic
  * `return` chain, which would otherwise hang the collector rather than fail it.
  */
-const MAX_FIBER_DEPTH = 10_000;
+export const MAX_FIBER_DEPTH = 10_000;
 
 /** The nearest composite above `fiber`, the one a "parent rendered" line means, or `null` at the root. */
 export function compositeAbove(fiber: Fiber): Fiber | null {

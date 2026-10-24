@@ -1,5 +1,5 @@
 import { tapCommits, type Commit } from './commits.js';
-import { FiberTag, compositeAbove, type Fiber } from './fiber.js';
+import { FiberTag, MAX_FIBER_DEPTH, compositeAbove, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
 import { renderCausesOf, type RenderCause } from './renders.js';
 
@@ -128,7 +128,8 @@ function isPlain(value: unknown): value is object {
  * visible one `null`.
  */
 function hiddenAbove(fiber: Fiber): boolean {
-  for (let at = fiber.return ?? null; at !== null; at = at.return ?? null) {
+  let at = fiber.return ?? null;
+  for (let depth = 0; depth < MAX_FIBER_DEPTH && at !== null; depth += 1, at = at.return ?? null) {
     if (at.tag === FiberTag.OffscreenComponent && at.memoizedState != null) return true;
   }
   return false;
