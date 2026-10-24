@@ -43,6 +43,13 @@ describe('ask uses', () => {
     expect(filesOf((await uses('pngSize')).uses)).toEqual(['apps/app/src/sizes.ts']);
   });
 
+  it('answers the uses of each declaration of a name apart, a local import resolved to its file', async () => {
+    const { namesakes } = await uses('pngSize');
+    expect(namesakes.map((one) => [one.at, one.uses.map((use) => [use.file, use.as])])).toEqual([
+      ['apps/app/src/png.ts', [['apps/app/src/local-sizes.ts', 'fileSize']]],
+    ]);
+  });
+
   it('answers an unexported name by its uses in its own file', async () => {
     expect((await uses('gitNames')).uses).toEqual([expect.objectContaining({ file: 'packages/core/src/git.ts', section: 'own-file' })]);
   });
@@ -56,7 +63,6 @@ describe('ask uses', () => {
     ]);
   });
 
-  it.todo('answers the uses of each declaration of a name apart: `pngSize` in apps/app is used by local-sizes.ts as `fileSize` — needs uses keyed by declaration, local imports resolved to their file');
   it.todo('never lists the importers of one declaration under another of the same name (`Coverage`) — needs importers grouped by the declaration their specifier resolves to');
   it.todo('counts a name read off an `export * as` namespace (`text.shout` in loud.ts) — needs reads off a namespace import recorded as uses of the member read');
   it.todo('follows a namespace passed on whole to where it is read, instead of answering "may read it" — needs the namespace followed into the function it is passed to, where that function reads the name off its parameter by syntax alone');
