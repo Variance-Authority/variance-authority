@@ -1,5 +1,5 @@
 import { tapCommits } from './commits.js';
-import { isOwnerFrame, type Fiber } from './fiber.js';
+import { FiberTag, ownerAbove, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
 import { causesOf, type RenderCause } from './renders.js';
 
@@ -18,7 +18,8 @@ import { causesOf, type RenderCause } from './renders.js';
  * every commit and says one line per component that rendered in it, where the
  * case stands when React commits: `rendered Summary — expanded false → true`.
  * A value is shown as the story shows any value, so an object keeps its ref.
- * A subtree that mounts says so once, at its top. Two cases' routes then part
+ * A subtree that mounts says so once, at its top, naming each component that
+ * mounted below it. Two cases' routes then part
  * at the render whose cause differs. With no story listening nothing is
  * tapped, and a test pays nothing.
  */
@@ -63,8 +64,8 @@ function said(cause: RenderCause): Said {
   }
 }
 
-/** `rendered <Name> — ` and each cause, joined by `, `, as one template. */
-function renderNote(name: string, causes: readonly RenderCause[]): Said {
+/** `rendered <Name> — ` and each cause, joined by `, `, then ` with ` the components mounted below it, as one template. */
+function renderNote(name: string, causes: readonly RenderCause[], below: readonly string[]): Said {
   const strings: string[] = [`rendered ${name} — `];
   const values: unknown[] = [];
   causes.forEach((cause, index) => {
@@ -73,15 +74,26 @@ function renderNote(name: string, causes: readonly RenderCause[]): Said {
     strings.push(...parts.slice(1));
     values.push(...between);
   });
+  if (below.length > 0) strings[strings.length - 1] += ` with ${below.join(', ')}`;
   return [strings, values];
 }
 
-/** The nearest composite above `fiber`, the one whose render made it. */
-function ownerOf(fiber: Fiber): Fiber | null {
-  for (let above = fiber.return ?? null; above !== null; above = above.return ?? null) {
-    if (isOwnerFrame(above)) return above;
+/** Fibers that wrap a component and carry the key written on it: `memo` with a compare, and a keyed fragment. */
+const KEY_WRAPPERS: ReadonlySet<number> = new Set([FiberTag.MemoComponent, FiberTag.Fragment]);
+
+/**
+ * The key that tells `fiber` apart from the rows beside it, read through the
+ * wrappers it was rendered in: a key tells apart the rows of one list, which
+ * share a name and often a cause.
+ */
+function keyOf(fiber: Fiber): string | undefined {
+  let at: Fiber = fiber;
+  for (;;) {
+    if (typeof at.key === 'string') return at.key;
+    const wrapper: Fiber | null = at.return ?? null;
+    if (wrapper === null || !KEY_WRAPPERS.has(wrapper.tag)) return undefined;
+    at = wrapper;
   }
-  return null;
 }
 
 type Channel = (strings: readonly string[], ...values: unknown[]) => void;
@@ -91,27 +103,45 @@ const scope = realm as { [NOTE]?: unknown; [TAPPED]?: true };
 // keeps the one tap it made: a second would say every render twice.
 if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
   scope[TAPPED] = true;
-  // The components said mounted in this commit: one below them mounted with them,
-  // and saying so again would list the whole subtree a provider stack mounts.
-  const mounted = new Set<Fiber>();
+  // A commit's lines wait for its end, so the top of a mounted subtree can name
+  // every component that mounted below it: one line for a provider stack, and
+  // still the components two tests mounted apart.
+  const lines: { readonly name: string; readonly causes: readonly RenderCause[]; readonly below: string[] }[] = [];
+  // Each component mounted in this commit, to the line of the top it mounted under.
+  const mounted = new Map<Fiber, (typeof lines)[number]>();
   const tap = tapCommits({
     keep: 1,
     onRender: (fiber) => {
-      const channel = scope[NOTE];
-      if (typeof channel !== 'function') return;
+      if (typeof scope[NOTE] !== 'function') return;
+      const key = keyOf(fiber);
+      const name = key === undefined ? fiberComponentName(fiber) : `${fiberComponentName(fiber)} key=${JSON.stringify(key)}`;
       const causes = causesOf(fiber);
       if (causes[0]?.kind === 'mount') {
-        mounted.add(fiber);
-        const owner = ownerOf(fiber);
+        const owner = ownerAbove(fiber);
         // An owner with a previous render did not mount here, whatever a commit that never finished left.
-        if (owner !== null && owner.alternate === null && mounted.has(owner)) return;
+        const top = owner !== null && owner.alternate === null ? mounted.get(owner) : undefined;
+        if (top !== undefined) {
+          top.below.push(name);
+          mounted.set(fiber, top);
+          return;
+        }
+        const line = { name, causes, below: [] };
+        lines.push(line);
+        mounted.set(fiber, line);
+        return;
       }
-      // A key tells apart the rows of one list, which share a name and often a cause.
-      const name = typeof fiber.key === 'string' ? `${fiberComponentName(fiber)} key=${JSON.stringify(fiber.key)}` : fiberComponentName(fiber);
-      const [strings, values] = renderNote(name, causes);
-      (channel as Channel)(strings, ...values);
+      lines.push({ name, causes, below: [] });
     },
-    onCommit: () => mounted.clear(),
+    onCommit: () => {
+      const channel = scope[NOTE];
+      for (const { name, causes, below } of lines) {
+        if (typeof channel !== 'function') break;
+        const [strings, values] = renderNote(name, causes, below);
+        (channel as Channel)(strings, ...values);
+      }
+      lines.length = 0;
+      mounted.clear();
+    },
   });
   // A story with no render lines would read as one where nothing rendered, and
   // Eyes, reading the mark, would leave a commit to lines nobody says.

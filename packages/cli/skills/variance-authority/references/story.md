@@ -69,7 +69,7 @@ Never record:
   it, a memo or a context is `Object`. The same setup file adds a
   `rendered <Component> — <cause>` line at each commit, a keyed component
   named with its key (`Row key="b"`): the prop, state cell or
-  context that moved, with values shown as handed ones are, `mounted`, `its
+  context that moved, with values shown as handed ones are, `mounted with <each component below>`, `its
   parent rendered`, `no input it reads moved`, or `state not read past <hook>`
   where the reader stops (`state not read` where the build keeps no hook record); `renders not read: <reason>` when React announces no
   commit to it. Add a `console.log` of the value in

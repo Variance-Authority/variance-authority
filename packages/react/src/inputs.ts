@@ -32,7 +32,7 @@ export function contextReadsOf(fiber: Fiber): ContextRead[] {
 }
 
 /**
- * The props that are inputs, in key order: every key but `children`.
+ * The props that are inputs, in the order the props object holds them: every key but `children`.
  *
  * `children` *is* the subtree, new on every render of the parent, so counting
  * it would make every ancestor's inputs a function of every descendant's edit.

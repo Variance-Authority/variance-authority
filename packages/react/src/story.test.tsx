@@ -3,7 +3,7 @@
 // The setup file as a story realm loads it: the channel is there first, and
 // `react-dom` is imported after it, so the tap it makes hears every commit.
 
-import { act, Component, createContext, createElement, createRef, forwardRef, memo, useContext, useState, type ReactElement } from 'react';
+import { act, Component, Fragment, createContext, createElement, createRef, forwardRef, memo, useContext, useState, type ReactElement } from 'react';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
 const NOTE = Symbol.for('variance-authority.story.note');
@@ -47,17 +47,17 @@ function Tree(): ReactElement {
 }
 
 describe('the React story setup', () => {
-  it('says a mounted subtree once at its top, a render once however often the setup ran, and values through the channel', () => {
+  it('says a mounted subtree once at its top, with each component that mounted below it, a render once however often the setup ran, and values through the channel', () => {
     const root = createRoot(document.createElement('div'));
     act(() => root.render(<Tree />));
     act(() => flip());
     act(() => root.unmount());
 
     expect(lines).toEqual([
-      'rendered Tree — mounted',
+      'rendered Tree — mounted with Leaf',
       'rendered Tree — useState #0 false → true',
-      // Branch mounts under a Tree that updated, so it is the top of what mounted; Leaf under it is not said.
-      'rendered Branch — mounted',
+      // Branch mounts under a Tree that updated, so it is the top of what mounted, and Leaf mounted with it.
+      'rendered Branch — mounted with Leaf',
     ]);
   });
 });
@@ -122,6 +122,30 @@ describe('which component the React story setup says rendered', () => {
     act(() => root.unmount());
 
     expect(lines).toEqual(['rendered Row key="a" — its parent rendered', 'rendered Row key="b" — picked false → true']);
+  });
+
+  it('a keyed one by the key on the memo or fragment that wraps it', () => {
+    const Picked = memo(Row, (before, after) => before.picked === after.picked);
+    const root = createRoot(document.createElement('div'));
+    const list = (picked: string): ReactElement => (
+      <ul>
+        <Picked key="a" picked={picked === 'a'} />
+        <Fragment key="b">
+          <Row picked={picked === 'b'} />
+        </Fragment>
+      </ul>
+    );
+    act(() => root.render(list('')));
+    lines.length = 0;
+    act(() => root.render(list('ab')));
+    act(() => root.render(list('a')));
+    act(() => root.unmount());
+
+    expect(lines).toEqual([
+      'rendered Row key="b" — its parent rendered',
+      'rendered Row key="a" — picked false → true',
+      'rendered Row key="b" — its parent rendered',
+    ]);
   });
 });
 

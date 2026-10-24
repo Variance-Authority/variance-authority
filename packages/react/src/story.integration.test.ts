@@ -97,7 +97,7 @@ describe.each(Object.keys(runners) as Runner[])('a story of a React tree under %
     const rendered = saidIn(storyOf(runner, 'opens the summary on a click').route).filter((line) => line.startsWith('rendered '));
 
     expect(rendered).toEqual([
-      'rendered Cart — mounted',
+      'rendered Cart — mounted with Badge, Summary',
       'rendered Cart — useState #0 false → true',
       'rendered Badge — its parent rendered',
       'rendered Summary — expanded false → true',

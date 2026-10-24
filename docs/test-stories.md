@@ -517,10 +517,11 @@ The same setup file says why each React component rendered, at the step the
 test was on when React committed: `rendered Summary — expanded false → true`
 for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
 `state` for a class component's, a context by its display name, `mounted` for
-a first render, said once at the top of a subtree that mounts, and `its parent
+a first render, said once at the top of a subtree that mounts with each component that
+mounted below it (`mounted with Badge, Summary`), and `its parent
 rendered` when none of its inputs moved, or `no input it reads moved` when even
 the props object is the one it had. A component
-given a key is named with it, `rendered Row key="b" — …`, so the rows of one
+given a key, or wrapped in a keyed `memo` or fragment, is named with it, `rendered Row key="b" — …`, so the rows of one
 list read apart. A value that moved is shown as a
 handed one is, so a callback rebuilt on every render reads `onPick ref4
 function onPick → ref9 function onPick`. A hook the reader does not know ends

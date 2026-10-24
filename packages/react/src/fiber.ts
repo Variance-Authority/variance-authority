@@ -266,6 +266,15 @@ export function isOwnerFrame(fiber: Fiber): boolean {
  */
 const MAX_FIBER_DEPTH = 10_000;
 
+/** The nearest composite above `fiber`, the one whose render made it, or `null` at the root. */
+export function ownerAbove(fiber: Fiber): Fiber | null {
+  let above = fiber.return ?? null;
+  for (let depth = 0; depth < MAX_FIBER_DEPTH && above !== null; depth += 1, above = above.return ?? null) {
+    if (isOwnerFrame(above)) return above;
+  }
+  return null;
+}
+
 /**
  * Expando prefixes `react-dom` writes onto host nodes.
  *
