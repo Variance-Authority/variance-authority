@@ -3,6 +3,7 @@ import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
+import { describedShown, type DescribedDeclaration } from './described.js';
 import { searchNames } from './search-answer.js';
 import { searchIndexOf } from './search.js';
 
@@ -30,6 +31,12 @@ const KIT = [
   'export function suiteOf(file: string): string {\n  return file;\n}',
   '/** Find the baseline an image is compared with. */',
   'export function baselineOf(image: string): string {\n  return image;\n}',
+  '/** Find the working copy of a file. */',
+  'export function workingOf(file: string): string {',
+  '  /** Find the repository root a working copy is under. */',
+  '  const rootOfRepository = (at: string): string => at;',
+  '  return rootOfRepository(file);',
+  '}',
 ].join('\n');
 
 let index: SearchIndex;
@@ -50,4 +57,21 @@ const describedFirst = (query: string): readonly string[] =>
 
 it('puts a name holding the rare words of a question before docs holding a common one besides', () => {
   expect(describedFirst('find the repository root')[0]).toBe('repositoryRoot');
+});
+
+it('never answers a description with a name a function body declares', () => {
+  const named = searchNames(index, { query: 'find the repository root' }, treeOf([], root), root);
+  expect(JSON.stringify(named)).not.toContain('rootOfRepository');
+});
+
+it('weighs a word by how many of everything the description reached hold it, not only the rows left to show', () => {
+  const row = (at: string, word: string): DescribedDeclaration => ({
+    match: { source: 'declared', name: `${word}Kept`, kind: 'function', at, line: 1 },
+    words: [word], named: [], near: 0, rows: 0, rank: Number.MAX_SAFE_INTEGER,
+  });
+  const left = [row('a.ts', 'alpha'), row('b.ts', 'beta')];
+  // Five more rows hold `alpha`, claimed by another section: `alpha` is common, `beta` is rare.
+  const population = [...left, ...['c', 'd', 'e', 'f', 'g'].map((at) => row(`${at}.ts`, 'alpha'))];
+  const shown = describedShown(index, 'alpha beta', left, 2, population);
+  expect(shown.map((one) => ('match' in one ? one.match.at : ''))).toEqual(['b.ts', 'a.ts']);
 });

@@ -8,7 +8,7 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
+import { declarations, declaredAt, declaredBlocks, isNested, unreadLine } from './declared.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { lineOf, originOf, passedOnRows } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
@@ -74,7 +74,7 @@ export const symbol: Tool<Help> = {
     // export of the same name is another thing, so it never stands for this one.
     const at = startPointArg(input, 'from');
     const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
-    const declared = declaredBlocks(invocation?.root, name, wanted, paths);
+    const { blocks: declared, topLevel } = declaredBlocks(invocation?.root, name, wanted, paths);
 
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
@@ -99,9 +99,11 @@ export const symbol: Tool<Help> = {
     ];
     // A member of an interface, a type literal or a class is the workspace's
     // own declaration too, which no import names and the scan records. It is
-    // answered only when nothing else, an import that binds the name included, does.
-    const members = found.length === 0 && kept.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
-    const own = members === undefined || members.declared.length === 0 ? kept : memberBlocks(invocation?.root, name, members);
+    // answered only when nothing at a file's top level, an import that binds
+    // the name included, does; a function a body declares is beside it, not over it.
+    const top = others.length > 0 || topLevel || aliased.length > 0;
+    const members = found.length === 0 && !top ? membersOf(invocation?.root, name, wanted) : undefined;
+    const own = members === undefined || members.declared.length === 0 ? kept : [...memberBlocks(invocation?.root, name, members), ...declared];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: the installed answers below say so.
     const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
@@ -202,9 +204,12 @@ export const symbol: Tool<Help> = {
         if (origin !== undefined) at.push([origin.at, origin.line]);
       }
     }
-    at.push(...declaredAt(invocation?.root, name, wanted).map((one) => [one.at, one.line] as const));
+    const declared = declaredAt(invocation?.root, name, wanted);
+    at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line] as const));
     at.push(...localNames(help, invocation?.root, name, wanted).files);
+    // A function a body declares stands beside a member, as `run` answers it.
     const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
+    at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
     if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
     if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined));
     const files = new Map<string, number[]>();

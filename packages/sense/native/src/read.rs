@@ -101,6 +101,9 @@ pub struct Read {
     pub(crate) exports: Vec<Export>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) symbols: Vec<SourceSymbol>,
+    /// Every function a function's body declares, apart from the top level.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) nested: Vec<crate::harvest::NestedSymbol>,
     #[serde(skip_serializing_if = "is_false")]
     pub(crate) harvested: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -174,7 +177,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     // neither of which the record holds.
     let assigned = parsed.program.body.iter().any(|statement| crate::assigned_object::handed_out(statement).is_some());
     if record.has_module_syntax && !assigned {
-        for symbol in harvest.symbols.iter_mut().filter(|symbol| symbol.reach.is_none()) {
+        for symbol in &mut harvest.symbols {
             symbol.reach = Some("file");
         }
     }
@@ -367,6 +370,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         requests,
         exports,
         symbols: harvest.symbols,
+        nested: harvest.nested,
         harvested: symbols,
         declares: declarations(file, &parsed.program),
         mocks: mocks_in(source, &parsed.program),

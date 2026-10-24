@@ -210,7 +210,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       : [
           '',
           `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held, a rare one weighing more than a common one and one in the name more than one in a doc, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
+            'read by stem as the packages are, best first: the words held, each counted by how few of these hold it and more in the name than in a doc, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
@@ -315,7 +315,7 @@ export const search: Tool<Help> = {
     'packages import them, each carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
-    'declares without exporting, at its top level or inside a function, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
+    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +

@@ -76,7 +76,7 @@ pub(crate) fn exported_namespace(file: &str, source: &str, program: &Program, sy
         }
     }
     let utf16: Vec<u16> = source.encode_utf16().collect();
-    for symbol in symbols.iter().filter(|symbol| symbol.name == namespace && symbol.reach != Some(crate::harvest::SCOPE)) {
+    for symbol in symbols.iter().filter(|symbol| symbol.name == namespace) {
         answer.push(NamespaceSymbol { name: symbol.name.clone(), kind: symbol.kind.to_owned(), line: symbol.line,
             signature: text(&utf16, symbol.signature), doc: doc(&utf16, symbol.doc) });
     }

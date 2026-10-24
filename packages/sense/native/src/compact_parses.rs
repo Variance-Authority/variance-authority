@@ -82,6 +82,15 @@ pub(crate) struct Parses<'a> {
     pub own_uses: U32s<'a>,
     pub own_use_name: U32s<'a>,
     pub own_use_line: U32s<'a>,
+    pub nested: U32s<'a>,
+    pub nested_name: U32s<'a>,
+    pub nested_kind: U32s<'a>,
+    pub nested_line: U32s<'a>,
+    pub nested_signature: Ends<'a>,
+    pub nested_doc: Ends<'a>,
+    /// The holder's name, or `NONE` when nothing names it.
+    pub nested_holder: U32s<'a>,
+    pub nested_holder_line: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -100,6 +109,7 @@ impl<'a> Parses<'a> {
         let member_declaration_name = u32s("member-declarations.name")?;
         let member_use_name = u32s("member-uses.name")?;
         let own_use_name = u32s("own-uses.name")?;
+        let nested_name = u32s("nested.name")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -163,6 +173,14 @@ impl<'a> Parses<'a> {
             own_uses: stored.offsets("parses.own-uses", rows, own_use_name.len())?,
             own_use_line: u32s("own-uses.line")?,
             own_use_name,
+            nested: stored.offsets("parses.nested", rows, nested_name.len())?,
+            nested_kind: u32s("nested.kind")?,
+            nested_line: u32s("nested.line")?,
+            nested_signature: ends("nested.signature-start", "nested.signature-end")?,
+            nested_doc: ends("nested.doc-start", "nested.doc-end")?,
+            nested_holder: u32s("nested.holder")?,
+            nested_holder_line: u32s("nested.holder-line")?,
+            nested_name,
             declare_name,
         };
         parses.lengths()?;
@@ -259,7 +277,17 @@ impl<'a> Parses<'a> {
             ("member-uses.of", self.member_use_of.len()),
             ("member-uses.how", self.member_use_how.len()),
         ])?;
-        same_length(self.own_use_name.len(), &[("own-uses.line", self.own_use_line.len())])
+        same_length(self.own_use_name.len(), &[("own-uses.line", self.own_use_line.len())])?;
+        same_length(self.nested_name.len(), &[
+            ("nested.kind", self.nested_kind.len()),
+            ("nested.line", self.nested_line.len()),
+            ("nested.signature-start", self.nested_signature[0].len()),
+            ("nested.signature-end", self.nested_signature[1].len()),
+            ("nested.doc-start", self.nested_doc[0].len()),
+            ("nested.doc-end", self.nested_doc[1].len()),
+            ("nested.holder", self.nested_holder.len()),
+            ("nested.holder-line", self.nested_holder_line.len()),
+        ])
     }
 }
 
@@ -319,6 +347,10 @@ impl ParseRow for ParseView<'_, '_> {
         for at in columns.own_uses.range(row) {
             text(columns.own_use_name, at);
         }
+        for at in columns.nested.range(row) {
+            text(columns.nested_name, at);
+            text(columns.nested_kind, at);
+        }
         for at in self.declares() {
             text(columns.declare_name, at);
         }
@@ -326,6 +358,9 @@ impl ParseRow for ParseView<'_, '_> {
             for column in [columns.export_exported, columns.export_local, columns.export_from, columns.export_imported] {
                 into.extend(stored.optional(column.at(export)));
             }
+        }
+        for at in columns.nested.range(row) {
+            into.extend(stored.optional(columns.nested_holder.at(at)));
         }
         into.extend(self.unknown());
     }
@@ -398,6 +433,17 @@ impl ParseRow for ParseView<'_, '_> {
         }
         for at in columns.own_uses.range(row) {
             into.own_use(id(columns.own_use_name, at), columns.own_use_line.at(at));
+        }
+        for at in columns.nested.range(row) {
+            into.nested(
+                id(columns.nested_name, at),
+                id(columns.nested_kind, at),
+                columns.nested_line.at(at),
+                span(columns.nested_signature[0], columns.nested_signature[1], at),
+                span(columns.nested_doc[0], columns.nested_doc[1], at),
+                strings.optional(stored.optional(columns.nested_holder.at(at))),
+                columns.nested_holder_line.at(at),
+            );
         }
     }
 

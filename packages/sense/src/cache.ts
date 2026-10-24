@@ -92,6 +92,13 @@ export interface Parsed {
    * reader but the native module reader and the Rust one.
    */
   readonly ownUses?: readonly OwnUse[];
+  /**
+   * Every function a function's body declares: a `function` statement, or a
+   * variable whose value is a function. Kept apart from `symbols`, which is the
+   * file's top level. Absent when there are none, and absent from any reader
+   * but the native module reader.
+   */
+  readonly nested?: readonly NestedDeclaration[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
@@ -150,6 +157,21 @@ export interface MemberUse {
   /** The type's name as the file writes it: its own declaration's, or the local name of an import. */
   readonly of: string;
   readonly how: 'destructure' | 'read' | 'write';
+}
+
+/** One function a function's body declares, with the function that holds it. */
+export interface NestedDeclaration {
+  readonly name: string;
+  /** `function`, or the variable keyword. */
+  readonly kind: string;
+  readonly line: number;
+  /** The declaration up to its body, in UTF-16 units of its file. */
+  readonly signature: TextSpan;
+  readonly doc?: TextSpan;
+  /** The name of the function that holds it; absent when nothing names that function, as for a callback. */
+  readonly holder?: string;
+  /** The line the function that holds it starts on. */
+  readonly holderLine: number;
 }
 
 /** One line that uses a name its file declares at its top level. */

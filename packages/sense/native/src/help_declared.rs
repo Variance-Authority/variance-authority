@@ -8,6 +8,12 @@
 //! answer for a private function the way they answer for an exported one.
 //! `search` matches a declaration's doc comment as well as its name, and the
 //! index holds only the comment's span, so the text is read from the file.
+//!
+//! A name asked for exactly is also answered by a function another function's
+//! body declares, from the index's own nested table, with the function that
+//! holds it. Only the exact question reads that table: a closure is its
+//! holder's working name, documented for its holder, and a description or a
+//! piece of a name is asked of what a caller can reach.
 
 // compass: variance-authority.report.agent-surface
 
@@ -25,7 +31,7 @@ use crate::package_graph::{fold, join_parses, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::segment::NONE;
 
-/// One top-level declaration no export of its file binds.
+/// One declaration no export of its file binds, at its top level or inside a function.
 #[napi(object)]
 pub struct DeclaredName {
     pub name: String,
@@ -49,11 +55,18 @@ pub struct DeclaredName {
     /// Asked by [`Matching::Described`]: the positions, ascending, of the
     /// asked stems its name or its doc holds; absent for any other question.
     pub held: Option<Vec<u32>>,
-    /// Asked by [`Matching::Described`]: the positions, ascending, of those its name holds.
-    pub named: Option<Vec<u32>>,
+    /// Asked by [`Matching::Described`]: how many of those its name holds.
+    pub named: Option<u32>,
     /// Asked by [`Matching::Described`]: how many of the question's adjacent
     /// word pairs its doc writes adjacent, as [`near`] counts them.
     pub near: Option<u32>,
+    /// The name of the function whose body declares it, when that function
+    /// has one; absent for a top-level declaration and for one inside a
+    /// function nothing names.
+    pub holder: Option<String>,
+    /// The line the function whose body declares it starts on; present only
+    /// for a declaration inside a function, which is how that one is told apart.
+    pub holder_line: Option<u32>,
 }
 
 /// A file a description reached by its own name and its module doc: the
@@ -68,8 +81,8 @@ pub struct DescribedFile {
     pub doc_end: Option<u32>,
     /// The positions, ascending, of the asked stems its name or its module doc holds.
     pub held: Vec<u32>,
-    /// The positions, ascending, of those its name holds.
-    pub named: Vec<u32>,
+    /// How many of those its name holds.
+    pub named: u32,
     /// How many of the question's adjacent word pairs its module doc writes adjacent.
     pub near: u32,
 }
@@ -143,12 +156,19 @@ fn prose(source: &[u16], start: u32, end: u32) -> Option<String> {
 /// itself when its declarations were not read.
 type FileHits<'a> = (Vec<Hit<'a>>, Option<&'a str>, Option<FileHit<'a>>);
 
-/// Asked by [`Matching::Described`]: the positions of the stems held, those
-/// the name holds, and how near its doc writes the question.
-type Held = (Vec<u32>, Vec<u32>, u32);
+/// Asked by [`Matching::Described`]: the positions of the stems held, how
+/// many of them the name holds, and how near its doc writes the question.
+type Held = (Vec<u32>, u32, u32);
 
-/// A layer, a file, a symbol row and how it was held, when it was described.
-type Hit<'a> = (usize, &'a str, usize, Option<Held>);
+/// A row of a parse's top-level symbols, or of its nested table.
+#[derive(Clone, Copy)]
+enum Row {
+    Symbol(usize),
+    Nested(usize),
+}
+
+/// A layer, a file, a row and how it was held, when it was described.
+type Hit<'a> = (usize, &'a str, Row, Option<Held>);
 
 /// A file described by its name and module doc: its layer, its parse row, and how it was held.
 type FileHit<'a> = (usize, &'a str, usize, Held);
@@ -187,8 +207,9 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
     terms.into_iter().collect()
 }
 
-/// Every top-level declaration on the chain, and every one in a Rust inline
-/// module, whose name `matching` admits for `query`, or whose doc does when it
+/// Every top-level declaration on the chain, every one in a Rust inline
+/// module, and, asked `Exact`, every function a function's body declares under
+/// that name, whose name `matching` admits for `query`, or whose doc does when it
 /// is `Containing` or `Described`, in `files` when they are named, less the
 /// ones its file exports, under that name or another, which the export list
 /// already answers. A name
@@ -215,7 +236,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
                     (!held.is_empty()).then(|| {
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.into_iter().collect(), near))
+                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.len() as u32, near))
                     })
                 }
                 _ => None,
@@ -253,12 +274,16 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                         if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
                         if held.is_empty() { continue }
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        Some((held.into_iter().collect(), in_name.into_iter().collect(), near))
+                        Some((held.into_iter().collect(), in_name.len() as u32, near))
                     }
                     _ => continue,
                 };
                 named.push(name);
-                hits.push((layer, crossing.file, symbol, described));
+                hits.push((layer, crossing.file, Row::Symbol(symbol), described));
+            }
+            if matches!(matching, Matching::Exact) {
+                // Each is its own declaration, under its own holder: none stands for another.
+                hits.extend(parses.nested.range(row).filter(|&at| text.text(parses.nested_name.at(at)) == query).map(|at| (layer, crossing.file, Row::Nested(at), None)));
             }
             (hits, None, file)
         })
@@ -294,8 +319,12 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
         .collect();
     let names = hits
         .into_iter()
-        .map(|(layer, at, symbol, described)| {
+        .map(|(layer, at, row, described)| {
             let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+            let symbol = match row {
+                Row::Symbol(symbol) => symbol,
+                Row::Nested(nested) => return nested_name(layers, layer, at, nested, owners.package_of(at)),
+            };
             let (signature_start, signature_end) = span(parses.symbol_signature[0], parses.symbol_signature[1], symbol);
             let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
             DeclaredName {
@@ -310,11 +339,38 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 doc_start,
                 doc_end,
                 reach: crate::harvest::reach_of(parses.symbol_reach[symbol]).map(str::to_owned),
-                named: described.as_ref().map(|(_, named, _)| named.clone()),
+                named: described.as_ref().map(|(_, named, _)| *named),
                 near: described.as_ref().map(|(_, _, near)| *near),
                 held: described.map(|(held, _, _)| held),
+                holder: None,
+                holder_line: None,
             }
         })
         .collect();
     Declared { names, unread, files }
+}
+
+/// One row of a parse's nested table, as a declared name with its holder.
+fn nested_name(layers: &[Layer], layer: usize, at: &str, nested: usize, by: &str) -> DeclaredName {
+    let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+    let (signature_start, signature_end) = span(parses.nested_signature[0], parses.nested_signature[1], nested);
+    let (doc_start, doc_end) = span(parses.nested_doc[0], parses.nested_doc[1], nested);
+    DeclaredName {
+        name: text.text(parses.nested_name.at(nested)).to_owned(),
+        kind: text.text(parses.nested_kind.at(nested)).to_owned(),
+        at: at.to_owned(),
+        by: by.to_owned(),
+        line: parses.nested_line.at(nested),
+        file_kind: kind_of(at).to_owned(),
+        signature_start,
+        signature_end,
+        doc_start,
+        doc_end,
+        reach: None,
+        held: None,
+        named: None,
+        near: None,
+        holder: text.optional(parses.nested_holder.at(nested)).map(str::to_owned),
+        holder_line: Some(parses.nested_holder_line.at(nested)),
+    }
 }

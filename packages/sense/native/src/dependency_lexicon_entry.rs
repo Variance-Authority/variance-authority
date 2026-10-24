@@ -112,7 +112,7 @@ impl Reader<'_> {
                 continue;
             }
             let local = export.local.as_deref().unwrap_or(public);
-            let matched: Vec<_> = parsed.symbols.iter().filter(|symbol| symbol.name == local && symbol.reach != Some(crate::harvest::SCOPE)).collect();
+            let matched: Vec<_> = parsed.symbols.iter().filter(|symbol| symbol.name == local).collect();
             if !matched.is_empty() {
                 for symbol in matched {
                     let name = Name { name: public.clone(), kind: symbol.kind.to_owned(),

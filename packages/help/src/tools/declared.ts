@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
+import { sharedSegments } from './shared-segments.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
 const DECLARED_CAP = 5;
@@ -83,8 +84,21 @@ function declaredBlock(root: string, held: DeclaredName): string {
  * recorded: the sentence `symbol` ends a declaration with, and the clause `uses`
  * ends its line with.
  */
-export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>): { readonly block: string; readonly clause: string } {
+export function reachSentences(
+  held: Pick<DeclaredName, 'at' | 'name' | 'reach' | 'holder' | 'holderLine'>,
+): { readonly block: string; readonly clause: string } {
   const { at, name } = held;
+  // Declared inside a function: that function alone can name it, and a
+  // callback nobody named is told by the line it is written at.
+  if (isNested(held)) {
+    const holder = held.holder === undefined || held.holder === null ? undefined : `\`${held.holder}\``;
+    const who = holder ?? `the function written at ${at}:${held.holderLine}`;
+    const inside = holder ?? 'that function';
+    return {
+      block: `Only ${who} can name it: it is declared inside ${inside}.`,
+      clause: `, so only ${who} can name it: it is declared inside ${inside}`,
+    };
+  }
   switch (held.reach) {
     case 'file':
       return {
@@ -102,13 +116,6 @@ export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>
       return {
         block: `Another module can still import it by name: ${kept} keeps it out of \`from … import *\` only.`,
         clause: `; another module can still import it by name, which \`ask grep --query '\\b${name}\\b' --to ${at}\` finds`,
-      };
-    }
-    case 'scope': {
-      const holder = held.name.slice(0, held.name.lastIndexOf('::')).split('::').at(-1) ?? '';
-      return {
-        block: `Only \`${holder}\` can name it: it is declared inside \`${holder}\`.`,
-        clause: `, so only \`${holder}\` can name it: it is declared inside \`${holder}\``,
       };
     }
     default:
@@ -167,56 +174,63 @@ function textAt(root: string, held: DeclaredName): string | undefined {
  * `DECLARED_CAP` of them, each of the rest at its line, and the files whose
  * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
+ * `topLevel` says whether one of them is a file's top-level declaration: one
+ * inside a function is the workspace's too, and stands for no member.
  */
 export function declaredBlocks(
   root: string | undefined,
   name: string,
   wanted: string | undefined,
   from: readonly string[] = [],
-): readonly string[] {
+): { readonly blocks: readonly string[]; readonly topLevel: boolean } {
   const read = declarations(root, name);
-  if (root === undefined || 'refused' in read) return [];
+  if (root === undefined || 'refused' in read) return { blocks: [], topLevel: false };
   const held = nearestFirst(
     read.names.filter((one) => wanted === undefined || one.by === wanted),
     from,
   );
-  if (held.length === 0) return [];
+  if (held.length === 0) return { blocks: [], topLevel: false };
   const rest = held.slice(DECLARED_CAP);
   const named = rest.slice(0, DECLARED_NAMED).map((one) => `${one.at}:${one.line}`);
   const unnamed = rest.length - named.length;
-  return [
+  const blocks = [
     ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one)),
     ...(rest.length > 0
       ? [`${rest.length} more ${rest.length === 1 ? 'declaration' : 'declarations'} of \`${name}\` not written out: ${named.join(', ')}${unnamed > 0 ? ` and ${unnamed} more` : ''}.`]
       : []),
     ...unreadLine(read.unread),
   ];
+  return { blocks, topLevel: held.some((one) => !isNested(one)) };
 }
 
-/** How many of the declarations past `DECLARED_CAP` are named, at their line, before the rest are counted. */
+/** Whether a function's body declares it, rather than its file's top level. */
+export const isNested = (one: Pick<DeclaredName, 'holderLine'>): boolean => one.holderLine !== undefined && one.holderLine !== null;
+
+/**
+ * How many of the declarations past `DECLARED_CAP` are named, at their line,
+ * before the rest are counted. A caller who asked for a name kept in many files
+ * opens the one it means by its line, so each is named; a location is one short
+ * token, and fifty of them weigh about what the five written blocks do. Past
+ * that, the count says the question is too wide, and `--package` or `--from`
+ * narrows it.
+ */
 const DECLARED_NAMED = 50;
 
 /**
  * The declarations, those in a file nearest one of `from` first: the more
- * leading path segments they share, the nearer. Stable, so the source-first
- * order holds among equals; no `from` leaves the order as it is.
+ * leading path segments they share, as `uses` orders its sites. Stable, so the
+ * source-first order holds among equals; no `from` leaves the order as it is.
  */
 function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): readonly DeclaredName[] {
   if (from.length === 0) return held;
-  const near = (at: string): number => Math.max(...from.map((one) => shared(at, one)));
+  const near = (at: string): number => Math.max(...from.map((one) => sharedSegments(one, at)));
   return held.map((one) => [one, near(one.at)] as const).sort((left, right) => right[1] - left[1]).map(([one]) => one);
 }
 
-/** How many leading path segments two repository-relative paths share; a file and itself share one more than its segments. */
-function shared(left: string, right: string): number {
-  const a = left.split('/');
-  const b = right.replace(/\/+$/u, '').split('/');
-  let count = 0;
-  while (count < a.length && count < b.length && a[count] === b[count]) count += 1;
-  return count === a.length && count === b.length ? count + 1 : count;
-}
-
-/** The file-private declarations of the name, source first; none when the index is not at hand. */
+/**
+ * The file-private declarations of the name, source first, top-level or
+ * inside a function as `isNested` tells; none when the index is not at hand.
+ */
 export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
   const read = declarations(root, name);
   if ('refused' in read) return [];

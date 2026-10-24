@@ -1,8 +1,9 @@
 //! The parse half of a source-index segment, as columns: the part of
 //! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock, member, member-declaration, member-use and own-use columns
+//! mock, member, member-declaration, member-use, own-use and nested columns
 //! `source-index-harvest.ts`, `-mocks.ts`, `-members.ts`,
-//! `-member-declarations.ts`, `-member-uses.ts` and `-own-uses.ts` add.
+//! `-member-declarations.ts`, `-member-uses.ts`, `-own-uses.ts` and
+//! `-nested.ts` add.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -98,6 +99,14 @@ pub struct ParseColumns {
     own_uses: Vec<u32>,
     own_use_name: Vec<u32>,
     own_use_line: Vec<u32>,
+    nested: Vec<u32>,
+    nested_name: Vec<u32>,
+    nested_kind: Vec<u32>,
+    nested_line: Vec<u32>,
+    nested_signature: [Vec<u32>; 2],
+    nested_doc: [Vec<u32>; 2],
+    nested_holder: Vec<u32>,
+    nested_holder_line: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -146,6 +155,7 @@ impl ParseColumns {
         self.member_declarations.push(self.member_declaration_name.len() as u32);
         self.member_uses.push(self.member_use_name.len() as u32);
         self.own_uses.push(self.own_use_name.len() as u32);
+        self.nested.push(self.nested_name.len() as u32);
     }
 
     /// One request; `flags` is [`request_flags`] of what its reader said about
@@ -224,6 +234,19 @@ impl ParseColumns {
         self.own_use_line.push(line);
     }
 
+    /// One function a function's body declares; `holder` is an id, or `NONE`
+    /// when nothing names the function that holds it.
+    #[allow(clippy::too_many_arguments, reason = "one column each, in the encoder's order")]
+    pub fn nested(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, holder: u32, holder_line: u32) {
+        self.nested_name.push(name);
+        self.nested_kind.push(kind);
+        self.nested_line.push(line);
+        span(&mut self.nested_signature, signature);
+        span(&mut self.nested_doc, doc);
+        self.nested_holder.push(holder);
+        self.nested_holder_line.push(holder_line);
+    }
+
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
     /// the key columns and the request offsets where that order puts them.
     pub fn columns(self, deleted: [Column; 2]) -> Vec<Column> {
@@ -233,6 +256,8 @@ impl ParseColumns {
         let [symbol_signature_start, symbol_signature_end] = self.symbol_signature;
         let [symbol_doc_start, symbol_doc_end] = self.symbol_doc;
         let [doc_start, doc_end] = self.doc;
+        let [nested_signature_start, nested_signature_end] = self.nested_signature;
+        let [nested_doc_start, nested_doc_end] = self.nested_doc;
         vec![
             u32s("parses.key", self.digest),
             u32s("parses.key-way", self.way),
@@ -301,6 +326,16 @@ impl ParseColumns {
             u32s("parses.own-uses", self.own_uses),
             u32s("own-uses.name", self.own_use_name),
             u32s("own-uses.line", self.own_use_line),
+            u32s("parses.nested", self.nested),
+            u32s("nested.name", self.nested_name),
+            u32s("nested.kind", self.nested_kind),
+            u32s("nested.line", self.nested_line),
+            u32s("nested.signature-start", nested_signature_start),
+            u32s("nested.signature-end", nested_signature_end),
+            u32s("nested.doc-start", nested_doc_start),
+            u32s("nested.doc-end", nested_doc_end),
+            u32s("nested.holder", self.nested_holder),
+            u32s("nested.holder-line", self.nested_holder_line),
             u32s("declares.name", self.declare_name),
         ]
     }

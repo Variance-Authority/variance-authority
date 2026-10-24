@@ -7,6 +7,7 @@ import { FoundNothing, entriesNamed, isPackage, nowhere } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
 import { type Members, membersOf, places, routes } from './members.js';
 import { originOf, passesOn } from './passed-on.js';
+import { sharedSegments } from './shared-segments.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
 /**
@@ -103,16 +104,6 @@ import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, impo
  * the name it takes when that is known.
  */
 type Site = Use & { readonly how?: string; readonly name?: string };
-
-/** How many leading path segments two files share. */
-export function sharedSegments(left: string, right: string): number {
-  const a = left.split('/');
-  const b = right.split('/');
-
-  let shared = 0;
-  while (shared < a.length && shared < b.length && a[shared] === b[shared]) shared += 1;
-  return shared;
-}
 
 /** Sites of one kind shown when `limit` is not said: how many are worth naming before the list stops being read. */
 const SHOWN = 12;

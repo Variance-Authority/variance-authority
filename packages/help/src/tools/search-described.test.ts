@@ -216,18 +216,20 @@ describe('which names the described section holds, and in what order', () => {
   });
 
   it('shows a name holding the one word nothing shown holds, past more names holding another word than the section shows', async () => {
-    // Every `chartPaletteColorAt<n>` holds three common words in its name,
-    // which outweigh the one rare word `diagram` holds in its doc alone, so all
-    // of them sort before it.
+    // Every `chartAt<n>` holds `chart` in its name, and forty swatches say
+    // `palette` in their docs, so `chart` is rare enough among what was reached
+    // that, held in a name, it outweighs `mermaid` held in `diagram`'s doc
+    // alone: all sixteen sort before it.
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
-      'src/charts.ts': Array.from({ length: 16 }, (_, at) => `export const chartPaletteColorAt${at} = ${at};\n`).join(''),
+      'src/charts.ts': Array.from({ length: 16 }, (_, at) => `export const chartAt${at} = ${at};\n`).join(''),
+      'src/swatches.ts': Array.from({ length: 40 }, (_, at) => `/** One palette. */\nexport const swatch${at} = ${at};\n`).join(''),
       'src/diagram.ts': '/** Draws a mermaid diagram. */\nexport const diagram = 1;\n',
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'mermaid chart palette color' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'mermaid chart palette' }, treeOf([], root), root);
     expect(said).toMatch(/^diagram .*\[holds: mermaid\]/mu);
-    expect(said.search(/^diagram /mu)).toBeGreaterThan(said.search(/^chartPaletteColorAt0 /mu));
+    expect(said.search(/^diagram /mu)).toBeGreaterThan(said.search(/^chartAt0 /mu));
     expect(said).toMatch(/more not shown/u);
-    // Two `chartPaletteColorAt<n>` that sort before it are not shown, so the heading says why.
+    // Two `chartAt<n>` that sort before it are not shown, so the heading says why.
     expect(said).toContain("then the phrase its doc writes; a row holding each word is shown however it sorts.");
   });
 

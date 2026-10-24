@@ -77,6 +77,19 @@ pub struct HeldSymbol {
     reach: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct HeldNested {
+    name: String,
+    kind: String,
+    #[serde(default)]
+    line: u32,
+    signature: Option<HeldSpan>,
+    doc: Option<HeldSpan>,
+    holder: Option<String>,
+    #[serde(default, rename = "holderLine")]
+    holder_line: u32,
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct HeldMocks {
     #[serde(default)]
@@ -142,6 +155,8 @@ pub struct HeldParse {
     member_uses: Vec<HeldMemberUse>,
     #[serde(default, rename = "ownUses")]
     own_uses: Vec<HeldOwnUse>,
+    #[serde(default)]
+    nested: Vec<HeldNested>,
     unknown: Option<String>,
     #[serde(default)]
     size: Option<crate::source_size::Size>,
@@ -187,6 +202,11 @@ impl ParseRow for HeldParse {
             values.insert(&used.how);
         }
         values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
+        for nested in &self.nested {
+            values.insert(&nested.name);
+            values.insert(&nested.kind);
+            values.extend(nested.holder.as_deref());
+        }
         values.extend(self.declares.iter().flatten().map(String::as_str));
         values.extend(self.unknown.as_deref());
     }
@@ -234,6 +254,10 @@ impl ParseRow for HeldParse {
         }
         for used in &self.own_uses {
             into.own_use(id(&used.name), used.line);
+        }
+        for nested in &self.nested {
+            let holder = strings.optional(nested.holder.as_deref());
+            into.nested(id(&nested.name), id(&nested.kind), nested.line, span(nested.signature), span(nested.doc), holder, nested.holder_line);
         }
     }
 

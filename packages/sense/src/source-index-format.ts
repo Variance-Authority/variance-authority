@@ -15,6 +15,7 @@ import { native, nativeRefusal } from './addon.js';
 import type { NativeScanner } from './native.js';
 import { openHarvest } from './source-index-harvest.js';
 import { openMemberDeclarations } from './source-index-member-declarations.js';
+import { openNested } from './source-index-nested.js';
 import { openMemberUses } from './source-index-member-uses.js';
 import { openOwnUses } from './source-index-own-uses.js';
 import { openMembers } from './source-index-members.js';
@@ -174,6 +175,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const declaredMembersOf = openMemberDeclarations(opened, text, parseKey.length);
   const memberUsesOf = openMemberUses(opened, text, parseKey.length);
   const ownUsesOf = openOwnUses(opened, text, parseKey.length);
+  const nestedOf = openNested(opened, text, parseKey.length);
   const sizeOf = openSize(opened, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
@@ -240,6 +242,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       ...declaredMembersOf(row),
       ...memberUsesOf(row),
       ...ownUsesOf(row),
+      ...nestedOf(row),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),
       ...(moduleDoc === undefined ? {} : { doc: moduleDoc }),
