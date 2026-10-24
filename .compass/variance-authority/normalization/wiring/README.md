@@ -77,6 +77,8 @@ the confident wrong answer.
   argument for why it is evidence rather than identity
 - `packages/react/src/wiring.ts` — the reader, and `componentFiberOf`
 - `packages/react/src/holding.ts` — the hook name/cell alignment table
+- `packages/react/src/renders.ts` — the same alignment across one render: the
+  inputs that moved since `fiber.alternate`, which a test story says per commit
 - `packages/react/src/identity.ts` — the rebuild finding, and the key it
   happened under
 

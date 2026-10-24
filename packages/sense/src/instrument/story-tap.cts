@@ -53,7 +53,10 @@
  * `@variance-authority/event` and `@variance-authority/eyes` call when it is
  * there, and it wraps the realm's `console` so that every line the case prints
  * is also a note. The console still prints: the wrapper says the line to the
- * tape and hands it on unchanged. Both happen only in a realm that is recording
+ * tape and hands it on unchanged. A caller with values to say hands the channel
+ * a template's strings and the values between them, as a tagged template does,
+ * and the tap shows each value as it shows what a region was handed, so an
+ * object keeps one ref across every line it appears in. Both happen only in a realm that is recording
  * a story, which somebody asked for by name.
  *
  * ## What a region was handed
@@ -120,6 +123,12 @@ interface Tap {
   read(): Tape;
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
+  /**
+   * {@link note} a template's text with each value between its strings shown
+   * as a region shows what it was handed: a primitive as it is, an object as
+   * its ref and kind. Past {@link NOTE_LIMIT} nothing is shown, only counted.
+   */
+  say(strings: readonly string[], values: readonly unknown[]): void;
   /** Ask the namers in `scope`'s kind array, as it holds them then, what each object is. */
   nameIn(scope: object): void;
   /** Start the tape again, keeping what the realm registered and the refs it gave. */
@@ -348,11 +357,16 @@ function createTap(engine: Engine, limit: number): Tap {
       return { tape, taped, visits, at, keys, notes, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
+      api.say([text], []);
+    },
+    say(strings: readonly string[], values: readonly unknown[]): void {
       if (spoken >= NOTE_LIMIT) {
         unnoted += 1;
         return;
       }
       spoken += 1;
+      let text = String(strings[0] ?? '');
+      for (let index = 1; index < strings.length; index += 1) text += shown(values[index - 1]) + String(strings[index]);
       put(text);
     },
     nameIn(scope: object): void {
@@ -381,7 +395,8 @@ const NOTE = Symbol.for('variance-authority.story.note');
 /** The console methods a case prints with; each line is a note, and still printed. */
 const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
 
-type Channel = (text: string) => void;
+/** A line of text, or a template's strings and the values between them. */
+type Channel = (text: string | readonly string[], ...values: unknown[]) => void;
 
 /**
  * Have `scope`'s announcements, attention and console lines put on `tap`,
@@ -393,7 +408,8 @@ type Channel = (text: string) => void;
  */
 function listen(tap: Tap, scope: object): void {
   const global = scope as { [NOTE]?: Channel; console?: Console };
-  global[NOTE] = (text: string): void => tap.note(String(text));
+  global[NOTE] = (text: string | readonly string[], ...values: unknown[]): void =>
+    Array.isArray(text) ? tap.say(text, values) : tap.note(String(text));
   tap.nameIn(scope);
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;
