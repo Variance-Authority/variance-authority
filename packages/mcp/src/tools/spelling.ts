@@ -1,4 +1,4 @@
-import type { ToolInvocation } from './tool.js';
+import type { Tool, ToolInvocation } from './tool.js';
 
 /**
  * How an answer names what to ask next, on the surface it was asked on.
@@ -19,13 +19,16 @@ import type { ToolInvocation } from './tool.js';
  */
 const PREFIXES = ['variance_', 'docs_'] as const;
 
-/** A tool, as far as its spelling reads it: the name its schema publishes. */
-interface Named {
-  readonly name: string;
-}
+/**
+ * A declared tool, whatever it reads, as far as a listing of it carries: its
+ * schema, not a name written beside it. A hint is spelled from the tool
+ * itself, so renaming the tool renames every hint and deleting it fails the
+ * build.
+ */
+type Declared = Pick<Tool<never>, 'name' | 'description' | 'inputSchema'>;
 
 /** What a tool is asked as from a shell: its wire name without the namespace, `_` as `-`. */
-export function verbOf(tool: Named): string {
+export function verbOf(tool: Declared): string {
   const prefix = PREFIXES.find((candidate) => tool.name.startsWith(candidate)) ?? '';
   return tool.name.slice(prefix.length).replace(/_/g, '-');
 }
@@ -46,13 +49,13 @@ export interface Spelling {
   /** An input by its schema name: `atDistance` on the wire, `--at-distance` from a shell. */
   input(property: string): string;
   /** A tool: `docs_symbol` on the wire, `variance ask symbol` from a shell. */
-  tool(tool: Named): string;
+  tool(tool: Declared): string;
   /**
    * A whole question, in backticks already since it is more than one word:
    * `docs_grep` with `query` `x` on the wire, `variance ask grep --query x`
    * from a shell, a value a shell would split quoted.
    */
-  question(tool: Named, input: Readonly<Record<string, unknown>>): string;
+  question(tool: Declared, input: Readonly<Record<string, unknown>>): string;
   /**
    * A question asked inside another, by its verb, without backticks: the
    * object the wire takes, `{"question":"symbol","input":{"name":"x"}}`, or
