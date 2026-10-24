@@ -249,8 +249,6 @@ export default defineConfig({
 ```text
   1  cart.tsx ×7
        » rendered Cart — mounted
-       » rendered Badge — mounted
-       » rendered Summary — mounted
        » rendered Cart — useState #0 false → true
        » rendered Badge — its parent rendered
        » rendered Summary — expanded false → true
@@ -258,18 +256,23 @@ export default defineConfig({
 
 The cause is each input that moved since the component's last render, by
 `Object.is`: a prop other than `children`, a cell of retained state by its hook
-call, or a context value. A primitive is shown before and after; an object that
-moved is `a new object`, `a new array` or `a new function`, which is the
-callback rebuilt on every render. When nothing moved, the component rendered
-because its parent did, and a `memo` would have stopped it. Compare two tests'
-stories, and the first render whose cause differs is where they parted.
+call, a class component's `this.state`, or a context value. Values are shown as
+the story shows what a function was handed: a primitive as itself, an object by
+its ref, so the callback rebuilt on every render is a new ref each time and a
+value passed down keeps the ref it had where it was made. When nothing moved,
+the component rendered because its parent did, and a `memo` would have stopped
+it. A subtree that mounts says so once, at its top. A hook the reader does not
+know ends what it can read, and the line says `state not read past` that hook
+rather than that nothing moved. Compare two tests' stories, and the first
+render whose cause differs is where they parted.
 
 The setup reads the cause from the commit React just finished, through the
 DevTools hook, so it has to run before `react-dom` loads, which a setup file
-does. With no story being recorded it taps nothing. It also names each React
-object a function was handed by the `$$typeof` mark React gave it —
-`react.context`, `react.memo`, `react.forward_ref` — where a story would
-otherwise say `Object`. In Jest the same entry goes in `setupFiles`.
+does: `setupFiles` in Vitest, Jest and Rstest alike. The line lands at the step
+the test was on when React committed. With no story being recorded it taps
+nothing. It also names each React object a function was handed by the
+`$$typeof` mark React gave it — `react.context`, `react.memo`,
+`react.forward_ref` — where a story would otherwise say `Object`.
 
 ## Where the source location comes from
 

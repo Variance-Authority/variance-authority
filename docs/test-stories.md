@@ -513,13 +513,16 @@ whole run, so the same ref at two steps is the same object: here `Panel` read
 the very theme `ThemeProvider` was given. The examples elsewhere on this page leave these
 lines out, so their steps read short.
 
-The same setup file says why each React component rendered, at the step that
-caused the commit: `rendered Summary — expanded false → true` for a prop,
-`rendered Cart — useState #0 false → true` for state, a context by its display
-name, `mounted` for a first render, and `its parent rendered` when none of its
-inputs moved. A prop that holds a new object every render reads `onPick a new
-function`. Two tests that render the same tree for different reasons part at
-the first of these lines.
+The same setup file says why each React component rendered, at the step the
+test was on when React committed: `rendered Summary — expanded false → true`
+for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
+`state` for a class component's, a context by its display name, `mounted` for
+a first render, said once at the top of a subtree that mounts, and `its parent
+rendered` when none of its inputs moved. A value that moved is shown as a
+handed one is, so a callback rebuilt on every render reads `onPick ref4
+function onPick → ref9 function onPick`. A hook the reader does not know ends
+what it reads, and the line says `state not read past` it. Two tests that
+render the same tree for different reasons part at the first of these lines.
 
 When you [compare readings](#compare-readings-of-one-test), a handed line is
 compared as a printed one is: a value handed on every reading of one side and
