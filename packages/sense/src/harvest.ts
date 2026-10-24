@@ -41,12 +41,13 @@ export type SourceSymbolKind =
  * of its language knows: its file alone (an ES module, a Swift or Kotlin
  * `private`), its module and the modules inside it (a Rust item that is not
  * `pub`), or any module that imports it by name, kept out of `from … import *`
- * by a leading underscore or by `__all__` (Python). Absent when the reader
- * cannot tell.
+ * by a leading underscore or by `__all__` (Python), or the function that
+ * declares it in its own body, named on the path of its holders. Absent when
+ * the reader cannot tell.
  */
-export type SourceSymbolReach = 'file' | 'module' | 'underscore' | 'all';
+export type SourceSymbolReach = 'file' | 'module' | 'underscore' | 'all' | 'scope';
 
-/** One top-level declaration, reduced while the parser still holds its AST. */
+/** One declaration, reduced while the parser still holds its AST. */
 export interface SourceSymbol {
   readonly name: string;
   readonly kind: SourceSymbolKind;

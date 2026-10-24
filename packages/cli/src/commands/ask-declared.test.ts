@@ -421,7 +421,7 @@ describe('variance ask about a name declared and not exported', () => {
     expect(`${out}${err}`).toContain('The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/kit/src/money/huge.ts.');
   });
 
-  it('writes out five declarations of one name and counts the rest', async () => {
+  it('writes out five declarations of one name and names the rest at their lines', async () => {
     const files = Object.fromEntries(
       ['a', 'b', 'c', 'd', 'e', 'f'].map((part) => [
         `packages/kit/src/money/${part}.ts`,
@@ -434,7 +434,7 @@ describe('variance ask about a name declared and not exported', () => {
     const { out } = await run(['ask', 'symbol', '--name', 'tally']);
     expect(out.match(/^tally \[function\]$/gm)).toHaveLength(5);
     expect(out).toContain('declared, not exported, at packages/kit/src/money/a.ts:3 by @acme/kit');
-    expect(out).not.toContain('packages/kit/src/money/f.ts');
-    expect(out).toContain('1 more declaration of `tally` not shown.');
+    expect(out).not.toContain('declared, not exported, at packages/kit/src/money/f.ts');
+    expect(out).toContain('1 more declaration of `tally` not written out: packages/kit/src/money/f.ts:3.');
   });
 });

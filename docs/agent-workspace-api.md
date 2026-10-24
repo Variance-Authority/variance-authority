@@ -84,8 +84,10 @@ service for JavaScript and TypeScript, which lists those uses. Members are read
 from JavaScript and TypeScript files only, so a Python class's methods and a
 Rust struct's fields and `impl` methods are not; top-level declarations are read in
 every language the index reads, Python, Rust, Java, Kotlin and Swift
-included. `ask symbol` answers a top-level declaration of the name first, in
-any of those languages; on a name that no top-level declaration or import has,
+included, and a function or an arrow function declared inside another
+function's body is read in JavaScript and TypeScript and answered with the
+function that holds it. `ask symbol` answers a top-level declaration of the
+name first, in any of those languages; on a name that no top-level declaration or import has,
 it names each container that declares it as a member, with the member's
 `file:line`, and points to `uses`, which lists the members beside any top-level
 declaration. When the workspace also holds Python, Rust, Java, Kotlin or Swift

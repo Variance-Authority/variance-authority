@@ -195,7 +195,7 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
                 // One name may be declared twice, `const Kind` and `type Kind`: an
                 // export takes the declaration on its own line, else the first.
                 let line = parses.export_line.at(export);
-                let named = || parses.symbols.range(row).filter(move |&symbol| text.text(parses.symbol_name.at(symbol)) == local);
+                let named = || parses.symbols.range(row).filter(move |&symbol| parses.symbol_reach[symbol] != crate::harvest::SCOPE_CODE && text.text(parses.symbol_name.at(symbol)) == local);
                 named().find(|&symbol| parses.symbol_line.at(symbol) == line).or_else(|| named().next())
             });
             let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());

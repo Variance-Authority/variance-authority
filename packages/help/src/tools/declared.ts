@@ -1,16 +1,17 @@
 /**
- * Names a file declares at its top level and does not export, answered rather
- * than refused.
+ * Names a file declares and does not export, answered rather than refused.
  *
  * Every export list stops at what a file hands out, and a file keeps most of
  * what it declares to itself: the helper a function calls, the constant beside
  * it. A caller who typed such a name exactly is not wrong about the name, and
  * `git grep` would find it at once. The source index harvested every top-level
- * declaration of every file it parsed, so the declaration is read from there,
+ * declaration of every file it parsed, and every function a function's body
+ * declares, so the declaration is read from there,
  * with who can reach it, as the reader of its language recorded: an ES
  * module's own name, and a Swift or Kotlin `private` one, is its file's alone,
  * a Rust item that is not `pub` is its module's and the modules inside it, and
- * a Python module keeps no name from an import that spells it. A reader that
+ * a Python module keeps no name from an import that spells it, and a closure is
+ * its holder's alone. A reader that
  * cannot tell — a script, a `macro_rules!` — records nothing, and the answer
  * says that.
  */
@@ -103,6 +104,13 @@ export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>
         clause: `; another module can still import it by name, which \`ask grep --query '\\b${name}\\b' --to ${at}\` finds`,
       };
     }
+    case 'scope': {
+      const holder = held.name.slice(0, held.name.lastIndexOf('::')).split('::').at(-1) ?? '';
+      return {
+        block: `Only \`${holder}\` can name it: it is declared inside \`${holder}\`.`,
+        clause: `, so only \`${holder}\` can name it: it is declared inside \`${holder}\``,
+      };
+    }
     default:
       return {
         block: 'Who can reach it is not recorded: its reader cannot tell how this file hands it out.',
@@ -155,21 +163,57 @@ function textAt(root: string, held: DeclaredName): string | undefined {
 /**
  * The blocks `symbol` answers a name's file-private declarations with — alone
  * when no file exports it, after the exports when another file does: one per
- * declaration, source first, the first `DECLARED_CAP` of them, a count of the
- * rest, and the files whose declarations were not read; nothing when the
+ * declaration, source first and nearest a path in `from` first, the first
+ * `DECLARED_CAP` of them, each of the rest at its line, and the files whose
+ * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
  */
-export function declaredBlocks(root: string | undefined, name: string, wanted: string | undefined): readonly string[] {
+export function declaredBlocks(
+  root: string | undefined,
+  name: string,
+  wanted: string | undefined,
+  from: readonly string[] = [],
+): readonly string[] {
   const read = declarations(root, name);
   if (root === undefined || 'refused' in read) return [];
-  const held = read.names.filter((one) => wanted === undefined || one.by === wanted);
+  const held = nearestFirst(
+    read.names.filter((one) => wanted === undefined || one.by === wanted),
+    from,
+  );
   if (held.length === 0) return [];
-  const more = held.length - DECLARED_CAP;
+  const rest = held.slice(DECLARED_CAP);
+  const named = rest.slice(0, DECLARED_NAMED).map((one) => `${one.at}:${one.line}`);
+  const unnamed = rest.length - named.length;
   return [
     ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one)),
-    ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
+    ...(rest.length > 0
+      ? [`${rest.length} more ${rest.length === 1 ? 'declaration' : 'declarations'} of \`${name}\` not written out: ${named.join(', ')}${unnamed > 0 ? ` and ${unnamed} more` : ''}.`]
+      : []),
     ...unreadLine(read.unread),
   ];
+}
+
+/** How many of the declarations past `DECLARED_CAP` are named, at their line, before the rest are counted. */
+const DECLARED_NAMED = 50;
+
+/**
+ * The declarations, those in a file nearest one of `from` first: the more
+ * leading path segments they share, the nearer. Stable, so the source-first
+ * order holds among equals; no `from` leaves the order as it is.
+ */
+function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): readonly DeclaredName[] {
+  if (from.length === 0) return held;
+  const near = (at: string): number => Math.max(...from.map((one) => shared(at, one)));
+  return held.map((one) => [one, near(one.at)] as const).sort((left, right) => right[1] - left[1]).map(([one]) => one);
+}
+
+/** How many leading path segments two repository-relative paths share; a file and itself share one more than its segments. */
+function shared(left: string, right: string): number {
+  const a = left.split('/');
+  const b = right.replace(/\/+$/u, '').split('/');
+  let count = 0;
+  while (count < a.length && count < b.length && a[count] === b[count]) count += 1;
+  return count === a.length && count === b.length ? count + 1 : count;
 }
 
 /** The file-private declarations of the name, source first; none when the index is not at hand. */

@@ -174,7 +174,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     // neither of which the record holds.
     let assigned = parsed.program.body.iter().any(|statement| crate::assigned_object::handed_out(statement).is_some());
     if record.has_module_syntax && !assigned {
-        for symbol in &mut harvest.symbols {
+        for symbol in harvest.symbols.iter_mut().filter(|symbol| symbol.reach.is_none()) {
             symbol.reach = Some("file");
         }
     }

@@ -57,7 +57,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
           // One name may be declared twice, `const Kind` and `type Kind`: an
           // export takes the declaration on its own line, else the first.
           const named = published.from === undefined
-            ? (parsed.symbols ?? []).filter((symbol) => symbol.name === published.local)
+            ? (parsed.symbols ?? []).filter((symbol) => symbol.name === published.local && symbol.reach !== 'scope')
             : [];
           const bound = named.find((symbol) => symbol.line === published.line) ?? named[0];
           const span = published.doc ?? bound?.doc;

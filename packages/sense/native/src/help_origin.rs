@@ -106,7 +106,7 @@ impl<'a> Parsed<'a> {
     /// The line of the file's top-level declaration of `name`.
     fn declares(&self, name: &str) -> Option<u32> {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
-        parses.symbols.range(self.row).find(|&symbol| text.text(parses.symbol_name.at(symbol)) == name).map(|symbol| parses.symbol_line.at(symbol))
+        parses.symbols.range(self.row).find(|&symbol| parses.symbol_reach[symbol] != crate::harvest::SCOPE_CODE && text.text(parses.symbol_name.at(symbol)) == name).map(|symbol| parses.symbol_line.at(symbol))
     }
 
     /// How the file's own export list binds `name`, as [`Bound`] says; `None`

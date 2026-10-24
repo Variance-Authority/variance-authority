@@ -106,7 +106,7 @@ export interface ExportedMatch {
   readonly summary?: string;
 }
 
-/** A name a file declares at its top level and does not export. */
+/** A name a file declares and does not export, at its top level or inside a function. */
 export interface DeclaredMatch {
   readonly source: 'declared';
   readonly name: string;

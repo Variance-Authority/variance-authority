@@ -1,4 +1,5 @@
-//! Top-level declaration facts reduced while OXC's arena is still resident.
+//! Declaration facts reduced while OXC's arena is still resident: every
+//! top-level one, and every function a function's body declares.
 
 use std::collections::HashMap;
 
@@ -36,8 +37,15 @@ pub struct SourceSymbol {
 /// its file alone (an ES module, a Swift or Kotlin `private`), its module and
 /// the modules inside it (a Rust item that is not `pub`), and any module that
 /// imports it by name, kept out of `from … import *` by a leading underscore or
-/// by `__all__` (Python).
-pub const REACHES: [&str; 4] = ["file", "module", "underscore", "all"];
+/// by `__all__` (Python), and, for a function another function's body
+/// declares, that body alone.
+pub const REACHES: [&str; 5] = ["file", "module", "underscore", "all", SCOPE];
+
+/// The reach of a function another function's body declares: only that body can name it.
+pub const SCOPE: &str = "scope";
+
+/// [`SCOPE`] as the index stores it.
+pub const SCOPE_CODE: u8 = 5;
 
 /// A reach as the index stores it; 0 is none.
 pub fn reach_code(reach: Option<&str>) -> u8 {
@@ -156,6 +164,14 @@ impl Harvest {
                 let doc = harvest.doc(bound.statement.start);
                 harvest.push(bound.name.to_owned(), bound.kind, lines.at(bound.statement.start), doc, bound.signature);
             });
+            // After every top-level one, so a lookup by a bare name meets the top level first.
+            for held in crate::nested::nested(program) {
+                let doc = harvest.doc(held.statement.start);
+                harvest.push(held.name, held.kind, lines.at(held.statement.start), doc, Some(held.signature));
+                if let Some(symbol) = harvest.symbols.last_mut() {
+                    symbol.reach = Some(SCOPE);
+                }
+            }
         }
         harvest
     }
