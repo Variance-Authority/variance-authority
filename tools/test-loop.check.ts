@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { inSlice } from './slices.mjs';
-import { discovered } from './test-loop.mjs';
+import { discovered, idle } from './test-loop.mjs';
 
 /**
  * `yarn test:loop` starts the unit runner only when the selection keeps a test
@@ -30,6 +30,27 @@ describe('discovered', () => {
     await rm(join(dir, 'packages/a/src/gone.test.ts'));
     await writeFile(join(dir, 'packages/a/src/new.test.ts'), '\n');
     expect(discovered(dir).sort()).toEqual(['packages/a/src/kept.test.ts', 'packages/a/src/new.test.ts']);
+  });
+});
+
+describe('idle', () => {
+  it('says what the selection read when it keeps no test, as the seam would, rather than that no test covers the change', async () => {
+    // An edited module whose one test already ran over this text: the test covers the change and has nothing new to answer.
+    const selection = {
+      whole: new Set(['packages/a/src/story.test.tsx', 'packages/a/src/other.test.ts']),
+      skip: new Set(['packages/a/src/story.test.tsx', 'packages/a/src/other.test.ts']),
+      notes: ['read packages/a/src/story.ts: none (the record was taken over this text)'],
+    };
+    const said = await idle(selection, ['packages/a/src/story.test.tsx', 'packages/a/src/other.test.ts']);
+
+    expect(said).toBe(
+      [
+        'variance-authority: selected none of 2',
+        '  read packages/a/src/story.ts: none (the record was taken over this text)',
+        'test:loop: types clean; no unit test runs at 0-1 (2 skipped)',
+        '',
+      ].join('\n'),
+    );
   });
 });
 
