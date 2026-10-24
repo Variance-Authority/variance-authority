@@ -94,7 +94,9 @@ function rangeLine(range: CoveringRange, table: Table): string {
   const lines = range.startLine === range.endLine ? `${range.startLine}` : `${range.startLine}-${range.endLine}`;
   return `${lines}${range.state === undefined ? '' : ` ${range.state}`}${range.moved === true ? ' edited' : ''}: ${
     witnesses(range.tests, range.stopped, table)
-  }`;
+  }${(range.unentered ?? []).map((region) => `; unentered ${region.kind} ${
+    region.startLine === region.endLine ? region.startLine : `${region.startLine}-${region.endLine}`
+  }${region.stopped === undefined ? '' : region.stopped.length === 0 ? ' unwalked' : ` hole, stopped first ${table.refs(region.stopped)}`}`).join('')}`;
 }
 
 function regionLine(region: StatedRegion, table: Table): string {
@@ -118,7 +120,9 @@ function witnesses(tests: readonly CoveringTest[], stopped: readonly ExecutionTe
 /** Every case the answer names, wherever it names it. */
 function everyCase(answer: Covering): readonly Case[] {
   const cases: Case[] = [...answer.tests ?? [], ...answer.stopped ?? []];
-  for (const range of answer.ranges ?? []) cases.push(...range.tests, ...range.stopped ?? []);
+  for (const range of answer.ranges ?? []) {
+    cases.push(...range.tests, ...range.stopped ?? [], ...(range.unentered ?? []).flatMap((region) => region.stopped ?? []));
+  }
   for (const file of answer.changed ?? []) {
     cases.push(...file.cases);
     for (const region of file.regions) cases.push(...region.tests, ...region.stopped ?? [], ...region.passengers ?? []);

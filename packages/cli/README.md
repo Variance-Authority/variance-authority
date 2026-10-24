@@ -421,6 +421,11 @@ module's own region, such as a module-level statement or the first line of a
 top-level function, is answered at file grain, with the cases that loaded the
 file, and the answer says so.
 
+Over a whole file, a region no case entered that has no line of its own, such
+as a one-line branch inside a function the cases ran, gets a range of its own
+and a line saying no case entered it; `--format json` lists it under the
+range's `unentered`.
+
 A module the run loaded without instrumenting it, such as one named in
 `unprobed` or one whose text the run could not parse, has no recorded line. It is a
 precondition of every test file that loaded it, and `variance select` selects

@@ -134,6 +134,21 @@ Every range, and the answer about one line, has a `state`:
 Read `hole` as unknown, never as untested. A range with no state is one the
 record cannot rank.
 
+A range's cases are the ones an edit to its lines selects, so the line that
+opens a branch carries the cases of the function around it. A region with no
+line of its own, such as a one-line branch, gets a range of its own in the
+whole-file answer and a line under it that says no case entered it, with its
+state:
+
+```text
+line 6 — alone
+  the same named test as lines 4-5
+  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.
+```
+
+`--format json` lists those regions under the range's `unentered`, and
+`--format refs` adds `; unentered branch 6 unwalked` to its line.
+
 ## Ask about the text you are editing
 
 When the file differs from the text the suite ran over, which it does the moment

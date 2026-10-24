@@ -3,6 +3,8 @@ import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
+import { sameUnentered, unenteredOn, type Unentered } from './unentered.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Said } from './case-said.js';
 
 /** One recorded case: who it is, where it is declared, and whether its journey ended. */
@@ -131,6 +133,8 @@ export interface SourceTestRange {
   readonly loaded?: true;
   /** Cases that could have reached the range and stopped first; see {@link stoppedBefore}. */
   readonly stopped?: readonly ExecutionTest[];
+  /** On a range that names cases: its regions no case entered, which no line of their own shows; see `unentered.ts`. */
+  readonly unentered?: readonly Unentered[];
 }
 
 /** Find named tests that reached a source line, lines or scope, nearest first. */
@@ -209,13 +213,15 @@ export function coveringTestsInFile(
     const tests = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
     const loaded = blocks.some((block) => block.loaded === true);
     const short = outside(index, stopped, blocks);
+    const unentered = unenteredOn(index, stopped, blocks, tests.length);
     const previous = ranges.at(-1);
     if (
       previous !== undefined &&
       previous.endLine + 1 === startLine &&
       (previous.loaded === true) === loaded &&
       sameTests(previous.tests, tests) &&
-      sameCases(previous.stopped, short)
+      sameCases(previous.stopped, short) &&
+      sameUnentered(previous.unentered, unentered)
     ) {
       ranges[ranges.length - 1] = { ...previous, endLine };
     } else {
@@ -225,6 +231,7 @@ export function coveringTestsInFile(
         tests,
         ...(loaded ? { loaded: true as const } : {}),
         ...(short === undefined ? {} : { stopped: short }),
+        ...(unentered === undefined ? {} : { unentered }),
       });
     }
   }
@@ -329,10 +336,6 @@ function invalidDistance(): Error {
 
 function invalidTest(test: number): Error {
   return new Error(`invalid execution index: test ${test} does not exist`);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

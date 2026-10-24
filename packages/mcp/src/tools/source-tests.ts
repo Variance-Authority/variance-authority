@@ -101,6 +101,10 @@ function wholeFile(index: ExecutionIndex, file: string): string {
       ? [range.loaded === true ? '  no named test called into this range' : '  no named test reached this range']
       : range.tests.map((test) => `  ${formatTest(test)}`)));
     if (range.loaded === true) lines.push('  ran while its module evaluated');
+    // The range's cases are the ones an edit to its lines selects; a region with no line of its own would read as theirs.
+    for (const region of range.unentered ?? []) {
+      lines.push(`  no case entered the ${region.kind} on ${region.startLine === region.endLine ? `line ${region.startLine}` : `lines ${region.startLine}-${region.endLine}`}`);
+    }
   }
   if (ranges.some((range) => range.loaded === true)) lines.push(UNNAMED_LOADERS);
   return lines.join('\n');

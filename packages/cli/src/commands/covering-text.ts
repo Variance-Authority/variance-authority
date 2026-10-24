@@ -202,9 +202,22 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       lines.push(...caseLines(tests, '  '), ...loadedOnly(carried, tests.length > 0));
       printed.set(key, place);
     }
+    lines.push(...unenteredLines(range));
   }
   lines.push(...narrowedText(answer));
   return lines.join('\n');
+}
+
+/**
+ * The regions on a range nobody entered: the range's cases are the ones an
+ * edit to its lines selects, and a region with no line of its own would read as
+ * theirs (`unentered.ts` in sense).
+ */
+function unenteredLines(range: CoveringRange): readonly string[] {
+  return (range.unentered ?? []).flatMap((region) => [
+    `  no case entered the ${region.kind} on ${region.startLine === region.endLine ? `line ${region.startLine}` : `lines ${region.startLine}-${region.endLine}`}${unentered(region.stopped)}`,
+    ...(region.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`),
+  ]);
 }
 
 /** The cases that reached a range only while their file imported its module, counted under the ones that called into it. */
