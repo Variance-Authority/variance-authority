@@ -3,7 +3,7 @@
 // Arranged as a runner setup file arranges it: the tap exists before
 // `react-dom` runs its module body, so `react-dom/client` is imported below it.
 
-import { act, createContext, memo, useContext, useState, type ReactElement } from 'react';
+import { act, createContext, memo, useContext, useMemo, useState, type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { tapCommits } from './commits.js';
 import { fiberComponentName } from './names.js';
@@ -108,5 +108,15 @@ describe('why a component rendered', () => {
     act(() => open());
     expect(seen).toEqual([['Toggle', [{ kind: 'hook', hook: 'useState', index: 1, before: false, after: true }]]]);
     act(() => root.unmount());
+  });
+
+  it('leaves a memo whose deps moved out, since the render moved them', () => {
+    function Priced({ amount }: { amount: number }): ReactElement {
+      const label = useMemo(() => `$${amount}`, [amount]);
+      return <span>{label}</span>;
+    }
+    expect(rerendered(<Priced amount={1} />, <Priced amount={2} />)).toEqual([
+      ['Priced', [{ kind: 'prop', name: 'amount', before: 1, after: 2 }]],
+    ]);
   });
 });
