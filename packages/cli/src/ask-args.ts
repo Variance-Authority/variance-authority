@@ -1,5 +1,4 @@
 import { resolve } from 'node:path';
-import { flagOf } from '@variance-authority/mcp/tools';
 import { countOf, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 
@@ -56,6 +55,10 @@ export function crossingOf(carrier: Crossing): Crossing {
     const value = carrier[property];
     return value === undefined ? [] : [[property, value] as const];
   }));
+}
+
+function flagOf(property: string): string {
+  return `--${property.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`)}`;
 }
 
 function carried(flags: Flags, properties: readonly string[]): Readonly<Record<string, string>> {
