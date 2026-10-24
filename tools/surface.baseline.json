@@ -1498,6 +1498,7 @@
         "observabilityToolByName": "function",
         "pathsOf": "function",
         "presentationToolByName": "function",
+        "rarity": "function",
         "readTree": "function",
         "refusalFor": "function",
         "scenarioToolByName": "function",

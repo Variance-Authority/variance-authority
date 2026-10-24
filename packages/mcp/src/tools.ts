@@ -136,6 +136,8 @@ export { notObservedSentence } from './tools/subject.js';
 export { cappedRows } from './tools/capped.js';
 // How many rows a listing shows, read and refused the same way in every server.
 export { limitOf, notShown } from './tools/limit.js';
+// How rare a word is in a population, the one integer every word ranking multiplies by a field weight.
+export { rarity } from './tools/rarity.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */
