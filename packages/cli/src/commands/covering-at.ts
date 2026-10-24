@@ -18,6 +18,7 @@
 
 import {
   anyStopped,
+  coveringChange,
   coveringTests,
   functionsUnder,
   lineGrain,
@@ -30,12 +31,14 @@ import {
   type ExecutionTest,
   type HeldLines,
   type Placement,
+  type RangeState,
   type SourceTestTarget,
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt } from '../covering-args.js';
 import type { Narrowing } from './covering-reach.js';
+import { regionState } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { Covering, CoveringTarget } from './covering.js';
 
@@ -107,17 +110,71 @@ export async function coveringAt(
   const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
   if (before !== undefined) reach?.(reached);
   const stopped = stoppedBefore(before ?? index, target, graph);
+  const unrun = 'function' in asked && reached.length > 0 ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
   return {
     file,
     target: asked,
     tests: kept,
     ...(stopped === undefined ? {} : { stopped }),
+    ...(unrun.length === 0 ? {} : { unrun }),
     ...stateFor(reached, stopped),
     ...grain,
     ...(placement === undefined || 'function' in asked ? {} : { frame: placement.frame }),
     from,
     ...countOf(near, kept.length, found.length),
   };
+}
+
+/**
+ * A part of an asked function no case ran: a branch no case took, or a
+ * function inside it no case called. Lines are the held text's.
+ */
+export interface UnrunPart {
+  readonly kind: string;
+  /** Absent for a part of the asked scope's own body, as a branch of it; present for a function nested in it. */
+  readonly name?: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  /** `hole` when a case that could have reached it stopped, `unwalked` when every one finished; absent when the record cannot tell. */
+  readonly state?: RangeState;
+}
+
+/**
+ * The outermost recorded regions under the scope that no case entered, read
+ * region by region as the review and the handover read a changed function —
+ * the one reading of a function's parts, so the two answers cannot disagree.
+ * A part inside one no case entered is not a second finding.
+ */
+function unrunParts(
+  index: ExecutionIndex,
+  module: ExecutionModule,
+  scope: string,
+  graph: { readonly relations?: Relations },
+  placement: Placement | undefined,
+): readonly UnrunPart[] {
+  const spans = functionsUnder(module.blocks, scope).map((block) => ({ start: block.startLine, end: block.endLine }));
+  const regions = (coveringChange(index, new Map([[module.file, spans]]), graph)[0]?.regions ?? [])
+    .filter((region) => region.kind !== 'module' && (region.name === scope || region.name.startsWith(`${scope}/`)))
+    .sort((left, right) => left.startLine - right.startLine || right.endLine - left.endLine);
+  const parts: UnrunPart[] = [];
+  let within = 0;
+  for (const region of regions) {
+    if (region.startLine <= within) continue;
+    if (region.tests.length > 0 || (region.passengers ?? []).length > 0) continue;
+    within = region.endLine;
+    const where = placement === undefined ? { lines: region, moved: false } : placement.place(region);
+    // A part every line of which an edit removed has nowhere in the held text to be named.
+    if (where === undefined) continue;
+    const state = regionState(region);
+    parts.push({
+      kind: region.kind,
+      ...(region.name === scope ? {} : { name: region.name }),
+      startLine: where.lines.startLine,
+      endLine: where.lines.endLine,
+      ...(state === undefined ? {} : { state }),
+    });
+  }
+  return parts;
 }
 
 /** What the question named, as an answer says it: `line 7`, `lines 7-20`, `function Ledger`. */
