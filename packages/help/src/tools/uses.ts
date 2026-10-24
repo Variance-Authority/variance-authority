@@ -157,7 +157,7 @@ function listed(sites: readonly Site[], heading: string, name: string, shown: Sh
     heading,
     '',
     ...cut.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}`),
-    ...(rest > 0 ? [`… ${notShown(rest, shown.spell.input('limit'))}`] : []),
+    ...(rest > 0 ? [`… ${notShown(rest, shown.spell)}`] : []),
   ];
 }
 
@@ -250,7 +250,7 @@ export const uses: Tool<Help> = {
 
   run(help, input, invocation) {
     const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
-    const shown: Shown = { limit: limitOf(input, SHOWN), spell: spellingOf(invocation) };
+    const shown: Shown = { limit: limitOf(input, SHOWN, spellingOf(invocation)), spell: spellingOf(invocation) };
     const answer = usesOf(help, input, invocation?.root, shown.spell);
     const { name, members, exported, found, byPath, kept } = answer;
     const declared = members.declared.length;

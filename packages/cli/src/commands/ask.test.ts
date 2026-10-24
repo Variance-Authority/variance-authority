@@ -394,6 +394,13 @@ describe('a question about a suite that is still running', () => {
     expect(await ask(about('self', { state: RUNNING }))).toContain('http://127.0.0.1:4100');
   });
 
+  it('names `limit` as a shell takes it, from the watcher and from the timed run alike', async () => {
+    const two: VantageState = { ...RUNNING, tests: [...RUNNING.tests, { ...RUNNING.tests[0]!, id: 't-2', ordinal: 1 }] };
+    expect(await ask(about('run-signals', { state: two }, { limit: 1 }))).toContain('a higher `--limit` lists them');
+    const timed = { from: 'The report run.json', subjects: [{ subject: 'story:a', ms: 2 }, { subject: 'story:b', ms: 1 }] };
+    expect(await ask({ question: 'costs', costs: () => Promise.resolve(timed), limit: 1 })).toContain('a higher `--limit` lists them');
+  });
+
   it('compares against the reading the watcher handed out last', async () => {
     // The watcher holds it, because this process exits between questions and has
     // nothing to hold. Same bargain one connection makes for its one client.

@@ -10,6 +10,7 @@ import {
   type CostsSubject,
   type ReviewTool,
   type Tool,
+  type ToolInvocation,
 } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 
@@ -317,4 +318,12 @@ export function wrap(text: string, width: number): readonly string[] {
   }
 
   return lines;
+}
+
+/** The command every question is asked through, which every hint in an answer is spelled for. */
+const SHELL = 'variance ask';
+
+/** What a question's tool is handed: what this command read, asked through its shell. */
+export function invocationOf<Subject>(read: Omit<ToolInvocation<Subject>, 'shell'> = {}): ToolInvocation<Subject> {
+  return { ...read, shell: SHELL };
 }

@@ -183,7 +183,7 @@ now before the answer is given:
 When the dependency lexicon is not published, the answer still says what the
 workspace holds, and that the installed dependencies were not checked:
 ``Whether an installed dependency publishes it is not known: the dependency
-lexicon is not published, and `variance index` publishes it.`` When the source
+lexicon is not published, and the `variance index` command publishes it.`` When the source
 index did not read some files' declarations, the answer says no file *it read*
 declares the name, and names those files last.
 
@@ -289,7 +289,7 @@ and the uses of each member.
 Every site is still counted, and the rest are said:
 
 ```
-… 3 more not shown; a higher `limit` shows them.
+… 3 more not shown; a higher `--limit` shows them.
 ```
 
 A method or property of an interface, a type literal or a class is never

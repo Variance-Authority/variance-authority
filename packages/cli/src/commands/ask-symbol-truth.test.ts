@@ -82,7 +82,7 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(out).not.toMatch(/^variance: the dependency lexicon is not published/m);
     expect(out).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
     expect(out).toContain(
-      'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.',
+      'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.',
     );
   });
 

@@ -122,10 +122,9 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
         operands.find((candidate) => verbOf(candidate) === question)?.wants?.(given) === true),
 
     run: (subject, input, invocation?: ToolInvocation<Subject>) => {
-      const limit = limitOf(input, SHOWN);
       const spell = spellingOf(invocation);
-      // A question is spelled as a shell types it, on either surface, until the next change spells it per surface.
-      const spelled = ({ question, input: given }: Question): string => spellingOf({ shell: "" }).operand(question, given);
+      const limit = limitOf(input, SHOWN, spell);
+      const spelled = ({ question, input: given }: Question): string => spell.operand(question, given);
       const questions = questionsOf(input);
       // Every question is resolved before any is asked, so a misspelled third
       // question costs nothing to refuse.
@@ -170,7 +169,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       for (const file of common.slice(0, limit)) {
         lines.push(`${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`);
       }
-      if (common.length > limit) lines.push('', notShown(common.length - limit, spell.input('limit')));
+      if (common.length > limit) lines.push('', notShown(common.length - limit, spell));
       return lines.join('\n');
     },
   };

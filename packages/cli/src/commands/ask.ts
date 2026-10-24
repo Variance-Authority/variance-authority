@@ -5,7 +5,7 @@ import type { VantageReading } from '@variance-authority/vantage/attach';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { inputFor, questionFor, refuseWords, type Question } from './asking.js';
+import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -195,7 +195,7 @@ export async function ask(request: AskRequest): Promise<string> {
   if (question.costs !== undefined) {
     const input = inputFor(question.costs, flagged(request));
     if (request.costs === undefined) throw new OperatorError('`costs` needs a config: the times are kept under its project');
-    return `${question.costs.run(await request.costs(), input)}\n`;
+    return `${question.costs.run(await request.costs(), input, invocationOf())}\n`;
   }
   if (question.review !== undefined) {
     const input = inputFor(question.review, flagged(request));
@@ -205,7 +205,7 @@ export async function ask(request: AskRequest): Promise<string> {
         `\`${request.question}\` needs a config: it names the deployment and the share token that reads it`,
       );
     }
-    return `${question.review.run(await request.review(question.review, input), input)}\n`;
+    return `${question.review.run(await request.review(question.review, input), input, invocationOf())}\n`;
   }
   if (request.changedFile !== undefined || request.taintFile !== undefined) {
     const flag = request.changedFile !== undefined ? '--changed-file' : '--taint-file';
@@ -366,10 +366,10 @@ async function live(
   // `file` is a path, and a terminal, unlike the watcher, has a directory `./x` is read from.
   const file = input['file'];
   const asked = typeof file === 'string' && file !== '' ? { ...input, file: resolve(file) } : input;
-  return tool.run(reading.state, asked, {
+  return tool.run(reading.state, asked, invocationOf({
     ...(reading.previous === undefined ? {} : { previous: reading.previous }),
     root: repositoryRoot(process.cwd()),
-  });
+  }));
 }
 
 /** A question about a run that finished, asked of the report it left. */
@@ -391,10 +391,10 @@ async function finished(
   // it — `wants` is the tool's answer about its own arguments — because it is a
   // walk of the repository and most questions name no path at all.
   const tree = tool.wants?.(input) === true ? await sourceTree() : undefined;
-  const answer = tool.run(report, input, {
+  const answer = tool.run(report, input, invocationOf({
     ...(previous === undefined ? {} : { previous }),
     ...(tree === undefined ? {} : { tree }),
-  });
+  }));
 
   // After the answer and only after it, which is the MCP rule verbatim: a
   // refused call must not become the thing the next diff compares against.

@@ -1,5 +1,5 @@
 import { HELP_TOOLS } from './tools.js';
-import type { Tool, Tree } from '@variance-authority/mcp/tools';
+import type { Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { startPointArg, stringArg, verbOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { snapshotLine } from './caught-up.js';
@@ -28,7 +28,12 @@ import { wordsOf } from './words.js';
  */
 
 /** The command the verbs are asked through, which every hint in an answer is spelled for. */
-export const SHELL = 'variance-authority-help';
+const SHELL = 'variance-authority-help';
+
+/** What a verb's tool is handed: what this host read, asked through its shell. */
+export function invocationOf<Subject>(read: Omit<ToolInvocation<Subject>, 'shell'>): ToolInvocation<Subject> {
+  return { ...read, shell: SHELL };
+}
 
 export function toolNamed(verb: string): Tool<Help> {
   const found = HELP_TOOLS.find((tool) => verbOf(tool) === verb);
@@ -138,7 +143,7 @@ export function ask(
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
-  const answer = tool.run(help, input, { ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }), shell: SHELL });
+  const answer = tool.run(help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }) }));
   const at = workspaceGeneration(help);
   return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
 }

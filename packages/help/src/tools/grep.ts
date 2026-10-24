@@ -65,7 +65,8 @@ export const grep: Tool<unknown> = {
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
   run: (_help, input, invocation) => {
-    const limit = limitOf(input, SHOWN);
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, SHOWN, spell);
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const header = [areaLine(area)];
@@ -94,7 +95,7 @@ export const grep: Tool<unknown> = {
       }
       lines.push(`${hit.file}:${hit.line}:${hit.text}`);
     }
-    if (hits.length > limit) lines.push('', notShown(hits.length - limit, spellingOf(invocation).input('limit')));
+    if (hits.length > limit) lines.push('', notShown(hits.length - limit, spell));
     return lines.join('\n');
   },
 

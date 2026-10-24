@@ -110,7 +110,7 @@ export const symbol: Tool<Help> = {
       // Without it, what the workspace holds is still an answer: the
       // dependencies are the part of it not checked.
       if (everywhere === undefined) {
-        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.', spell));
+        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.', spell));
       }
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
