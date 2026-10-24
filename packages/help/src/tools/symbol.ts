@@ -1,5 +1,5 @@
-import type { FileSet, Tool } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
@@ -9,6 +9,7 @@ import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from 
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, isNested, unreadLine } from './declared.js';
+import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { lineOf, originOf, passedOnRows } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
@@ -55,6 +56,7 @@ export const symbol: Tool<Help> = {
   },
 
   run(help, input, invocation) {
+    const spell = spellingOf(invocation);
     const name = stringArg(input, 'name');
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
@@ -74,7 +76,7 @@ export const symbol: Tool<Help> = {
     // export of the same name is another thing, so it never stands for this one.
     const at = startPointArg(input, 'from');
     const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
-    const { blocks: declared, topLevel } = declaredBlocks(invocation?.root, name, wanted, paths);
+    const { blocks: declared, topLevel } = declaredBlocks(invocation?.root, name, wanted, spell, paths);
 
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
@@ -87,11 +89,11 @@ export const symbol: Tool<Help> = {
     // that passes an installed binding on exports it without declaring it.
     // A published namesake is another declaration, so it never hides this one.
     const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map(([, , entry]) => entry.at));
-    const others = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root)] : [];
+    const others = exported.length > 0 ? [exportedOnly(name, exported, invocation?.root, spell)] : [];
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
       const rest = exported.filter((held) => !imported.has(held.at));
-      return [importedByPath(help, name, byPath), ...(rest.length > 0 ? [exportedOnly(name, rest, invocation?.root)] : []), ...declared, ...aliased].join('\n\n');
+      return [importedByPath(help, name, byPath), ...(rest.length > 0 ? [exportedOnly(name, rest, invocation?.root, spell)] : []), ...declared, ...aliased].join('\n\n');
     }
     const kept = [
       ...(found.length === 0 ? others : []),
@@ -103,7 +105,7 @@ export const symbol: Tool<Help> = {
     // the name included, does; a function a body declares is beside it, not over it.
     const top = others.length > 0 || topLevel || aliased.length > 0;
     const members = found.length === 0 && !top ? membersOf(invocation?.root, name, wanted) : undefined;
-    const own = members === undefined || members.declared.length === 0 ? kept : [...memberBlocks(invocation?.root, name, members), ...declared];
+    const own = members === undefined || members.declared.length === 0 ? kept : [...memberBlocks(invocation?.root, name, members, spell), ...declared];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: the installed answers below say so.
     const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
@@ -116,7 +118,7 @@ export const symbol: Tool<Help> = {
       // Without it, what the workspace holds is still an answer: the
       // dependencies are the part of it not checked.
       if (everywhere === undefined) {
-        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.'));
+        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.', spell));
       }
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
       const shown = here ?? everywhere;
@@ -148,7 +150,7 @@ export const symbol: Tool<Help> = {
       const checked = invocation?.root === undefined
         ? undefined
         : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
-      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked));
+      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked, spell));
     }
 
     const [first] = found;
@@ -166,7 +168,7 @@ export const symbol: Tool<Help> = {
     const shown =
       written === 0
         ? []
-        : [`\ndocs_uses names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
+        : [`\n\`${spell.tool(uses)}\` names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
     // The imports within a package are the source index's, which the Help value does not record.
     const declaring = [...new Set(found.map(([, , entry]) => entry.at))];
@@ -211,7 +213,7 @@ export const symbol: Tool<Help> = {
     const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
     at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
     if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
-    if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined));
+    if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
     const files = new Map<string, number[]>();
     for (const [file, line] of at) {
       const lines = files.get(file) ?? [];
@@ -228,7 +230,7 @@ export const symbol: Tool<Help> = {
  * read, then the files whose declarations were not read, since one of them
  * may declare it at its top level.
  */
-function memberBlocks(root: string | undefined, name: string, members: Members): readonly string[] {
+function memberBlocks(root: string | undefined, name: string, members: Members, spell: Spelling): readonly string[] {
   const read = declarations(root, name);
   const stop = membersStop(name, members);
   return [
@@ -236,7 +238,7 @@ function memberBlocks(root: string | undefined, name: string, members: Members):
       [
         name,
         `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
-        "docs_uses names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
+        `\`${spell.tool(uses)}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
       ].join('\n'),
     ),
     ...(stop === undefined ? [] : [stop]),
@@ -323,7 +325,7 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
  * passes on a declaration of another file is followed to it, and that line is
  * shown too. The members of an interface, a type alias or a class come last.
  */
-function exportedOnly(name: string, exported: readonly Named[], root: string | undefined): string {
+function exportedOnly(name: string, exported: readonly Named[], root: string | undefined, spell: Spelling): string {
   return declaringExports(name, exported, root)
     .map(([held, within]) => {
       const { declared, rows } = passedOnRows(root, held);
@@ -332,7 +334,7 @@ function exportedOnly(name: string, exported: readonly Named[], root: string | u
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
         ...(root === undefined ? [] : lineOf(root, held)),
         ...rows,
-        ...('uses' in within ? [importedIn(within.uses.length), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
+        ...('uses' in within ? [importedIn(within.uses.length, spell), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
         ...memberRows(root, declared.at, declared.name, declared.line),
       ].join('\n');
     })
@@ -352,8 +354,8 @@ function declaringExports(name: string, exported: readonly Named[], root: string
 }
 
 /** How many places import one export, read off the source index. */
-function importedIn(count: number): string {
+function importedIn(count: number, spell: Spelling): string {
   return count === 0
     ? `Nothing in this workspace imports it; ${UNCOUNTED}.`
-    : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; docs_uses lists them, nearest to a file you name first.`;
+    : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; \`${spell.tool(uses)}\` lists them, nearest to a file you name first.`;
 }

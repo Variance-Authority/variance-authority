@@ -138,6 +138,8 @@ export { cappedRows } from './tools/capped.js';
 export { limitOf, notShown } from './tools/limit.js';
 // How rare a word is in a population, the one integer every word ranking multiplies by a field weight.
 export { rarity } from './tools/rarity.js';
+// How an answer names an input, a tool or a question, on the surface it was asked on.
+export { flagOf, spellingOf, verbOf, type Spelling } from './tools/spelling.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */

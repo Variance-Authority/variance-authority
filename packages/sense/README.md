@@ -2283,6 +2283,14 @@ distances into inclusive ranges; an indexed but unreached range has an empty
 range. Missing source returns no answer; an invalid test reference or distance
 throws.
 
+`keep` in the options names only the cases it keeps, and the ranges fold over
+what is left, so a boundary still marks where the claim on the code changes. A
+range that names cases lists under `unentered` the regions on it no case
+entered, such as a one-line branch whose line the function around it also
+charges. `unenteredSentence(region)` says that in the sentence the CLI and the
+MCP server print, closed by `whyUnentered(stopped)`: unwalked, a hole, or
+neither when the record cannot tell.
+
 Every seam here writes an `ExecutionIndex` into its snapshot. In the snapshot
 a crossing joins the whole test file, which is the granularity selection
 spends; in the index it joins the case.

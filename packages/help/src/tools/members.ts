@@ -28,6 +28,7 @@
 import type { Use } from '@variance-authority/package/help';
 import { LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
 
 /** The declarations of a member by one name. */
 export interface Members {
@@ -87,13 +88,13 @@ export const TYPED =
  * and TypeScript, that language's own language server for any other, and each
  * declaration's own when they are written in more than one.
  */
-export function routes(name: string, members: Members): readonly string[] {
+export function routes(name: string, members: Members, spell: Spelling): readonly string[] {
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
   // A container with a name is one `used` lists; one without is named by the member alone.
   const named = members.used.some(({ declared }) => declared === only);
   const at =
     only === undefined
-      ? 'the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package)'
+      ? `the declaration you mean, each listed above with its file and line (\`${spell.input('package')}\` narrows the declarations to one package)`
       : `\`${named ? `${only.by}.${name}` : name}\` at ${only.at}:${only.line}`;
   const languages = new Set(members.declared.map((site) => languageOf(site.at)));
   const ask =

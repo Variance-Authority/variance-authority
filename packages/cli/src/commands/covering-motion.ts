@@ -84,6 +84,12 @@ export interface CoveringMotion {
    * known, so nothing is compared.
    */
   readonly lastRunUnread?: string;
+  /**
+   * Why the layer the runs at this commit retired cannot be paired with the
+   * current regions, when it names no commit to diff from: a second run there
+   * ran a test file again. Nothing is compared, and the review says so.
+   */
+  readonly undiffed?: string;
 }
 
 /**
@@ -246,7 +252,14 @@ export async function motionOfRuns(
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
   const ran = new Set([...wrote.compared, ...(wrote.unwritten ?? []), ...(wrote.unbased ?? [])]);
-  return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
+  try {
+    return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
+  } catch (error) {
+    // A layer naming no commit is the record's own state, left uncompared; a
+    // commit it names that cannot be read is this clone's, and is refused.
+    if (wrote.at !== undefined || !(error instanceof OperatorError) || error.kind !== 'undiffed') throw error;
+    return { base, ...said, undiffed: error.message };
+  }
 }
 
 /** The current record against the base `--against` names, with what the base's branch moved left out. */
@@ -294,6 +307,7 @@ export function motionText(
   if (motion.unbased !== undefined && motion.unbased.length > 0) {
     unwritten.push(`Not compared, no case of these was recorded before this commit's first run: ${listedOf(motion.unbased, listed, 'test file')}.`);
   }
+  if (motion.undiffed !== undefined) return ['', `Not compared: ${motion.undiffed}`, ...unwritten];
   if (motion.lastRunUnread !== undefined) {
     return ['', `Not compared: ${motion.lastRunUnread} could not be read, so which test files a run at this commit wrote to the case index is not known.`];
   }

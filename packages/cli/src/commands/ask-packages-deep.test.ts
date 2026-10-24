@@ -92,7 +92,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(symbol.out).toContain("import { greet } from '@acme/lib';");
     expect(symbol.out).toContain('declared at packages/lib/src/greet.ts:1');
     expect(symbol.out).toContain(
-      'docs_uses names the 1 place another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.',
+      '`variance ask uses` names the 1 place another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.',
     );
 
     const uses = await run(['ask', 'uses', '--name', 'greet']);

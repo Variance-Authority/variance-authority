@@ -1,8 +1,11 @@
+import { isAbsolute, relative, sep } from 'node:path';
 import type { Documented, Entry, Help, Opening } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
 import { declarations, unreadLine } from './declared.js';
 import { type Members, membersStop } from './members.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
+import { search } from './search.js';
 
 /**
  * Locating the thing a question is about, and answering well when it is not there.
@@ -101,7 +104,9 @@ export function entriesNamed(help: Help, name: string): readonly (readonly [Docu
  * saying so costs the caller one hop instead of three; when the name is a
  * substring of several, the count says whether `search` is worth asking.
  */
-export function unfound(help: Help, name: string, within: string | undefined): string {
+export function unfound(help: Help, name: string, within: string | undefined, spell: Spelling): string {
+  const unnamed = within === undefined ? undefined : unnamedPackage(help, within, undefined, spell);
+  if (unnamed !== undefined) return unnamed;
   const where = within === undefined ? 'this workspace' : `\`${within}\``;
   const lowered = name.toLowerCase();
   const published = new Set([...everyEntry(help)].map(([, , entry]) => entry.name));
@@ -126,9 +131,43 @@ export function unfound(help: Help, name: string, within: string | undefined): s
   }
   const around = [...published].filter((held) => held.toLowerCase().includes(lowered)).length;
   if (around > 0) {
-    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`search\` with it as the query.`;
+    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`${spell.tool(search)}\` with it as the \`${spell.input('query')}\`.`;
   }
-  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`search\` with a word from its documentation.`;
+  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`${spell.tool(search)}\` with a word from its documentation.`;
+}
+
+/**
+ * What a question is told whose `package` names no package: what that input
+ * takes, and, where the value is a directory, the packages in it. A path is
+ * the commonest wrong form of it, and what is under it is already read: the
+ * published entries, and the manifest owning each exported file, which names
+ * a package that declares no entry, private or not. The directory is read
+ * from the workspace root however it is written — `./packages/lib`, or an
+ * absolute path under `root`. Nothing when a package, a specifier it opens,
+ * or an owner the source index holds exports by that name.
+ */
+export function unnamedPackage(help: Help, within: string, root: string | undefined, spell: Spelling): string | undefined {
+  if ([...everyEntry(help)].some(([published, opening]) => isPackage(published, opening, within))) return undefined;
+  if (help.packages.some((published) => published.name === within || within.startsWith(`${published.name}/`))) return undefined;
+  if (help.exported.some((held) => held.by === within)) return undefined;
+  const directory = fromRoot(within, root);
+  const under = (file: string): boolean => file.startsWith(`${directory}/`);
+  const named = new Set([
+    ...help.packages.filter((published) => published.openings.some((opening) => under(opening.source))).map((published) => published.name),
+    ...help.exported.filter((held) => under(held.at)).map((held) => held.by),
+  ]);
+  const there = [...named].map((name) => `\`${name}\``);
+  const takes = `No package is named \`${within}\`: \`${spell.input('package')}\` takes a package's name or a specifier it is imported by`;
+  if (there.length === 0) return `${takes}.`;
+  if (there.length === 1) return `${takes}, and \`${directory}\` is the directory of ${there[0]}.`;
+  return `${takes}, and \`${directory}\` holds ${there.length} packages: ${there.join(', ')}.`;
+}
+
+/** A directory as the workspace root spells it: no `./`, no trailing `/`, and an absolute path under `root` made relative to it. */
+function fromRoot(written: string, root: string | undefined): string {
+  const trimmed = written.replace(/\/+$/u, '');
+  const inside = root !== undefined && isAbsolute(trimmed) ? relative(root, trimmed) : trimmed;
+  return inside.startsWith('..') || isAbsolute(inside) ? trimmed : inside.replace(/^(\.\/)+/u, '').split(sep).join('/');
 }
 
 /**
@@ -164,7 +203,11 @@ export function nowhere(
   root: string | undefined,
   members: Members | undefined,
   dependencies: string | undefined,
+  spell: Spelling,
 ): string {
+  // A package that names none was asked nothing, so nothing is said about its files.
+  const unnamed = wanted === undefined ? undefined : unnamedPackage(help, wanted, root, spell);
+  if (unnamed !== undefined) return unnamed;
   const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
   const read = declarations(root, name);
   const why = 'refused' in read ? read.refused : members?.unread;
@@ -177,5 +220,5 @@ export function nowhere(
     : stop === undefined
       ? `${none}, at its top level or as a member.`
       : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
-  return [unfound(help, name, wanted), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
+  return [unfound(help, name, wanted, spell), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
 }

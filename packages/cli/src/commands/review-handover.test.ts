@@ -346,7 +346,10 @@ describe('a review handed over in the pull request body, before CI', () => {
     await writeFile(commitRunsFile(record), JSON.stringify({
       commit: change, first: '2026-10-09T00:00:00.000Z', latest: '2026-10-09T00:00:00.000Z', runs: 2, files: ['test/total.test.ts'],
     }));
-    expect((await printed(['--since', first, '--root', root])).err).toContain('names no commit it was recorded at');
+    // The review after CI answers too, and says that no case is compared.
+    const text = await printed(['--since', first, '--root', root]);
+    expect(text.code).toBe(0);
+    expect(text.out).toContain('Not compared: The run before the last one names no commit it was recorded at');
 
     const { code, out } = await printed(['--since', first, '--root', root, '--format', 'handover']);
 

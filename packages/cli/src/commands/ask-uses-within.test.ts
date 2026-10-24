@@ -138,7 +138,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(out.split('\n')).toContain(
-      '`greet` [function] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
+      '`greet` [function] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. `variance ask symbol` has its signature and what is written above it.',
     );
   });
 

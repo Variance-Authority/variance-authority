@@ -12,6 +12,7 @@
 // compass: variance-authority.report.agent-surface
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { Spelling } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
@@ -185,7 +186,7 @@ function publishedInside(help: Help, namespaces: ReturnType<typeof sitesOfOne>['
  * Every site of the name for the declaration asked about, and each other
  * declaration's apart, and what was read to find them, or the refusal.
  */
-export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: string | undefined) {
+export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: string | undefined, spell: Spelling) {
   const name = stringArg(input, 'name');
   const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
 
@@ -235,7 +236,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     }
     if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
-    throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined));
+    throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined, spell));
   }
   // A published name is read from its entry file as well as its declaration:
   // an entry that renames it, `export { greet as salute }`, passes on a name

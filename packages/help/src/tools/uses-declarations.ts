@@ -6,6 +6,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+import type { Spelling } from '@variance-authority/mcp/tools';
 import type { Named } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
@@ -31,19 +32,19 @@ export function bracketed(held: readonly (string | undefined)[]): string {
  * are two declarations that share a spelling, and the export of one is no
  * answer about the other.
  */
-export function keptLine(name: string, kept: readonly DeclaredName[]): string {
+export function keptLine(name: string, kept: readonly DeclaredName[], spell: Spelling): string {
   // A Rust item inside an inline module answers to its own name, and is
   // declared on its module path: the path is said where it is not the name.
   const named = (one: DeclaredName): string => (one.name === name ? '' : ` as \`${one.name}\``);
   const kind = (one: DeclaredName): string => bracketed([one.kind]);
   if (kept.length === 1) {
     const one = kept[0]!;
-    return `\`${name}\`${kind(one)} is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one).clause}.`;
+    return `\`${name}\`${kind(one)} is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one, spell).clause}.`;
   }
   const files = new Set(kept.map((one) => one.at)).size;
   return [
     `\`${name}\` is declared, not exported, in ${files === kept.length ? `${files} files` : places(kept.length)}:`,
-    ...kept.map((one) => `  ${one.at}:${one.line}${named(one)}${kind(one)}${reachSentences(one).clause}`),
+    ...kept.map((one) => `  ${one.at}:${one.line}${named(one)}${kind(one)}${reachSentences(one, spell).clause}`),
   ].join('\n');
 }
 
@@ -59,8 +60,8 @@ export function namesakeLine(name: string, exported: readonly Named[]): string {
 }
 
 /** How to ask for one declaration, said when the answer covers more than one and no file was named. */
-export function narrowing(files: readonly string[], file: string | undefined): readonly string[] {
-  return file !== undefined || new Set(files).size < 2 ? [] : ['', '`file`, the file one of them is declared in, answers for that declaration alone.'];
+export function narrowing(files: readonly string[], file: string | undefined, spell: Spelling): readonly string[] {
+  return file !== undefined || new Set(files).size < 2 ? [] : ['', `\`${spell.input('file')}\`, the file one of them is declared in, answers for that declaration alone.`];
 }
 
 /** The answer for a `file` that declares no thing by the name: the files that do. */

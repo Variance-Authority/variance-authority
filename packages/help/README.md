@@ -93,6 +93,10 @@ one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
 
+An answer that points you at another question names it the way the binary you
+asked takes it — `--limit`, `variance-authority-help symbol` — where the same
+answer over MCP says `limit` and `docs_symbol`.
+
 The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
 is installed — `npx variance ask search --query viewport` — and the same

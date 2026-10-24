@@ -52,7 +52,7 @@ import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
-import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
+import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
@@ -353,7 +353,8 @@ async function ask(
     : ranges.map((range) => ({ ...range, tests: range.tests.filter((test) => listed.has(test.id)) }));
   if (before !== undefined) reach?.(listedIn({ tests: found.flatMap((range) => range.tests).filter(near.keep) }));
   if (near.whole) return { file: file, ranges: listing(placeRanges(found, placement)), ...frame, from };
-  const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
+  // The narrowing is read inside the fold, so a range boundary still marks where the claim changes.
+  const narrowed = coveringTestsInFile(before ?? index, file, { ...graph, keep: near.keep });
   return {
     file: file,
     ranges: listing(placeRanges(narrowed, placement)),

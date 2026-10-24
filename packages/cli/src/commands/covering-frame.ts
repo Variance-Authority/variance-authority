@@ -94,7 +94,8 @@ async function readStandardInput(): Promise<string> {
 
 /**
  * Every range where it stands now, with its state. A range whose every line an
- * edit removed is dropped: there is nowhere in the held text to paint it.
+ * edit removed is dropped: there is nowhere in the held text to paint it. The
+ * regions no case entered move with it, and one the edit removed is dropped.
  */
 export function placeRanges(
   ranges: readonly SourceTestRange[],
@@ -110,7 +111,16 @@ export function placeRanges(
     }
     const where = placement.place(range);
     if (where === undefined) continue;
-    placed.push({ ...stated, ...where.lines, ...(where.moved ? { moved: true as const } : {}) });
+    const unentered = range.unentered?.flatMap((region) => {
+      const now = placement.place(region);
+      return now === undefined ? [] : [{ ...region, ...now.lines }];
+    });
+    const { unentered: _, ...rest } = stated;
+    placed.push({
+      ...rest, ...where.lines,
+      ...(where.moved ? { moved: true as const } : {}),
+      ...(unentered === undefined || unentered.length === 0 ? {} : { unentered }),
+    });
   }
   return placed;
 }
