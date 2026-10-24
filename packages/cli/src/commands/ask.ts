@@ -5,9 +5,9 @@ import type { VantageReading } from '@variance-authority/vantage/attach';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
+import { QUESTIONS, inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
-import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help, uses } from '@variance-authority/help/tools';
+import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
@@ -16,7 +16,7 @@ import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, usesModuleSource, wholeSource } from './ask-source.js';
+import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -252,6 +252,24 @@ export async function askSource(request: SourceRequest): Promise<string> {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
   }
   const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
+  // A question whose input names what another tool answers is that tool's,
+  // asked here, where it is formed, and answered by that tool's own reading.
+  const restated = crossing ? undefined : restatedOf(tool, input);
+  const other = restated === undefined ? undefined : QUESTIONS.find((question) => question.source?.name === restated.tool)?.source;
+  if (restated === undefined || other === undefined) return answerSource(request, tool, input);
+  const module = await answerSource(request, other, restated.input);
+  const also = restated.also ? await answerSource(request, tool, input, true) : undefined;
+  return `${restated.said}\n\n${module}${also === undefined ? '' : `\n${also}`}`;
+}
+
+/**
+ * One source question's answer, read again when its refusal came from what
+ * the checkout was before. `quiet` gives nothing for a name not found, where
+ * the question is asked beside another that answers.
+ */
+async function answerSource(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>): Promise<string>;
+async function answerSource(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>, quiet: true): Promise<string | undefined>;
+async function answerSource(request: SourceRequest, tool: Tool<Help>, input: Readonly<Record<string, unknown>>, quiet = false): Promise<string | undefined> {
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
@@ -291,16 +309,25 @@ export async function askSource(request: SourceRequest): Promise<string> {
     if (caught?.subject === undefined) {
       // A name not found is an answer, dated like any other, once nothing newer can be read.
       const found = foundNothingAnswer(refusal, caught, answering.at, unseen);
-      if (found !== undefined) return foundNothing(found, unopenedLine(answering.unopened, !unseen));
+      if (found !== undefined) return quiet ? undefined : foundNothing(found, unopenedLine(answering.unopened, !unseen));
       throw refused(refusal, said);
     }
     try {
       return rendered(request, caught.subject, false);
     } catch (still) {
       const found = foundNothingAnswer(still, caught, caught.subject.at, false);
-      if (found !== undefined) return foundNothing(found, unopenedLine(caught.subject.unopened, true));
+      if (found !== undefined) return quiet ? undefined : foundNothing(found, unopenedLine(caught.subject.unopened, true));
       throw refused(still, said);
     }
+  }
+}
+
+/** The question this one is, or its refusal where the input names nothing either tool answers. */
+function restatedOf(tool: Tool<Help>, input: Readonly<Record<string, unknown>>): ReturnType<NonNullable<Tool<Help>['restated']>> {
+  try {
+    return tool.restated?.(input, process.cwd());
+  } catch (refusal) {
+    throw refused(refusal, '');
   }
 }
 
@@ -323,7 +350,6 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
     : tool.name === discover.name ? await discoverSource(process.cwd(), input)
     : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
-    : tool.name === uses.name && tool.wants?.(input) === true ? await usesModuleSource(process.cwd(), input, reading)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)

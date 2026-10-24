@@ -250,9 +250,12 @@ about to write a call and the signature alone leaves a choice open. Read the
 stories first: a story is somebody's worked example of the call. A section with
 no members is left out rather than shown empty.
 
-A `--name` that holds a `/` is a module, a file path or a package, because no
-name does: `uses` answers who imports it, as `discover --imports` does, and its
-first line says so.
+A `--name` is a module when the checkout holds a file at it, or when Node
+resolves it from the root to a package: `uses` answers who imports it, as
+`discover --imports` does, and its first line says so. A package is answered as
+a name too, after the importers, where the name is found, since `react` is both.
+A name written as a path, `./` or `../` first, that no file is at is refused as
+no path in the checkout. Over MCP, `docs_uses` answers every `name` as a name.
 
 A published name that nothing imports is a different answer, not an empty list:
 

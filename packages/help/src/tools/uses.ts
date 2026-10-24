@@ -4,6 +4,7 @@ import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine } from './declared.js';
 import { discover } from './discover.js';
+import { restatedUses } from './uses-module.js';
 import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { sharedSegments } from './shared-segments.js';
@@ -162,7 +163,7 @@ function held(use: Use): string {
 
 /**
  * `docs_uses`: every place a name is imported or read, for each declaration of
- * it, or who imports a module when the name is a path or a package.
+ * it, or who imports a module when the name is a file or a package.
  */
 export const uses: Tool<Help> = {
   name: 'docs_uses',
@@ -182,11 +183,12 @@ export const uses: Tool<Help> = {
     'through a namespace inside a namespace or one passed on as `default` is a site. ' +
     'Each file declaring the name declares another thing: the answer lists every one with its own imports, kept ' +
     'apart, and `file`, the file one is declared in or a file passing it on, answers for that declaration alone. ' +
-    'A `name` holding a `/` is a module, a file path or a package: the answer is who imports it, as docs_discover answers `imports`.',
+    'Asked through `variance ask`, a `name` that is a file of the checkout, or a package the checkout resolves, is a module: ' +
+    'the answer is who imports it, as docs_discover answers `imports`, and a package is answered as a name too.',
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The exported name or member name, matched exactly, or a module: a file path or a package, which holds a `/`.' },
+      name: { type: 'string', description: 'The exported name or member name, matched exactly, or a module: a file of the checkout or a package it resolves.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         type: 'string',
@@ -209,15 +211,10 @@ export const uses: Tool<Help> = {
     additionalProperties: false,
   },
 
-  // Who imports a module is read off the tree, as `discover` reads it.
-  wants: (input) => moduleOf(input) !== undefined,
+  // Who imports a module is `discover --imports`, asked where the question is formed.
+  restated: (input, root) => restatedUses(input, root, discover.name),
 
   run(help, input, invocation) {
-    const module = moduleOf(input);
-    if (module !== undefined) {
-      const answer = discover.run(help, { imports: [module], ...limitInput(input) }, invocation);
-      return `\`${module}\` is a module, not a name: these are the files importing it, as \`discover\` answers \`imports\`.\n\n${answer}`;
-    }
     const spell = spellingOf(invocation);
     const shown: Shown = { limit: limitOf(input, SHOWN, spell), spell };
     const answer = usesOf(help, input, invocation?.root, spell);
@@ -228,8 +225,6 @@ export const uses: Tool<Help> = {
   // declaring it as a member, read as `run` reads them; an index that did not
   // read leaves the imports within the package unread.
   files(help, input, invocation): FileSet {
-    const module = moduleOf(input);
-    if (module !== undefined) return discover.files!(help, { imports: [module] }, invocation);
     const { namesakes, sites, unread, members, kept, keptSites, inFile, keptInFile } = usesOf(help, input, invocation?.root, spellingOf(invocation));
     const files = new Map<string, number[]>();
     const others = namesakes.flatMap((one) => [...one.sites, ...one.inFile]);
@@ -239,20 +234,6 @@ export const uses: Tool<Help> = {
     return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
   },
 };
-
-/**
- * The module a `name` names when it is a path or a package rather than a
- * name: no name holds a `/`, and a specifier or a file path does.
- */
-function moduleOf(input: Readonly<Record<string, unknown>>): string | undefined {
-  const name = input['name'];
-  return typeof name === 'string' && name.includes('/') ? name : undefined;
-}
-
-/** The `limit` a question said, passed on as it was. */
-function limitInput(input: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
-  return input['limit'] === undefined ? {} : { limit: input['limit'] };
-}
 
 /** The answer `docs_uses` gives, before the line on how to ask for one declaration. */
 function answered(answer: Answer, input: Readonly<Record<string, unknown>>, shown: Shown): string {

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
-import type { Tree } from '@variance-authority/mcp/tools';
+import { type Tool, type Tree, verbOf } from '@variance-authority/mcp/tools';
+import type { Help } from '@variance-authority/package/help';
 import { ask, askSearch, askSearchJson, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { caughtUp, foundNothingAnswer, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
-import { intersection, namesWanted } from './tools.js';
+import { HELP_TOOLS, intersection, namesWanted } from './tools.js';
 import { search } from './tools/search.js';
-import { uses } from './tools/uses.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -125,6 +125,74 @@ function withoutRoot(args: readonly string[]): readonly string[] {
   return without(without(args, '--root'), '--format').filter((argument) => argument !== '--just-answer');
 }
 
+/** One question to answer from a shell: the verb as typed, its arguments, and the input they make. */
+interface Asked {
+  readonly root: string;
+  readonly tool: Tool<Help>;
+  readonly verb: string;
+  readonly ownArgs: readonly string[];
+  readonly input: Readonly<Record<string, unknown>>;
+  readonly format: string;
+  readonly justAnswer: boolean;
+}
+
+/**
+ * The answer to one question, read again when its refusal came from a reused
+ * generation. `quiet` gives nothing for a name not found, where the question
+ * is asked beside another that answers.
+ */
+async function answerOf(asked: Asked, quiet = false): Promise<string | undefined> {
+  const { root, tool, verb, ownArgs, input, format, justAnswer } = asked;
+  const wantsTree = tool.wants?.(input) === true;
+  // `search` opens the file published for it rather than the whole value, at
+  // any age, so it is compared with the checkout only when nothing was
+  // published and the checkout was read; `discover` reads no workspace
+  // value, only the tree and its names.
+  const answering = async (current: boolean): Promise<Answering> => {
+    let tree: Tree | undefined;
+    const reading: Reading = {
+      justAnswer,
+      ...(current ? { refreshAfterMs: 0 } : {}),
+      ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
+    };
+    if (tool === search) {
+      const { index, compared, unopened } = await readSearchForAnswer(root, reading);
+      return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened), at: index.generation?.generatedAt };
+    }
+    if (tool === discover) {
+      const named = await readNamedTree(root, input);
+      return { answer: () => discover.run(undefined, input, invocationOf({ ...named, root })), at: undefined };
+    }
+    if (tool === intersection && namesWanted(input)) return crossNamed(root, reading, ownArgs);
+    const help = await readWorkspaceForAnswer(root, reading);
+    return { answer: () => ask(help, verb, ownArgs, () => tree, root, justAnswer), at: workspaceGeneration(help) };
+  };
+
+  const started = Date.now();
+  const first = await answering(false);
+  try {
+    return first.answer();
+  } catch (refusal) {
+    // A refusal from a reused generation is asked again of one read now;
+    // `--just-answer` and `search` read only what was published, so theirs stands.
+    // A refusal whose checkout could not be compared says why.
+    const caught = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering);
+    const footer = caught?.footer ?? (justAnswer && first.at !== undefined ? snapshotLine(first.at, true) : undefined);
+    try {
+      if (caught?.subject === undefined) throw refusal;
+      return caught.subject.answer();
+    } catch (still) {
+      // A name not found is an answer once nothing newer can be read, dated as any other.
+      const found = foundNothingAnswer(still, caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);
+      if (found === undefined) {
+        if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
+        throw still;
+      }
+      return quiet ? undefined : found;
+    }
+  }
+}
+
 const [, , ...args] = process.argv;
 
 if (args.includes('--help') || args.includes('-h')) {
@@ -146,63 +214,20 @@ if (asking(verb) && verb !== undefined) {
     const format = flag(args, 'format') ?? 'text';
     if (format !== 'text' && format !== 'json') throw new Error(`--format must be text or json, not \`${format}\``);
     if (format === 'json' && tool !== search) throw new Error(`\`${verb}\` answers in text only; \`--format json\` is taken by \`search\``);
-    const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
     const justAnswer = args.includes('--just-answer');
-    // `search` opens the file published for it rather than the whole value, at
-    // any age, so it is compared with the checkout only when nothing was
-    // published and the checkout was read; `discover` reads no workspace
-    // value, only the tree and its names.
-    const answering = async (current: boolean): Promise<Answering> => {
-      let tree: Tree | undefined;
-      const reading: Reading = {
-        justAnswer,
-        ...(current ? { refreshAfterMs: 0 } : {}),
-        ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
-      };
-      if (tool === search) {
-        const { index, compared, unopened } = await readSearchForAnswer(root, reading);
-        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened), at: index.generation?.generatedAt };
-      }
-      if (tool === discover) {
-        const named = await readNamedTree(root, inputFrom(tool, ownArgs));
-        return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root })), at: undefined };
-      }
-      if (tool === intersection && namesWanted(inputFrom(tool, ownArgs))) return crossNamed(root, reading, ownArgs);
-      if (tool === uses && wantsTree) {
-        // `uses` of a module is `discover --imports` of it, which reads each file's names.
-        const [help, named] = await Promise.all([readWorkspaceForAnswer(root, reading), readNamedTree(root, inputFrom(tool, ownArgs))]);
-        return { answer: () => uses.run(help, inputFrom(tool, ownArgs), { ...named, root }), at: workspaceGeneration(help) };
-      }
-      const help = await readWorkspaceForAnswer(root, reading);
-      return { answer: () => ask(help, verb, ownArgs, () => tree, root, justAnswer), at: workspaceGeneration(help) };
-    };
-
-    const started = Date.now();
-    const first = await answering(false);
-    let answer: string;
-    try {
-      answer = first.answer();
-    } catch (refusal) {
-      // A refusal from a reused generation is asked again of one read now;
-      // `--just-answer` and `search` read only what was published, so theirs stands.
-      // A refusal whose checkout could not be compared says why.
-      const caught = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering);
-      const footer = caught?.footer ?? (justAnswer && first.at !== undefined ? snapshotLine(first.at, true) : undefined);
-      try {
-        if (caught?.subject === undefined) throw refusal;
-        answer = caught.subject.answer();
-      } catch (still) {
-        // A name not found is an answer once nothing newer can be read, dated as any other.
-        const found = foundNothingAnswer(still, caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);
-        if (found === undefined) {
-          if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
-          throw still;
-        }
-        answer = found;
-      }
+    const input = inputFrom(tool, ownArgs);
+    const asked: Asked = { root, tool, verb, ownArgs, input, format, justAnswer };
+    // A question whose input names what another tool answers is that tool's,
+    // asked here, where it is formed, and answered by that tool's own reading.
+    const restated = tool.restated?.(input, root);
+    const other = restated === undefined ? undefined : HELP_TOOLS.find((candidate) => candidate.name === restated.tool);
+    if (restated === undefined || other === undefined) {
+      process.stdout.write(`${await answerOf(asked)}\n`);
+    } else {
+      const module = await answerOf({ ...asked, tool: other, verb: verbOf(other), ownArgs: [], input: restated.input });
+      const also = restated.also ? await answerOf(asked, true) : undefined;
+      process.stdout.write(`${[restated.said, module, ...(also === undefined ? [] : [also])].join('\n\n')}\n`);
     }
-
-    process.stdout.write(`${answer}\n`);
   } catch (failure) {
     // A refusal is the answer here, not a crash: every one of them names what is
     // there instead, and a stack trace above it buries the only useful line.
