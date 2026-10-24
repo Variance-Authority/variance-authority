@@ -119,9 +119,10 @@ it('answers an export no entry publishes beside a published namesake', () => {
   expect(answer).toContain('export function keyOf(title: string, name: string): string');
 });
 
-it('names every declaration it does not write out, nearest the file asked from first', () => {
+it('counts the declarations it does not write out, and writes out those nearest the file asked from first', () => {
   const answer = ask({ name: 'keyOf' });
-  for (const letter of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) expect(answer).toContain(`packages/locals/src/${letter}.ts:1`);
+  expect(answer).toContain('2 more declarations of `keyOf` not shown.');
+  expect(answer).not.toContain('packages/locals/src/f.ts');
   const near = ask({ name: 'keyOf', from: 'packages/locals/src/g.ts' });
   expect(near.indexOf('declared, not exported, at packages/locals/src/g.ts:1')).toBeGreaterThan(-1);
   expect(near.indexOf('declared, not exported, at packages/locals/src/g.ts:1')).toBeLessThan(near.indexOf('packages/locals/src/a.ts:1'));
