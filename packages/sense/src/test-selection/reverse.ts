@@ -112,6 +112,8 @@ export interface CoveringOptions {
    * {@link ranWhileLoading} says the list is short.
    */
   readonly relations?: Relations;
+  /** The cases {@link coveringTestsInFile} names, whose ranges fold over what is left; absent keeps every case. */
+  readonly keep?: (test: CoveringTest) => boolean;
 }
 
 /**
@@ -210,7 +212,8 @@ export function coveringTestsInFile(
     const endLine = lines[at + 1]! - 1;
     const blocks = blocksChargedAt(module.blocks, startLine);
     if (blocks.length === 0) continue;
-    const tests = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
+    const named = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
+    const tests = options.keep === undefined ? named : named.filter(options.keep);
     const loaded = blocks.some((block) => block.loaded === true);
     const short = outside(index, stopped, blocks);
     const unentered = unenteredOn(index, stopped, blocks, tests.length);
@@ -258,9 +261,8 @@ function testsForBlocks(
 }
 
 function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]): boolean {
-  return left.length === right.length && left.every((test, at) =>
-    test.id === right[at]!.id && test.distance === right[at]!.distance && test.loaded === right[at]!.loaded,
-  );
+  return left.length === right.length
+    && left.every((test, at) => test.id === right[at]!.id && test.distance === right[at]!.distance && test.loaded === right[at]!.loaded);
 }
 
 /**

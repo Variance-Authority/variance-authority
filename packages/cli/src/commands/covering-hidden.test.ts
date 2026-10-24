@@ -1,11 +1,26 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Placement } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
+
+/** The held text an edit wrote three lines into, above `total`; none when the case leaves it unset. */
+let held: Placement | undefined;
+
+vi.mock('./covering-frame.js', async (original) => {
+  const frame = await original<typeof import('./covering-frame.js')>();
+  return { ...frame, placementFor: async (...asked: Parameters<typeof frame.placementFor>) => held ?? frame.placementFor(...asked) };
+});
+
+const THREE_DOWN: Placement = {
+  frame: 'mapped',
+  place: (range) => ({ lines: { startLine: range.startLine + 3, endLine: range.endLine + 3 }, moved: true }),
+  recordedLine: (line) => (line <= 3 ? undefined : line - 3),
+};
 
 /** `total` spans lines 4-8, and nobody took the one-line branch on line 6. */
 const INDEX = {
@@ -19,12 +34,13 @@ const INDEX = {
   }],
 };
 
-async function ask() {
+async function ask(...flags: readonly string[]) {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-hidden-'));
   const execution = join(dir, 'cases.json');
   await writeFile(execution, JSON.stringify(INDEX));
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'cart' }));
   return covering(parseCoveringArgs(readFlags(
-    ['--file', 'src/cart.ts', '--execution', execution, '--root', dir],
+    ['--file', 'src/cart.ts', '--execution', execution, '--root', dir, ...flags],
     'covering', flagsFor('covering'), synopsisFor('covering'),
   )));
 }
@@ -49,5 +65,25 @@ describe('the whole-file answer over a one-line region no case entered', () => {
 
   it('says it in the refs an agent reads', async () => {
     expect(formatCovering(await ask(), 'refs')).toContain('6 alone: 1; unentered branch 6 unwalked\n');
+  });
+
+  it('keeps the region apart in an answer a flag narrowed', async () => {
+    const answer = await ask('--in-package');
+
+    expect(answer.ranges?.map((range) => [range.startLine, range.endLine])).toEqual([[4, 5], [6, 6], [7, 8]]);
+    expect(formatCovering(answer, 'text')).toContain('  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.\n');
+  });
+});
+
+describe('the whole-file answer over a file edited since the run', () => {
+  afterEach(() => { held = undefined; });
+
+  it('names the region no case entered where its line stands now', async () => {
+    held = THREE_DOWN;
+    const answer = await ask();
+
+    expect(answer.ranges?.find((range) => range.startLine === 9)?.unentered).toMatchObject([{ startLine: 9, endLine: 9 }]);
+    expect(formatCovering(answer, 'text')).toContain('  no case entered the branch on line 9, and every case that could have reached it finished: unwalked.\n');
+    expect(formatCovering(answer, 'refs')).toContain('unentered branch 9 unwalked');
   });
 });
