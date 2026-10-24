@@ -33,18 +33,22 @@ import { admittedBy, termsOfStems } from './loose.js';
  * itself — `package`, `module`, `use`, `tool`, `get` and the like — are asked
  * of code and not of a package, since code is named in them.
  *
- * Ordered by counts, never a score: the question's words it holds at all, then
- * the words its name holds, then how many of the question's adjacent word
- * pairs its doc writes adjacent, then how many rows publish or export it, then
- * the name's own rank. How much of the question is held comes first, the way a
- * search engine's coordination factor puts a document holding every term above
- * one holding half: a doc that says all of what was asked describes it better
- * than a name that says half. Between two that hold as much, the name decides,
- * as a field-weighted ranking weighs a title over a body: a name was chosen for
- * what it does, and a doc that writes the question's phrase about a name that
- * holds none of it is usually saying what the name is used with. The phrase —
- * term proximity, counted as the pairs it shares — settles what the name
- * leaves level.
+ * Ordered by how much of the question it holds, each word weighed by how
+ * rare it is among what the description reached — inverse document frequency,
+ * `ln(1 + N / n)` of the `N` reached and the `n` holding it, counted in this
+ * one question and stored nowhere — and a word its name holds weighed half
+ * again, as a field-weighted ranking weighs a title over a body. Then the words
+ * its name holds, then how many of the question's adjacent word pairs its doc
+ * writes adjacent, then how many rows publish or export it, then the name's
+ * own rank. A word every doc says in passing tells nothing about which of them
+ * was meant: `find the repository root` is asked of `repositoryRoot`, not of
+ * every doc that opens on `find` and mentions a root. Among words that weigh
+ * alike the weight is a coordination factor: a doc that says all of what was
+ * asked still describes it better than a name that says half, since half
+ * again is less than twice. A name was chosen for what it does, and a doc that
+ * writes the question's phrase about a name that holds none of it is usually
+ * saying what the name is used with. The phrase — term proximity, counted as
+ * the pairs it shares — settles what the weight and the name leave level.
  *
  * The rows shown hold every word anything reached holds: the best holder of a
  * word no row shown holds takes the place of the last row whose every word
@@ -58,8 +62,8 @@ import { admittedBy, termsOfStems } from './loose.js';
 export interface DescribedKey {
   /** The question's words it holds, as the question wrote them, in stem order. */
   readonly words: readonly string[];
-  /** How many of them its name holds. */
-  readonly named: number;
+  /** Those of them its name holds. */
+  readonly named: readonly string[];
   /** How many of the question's adjacent word pairs its doc writes adjacent. */
   readonly near: number;
   /** Rows that publish or export it. */
@@ -167,7 +171,7 @@ export function describedNames(
       name,
       ...(row === undefined ? {} : { through: row }),
       words: asked.filter((_, position) => positions.has(position)).map(([, word]) => word),
-      named: named.get(name)?.size ?? 0,
+      named: asked.filter((_, position) => named.get(name)?.has(position) === true).map(([, word]) => word),
       rows: index.publishedOf(name).length + index.exportedOf(name).length,
       rank: index.rank(name),
     };
@@ -175,18 +179,19 @@ export function describedNames(
 }
 
 /**
- * The `count` rows of `reached` to show, best first by {@link describedOrder}:
+ * The `count` rows of `reached` to show, best first by {@link describedOrderBy} the weight of what they reached:
  * the best of them, but a word anything reached holds is held by one of them,
  * its best holder taking the place of the last row a better one did not need.
  *
- * Words held and words in the name order a row before its phrase does, so a
- * name's doc is decoded for the phrase only when the name is level on both
- * with a row that can be shown: in a level the rows above leave room in, or
- * the best level among a word's holders.
+ * The weight of the words held and the words in the name order a row before
+ * its phrase does, so a name's doc is decoded for the phrase only when the name
+ * is level on both with a row that can be shown: in a level the rows above
+ * leave room in, or the best level among a word's holders.
  */
 export function describedShown(index: SearchIndex, query: string, reached: readonly Reached[], count: number): readonly Described[] {
   const words = describedWordsNative(query).map(([, word]) => word);
-  const level = (a: Reached, b: Reached): number => b.words.length - a.words.length || b.named - a.named;
+  const weight = weightOf(reached);
+  const level = (a: Reached, b: Reached): number => levelOrder(weight, a, b);
   const levels = [...reached].sort(level);
 
   const read = new Set<Reached>();
@@ -204,7 +209,8 @@ export function describedShown(index: SearchIndex, query: string, reached: reado
   // One word has no pair to write adjacent, so no doc is decoded for it.
   const near = words.length > 1 ? nearOfNative(query, names.map((one) => docAbout(index, one.name, one.through) ?? '')) : [];
   const counted = new Map(names.map((one, at) => [one, near[at] ?? 0]));
-  const weighed = [...read].map((one): Described => ('near' in one ? one : { ...one, near: counted.get(one) ?? 0 })).sort(describedOrder);
+  const order = describedOrderBy(weight);
+  const weighed = [...read].map((one): Described => ('near' in one ? one : { ...one, near: counted.get(one) ?? 0 })).sort(order);
 
   const shown = weighed.slice(0, count);
   for (const word of words) {
@@ -217,7 +223,7 @@ export function describedShown(index: SearchIndex, query: string, reached: reado
     shown.splice(gives, 1);
     shown.push(holder);
   }
-  return shown.sort(describedOrder);
+  return shown.sort(order);
 }
 
 /** The doc a reached name is shown with: the row it was reached through, else its first published or exported row's. */
@@ -250,16 +256,16 @@ export function describedDeclarations(
     return undefined;
   }
   if (read === undefined) return undefined;
-  const words = (positions: readonly number[] | null | undefined): readonly string[] => {
+  const words = (positions: readonly number[] | null | undefined): string[] => {
     const held = new Set(positions ?? []);
     return asked.filter((_, position) => held.has(position)).map(([, word]) => word as string);
   };
   const unranked = { rows: 0, rank: Number.MAX_SAFE_INTEGER } as const;
   return [
     ...read.names.map((one): DescribedDeclaration => ({
-      match: declaredMatch(one), words: words(one.held), near: one.near ?? 0, named: one.named ?? 0, ...unranked,
+      match: declaredMatch(one), words: words(one.held), near: one.near ?? 0, named: words(one.named), ...unranked,
     })),
-    ...read.files.map((file): DescribedFileHit => ({ file, words: words(file.held), near: file.near, named: file.named, ...unranked })),
+    ...read.files.map((file): DescribedFileHit => ({ file, words: words(file.held), near: file.near, named: words(file.named), ...unranked })),
   ];
 }
 
@@ -280,14 +286,44 @@ export function fileMatch(root: string | undefined, file: DescribedFile): FileMa
 /** Where a reached thing sorts at a full tie: a name of the index, then a declaration, then a file. */
 const kindOrder = (one: Described): number => ('match' in one ? 1 : 'file' in one ? 2 : 0);
 
+/** The keys a row's weight is read from. */
+type Weighed = Pick<DescribedKey, 'words' | 'named'>;
+
+/** How much of the question one row holds. */
+type Weight = (key: Weighed) => number;
+
+/** A word its name holds weighs this many times what a doc holding it does. */
+const NAME_WEIGHT = 1.5;
+
 /**
- * Best first: words held, then words in the name, then the phrase its doc
- * shares, then rows, then rank; a name of the index before a declaration before
- * a file, declarations by file, then line, and files by path.
+ * The weight of what a row holds of the question: each word's inverse
+ * frequency among `reached`, `ln(1 + N / n)`, times {@link NAME_WEIGHT} when
+ * its name holds it.
  */
-export const describedOrder = (a: Described, b: Described): number =>
-  b.words.length - a.words.length ||
-  b.named - a.named ||
+function weightOf(reached: readonly Weighed[]): Weight {
+  const holders = new Map<string, number>();
+  for (const one of reached) for (const word of one.words) holders.set(word, (holders.get(word) ?? 0) + 1);
+  const rare = new Map([...holders].map(([word, n]) => [word, Math.log(1 + reached.length / n)]));
+  return (key) => key.words.reduce((sum, word) => sum + (rare.get(word) ?? 0) * (key.named.includes(word) ? NAME_WEIGHT : 1), 0);
+}
+
+/** Two weights a float's rounding alone tells apart are level. */
+const LEVEL = 1e-9;
+
+/** Weight, then words in the name: the keys that order a row before its phrase is counted. */
+function levelOrder(weight: Weight, a: Weighed, b: Weighed): number {
+  const apart = weight(b) - weight(a);
+  return (Math.abs(apart) < LEVEL ? 0 : Math.sign(apart)) || b.named.length - a.named.length;
+}
+
+/**
+ * Best first by `weight`: the weight of the words held, then words in the
+ * name, then the phrase its doc shares, then rows, then rank; a name of the
+ * index before a declaration before a file, declarations by file, then line,
+ * and files by path.
+ */
+const describedOrderBy = (weight: Weight) => (a: Described, b: Described): number =>
+  levelOrder(weight, a, b) ||
   b.near - a.near ||
   b.rows - a.rows ||
   a.rank - b.rank ||

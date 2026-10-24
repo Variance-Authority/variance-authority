@@ -553,9 +553,12 @@ the query's words, stemmed as installed packages are, in any order
 across the name and its doc, follow under their own heading, each with the
 words it holds. A name its file declares and does not export is among them, and
 so is a file, by its own name and the doc it opens with. They are ordered by
-how many of the words each holds, then by how many of them its name holds, then
-by how many of the query's adjacent word pairs its doc writes adjacent: counts,
-never a score. Every word one of them holds is held by a row shown, so the
+the words each holds, each weighed by how rare it is among the rows the query
+reached and half again when the name holds it, then by how many of them its
+name holds, then by how many of the query's adjacent word pairs its doc writes
+adjacent. A word most docs say in passing tells you little about which of them
+you meant, so `order paths by code units` puts `codeUnitOrder` first rather
+than every doc that says `paths`. Every word one of them holds is held by a row shown, so the
 one name holding a rare word is shown however many holding a common one sort
 before it. A name holding fewer than half the words, which the loose
 reading reaches by every word, is told there instead, so on three words or

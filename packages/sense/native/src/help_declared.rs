@@ -49,8 +49,8 @@ pub struct DeclaredName {
     /// Asked by [`Matching::Described`]: the positions, ascending, of the
     /// asked stems its name or its doc holds; absent for any other question.
     pub held: Option<Vec<u32>>,
-    /// Asked by [`Matching::Described`]: how many of those its name holds.
-    pub named: Option<u32>,
+    /// Asked by [`Matching::Described`]: the positions, ascending, of those its name holds.
+    pub named: Option<Vec<u32>>,
     /// Asked by [`Matching::Described`]: how many of the question's adjacent
     /// word pairs its doc writes adjacent, as [`near`] counts them.
     pub near: Option<u32>,
@@ -68,8 +68,8 @@ pub struct DescribedFile {
     pub doc_end: Option<u32>,
     /// The positions, ascending, of the asked stems its name or its module doc holds.
     pub held: Vec<u32>,
-    /// How many of those its name holds.
-    pub named: u32,
+    /// The positions, ascending, of those its name holds.
+    pub named: Vec<u32>,
     /// How many of the question's adjacent word pairs its module doc writes adjacent.
     pub near: u32,
 }
@@ -143,9 +143,9 @@ fn prose(source: &[u16], start: u32, end: u32) -> Option<String> {
 /// itself when its declarations were not read.
 type FileHits<'a> = (Vec<Hit<'a>>, Option<&'a str>, Option<FileHit<'a>>);
 
-/// Asked by [`Matching::Described`]: the positions of the stems held, how
-/// many of them the name holds, and how near its doc writes the question.
-type Held = (Vec<u32>, u32, u32);
+/// Asked by [`Matching::Described`]: the positions of the stems held, those
+/// the name holds, and how near its doc writes the question.
+type Held = (Vec<u32>, Vec<u32>, u32);
 
 /// A layer, a file, a symbol row and how it was held, when it was described.
 type Hit<'a> = (usize, &'a str, usize, Option<Held>);
@@ -215,7 +215,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
                     (!held.is_empty()).then(|| {
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.len() as u32, near))
+                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.into_iter().collect(), near))
                     })
                 }
                 _ => None,
@@ -253,7 +253,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                         if let Some(doc) = &doc { held.extend(held_in(stems, doc)) }
                         if held.is_empty() { continue }
                         let near = doc.as_deref().map_or(0, |doc| near(query, doc));
-                        Some((held.into_iter().collect(), in_name.len() as u32, near))
+                        Some((held.into_iter().collect(), in_name.into_iter().collect(), near))
                     }
                     _ => continue,
                 };
@@ -310,7 +310,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 doc_start,
                 doc_end,
                 reach: crate::harvest::reach_of(parses.symbol_reach[symbol]).map(str::to_owned),
-                named: described.as_ref().map(|(_, named, _)| *named),
+                named: described.as_ref().map(|(_, named, _)| named.clone()),
                 near: described.as_ref().map(|(_, _, near)| *near),
                 held: described.map(|(held, _, _)| held),
             }
