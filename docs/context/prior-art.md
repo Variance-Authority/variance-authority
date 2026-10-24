@@ -230,8 +230,9 @@ All three answer the question for one person watching one session. The render
 lines a test story says answer it for a recording: the same alternate
 comparison, values shown by ref, written at the step that caused the commit, so
 two tests' stories can be compared and the render whose cause differs is listed
-where it happened. None of the three records a run another one can be read
-against.
+where it happened. The Profiler can export a session and import it again, but
+it reads one session at a time: none of the three compares two recorded runs
+step by step.
 
 ## Web UI difference
 
