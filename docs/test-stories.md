@@ -527,7 +527,8 @@ read` alone in a build that keeps no record of its hooks. Two tests that render
 the same tree for different reasons are told apart by these lines: a comparison
 lists each line only one test said, at its step.
 When `react-dom` loaded and mounted before the setup file, React announces no
-commit, and the story says `renders not read: react-already-loaded`.
+commit, and the story says `renders not read: react-already-loaded`; any other
+reason the tap was refused is named the same way.
 
 When you [compare readings](#compare-readings-of-one-test), a handed line or a
 render line is compared as a printed one is: a value handed on every reading of one side and
@@ -549,10 +550,10 @@ their step:
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`
   or `debug`. The console still prints it.
 - **[Eyes](eyes.md)**, when your tests use it. Each query with its arguments and
-  what it found, each event and the element it fired on, and each Arrange, Act
-  and Assert phase you mark.
+  what it found, each event and the element it fired on, each React commit with
+  the components that rendered, and each Arrange, Act and Assert phase you mark.
 - **`@variance-authority/react/story`**, when it is in your setup files. Each
-  component React rendered at a commit, and why.
+  component React rendered at a commit, and why, in place of Eyes' commit line.
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 

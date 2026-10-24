@@ -19,6 +19,8 @@ import type { ArgumentSnapshot, AttentionDraft, LocatorStep, TargetSnapshot } fr
 
 /** Where a story recorder in this realm listens; mirrors `NOTE` in sense's `story-tap.cts`. */
 const NOTE = Symbol.for('variance-authority.story.note');
+/** Set by `@variance-authority/react/story` once it taps this realm's commits for the story. */
+const REACT_STORY = Symbol.for('variance-authority.react.story.tapped');
 
 type Channel = (text: string) => void;
 
@@ -85,8 +87,8 @@ export function noteOf(draft: AttentionDraft): string {
 export function sayToStory(draft: AttentionDraft): void {
   const channel = (globalThis as { [NOTE]?: Channel })[NOTE];
   if (typeof channel !== 'function') return;
-  // A commit is the React story setup's to say, with why each component rendered.
-  if (draft.kind === 'react-commit') return;
+  // Where the React story setup taps this realm, a commit is its to say, with why each component rendered.
+  if (draft.kind === 'react-commit' && (globalThis as { [REACT_STORY]?: true })[REACT_STORY] === true) return;
   try {
     channel(noteOf(draft));
   } catch {

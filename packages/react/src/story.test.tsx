@@ -3,21 +3,22 @@
 // The setup file as a story realm loads it: the channel is there first, and
 // `react-dom` is imported after it, so the tap it makes hears every commit.
 
-import { act, createContext, createElement, forwardRef, memo, useState, type ReactElement } from 'react';
+import { act, Component, createContext, createElement, createRef, forwardRef, memo, useContext, useState, type ReactElement } from 'react';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
 const NOTE = Symbol.for('variance-authority.story.note');
 const realm = globalThis as { [NOTE]?: unknown };
 const lines: string[] = [];
+const shownAs = (value: unknown): unknown => (typeof value === 'function' ? 'fn' : typeof value === 'object' && value !== null ? 'obj' : value);
 // The tap's template channel, with each value shown by its kind alone.
 realm[NOTE] = (strings: readonly string[], ...values: unknown[]): void => {
-  lines.push(strings.reduce((line, part, index) => line + String(typeof values[index - 1] === 'function' ? 'fn' : values[index - 1]) + part));
+  lines.push(strings.reduce((line, part, index) => line + String(shownAs(values[index - 1])) + part));
 };
 
 await import('./story.js');
 // A realm that runs its setup files again for the next test file, as Vitest does without isolation.
 vi.resetModules();
-const { reactKind } = await import('./story.js');
+const { reactKind, renderNote } = await import('./story.js');
 const { createRoot } = await import('react-dom/client');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -58,6 +59,55 @@ describe('the React story setup', () => {
       // Branch mounts under a Tree that updated, so it is the top of what mounted; Leaf under it is not said.
       'rendered Branch — mounted',
     ]);
+  });
+});
+
+const Mode = createContext('light');
+Mode.displayName = 'Mode';
+
+class Counter extends Component<{ label: string; size: number }, { count: number }> {
+  override state = { count: 0 };
+  override render(): ReactElement {
+    return <i>{this.props.label}</i>;
+  }
+}
+
+function Themed(): ReactElement {
+  return <u>{useContext(Mode)}</u>;
+}
+
+describe('why the React story setup says a component rendered', () => {
+  it('a class state, a render nothing it reads asked for, a context by its name, and each prop that moved', () => {
+    const counter = createRef<Counter>();
+    const root = createRoot(document.createElement('div'));
+    const tree = (mode: string, label: string, size: number): ReactElement => (
+      <Mode.Provider value={mode}>
+        <Counter ref={counter} label={label} size={size} />
+        <Themed />
+      </Mode.Provider>
+    );
+    act(() => root.render(tree('light', 'a', 1)));
+    lines.length = 0;
+    act(() => counter.current?.setState({ count: 1 }));
+    act(() => counter.current?.forceUpdate());
+    act(() => root.render(tree('dark', 'b', 2)));
+    act(() => root.unmount());
+
+    expect(lines).toEqual([
+      'rendered Counter — state obj → obj',
+      'rendered Counter — no input it reads moved',
+      'rendered Counter — label a → b, size 1 → 2',
+      'rendered Themed — Mode light → dark',
+    ]);
+  });
+
+  it('where the hook reader stops, with or without the hook it stopped at', () => {
+    const line = ([strings, values]: readonly [readonly string[], readonly unknown[]]): string =>
+      strings.reduce((text, part, index) => text + String(values[index - 1]) + part);
+    expect([
+      line(renderNote('Panel', [{ kind: 'prop', name: 'n', before: 1, after: 2 }, { kind: 'unread', hook: 'useSomethingNew' }])),
+      line(renderNote('Panel', [{ kind: 'unread' }])),
+    ]).toEqual(['rendered Panel — n 1 → 2, state not read past useSomethingNew', 'rendered Panel — state not read']);
   });
 });
 

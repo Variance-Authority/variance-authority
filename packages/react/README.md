@@ -275,7 +275,7 @@ does: `setupFiles` in Vitest, Jest and Rstest alike. The line lands at the step
 the test was on when React committed. With no story being recorded it taps
 nothing. When `react-dom` loaded and mounted before it, React announces no
 commit, and the story says `renders not read: react-already-loaded` rather than
-nothing. It also names each React object a function was handed by the
+nothing; any other reason the tap was refused is named the same way. It also names each React object a function was handed by the
 `$$typeof` mark React gave it — `react.context`, `react.memo`,
 `react.forward_ref` — where a story would otherwise say `Object`.
 

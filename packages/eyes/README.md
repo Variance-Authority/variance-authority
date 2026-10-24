@@ -221,11 +221,12 @@ step where it happened:
        » eyes act
        » eyes getByRole("button", {"name":"Save"}) → button "Save" in SaveBar
        » eyes click (synthetic) on button "Save" in SaveBar
+       » eyes commit SaveBar, Toast
 ```
 
-Which components rendered at that step, and why, is said by the React story
-setup: add `@variance-authority/react/story` to the runner's setup files
-beside Eyes.
+With `@variance-authority/react/story` in the runner's setup files beside
+Eyes, the commit line gives way to one line per component that rendered, and
+why: `rendered SaveBar — saving false → true`.
 
 So the story shows which arguments a query was called with and what it found,
 beside the code that ran, and you do not work them out from the route. When you
