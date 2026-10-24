@@ -29,7 +29,7 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { carriedOver, diffFromBase, movedOnBase } from './base-diff.js';
+import { carriedOver, diffFromBase, movedOnBase, unnamedCommit } from './base-diff.js';
 import { cutElsewhere } from './before-texts.js';
 import { relationsFor } from './source-graph.js';
 import { functionOf, regionKind } from './review-scope.js';
@@ -252,14 +252,10 @@ export async function motionOfRuns(
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
   const ran = new Set([...wrote.compared, ...(wrote.unwritten ?? []), ...(wrote.unbased ?? [])]);
-  try {
-    return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
-  } catch (error) {
-    // A layer naming no commit is the record's own state, left uncompared; a
-    // commit it names that cannot be read is this clone's, and is refused.
-    if (wrote.at !== undefined || !(error instanceof OperatorError) || error.kind !== 'undiffed') throw error;
-    return { base, ...said, undiffed: error.message };
-  }
+  // A layer naming no commit is the record's own state, left uncompared; a
+  // commit it names that this clone cannot diff from is refused.
+  if (wrote.at === undefined) return { base, ...said, undiffed: unnamedCommit(BEFORE_LAYER) };
+  return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
 }
 
 /** The current record against the base `--against` names, with what the base's branch moved left out. */
