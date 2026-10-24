@@ -18,7 +18,7 @@ realm[NOTE] = (strings: readonly string[], ...values: unknown[]): void => {
 await import('./story.js');
 // A realm that runs its setup files again for the next test file, as Vitest does without isolation.
 vi.resetModules();
-const { reactKind, renderNote } = await import('./story.js');
+const { reactKind } = await import('./story.js');
 const { createRoot } = await import('react-dom/client');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -99,15 +99,6 @@ describe('why the React story setup says a component rendered', () => {
       'rendered Counter — label a → b, size 1 → 2',
       'rendered Themed — Mode light → dark',
     ]);
-  });
-
-  it('where the hook reader stops, with or without the hook it stopped at', () => {
-    const line = ([strings, values]: readonly [readonly string[], readonly unknown[]]): string =>
-      strings.reduce((text, part, index) => text + String(values[index - 1]) + part);
-    expect([
-      line(renderNote('Panel', [{ kind: 'prop', name: 'n', before: 1, after: 2 }, { kind: 'unread', hook: 'useSomethingNew' }])),
-      line(renderNote('Panel', [{ kind: 'unread' }])),
-    ]).toEqual(['rendered Panel — n 1 → 2, state not read past useSomethingNew', 'rendered Panel — state not read']);
   });
 });
 

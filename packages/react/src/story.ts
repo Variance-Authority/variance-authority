@@ -64,7 +64,7 @@ function said(cause: RenderCause): Said {
 }
 
 /** `rendered <Name> — ` and each cause, joined by `, `, as one template. */
-export function renderNote(name: string, causes: readonly RenderCause[]): Said {
+function renderNote(name: string, causes: readonly RenderCause[]): Said {
   const strings: string[] = [`rendered ${name} — `];
   const values: unknown[] = [];
   causes.forEach((cause, index) => {
