@@ -33,7 +33,8 @@ const ACCEPTANCE: Readonly<Record<string, string>> = {
   'packages/review/src/index.ts': 'export interface Coverage {\n  approved: boolean;\n}\n',
   'apps/app/src/png.ts': 'export function pngSize(path: string): number {\n  return path.length;\n}\n',
   'apps/app/src/sizes.ts':
-    "import { pngSize } from '@acme/core';\nimport { pngSize as fileSize } from './png.js';\nexport const sizes = [pngSize(new Uint8Array()), fileSize('a.png')];\n",
+    "import { pngSize } from '@acme/core';\nexport const sizes = [pngSize(new Uint8Array())];\n",
+  'apps/app/src/local-sizes.ts': "import { pngSize as fileSize } from './png.js';\nexport const localSizes = [fileSize('a.png')];\n",
   'apps/app/src/renamed.ts': "import { greet as hi } from '@acme/lib';\nexport const renamed = hi('again');\n",
   'apps/app/src/typed.ts':
     "import type { Tree, CheckoutPath } from '@acme/core';\nexport const keep = (tree: Tree, path: CheckoutPath): boolean => tree.has(path);\n",
