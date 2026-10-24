@@ -311,6 +311,10 @@ the sites arrive ordered by how many leading path segments they share with it.
 Each kind of site, and each list after the imports, shows twelve and counts the
 rest; pass `limit` to show more.
 
+A `name` that holds a `/` is a module, a file path or a package, because no
+name does. `docs_uses` then answers who imports that module, as `docs_discover`
+answers `imports`, and its first line says so.
+
 `docs_uses` lists the imports within the name's own package too: every import
 that resolved to the file declaring it, or to a file that passes it on with
 `export … from`. That file is followed under the name it exports and is not
@@ -337,8 +341,15 @@ passes it on; `docs_uses` lists those imports, from its own package as well as
 from others. When that file only passes on another file's declaration with
 `export … from`, renamed, type-only or through `export *`, both name the
 declaration it reaches, through every file between, and `docs_symbol` shows its
-line as well. A read through an `export * as` namespace and, outside Rust, a call
-through a qualified path are not counted.
+line as well. A name a file passes on inside `export * as ns`, or inside
+`export { ns }` after `import * as ns`, is counted where you read it off `ns`, `ns.name` or `const { name } = ns`, through a namespace
+inside a namespace, `lib.ns.name`, `const { ns } = lib` and then `ns.name`, or
+`const { ns: { name } } = lib`, and through a namespace passed on as
+`default`. An entry that publishes the name only inside such a namespace
+publishes it as `ns.name`, and the first line says so: `published as
+\`shout.greet\` by @acme/lib`. A namespace imported by name that goes
+somewhere whole and, outside Rust, a call through a qualified path are not
+counted.
 
 `docs_symbol` on an interface, a type alias or a class lists its members after
 the signature, one line each as the checkout holds it, so you see what a value
@@ -398,6 +409,15 @@ and for one it keeps. The lines follow the language's scope, so a parameter, a
 local or an inner item of the same name is another name and is not listed, and
 neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
 its imports alone.
+
+Each file that declares a name declares another thing, so `docs_uses` answers
+for every one of them, each kept apart: under the line naming each file that
+exports the name without publishing it come that declaration's own imports, as
+the uses of a kept one come under its own heading. Pass `file`, the file one of
+them is declared in, to answer for that declaration alone: `variance ask uses
+--name greet --file packages/lib/src/greet.ts`. A `file` that only passes the
+name on with `export … from` answers for the declaration it reaches, and a
+`file` that declares nothing by the name is answered with the files that do.
 
 A name your code reads off a namespace or default import, written with
 `import type` or without, or off `import()`, is a site too, and the site names the line that loads the module. In a

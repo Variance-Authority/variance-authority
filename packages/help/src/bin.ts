@@ -9,6 +9,7 @@ import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted } from './tools.js';
 import { search } from './tools/search.js';
+import { uses } from './tools/uses.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -167,6 +168,11 @@ if (asking(verb) && verb !== undefined) {
         return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), { ...named, root }), at: undefined };
       }
       if (tool === intersection && namesWanted(inputFrom(tool, ownArgs))) return crossNamed(root, reading, ownArgs);
+      if (tool === uses && wantsTree) {
+        // `uses` of a module is `discover --imports` of it, which reads each file's names.
+        const [help, named] = await Promise.all([readWorkspaceForAnswer(root, reading), readNamedTree(root, inputFrom(tool, ownArgs))]);
+        return { answer: () => uses.run(help, inputFrom(tool, ownArgs), { ...named, root }), at: workspaceGeneration(help) };
+      }
       const help = await readWorkspaceForAnswer(root, reading);
       return { answer: () => ask(help, verb, ownArgs, () => tree, root, justAnswer), at: workspaceGeneration(help) };
     };

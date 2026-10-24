@@ -91,6 +91,13 @@ pub(crate) struct Parses<'a> {
     /// The holder's name, or `NONE` when nothing names it.
     pub nested_holder: U32s<'a>,
     pub nested_holder_line: U32s<'a>,
+    pub binding_members: U32s<'a>,
+    pub binding_member_request: U32s<'a>,
+    pub binding_member_binding: U32s<'a>,
+    pub binding_member_name: U32s<'a>,
+    pub binding_member_line: U32s<'a>,
+    pub binding_member_within: U32s<'a>,
+    pub binding_within_name: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -110,6 +117,8 @@ impl<'a> Parses<'a> {
         let member_use_name = u32s("member-uses.name")?;
         let own_use_name = u32s("own-uses.name")?;
         let nested_name = u32s("nested.name")?;
+        let binding_member_name = u32s("binding-members.name")?;
+        let binding_within_name = u32s("binding-within.name")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -181,6 +190,13 @@ impl<'a> Parses<'a> {
             nested_holder: u32s("nested.holder")?,
             nested_holder_line: u32s("nested.holder-line")?,
             nested_name,
+            binding_members: stored.offsets("parses.binding-members", rows, binding_member_name.len())?,
+            binding_member_request: u32s("binding-members.request")?,
+            binding_member_binding: u32s("binding-members.binding")?,
+            binding_member_line: u32s("binding-members.line")?,
+            binding_member_within: stored.offsets("binding-members.within", binding_member_name.len(), binding_within_name.len())?,
+            binding_within_name,
+            binding_member_name,
             declare_name,
         };
         parses.lengths()?;
@@ -287,6 +303,11 @@ impl<'a> Parses<'a> {
             ("nested.doc-end", self.nested_doc[1].len()),
             ("nested.holder", self.nested_holder.len()),
             ("nested.holder-line", self.nested_holder_line.len()),
+        ])?;
+        same_length(self.binding_member_name.len(), &[
+            ("binding-members.request", self.binding_member_request.len()),
+            ("binding-members.binding", self.binding_member_binding.len()),
+            ("binding-members.line", self.binding_member_line.len()),
         ])
     }
 }
@@ -350,6 +371,13 @@ impl ParseRow for ParseView<'_, '_> {
         for at in columns.nested.range(row) {
             text(columns.nested_name, at);
             text(columns.nested_kind, at);
+        }
+        for at in columns.binding_members.range(row) {
+            text(columns.binding_member_binding, at);
+            text(columns.binding_member_name, at);
+            for within in columns.binding_member_within.range(at) {
+                text(columns.binding_within_name, within);
+            }
         }
         for at in self.declares() {
             text(columns.declare_name, at);
@@ -444,6 +472,11 @@ impl ParseRow for ParseView<'_, '_> {
                 strings.optional(stored.optional(columns.nested_holder.at(at))),
                 columns.nested_holder_line.at(at),
             );
+        }
+        for at in columns.binding_members.range(row) {
+            let (binding, name) = (id(columns.binding_member_binding, at), id(columns.binding_member_name, at));
+            let within = columns.binding_member_within.range(at).map(|within| id(columns.binding_within_name, within));
+            into.binding_member(columns.binding_member_request.at(at), binding, within, name, columns.binding_member_line.at(at));
         }
     }
 

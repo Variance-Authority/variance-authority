@@ -7,7 +7,7 @@ use oxc_ast::ast::Program;
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
-use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
+use oxc_syntax::module_record::{ExportExportName, ExportImportName, ExportLocalName, ImportImportName};
 use serde::Serialize;
 
 use crate::declarations::declarations;
@@ -16,7 +16,7 @@ use crate::harvest::{Harvest, SourceSymbol, TextSpan};
 use crate::help_member_uses::{member_uses_in, MemberUse};
 use crate::help_own_uses::{own_uses_in, OwnUse};
 use crate::help_members::{member_declarations_in, MemberDeclaration};
-use crate::members::{members_and_loads_in, Member};
+use crate::members::{members_and_loads_in, BindingMember, Member};
 use crate::mocks::{mocks_in, Mocks};
 use crate::source_size::{size_of, Size};
 
@@ -112,6 +112,9 @@ pub struct Read {
     pub(crate) mocks: Mocks,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) members: Vec<Member>,
+    /// Every name read off a binding a named import takes.
+    #[serde(rename = "bindingMembers", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) binding_members: Vec<BindingMember>,
     /// Every member of an interface, a type literal or a class the module declares.
     #[serde(rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
     pub(crate) member_declarations: Vec<MemberDeclaration>,
@@ -251,21 +254,36 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         .collect();
     entries.sort_by_key(|entry| (entry.statement_span.start, entry.span.start));
 
+    // A namespace a module imports and exports by its local name, `import * as
+    // g from 'm'; export { g }`, is the module passed on as `export * as g from
+    // 'm'`, and is recorded as that: the binding is the module record.
+    let namespaces: HashMap<&str, &str> = record
+        .import_entries
+        .iter()
+        .filter(|entry| matches!(entry.import_name, ImportImportName::NamespaceObject))
+        .map(|entry| (entry.local_name.name.as_str(), entry.module_request.name.as_str()))
+        .collect();
+
     let mut exports = Vec::with_capacity(entries.len());
     let mut republished: Vec<ReexportGroup> = Vec::new();
     let mut groups: HashMap<String, usize> = HashMap::new();
     for entry in entries {
         let line = lines.at(entry.statement_span.start);
-        let from = entry
+        let mut from = entry
             .module_request
             .as_ref()
             .map(|name| name.name.to_string());
         let exported = export_name(&entry.export_name);
-        let imported = source_name(&entry.import_name);
+        let mut imported = source_name(&entry.import_name);
         // The record's own bound name, which for `export default name` is
         // `name`: `exported` already says `default`, and the identifier is what
         // a reader follows through this file's imports to where it comes from.
-        let local = entry.local_name.name().map(|name| name.to_string());
+        let mut local = entry.local_name.name().map(|name| name.to_string());
+        if let ExportLocalName::Name(name) = &entry.local_name {
+            if let Some(module) = namespaces.get(name.name.as_str()) {
+                (from, imported, local) = (Some((*module).to_owned()), Some("*".to_owned()), None);
+            }
+        }
 
         let tags = roles.of(entry.statement_span.start, local.as_deref());
         exports.push(Export {
@@ -346,7 +364,10 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     // One scope tree serves every reader that resolves a name by scope.
     let built = SemanticBuilder::new().build(&parsed.program);
     let scoping = built.semantic.scoping();
-    let (members, loads) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
+    let (members, binding_members, loads, taken) = members_and_loads_in(&parsed.program, scoping, &lines, &requests);
+    // A binding destructured off a module it holds is that module's value under
+    // a local name, as an import binds one, and declares nothing of its own.
+    harvest.symbols.retain(|symbol| !taken.contains(&(symbol.name.clone(), symbol.line)));
     requests.extend(loads.dynamic);
     reasons.extend((0..loads.unread_dynamic).map(|_| "an `import()` whose specifier is not a literal".to_owned()));
     requests.extend(loads.required);
@@ -375,6 +396,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         declares: declarations(file, &parsed.program),
         mocks: mocks_in(source, &parsed.program),
         members,
+        binding_members,
         member_declarations: member_declarations_in(&parsed.program, &lines),
         member_uses: member_uses_in(&parsed.program, &lines),
         own_uses: own_uses_in(&parsed.program, scoping, &lines),
@@ -425,3 +447,7 @@ mod tests;
 #[cfg(test)]
 #[path = "read_objects_tests.rs"]
 mod objects_tests;
+
+#[cfg(test)]
+#[path = "read_binding_members_tests.rs"]
+mod binding_members_tests;

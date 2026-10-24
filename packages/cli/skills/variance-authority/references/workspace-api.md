@@ -250,10 +250,14 @@ about to write a call and the signature alone leaves a choice open. Read the
 stories first: a story is somebody's worked example of the call. A section with
 no members is left out rather than shown empty.
 
+A `--name` that holds a `/` is a module, a file path or a package, because no
+name does: `uses` answers who imports it, as `discover --imports` does, and its
+first line says so.
+
 A published name that nothing imports is a different answer, not an empty list:
 
 ```
-`PagesOptions` [interface] is published and nothing in this workspace imports it; a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
+`PagesOptions` [interface] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.
 ```
 
 The imports within the name's own package come from the source index: every
@@ -264,9 +268,19 @@ on the same way, and every import that comes through it is marked `(type only)`.
 A name an entry publishes under another name than its declaration is read from
 that entry. An import of a renamed re-export ends `(as <name>)`. A Rust path
 written in a type or an expression, such as `crate::order::code_unit(…)`, is
-listed as a `use` is. A read through an `export * as` namespace, and outside
-Rust a call through a qualified path, are not listed, and the answer ends by
-saying so. With `--package` naming one subpath specifier, an import through
+listed as a `use` is. A package that passes a module on as `export * as ns`,
+or as `export { ns }` after `import * as ns`, passes each of its names as a
+member of `ns`: `import { ns } from 'pkg'` and
+then `ns.name`, or `const { name } = ns`, is listed on the line that reads it,
+ending `(namespace, line <n>)` with the line of the import. A namespace inside
+a namespace, `lib.ns.name`, one destructured off it, `const { ns } = lib` or
+`const { ns: { name } } = lib`, and a namespace passed on as `default` are
+followed the same way, and a name destructured off a namespace is that name,
+not a declaration of its own. An entry that publishes the name only inside such a namespace
+publishes it as `ns.name`, and the first line says `published as \`ns.name\` by
+<package>`. A namespace imported by name that goes somewhere whole, such as
+`[ns]`, and outside Rust a call through a qualified path, are not listed, and
+the answer ends by saying so. With `--package` naming one subpath specifier, an import through
 another specifier of the same package is left to that one. When the source
 index is missing or does not read, the imports from other packages by their
 published path are still listed, and the answer says why the rest are not.
@@ -285,6 +299,23 @@ declaration:
 ```
 `levy` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
 ```
+
+Each file that declares a name declares another thing, so `uses` answers for
+every one of them, each kept apart: the published declaration's imports, a line
+naming each file that exports the name without publishing it followed by that
+declaration's own imports, and each file that keeps it to itself. `--file
+<path>`, the file one of them is declared in, answers for that declaration
+alone; a file that only passes the name on with `export … from` answers for the
+declaration it reaches. The answer ends by saying so when it covers more than one:
+
+```
+`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.
+Imported in 1 place.
+
+`file`, the file one of them is declared in, answers for that declaration alone.
+```
+
+A `--file` that declares nothing by the name is answered with the files that do.
 
 `--limit <n>` sets how many rows of each list are shown, 12 when not said:
 each kind of site, the lines of the declaring file, the member declarations

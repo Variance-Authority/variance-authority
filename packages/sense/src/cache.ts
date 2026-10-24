@@ -99,6 +99,11 @@ export interface Parsed {
    * but the native module reader.
    */
   readonly nested?: readonly NestedDeclaration[];
+  /**
+   * Every name read off a binding a named import takes. Absent when there are
+   * none, and absent from any reader but the native module one.
+   */
+  readonly bindingMembers?: readonly BindingMember[];
   readonly unknown?: string;
   /** How big the module is. Absent from a reader that does not measure, which is the stylesheet one, and from a file its grammar could not parse at all. */
   readonly size?: SourceSize;
@@ -176,6 +181,22 @@ export interface NestedDeclaration {
 
 /** One line that uses a name its file declares at its top level. */
 export interface OwnUse {
+  readonly name: string;
+  readonly line: number;
+}
+
+/**
+ * One name read off a binding a named import takes: `ns.name` after
+ * `import { ns } from 'm'`. It reads `name` of a module only where `m` passes
+ * `ns` on as `export * as ns`.
+ */
+export interface BindingMember {
+  /** The index of the request, in the same parse, the value is read through. */
+  readonly request: number;
+  /** The export of the module the value is, or is read off: the name a named import takes, the first name read off a namespace import, or `default`. */
+  readonly binding: string;
+  /** The names read off `binding` before `name`, nearest first. Absent when the value is `binding` itself. */
+  readonly within?: readonly string[];
   readonly name: string;
   readonly line: number;
 }

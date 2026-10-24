@@ -7,7 +7,7 @@ import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
-import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help, uses } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
@@ -16,7 +16,7 @@ import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, usesModuleSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -323,6 +323,7 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
     : tool.name === discover.name ? await discoverSource(process.cwd(), input)
     : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
+    : tool.name === uses.name && tool.wants?.(input) === true ? await usesModuleSource(process.cwd(), input, reading)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
