@@ -1,14 +1,14 @@
 import type { FileSet, Tool } from '@variance-authority/mcp/tools';
-import { limitOf, notShown, stringArg } from '@variance-authority/mcp/tools';
-import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
+import { limitOf, notShown } from '@variance-authority/mcp/tools';
+import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
-import { how, ownerOf, sitesByPath } from './by-path.js';
-import { FoundNothing, entriesNamed, isPackage, nowhere } from './find.js';
 import { unreadLine } from './declared.js';
-import { type Members, membersOf, places, routes } from './members.js';
-import { originOf, passesOn } from './passed-on.js';
-import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
-import { bracketed, declaredIn, keptLine, keptOf, membersIn, namesakeLines, namesakesOf, narrowing, notDeclaredIn } from './uses-declarations.js';
+import { discover } from './discover.js';
+import { type Members, places, routes } from './members.js';
+import { passesOn } from './passed-on.js';
+import { UNCOUNTED, exportedAt } from './unpublished.js';
+import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
+import { type Answer, type Namesake, type Site, usesOf } from './uses-of.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -99,12 +99,6 @@ import { bracketed, declaredIn, keptLine, keptOf, membersIn, namesakeLines, name
  * declaration to ask it about.
  */
 
-/**
- * A site, how it names the module it imports when that is a file path, and
- * the name it takes when that is known.
- */
-type Site = Use & { readonly how?: string; readonly name?: string };
-
 /** How many leading path segments two files share. */
 export function sharedSegments(left: string, right: string): number {
   const a = left.split('/');
@@ -151,19 +145,6 @@ function listed(sites: readonly Site[], heading: string, name: string, limit: nu
 }
 
 /**
- * Whether a use the source index resolved is one `wanted` answers for. Asked
- * for one specifier of a package, an import through another specifier of that
- * package is that door's, not this one's; a relative import, and any import
- * when the package is asked for by name, is the declaration's own.
- */
-function throughDoor(use: IndexedUse, wanted: string | undefined): boolean {
-  if (wanted === undefined) return true;
-  const owner = ownerOf(wanted);
-  if (owner === wanted || use.specifier.startsWith('.')) return true;
-  return ownerOf(use.specifier) !== owner || use.specifier === wanted;
-}
-
-/**
  * Where a name read off a module held whole was loaded, and when; whether it
  * was read off the module's `default`; and whether the module went on, whole,
  * where this reading does not follow it, so the line may read the name.
@@ -177,32 +158,9 @@ function held(use: Use): string {
 }
 
 /**
- * Every site of one name, across every door it is published from, without
- * duplicates. A line the Help value records in a file that passes the name on,
- * and that the source index does not read as an import of it, is the
- * re-export, which is no use.
+ * `docs_uses`: every place a name is imported or read, for each declaration of
+ * it, or who imports a module when the name is a path or a package.
  */
-function sitesOf(
-  found: readonly (readonly [Documented, Opening, Entry])[],
-  byPath: readonly Site[],
-  within: readonly Site[],
-  passing: Within | undefined,
-): readonly Site[] {
-  const seen = new Set<string>();
-  const sites: Site[] = [];
-  const through = passing !== undefined && 'through' in passing ? new Set(passing.through) : new Set<string>();
-  const indexed = new Set(passing !== undefined && 'uses' in passing ? passing.uses.map((use) => `${use.at}:${use.line}`) : []);
-
-  const recorded = [...found.flatMap(([, opening, entry]) => [...entry.sites, ...entry.throughDefault, ...opening.whole]), ...byPath];
-  for (const [index, use] of [...recorded, ...within].entries()) {
-    const key = `${use.at}:${use.line}`;
-    if (seen.has(key) || (index < recorded.length && through.has(use.at) && !indexed.has(key))) continue;
-    seen.add(key);
-    sites.push(use);
-  }
-  return sites;
-}
-
 export const uses: Tool<Help> = {
   name: 'docs_uses',
   description:
@@ -217,12 +175,15 @@ export const uses: Tool<Help> = {
     'name a file declares and does not export is answered with its kind, where it is declared and who can reach it there. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path; `limit` says how many sites of ' +
     'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches. ' +
-    'Each file declaring the name declares another thing: the answer names every exported one, and `file`, the ' +
-    'file one is declared in, answers for that declaration alone.',
+    'A name an entry publishes only inside `export * as ns` is said to be published as `ns.name`, and a read ' +
+    'through a namespace inside a namespace or one passed on as `default` is a site. ' +
+    'Each file declaring the name declares another thing: the answer lists every one with its own imports, kept ' +
+    'apart, and `file`, the file one is declared in or a file passing it on, answers for that declaration alone. ' +
+    'A `name` holding a `/` is a module, a file path or a package: the answer is who imports it, as docs_discover answers `imports`.',
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The exported name or member name, matched exactly.' },
+      name: { type: 'string', description: 'The exported name or member name, matched exactly, or a module: a file path or a package, which holds a `/`.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         type: 'string',
@@ -235,7 +196,9 @@ export const uses: Tool<Help> = {
       },
       file: {
         type: 'string',
-        description: 'The file the name is declared in, relative to the workspace root, to answer for that declaration alone among namesakes. Optional.',
+        description:
+          'The file the name is declared in, or a file that passes it on with `export … from`, relative to the workspace root, ' +
+          'to answer for that declaration alone among namesakes. Optional.',
       },
       limit: { type: 'integer', description: `Sites of each kind to show. ${SHOWN} when not said; the rest are counted.` },
     },
@@ -243,7 +206,15 @@ export const uses: Tool<Help> = {
     additionalProperties: false,
   },
 
+  // Who imports a module is read off the tree, as `discover` reads it.
+  wants: (input) => moduleOf(input) !== undefined,
+
   run(help, input, invocation) {
+    const module = moduleOf(input);
+    if (module !== undefined) {
+      const answer = discover.run(help, { imports: [module], ...limitInput(input) }, invocation);
+      return `\`${module}\` is a module, not a name: these are the files importing it, as \`discover\` answers \`imports\`.\n\n${answer}`;
+    }
     const limit = limitOf(input, SHOWN);
     const answer = usesOf(help, input, invocation?.root);
     return [answered(answer, input, limit), ...narrowing(answer.files, answer.file)].join('\n');
@@ -253,17 +224,34 @@ export const uses: Tool<Help> = {
   // declaring it as a member, read as `run` reads them; an index that did not
   // read leaves the imports within the package unread.
   files(help, input, invocation): FileSet {
-    const { sites, unread, members, kept, keptSites, inFile, keptInFile } = usesOf(help, input, invocation?.root);
+    const module = moduleOf(input);
+    if (module !== undefined) return discover.files!(help, { imports: [module] }, invocation);
+    const { namesakes, sites, unread, members, kept, keptSites, inFile, keptInFile } = usesOf(help, input, invocation?.root);
     const files = new Map<string, number[]>();
-    for (const site of [...sites, ...inFile, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept, ...keptSites, ...keptInFile]) {
+    const others = namesakes.flatMap((one) => [...one.sites, ...one.inFile]);
+    for (const site of [...sites, ...inFile, ...others, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept, ...keptSites, ...keptInFile]) {
       files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
     }
     return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
   },
 };
 
+/**
+ * The module a `name` names when it is a path or a package rather than a
+ * name: no name holds a `/`, and a specifier or a file path does.
+ */
+function moduleOf(input: Readonly<Record<string, unknown>>): string | undefined {
+  const name = input['name'];
+  return typeof name === 'string' && name.includes('/') ? name : undefined;
+}
+
+/** The `limit` a question said, passed on as it was. */
+function limitInput(input: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  return input['limit'] === undefined ? {} : { limit: input['limit'] };
+}
+
 /** The answer `docs_uses` gives, before the line on how to ask for one declaration. */
-function answered(answer: ReturnType<typeof usesOf>, input: Readonly<Record<string, unknown>>, limit: number): string {
+function answered(answer: Answer, input: Readonly<Record<string, unknown>>, limit: number): string {
   const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
   const { name, members, exported, found, byPath, kept } = answer;
   const declared = members.declared.length;
@@ -279,7 +267,7 @@ function answered(answer: ReturnType<typeof usesOf>, input: Readonly<Record<stri
   // A file that keeps a name of its own is another thing than the export of that name.
   const imports = [
     imported(answer, from, ownLines(answer.inFile, name, limit), limit),
-    ...namesakeLines(name, answer.namesakes),
+    ...namesakeLines(name, answer.namesakes, from, limit),
     ...(kept.length === 0 ? [] : ['', ...keeping]),
   ].join('\n');
   // An index the imports already said did not read is not said twice.
@@ -290,6 +278,18 @@ function answered(answer: ReturnType<typeof usesOf>, input: Readonly<Record<stri
   // The imports already said the order, so the members do not say it again.
   const lines = memberLines(members, from, name, limit).slice(1);
   return [imports, '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...lines].join('\n');
+}
+
+/**
+ * Each exported declaration beside the one answered first, with its own
+ * imports and its own file's uses of it, kept apart as a kept one is.
+ */
+function namesakeLines(name: string, namesakes: readonly Namesake[], from: string | undefined, limit: number): readonly string[] {
+  return namesakes.flatMap((one) => {
+    const count = one.sites.length;
+    const taken = count === 0 ? 'Nothing in this workspace imports it.' : `Imported in ${count} ${count === 1 ? 'place' : 'places'}.`;
+    return ['', namesakeLine(name, one.exported), taken, ...kinds(one.sites, from, name, limit), ...ownLines(one.inFile, name, limit)];
+  });
 }
 
 /**
@@ -310,7 +310,7 @@ function ownLines(inFile: readonly Use[], name: string, limit: number): readonly
  * The kinds of the declarations the name is published or exported as, as the
  * index holds them, in brackets after the name; nothing when it holds none.
  */
-function declaredAs(answer: ReturnType<typeof usesOf>): string {
+function declaredAs(answer: Answer): string {
   const held = answer.found.length > 0 ? answer.found.map(([, , entry]) => entry.kind) : answer.exported.map((one) => one.declaration);
   return bracketed(held);
 }
@@ -345,13 +345,16 @@ function memberLines(members: Members, from: string | undefined, name: string, l
 }
 
 /** The imports of an exported name, as `uses` has always answered them. */
-function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, own: readonly string[], limit: number): string {
-  const { name, found, exported, sites, unread, within, origin } = answer;
+function imported(answer: Answer, from: string | undefined, own: readonly string[], limit: number): string {
+  const { name, found, exported, sites, unread, within, origin, inside } = answer;
   // An export that only passes the name on is followed to the declaration.
   const passed = origin === undefined ? '' : `, which ${passesOn(origin)}`;
   const named = `\`${name}\`${declaredAs(answer)}`;
+  // An entry may publish the name only as a member of a namespace it exports.
+  const member = inside.length === 0 ? undefined : `published as ${inside.join(' and as ')}`;
   if (sites.length === 0 && exported.length > 0) {
-    return [`${named} is exported, without being published, at ${exportedAt(exported)}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
+    const how = member === undefined ? `exported, without being published, at ${exportedAt(exported)}` : `${member}, and exported at ${exportedAt(exported)}`;
+    return [`${named} is ${how}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
   }
   if (sites.length === 0 && unread !== undefined) {
     return `${named} is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
@@ -379,8 +382,8 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
     ...(off === 0 ? [] : [` ${reads} it off the module's \`default\`, which holds \`${name}\` only when the module is CommonJS.`]),
     ...(whole === 0 ? [] : [` ${passes} the module on whole, where this reading does not follow it, and may read \`${name}\`.`]),
   ].join('');
-  const published =
-    found.length > 0 ? '' : exported.length > 0 ? `, and no entry publishes it; it is exported at ${exportedAt(exported)}${passed}` : ', and no entry publishes it';
+  const exportedHere = exported.length > 0 ? `; it is exported at ${exportedAt(exported)}${passed}` : '';
+  const published = found.length > 0 ? '' : `, ${member ?? 'and no entry publishes it'}${exportedHere}`;
   const taken =
     certain.length === 0
       ? `${named} is imported by name nowhere${published}.`
@@ -404,77 +407,4 @@ function kinds(sites: readonly Site[], from: string | undefined, name: string, l
     ...listed(sorted.filter((use) => use.kind === 'test'), 'Tests:', name, limit),
     ...listed(sorted.filter((use) => use.kind === 'source'), 'Source:', name, limit),
   ];
-}
-
-/**
- * Every site of the name, and what was read to find them, or the refusal.
- *
- * The Help value holds the imports that cross a package; the rest are read
- * off the source index, out of the file that declares the name. The index
- * follows each `export … from` that passes it on, so an import through a
- * barrel is listed and the barrel is not, and a same-named export of
- * another file is not this name.
- */
-function usesOf(help: Help, input: Readonly<Record<string, unknown>>, root: string | undefined) {
-  const name = stringArg(input, 'name');
-  const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
-
-  // Each declaration is another thing, so a named file answers for its own alone.
-  const file = declaredIn(input);
-  const published = entriesNamed(help, name).filter(
-    ([held, opening]) => wanted === undefined || isPackage(held, opening, wanted),
-  );
-  const found = published.filter(([, , entry]) => file === undefined || entry.at === file);
-  // An import by path joins a published name only when the index says it
-  // resolved to the file that declares it; one no entry publishes is joined by
-  // name, or by the file named.
-  const declared = new Set(found.map(([, , entry]) => entry.at));
-  const byPath: Site[] = sitesByPath(help, name, wanted)
-    .filter((site) => (found.length === 0 ? file === undefined || site.held.to === file : site.held.to !== undefined && declared.has(site.held.to)))
-    .map((site) => ({ ...site.taken, how: how(site) }));
-  const exporting = exportsNamed(help, name, wanted);
-  const exported = found.length > 0 ? [] : exporting.filter((held) => file === undefined || (held.at === file && held.declaration !== undefined));
-  // A published name is one declaration; another file's export of the name is another.
-  const namesakes = found.length === 0 || file !== undefined ? [] : namesakesOf(exporting, declared);
-  // The scan records every member declaration, so reading the ones by this
-  // name is a lookup in the source index, made whether or not an export has it.
-  const everyMember: Members = membersOf(root, name, wanted);
-  const members = membersIn(everyMember, file);
-  // A name may be one a file declares and keeps to itself, which the source
-  // index holds with the file's parse, beside an export of it elsewhere.
-  const { kept, keptSites, keptInFile, undeclared, everywhere } = keptOf(root, name, wanted, file);
-  // Every file declaring a thing by the name, whichever one `file` names.
-  const files = [
-    ...published.map(([, , entry]) => entry.at),
-    ...exporting.filter((held) => held.declaration !== undefined).map((held) => held.at),
-    ...everywhere,
-    ...everyMember.declared.map((one) => one.at),
-  ];
-  const shared = { name, found, exported, namesakes, byPath, members, kept, keptSites, keptInFile, file, files };
-  if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
-    if (kept.length > 0 || members.declared.length > 0) {
-      return { ...shared, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined };
-    }
-    if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
-    // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
-    throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined));
-  }
-  // A published name is read from its entry file as well as its declaration:
-  // an entry that renames it, `export { greet as salute }`, passes on a name
-  // the declaring file never exports.
-  const local =
-    found.length === 0
-      ? [...new Set(exported.map((held) => held.at))]
-      : [...new Set(found.flatMap(([, opening, entry]) => [entry.at, opening.source]))];
-  const read = local.length === 0 ? undefined : importsOf(root, local, name);
-  const unread = read !== undefined && 'unread' in read ? read.unread : undefined;
-  const within = read !== undefined && 'uses' in read ? read.uses.filter((use) => throughDoor(use, wanted)) : undefined;
-  if (exported.length > 0 && unread !== undefined && byPath.length === 0) throw new Error(indexMissing(name, exported, unread));
-
-  const sites = sitesOf(found, byPath, within ?? [], read);
-  const inFile: readonly Use[] = read !== undefined && 'inFile' in read ? read.inFile : [];
-  const [only] = exported;
-  // The answer names one export's place, so only a name exported once is followed.
-  const origin = only === undefined || exported.length > 1 ? undefined : originOf(root, only);
-  return { ...shared, sites, unread, within, inFile, undeclared: [] as readonly string[], origin };
 }

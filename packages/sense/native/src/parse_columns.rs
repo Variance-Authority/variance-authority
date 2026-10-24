@@ -104,6 +104,8 @@ pub struct ParseColumns {
     binding_member_binding: Vec<u32>,
     binding_member_name: Vec<u32>,
     binding_member_line: Vec<u32>,
+    binding_member_within: Vec<u32>,
+    binding_within_name: Vec<u32>,
     declare_name: Vec<u32>,
 }
 
@@ -115,7 +117,7 @@ fn span(into: &mut [Vec<u32>; 2], value: Span) {
 impl ParseColumns {
     /// Every row, keyed and sorted by the caller, written in that order.
     pub fn of<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
-        let mut columns = Self { request_bindings: vec![0], ..Self::default() };
+        let mut columns = Self { request_bindings: vec![0], binding_member_within: vec![0], ..Self::default() };
         for (key, row) in rows {
             let (digest, way) = key.split_once('\0').unwrap_or((key, ""));
             columns.row(strings.id(digest), strings.id(way));
@@ -231,11 +233,15 @@ impl ParseColumns {
         self.own_use_line.push(line);
     }
 
-    pub fn binding_member(&mut self, request: u32, binding: u32, name: u32, line: u32) {
+    /// One name read off a value inside a module; `within` are the names read
+    /// off `binding` to reach the value, nearest first.
+    pub fn binding_member(&mut self, request: u32, binding: u32, within: impl IntoIterator<Item = u32>, name: u32, line: u32) {
         self.binding_member_request.push(request);
         self.binding_member_binding.push(binding);
         self.binding_member_name.push(name);
         self.binding_member_line.push(line);
+        self.binding_within_name.extend(within);
+        self.binding_member_within.push(self.binding_within_name.len() as u32);
     }
 
     /// The columns in `encodeSourceIndex`'s order, the deleted keys between
@@ -320,6 +326,8 @@ impl ParseColumns {
             u32s("binding-members.binding", self.binding_member_binding),
             u32s("binding-members.name", self.binding_member_name),
             u32s("binding-members.line", self.binding_member_line),
+            u32s("binding-members.within", self.binding_member_within),
+            u32s("binding-within.name", self.binding_within_name),
             u32s("declares.name", self.declare_name),
         ]
     }

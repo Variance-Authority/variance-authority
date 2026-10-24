@@ -25,7 +25,7 @@ afterEach(() => {
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
-const UNCOUNTED_LINE = 'A namespace imported by name that goes somewhere whole, a namespace inside a namespace and, outside Rust, a call through a qualified path are not counted.';
+const UNCOUNTED_LINE = 'A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.';
 
 describe('variance ask over the imports of a name within its own package', () => {
   it('answers `uses` for a published name with the imports within its own package as well as across one', async () => {
@@ -53,8 +53,12 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2 — @acme\/lib$/m);
     expect(out).toMatch(/^packages\/lib\/src\/barrelled\.ts:1 — @acme\/lib$/m);
     expect(out).toMatch(/^packages\/lib\/src\/saluted\.ts:1 — @acme\/lib \(as salute\)$/m);
-    expect(out).not.toMatch(/both\.ts:1|index\.ts|alias\.ts|unrelated\.ts/);
-    expect(out).toContain(`\n\n${UNCOUNTED_LINE}`);
+    // The same-named export of another file is answered apart, with its own import.
+    const [own, namesake] = out.split('`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.');
+    expect(own).not.toMatch(/both\.ts:1|index\.ts|alias\.ts|unrelated\.ts/);
+    expect(own).toContain(`\n\n${UNCOUNTED_LINE}`);
+    expect(namesake).toMatch(/^Imported in 1 place\.$/m);
+    expect(namesake).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib$/m);
   });
 
   it('lists the imports within its package of a name an entry publishes under another name than its declaration', async () => {
@@ -134,7 +138,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(out.split('\n')).toContain(
-      '`greet` [function] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole, a namespace inside a namespace and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
+      '`greet` [function] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. docs_symbol has its signature and what is written above it.',
     );
   });
 

@@ -128,6 +128,8 @@ pub struct HeldBindingMember {
     #[serde(default)]
     request: u32,
     binding: String,
+    #[serde(default)]
+    within: Vec<String>,
     name: String,
     #[serde(default)]
     line: u32,
@@ -201,6 +203,7 @@ impl ParseRow for HeldParse {
         values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
         for read in &self.binding_members {
             values.insert(&read.binding);
+            values.extend(read.within.iter().map(String::as_str));
             values.insert(&read.name);
         }
         values.extend(self.declares.iter().flatten().map(String::as_str));
@@ -252,7 +255,7 @@ impl ParseRow for HeldParse {
             into.own_use(id(&used.name), used.line);
         }
         for read in &self.binding_members {
-            into.binding_member(read.request, id(&read.binding), id(&read.name), read.line);
+            into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);
         }
     }
 

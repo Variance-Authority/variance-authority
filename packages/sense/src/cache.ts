@@ -169,10 +169,12 @@ export interface OwnUse {
  * `ns` on as `export * as ns`.
  */
 export interface BindingMember {
-  /** The index of the request, in the same parse, the binding imports through. */
+  /** The index of the request, in the same parse, the value is read through. */
   readonly request: number;
-  /** The name the binding imports. */
+  /** The export of the module the value is, or is read off: the name a named import takes, the first name read off a namespace import, or `default`. */
   readonly binding: string;
+  /** The names read off `binding` before `name`, nearest first. Absent when the value is `binding` itself. */
+  readonly within?: readonly string[];
   readonly name: string;
   readonly line: number;
 }

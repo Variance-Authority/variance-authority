@@ -82,6 +82,7 @@ impl ParseRow for Read {
         values.extend(self.own_uses.iter().map(|used| used.name.as_str()));
         for read in &self.binding_members {
             values.insert(&read.binding);
+            values.extend(read.within.iter().map(String::as_str));
             values.insert(&read.name);
         }
         values.extend(self.unknown.as_deref());
@@ -134,7 +135,7 @@ impl ParseRow for Read {
             into.own_use(id(&used.name), used.line);
         }
         for read in &self.binding_members {
-            into.binding_member(read.request, id(&read.binding), id(&read.name), read.line);
+            into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);
         }
     }
 

@@ -87,6 +87,8 @@ pub(crate) struct Parses<'a> {
     pub binding_member_binding: U32s<'a>,
     pub binding_member_name: U32s<'a>,
     pub binding_member_line: U32s<'a>,
+    pub binding_member_within: U32s<'a>,
+    pub binding_within_name: U32s<'a>,
     declare_name: U32s<'a>,
 }
 
@@ -106,6 +108,7 @@ impl<'a> Parses<'a> {
         let member_use_name = u32s("member-uses.name")?;
         let own_use_name = u32s("own-uses.name")?;
         let binding_member_name = u32s("binding-members.name")?;
+        let binding_within_name = u32s("binding-within.name")?;
         let parses = Parses {
             key,
             way: u32s("parses.key-way")?,
@@ -173,6 +176,8 @@ impl<'a> Parses<'a> {
             binding_member_request: u32s("binding-members.request")?,
             binding_member_binding: u32s("binding-members.binding")?,
             binding_member_line: u32s("binding-members.line")?,
+            binding_member_within: stored.offsets("binding-members.within", binding_member_name.len(), binding_within_name.len())?,
+            binding_within_name,
             binding_member_name,
             declare_name,
         };
@@ -338,6 +343,9 @@ impl ParseRow for ParseView<'_, '_> {
         for at in columns.binding_members.range(row) {
             text(columns.binding_member_binding, at);
             text(columns.binding_member_name, at);
+            for within in columns.binding_member_within.range(at) {
+                text(columns.binding_within_name, within);
+            }
         }
         for at in self.declares() {
             text(columns.declare_name, at);
@@ -421,7 +429,8 @@ impl ParseRow for ParseView<'_, '_> {
         }
         for at in columns.binding_members.range(row) {
             let (binding, name) = (id(columns.binding_member_binding, at), id(columns.binding_member_name, at));
-            into.binding_member(columns.binding_member_request.at(at), binding, name, columns.binding_member_line.at(at));
+            let within = columns.binding_member_within.range(at).map(|within| id(columns.binding_within_name, within));
+            into.binding_member(columns.binding_member_request.at(at), binding, within, name, columns.binding_member_line.at(at));
         }
     }
 

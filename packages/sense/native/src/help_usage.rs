@@ -295,6 +295,20 @@ pub struct Importers {
     /// Every line of one of the files asked about that uses the name the file
     /// declares at its top level, by file in code units, then by line.
     pub in_file: Vec<InFile>,
+    /// Every namespace a file passes the name on inside, by file in code
+    /// units, then by name: `export * as shout` passes `greet` as `shout.greet`.
+    pub namespaces: Vec<Namespace>,
+}
+
+/// A namespace one file passes a name on inside: the name it exports the
+/// namespace as, and the names read off it to reach the name, nearest first,
+/// the last the name itself.
+#[napi(object)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Namespace {
+    pub at: String,
+    pub name: String,
+    pub members: Vec<String>,
 }
 
 /// Every import, by any file on the chain, of `name` out of one of `files`:
@@ -321,8 +335,8 @@ pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &s
         files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
     let folded = fold(layers);
     let in_file = in_file(root, layers, &folded, files, name);
-    let (found, through) = importers_folded(root, layers, &folded, origins);
-    let mut found: Vec<NameUse> = found.into_iter().map(|taken| taken.taken).collect();
+    let walked = importers_folded(root, layers, &folded, origins);
+    let mut found: Vec<NameUse> = walked.taken.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at)
             .then(a.line.cmp(&b.line))
@@ -331,9 +345,13 @@ pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &s
             // Two bindings of one name on one line differ by what they bind it to.
             .then_with(|| crate::order::code_unit(a.local.as_deref().unwrap_or(""), b.local.as_deref().unwrap_or("")))
     });
-    let mut through: Vec<String> = through.into_iter().filter(|file| !files.contains(file)).collect();
+    let mut through: Vec<String> = walked.through.into_iter().filter(|file| !files.contains(file)).collect();
     through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    Importers { uses: found, through, in_file }
+    let mut namespaces = walked.namespaces;
+    namespaces.sort_unstable_by(|a, b| {
+        crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
+    });
+    Importers { uses: found, through, in_file, namespaces }
 }
 
 #[cfg(test)]

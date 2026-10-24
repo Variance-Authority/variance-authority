@@ -3,8 +3,9 @@ import type { BindingMember } from './cache.js';
 
 /**
  * The binding-member columns of a source-index generation: per parse, the names
- * the file reads off a binding a named import takes, each with the index of the
- * request the binding imports through and the name it imports.
+ * the file reads off a value inside a module, each with the index of the
+ * request the value is read through, the export it is or is read off, and the
+ * names read off that export to reach it, in a second offset list per read.
  *
  * One offset list, because the module reader records the list only when it is
  * not empty, so the empty range and the absent field are the same fact.
@@ -25,13 +26,23 @@ export function openBindingMembers(
   const binding = opened.u32('binding-members.binding');
   const name = opened.u32('binding-members.name');
   const line = opened.u32('binding-members.line');
+  const withinOffsets = opened.u32('binding-members.within');
+  const withinName = opened.u32('binding-within.name');
   validateOffsets(offsets, name.length, parseCount, reject);
+  validateOffsets(withinOffsets, withinName.length, name.length, reject);
   if (request.length !== name.length || binding.length !== name.length || line.length !== name.length) reject();
 
   return (row, requests) => {
     const bindingMembers = rangeOf(offsets, row, reject).map((at): BindingMember => {
       if (request[at]! >= requests) reject();
-      return { request: request[at]!, binding: text(binding[at]!), name: text(name[at]!), line: line[at]! };
+      const within = rangeOf(withinOffsets, at, reject).map((one) => text(withinName[one]!));
+      return {
+        request: request[at]!,
+        binding: text(binding[at]!),
+        ...(within.length === 0 ? {} : { within }),
+        name: text(name[at]!),
+        line: line[at]!,
+      };
     });
     return bindingMembers.length === 0 ? {} : { bindingMembers };
   };

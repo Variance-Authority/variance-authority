@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, paragraph, run } from './ask-packages-fixture.js';
 
 /**
  * `variance ask uses` over a name several files declare. Each declaration is
@@ -47,6 +47,16 @@ describe('variance ask uses over a name several files declare', () => {
     expect(out).toContain('`file`, the file one of them is declared in, answers for that declaration alone.');
   });
 
+  it('lists the imports of an exported namesake apart, as it lists a kept one', async () => {
+    checkout(NAMESAKES);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await uses();
+    const namesake = paragraph(out, /^`greet` is exported, without being published, at packages\/lib\/src\/other\.ts:1/);
+    expect(namesake).toMatch(/^Imported in 1 place\.$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib$/m);
+  });
+
   it('answers for the published declaration alone when `--file` names its file', async () => {
     checkout(NAMESAKES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -80,8 +90,23 @@ describe('variance ask uses over a name several files declare', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     // A file that declares nothing by the name is found nothing for, which is an answer, not a refusal.
-    expect(await uses('--file', 'packages/lib/src/index.ts')).toContain(
-      '`greet` is not declared in packages/lib/src/index.ts; it is declared in packages/lib/src/greet.ts, packages/lib/src/kept.ts and packages/lib/src/other.ts.',
+    expect(await uses('--file', 'packages/lib/src/unrelated.ts')).toContain(
+      '`greet` is not declared in packages/lib/src/unrelated.ts; it is declared in packages/lib/src/greet.ts, packages/lib/src/kept.ts and packages/lib/src/other.ts.',
     );
+  });
+
+  it('answers for the declaration a barrel passes on when `--file` names the barrel', async () => {
+    checkout({
+      'packages/kit/src/ui/index.ts': "export { Button } from './Button.js';\n",
+      'apps/app/src/barreled.ts': "import { Button } from '@acme/kit/src/ui/index';\nexport const barreled = Button('b');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'Button', '--file', 'packages/kit/src/ui/index.ts']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out.split('\n')[0]).toContain('exported at packages/kit/src/ui/Button.ts:1');
+    // The import by path of the declaration is a use of it, and so is the one through the barrel.
+    expect(out).toMatch(/^apps\/app\/src\/checkout\.ts:2 — @acme\/app, by path from @acme\/kit\/src\/ui\/Button$/m);
+    expect(out).toMatch(/^apps\/app\/src\/barreled\.ts:1 — @acme\/app, by path from @acme\/kit\/src\/ui\/index$/m);
   });
 });

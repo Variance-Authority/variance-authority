@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
-import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames, uses } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -94,6 +94,15 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
 export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
   const read = await readNamedTree(root, input);
   return { answer: () => discover.run(undefined, input, { ...read, root }), at: undefined };
+}
+
+/**
+ * `uses` of a module is `discover --imports` of it, so it reads the tree and
+ * each file's names as `discover` does, beside the workspace every `uses` reads.
+ */
+export async function usesModuleSource(root: string, input: Readonly<Record<string, unknown>>, reading: SourceReadOptions): Promise<Answering> {
+  const [sourced, read] = await Promise.all([readSource(root, reading), readNamedTree(root, input)]);
+  return { answer: () => uses.run(sourced.help, input, { ...read, root }), at: workspaceGeneration(sourced.help) };
 }
 
 /**

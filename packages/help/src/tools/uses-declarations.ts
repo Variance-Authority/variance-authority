@@ -6,11 +6,11 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Named, Use } from '@variance-authority/package/help';
+import type { Named } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
-import { declarations, reachSentences } from './declared.js';
+import { reachSentences } from './declared.js';
 import { type Members, places } from './members.js';
-import { type IndexedUse, exportedAt, importsOf } from './unpublished.js';
+import { exportedAt } from './unpublished.js';
 
 /** The file the asker names a declaration by, exactly as the checkout spells it; absent when none is named. */
 export function declaredIn(input: Readonly<Record<string, unknown>>): string | undefined {
@@ -47,40 +47,15 @@ export function keptLine(name: string, kept: readonly DeclaredName[]): string {
   ].join('\n');
 }
 
-/**
- * The top-level declarations of a name no export binds, in `file` when one is
- * named, the imports the source index resolved to them, and the lines of their
- * own files that use them; `everywhere` is every file declaring one, named or not.
- */
-export function keptOf(root: string | undefined, name: string, wanted: string | undefined, file: string | undefined) {
-  const read = declarations(root, name);
-  const all: readonly DeclaredName[] = 'refused' in read ? [] : read.names.filter((one) => wanted === undefined || one.by === wanted);
-  const kept = all.filter((one) => file === undefined || one.at === file);
-  const undeclared: readonly string[] = 'refused' in read ? [] : read.unread;
-  const taken = kept.length === 0 ? undefined : importsOf(root, [...new Set(kept.map((one) => one.at))], name);
-  const keptSites: readonly IndexedUse[] = taken !== undefined && 'uses' in taken ? taken.uses : [];
-  const keptInFile: readonly Use[] = taken !== undefined && 'inFile' in taken ? taken.inFile : [];
-  return { kept, keptSites, keptInFile, undeclared, everywhere: all.map((one) => one.at) };
-}
-
 /** The member declarations in `file`, with their uses, or all of them when no file is named. */
 export function membersIn(members: Members, file: string | undefined): Members {
   if (file === undefined) return members;
   return { ...members, declared: members.declared.filter((one) => one.at === file), used: members.used.filter((one) => one.declared.at === file) };
 }
 
-/**
- * The exports of a published name that declare another thing by its name: an
- * export written in a file that declares it there, other than the files the
- * published one is declared in. An `export … from` declares nothing.
- */
-export function namesakesOf(exported: readonly Named[], declared: ReadonlySet<string>): readonly Named[] {
-  return exported.filter((held) => held.declaration !== undefined && !declared.has(held.at));
-}
-
-/** The line naming the exported namesakes of a published name; nothing when there are none. */
-export function namesakeLines(name: string, namesakes: readonly Named[]): readonly string[] {
-  return namesakes.length === 0 ? [] : ['', `\`${name}\` is exported, without being published, at ${exportedAt(namesakes)} as well, which is another declaration.`];
+/** The sentence naming an exported namesake of the declaration answered first, by the exports that reach it. */
+export function namesakeLine(name: string, exported: readonly Named[]): string {
+  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)} as well, which is another declaration.`;
 }
 
 /** How to ask for one declaration, said when the answer covers more than one and no file was named. */

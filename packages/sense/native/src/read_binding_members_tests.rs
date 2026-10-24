@@ -1,22 +1,26 @@
-//! What `read_module` makes of a name read off a binding a named import takes:
-//! `ns.x` after `import { ns } from 'm'`, which reads `x` off `ns` only when
-//! `m` passes `ns` on as a namespace, which the query decides.
+//! What `read_module` makes of a name read off a value inside a module: `ns.x`
+//! after `import { ns } from 'm'`, or `lib.ns.x` after `import * as lib from
+//! 'm'`, which reads `x` of a module only when `m` passes `ns` on as a
+//! namespace, which the query decides.
 
 use oxc_allocator::Allocator;
 
 use super::read_module;
 
-/// Each `(request, binding, name, line)` the module reads off a named binding.
+/// Each `(request, binding.within…, name, line)` the module reads off a value inside a module.
 fn binding_members(source: &str) -> Vec<(String, String, String, u32)> {
-    let read = read_module("a.ts", source, &Allocator::default(), false);
+    let read = read_module("a.tsx", source, &Allocator::default(), false);
     read.binding_members
         .iter()
-        .map(|member| (read.requests[member.request as usize].value.clone(), member.binding.clone(), member.name.clone(), member.line))
+        .map(|member| {
+            let path = std::iter::once(member.binding.as_str()).chain(member.within.iter().map(String::as_str)).collect::<Vec<_>>().join(".");
+            (read.requests[member.request as usize].value.clone(), path, member.name.clone(), member.line)
+        })
         .collect()
 }
 
-fn read(value: &str, binding: &str, name: &str, line: u32) -> (String, String, String, u32) {
-    (value.to_owned(), binding.to_owned(), name.to_owned(), line)
+fn read(value: &str, path: &str, name: &str, line: u32) -> (String, String, String, u32) {
+    (value.to_owned(), path.to_owned(), name.to_owned(), line)
 }
 
 #[test]
@@ -43,9 +47,57 @@ fn a_name_read_off_a_named_binding_is_recorded_under_the_name_it_imports() {
 }
 
 #[test]
-fn a_type_query_off_a_named_binding_reads_its_first_name() {
+fn a_type_query_off_a_named_binding_reads_each_name_off_the_one_before() {
     let source = "import type { shout } from './lib';\nexport type Greet = typeof shout.greet.length;\n";
-    assert_eq!(binding_members(source), [read("./lib", "shout", "greet", 2)]);
+    assert_eq!(binding_members(source), [read("./lib", "shout", "greet", 2), read("./lib", "shout.greet", "length", 2)]);
+}
+
+#[test]
+fn a_name_read_off_a_name_read_off_a_namespace_import_is_recorded_under_the_first() {
+    let source = concat!(
+        "import * as lib from './lib';\n",
+        "lib.shout.greet('a');\n",
+        "const { quiet } = lib.shout;\n",
+        "const inner = lib.outer.inner;\n",
+        "inner.deep;\n",
+        "lib['shout']['loud'];\n",
+    );
+    assert_eq!(
+        binding_members(source),
+        [
+            read("./lib", "outer", "inner", 4),
+            read("./lib", "outer.inner", "deep", 5),
+            read("./lib", "shout", "greet", 2),
+            read("./lib", "shout", "loud", 6),
+            read("./lib", "shout", "quiet", 3),
+        ]
+    );
+}
+
+#[test]
+fn a_name_read_off_a_name_read_off_a_default_import_is_recorded_under_default() {
+    let source = "import loud from './loud';\nloud.shout.greet('a');\n";
+    assert_eq!(binding_members(source), [read("./loud", "default.shout", "greet", 2)]);
+}
+
+#[test]
+fn a_jsx_or_type_name_read_off_a_name_read_off_a_holder_is_recorded_under_the_first() {
+    let source = concat!(
+        "import * as lib from './lib';\n",
+        "import { outer } from './lib';\n",
+        "export const a = <lib.ui.Button />;\n",
+        "export type T = lib.types.Props;\n",
+        "export type U = outer.inner.Props;\n",
+    );
+    assert_eq!(
+        binding_members(source),
+        [
+            read("./lib", "types", "Props", 4),
+            read("./lib", "ui", "Button", 3),
+            read("./lib", "outer", "inner", 5),
+            read("./lib", "outer.inner", "Props", 5),
+        ]
+    );
 }
 
 #[test]

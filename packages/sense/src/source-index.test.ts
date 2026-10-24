@@ -93,6 +93,7 @@ const PARSED: Parsed = {
   bindingMembers: [
     { request: 1, binding: 'Props', name: 'tintBound', line: 45 },
     { request: 1, binding: 'Props', name: 'tintFree', line: 47 },
+    { request: 1, binding: 'Props', within: ['tint', 'deep'], name: 'tintDeep', line: 49 },
   ],
   unknown: 'one dynamic request could not be read',
   // Numbers no other column holds, so a round trip that read one column in
