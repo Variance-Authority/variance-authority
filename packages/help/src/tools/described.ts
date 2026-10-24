@@ -291,31 +291,17 @@ export function describedDeclarations(
     const held = new Set(positions ?? []);
     return asked.filter((_, position) => held.has(position)).map(([, word]) => word as string);
   };
-  // The held words its name holds, by the rule the addon held them by: the
-  // stems of the name cut as the question was.
-  const named = (positions: readonly number[] | null | undefined, name: string): string[] => {
-    const own = new Set(describedWordsNative(name).map(([stem]) => stem));
-    const held = new Set(positions ?? []);
-    return asked.filter(([stem], position) => held.has(position) && own.has(stem)).map(([, word]) => word as string);
-  };
   const unranked = { rows: 0, rank: Number.MAX_SAFE_INTEGER } as const;
   return [
     ...read.names.map((one): DescribedDeclaration => ({
-      match: declaredMatch(one), words: words(one.held), near: one.near ?? 0, named: named(one.held, one.name), ...unranked,
+      match: declaredMatch(one), words: words(one.held), near: one.near ?? 0, named: words(one.named), ...unranked,
       ...docLengthOf(one.docLength),
     })),
     ...read.files.map((file): DescribedFileHit => ({
-      file, words: words(file.held), near: file.near, named: named(file.held, fileName(file.at)), ...unranked,
+      file, words: words(file.held), near: file.near, named: words(file.named), ...unranked,
       ...docLengthOf(file.docLength),
     })),
   ];
-}
-
-/** The words a file's name is written in, as the addon reads them: its last segment without its last extension. */
-function fileName(file: string): string {
-  const last = file.slice(file.lastIndexOf('/') + 1);
-  const dot = last.lastIndexOf('.');
-  return dot < 0 ? last : last.slice(0, dot);
 }
 
 /** A described file as a `search` section holds it, its doc's opening read from the checkout. */

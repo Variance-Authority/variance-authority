@@ -291,8 +291,8 @@ export interface DeclaredName {
   readonly reach?: SourceSymbolReach | null;
   /** Asked by `declaredDescribedOf`: the positions, ascending, of the asked stems its name or doc holds. */
   readonly held?: readonly number[] | null;
-  /** Asked by `declaredDescribedOf`: how many of those its name holds. */
-  readonly named?: number | null;
+  /** Asked by `declaredDescribedOf`: the positions, ascending, of those its name holds. */
+  readonly named?: readonly number[] | null;
   /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes adjacent. */
   readonly near?: number | null;
   /** Asked by `declaredDescribedOf`: the bytes of the doc the words were held against, its lines joined by single spaces; absent when it writes none. */
@@ -313,8 +313,8 @@ export interface DescribedFile {
   readonly docEnd?: number | null;
   /** The positions, ascending, of the asked stems its name or its module doc holds. */
   readonly held: readonly number[];
-  /** How many of those its name holds. */
-  readonly named: number;
+  /** The positions, ascending, of those its name holds. */
+  readonly named: readonly number[];
   /** How many of the question's adjacent word pairs its module doc writes adjacent. */
   readonly near: number;
   /** The bytes of the module doc the words were held against, its lines joined by single spaces; absent when it writes none. */
