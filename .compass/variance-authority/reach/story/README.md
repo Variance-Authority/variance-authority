@@ -16,7 +16,9 @@ drawn at the finest level that fits a page and read a part at a time.
 
 In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit; and, to name what was visited, the
-region inventory the record beside it holds. Out: one **story** per case,
+region inventory the record beside it holds; and the lines a setup file says
+through the story's note channel, such as the React story setup's one line per
+component a commit rendered and why. Out: one **story** per case,
 written beside the record the run writes; read back, a route of numbered steps —
 declarations with, when steps are drawn, the branches and loops each went
 through drawn as the code nests them, every arm counted and an arm the case took
@@ -64,6 +66,8 @@ by guess.
 
 - `packages/sense/src/instrument/story-tap.cts` — the root that stands in front
   of the engine, tapes every hit and forwards it
+- `packages/react/src/story.ts` — the React story setup: a commit tap that says
+  each component that rendered, and why, through the note channel
 - `packages/sense/src/test-selection/collectors.cts` — where a realm installs
   the tap instead of the engine, and writes each case's story as it settles
 - `packages/sense/src/story/format.cts` — one case's story on disk
