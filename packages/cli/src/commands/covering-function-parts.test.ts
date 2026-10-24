@@ -123,5 +123,13 @@ describe('a function the handover marks as holding a part no case ran', () => {
     let far = '';
     await main(['covering', '--file', 'src/total.ts', '--function', 'round', '--at-distance', '5-', '--root', root, '--format', 'json'], { out: (text) => (far += text), err: () => {} });
     expect(JSON.parse(far)).toMatchObject({ tests: [], unrun: [{ kind: 'branch', startLine: 6, endLine: 6 }] });
+
+    // A part whose every line the held text removed has nowhere to be named.
+    const held = join(root, 'held.ts');
+    await writeFile(held, AFTER.replace('  return Math.round(price);\n', ''));
+    let removed = '';
+    await main(['covering', '--file', 'src/total.ts', '--function', 'round', '--text', held, '--root', root, '--format', 'json'], { out: (text) => (removed += text), err: () => {} });
+    expect(JSON.parse(removed).tests).toHaveLength(1);
+    expect(JSON.parse(removed).unrun).toBeUndefined();
   });
 });
