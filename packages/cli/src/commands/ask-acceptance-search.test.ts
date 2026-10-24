@@ -1,0 +1,71 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { EXIT_CLEAN } from '../exit.js';
+import { ACCEPTANCE } from './ask-acceptance-fixture.js';
+import { checkout, run } from './ask-packages-fixture.js';
+
+/**
+ * `variance ask search` held to spec 0104: a name found by what it does.
+ * Read through its JSON, which already carries the facts.
+ */
+
+interface Hit {
+  name: string;
+  at: string;
+}
+
+interface Tier {
+  total: number;
+  shown: Hit[];
+}
+
+interface Found {
+  published: Tier;
+  exported: Tier;
+  declared: Tier;
+  described?: Tier;
+}
+
+const cwd = process.cwd();
+
+async function search(query: string): Promise<Found> {
+  const { code, out } = await run(['ask', 'search', '--query', query, '--format', 'json']);
+  expect(code).toBe(EXIT_CLEAN);
+  return JSON.parse(out) as Found;
+}
+
+beforeAll(async () => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-acceptance-search-'));
+  checkout(ACCEPTANCE);
+  expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+});
+
+afterAll(() => {
+  process.chdir(cwd);
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+});
+
+describe('ask search', () => {
+  it('finds a name by the words it is spelled with', async () => {
+    expect((await search('png size')).published.shown[0]).toMatchObject({ name: 'pngSize', at: 'packages/core/src/png.ts' });
+  });
+
+  it('finds a name by the words of its documentation', async () => {
+    expect((await search('repository relative path')).described?.shown.map((hit) => hit.name)).toEqual(['CheckoutPath']);
+  });
+
+  it('finds nothing for a word nothing carries', async () => {
+    const found = await search('zzqx');
+    expect([found.published.total, found.exported.total, found.declared.total, found.described?.total ?? 0]).toEqual([0, 0, 0, 0]);
+  });
+
+  it.todo('answers one ranked list, each hit with its file, line and visibility — needs the tiers folded into one list ranked by one score');
+  it.todo('ranks a rare word above a common one, and a short name above a long document — needs a score that weighs each word by how few declarations carry it');
+  it.todo('finds an unexported name and a member, ranked below what is published — needs unexported and member declarations in the search index');
+  it.todo('answers a third-party name only when asked to — needs third-party hits behind a flag instead of a tier of their own');
+  it.todo('opens on its first hit, never on "nothing matches" while partial hits follow — needs the renderer to open on the list, not on the empty tiers');
+  it.todo('names the word of the query nothing carries — needs the words that matched nothing carried to the answer');
+  it.todo('exits 1 when nothing matches — needs the exit code chosen from the answer instead of always 0');
+});
