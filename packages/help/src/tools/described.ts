@@ -209,7 +209,7 @@ export function describedShown(
   query: string,
   reached: readonly Reached[],
   count: number,
-  population: readonly Weighed[] = reached,
+  population: readonly Weighed[],
 ): readonly Described[] {
   const words = describedWordsNative(query).map(([, word]) => word);
   const weight = weightOf(population);

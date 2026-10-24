@@ -405,7 +405,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
   const keptHere = new Set(kept.map(declaredKey));
   const left = described?.filter((one) => ('match' in one ? !keptHere.has(declaredKey(one.match)) : 'file' in one || !loose.has(one.name)));
-  const told = left === undefined ? undefined : describedShown(index, query, left, DESCRIBED_CAP, described)
+  const told = described === undefined || left === undefined ? undefined : describedShown(index, query, left, DESCRIBED_CAP, described)
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...one.match, words: one.words }];
       if ('file' in one) return [{ ...fileMatch(root, one.file), words: one.words }];
