@@ -230,6 +230,7 @@ function lostMarkdown(review: Review, code: (value: string) => string): readonly
   const moved = review.motion?.moved;
   const unwritten = review.motion?.unwritten?.length ?? 0;
   const at = runsAt(review, code);
+  if (review.motion?.undiffed !== undefined) return ['', `No case is compared against the base: ${review.motion.undiffed}`];
   if (review.motion?.lastRunUnread !== undefined) {
     return ['', `Which test files a run ${at} wrote to the case index could not be read, so no case is compared against the base.`];
   }
