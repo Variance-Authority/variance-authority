@@ -11,6 +11,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
@@ -106,7 +107,7 @@ function exportGroups(root: string | undefined, exporting: readonly Named[]): re
   }
   const declaringFirst = (left: Named, right: Named): number => Number(left.declaration === undefined) - Number(right.declaration === undefined);
   return [...groups]
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .sort(([left], [right]) => codeUnitOrder(left, right))
     .map(([at, held]) => ({ at, exported: [...held].sort(declaringFirst) }));
 }
 
