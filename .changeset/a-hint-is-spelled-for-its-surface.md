@@ -1,7 +1,7 @@
 ---
-'@variance-authority/mcp': patch
+'@variance-authority/mcp': minor
 '@variance-authority/help': patch
-'@variance-authority/cli': patch
+'@variance-authority/cli': minor
 ---
 
 A hint names what you can type where you asked
