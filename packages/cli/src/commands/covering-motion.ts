@@ -255,8 +255,9 @@ export async function motionOfRuns(
   try {
     return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
   } catch (error) {
-    // The runs' own layer is one piece of the review: it is left uncompared, not the review refused.
-    if (!(error instanceof OperatorError) || error.kind !== 'undiffed') throw error;
+    // A layer naming no commit is the record's own state, left uncompared; a
+    // commit it names that cannot be read is this clone's, and is refused.
+    if (wrote.at !== undefined || !(error instanceof OperatorError) || error.kind !== 'undiffed') throw error;
     return { base, ...said, undiffed: error.message };
   }
 }
@@ -306,7 +307,7 @@ export function motionText(
   if (motion.unbased !== undefined && motion.unbased.length > 0) {
     unwritten.push(`Not compared, no case of these was recorded before this commit's first run: ${listedOf(motion.unbased, listed, 'test file')}.`);
   }
-  if (motion.undiffed !== undefined) return ['', `Not compared: ${motion.undiffed}`];
+  if (motion.undiffed !== undefined) return ['', `Not compared: ${motion.undiffed}`, ...unwritten];
   if (motion.lastRunUnread !== undefined) {
     return ['', `Not compared: ${motion.lastRunUnread} could not be read, so which test files a run at this commit wrote to the case index is not known.`];
   }
