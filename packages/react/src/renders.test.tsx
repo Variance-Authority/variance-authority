@@ -8,10 +8,10 @@ import { describe, expect, it } from 'vitest';
 import { tapCommits } from './commits.js';
 import type { Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
-import { causesOf, type RenderCause } from './renders.js';
+import { renderCausesOf, type RenderCause } from './renders.js';
 
 const seen: [string, readonly RenderCause[]][] = [];
-tapCommits({ onRender: (fiber) => seen.push([fiberComponentName(fiber), causesOf(fiber)]) });
+tapCommits({ onRender: (fiber) => seen.push([fiberComponentName(fiber), renderCausesOf(fiber)]) });
 
 const { createRoot } = await import('react-dom/client');
 
@@ -162,14 +162,14 @@ describe('why a component rendered', () => {
     const props = {};
     const before = { tag: 0, alternate: null, memoizedProps: props, memoizedState: { memoizedState: 1, next: null } };
     const after = { ...before, alternate: before, memoizedState: { memoizedState: 2, next: null } };
-    expect(causesOf(after as unknown as Fiber)).toEqual([{ kind: 'unread' }]);
+    expect(renderCausesOf(after as unknown as Fiber)).toEqual([{ kind: 'unread' }]);
   });
 
   it('says state was not read past a hook the reader does not know, beside what it could read', () => {
     const shape = (value: number) => ({ memoizedState: value, next: null });
     const before = { tag: 0, alternate: null, memoizedProps: { n: 1 }, memoizedState: shape(1), _debugHookTypes: ['useSomethingNew'] };
     const after = { ...before, alternate: before, memoizedProps: { n: 2 }, memoizedState: shape(2) };
-    expect(causesOf(after as unknown as Fiber)).toEqual([
+    expect(renderCausesOf(after as unknown as Fiber)).toEqual([
       { kind: 'prop', name: 'n', before: 1, after: 2 },
       { kind: 'unread', hook: 'useSomethingNew' },
     ]);
@@ -179,6 +179,6 @@ describe('why a component rendered', () => {
     const props = {};
     const before = { tag: 0, alternate: null, memoizedProps: props, memoizedState: null, _debugHookTypes: null };
     const after = { ...before, alternate: before };
-    expect(causesOf(after as unknown as Fiber)).toEqual([{ kind: 'unseen' }]);
+    expect(renderCausesOf(after as unknown as Fiber)).toEqual([{ kind: 'unseen' }]);
   });
 });

@@ -129,7 +129,7 @@ export interface ContextDependency {
   /**
    * The context value this fiber read, as of its last render.
    *
-   * Read through `inputs.ts` by `holding.ts` and `renders.ts` alone, because it
+   * Its value is read through `inputs.ts` by `holding.ts` and `renders.ts` alone (`wiring.ts` reads only names), because it
    * is a *value* and the wiring band may not carry one. It is the only route to a context's current
    * contents: the provider holds the value, the consumer holds this, and the
    * hook chain holds nothing at all — `useContext` builds no cell (measured on
@@ -266,8 +266,8 @@ export function isOwnerFrame(fiber: Fiber): boolean {
  */
 const MAX_FIBER_DEPTH = 10_000;
 
-/** The nearest composite above `fiber`, the one whose render made it, or `null` at the root. */
-export function ownerAbove(fiber: Fiber): Fiber | null {
+/** The nearest composite above `fiber`, the one a "parent rendered" line means, or `null` at the root. */
+export function compositeAbove(fiber: Fiber): Fiber | null {
   let above = fiber.return ?? null;
   for (let depth = 0; depth < MAX_FIBER_DEPTH && above !== null; depth += 1, above = above.return ?? null) {
     if (isOwnerFrame(above)) return above;

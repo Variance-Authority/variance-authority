@@ -50,7 +50,7 @@ export type RenderCause =
  * The values are the live ones, so a caller decides what to show of them and
  * nothing is copied for a caller that only counts.
  */
-export function causesOf(fiber: Fiber): readonly RenderCause[] {
+export function renderCausesOf(fiber: Fiber): readonly RenderCause[] {
   const before = fiber.alternate;
   if (before === null) return [{ kind: 'mount' }];
 

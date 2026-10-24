@@ -4,8 +4,9 @@
  * A story is the order one case visited the code in, and a visit says where the
  * case was, never with what. The attention Eyes keeps is the other half: which
  * query the test asked with which arguments, what it found, which event fired
- * on which element. Which components committed, and why, is the React story
- * setup's to say, from `@variance-authority/react/story`. Said beside the visits, a
+ * on which element, and which components committed, where the React story
+ * setup, `@variance-authority/react/story`, is not in the suite to say why
+ * each rendered. Said beside the visits, a
  * route reads `getByRole("button", {"name":"Save"}) → button "Save" in
  * SaveBar` at the step the query ran, and a reader comparing two runs sees the
  * argument that changed rather than inferring it.

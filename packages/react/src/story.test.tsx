@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 const NOTE = Symbol.for('variance-authority.story.note');
 const realm = globalThis as { [NOTE]?: unknown };
 const lines: string[] = [];
+const renders = (): string[] => lines.filter((line) => line.startsWith('rendered '));
 const shownAs = (value: unknown): unknown => (typeof value === 'function' ? 'fn' : typeof value === 'object' && value !== null ? 'obj' : value);
 // The tap's template channel, with each value shown by its kind alone.
 realm[NOTE] = (strings: readonly string[], ...values: unknown[]): void => {
@@ -47,14 +48,16 @@ function Tree(): ReactElement {
 }
 
 describe('the React story setup', () => {
-  it('says a mounted subtree once at its top, with each component that mounted below it, a render once however often the setup ran, and values through the channel', () => {
+  it('says where each commit starts and how many rendered in it, a mounted subtree once at its top with each component that mounted below it, a render once however often the setup ran, and values through the channel', () => {
     const root = createRoot(document.createElement('div'));
     act(() => root.render(<Tree />));
     act(() => flip());
     act(() => root.unmount());
 
     expect(lines).toEqual([
+      'commit — 2 rendered',
       'rendered Tree — mounted with Leaf',
+      'commit — 3 rendered',
       'rendered Tree — useState #0 false → true',
       // Branch mounts under a Tree that updated, so it is the top of what mounted, and Leaf mounted with it.
       'rendered Branch — mounted with Leaf',
@@ -93,7 +96,7 @@ describe('why the React story setup says a component rendered', () => {
     act(() => root.render(tree('dark', 'b', 2)));
     act(() => root.unmount());
 
-    expect(lines).toEqual([
+    expect(renders()).toEqual([
       'rendered Counter — state obj → obj',
       'rendered Counter — no input it reads moved',
       'rendered Counter — label a → b, size 1 → 2',
@@ -121,7 +124,7 @@ describe('which component the React story setup says rendered', () => {
     act(() => root.render(list('b')));
     act(() => root.unmount());
 
-    expect(lines).toEqual(['rendered Row key="a" — its parent rendered', 'rendered Row key="b" — picked false → true']);
+    expect(renders()).toEqual(['rendered Row key="a" — its parent rendered', 'rendered Row key="b" — picked false → true']);
   });
 
   it('a keyed one by the key on the memo or fragment that wraps it', () => {
@@ -141,11 +144,29 @@ describe('which component the React story setup says rendered', () => {
     act(() => root.render(list('a')));
     act(() => root.unmount());
 
-    expect(lines).toEqual([
+    expect(renders()).toEqual([
       'rendered Row key="b" — its parent rendered',
       'rendered Row key="a" — picked false → true',
       'rendered Row key="b" — its parent rendered',
     ]);
+  });
+});
+
+describe('which key the React story setup reads through a fragment', () => {
+  it('none for components that share one keyed fragment, since its key tells none of them apart', () => {
+    const root = createRoot(document.createElement('div'));
+    const pair = (picked: boolean): ReactElement => (
+      <Fragment key="b">
+        <Row picked={picked} />
+        <Leaf />
+      </Fragment>
+    );
+    act(() => root.render(pair(false)));
+    lines.length = 0;
+    act(() => root.render(pair(true)));
+    act(() => root.unmount());
+
+    expect(renders()).toEqual(['rendered Row — picked false → true', 'rendered Leaf — its parent rendered']);
   });
 });
 

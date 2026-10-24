@@ -225,8 +225,8 @@ step where it happened:
 ```
 
 With `@variance-authority/react/story` in the runner's setup files beside
-Eyes, the commit line gives way to one line per component that rendered, and
-why: `rendered SaveBar — saving false → true`.
+Eyes, the commit line gives way to `commit — 2 rendered` and one line per component
+that rendered, and why: `rendered SaveBar — saving false → true`.
 
 So the story shows which arguments a query was called with and what it found,
 beside the code that ran, and you do not work them out from the route. When you

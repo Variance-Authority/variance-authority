@@ -1,7 +1,7 @@
 import { tapCommits } from './commits.js';
-import { FiberTag, ownerAbove, type Fiber } from './fiber.js';
+import { FiberTag, compositeAbove, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
-import { causesOf, type RenderCause } from './renders.js';
+import { renderCausesOf, type RenderCause } from './renders.js';
 
 /**
  * What a test story calls a React object, and why each component rendered.
@@ -16,7 +16,8 @@ import { causesOf, type RenderCause } from './renders.js';
  * A setup file runs before the suite imports `react-dom`, which is the one
  * moment a commit tap can be installed. When a story is listening, this taps
  * every commit and says one line per component that rendered in it, where the
- * case stands when React commits: `rendered Summary — expanded false → true`.
+ * case stands when React commits: `rendered Summary — expanded false → true`,
+ * after a `commit — <n> rendered` line that says where the commit starts.
  * A value is shown as the story shows any value, so an object keeps its ref.
  * A subtree that mounts says so once, at its top, naming each component that
  * mounted below it. Two cases' routes then part
@@ -84,7 +85,9 @@ const KEY_WRAPPERS: ReadonlySet<number> = new Set([FiberTag.MemoComponent, Fiber
 /**
  * The key that tells `fiber` apart from the rows beside it, read through the
  * wrappers it was rendered in: a key tells apart the rows of one list, which
- * share a name and often a cause.
+ * share a name and often a cause. A wrapper's key is read only where `fiber`
+ * is all it holds: two components in one keyed fragment share its key, and it
+ * tells neither apart.
  */
 function keyOf(fiber: Fiber): string | undefined {
   let at: Fiber = fiber;
@@ -92,6 +95,7 @@ function keyOf(fiber: Fiber): string | undefined {
     if (typeof at.key === 'string') return at.key;
     const wrapper: Fiber | null = at.return ?? null;
     if (wrapper === null || !KEY_WRAPPERS.has(wrapper.tag)) return undefined;
+    if (wrapper.child !== at || (at.sibling ?? null) !== null) return undefined;
     at = wrapper;
   }
 }
@@ -105,19 +109,23 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
   scope[TAPPED] = true;
   // A commit's lines wait for its end, so the top of a mounted subtree can name
   // every component that mounted below it: one line for a provider stack, and
-  // still the components two tests mounted apart.
+  // still the components two tests mounted apart, up to the length the story
+  // keeps of a line.
   const lines: { readonly name: string; readonly causes: readonly RenderCause[]; readonly below: string[] }[] = [];
   // Each component mounted in this commit, to the line of the top it mounted under.
   const mounted = new Map<Fiber, (typeof lines)[number]>();
+  // Every component that rendered in this commit, those folded into a mount line among them.
+  let rendered = 0;
   const tap = tapCommits({
     keep: 1,
     onRender: (fiber) => {
       if (typeof scope[NOTE] !== 'function') return;
       const key = keyOf(fiber);
       const name = key === undefined ? fiberComponentName(fiber) : `${fiberComponentName(fiber)} key=${JSON.stringify(key)}`;
-      const causes = causesOf(fiber);
+      const causes = renderCausesOf(fiber);
+      rendered += 1;
       if (causes[0]?.kind === 'mount') {
-        const owner = ownerAbove(fiber);
+        const owner = compositeAbove(fiber);
         // An owner with a previous render did not mount here, whatever a commit that never finished left.
         const top = owner !== null && owner.alternate === null ? mounted.get(owner) : undefined;
         if (top !== undefined) {
@@ -134,12 +142,17 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
     },
     onCommit: () => {
       const channel = scope[NOTE];
-      for (const { name, causes, below } of lines) {
-        if (typeof channel !== 'function') break;
-        const [strings, values] = renderNote(name, causes, below);
-        (channel as Channel)(strings, ...values);
+      // A step can hold several commits, and an extra one is how two tests most
+      // often render apart: each commit opens with a line of its own.
+      if (typeof channel === 'function' && lines.length > 0) {
+        (channel as Channel)([`commit — ${rendered} rendered`]);
+        for (const { name, causes, below } of lines) {
+          const [strings, values] = renderNote(name, causes, below);
+          (channel as Channel)(strings, ...values);
+        }
       }
       lines.length = 0;
+      rendered = 0;
       mounted.clear();
     },
   });

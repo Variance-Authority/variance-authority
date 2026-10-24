@@ -237,7 +237,7 @@ The options are caller policy rather than hidden defaults:
 A [test story](https://variance-authority.dev/docs/test-stories) shows where
 one test went and what each function was handed. Add this package's `story`
 entry to your suite's setup files, and the story also says which component
-rendered at each step, and why:
+rendered at each step, and why, each commit opened by a line that counts the components it rendered:
 
 ```ts
 // vitest.config.ts
@@ -248,7 +248,9 @@ export default defineConfig({
 
 ```text
   1  cart.tsx ×7
+       » commit — 3 rendered
        » rendered Cart — mounted with Badge, Summary
+       » commit — 3 rendered
        » rendered Cart — useState #0 false → true
        » rendered Badge — its parent rendered
        » rendered Summary — expanded false → true

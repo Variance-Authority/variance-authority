@@ -66,8 +66,8 @@ Never record:
   are, an object as a ref and its kind, such as `ref5 Object` or
   `ref3 react.memo`, never its contents. A React kind such as `react.memo`
   needs `@variance-authority/react/story` in the suite's setup files; without
-  it, a memo or a context is `Object`. The same setup file adds a
-  `rendered <Component> — <cause>` line at each commit, a keyed component
+  it, a memo or a context is `Object`. The same setup file opens each commit with `commit — <n> rendered` and adds a
+  `rendered <Component> — <cause>` line for each component in it, a keyed component
   named with its key (`Row key="b"`): the prop, state cell or
   context that moved, with values shown as handed ones are, `mounted with <each component below>`, `its
   parent rendered`, `no input it reads moved`, or `state not read past <hook>`

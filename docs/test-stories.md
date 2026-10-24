@@ -514,7 +514,9 @@ the very theme `ThemeProvider` was given. The examples elsewhere on this page le
 lines out, so their steps read short.
 
 The same setup file says why each React component rendered, at the step the
-test was on when React committed: `rendered Summary — expanded false → true`
+test was on when React committed, after a `commit — 3 rendered` line that opens
+each commit and counts the components it rendered, so a step that commits twice
+reads apart from one that commits once: `rendered Summary — expanded false → true`
 for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
 `state` for a class component's, a context by its display name, `mounted` for
 a first render, said once at the top of a subtree that mounts with each component that
@@ -556,7 +558,8 @@ their step:
   what it found, each event and the element it fired on, each React commit with
   the components that rendered, and each Arrange, Act and Assert phase you mark.
 - **`@variance-authority/react/story`**, when it is in your setup files. Each
-  component React rendered at a commit, and why, in place of Eyes' commit line.
+  component React rendered at a commit, and why, after a line that opens the
+  commit, in place of Eyes' commit line.
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 
