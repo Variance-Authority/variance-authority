@@ -91,6 +91,8 @@ export interface UsesAnswer {
   uses: Use[];
   /** The containers that declare `name` as a member. */
   memberOf: string[];
+  /** Each other declaration of `name`, at its file, with its own uses. */
+  namesakes: { at: string; uses: Use[] }[];
   code: number;
 }
 
@@ -100,11 +102,17 @@ export async function uses(name: string): Promise<UsesAnswer> {
   const { code, out } = await run(['ask', 'uses', '--name', name, '--limit', '1000']);
   const found: Use[] = [];
   const memberOf: string[] = [];
+  const namesakes: { at: string; uses: Use[] }[] = [];
+  let into = found;
   let section: Section | 'member-declarations' | undefined;
   let container: string | undefined;
   for (const line of out.split('\n')) {
     let m: RegExpExecArray | null;
-    if (line === 'Tests:') section = 'tests';
+    if ((m = new RegExp(`^\`[\\w$]+\` is .* at ${AT} as well, which is another declaration\\.$`, 'u').exec(line))) {
+      namesakes.push({ at: m[1]!, uses: [] });
+      into = namesakes.at(-1)!.uses;
+      section = undefined;
+    } else if (line === 'Tests:') section = 'tests';
     else if (line === 'Source:') section = 'source';
     else if (line === 'Member declarations:') section = 'member-declarations';
     else if (/^Used in \S+, which declares it:$/u.test(line)) section = 'own-file';
@@ -113,10 +121,10 @@ export async function uses(name: string): Promise<UsesAnswer> {
       container = m[1];
     } else if (section === 'member-declarations' && (m = new RegExp(`^${AT} — ([\\w$]+)$`, 'u').exec(line))) memberOf.push(m[3]!);
     else if (section === 'member' && (m = new RegExp(`^${AT} — \\S+, (read|write)$`, 'u').exec(line))) {
-      found.push({ file: m[1]!, section, container, typeOnly: false, dynamic: false, as: undefined, passedOnWhole: false, access: m[3] as 'read' | 'write' });
+      into.push({ file: m[1]!, section, container, typeOnly: false, dynamic: false, as: undefined, passedOnWhole: false, access: m[3] as 'read' | 'write' });
     } else if (section !== undefined && section !== 'member-declarations' && (m = new RegExp(`^${AT} — [^\\s,]+(?:, [^(]+)?(?: \\((.+)\\))?$`, 'u').exec(line))) {
       const notes = m[3] ?? '';
-      found.push({
+      into.push({
         file: m[1]!,
         section,
         container: undefined,
@@ -128,7 +136,7 @@ export async function uses(name: string): Promise<UsesAnswer> {
       });
     }
   }
-  return { uses: found, memberOf, code };
+  return { uses: found, memberOf, namesakes, code };
 }
 
 /** One declaration `search` finds, in the order it ranks them. */

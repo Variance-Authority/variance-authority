@@ -4,6 +4,7 @@ import type { Asked, Relation } from './question.js';
 import { holdersAmong, orientIndexOf } from './holds.js';
 import { deepestUnder, enclosedBy, enclosing } from './containment.js';
 import { scopeOf, type Scope } from './scope.js';
+import { rarity as rarityOf } from './rarity.js';
 import type { Tree } from './tree.js';
 
 /**
@@ -157,8 +158,7 @@ export function orient(
     within === undefined
       ? index.holders
       : holdersAmong(index.rows.filter((row) => within.has(row.subject)));
-  const rarity = (part: string): number =>
-    Math.floor((1000 * (population - (holders.get(part) ?? 0) + 1)) / (population + 1));
+  const rarity = (part: string): number => rarityOf(population, holders.get(part) ?? 0);
 
   const hits: Oriented[] = [];
   for (const at of survivors) {

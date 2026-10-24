@@ -32,6 +32,26 @@ pub struct SourceSymbol {
     pub reach: Option<&'static str>,
 }
 
+/// A function another function's body declares, as [`crate::nested`] finds
+/// it: a name its holder alone can call. Kept apart from [`SourceSymbol`], so a
+/// reader of a file's top level never meets one.
+#[derive(Clone, Debug, Serialize)]
+pub struct NestedSymbol {
+    pub name: String,
+    pub kind: &'static str,
+    pub line: u32,
+    pub signature: TextSpan,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc: Option<TextSpan>,
+    /// The name of the function that holds it; absent when nothing names that
+    /// function, as for a callback.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub holder: Option<String>,
+    /// The line the function that holds it starts on.
+    #[serde(rename = "holderLine")]
+    pub holder_line: u32,
+}
+
 /// Every reach a symbol records, in the order the index stores them, from 1:
 /// its file alone (an ES module, a Swift or Kotlin `private`), its module and
 /// the modules inside it (a Rust item that is not `pub`), and any module that
@@ -87,6 +107,8 @@ impl Offsets {
 
 pub struct Harvest {
     pub symbols: Vec<SourceSymbol>,
+    /// Every function a function's body declares, in source order.
+    pub nested: Vec<NestedSymbol>,
     docs: HashMap<u32, TextSpan>,
     /// The role tags a doc declares, by where its subject starts; only docs that declare one.
     pub tagged: HashMap<u32, u8>,
@@ -142,6 +164,7 @@ impl Harvest {
 
         let mut harvest = Self {
             symbols: Vec::new(),
+            nested: Vec::new(),
             docs,
             tagged,
             module_doc,
@@ -156,6 +179,18 @@ impl Harvest {
                 let doc = harvest.doc(bound.statement.start);
                 harvest.push(bound.name.to_owned(), bound.kind, lines.at(bound.statement.start), doc, bound.signature);
             });
+            harvest.nested = crate::nested::nested(program)
+                .into_iter()
+                .map(|found| NestedSymbol {
+                    doc: harvest.doc(found.statement.start),
+                    signature: harvest.span(found.signature),
+                    line: lines.at(found.statement.start),
+                    holder_line: lines.at(found.holder_at),
+                    name: found.name,
+                    kind: found.kind,
+                    holder: found.holder,
+                })
+                .collect();
         }
         harvest
     }

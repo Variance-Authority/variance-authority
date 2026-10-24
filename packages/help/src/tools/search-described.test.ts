@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
-import { sourceIndexPath } from '@variance-authority/sense';
+import { declaredDescribedOf, describedWordsNative, sourceIndexPath } from '@variance-authority/sense';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { queryDependencyLexicon, refreshDependencyLexicon } from '../dependency-lexicon.js';
@@ -216,10 +216,13 @@ describe('which names the described section holds, and in what order', () => {
   });
 
   it('shows a name holding the one word nothing shown holds, past more names holding another word than the section shows', async () => {
-    // Every `chartAt<n>` holds `chart` in its name, so all of them sort before
-    // `diagram`, which holds `mermaid` in its doc alone.
+    // Every `chartAt<n>` holds `chart` in its name, and forty swatches say
+    // `palette` in their docs, so `chart` is rare enough among what was reached
+    // that, held in a name, it outweighs `mermaid` held in `diagram`'s doc
+    // alone: all sixteen sort before it.
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/charts.ts': Array.from({ length: 16 }, (_, at) => `export const chartAt${at} = ${at};\n`).join(''),
+      'src/swatches.ts': Array.from({ length: 40 }, (_, at) => `/** One palette. */\nexport const swatch${at} = ${at};\n`).join(''),
       'src/diagram.ts': '/** Draws a mermaid diagram. */\nexport const diagram = 1;\n',
     });
     const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'mermaid chart palette' }, treeOf([], root), root);
@@ -274,4 +277,16 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/evictionPolicyFor .*\[holds: eviction, policy\]/);
     expect(said.indexOf('sweep')).toBeLessThan(said.indexOf('evictionPolicyFor'));
   });
+});
+
+it('hands back which of the asked words a declaration\'s name and a file\'s name hold, as positions into the question', async () => {
+  const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    'src/state-keeper.ts': '/** Keeps the management of one key. */\nfunction stateFor(key: string): string {\n  return key;\n}\nexport const kept = stateFor;\n',
+  });
+  const asked = describedWordsNative('state management');
+  const state = asked.findIndex(([, word]) => word === 'state');
+  const read = declaredDescribedOf(root, 'state management', asked.map(([stem]) => stem as string));
+
+  expect(read?.names.find((one) => one.name === 'stateFor')).toMatchObject({ held: [0, 1], named: [state] });
+  expect(read?.files.find((file) => file.at === 'src/state-keeper.ts')).toMatchObject({ named: [state] });
 });

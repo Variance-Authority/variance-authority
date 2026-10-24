@@ -9,7 +9,7 @@
  * for a case that was inside only while the module evaluated.
  */
 
-import type { CoveringTest, ExecutionTest } from '@variance-authority/sense/test-selection';
+import type { CoveringTest, ExecutionTest, Unentered } from '@variance-authority/sense/test-selection';
 import { runsText, targetText } from './covering-at.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
@@ -17,7 +17,7 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText } from '@variance-authority/sense/test-selection';
+import { heldText, unenteredState } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
@@ -94,7 +94,15 @@ function rangeLine(range: CoveringRange, table: Table): string {
   const lines = range.startLine === range.endLine ? `${range.startLine}` : `${range.startLine}-${range.endLine}`;
   return `${lines}${range.state === undefined ? '' : ` ${range.state}`}${range.moved === true ? ' edited' : ''}: ${
     witnesses(range.tests, range.stopped, table)
-  }`;
+  }${(range.unentered ?? []).map((region) => `; unentered ${region.kind} ${
+    region.startLine === region.endLine ? region.startLine : `${region.startLine}-${region.endLine}`
+  }${whyNobodyEntered(region, table)}`).join('')}`;
+}
+
+/** Why nobody entered a region, in the state word a range with no case would carry: ` unwalked`, ` hole, stopped first …`, or nothing. */
+function whyNobodyEntered(region: Unentered, table: Table): string {
+  const state = unenteredState(region.stopped);
+  return state === undefined ? '' : state === 'hole' ? ` hole, stopped first ${table.refs(region.stopped ?? [])}` : ` ${state}`;
 }
 
 function regionLine(region: StatedRegion, table: Table): string {
@@ -118,7 +126,9 @@ function witnesses(tests: readonly CoveringTest[], stopped: readonly ExecutionTe
 /** Every case the answer names, wherever it names it. */
 function everyCase(answer: Covering): readonly Case[] {
   const cases: Case[] = [...answer.tests ?? [], ...answer.stopped ?? []];
-  for (const range of answer.ranges ?? []) cases.push(...range.tests, ...range.stopped ?? []);
+  for (const range of answer.ranges ?? []) {
+    cases.push(...range.tests, ...range.stopped ?? [], ...(range.unentered ?? []).flatMap((region) => region.stopped ?? []));
+  }
   for (const file of answer.changed ?? []) {
     cases.push(...file.cases);
     for (const region of file.regions) cases.push(...region.tests, ...region.stopped ?? [], ...region.passengers ?? []);
