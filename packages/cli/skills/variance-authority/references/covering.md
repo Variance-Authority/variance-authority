@@ -33,9 +33,9 @@ of it no case ran â€” a branch no case took, a nested function no case called â€
 under `No case ran a part of it`, as `unrun` in JSON (`kind`, the nested
 `name`, held-text lines, and `state`, `hole` or `unwalked`, when the record
 can tell) and `; no case ran 112 branch` in refs. They are read over every
-case, before `--where`, across the whole function, with the review's own
-reading: a function the handover flags is answered here with the part to test,
-asked with the `--suite` the handover line names.
+case, before `--where` or `--at-distance`, across the whole function, with the
+review's own reading, in each suite: a function the handover flags is answered
+here with the part to test.
 
 The record holds a line no finer than its region does. A line whose edit
 charges the module's own region is held at file grain: a module-level

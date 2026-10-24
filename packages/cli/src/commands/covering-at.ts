@@ -110,7 +110,9 @@ export async function coveringAt(
   const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
   if (before !== undefined) reach?.(reached);
   const stopped = stoppedBefore(before ?? index, target, graph);
-  const unrun = 'function' in asked && reached.length > 0 ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
+  // Parts are read over every case, so whether any case entered the function is asked before `--at-distance` narrows them.
+  const entered = (): boolean => (before === undefined ? found : coveringTests(before, target, graph)).length > 0;
+  const unrun = 'function' in asked && entered() ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
   return {
     file,
     target: asked,

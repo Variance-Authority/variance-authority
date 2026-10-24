@@ -118,5 +118,10 @@ describe('a function the handover marks as holding a part no case ran', () => {
 
     expect(handover).toContain('- 🔴 `round` in `src/total.ts` — a part no case ran');
     expect(JSON.parse(json).unrun).toEqual([{ kind: 'branch', startLine: 6, endLine: 6, state: 'unwalked' }]);
+
+    // A distance that keeps no case narrows who is listed, not what ran.
+    let far = '';
+    await main(['covering', '--file', 'src/total.ts', '--function', 'round', '--at-distance', '5-', '--root', root, '--format', 'json'], { out: (text) => (far += text), err: () => {} });
+    expect(JSON.parse(far)).toMatchObject({ tests: [], unrun: [{ kind: 'branch', startLine: 6, endLine: 6 }] });
   });
 });
