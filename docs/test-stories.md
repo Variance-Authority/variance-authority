@@ -518,14 +518,17 @@ test was on when React committed: `rendered Summary — expanded false → true`
 for a prop, `rendered Cart — useState #0 false → true` for a hook's state,
 `state` for a class component's, a context by its display name, `mounted` for
 a first render, said once at the top of a subtree that mounts, and `its parent
-rendered` when none of its inputs moved. A value that moved is shown as a
+rendered` when none of its inputs moved, or `no input it reads moved` when even
+the props object is the one it had. A value that moved is shown as a
 handed one is, so a callback rebuilt on every render reads `onPick ref4
 function onPick → ref9 function onPick`. A hook the reader does not know ends
 what it reads, and the line says `state not read past` it. Two tests that
 render the same tree for different reasons part at the first of these lines.
+When `react-dom` loaded and mounted before the setup file, React announces no
+commit, and the story says `renders not read: react-already-loaded`.
 
-When you [compare readings](#compare-readings-of-one-test), a handed line is
-compared as a printed one is: a value handed on every reading of one side and
+When you [compare readings](#compare-readings-of-one-test), a handed line or a
+render line is compared as a printed one is: a value handed on every reading of one side and
 on no reading of the other is listed with its step. A ref is numbered in the
 order the run first met each object, so across readings it is compared without
 its number: `ref Object`, by kind.
@@ -544,8 +547,10 @@ their step:
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`
   or `debug`. The console still prints it.
 - **[Eyes](eyes.md)**, when your tests use it. Each query with its arguments and
-  what it found, each event and the element it fired on, each React commit with
-  the components that rendered, and each Arrange, Act and Assert phase you mark.
+  what it found, each event and the element it fired on, and each Arrange, Act
+  and Assert phase you mark.
+- **`@variance-authority/react/story`**, when it is in your setup files. Each
+  component React rendered at a commit, and why.
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 

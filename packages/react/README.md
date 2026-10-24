@@ -259,17 +259,21 @@ The cause is each input that moved since the component's last render, by
 call, a class component's `this.state`, or a context value. Values are shown as
 the story shows what a function was handed: a primitive as itself, an object by
 its ref, so the callback rebuilt on every render is a new ref each time and a
-value passed down keeps the ref it had where it was made. When nothing moved,
-the component rendered because its parent did, and a `memo` would have stopped
-it. A subtree that mounts says so once, at its top. A hook the reader does not
+value passed down keeps the ref it had where it was made. When nothing moved
+and the props object is new, the line says `its parent rendered`; when it is
+the same object, `no input it reads moved`, a cause such as `forceUpdate` that
+the reader does not see. A subtree that mounts says so once, at its top. A hook the reader does not
 know ends what it can read, and the line says `state not read past` that hook
 rather than that nothing moved. Compare two tests' stories, and the first
-render whose cause differs is where they parted.
+render whose cause differs is where they parted: compare leaves a ref's number
+out, since a run numbers objects in the order it met them.
 
 The setup reads the cause from the commit React just finished, through the
 DevTools hook, so it has to run before `react-dom` loads, which a setup file
 does: `setupFiles` in Vitest, Jest and Rstest alike. The line lands at the step
 the test was on when React committed. With no story being recorded it taps
+nothing. When `react-dom` loaded and mounted before it, React announces no
+commit, and the story says `renders not read: react-already-loaded` rather than
 nothing. It also names each React object a function was handed by the
 `$$typeof` mark React gave it — `react.context`, `react.memo`,
 `react.forward_ref` — where a story would otherwise say `Object`.

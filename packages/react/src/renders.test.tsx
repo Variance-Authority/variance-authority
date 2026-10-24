@@ -94,6 +94,24 @@ describe('why a component rendered', () => {
     ).toEqual([['Themed', [{ kind: 'context', name: 'Theme', before: 'light', after: 'dark' }]]]);
   });
 
+  it('calls a context with no display name anonymous', () => {
+    const Unnamed = createContext(0);
+    function Reader(): ReactElement {
+      return <p>{useContext(Unnamed)}</p>;
+    }
+    const Inner = memo(Reader);
+    expect(
+      rerendered(
+        <Unnamed.Provider value={1}>
+          <Inner />
+        </Unnamed.Provider>,
+        <Unnamed.Provider value={2}>
+          <Inner />
+        </Unnamed.Provider>,
+      ),
+    ).toEqual([['Reader', [{ kind: 'context', name: '(anonymous)', before: 1, after: 2 }]]]);
+  });
+
   it('names the state cell that moved, by its hook call', () => {
     let open: () => void = () => {};
     function Toggle(): ReactElement {

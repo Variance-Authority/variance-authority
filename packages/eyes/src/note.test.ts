@@ -28,7 +28,7 @@ describe('what Eyes says to a story', () => {
       .toBe('eyes getAllByRole("row") → nothing');
   });
 
-  it('names a locator chain, an event and whether it was synthetic, a commit and a phase', () => {
+  it('names a locator chain, an event and whether it was synthetic, and a phase', () => {
     expect(noteOf({
       kind: 'playwright-locator',
       operation: 'action',
@@ -40,6 +40,10 @@ describe('what Eyes says to a story', () => {
     expect(noteOf({ kind: 'document-event', event: 'click', trusted: false, target: button('SaveBar') }))
       .toBe('eyes click (synthetic) on button#save "Save" in SaveBar');
     expect(noteOf({ kind: 'eyes-phase', phase: 'act' })).toBe('eyes act');
+  });
+
+  it('leaves a commit to the React story setup, which says each component that rendered with its cause', () => {
+    expect(noteOf({ kind: 'react-commit', commit: { components: ['SaveBar'] } } as unknown as Parameters<typeof noteOf>[0])).toBeUndefined();
   });
 
   it('is said to the recorder in the realm when one listens, and a recorder that throws reaches nobody', () => {

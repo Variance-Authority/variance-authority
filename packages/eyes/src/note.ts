@@ -4,7 +4,8 @@
  * A story is the order one case visited the code in, and a visit says where the
  * case was, never with what. The attention Eyes keeps is the other half: which
  * query the test asked with which arguments, what it found, which event fired
- * on which element, which components committed. Said beside the visits, a
+ * on which element. Which components committed, and why, is the React story
+ * setup's to say, from `@variance-authority/react/story`. Said beside the visits, a
  * route reads `getByRole("button", {"name":"Save"}) → button "Save" in
  * SaveBar` at the step the query ran, and a reader comparing two runs sees the
  * argument that changed rather than inferring it.
@@ -54,8 +55,8 @@ function target(node: TargetSnapshot): string {
 const found = (targets: readonly TargetSnapshot[]): string =>
   targets.length === 0 ? 'nothing' : targets.length === 1 ? target(targets[0]!) : `${targets.length}: ${targets.map(target).join(', ')}`;
 
-/** One attention entry as the line a route shows beside the step it was recorded at. */
-export function noteOf(draft: AttentionDraft): string {
+/** One attention entry as the line a route shows beside the step it was recorded at, or nothing for a commit. */
+export function noteOf(draft: AttentionDraft): string | undefined {
   switch (draft.kind) {
     case 'eyes-phase':
       return `eyes ${draft.phase}`;
@@ -74,7 +75,7 @@ export function noteOf(draft: AttentionDraft): string {
     case 'document-event':
       return `eyes ${draft.event}${draft.trusted ? '' : ' (synthetic)'} on ${target(draft.target)}`;
     case 'react-commit':
-      return `eyes commit ${draft.commit.components.length === 0 ? '(host only)' : draft.commit.components.join(', ')}`;
+      return undefined;
     case 'react-tap-refused':
       return `eyes react tap refused: ${draft.reason}`;
   }
@@ -84,8 +85,10 @@ export function noteOf(draft: AttentionDraft): string {
 export function sayToStory(draft: AttentionDraft): void {
   const channel = (globalThis as { [NOTE]?: Channel })[NOTE];
   if (typeof channel !== 'function') return;
+  const line = noteOf(draft);
+  if (line === undefined) return;
   try {
-    channel(noteOf(draft));
+    channel(line);
   } catch {
     // A recorder's bug may not become a bug in the test it records.
   }

@@ -69,7 +69,9 @@ Never record:
   it, a memo or a context is `Object`. The same setup file adds a
   `rendered <Component> — <cause>` line at each commit: the prop, state cell or
   context that moved, with values shown as handed ones are, `mounted`, `its
-  parent rendered`, or `state not read past <hook>` where the reader stops. Add a `console.log` of the value in
+  parent rendered`, `no input it reads moved`, or `state not read past <hook>`
+  where the reader stops; `renders not read: <reason>` when React announces no
+  commit to it. Add a `console.log` of the value in
   the code under test, not in the test, and record again, or use a debugger at
   the line it names.
 - **When a stack trace already names the line.** Open that line.

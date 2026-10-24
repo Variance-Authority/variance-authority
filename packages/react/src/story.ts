@@ -94,7 +94,7 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
   // The components said mounted in this commit: one below them mounted with them,
   // and saying so again would list the whole subtree a provider stack mounts.
   const mounted = new Set<Fiber>();
-  tapCommits({
+  const tap = tapCommits({
     keep: 1,
     onRender: (fiber) => {
       const channel = scope[NOTE];
@@ -103,11 +103,14 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
       if (causes[0]?.kind === 'mount') {
         mounted.add(fiber);
         const owner = ownerOf(fiber);
-        if (owner !== null && mounted.has(owner)) return;
+        // An owner with a previous render did not mount here, whatever a commit that never finished left.
+        if (owner !== null && owner.alternate === null && mounted.has(owner)) return;
       }
       const [strings, values] = renderNote(fiberComponentName(fiber), causes);
       (channel as Channel)(strings, ...values);
     },
     onCommit: () => mounted.clear(),
   });
+  // A story with no render lines would read as one where nothing rendered.
+  if (!tap.attached) (scope[NOTE] as Channel)([`renders not read: ${tap.reason ?? 'unknown'}`]);
 }
