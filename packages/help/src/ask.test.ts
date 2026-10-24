@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
-import { ask, inputFrom, toolNamed, verbOf, verbs } from './ask.js';
+import { verbOf } from '@variance-authority/mcp/tools';
+import { ask, inputFrom, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');

@@ -28,7 +28,7 @@
 import type { Use } from '@variance-authority/package/help';
 import { LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
 import { ownerOf } from './by-path.js';
-import type { Spelling } from './spelling.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
 
 /** The declarations of a member by one name. */
 export interface Members {

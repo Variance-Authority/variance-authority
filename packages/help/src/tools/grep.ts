@@ -1,8 +1,7 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, limitOf, notShown, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { areaLine, areaOf } from './area.js';
 import { ripgrep, type Hit } from './ripgrep.js';
-import { spellingOf } from './spelling.js';
 
 /**
  * `docs_grep` — ripgrep, over the files a start point reaches.

@@ -5,13 +5,13 @@ import type { VantageReading } from '@variance-authority/vantage/attach';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { inputFor, questionFor, questionOf, refuseWords, type Question } from './asking.js';
+import { inputFor, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
-import { readTree, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
@@ -434,7 +434,7 @@ async function sourceTree(): Promise<Tree | undefined> {
  */
 function noWatcher(question: Question): OperatorError {
   return new OperatorError(
-    `\`${questionOf(question.tool)}\` is about a suite that is still running, and needs a ` +
+    `\`${verbOf(question.tool)}\` is about a suite that is still running, and needs a ` +
       'watcher to ask. Start one with `variance watch`, start the suite with the ' +
       `\`${VANTAGE_VARIABLE}\` line it prints, then ask again — with \`--at <address>\`, or ` +
       `with \`${VANTAGE_VARIABLE}\` set in this shell too.`,
@@ -450,7 +450,7 @@ function unread(question: Question, at: string, reports: readonly string[] | und
   const word = reports?.[0];
   if (word === undefined) return;
   throw new OperatorError(
-    `\`${word}\` is a report, and \`variance ask ${questionOf(question.tool)}\` was asked of the ` +
+    `\`${word}\` is a report, and \`variance ask ${verbOf(question.tool)}\` was asked of the ` +
       `watcher at \`${at}\`, which reads none. Ask without \`--at\`, and without ` +
       `\`${VANTAGE_VARIABLE}\` set, to read the report.`,
   );

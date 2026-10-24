@@ -22,7 +22,8 @@ import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
-import type { Spelling } from './spelling.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
+import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
 const DECLARED_CAP = 5;
@@ -101,7 +102,7 @@ export function reachSentences(held: Pick<DeclaredName, 'at' | 'name' | 'reach'>
       const kept = held.reach === 'underscore' ? 'a leading underscore' : '`__all__`';
       return {
         block: `Another module can still import it by name: ${kept} keeps it out of \`from … import *\` only.`,
-        clause: `; another module can still import it by name, which ${spell.question('docs_grep', [['query', `\\b${name}\\b`], ['to', at]])} finds`,
+        clause: `; another module can still import it by name, which ${spell.question(grep, { query: `\\b${name}\\b`, to: at })} finds`,
       };
     }
     default:

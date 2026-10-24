@@ -1,10 +1,9 @@
 import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, limitOf, notShown, pathsOf, refusalFor, startPointArg } from '@variance-authority/mcp/tools';
+import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { ripgrep } from './ripgrep.js';
-import { spellingOf } from './spelling.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
 /**

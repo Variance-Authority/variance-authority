@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Use } from '@variance-authority/package/help';
 import { type Members, membersStop, routes } from './members.js';
-import { spellingOf } from './spelling.js';
+import { spellingOf } from '@variance-authority/mcp/tools';
 
 /**
  * The checker a member answer sends the reader to is the declaration's own.

@@ -1,6 +1,6 @@
 import { HELP_TOOLS } from './tools.js';
 import type { Tool, Tree } from '@variance-authority/mcp/tools';
-import { startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { startPointArg, stringArg, verbOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { snapshotLine } from './caught-up.js';
 import { workspaceGeneration } from './read.js';
@@ -8,7 +8,6 @@ import type { SearchIndex } from './search-index.js';
 import { unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
-import { verbNamed } from './tools/spelling.js';
 import { wordsOf } from './words.js';
 
 /**
@@ -30,11 +29,6 @@ import { wordsOf } from './words.js';
 
 /** The command the verbs are asked through, which every hint in an answer is spelled for. */
 export const SHELL = 'variance-authority-help';
-
-/** What a tool is called from a shell: its wire name without the transport's prefix. */
-export function verbOf(tool: Tool<Help>): string {
-  return verbNamed(tool.name);
-}
 
 export function toolNamed(verb: string): Tool<Help> {
   const found = HELP_TOOLS.find((tool) => verbOf(tool) === verb);

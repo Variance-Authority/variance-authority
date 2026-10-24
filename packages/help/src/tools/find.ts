@@ -3,7 +3,8 @@ import { everyEntry } from '@variance-authority/package/help';
 import { importsByPath } from './by-path.js';
 import { declarations, unreadLine } from './declared.js';
 import { type Members, membersStop } from './members.js';
-import type { Spelling } from './spelling.js';
+import type { Spelling } from '@variance-authority/mcp/tools';
+import { search } from './search.js';
 
 /**
  * Locating the thing a question is about, and answering well when it is not there.
@@ -129,9 +130,9 @@ export function unfound(help: Help, name: string, within: string | undefined, sp
   }
   const around = [...published].filter((held) => held.toLowerCase().includes(lowered)).length;
   if (around > 0) {
-    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`${spell.tool('docs_search')}\` with it as the \`${spell.input('query')}\`.`;
+    return `\`${name}\` is not published by ${where}; ${around} published ${around === 1 ? 'name contains' : 'names contain'} it — ask \`${spell.tool(search)}\` with it as the \`${spell.input('query')}\`.`;
   }
-  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`${spell.tool('docs_search')}\` with a word from its documentation.`;
+  return `\`${name}\` is not published by ${where}, and no published name contains it; ask \`${spell.tool(search)}\` with a word from its documentation.`;
 }
 
 /**

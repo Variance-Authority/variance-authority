@@ -1,5 +1,5 @@
-import type { FileSet, Tool } from '@variance-authority/mcp/tools';
-import { limitOf, notShown, stringArg } from '@variance-authority/mcp/tools';
+import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
+import { limitOf, notShown, spellingOf, stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { how, ownerOf, sitesByPath } from './by-path.js';
@@ -7,7 +7,7 @@ import { FoundNothing, entriesNamed, isPackage, nowhere } from './find.js';
 import { declarations, reachSentences, unreadLine } from './declared.js';
 import { type Members, membersOf, places, routes } from './members.js';
 import { originOf, passesOn } from './passed-on.js';
-import { type Spelling, spellingOf } from './spelling.js';
+import { symbol } from './symbol.js';
 import { type IndexedUse, UNCOUNTED, type Within, exportedAt, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 
 /**
@@ -382,7 +382,7 @@ function imported(answer: ReturnType<typeof usesOf>, from: string | undefined, o
     return `${named} is published and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
   }
   if (sites.length === 0) {
-    return [`${named} is published and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool('docs_symbol')}\` has its signature and what is written above it.`, ...own].join('\n');
+    return [`${named} is published and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool(symbol)}\` has its signature and what is written above it.`, ...own].join('\n');
   }
 
   const nearest = nearestLine(from, shown.spell);

@@ -1,5 +1,5 @@
-import type { FileSet, Tool } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
@@ -9,7 +9,7 @@ import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from 
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, unreadLine } from './declared.js';
-import { type Spelling, spellingOf } from './spelling.js';
+import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { lineOf, originOf, passedOnRows } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
@@ -160,7 +160,7 @@ export const symbol: Tool<Help> = {
     const shown =
       written === 0
         ? []
-        : [`\n\`${spell.tool('docs_uses')}\` names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
+        : [`\n\`${spell.tool(uses)}\` names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
 
     // The imports within a package are the source index's, which the Help value does not record.
     const declaring = [...new Set(found.map(([, , entry]) => entry.at))];
@@ -226,7 +226,7 @@ function memberBlocks(root: string | undefined, name: string, members: Members, 
       [
         name,
         `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
-        `\`${spell.tool('docs_uses')}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
+        `\`${spell.tool(uses)}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
       ].join('\n'),
     ),
     ...(stop === undefined ? [] : [stop]),
@@ -332,5 +332,5 @@ function declaringExports(name: string, exported: readonly Named[], root: string
 function importedIn(count: number, spell: Spelling): string {
   return count === 0
     ? `Nothing in this workspace imports it; ${UNCOUNTED}.`
-    : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; \`${spell.tool('docs_uses')}\` lists them, nearest to a file you name first.`;
+    : `Imported in ${count} ${count === 1 ? 'place' : 'places'}; \`${spell.tool(uses)}\` lists them, nearest to a file you name first.`;
 }
