@@ -129,8 +129,8 @@ export interface ContextDependency {
   /**
    * The context value this fiber read, as of its last render.
    *
-   * Read by `holding.ts` and by nothing else, because it is a *value* and the
-   * wiring band may not carry one. It is the only route to a context's current
+   * Read through `inputs.ts` by `holding.ts` and `renders.ts` alone, because it
+   * is a *value* and the wiring band may not carry one. It is the only route to a context's current
    * contents: the provider holds the value, the consumer holds this, and the
    * hook chain holds nothing at all — `useContext` builds no cell (measured on
    * 19.2.8, and asserted in `holding.test.tsx`).

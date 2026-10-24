@@ -1,5 +1,6 @@
 import { FiberTag, type Fiber } from './fiber.js';
 import { alignedCellsOf, type AlignedCell } from './holding.js';
+import { contextReadsOf, inputPropNames } from './inputs.js';
 
 /**
  * Why a component rendered, read off the commit it rendered in.
@@ -40,9 +41,6 @@ export type RenderCause =
   /** No input moved and the props object is the same one. A cause this reader does not see, such as `forceUpdate`. */
   | { readonly kind: 'unseen' };
 
-/** Bounds the context list walk, as `holding.ts` does. */
-const MAX_CONTEXTS = 256;
-
 /**
  * Why `fiber` rendered: every input that moved since its `alternate`, props in
  * key order, then state — hooks in call order, or a class's state — then
@@ -61,12 +59,12 @@ export function causesOf(fiber: Fiber): readonly RenderCause[] {
   return [before.memoizedProps === fiber.memoizedProps ? { kind: 'unseen' } : { kind: 'parent' }];
 }
 
-/** `children` is left out for `holding.ts`'s reason: it is the subtree, new on every render of the parent. */
+/** The props that are inputs on either side, by {@link inputPropNames}. */
 function propsMoved(before: Fiber, after: Fiber): RenderCause[] {
   const was = before.memoizedProps ?? {};
   const now = after.memoizedProps ?? {};
   if (was === now) return [];
-  const names = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((name) => name !== 'children').sort();
+  const names = [...new Set([...inputPropNames(was), ...inputPropNames(now)])].sort();
   return names
     .filter((name) => !Object.is(was[name], now[name]))
     .map((name) => ({ kind: 'prop', name, before: was[name], after: now[name] }));
@@ -111,18 +109,12 @@ function cellsMoved(was: readonly AlignedCell[], now: readonly AlignedCell[]): R
 /** Contexts are matched by the context object, so two that share a display name stay two. */
 function contextsMoved(before: Fiber, after: Fiber): RenderCause[] {
   const previous = new Map<unknown, unknown>();
-  let link = before.dependencies?.firstContext;
-  for (let seen = 0; seen < MAX_CONTEXTS && link; seen += 1, link = link.next) {
-    if (!previous.has(link.context)) previous.set(link.context, link.memoizedValue);
-  }
+  for (const read of contextReadsOf(before)) if (!previous.has(read.context)) previous.set(read.context, read.value);
   const moved: RenderCause[] = [];
-  link = after.dependencies?.firstContext;
-  for (let seen = 0; seen < MAX_CONTEXTS && link; seen += 1, link = link.next) {
-    if (!previous.has(link.context) || Object.is(previous.get(link.context), link.memoizedValue)) continue;
-    const displayName = link.context?.displayName;
-    const name = typeof displayName === 'string' && displayName !== '' ? displayName : '(anonymous)';
-    moved.push({ kind: 'context', name, before: previous.get(link.context), after: link.memoizedValue });
-    previous.delete(link.context);
+  for (const read of contextReadsOf(after)) {
+    if (!previous.has(read.context) || Object.is(previous.get(read.context), read.value)) continue;
+    moved.push({ kind: 'context', name: read.name, before: previous.get(read.context), after: read.value });
+    previous.delete(read.context);
   }
   return moved;
 }

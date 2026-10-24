@@ -5,6 +5,7 @@ import {
   type Holding,
 } from '@variance-authority/core/format';
 import type { Fiber } from './fiber.js';
+import { contextReadsOf, inputPropNames } from './inputs.js';
 import { componentFiberOf } from './wiring.js';
 
 /**
@@ -140,9 +141,6 @@ interface HookCellNode {
 
 /** Bounds the hook-chain walk against a corrupted `next`. */
 const MAX_CELLS = 1_000;
-
-/** Bounds the context list walk, as `wiringOf` does. */
-const MAX_CONTEXTS = 256;
 
 /**
  * What the component that rendered this node was holding, or undefined.
@@ -314,15 +312,9 @@ function project(read: HookShape['read'], cell: unknown): unknown {
  * read as every context having changed.
  */
 function contextsOf(fiber: Fiber): readonly HeldValue[] | undefined {
-  let link = fiber.dependencies?.firstContext;
-  if (!link) return undefined;
-
   const values = new Map<string, unknown>();
-  for (let seen = 0; seen < MAX_CONTEXTS && link; seen += 1) {
-    const displayName = link.context?.displayName;
-    const name = typeof displayName === 'string' && displayName !== '' ? displayName : '(anonymous)';
-    if (!values.has(name)) values.set(name, link.memoizedValue);
-    link = link.next;
+  for (const read of contextReadsOf(fiber)) {
+    if (!values.has(read.name)) values.set(read.name, read.value);
   }
 
   if (values.size === 0) return undefined;
@@ -345,12 +337,8 @@ function contextsOf(fiber: Fiber): readonly HeldValue[] | undefined {
  */
 function propsOf(fiber: Fiber): readonly HeldValue[] | undefined {
   const props = fiber.memoizedProps;
-  if (props === null || typeof props !== 'object') return undefined;
-
-  const names = Object.keys(props)
-    .filter((name) => name !== 'children')
-    .sort();
-  if (names.length === 0) return undefined;
+  const names = inputPropNames(props).sort();
+  if (props === null || names.length === 0) return undefined;
 
   return names.map((name) => ({ name, digest: heldDigest(props[name]) }));
 }
