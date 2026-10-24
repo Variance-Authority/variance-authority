@@ -287,6 +287,20 @@ declaration:
 `levy` is imported in 1 place, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
 ```
 
+Each file that declares a name declares another thing, so `uses` answers for
+every one of them: the published declaration's imports, a line naming each file
+that exports the name without publishing it, and each file that keeps it to
+itself. `--file <path>`, the file one of them is declared in, answers for that
+declaration alone, and the answer ends by saying so when it covers more than one:
+
+```
+`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.
+
+`file`, the file one of them is declared in, answers for that declaration alone.
+```
+
+A `--file` that declares nothing by the name is answered with the files that do.
+
 `--limit <n>` sets how many rows of each list are shown, 12 when not said:
 each kind of site, the lines of the declaring file, the member declarations
 and the uses of each member.

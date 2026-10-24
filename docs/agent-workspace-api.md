@@ -398,6 +398,13 @@ local or an inner item of the same name is another name and is not listed, and
 neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
 its imports alone.
 
+Each file that declares a name declares another thing, so `docs_uses` answers
+for every one of them and names each file that exports the name without
+publishing it. Pass `file`, the file one of them is declared in, to answer for
+that declaration alone: `variance ask uses --name greet --file
+packages/lib/src/greet.ts`. A `file` that declares nothing by the name
+is answered with the files that do.
+
 A name your code reads off a namespace or default import, written with
 `import type` or without, or off `import()`, is a site too, and the site names the line that loads the module. In a
 type, `typeof ns.x` and `ns.T` read `x` and `T` off whatever holds the module. An `import()` loads it when that call
