@@ -186,6 +186,28 @@ export function holdingOf(node: Node): Holding | undefined {
  * arity, which is the only thing keeping the two in step.
  */
 function cellsOf(fiber: Fiber): { cells?: readonly HeldCell[]; unread?: string } {
+  const { cells, unread } = alignedCellsOf(fiber);
+  if (cells === undefined) return {};
+  const found = cells.map(({ index, hook, value }) => ({ index, hook, digest: heldDigest(value) }));
+  return unread === undefined ? { cells: found } : { cells: found, unread };
+}
+
+/** One hook call's cell, projected by its row: what {@link cellsOf} digests and `renders.ts` compares. */
+export interface AlignedCell {
+  /** The hook call's position, counting calls rather than cells. */
+  readonly index: number;
+  readonly hook: string;
+  /** Which part of the cell `value` is; `value` is retained state, the one a render can be caused by. */
+  readonly read: HookShape['read'];
+  readonly value: unknown;
+}
+
+/**
+ * The fiber's hook cells, aligned with their names through {@link HOOKS}: the
+ * walk {@link cellsOf} documents, handing back live values. Absent `cells` is a
+ * build with no hook record; `unread` is the name the walk stopped at.
+ */
+export function alignedCellsOf(fiber: Fiber): { cells?: readonly AlignedCell[]; unread?: string } {
   const names = fiber._debugHookTypes;
 
   // A production build populates neither this nor `Wiring.hooks`. Absent, not
@@ -204,7 +226,7 @@ function cellsOf(fiber: Fiber): { cells?: readonly HeldCell[]; unread?: string }
   if (names === null) return { cells: [] };
   if (!Array.isArray(names)) return {};
 
-  const found: HeldCell[] = [];
+  const found: AlignedCell[] = [];
   let cell = (fiber.memoizedState ?? null) as HookCellNode | null;
   let walked = 0;
 
@@ -228,7 +250,7 @@ function cellsOf(fiber: Fiber): { cells?: readonly HeldCell[]; unread?: string }
     }
 
     const value = project(shape.read, head.memoizedState);
-    if (value !== ABSENT) found.push({ index, hook, digest: heldDigest(value) });
+    if (value !== ABSENT) found.push({ index, hook, read: shape.read, value });
   }
 
   return { cells: found };
