@@ -36,6 +36,7 @@ import {
   changedLines,
   coveringChange,
   anyStopped,
+  marksLoadTime,
   coveringTestsInFile,
   keepsCases,
   recordedCommit,
@@ -344,7 +345,7 @@ async function ask(
   const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near }, reach);
   if (at !== undefined) return at;
 
-  const graph = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
+  const graph = marksLoadTime(module.blocks) || anyStopped(before ?? index)
     ? { relations: await fileGraph(request.root) }
     : {};
   // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.

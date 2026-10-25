@@ -22,6 +22,7 @@ import {
   coveringTests,
   functionsUnder,
   lineGrain,
+  marksLoadTime,
   ranWhileLoading,
   stateOf,
   stoppedBefore,
@@ -272,9 +273,9 @@ export function countOf(
 }
 
 /**
- * The file graph, read only when a region the question landed on ran while its
- * module evaluated, or when a recorded case stopped and a hole has to be told
- * from a region nobody walked.
+ * The file graph, read only when the record marks load time on the region the
+ * question landed on, on a block or a crossing, or when a recorded case stopped
+ * and a hole has to be told from a region nobody walked.
  *
  * The record credits no case with that: a module evaluates once per realm, for
  * whichever case imported it first. The graph names every case whose file
@@ -286,7 +287,8 @@ async function loadersFor(
   target: SourceTestTarget,
   root: string,
 ): Promise<{ readonly relations?: Relations }> {
-  return ranWhileLoading(index, target) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
+  const module = index.modules.find((candidate) => candidate.file === target.file);
+  return (module !== undefined && marksLoadTime(module.blocks, target)) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
 }
 
 /** The file graph of the checkout, which names who imports what and who mocked it. */

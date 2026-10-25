@@ -27,10 +27,13 @@ stopped cases beneath its `— loaded` header.
 With a file graph, a mock's own evaluation counts nowhere: a region that ran at
 module load only because the one file importing it mocks it is unwalked, and a
 stopped case whose only crossing was its mock's evaluation is not a case that
-could have reached the region, so it does not make the region a hole.
+could have reached the region, so it does not make the region a hole. The
+covering commands read the file graph whenever the record marks load time on
+the region, on a block or on a crossing, so the mock is told apart on every
+answer, not only on `--since`.
 
-`@variance-authority/sense/test-selection` exports `reachOf`, `regionRecord`
-and the `Reach` and `ReachRecord` types. `unenteredState` is removed; `reachOf`
+`@variance-authority/sense/test-selection` exports `reachOf`, `regionRecord`,
+`marksLoadTime` and the `Reach` and `ReachRecord` types. `unenteredState` is removed; `reachOf`
 replaces it. A `CoveringRegion` carries `loaded` when its block ran while the
 module evaluated. `coveringTests`, `ranWhileLoading` and `stoppedBefore` read
 the blocks with a mock's own evaluation dropped when they are given the file
