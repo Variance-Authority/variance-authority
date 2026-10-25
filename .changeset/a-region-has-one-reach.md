@@ -20,12 +20,18 @@ function, `reachOf`. Before this, three situations could read two ways:
   listed the case as a caller. It is a passenger.
 
 A case that both loaded a region and called into it is listed at the distance
-it called from, not the distance it loaded from. A whole-file range that is
-loaded no longer prints "a hole" beneath its `— loaded` header.
+it called from, not the distance it loaded from, and no longer also as a
+passenger. A whole-file range that is loaded no longer prints "a hole" or its
+stopped cases beneath its `— loaded` header.
+
+With a file graph, a mock's own evaluation counts nowhere: a region that ran at
+module load only because the one file importing it mocks it is unwalked, and a
+stopped case whose only crossing was its mock's evaluation is not a case that
+could have reached the region, so it does not make the region a hole.
 
 `@variance-authority/sense/test-selection` exports `reachOf`, `regionRecord`
 and the `Reach` and `ReachRecord` types. `unenteredState` is removed; `reachOf`
 replaces it. A `CoveringRegion` carries `loaded` when its block ran while the
-module evaluated. `coveringTests` reads owned blocks, so every reader of it —
-`covering --line`, the land check and the MCP source-tests answer — drops a
-mock's own evaluation.
+module evaluated. `coveringTests`, `ranWhileLoading` and `stoppedBefore` read
+the blocks with a mock's own evaluation dropped when they are given the file
+graph; `variance covering --line` and `--function` give it.

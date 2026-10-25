@@ -149,7 +149,7 @@ export function coveringTests(
 ): readonly CoveringTest[] {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return [];
-  const blocks = blocksOfTarget(ownedBlocks(index, module, shadowedFor(options.relations)), target);
+  const blocks = blocksOfTarget(ownedBlocks(index, module, options.relations), target);
   return withLoaders(testsForBlocks(index, blocks), blocks, loadersOf(index, module.file, options.relations));
 }
 
@@ -159,11 +159,12 @@ export function coveringTests(
  * The cases that loaded it are named only through the file graph, so a reader
  * that asked {@link coveringTests} without one holds a list that may be short,
  * and this is how it finds out. An empty list and a region that only ran
- * during load are opposite answers to *did anything go here*.
+ * during load are opposite answers to *did anything go here*. With a graph, a
+ * run the graph lays to a mock alone does not count: see `loadOwned`.
  */
-export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget): boolean {
+export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget, options: CoveringOptions = {}): boolean {
   const module = index.modules.find((candidate) => candidate.file === target.file);
-  return module !== undefined && blocksOfTarget(module.blocks, target).some((block) => block.loaded === true);
+  return module !== undefined && blocksOfTarget(ownedBlocks(index, module, options.relations), target).some((block) => block.loaded === true);
 }
 
 /**
@@ -182,7 +183,7 @@ export function stoppedBefore(
 ): readonly ExecutionTest[] | undefined {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return undefined;
-  return outside(index, stoppedIn(index, module, options.relations), blocksOfTarget(ownedBlocks(index, module, shadowedFor(options.relations)), target));
+  return outside(index, stoppedIn(index, module, options.relations), blocksOfTarget(ownedBlocks(index, module, options.relations), target));
 }
 
 /** Find named tests for every indexed source line, grouped into equal adjacent ranges. */
@@ -195,7 +196,7 @@ export function coveringTestsInFile(
   if (module === undefined) return [];
   const loaders = loadersOf(index, file, options.relations);
   const stopped = stoppedIn(index, module, options.relations);
-  const blocksOwned = ownedBlocks(index, module, shadowedFor(options.relations));
+  const blocksOwned = ownedBlocks(index, module, options.relations);
 
   const boundaries = new Set<number>();
   for (const block of blocksOwned) {
@@ -458,7 +459,7 @@ export function coveringChange(
 
     const stopped = stoppedIn(index, module, options.relations);
     let loaders: readonly CoveringTest[] | undefined;
-    const regions = ownedBlocks(index, module, shadowed)
+    const regions = ownedBlocks(index, module, options.relations, shadowed)
       .filter((block) =>
         block.source && ranges.some((range) => block.startLine <= range.end && range.start <= block.endLine),
       )

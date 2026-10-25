@@ -31,7 +31,7 @@
  * stay readable under several taints, or none, without a second recording.
  */
 
-import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { testPathOf } from './lookup.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule } from './reverse.js';
@@ -61,15 +61,17 @@ const NONE: ReadonlySet<string> = new Set();
  * every such file would give up the transitive half for the whole test over one
  * expression nobody could read.
  *
- * Memoized per test, because a selection asks once per crossing and the walk is
- * the cost.
+ * Memoized per test and per graph, because a selection asks once per crossing,
+ * a covering answer asks from several readers, and the walk is the cost.
  */
 export function shadowedFor(relations: Relations | undefined): ShadowedFor | undefined {
   if (relations === undefined || relations.shadows.size === 0) return undefined;
+  const kept = perGraph.get(relations);
+  if (kept !== undefined) return kept;
   const { shadows } = relations;
   const held = new Map<string, ReadonlySet<string>>();
 
-  return (test) => {
+  const answer: ShadowedFor = (test) => {
     const known = held.get(test);
     if (known !== undefined) return known;
     const direct = shadows.get(test) ?? [];
@@ -77,7 +79,12 @@ export function shadowedFor(relations: Relations | undefined): ShadowedFor | und
     held.set(test, found);
     return found;
   };
+  perGraph.set(relations, answer);
+  return answer;
 }
+
+/** One answer per graph, so every reader of one question shares its walks. */
+const perGraph = new WeakMap<Relations, ShadowedFor>();
 
 function closure(relations: Relations, test: string, direct: readonly string[]): ReadonlySet<string> {
   const found = new Set(direct);
@@ -150,12 +157,45 @@ export function ownedIn(
 }
 
 /**
- * The module's blocks holding only the crossings their cases own, by
- * {@link ownedIn}: the one record every covering reader reads a region from,
- * so a mock's evaluation of the real module is nobody's entry on any answer.
+ * Whether a module's run while it evaluated can belong to a case, when the
+ * record writes that on the block and names nobody (`ExecutionBlock.loaded`).
+ *
+ * The file graph names who loaded it. It is a mock's run alone when the graph
+ * holds the module and every recorded case's file, reaches none of those
+ * files, and cut one by a mock on the way: the one file that would have loaded
+ * it replaced it. Every other answer keeps the flag — no graph, no shadows, a
+ * module or a case's file the graph does not hold, so it cannot say who loaded
+ * it, or a run no mock explains, such as a page-side module a browser spec
+ * reached through the page.
  */
-export function ownedBlocks(index: ExecutionIndex, module: ExecutionModule, shadowed: ShadowedFor | undefined): readonly ExecutionBlock[] {
+export function loadOwned(index: ExecutionIndex, file: string, relations: Relations | undefined): boolean {
+  if (relations === undefined || relations.shadows.size === 0) return true;
+  const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
+  if (affected.missing.length > 0) return true;
+  const recorded = new Set(index.tests.map((test) => test.file));
+  if ([...recorded].some((one) => idOf(relations, 'file', one) === undefined)) return true;
+  if (affected.files.some((one) => recorded.has(one))) return true;
+  return !affected.shadowed.some((one) => recorded.has(one));
+}
+
+/**
+ * The module's blocks holding only what their cases own, by {@link ownedIn}
+ * and {@link loadOwned}: the one record every covering reader reads a region
+ * from, so a mock's evaluation of the real module is nobody's entry, and
+ * nobody's load, on any answer.
+ */
+export function ownedBlocks(
+  index: ExecutionIndex,
+  module: ExecutionModule,
+  relations: Relations | undefined,
+  shadowed: ShadowedFor | undefined = shadowedFor(relations),
+): readonly ExecutionBlock[] {
   if (shadowed === undefined) return module.blocks;
   const owned = ownedIn(index, module, shadowed);
-  return module.blocks.map((block) => ({ ...block, crossings: block.crossings.filter(owned) }));
+  const loads = module.blocks.some((block) => block.loaded === true) && !loadOwned(index, module.file, relations);
+  return module.blocks.map(({ loaded, ...block }) => ({
+    ...block,
+    ...(loaded === true && !loads ? { loaded } : {}),
+    crossings: block.crossings.filter(owned),
+  }));
 }

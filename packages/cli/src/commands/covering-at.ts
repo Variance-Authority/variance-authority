@@ -119,7 +119,7 @@ export async function coveringAt(
     tests: kept,
     ...(stopped === undefined ? {} : { stopped }),
     ...(unrun.length === 0 ? {} : { unrun }),
-    ...stateFor(reached, ranWhileLoading(before ?? index, target), stopped),
+    ...stateFor(reached, ranWhileLoading(before ?? index, target, graph), stopped),
     ...grain,
     ...(placement === undefined || 'function' in asked ? {} : { frame: placement.frame }),
     from,

@@ -22,7 +22,7 @@ function both(index: ExecutionIndex, line: number, relations?: ReturnType<typeof
   const stopped = stoppedBefore(index, target, options);
   const asked = reachOf({
     tests: coveringTests(index, target, options),
-    ...(ranWhileLoading(index, target) ? { loaded: true as const } : {}),
+    ...(ranWhileLoading(index, target, options) ? { loaded: true as const } : {}),
     ...(stopped === undefined ? {} : { stopped }),
   });
   return {
@@ -70,6 +70,39 @@ describe('the reach of a region', () => {
     );
 
     expect(both(index, 4, relations)).toEqual({ file: 'unwalked', change: 'unwalked', target: 'unwalked' });
+  });
+
+  it('is unwalked, not a hole, when the case that stopped only reached it through its own mock', () => {
+    const stoppedTests = [tests[0]!, { ...tests[1]!, stopped: true }];
+    const index: ExecutionIndex = {
+      tests: stoppedTests,
+      modules: [{ file, blocks: [
+        { kind: 'function', name: 'priceOf', path: 'entry', startLine: 3, endLine: 9, source: true, crossings: [{ test: 1, distance: 0, loaded: true }] },
+      ] }],
+    };
+    const relations = relationsOfFiles(
+      [{ file }, ...tests.map((test) => ({ file: test.file, edges: [{ to: file, kind: 'imports' as const }] }))],
+      { shadows: new Map([['test/mocked.test.ts', [file]]]) },
+    );
+
+    expect(both(index, 4, relations)).toEqual({ file: 'unwalked', change: 'unwalked', target: 'unwalked' });
+  });
+
+  it('is unentered on both answers when the module ran at load only because its one importer mocks it', () => {
+    // The producer writes load time on the block, not the crossing: the graph
+    // says who loaded it, and the one file that imports it replaced it.
+    const index: ExecutionIndex = {
+      tests,
+      modules: [{ file, blocks: [
+        { kind: 'statement', name: 'RATE', path: 'statement#0', startLine: 1, endLine: 1, source: true, loaded: true, crossings: [] },
+      ] }],
+    };
+    const relations = relationsOfFiles(
+      [{ file }, { file: 'test/cart.test.ts' }, { file: 'test/mocked.test.ts', edges: [{ to: file, kind: 'imports' as const }] }],
+      { shadows: new Map([['test/mocked.test.ts', [file]]]) },
+    );
+
+    expect(both(index, 1, relations)).toEqual({ file: 'unwalked', change: 'unwalked', target: 'unwalked' });
   });
 
   it('puts a caller at the distance it called from, not the distance it loaded from', () => {
