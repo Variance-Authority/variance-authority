@@ -7,16 +7,33 @@ description: How to use `variance`, the Variance Authority CLI. Read it before y
 
 Every command here reads. It reads a file a run left, a watcher that is still
 listening, the test-selection recording, or the checkout's source. None of them
-renders, navigates, clicks, replays an event or starts a suite. An answer gives
-what the record has and names what it lacks: a domain no producer wrote, a file
-or a case no recorded run went through, a reading older than the source. To
-close that gap, wire the [producer](references/producers.md) it names when one
-is missing, then run the tests the gap names — their files, and `-t` with a
-case's name — with the project's own runner, so the run records them. A
-whole-suite run is not the remedy for a gap. Never drive the page from here to
-manufacture the reading. The distillation loop does rerun a test: that is an
-experiment you run, and its evidence comes back through the same read-only
-commands.
+renders, navigates, clicks, replays an event or starts a suite. Never drive the
+page from here to manufacture the reading. The distillation loop does rerun a
+test: that is an experiment you run, and its evidence comes back through the
+same read-only commands.
+
+## Fill a gap with a run of what it names
+
+An answer gives what the record has and names what it lacks — its gap. Fill the
+gap with a recorded run of what it names, with the project's own runner, never
+with a run of the whole suite:
+
+- **A domain no producer wrote.** Wire the producer, as
+  [producers](references/producers.md) says, then run the tests the answer
+  names.
+- **A case, or a test file.** Run that file, filtered to the case by its name
+  with the runner's own filter: `-t` under Vitest, Jest and Rstest, `--grep`
+  under Playwright.
+- **A source file no recorded run went through, or one the record is older
+  than** — `covering`'s `unrecorded`, `older` and `Not loaded by`. Find the
+  test files that import it, at any depth, with no record needed:
+  `variance ask discover --to <path> --path <your test-file pattern>`, nearest
+  first. Run those. When none imports it, no test reaches the file by import,
+  and the answer stays a gap until you write one.
+
+A run of the whole suite is the gate before a change is done, and it is how the
+record is brought up to a commit, as [test selection](references/test-selection.md#test-an-edit-in-a-loop)
+says. It is not how one answer's gap is filled.
 
 ## Run the installed binary
 
