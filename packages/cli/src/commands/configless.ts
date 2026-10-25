@@ -137,12 +137,15 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      const [{ coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+      const [{ answerGaps, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
         import('./covering-suites.js'),
         import('./evidence-gap.js'),
       ]);
       try {
-        streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
+        const answer = await coveringAnswer(parsed);
+        streams.out(formatCoveringAnswer(answer, parsed.format));
+        // Under `refs` stdout is a list a runner takes, so the run that closes a gap goes to the person, on stderr.
+        if (parsed.format === 'refs') for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
@@ -151,7 +154,10 @@ export async function answerConfigless(
           streams.out(`${JSON.stringify({ refused: error.kind, ...(gap === undefined ? {} : { gap }) })}\n`);
         }
         // The person reads the run that would answer it under the sentence.
-        if (gap !== undefined) throw new OperatorError(`${(error as Error).message}\n${evidenceGapText(gap)}`, { cause: error });
+        if (gap !== undefined) {
+          const kind = (error as OperatorError).kind;
+          throw new OperatorError(`${(error as Error).message}\n${evidenceGapText(gap)}`, { ...(kind === undefined ? {} : { kind }), cause: error });
+        }
         throw error;
       }
       return EXIT_CLEAN;
