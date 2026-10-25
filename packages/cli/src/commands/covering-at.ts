@@ -251,7 +251,7 @@ function runsOf(lines: readonly number[]): readonly HeldLines[] {
 
 /** The state of one place, from the cases that entered it and those that stopped, before `--where`. */
 function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
-  const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
+  const state = stateOf({ tests, ...(stopped === undefined ? {} : { stopped }) });
   return state === undefined ? {} : { state };
 }
 

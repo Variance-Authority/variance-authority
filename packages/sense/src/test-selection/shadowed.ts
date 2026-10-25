@@ -34,6 +34,7 @@
 import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { testPathOf } from './lookup.js';
+import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule } from './reverse.js';
 
 /** Per test file, every file its run never reaches. */
 export type ShadowedFor = (test: string) => ReadonlySet<string>;
@@ -124,4 +125,37 @@ export function disownedIn(coverage: TestCoverageView, relations: Relations | un
   return (file, test, block) =>
     shadowedBy(test).has(file) &&
     (block === undefined || coverage.crossings.has(coverage.blockLoadedSet.at(block), test));
+}
+
+/**
+ * Whether a crossing in this module belongs to its case.
+ *
+ * Every crossing a case made is its own: its mocks were installed before it
+ * ran. Only a crossing made while the module evaluated can be a mock's work —
+ * a runner evaluating the real module to shape it — and a case whose file
+ * mocked the module, or reaches it only through a mock, does not hold those.
+ * See `shadowedFor`.
+ */
+export function ownedIn(
+  index: ExecutionIndex,
+  module: ExecutionModule,
+  shadowed: ShadowedFor | undefined,
+): (crossing: ExecutionCrossing) => boolean {
+  if (shadowed === undefined) return () => true;
+  return (crossing) => {
+    if (crossing.loaded !== true) return true;
+    const file = index.tests[crossing.test]?.file;
+    return file === undefined || !shadowed(file).has(module.file);
+  };
+}
+
+/**
+ * The module's blocks holding only the crossings their cases own, by
+ * {@link ownedIn}: the one record every covering reader reads a region from,
+ * so a mock's evaluation of the real module is nobody's entry on any answer.
+ */
+export function ownedBlocks(index: ExecutionIndex, module: ExecutionModule, shadowed: ShadowedFor | undefined): readonly ExecutionBlock[] {
+  if (shadowed === undefined) return module.blocks;
+  const owned = ownedIn(index, module, shadowed);
+  return module.blocks.map((block) => ({ ...block, crossings: block.crossings.filter(owned) }));
 }
