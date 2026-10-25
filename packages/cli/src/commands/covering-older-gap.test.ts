@@ -110,7 +110,7 @@ describe('a file added after the commit its suite recorded at', () => {
       scope: 'src/refund.ts',
       known: 'the record predates the file; the import walk from it reaches 2 files, 1 of which the record ran',
       reason: 'stale',
-      gear: 'record',
+      remedy: 'record',
       run: { suite: 'unit', files: ['src/refund-new.test.ts', 'src/refund.test.ts'], walk: true },
       next: ['variance index', since],
       cost: { files: 2, tests: 2, uncounted: 1 },
@@ -144,7 +144,7 @@ describe('a file added after the commit its suite recorded at', () => {
       scope: 'src/void.ts',
       known: 'the record predates the file, and no file imports it',
       reason: 'stale',
-      gear: 'record',
+      remedy: 'record',
       next: ['variance index', `variance reach --since ${recordedAt.slice(0, 12)}`],
     });
   });
@@ -172,7 +172,7 @@ describe('a suite given to the share with no recording', () => {
       scope: 'src/pay.ts',
       known: 'no run is recorded',
       reason: 'absent',
-      gear: 'record',
+      remedy: 'record',
       next: ['variance share --suite unit'],
     });
     expect(text).toContain('Next, Record:\n  variance share --suite unit\n');

@@ -76,8 +76,8 @@ export interface EvidenceGap {
   readonly known: string;
   /** `absent`: no record; `stale`: the record is of another text; `coarse`: the record holds it at a grain finer questions cannot read. */
   readonly reason: 'absent' | 'stale' | 'coarse';
-  /** `record`: a recorded run of the named test files; `deep`: a story of the named cases. */
-  readonly gear: 'record' | 'deep';
+  /** What closes the gap: `record`, a recorded run of the named test files; `deep`, a story of the named cases, the Deep gear. */
+  readonly remedy: 'record' | 'deep';
   /** What the suite's own runner runs first, when a run closes the gap. */
   readonly run?: GapRun;
   /** The commands that run as printed, in order, after `run`. */
@@ -139,11 +139,11 @@ export function answerGap(answer: Covering, whole: ExecutionIndex): EvidenceGap 
 
 /** The gap said as text, after the answer. */
 export function evidenceGapText(gap: EvidenceGap): string {
-  const gear = gap.gear === 'deep' ? 'Deep' : 'Record';
+  const remedy = gap.remedy === 'deep' ? 'Deep' : 'Record';
   const cost = gap.cost !== undefined ? costText(gap.cost) : gap.run === undefined ? '' : ', at a cost no record counts';
   return [
     `Gap (${gap.reason}) on ${gap.scope}: ${gap.question}. Known: ${gap.known}.`,
-    `Next, ${gear}${cost}:`,
+    `Next, ${remedy}${cost}:`,
     ...(gap.run === undefined ? [] : runText(gap.run)),
     ...gap.next.map((command) => `  ${command}`),
   ].join('\n');
@@ -182,7 +182,7 @@ function record(question: string, scope: string, known: string, files: readonly 
     scope,
     known,
     reason: 'stale',
-    gear: 'record',
+    remedy: 'record',
     run: { files: files.map((row) => row.file) },
     next: [],
     cost: { tests: files.reduce((sum, row) => sum + row.of, 0), files: files.length },
@@ -195,7 +195,7 @@ function deep(scope: string, known: string, tests: readonly CoveringTest[]): Evi
     scope,
     known,
     reason: 'coarse',
-    gear: 'deep',
+    remedy: 'deep',
     run: { cases: tests.map((test) => ({ file: test.file, name: test.name })), story: true },
     next: tests.map((test) => `variance story --file ${quoted(test.file, false)} --name ${quoted(test.name, true)}`),
     cost: { tests: tests.length, files: new Set(tests.map((test) => test.file)).size },

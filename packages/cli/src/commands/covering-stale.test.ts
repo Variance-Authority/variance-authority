@@ -77,7 +77,7 @@ describe('a file whose recorded text is gone', () => {
       scope: 'line 6 of src/cart.ts',
       known: '3 named tests ran code in src/cart.ts',
       reason: 'stale',
-      gear: 'record',
+      remedy: 'record',
       run: { files: ['a.test.ts'] },
       next: [],
       cost: { tests: 3, files: 1 },

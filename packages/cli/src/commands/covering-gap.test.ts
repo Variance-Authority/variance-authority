@@ -71,7 +71,7 @@ describe('a line the record holds at file grain', () => {
       scope: 'line 20 of src/ledger.ts',
       known: '4 named tests loaded src/ledger.ts',
       reason: 'coarse',
-      gear: 'deep',
+      remedy: 'deep',
       run: {
         cases: [
           { file: 'ledger.test.ts', name: "finds the user's entry" },
@@ -90,7 +90,7 @@ describe('a line the record holds at file grain', () => {
     expect(JSON.parse(formatCovering(answer, 'json')).gap).toEqual(answer.gap);
   });
 
-  it('says the gap last in the text, with its reason, its gear, its cost and the commands', async () => {
+  it('says the gap last in the text, with its reason, its remedy, its cost and the commands', async () => {
     const text = formatCovering(await ask('--line', '20'), 'text');
 
     expect(text.trimEnd().endsWith([
@@ -109,7 +109,7 @@ describe('a line the record holds at file grain', () => {
   it('opens a Deep gap for a run of lines that holds some at file grain', async () => {
     const answer = await ask('--line', '7-20');
 
-    expect(answer.gap).toMatchObject({ reason: 'coarse', gear: 'deep', scope: 'lines 7-20 of src/ledger.ts', cost: { tests: 3, files: 2 } });
+    expect(answer.gap).toMatchObject({ reason: 'coarse', remedy: 'deep', scope: 'lines 7-20 of src/ledger.ts', cost: { tests: 3, files: 2 } });
   });
 });
 
@@ -141,7 +141,7 @@ describe('a line written since the recording', () => {
       scope: 'lines 19-20 of src/ledger.ts',
       known: 'line 20 was written since the recording',
       reason: 'stale',
-      gear: 'record',
+      remedy: 'record',
       run: { files: ['ledger.test.ts', 'book.test.ts', 'load.test.ts'] },
       next: [],
       cost: { tests: 4, files: 3 },
@@ -160,7 +160,7 @@ describe('a file whose recorded ranges were edited since', () => {
       question: 'which tests run the edited ranges now',
       scope: 'src/ledger.ts',
       reason: 'stale',
-      gear: 'record',
+      remedy: 'record',
       run: { files: ['ledger.test.ts'] },
       next: [],
       cost: { tests: 2, files: 1 },

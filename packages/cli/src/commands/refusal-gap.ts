@@ -78,7 +78,7 @@ async function unrecordedGap(root: string, scope: string, suites: readonly (stri
     scope,
     known: 'no run is recorded',
     reason: 'absent',
-    gear: 'record',
+    remedy: 'record',
     ...(recorded.length === 0 ? {} : { run: suite === undefined ? {} : { suite } }),
     next: fetches,
   };
@@ -87,7 +87,7 @@ async function unrecordedGap(root: string, scope: string, suites: readonly (stri
 async function olderGap(request: ParsedCovering, scope: string, whole: ExecutionIndex | undefined, commit: string | undefined): Promise<EvidenceGap> {
   const file = request.file!;
   const suite = await declaredSuite(request.root, request.suite);
-  const base = { question: 'which tests run it', scope, reason: 'stale', gear: 'record' } as const;
+  const base = { question: 'which tests run it', scope, reason: 'stale', remedy: 'record' } as const;
   const next = ['variance index', ...(commit === undefined ? [] : [`variance reach --since ${commit.slice(0, 12)}`])];
   const walked = await walkFrom(request.root, file);
   if (walked === undefined) {

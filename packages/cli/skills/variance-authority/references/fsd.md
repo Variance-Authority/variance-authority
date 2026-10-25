@@ -37,7 +37,7 @@ Under `--format json` the same gap is the answer's `gap` field:
 | `scope` | what it is asked of: `line 20 of src/ledger.ts`, or the file |
 | `known` | what the answer does have |
 | `reason` | `absent`: no run is recorded; `stale`: the record was made over a different version of the file than the checkout's, or before the file existed; `coarse`: the record has the line only at file grain |
-| `gear` | `record` or `deep` |
+| `remedy` | what closes the gap: `record`, a recorded run of the files it names, or `deep`, the Deep gear, a story of the cases it names |
 | `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `files`, the test files, nearest first; `walk: true`, when `files` are what `variance reach` walks to over imports, of which the runner runs the test files; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. With no `files` and no `cases`: wire the producer and record one run of the suite. Absent when no run closes the gap |
 | `next` | the commands that run as printed, in order, after `run` |
 | `cost` | `files`, how many the run takes, and `tests`, the cases the record holds of them; `uncounted`, the files it holds no case of, which `tests` leaves out rather than counts as zero. Absent when no record counts the run |

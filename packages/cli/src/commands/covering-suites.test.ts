@@ -315,7 +315,7 @@ describe('a file added after the commit a suite recorded at', () => {
       scope: 'line 12 of src/refund.ts',
       known: 'the record predates the file, and no file imports it',
       reason: 'stale',
-      gear: 'record',
+      remedy: 'record',
       next: ['variance index', `variance reach --since ${then.slice(0, 12)}`],
     });
   });
@@ -358,7 +358,7 @@ describe('a repository whose declared suites have none of them run', () => {
         scope: 'src/pay.ts',
         known: 'no run is recorded',
         reason: 'absent',
-        gear: 'record',
+        remedy: 'record',
         run: {},
         next: [],
       },
