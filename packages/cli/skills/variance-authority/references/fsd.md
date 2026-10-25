@@ -36,7 +36,7 @@ Under `--format json` the same gap is the answer's `gap` field:
 | `question` | what stays open of the scope |
 | `scope` | what it is asked of: `line 20 of src/ledger.ts`, or the file |
 | `known` | what the answer does have |
-| `reason` | `absent`: no run is recorded; `stale`: the record is of another text, or older than the file; `coarse`: the record has the line only at file grain |
+| `reason` | `absent`: no run is recorded; `stale`: the record was made over a different version of the file than the checkout's, or before the file existed; `coarse`: the record has the line only at file grain |
 | `gear` | `record` or `deep` |
 | `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `files`, the test files, nearest first; `walk: true`, when `files` are what `variance reach` walks to over imports, of which the runner runs the test files; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. With no `files` and no `cases`: wire the producer and record one run of the suite. Absent when no run closes the gap |
 | `next` | the commands that run as printed, in order, after `run` |
@@ -52,7 +52,7 @@ Each case of `covering` gives one gap, and a stale record comes before Deep:
 | The answer | Gap |
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) | Deep: the story of the first three tests, in the order the answer lists them |
-| `frame: "stale"`, or lines `written` since the recording, or ranges `moved` | Record: the test files whose cases ran code in the file, or the edited ranges |
+| `frame: "stale"`, or lines `written` since the recording, or ranges `moved` | Record: the test files whose cases ran code in the file, or the edited ranges, as `variance covering --file <path> --format refs` lists them in the cases table at its end |
 | `older`: the record is older than the file, so the file is new | Record: the test files among the files `variance reach` walks to from it over imports, every one, the record's and the new tests it never saw; cases counted only where the record holds them. Then `variance index` and `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once. Never the suite, and never the share |
 | `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 

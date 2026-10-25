@@ -89,8 +89,9 @@ Next, Deep, 3 tests in 2 test files:
   …
 ```
 
-A record of another text, or a line written since the recording, names a
-recorded run of the test files instead. A record older than the file means the
+A record made over a different version of the file than the one checked out,
+or a line written since the recording, names a recorded run of the test files
+instead. A record older than the file means the
 file is new: the gap names the test files `variance reach` walks to from it,
 then `variance index` and `variance reach --since <base>` for the rest of the
 diff. The gap says what to run rather than a

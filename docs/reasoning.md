@@ -27,6 +27,7 @@ renders those subjects.
 | What changed, and is it one cause or many? | The completed run report | `variance ask summary`, then `variance ask changes` |
 | Is this subject changing, or disagreeing with itself? | Every subject read twice in the same run | `variance run --flakes` |
 | What is this test actually exercising? | Attention markers joined to the source that execution covered | `variance distill --test <id>` |
+| An answer ended with a gap: what runs next? | The gap's gear and its remedy, in [Fast, Smart, Deep](#fast-smart-deep) | the commands the gap prints |
 
 `select` is the one written for a runner this tool never drives — a plain
 `vitest`, a `jest`, a CI shell script. It emits a skip list of test files and
@@ -131,28 +132,58 @@ fall into three gears, Fast, Smart and Deep, FSD for short:
 
 - **Fast** reads what is known without a run: the diff, the source and the
   [source index](source-index.md), through `variance ask` and `variance select`.
-- **Smart** reads what a run recorded: which cases ran which lines, at which
-  commit, and what the last runs found.
-- **Deep** reads [one case's story](test-stories.md): the functions it called,
-  in order, and the branches it took. It runs on at most three named tests,
-  never on a suite.
+- **Smart** reads what a run recorded, through `variance covering`: which cases
+  ran which lines, at which commit, and what the last runs found.
+- **Deep** reads [one case's story](test-stories.md), through `variance story`:
+  the functions it called, in order, and the branches it took. It runs on the
+  nearest of the tests Smart already named, at most three, never on a suite:
+  `covering` lists the nearest test files first, and a story records every step
+  of each test it runs.
 
-When the record Smart reads is missing, of another text, or older than the
-file, a deeper reading does not help. The remedy is **Record**: a normal
-recorded run of the test files the record names; for a file newer than the
-record, the test files `variance reach --since <base>` walks to; for no record
-at all, the mainline's record fetched. Never the whole suite again.
+`variance covering` ends an answer that leaves its question open with that next
+question, a gap: what stays open, what is known, why, the exact commands, and
+how many tests in how many test files they run. The reason in parentheses is
+one of three:
 
-`variance covering` ends an answer that leaves its question open with that
-next question, a gap: what stays open, why, the exact commands, and how many
-tests in how many test files they run.
+- `absent`: no run of the suite is recorded;
+- `stale`: the record was made over a different version of the file than the
+  one you have checked out, or before the file existed;
+- `coarse`: the record holds the line only at file grain, so it knows which
+  tests loaded the file but not which of them ran the line.
 
 ```text
 Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
 Next, Deep, 3 tests in 2 test files:
+  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):
+    ledger.test.ts  'finds the user'\''s entry'
+    ledger.test.ts  'records an entry'
+    book.test.ts  'opens a book'
+  variance story --file ledger.test.ts --name 'finds the user'\''s entry'
+  variance story --file ledger.test.ts --name 'records an entry'
+  variance story --file book.test.ts --name 'opens a book'
 ```
 
-An answer with nothing open ends without one. Run Deep only on a gap that names
-it, skip a gear only when its record cannot have the answer, and check a
-finding at the cheapest gear that could prove it wrong: a path a story shows
-against `variance covering`, a selection against the diff.
+You run the three cases with your runner, and each `variance story` then reads
+the story that run recorded. An answer with nothing open ends without a gap.
+
+**Record is not a fourth gear.** It is the remedy when the record Smart reads
+cannot answer, because it is `absent` or `stale`. A deeper reading does not help
+then; a recorded run of what the gap names does, and never the whole suite
+again over a record that exists:
+
+- **No record of the suite**: `variance share --suite <name>` fetches the
+  mainline's record when the root config gives the suite `"carry": "share"`.
+  Otherwise wire the suite's producer and record one run: that first run is
+  the record.
+- **Lines written since the recording, in a file the record holds**: run the
+  test files that ran code in the file. `variance covering --file <path>
+  --format refs` lists them, in the cases table at its end.
+- **A file the record is older than**, so a new file: `variance reach` takes
+  every file a diff added and lists the files each one reaches over imports,
+  with no record needed. Run `variance index`, then `variance reach --since
+  <base>`, and run the test files in that list.
+
+Run Deep only on a gap that names it, skip a gear only when its record cannot
+have the answer, and check a finding at the cheapest gear that could prove it
+wrong: a path a story shows against `variance covering`, a selection against
+the diff.
