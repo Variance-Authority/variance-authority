@@ -126,7 +126,7 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
             }
         }
     }
-    let passing = Passing::of(program);
+    let passing = Passing::of(program, scoping);
     holders.extend(passing.stand_ins());
     let mut walker = Walker {
         lines,

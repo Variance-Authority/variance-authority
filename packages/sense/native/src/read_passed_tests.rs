@@ -90,3 +90,26 @@ fn a_parameter_no_holder_reaches_reads_through_its_type_alone() {
     );
     assert_eq!(reads(source).into_iter().map(|(value, _, name, line)| (value, name, line)).collect::<Vec<_>>(), [("./typed".to_owned(), "t".to_owned(), 1)]);
 }
+
+#[test]
+fn a_parameter_the_function_writes_is_not_followed() {
+    // `m = {}` makes what `m` holds no longer the module, so a later `m.z` is
+    // no read of it: the module goes on whole at the call instead.
+    let source = concat!(
+        "import * as ns from './ns';\n",
+        "function rewritten(m: typeof ns) { m = {} as typeof ns; return m.z; }\n",
+        "rewritten(ns);\n",
+    );
+    assert_eq!(reads(source), [read("./ns", "imports", "*", 3)]);
+}
+
+#[test]
+fn a_parameter_only_an_empty_parameter_reaches_reads_through_its_type() {
+    // `run`'s `x` holds no module, so handing it to `helper` hands nothing:
+    // `helper` keeps what its parameter's type says it holds.
+    let source = concat!(
+        "function helper(m: typeof import('./lib')) { return m.a; }\n",
+        "export function run(x) { return helper(x); }\n",
+    );
+    assert_eq!(reads(source), [read("./lib", "type", "a", 1)]);
+}

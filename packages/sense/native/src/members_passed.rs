@@ -9,7 +9,9 @@
 //! one below it; once the walk has met every call, each stand-in is resolved
 //! to the requests handed to it, through parameters handed on in turn. A
 //! parameter nothing hands a module to keeps what its type says it holds, and
-//! one with neither holds nothing.
+//! one with neither holds nothing. A parameter the function writes holds
+//! something else after the write, so it is not followed: the module goes on
+//! whole at the call.
 //!
 //! What the walk cannot pair with a parameter is the module going on whole at
 //! the argument, as before: a parameter written as a pattern or a rest, a
@@ -19,10 +21,11 @@
 
 // compass: variance-authority.reach.source-index
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
+use oxc_semantic::Scoping;
 use oxc_syntax::scope::ScopeFlags;
 use oxc_syntax::symbol::SymbolId;
 
@@ -46,9 +49,9 @@ pub(super) struct Passing {
 
 impl Passing {
     /// Every function `program` declares by name, wherever it is declared.
-    pub(super) fn of(program: &Program) -> Self {
+    pub(super) fn of(program: &Program, scoping: &Scoping) -> Self {
         let mut passing = Passing::default();
-        Declared { passing: &mut passing }.visit_program(program);
+        Declared { passing: &mut passing, scoping }.visit_program(program);
         passing
     }
 
@@ -65,37 +68,42 @@ impl Passing {
     }
 
     /// The requests each stand-in holds: what calls hand it, carried through
-    /// parameters handed on in turn, or else what its type says.
+    /// parameters handed on in turn, or else, when that is nothing, what its
+    /// type says.
     pub(super) fn resolve(&self) -> HashMap<u32, BTreeSet<Via>> {
         let mut held: HashMap<u32, BTreeSet<Via>> = HashMap::new();
         let mut onward: HashMap<u32, Vec<u32>> = HashMap::new();
-        let mut reached = HashSet::new();
         for (parameter, from) in &self.flows {
-            reached.insert(*parameter);
             match from.via {
                 Via::Param(source) => onward.entry(source).or_default().push(*parameter),
                 via => _ = held.entry(*parameter).or_default().insert(via),
             }
         }
-        for (parameter, typed) in &self.typed {
-            if !reached.contains(parameter) {
-                held.entry(*parameter).or_default().insert(typed.via);
-            }
+        let pending = held.keys().copied().collect();
+        hand_on(&mut held, &onward, pending);
+        let typed: Vec<u32> = self.typed.keys().copied().filter(|parameter| held.get(parameter).is_none_or(BTreeSet::is_empty)).collect();
+        for parameter in &typed {
+            held.entry(*parameter).or_default().insert(self.typed[parameter].via);
         }
-        let mut pending: Vec<u32> = held.keys().copied().collect();
-        while let Some(source) = pending.pop() {
-            let Some(targets) = onward.get(&source) else { continue };
-            let from = held.get(&source).cloned().unwrap_or_default();
-            for target in targets {
-                let into = held.entry(*target).or_default();
-                let before = into.len();
-                into.extend(from.iter().copied());
-                if into.len() != before {
-                    pending.push(*target);
-                }
-            }
-        }
+        hand_on(&mut held, &onward, typed);
         held
+    }
+}
+
+/// Carries what each of `pending` holds to the parameters it is handed on to,
+/// until nothing more arrives.
+fn hand_on(held: &mut HashMap<u32, BTreeSet<Via>>, onward: &HashMap<u32, Vec<u32>>, mut pending: Vec<u32>) {
+    while let Some(source) = pending.pop() {
+        let Some(targets) = onward.get(&source) else { continue };
+        let from = held.get(&source).cloned().unwrap_or_default();
+        for target in targets {
+            let into = held.entry(*target).or_default();
+            let before = into.len();
+            into.extend(from.iter().copied());
+            if into.len() != before {
+                pending.push(*target);
+            }
+        }
     }
 }
 
@@ -132,6 +140,7 @@ impl Walker<'_, '_> {
 /// The walk that finds the functions a module declares by name.
 struct Declared<'p> {
     passing: &'p mut Passing,
+    scoping: &'p Scoping,
 }
 
 impl Declared<'_> {
@@ -141,7 +150,7 @@ impl Declared<'_> {
             .items
             .iter()
             .map(|parameter| match &parameter.pattern {
-                BindingPattern::BindingIdentifier(it) => it.symbol_id.get().map(|symbol| {
+                BindingPattern::BindingIdentifier(it) => it.symbol_id.get().filter(|symbol| !self.scoping.symbol_is_mutated(*symbol)).map(|symbol| {
                     self.passing.parameters.push(symbol);
                     self.passing.parameters.len() as u32 - 1
                 }),
