@@ -166,10 +166,9 @@ export function ownedIn(
  * it replaced it. Every other answer keeps the flag — no graph, no shadows, a
  * module or a case's file the graph does not hold, so it cannot say who loaded
  * it, or a run no mock explains, such as a page-side module a browser spec
- * reached through the page.
+ * reached through the page. Asked only of a graph that carries shadows.
  */
-export function loadOwned(index: ExecutionIndex, file: string, relations: Relations | undefined): boolean {
-  if (relations === undefined || relations.shadows.size === 0) return true;
+function loadOwned(index: ExecutionIndex, file: string, relations: Relations): boolean {
   const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
   if (affected.missing.length > 0) return true;
   const recorded = new Set(index.tests.map((test) => test.file));
@@ -188,8 +187,9 @@ export function ownedBlocks(
   index: ExecutionIndex,
   module: ExecutionModule,
   relations: Relations | undefined,
-  shadowed: ShadowedFor | undefined = shadowedFor(relations),
 ): readonly ExecutionBlock[] {
+  if (relations === undefined) return module.blocks;
+  const shadowed = shadowedFor(relations);
   if (shadowed === undefined) return module.blocks;
   const owned = ownedIn(index, module, shadowed);
   const loads = module.blocks.some((block) => block.loaded === true) && !loadOwned(index, module.file, relations);

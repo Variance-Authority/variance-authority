@@ -105,6 +105,22 @@ describe('the reach of a region', () => {
     expect(both(index, 1, relations)).toEqual({ file: 'unwalked', change: 'unwalked', target: 'unwalked' });
   });
 
+  it('stays loaded when the graph holds no file the module is', () => {
+    // The graph carries a mock, but not this module: it cannot say who loaded it.
+    const index: ExecutionIndex = {
+      tests,
+      modules: [{ file, blocks: [
+        { kind: 'statement', name: 'RATE', path: 'statement#0', startLine: 1, endLine: 1, source: true, loaded: true, crossings: [] },
+      ] }],
+    };
+    const relations = relationsOfFiles(
+      [{ file: 'src/other.ts' }, ...tests.map((test) => ({ file: test.file, edges: [{ to: 'src/other.ts', kind: 'imports' as const }] }))],
+      { shadows: new Map([['test/mocked.test.ts', ['src/other.ts']]]) },
+    );
+
+    expect(both(index, 1, relations)).toEqual({ file: 'loaded', change: 'loaded', target: 'loaded' });
+  });
+
   it('puts a caller at the distance it called from, not the distance it loaded from', () => {
     const index: ExecutionIndex = {
       tests,

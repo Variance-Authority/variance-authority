@@ -2,7 +2,7 @@
 import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
-import { ownedBlocks, shadowedFor } from './shadowed.js';
+import { ownedBlocks } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
 import { sameUnentered, unenteredOn, type Unentered } from './unentered.js';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -439,7 +439,6 @@ export function coveringChange(
   changed: ReadonlyMap<string, readonly { readonly start: number; readonly end: number }[]>,
   options: CoveringChangeOptions = {},
 ): readonly CoveringChange[] {
-  const shadowed = shadowedFor(options.relations);
   const modules = new Map(index.modules.map((module) => [module.file, module]));
   const declared = new Map<string, ExecutionTest[]>();
   for (const test of index.tests) {
@@ -459,7 +458,7 @@ export function coveringChange(
 
     const stopped = stoppedIn(index, module, options.relations);
     let loaders: readonly CoveringTest[] | undefined;
-    const regions = ownedBlocks(index, module, options.relations, shadowed)
+    const regions = ownedBlocks(index, module, options.relations)
       .filter((block) =>
         block.source && ranges.some((range) => block.startLine <= range.end && range.start <= block.endLine),
       )
