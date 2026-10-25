@@ -91,16 +91,10 @@ worktree and `origin/main`, never from local `main`:
    how it was solved, in a few lines a stranger can follow, and does each block
    row say what changes there? Anything else in it is noise, and blocking.
 2. **Occam** — the `occam` agent, given the task sentence, the worktree and
-   the path of the body file. The other reviewers look for a way to make the
-   change better; Occam looks for the reason it should not be made, and never
-   suggests an addition. It argues the case for doing nothing before it reads
-   the diff, counts what the diff makes `main` carry, and reads the body last.
-   It answers **no, because** — the change should not happen — or **yes,
-   but** — this part should not — and always answers at least once. A
-   rejection is blocking until the body answers it with evidence: who asked,
-   quoted, a failing case, a measurement or a decision in `docs/context/`.
-   These are [refine](refine.md)'s questions, asked by a reader whose job is
-   to say no.
+   the path of the body file. Should this change happen at all, or this much
+   of it? The other reviewers look for a way to make the change better; Occam
+   looks for the reason not to make it, never suggests an addition, and reads
+   the body last. Its answers, and what clears one, are in its instructions.
 3. **Fidelity** — the body, the diff and `origin/main`. Is every block row
    true of the diff, and does every hunk fall in a block a row names? A hunk no
    row covers is a finding. Does each row's *pinned by* test or command observe the change,

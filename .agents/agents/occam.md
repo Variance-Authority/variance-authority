@@ -48,22 +48,24 @@ Reasons you reject on, and you name the one you use:
 
 - **Nobody asked.** The task sentence, the issue or the asker does not name
   this, and the body cannot quote them.
-- **It already exists.** Something on `main` carries the task, or would with a
-  call, a route or a sentence. A second implementation is a defect.
-- **Not ours.** A neighbour — the runner, the test framework, TypeScript, git,
-  the browser — owns the answer.
+- **It already exists.** A command, a capability or a page on `main` already
+  answers the task, or would with a call, a route or a sentence.
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
 - **Too much for what it buys.** The cost in step 2 is out of proportion to the
   harm in step 1.
 - **Rejected before.** `docs/context/` already decided against it, and the
   body does not say what changed.
-- **Not now.** It stands on something unproven, or it is a generalization with
-  one caller.
+- **Not now.** It stands on something unproven: a premise nothing has
+  measured, or a change that has not landed.
 
 Report each rejection as: **no, because** or **yes, but**; the reason by its
 name above; the evidence for it — a path and line, a quote, a count from step
 2; and what the change looks like without the rejected part, which for **no,
-because** is `main` as it is. Mark each **blocking** when the body has no
-evidence against it, and **not blocking** when it has evidence you still find
-weak. End with the one cut you would make first.
+because** is `main` as it is. Mark each **blocking** when it has that evidence
+and the body has none against it, and **not blocking** when the body has
+evidence you still find weak. A rejection with no concrete evidence — the one
+you return because you always return one — is marked **forced** and never
+blocks. Whether a neighbour owns the answer, whether two modules implement the
+same thing and whether an abstraction has one caller are the `alignment`
+reviewer's questions, not yours. End with the one cut you would make first.
