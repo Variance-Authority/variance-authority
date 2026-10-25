@@ -244,24 +244,24 @@ function testsForBlocks(
   index: ExecutionIndex,
   blocks: readonly ExecutionBlock[],
 ): readonly CoveringTest[] {
-  const distance = new Map<number, number>();
-  // A case that called in anywhere on the blocks is a caller, not a passenger.
-  const called = new Set<number>();
+  // A case that called in anywhere on the blocks is a caller, at the distance it
+  // called from; only a passenger is placed by its load-time crossings.
+  const called = new Map<number, number>();
+  const loaded = new Map<number, number>();
   for (const block of blocks) {
     for (const crossing of block.crossings) {
       if (!Number.isInteger(crossing.distance) || crossing.distance < 0) throw invalidDistance();
       if (index.tests[crossing.test] === undefined) throw invalidTest(crossing.test);
-      if (crossing.loaded !== true) called.add(crossing.test);
+      const distance = crossing.loaded === true ? loaded : called;
       const before = distance.get(crossing.test);
-      if (before === undefined || crossing.distance < before) {
-        distance.set(crossing.test, crossing.distance);
-      }
+      if (before === undefined || crossing.distance < before) distance.set(crossing.test, crossing.distance);
     }
   }
-
-  return sortTests([...distance].map(([test, observed]) => ({
-    ...index.tests[test]!, distance: observed, ...(called.has(test) ? {} : { loaded: true as const }),
-  })));
+  const passengers = [...loaded].filter(([test]) => !called.has(test));
+  return sortTests([
+    ...[...called].map(([test, observed]) => ({ ...index.tests[test]!, distance: observed })),
+    ...passengers.map(([test, observed]) => ({ ...index.tests[test]!, distance: observed, loaded: true as const })),
+  ]);
 }
 
 function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]): boolean {

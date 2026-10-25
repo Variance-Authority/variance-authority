@@ -199,15 +199,16 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     const carried = range.tests.filter((test) => test.loaded === true);
     const key = `${tests.map((test) => test.id).join('\n')}\0${carried.map((test) => test.id).join('\n')}`;
     if (range.tests.length === 0) {
-      // The header already says `unwalked` or `hole`; the stopped cases are the rest of a hole.
-      const said = range.state === 'unwalked' || range.state === 'hole';
+      // The header already says `loaded`, `unwalked` or `hole`; the stopped cases are the rest of a hole, and
+      // say nothing about a range that ran while its module loaded.
+      const said = range.state === 'loaded' || range.state === 'unwalked' || range.state === 'hole';
       // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
       if (!said) {
         lines.push(answer.where === undefined
           ? `  no named test covered this range${whyUnentered(range.stopped)}`
           : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
       }
-      lines.push(...(range.stopped ?? []).map((test) =>
+      lines.push(...(range.state === 'loaded' ? [] : range.stopped ?? []).map((test) =>
         said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
     } else if (printed.has(key)) {
       const named = tests.length === 0 ? [] : [tests.length === 1 ? 'named test' : `${tests.length} named tests`];

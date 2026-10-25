@@ -101,7 +101,7 @@ function rangeLine(range: CoveringRange, table: Table): string {
 
 /** Why nobody entered a region, in the state word a range with no case would carry: ` unwalked`, ` hole, stopped first …`, or nothing. */
 function whyNobodyEntered(region: Unentered, table: Table): string {
-  const state = reachOf({ ...region, tests: [] });
+  const state = reachOf({ tests: [], ...(region.stopped === undefined ? {} : { stopped: region.stopped }) });
   return state === 'unknown' ? '' : state === 'hole' ? ` hole, stopped first ${table.refs(region.stopped ?? [])}` : ` ${state}`;
 }
 

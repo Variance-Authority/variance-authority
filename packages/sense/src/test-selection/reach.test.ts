@@ -1,7 +1,7 @@
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { reachOf, regionRecord } from './range-state.js';
-import { coveringChange, coveringTestsInFile, type CoveringRegion, type ExecutionIndex } from './reverse.js';
+import { coveringChange, coveringTests, coveringTestsInFile, ranWhileLoading, stoppedBefore, type CoveringRegion, type ExecutionIndex } from './reverse.js';
 
 /**
  * A region's reach is one reading of its record, so the whole-file answer, a
@@ -18,7 +18,18 @@ function both(index: ExecutionIndex, line: number, relations?: ReturnType<typeof
   const options = relations === undefined ? {} : { relations };
   const range = coveringTestsInFile(index, file, options).find((one) => one.startLine <= line && line <= one.endLine);
   const region: CoveringRegion | undefined = coveringChange(index, new Map([[file, [{ start: line, end: line }]]]), options)[0]?.regions[0];
-  return { file: range === undefined ? undefined : reachOf(range), change: region === undefined ? undefined : reachOf(regionRecord(region)) };
+  const target = { file, line };
+  const stopped = stoppedBefore(index, target, options);
+  const asked = reachOf({
+    tests: coveringTests(index, target, options),
+    ...(ranWhileLoading(index, target) ? { loaded: true as const } : {}),
+    ...(stopped === undefined ? {} : { stopped }),
+  });
+  return {
+    file: range === undefined ? undefined : reachOf(range),
+    change: region === undefined ? undefined : reachOf(regionRecord(region)),
+    target: asked,
+  };
 }
 
 describe('the reach of a region', () => {
@@ -30,7 +41,7 @@ describe('the reach of a region', () => {
       ] }],
     };
 
-    expect(both(index, 1)).toEqual({ file: 'loaded', change: 'loaded' });
+    expect(both(index, 1)).toEqual({ file: 'loaded', change: 'loaded', target: 'loaded' });
   });
 
   it('is loaded on both answers when the producer wrote load time on the crossing', () => {
@@ -41,7 +52,7 @@ describe('the reach of a region', () => {
       ] }],
     };
 
-    expect(both(index, 1)).toEqual({ file: 'loaded', change: 'loaded' });
+    expect(both(index, 1)).toEqual({ file: 'loaded', change: 'loaded', target: 'loaded' });
   });
 
   it('is unentered on both answers when the only crossing is a mock evaluating the real module', () => {
@@ -58,7 +69,24 @@ describe('the reach of a region', () => {
       { shadows: new Map([['test/mocked.test.ts', [file]]]) },
     );
 
-    expect(both(index, 4, relations)).toEqual({ file: 'unwalked', change: 'unwalked' });
+    expect(both(index, 4, relations)).toEqual({ file: 'unwalked', change: 'unwalked', target: 'unwalked' });
+  });
+
+  it('puts a caller at the distance it called from, not the distance it loaded from', () => {
+    const index: ExecutionIndex = {
+      tests,
+      modules: [{ file, blocks: [
+        { kind: 'function', name: 'priceOf', path: 'entry', startLine: 3, endLine: 9, source: true, crossings: [
+          { test: 0, distance: 0, loaded: true },
+          { test: 0, distance: 2 },
+        ] },
+      ] }],
+    };
+    const range = coveringTestsInFile(index, file, {}).find((one) => one.startLine === 3);
+    const region = coveringChange(index, new Map([[file, [{ start: 4, end: 4 }]]]), {})[0]?.regions[0];
+
+    expect(range?.tests.map((test) => [test.id, test.distance, test.loaded])).toEqual([['guest', 2, undefined]]);
+    expect(region?.tests.map((test) => [test.id, test.distance])).toEqual([['guest', 2]]);
   });
 
   it('is entered, loaded, a hole, unwalked or unknown, from the cases on it and the cases that stopped', () => {

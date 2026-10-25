@@ -119,7 +119,7 @@ export async function coveringAt(
     tests: kept,
     ...(stopped === undefined ? {} : { stopped }),
     ...(unrun.length === 0 ? {} : { unrun }),
-    ...stateFor(reached, stopped),
+    ...stateFor(reached, ranWhileLoading(before ?? index, target), stopped),
     ...grain,
     ...(placement === undefined || 'function' in asked ? {} : { frame: placement.frame }),
     from,
@@ -249,9 +249,16 @@ function runsOf(lines: readonly number[]): readonly HeldLines[] {
   return runs;
 }
 
-/** The state of one place, from the cases that entered it and those that stopped, before `--where`. */
-function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
-  const state = stateOf({ tests, ...(stopped === undefined ? {} : { stopped }) });
+/**
+ * The state of one place, from the cases that entered it, whether it ran while
+ * its module evaluated, and the cases that stopped, before `--where`.
+ */
+function stateFor(
+  tests: readonly CoveringTest[],
+  loaded: boolean,
+  stopped: readonly ExecutionTest[] | undefined,
+): Pick<Covering, 'state'> {
+  const state = stateOf({ tests, ...(loaded ? { loaded: true as const } : {}), ...(stopped === undefined ? {} : { stopped }) });
   return state === undefined ? {} : { state };
 }
 
