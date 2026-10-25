@@ -8,10 +8,12 @@ import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { main } from '../bin.js';
 
 /**
- * The gap a record older than the asked file leaves: the test files of that
- * suite that reach the file by import, never the suite, or the mainline's
- * record when the suite is given to the share and the mainline holds the file.
- * A suite with no record is sent to the share the same way.
+ * The gap a record older than the asked file leaves: a new file is run by
+ * reach alone, so the gap runs the test files among the files `variance reach`
+ * walks to from it, whether the record ran them or not, counts cases only where
+ * the record holds them, and names `variance index` and `variance reach
+ * --since` from the record's commit for the rest of the diff. Never the suite.
+ * A suite given to the share with no record fetches the mainline's.
  */
 
 let cache: string;
@@ -30,7 +32,7 @@ afterAll(async () => {
   await Promise.all([cache, ...made].map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-/** Two recorded test files, of which only `refund.test.ts` imports the file added since. */
+/** Two recorded test files, of which only `refund.test.ts` imports a file added since. */
 const INDEX = {
   tests: [
     { id: 'r1', file: 'src/refund.test.ts', name: 'refunds once' },
@@ -44,11 +46,12 @@ const INDEX = {
 };
 
 /**
- * A checkout whose `unit` record was made before `src/refund.ts` existed;
- * `src/void.ts`, added with it, no test imports. `mainline` is the commit the
- * remote's default branch points at: `before` the file, or `after` it.
+ * A checkout whose `unit` record was made, at `recordedAt`, before `src/refund.ts`
+ * existed. `refund.test.ts`, which the record ran, imports it, and so does
+ * `refund-new.test.ts`, added since and never recorded. `src/credit.ts` only a
+ * new test imports, and `src/void.ts` nothing does.
  */
-async function checkout(carry: 'share' | undefined, mainline: 'before' | 'after'): Promise<string> {
+async function checkout(carry?: 'share'): Promise<{ readonly at: string; readonly recordedAt: string }> {
   const at = await mkdtemp(join(tmpdir(), 'variance-older-gap-'));
   made.push(at);
   const git = (...args: string[]) =>
@@ -64,21 +67,22 @@ async function checkout(carry: 'share' | undefined, mainline: 'before' | 'after'
   await write('src/pay.test.ts', "import { pay } from './pay';\nexport const paid = pay;\n");
   git('add', '.');
   git('commit', '--quiet', '-m', 'pay');
-  const then = git('rev-parse', 'HEAD');
+  const recordedAt = git('rev-parse', 'HEAD');
   await write('src/refund.ts', 'export const refund = 1;\n');
   await write('src/void.ts', 'export const nothing = 1;\n');
   await write('src/refund.test.ts', "import { refund } from './refund';\nexport const refunded = refund;\n");
+  await write('src/refund-new.test.ts', "import { refund } from './refund';\nexport const again = refund;\n");
+  await write('src/credit.ts', 'export const credit = 1;\n');
+  await write('src/credit.test.ts', "import { credit } from './credit';\nexport const credited = credit;\n");
   git('add', '.');
   git('commit', '--quiet', '-m', 'refund');
-  git('update-ref', 'refs/remotes/origin/main', mainline === 'after' ? git('rev-parse', 'HEAD') : then);
-  git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
 
   const file = testCoverageFile(at, { suite: 'unit' });
   await mkdir(dirname(file), { recursive: true });
-  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, commit: then, tests: [], modules: [] }, {
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, commit: recordedAt, tests: [], modules: [] }, {
     index: encodeExecutionIndex(INDEX as Parameters<typeof encodeExecutionIndex>[0]),
   });
-  return at;
+  return { at, recordedAt };
 }
 
 async function gapOf(root: string, file: string): Promise<{ readonly text: string; readonly gap: unknown }> {
@@ -96,56 +100,61 @@ async function gapOf(root: string, file: string): Promise<{ readonly text: strin
 }
 
 describe('a file added after the commit its suite recorded at', () => {
-  it('names the test files the record ran that reach the file by import, and costs those, never the suite', async () => {
-    const { text, gap } = await gapOf(await checkout(undefined, 'after'), 'src/refund.ts');
+  it('runs the test files the import walk reaches, the record\'s and the new ones, and counts only the cases the record holds', async () => {
+    const { at, recordedAt } = await checkout();
+    const { text, gap } = await gapOf(at, 'src/refund.ts');
+    const since = `variance reach --since ${recordedAt.slice(0, 12)}`;
 
     expect(gap).toEqual({
       question: 'which tests run it',
       scope: 'src/refund.ts',
-      known: 'the record predates the file; 1 test file it ran reaches the file by import',
+      known: 'the record predates the file; the import walk from it reaches 2 files, 1 of which the record ran',
       reason: 'stale',
       gear: 'record',
-      run: { suite: 'unit', files: ['src/refund.test.ts'] },
-      next: [],
-      cost: { tests: 2, files: 1 },
+      run: { suite: 'unit', files: ['src/refund-new.test.ts', 'src/refund.test.ts'], walk: true },
+      next: ['variance index', since],
+      cost: { files: 2, tests: 2, uncounted: 1 },
     });
-    expect(text).toContain('Next, Record, 2 tests in 1 test file:\n    Run with the runner of `unit`: src/refund.test.ts\n');
+    expect(text).toContain(
+      'Next, Record, 2 tests in 1 test file the record ran, and 1 file it holds no case of:\n' +
+        '    Run the test files among these with the runner of `unit`: src/refund-new.test.ts src/refund.test.ts\n' +
+        `    variance index\n    ${since}\n`,
+    );
   });
 
-  it('says no test file it ran reaches a file nothing imports, and widens to nothing', async () => {
-    const { gap } = await gapOf(await checkout(undefined, 'after'), 'src/void.ts');
+  it('counts no case for a file only new tests import, rather than none', async () => {
+    const { at } = await checkout();
+    const { text, gap } = await gapOf(at, 'src/credit.ts');
+
+    expect(gap).toMatchObject({
+      known: 'the record predates the file; the import walk from it reaches 1 file, 0 of which the record ran',
+      run: { suite: 'unit', files: ['src/credit.test.ts'], walk: true },
+      cost: { files: 1, uncounted: 1 },
+    });
+    expect(gap).not.toHaveProperty('cost.tests');
+    expect(text).toContain('Next, Record, 1 file the record holds no case of:\n');
+  });
+
+  it('says nothing imports a file no file imports, and widens to nothing', async () => {
+    const { at, recordedAt } = await checkout();
+    const { gap } = await gapOf(at, 'src/void.ts');
 
     expect(gap).toEqual({
       question: 'which tests run it',
       scope: 'src/void.ts',
-      known: 'the record predates the file, and no test file it ran reaches the file by import',
+      known: 'the record predates the file, and no file imports it',
       reason: 'stale',
       gear: 'record',
-      next: ['variance ask discover --to src/void.ts'],
+      next: ['variance index', `variance reach --since ${recordedAt.slice(0, 12)}`],
     });
   });
 
-  it('fetches the mainline\'s record in a suite given to the share when the mainline holds the file', async () => {
-    const { text, gap } = await gapOf(await checkout('share', 'after'), 'src/refund.ts');
+  it('walks from the file in a suite given to the share too, since the mainline\'s record predates a new file as well', async () => {
+    const { at } = await checkout('share');
+    const { gap } = await gapOf(at, 'src/refund.ts');
 
-    expect(gap).toMatchObject({
-      known: 'the record predates the file, and the mainline holds it, so its record holds the file once the mainline has recorded since',
-      gear: 'record',
-      next: ['variance share --suite unit'],
-    });
-    expect(gap).not.toHaveProperty('run');
-    expect(text).toContain('Next, Record:\n    variance share --suite unit\n');
-  });
-
-  it('runs the test files that reach it in a suite given to the share when the mainline does not hold the file yet', async () => {
-    const { gap } = await gapOf(await checkout('share', 'before'), 'src/refund.ts');
-
-    expect(gap).toMatchObject({
-      known: 'the record predates the file, which the mainline does not hold yet; 1 test file it ran reaches the file by import',
-      run: { suite: 'unit', files: ['src/refund.test.ts'] },
-      next: [],
-      cost: { tests: 2, files: 1 },
-    });
+    expect(gap).toMatchObject({ run: { suite: 'unit', files: ['src/refund-new.test.ts', 'src/refund.test.ts'], walk: true } });
+    expect((gap as { next: readonly string[] }).next.some((command) => command.startsWith('variance share'))).toBe(false);
   });
 });
 

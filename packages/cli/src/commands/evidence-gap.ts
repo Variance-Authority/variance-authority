@@ -51,8 +51,15 @@ export const DEEP_TESTS = 3;
 export interface GapRun {
   /** The declared suite the run is of, when the answer is one suite's. */
   readonly suite?: string;
-  /** The test files to run, nearest first. Absent: the whole suite, which only a suite with no record is sent to, since that first run is the record. */
+  /**
+   * The test files to run, nearest first, or with `walk` the files the import
+   * walk reaches, in code-unit order, of which the runner runs its test files.
+   * Absent: the whole suite, which only a suite with no record is sent to,
+   * since that first run is the record.
+   */
   readonly files?: readonly string[];
+  /** `files` are what `variance reach` walks to, test files and the source between: no record or configuration tells them apart, the runner does. */
+  readonly walk?: true;
   /** The cases to run, each filtered by its name; absent when each file runs whole. */
   readonly cases?: readonly { readonly file: string; readonly name: string }[];
   /** Run under `VARIANCE_AUTHORITY_STORY=1`, so each case records its story. */
@@ -75,8 +82,13 @@ export interface EvidenceGap {
   readonly run?: GapRun;
   /** The commands that run as printed, in order, after `run`. */
   readonly next: readonly string[];
-  /** How many tests, in how many test files, the commands run. Absent when no record counts them. */
-  readonly cost?: { readonly tests: number; readonly files: number };
+  /**
+   * How many files the run takes, and how many tests the record holds of them.
+   * `uncounted` files are ones the record holds no case of, so `tests` counts
+   * the rest only, and is absent when it counts none. Absent when no record
+   * counts the run at all.
+   */
+  readonly cost?: { readonly files: number; readonly tests?: number; readonly uncounted?: number };
 }
 
 /** A refusal that still names the run that would answer it. */
@@ -128,15 +140,22 @@ export function answerGap(answer: Covering, whole: ExecutionIndex): EvidenceGap 
 /** The gap said as text, after the answer. */
 export function evidenceGapText(gap: EvidenceGap): string {
   const gear = gap.gear === 'deep' ? 'Deep' : 'Record';
-  const cost = gap.cost !== undefined
-    ? `, ${count(gap.cost.tests, 'test')} in ${count(gap.cost.files, 'test file')}`
-    : gap.run === undefined ? '' : ', at a cost no record counts';
+  const cost = gap.cost !== undefined ? costText(gap.cost) : gap.run === undefined ? '' : ', at a cost no record counts';
   return [
     `Gap (${gap.reason}) on ${gap.scope}: ${gap.question}. Known: ${gap.known}.`,
     `Next, ${gear}${cost}:`,
     ...(gap.run === undefined ? [] : runText(gap.run)),
     ...gap.next.map((command) => `  ${command}`),
   ].join('\n');
+}
+
+/** What a gap's run costs, counting tests only in the files the record holds cases of. */
+function costText(cost: NonNullable<EvidenceGap['cost']>): string {
+  const uncounted = cost.uncounted ?? 0;
+  const none = `${count(uncounted, 'file')} ${uncounted === cost.files ? 'the record holds' : 'it holds'} no case of`;
+  if (cost.tests === undefined) return `, ${none}`;
+  if (uncounted === 0) return `, ${count(cost.tests, 'test')} in ${count(cost.files, 'test file')}`;
+  return `, ${count(cost.tests, 'test')} in ${count(cost.files - uncounted, 'test file')} the record ran, and ${none}`;
 }
 
 /** The run the suite's own runner makes, said as what it runs. */
@@ -153,7 +172,8 @@ function runText(run: GapRun): readonly string[] {
     const of = run.suite === undefined ? "the suite's producer" : `the producer of \`${run.suite}\``;
     return [`  Wire ${of} and record one run of it: that first run is the record.`];
   }
-  return [`  Run with ${runner}: ${run.files.map((file) => quoted(file, false)).join(' ')}`];
+  const which = run.walk === true ? `the test files among these with ${runner}` : `with ${runner}`;
+  return [`  Run ${which}: ${run.files.map((file) => quoted(file, false)).join(' ')}`];
 }
 
 function record(question: string, scope: string, known: string, files: readonly CoveringFile[]): EvidenceGap {

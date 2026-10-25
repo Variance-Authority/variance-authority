@@ -139,8 +139,9 @@ fall into three gears, Fast, Smart and Deep, FSD for short:
 
 When the record Smart reads is missing, of another text, or older than the
 file, a deeper reading does not help. The remedy is **Record**: a normal
-recorded run of the test files the record names or that import the file, or
-the mainline's record fetched, never the whole suite again.
+recorded run of the test files the record names; for a file newer than the
+record, the test files `variance reach --since <base>` walks to; for no record
+at all, the mainline's record fetched. Never the whole suite again.
 
 `variance covering` ends an answer that leaves its question open with that
 next question, a gap: what stays open, why, the exact commands, and how many

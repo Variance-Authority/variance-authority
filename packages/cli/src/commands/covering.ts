@@ -56,7 +56,7 @@ import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
+import { addedSince, RecordOlder, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
@@ -223,7 +223,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     });
   } catch (error) {
     if (!(error instanceof OperatorError)) throw error;
-    const gap = await refusalGap(error.kind, request, whole);
+    const gap = await refusalGap(error.kind, request, whole, { commit: error instanceof RecordOlder ? error.commit : undefined });
     // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
     // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
     // The refusal is the answer; a record that cannot be found again only leaves it without a note.

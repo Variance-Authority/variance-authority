@@ -78,7 +78,7 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
   if (suites.every((answer) => 'refused' in answer && answer.refused === 'unrecorded')) {
     const names = declared.map((one) => one.name);
     const refused = nothingRecorded(request.root, names);
-    const gap = await refusalGap('unrecorded', request, undefined, names);
+    const gap = await refusalGap('unrecorded', request, undefined, { suites: names });
     throw gap === undefined ? refused : new GapRefusal(refused.message, { kind: 'unrecorded', gap });
   }
 

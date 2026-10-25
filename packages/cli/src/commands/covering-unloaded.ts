@@ -37,12 +37,22 @@ export function unloadedFile(file: string, from: string, count: number): Operato
  * which names the run and counts what it costs (`evidence-gap.ts`), so a
  * reader for whom the run is out of reach sees that before starting it.
  */
-export function addedSince(file: string, from: string, commit: string): OperatorError {
-  return new OperatorError(
+export function addedSince(file: string, from: string, commit: string): RecordOlder {
+  return new RecordOlder(
     `\`${file}\` did not exist at ${commit.slice(0, 12)}, the commit the record at \`${from}\` was made at, ` +
       'so that record has no answer for it.',
-    { kind: 'older' },
+    commit,
   );
+}
+
+/** The `older` refusal, with the commit its record was made at: the base the diff of files added since is taken from. */
+export class RecordOlder extends OperatorError {
+  readonly commit: string;
+
+  constructor(message: string, commit: string) {
+    super(message, { kind: 'older' });
+    this.commit = commit;
+  }
 }
 
 /**

@@ -38,9 +38,9 @@ Under `--format json` the same gap is the answer's `gap` field:
 | `known` | what the answer does have |
 | `reason` | `absent`: no run is recorded; `stale`: the record is of another text, or older than the file; `coarse`: the record has the line only at file grain |
 | `gear` | `record` or `deep` |
-| `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `files`, the test files, nearest first; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. With no `files` and no `cases`: wire the producer and record one run of the suite. Absent when no run closes the gap |
+| `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `files`, the test files, nearest first; `walk: true`, when `files` are what `variance reach` walks to over imports, of which the runner runs the test files; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. With no `files` and no `cases`: wire the producer and record one run of the suite. Absent when no run closes the gap |
 | `next` | the commands that run as printed, in order, after `run` |
-| `cost` | `{tests, files}` the run takes; absent when no record counts them |
+| `cost` | `files`, how many the run takes, and `tests`, the cases the record holds of them; `uncounted`, the files it holds no case of, which `tests` leaves out rather than counts as zero. Absent when no record counts the run |
 
 No record and no configuration names the runner a suite runs under, so the gap
 says what to run, not a runner command: run the test files with the project's
@@ -53,7 +53,7 @@ Each case of `covering` gives one gap, and a stale record comes before Deep:
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) | Deep: the story of the first three tests, in the order the answer lists them |
 | `frame: "stale"`, or lines `written` since the recording, or ranges `moved` | Record: the test files whose cases ran code in the file, or the edited ranges |
-| `older`: the record is older than the file | Record: the test files the record ran that import the file, as `variance ask discover --to <path>` finds them, counted from the record. When none does, the gap says so and names that `discover`, never the suite. In a suite given to the share, `variance share --suite <name>` when the mainline holds the file |
+| `older`: the record is older than the file, so the file is new | Record: the test files among the files `variance reach` walks to from it over imports, every one, the record's and the new tests it never saw; cases counted only where the record holds them. Then `variance index` and `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once. Never the suite, and never the share |
 | `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 
 A refusal keeps its exit code `2`. Under `--format json` its gap is beside
@@ -68,8 +68,9 @@ beside `refused` and `reason`.
   of tests you chose yourself; the Deep gap names at most three, nearest first,
   as [story](story.md) records the first three `covering --hops` lists.
 - **Record what the gap names when the record is missing, stale or older than
-  the file.** That is a normal recorded run of the files it names, or the
-  mainline's record fetched, never a story and never the suite again over a
+  the file.** That is a normal recorded run of the files it names; for a new
+  file, the test files `variance reach --since <base>` lists; for no record,
+  the mainline's record fetched. Never a story and never the suite again over a
   record that exists. A story of a test
   over text the record no longer has answers a question about another file.
 - **Skip a gear only when its record cannot have the answer.** The source index

@@ -90,8 +90,10 @@ Next, Deep, 3 tests in 2 test files:
 ```
 
 A record of another text, or a line written since the recording, names a
-recorded run of the test files instead, and a record older than the file the
-test files it ran that import the file. The gap says what to run rather than a
+recorded run of the test files instead. A record older than the file means the
+file is new: the gap names the test files `variance reach` walks to from it,
+then `variance index` and `variance reach --since <base>` for the rest of the
+diff. The gap says what to run rather than a
 runner command, since no suite declares one. Under `--format json` the same
 gap is the answer's `gap`.
 

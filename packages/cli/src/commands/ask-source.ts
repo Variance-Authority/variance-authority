@@ -98,16 +98,6 @@ export async function discoverSource(root: string, input: Readonly<Record<string
 }
 
 /**
- * The files `variance ask discover` answers for `input`, nearest first, read
- * as {@link discoverSource} reads them, for a reader that wants the set and
- * not its text.
- */
-export async function discoverFiles(root: string, input: Readonly<Record<string, unknown>>): Promise<readonly string[]> {
-  const read = await readNamedTree(root, input);
-  return [...discover.files!(undefined, input, invocationOf({ ...read, root })).files.keys()];
-}
-
-/**
  * `intersection` asks each of its questions over one reading: the workspace
  * value the name questions read, the tree when any question names a path, and
  * each file's names when a `discover` among them reads names — which only the
