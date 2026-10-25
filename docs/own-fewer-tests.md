@@ -82,19 +82,22 @@ held at file grain names the story of the three nearest tests, the Deep gear of
 
 ```text
 …
-Gap (coarse) on line 3 of src/cart/total.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/cart/total.ts.
+Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
 Next, Deep, 3 tests in 2 test files:
   Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):
-    src/cart/total.test.ts  'splits a discount'
-  …
+    ledger.test.ts  'finds the user'\''s entry'
+    ledger.test.ts  'records an entry'
+    book.test.ts  'opens a book'
+  variance story --file ledger.test.ts --name 'finds the user'\''s entry'
+  variance story --file ledger.test.ts --name 'records an entry'
+  variance story --file book.test.ts --name 'opens a book'
 ```
 
 A record made over a different version of the file than the one checked out,
 or a line written since the recording, names a recorded run of the test files
 instead. A record older than the file means the
-file is new: the gap names the test files `variance reach` walks to from it,
-then `variance index` and `variance reach --since <base>` for the rest of the
-diff. The gap says what to run rather than a
+file is new: the gap names the recorded test files `variance select` runs for
+it, then `variance reach --since <base>` for the rest of the diff. The gap says what to run rather than a
 runner command, since no suite declares one. Under `--format json` the same
 gap is the answer's `gap`.
 

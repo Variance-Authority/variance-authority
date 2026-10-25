@@ -21,10 +21,10 @@ answer with nothing open has no gap.
 Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
 Next, Deep, 3 tests in 2 test files:
   Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):
-    ledger.test.ts  'finds the entry'
+    ledger.test.ts  'finds the user'\''s entry'
     ledger.test.ts  'records an entry'
     book.test.ts  'opens a book'
-  variance story --file ledger.test.ts --name 'finds the entry'
+  variance story --file ledger.test.ts --name 'finds the user'\''s entry'
   variance story --file ledger.test.ts --name 'records an entry'
   variance story --file book.test.ts --name 'opens a book'
 ```
@@ -38,9 +38,9 @@ Under `--format json` the same gap is the answer's `gap` field:
 | `known` | what the answer does have |
 | `reason` | `absent`: no run is recorded; `stale`: the record was made over a different version of the file than the checkout's, or before the file existed; `coarse`: the record has the line only at file grain |
 | `remedy` | what closes the gap: `record`, a recorded run of the files it names, or `deep`, the Deep gear, a story of the cases it names |
-| `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `files`, the test files, nearest first; `walk: true`, when `files` are what `variance reach` walks to over imports, of which the runner runs the test files; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. With no `files` and no `cases`: wire the producer and record one run of the suite. Absent when no run closes the gap |
+| `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `suites`, when it is several suites' with no record; `files`, the test files; `whole`, why the whole suite runs, when selection runs it; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. With no `files`, `whole` or `cases`: wire the producer of each suite and record one run of it. Absent when no run closes the gap |
 | `next` | the commands that run as printed, in order, after `run` |
-| `cost` | `files`, how many the run takes, and `tests`, the cases the record holds of them; `uncounted`, the files it holds no case of, which `tests` leaves out rather than counts as zero. Absent when no record counts the run |
+| `cost` | `files`, how many the run takes, and `tests`, the cases the record holds of them, absent when it holds none. Absent when no record counts the run |
 
 No record and no configuration names the runner a suite runs under, so the gap
 says what to run, not a runner command: run the test files with the project's
@@ -52,8 +52,9 @@ Each case of `covering` gives one gap, and a stale record comes before Deep:
 | The answer | Gap |
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) | Deep: the story of the first three tests, in the order the answer lists them |
-| `frame: "stale"`, or lines `written` since the recording, or ranges `moved` | Record: the test files whose cases ran code in the file, or the edited ranges, as `variance covering --file <path> --format refs` lists them in the cases table at its end |
-| `older`: the record is older than the file, so the file is new | Record: the test files among the files `variance reach` walks to from it over imports, every one, the record's and the new tests it never saw; cases counted only where the record holds them. Then `variance index` and `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once. Never the suite, and never the share |
+| `frame: "stale"`, or lines `written` since the recording | Record: the test files `variance select` runs for the file, the ones that loaded it, under the suite's own `relations`, `ignore` and `before` |
+| ranges `moved` | Record: the test files whose cases ran the edited ranges, as `variance covering --file <path> --format refs` lists them in the cases table at its end |
+| `older`: the record is older than the file, so the file is new | Record: the recorded test files `variance select` runs for the file, by reach, under the suite's own configuration, or the whole suite when selection runs it. Then `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once, and `variance index` first when the source index could not be read. No run when selection runs none, and never the share |
 | `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 
 A refusal keeps its exit code `2`. Under `--format json` its gap is beside
@@ -69,7 +70,7 @@ beside `refused` and `reason`.
   as [story](story.md) records the first three `covering --hops` lists.
 - **Record what the gap names when the record is missing, stale or older than
   the file.** That is a normal recorded run of the files it names; for a new
-  file, the test files `variance reach --since <base>` lists; for no record,
+  file, the test files selection runs for it; for no record,
   the mainline's record fetched. Never a story and never the suite again over a
   record that exists. A story of a test
   over text the record no longer has answers a question about another file.

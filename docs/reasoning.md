@@ -195,12 +195,10 @@ where it was:
   Otherwise wire the suite's producer and record one run: that first run is
   the record.
 - **Lines written since the recording, in a file the record holds**: run the
-  test files that ran code in the file. `variance covering --file <path>
-  --format refs` lists them, in the cases table at its end.
-- **A file the record is older than**, so a new file: `variance reach` takes
-  every file a diff added and lists the files each one reaches over imports,
-  with no record needed. Run `variance index`, then `variance reach --since
-  <base>`, and run the test files in that list.
+  test files that loaded the file, the ones `variance select` runs for it.
+- **A file the record is older than**, so a new file: run the recorded test
+  files `variance select` runs for it by reach. `variance reach --since <base>`
+  then takes every file the diff added, with no record needed.
 
 Run Deep only on a gap that names it, skip a gear only when its record cannot
 have the answer, and check a finding at the cheapest gear that could prove it
