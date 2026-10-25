@@ -289,15 +289,15 @@ describe('a file added after the commit a suite recorded at', () => {
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
 
-  it('is said in full as a record older than the file, with the commit, and ends with a Record gap', async () => {
+  it('is said in full as a record older than the file, with the commit, and ends with a gap that says no test file the suite ran reaches it', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at]);
 
     expect(answer.out).toMatch(new RegExp(
       `^unit \\(unit\\): \`src/refund\\.ts\` did not exist at ${then.slice(0, 12)}, the commit the record at \`[^\`]+/suites/unit/[^\`]+\` was made at, ` +
         'so that record has no answer for it\\.\\n' +
-        '  Gap \\(stale\\) on line 12 of src/refund\\.ts: which tests run it\\. Known: the record predates the file\\.\\n' +
-        '  Next, Record, 1 test in 1 test file:\\n' +
-        '    <runner>$',
+        '  Gap \\(stale\\) on line 12 of src/refund\\.ts: which tests run it\\. Known: the record predates the file, and no test file it ran reaches the file by import\\.\\n' +
+        '  Next, Record:\\n' +
+        '    variance ask discover --to src/refund\\.ts$',
       'mu',
     ));
     expect(answer.out).not.toContain('Not loaded by');
@@ -312,11 +312,10 @@ describe('a file added after the commit a suite recorded at', () => {
     expect(unit?.['gap']).toEqual({
       question: 'which tests run it',
       scope: 'line 12 of src/refund.ts',
-      known: 'the record predates the file',
+      known: 'the record predates the file, and no test file it ran reaches the file by import',
       reason: 'stale',
       gear: 'record',
-      next: ['<runner>'],
-      cost: { tests: 1, files: 1 },
+      next: ['variance ask discover --to src/refund.ts'],
     });
   });
 

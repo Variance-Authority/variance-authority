@@ -50,7 +50,8 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import { answerGap, GapRefusal, refusalGap, type EvidenceGap } from './evidence-gap.js';
+import { answerGap, GapRefusal, type EvidenceGap } from './evidence-gap.js';
+import { refusalGap } from './refusal-gap.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
@@ -222,7 +223,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     });
   } catch (error) {
     if (!(error instanceof OperatorError)) throw error;
-    const gap = refusalGap(error.kind, request, whole);
+    const gap = await refusalGap(error.kind, request, whole);
     // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
     // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
     // The refusal is the answer; a record that cannot be found again only leaves it without a note.

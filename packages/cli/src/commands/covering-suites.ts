@@ -27,7 +27,8 @@ import type { ParsedCovering } from '../covering-args.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
-import { evidenceGapText, GapRefusal, refusalGap, type EvidenceGap } from './evidence-gap.js';
+import { evidenceGapText, GapRefusal, type EvidenceGap } from './evidence-gap.js';
+import { refusalGap } from './refusal-gap.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's answer, or why its record could not give one. */
@@ -75,8 +76,9 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
   const suites: SuiteAnswer[] = [];
   for (const one of nearestFirst(declared)) suites.push(await askSuite(asked, one));
   if (suites.every((answer) => 'refused' in answer && answer.refused === 'unrecorded')) {
-    const refused = nothingRecorded(request.root, declared.map((one) => one.name));
-    const gap = refusalGap('unrecorded', request, undefined);
+    const names = declared.map((one) => one.name);
+    const refused = nothingRecorded(request.root, names);
+    const gap = await refusalGap('unrecorded', request, undefined, names);
     throw gap === undefined ? refused : new GapRefusal(refused.message, { kind: 'unrecorded', gap });
   }
 

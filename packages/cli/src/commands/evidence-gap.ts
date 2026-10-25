@@ -30,7 +30,6 @@ import { coveringTestsInFile, type CoveringTest, type ExecutionIndex } from '@va
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { runsText, targetText } from './covering-at.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
-import type { ParsedCovering } from '../covering-args.js';
 import type { Covering } from './covering.js';
 
 /**
@@ -88,32 +87,6 @@ export class GapRefusal extends OperatorError {
     super(message, options);
     this.gap = options.gap;
   }
-}
-
-/**
- * The gap of a refusal `kind` of a question about one file, a line or a run of
- * them, when a run closes it: `older`, or `unrecorded`. `whole` is the record,
- * when one was read, and counts the run.
- */
-export function refusalGap(kind: RefusalKind | undefined, request: ParsedCovering, whole: ExecutionIndex | undefined): EvidenceGap | undefined {
-  if (request.file === undefined || request.since !== undefined || request.function !== undefined) return undefined;
-  const target = request.line !== undefined ? { line: request.line } : request.lines === undefined ? undefined : { lines: request.lines };
-  const scope = gapScope(request.file, target);
-  if (kind === 'older') {
-    return {
-      question: 'which tests run it',
-      scope,
-      known: 'the record predates the file',
-      reason: 'stale',
-      gear: 'record',
-      next: ['<runner>'],
-      ...(whole === undefined ? {} : { cost: { tests: whole.tests.length, files: new Set(whole.tests.map((test) => test.file)).size } }),
-    };
-  }
-  if (kind === 'unrecorded') {
-    return { question: 'which tests ran it', scope, known: 'no run is recorded', reason: 'absent', gear: 'record', run: {}, next: [] };
-  }
-  return undefined;
 }
 
 /** What a question about `file` was asked of, as a gap scopes it. */
