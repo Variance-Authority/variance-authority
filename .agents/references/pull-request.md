@@ -95,9 +95,11 @@ worktree and `origin/main`, never from local `main`:
    of it? The other reviewers look for a way to make the change better; Occam
    looks for the reason not to make it, never suggests an addition, and reads
    the body last. Its answers, and what clears one, are in its instructions.
-3. **Fidelity** — the body, the diff and `origin/main`. Is every block row
-   true of the diff, and does every hunk fall in a block a row names? A hunk no
-   row covers is a finding. Does each row's *pinned by* test or command observe the change,
+3. **Fidelity** — the task sentence, the body, the diff and `origin/main`.
+   Does the diff deliver everything the task sentence asks? A part of the task
+   no hunk delivers is a finding, even when the body leaves it out too. Is
+   every block row true of the diff, and does every hunk fall in a block a row
+   names? A hunk no row covers is a finding. Does each row's *pinned by* test or command observe the change,
    and fail on `origin/main` when the row changes behaviour? In a `test` or
    `refactor` PR it passes on both sides instead. For a top-layer page, does each fact the brief puts off the
    spine sit in the file it names, and does that file say it? Does each fact
