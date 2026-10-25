@@ -27,7 +27,7 @@ renders those subjects.
 | What changed, and is it one cause or many? | The completed run report | `variance ask summary`, then `variance ask changes` |
 | Is this subject changing, or disagreeing with itself? | Every subject read twice in the same run | `variance run --flakes` |
 | What is this test actually exercising? | Attention markers joined to the source that execution covered | `variance distill --test <id>` |
-| An answer ended with a gap: what runs next? | The gap's gear and its remedy, in [Fast, Smart, Deep](#fast-smart-deep) | the commands the gap prints |
+| An answer ended with a gap: what runs next? | [The gap's reason and the run that closes it](#fast-smart-deep) | the commands the gap prints |
 
 `select` is the one written for a runner this tool never drives — a plain
 `vitest`, a `jest`, a CI shell script. It emits a skip list of test files and
@@ -151,6 +151,22 @@ one of three:
 - `coarse`: the record holds the line only at file grain, so it knows which
   tests loaded the file but not which of them ran the line.
 
+An `absent` gap and a `stale` one name a recorded run:
+
+```text
+Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.
+Next, Record, at a cost no record counts:
+  Wire the suite's producer and record one run of it: that first run is the record.
+```
+
+```text
+Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 was written since the recording.
+Next, Record, 1 test in 1 test file:
+  Run with the suite's own runner: a.test.ts
+```
+
+A `coarse` gap names Deep:
+
 ```text
 Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
 Next, Deep, 3 tests in 2 test files:
@@ -169,7 +185,10 @@ the story that run recorded. An answer with nothing open ends without a gap.
 **Record is not a fourth gear.** It is the remedy when the record Smart reads
 cannot answer, because it is `absent` or `stale`. A deeper reading does not help
 then; a recorded run of what the gap names does, and never the whole suite
-again over a record that exists:
+again over a record that exists. Run the files under the suite's recording
+producer, the wrapped runner configuration [test-level coverage](test-level-coverage.md#the-process)
+sets up, so the run refreshes the record; a run without it leaves the gap
+where it was:
 
 - **No record of the suite**: `variance share --suite <name>` fetches the
   mainline's record when the root config gives the suite `"carry": "share"`.
