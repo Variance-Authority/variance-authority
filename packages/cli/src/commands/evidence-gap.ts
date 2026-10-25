@@ -20,8 +20,8 @@
  *
  * Which test files a Record gap runs is selection's answer for the asked file
  * (`gap-selection.ts`): the gap words and counts it, and never names an empty
- * run, a range edited since as much as a line written since: every test file
- * that loaded the file.
+ * run, a range edited since as much as a line written since, under the suite's
+ * own `relations`, `ignore` and `before`.
  *
  * No record and no configuration names the runner a suite runs under: a
  * declared suite says its role and its carrier, and a record names its cases'

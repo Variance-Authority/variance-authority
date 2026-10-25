@@ -76,7 +76,7 @@ from `@variance-authority/sense/test-selection` answer the same two questions in
 process, for an editor or a script that needs the records rather than the text.
 
 An answer that leaves the question open ends with a gap: the question, why it
-stays open, and the run that closes it, counted in tests and test files. A line
+stays open, and the run that closes it, counted in tests and test files when a record counts it. A line
 held at file grain names the story of the three nearest tests, the Deep gear of
 [FSD](reasoning.md#fast-smart-deep):
 

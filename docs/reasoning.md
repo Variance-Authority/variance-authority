@@ -141,8 +141,9 @@ fall into three gears, Fast, Smart and Deep, FSD for short:
   of each test it runs.
 
 `variance covering` ends an answer that leaves its question open with that next
-question, a gap: what stays open, what is known, why, the exact commands, and
-how many tests in how many test files they run. The reason in parentheses is
+question, a gap: what stays open, what is known, why, the run that closes it
+with the commands that run as printed, and, when a record counts it, how many
+tests in how many test files it takes. The reason in parentheses is
 one of three:
 
 - `absent`: no run of the suite is recorded;
@@ -195,7 +196,8 @@ where it was:
   Otherwise wire the suite's producer and record one run: that first run is
   the record.
 - **Lines written since the recording, in a file the record holds**: run the
-  test files that loaded the file, the ones `variance select` runs for it.
+  test files the gap names: the ones `variance select` runs for the file under
+  the suite's own `relations`, `ignore` and `before`.
 - **A file the record is older than**, so a new file: run the recorded test
   files `variance select` runs for it by reach. `variance reach --since
   <base>` then takes every file the diff added, the new test files no record
