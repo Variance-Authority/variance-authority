@@ -29,7 +29,7 @@
 import { coveringTestsInFile, type CoveringTest, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { runsText, targetText } from './covering-at.js';
-import { coveringFiles, type CoveringFile } from './covering-files.js';
+import { casesByFile, coveringFiles, type CoveringFile } from './covering-files.js';
 import type { Covering } from './covering.js';
 
 /**
@@ -184,13 +184,7 @@ function deep(scope: string, known: string, tests: readonly CoveringTest[]): Evi
 
 /** The cases in the order the answer lists them: by its file rows, then any file they leave out. */
 function nearest(tests: readonly CoveringTest[], files: readonly CoveringFile[]): readonly CoveringTest[] {
-  const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
-  for (const test of tests) {
-    const held = byFile.get(test.file);
-    if (held === undefined) byFile.set(test.file, [test]);
-    else held.push(test);
-  }
-  return [...byFile.values()].flat();
+  return [...casesByFile(tests, files).values()].flat();
 }
 
 function distinct(tests: readonly CoveringTest[]): readonly CoveringTest[] {

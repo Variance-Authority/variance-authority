@@ -15,7 +15,7 @@ import {
   type HeldLines,
 } from '@variance-authority/sense/test-selection';
 import { runsText, targetText, type UnrunPart } from './covering-at.js';
-import type { CoveringFile } from './covering-files.js';
+import { casesByFile, type CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
@@ -308,14 +308,8 @@ function caseLines(
   indent: string,
   files: readonly CoveringFile[] = [],
 ): readonly string[] {
-  const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
-  for (const test of tests) {
-    const held = byFile.get(test.file);
-    if (held === undefined) byFile.set(test.file, [test]);
-    else held.push(test);
-  }
   const rows = new Map(files.map((row) => [row.file, row]));
-  return [...byFile].flatMap(([file, cases]) => [
+  return [...casesByFile(tests, files)].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
     ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test)}`),
   ]);
