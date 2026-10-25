@@ -26,6 +26,12 @@ export interface SuiteRequest {
   readonly atDistance?: Leg;
   /** A journey file, or a snapshot by path, to read instead of the recorded one. */
   readonly execution?: string;
+  /**
+   * The snapshot a caller in this process already answered from, by path:
+   * read as the record of `suite`, whose declared configuration still selects,
+   * so one invocation asks one record and looks for no other.
+   */
+  readonly record?: string;
   /** The change, handed in as a patch file; `-` is stdin. */
   readonly diff?: string;
   /**

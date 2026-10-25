@@ -5,18 +5,15 @@
  * than the asked file (`older`), or no record at all (`unrecorded`).
  *
  * A record older than the file is a record of a commit without it: the file is
- * new, and a new file is run by reach alone. So the gap runs the files
- * `variance reach` walks to from it over imports, every one, whether the record
- * ran it or not: a new file's importers are often new tests the record never
- * saw, and those are the tests that matter. It is reach's walk, the relations
- * graph over the runtime edges, not `ask discover`'s, which reads another tree
- * and can disagree with it. Nothing names which of the files are tests, so the
- * runner runs the test files among them. Cases are counted only for the files
- * the record holds them of, and the rest are counted as files it holds none of,
- * never as zero. Then `variance index` and `variance reach --since` from the
- * record's commit take every other file the diff added since, at once. The
- * share's record predates a new file as well, so a suite given to the share is
- * walked the same way.
+ * new, and a new file is run by reach. Selection owns that answer, under the
+ * suite's own `relations`, `ignore` and `before` (`gap-selection.ts`), so the
+ * gap runs the recorded test files selection names for it, or the whole suite
+ * when selection does, and names no run when it names none. Then `variance
+ * reach --since` from the record's commit takes every other file the diff added
+ * since, at once, and `variance index` comes first only when the source index
+ * could not be read. A lookup that fails leaves the refusal standing, its gap
+ * saying the run is unknown. The share's record predates a new file as well,
+ * so a suite given to the share is asked the same way.
  *
  * No record at all is closed by the share's fetch, `variance share --suite
  * <name>`, for a suite given to the share, and otherwise by wiring the
@@ -26,17 +23,18 @@
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { ParsedCovering } from '../covering-args.js';
 import type { RefusalKind } from '../exit.js';
-import { gapScope, type EvidenceGap } from './evidence-gap.js';
+import { gapScope, selectionRun, type EvidenceGap } from './evidence-gap.js';
 import { declaredSuite, shareCommand } from './execution-input.js';
-import { affectedFiles, refused } from './reach.js';
-import { relationsFor } from './source-graph.js';
+import { graphOnce, selectedFor, type Graph } from './gap-selection.js';
 
 /** What a refusal knows beyond its kind. */
 export interface RefusalContext {
-  /** The suites none of which recorded a run, when the root declares several; otherwise the asked one, or the one it declares. */
-  readonly suites?: readonly string[];
   /** The commit an `older` record was made at: the base the diff of files added since is taken from. */
   readonly commit?: string | undefined;
+  /** The record an `older` refusal was read from, which selection is asked about. */
+  readonly record?: string | undefined;
+  /** The file graph the invocation already reads, so selection is asked over the same one. */
+  readonly graph?: Graph;
 }
 
 /**
@@ -53,73 +51,51 @@ export async function refusalGap(
   if (request.file === undefined || request.since !== undefined || request.function !== undefined) return undefined;
   const target = request.line !== undefined ? { line: request.line } : request.lines === undefined ? undefined : { lines: request.lines };
   const scope = gapScope(request.file, target);
-  if (kind === 'older') return olderGap(request, scope, whole, context.commit);
-  if (kind === 'unrecorded') return unrecordedGap(request.root, scope, context.suites ?? (request.suite === undefined ? undefined : [request.suite]));
+  if (kind === 'older') return olderGap(request, scope, whole, context, context.graph ?? graphOnce(request.root));
+  if (kind === 'unrecorded') return unrecordedGap(request.root, scope, request.suite);
   return undefined;
 }
 
 /**
- * The gap of no record of any of `suites`, or of the one the root config
- * declares when none is named: the share's fetch of each suite given to it,
- * and one recorded run of the rest.
+ * The gap of no record of `suite`, or of the one the root config declares when
+ * none is named: the share's fetch when the suite is given to it, and otherwise
+ * one recorded run. Several suites with no record each give theirs, and the
+ * answer of every suite joins them (`covering-suites.ts`).
  */
-async function unrecordedGap(root: string, scope: string, suites: readonly (string | undefined)[] | undefined): Promise<EvidenceGap> {
-  const named = suites ?? [undefined];
-  const fetches: string[] = [];
-  const recorded: (string | undefined)[] = [];
-  for (const suite of named) {
-    const command = await shareCommand(root, suite);
-    if (command === undefined) recorded.push(suite === undefined ? (await declaredSuite(root, undefined))?.name : suite);
-    else fetches.push(command);
-  }
-  const suite = recorded.length === 1 ? recorded[0] : undefined;
+async function unrecordedGap(root: string, scope: string, suite: string | undefined): Promise<EvidenceGap> {
+  const fetch = await shareCommand(root, suite);
+  const name = suite ?? (await declaredSuite(root, undefined))?.name;
   return {
     question: 'which tests ran it',
     scope,
     known: 'no run is recorded',
     reason: 'absent',
     remedy: 'record',
-    ...(recorded.length === 0 ? {} : { run: suite === undefined ? {} : { suite } }),
-    next: fetches,
+    ...(fetch === undefined ? { run: name === undefined ? {} : { suite: name } } : {}),
+    next: fetch === undefined ? [] : [fetch],
   };
 }
 
-async function olderGap(request: ParsedCovering, scope: string, whole: ExecutionIndex | undefined, commit: string | undefined): Promise<EvidenceGap> {
-  const file = request.file!;
-  const suite = await declaredSuite(request.root, request.suite);
-  const base = { question: 'which tests run it', scope, reason: 'stale', remedy: 'record' } as const;
-  const next = ['variance index', ...(commit === undefined ? [] : [`variance reach --since ${commit.slice(0, 12)}`])];
-  const walked = await walkFrom(request.root, file);
-  if (walked === undefined) {
-    return { ...base, known: 'the record predates the file, and the import walk does not hold it', next };
-  }
-  if (walked.length === 0) return { ...base, known: 'the record predates the file, and no file imports it', next };
-
-  const held = new Map<string, number>();
-  for (const test of whole?.tests ?? []) held.set(test.file, (held.get(test.file) ?? 0) + 1);
-  const ran = walked.filter((one) => held.has(one));
-  const uncounted = walked.length - ran.length;
+async function olderGap(
+  request: ParsedCovering,
+  scope: string,
+  whole: ExecutionIndex | undefined,
+  { commit, record }: RefusalContext,
+  graph: Graph,
+): Promise<EvidenceGap> {
+  const suite = (await declaredSuite(request.root, request.suite))?.name;
+  const source = { root: request.root, suite: request.suite, execution: request.execution, record, graph };
+  const selected = await selectedFor(source, request.file!);
+  const { said, joint, run, cost } = selectionRun(selected, suite, whole);
+  const reach = commit === undefined ? [] : [`variance reach --since ${commit.slice(0, 12)}`];
   return {
-    ...base,
-    known: `the record predates the file; the import walk from it reaches ${walked.length} file${walked.length === 1 ? '' : 's'}, ${ran.length} of which the record ran`,
-    run: { ...(suite === undefined ? {} : { suite: suite.name }), files: walked, walk: true },
-    next,
-    cost: {
-      files: walked.length,
-      ...(ran.length === 0 ? {} : { tests: ran.reduce((sum, one) => sum + held.get(one)!, 0) }),
-      ...(uncounted === 0 ? {} : { uncounted }),
-    },
+    question: 'which tests run it',
+    scope,
+    known: `the record predates the file${joint}${said}`,
+    reason: 'stale',
+    remedy: 'record',
+    ...(run === undefined ? {} : { run }),
+    next: 'unread' in selected ? ['variance index', ...reach] : reach,
+    ...(cost === undefined ? {} : { cost }),
   };
-}
-
-/**
- * The files `variance reach` walks to from `file` alone, the file itself left
- * out, in code-unit order: the same graph and the same walk. Absent when the
- * walk refuses, as it does for a file its graph does not hold.
- */
-async function walkFrom(root: string, file: string): Promise<readonly string[] | undefined> {
-  const relations = await relationsFor(root, ['.']);
-  const reach = affectedFiles(relations, [file], ['.']);
-  if (refused(reach)) return undefined;
-  return reach.files.filter((one) => one !== file);
 }

@@ -49,12 +49,18 @@ beforeAll(async () => {
   await record('stories', indexOf('src/Button.tsx', { id: 's', file: 'src/Button.stories.tsx', name: 'Primary' }));
 });
 
-/** Lay one suite's record of a run, as the runner would have left it, made at `commit` when one is given. */
+/**
+ * Lay one suite's record of a run, as the runner would have left it, made at
+ * `commit` when one is given. Every test file of the index ran whole, so
+ * selection reads the record as a run it can answer from.
+ */
 async function recordIn(at: string, suite: string, index: unknown, commit?: string) {
   const file = testCoverageFile(at, { suite });
   await mkdir(dirname(file), { recursive: true });
   const made = commit === undefined ? {} : { commit };
-  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, ...made, tests: [], modules: [] }, {
+  const files = [...new Set((index as { tests: readonly { file: string }[] }).tests.map((test) => test.file))];
+  const tests = files.map((test) => ({ file: test, complete: true, preconditions: [] }));
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, ...made, tests, modules: [] }, {
     index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
   });
 }
@@ -289,15 +295,15 @@ describe('a file added after the commit a suite recorded at', () => {
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
 
-  it('is said in full as a record older than the file, with the commit, and ends with a gap that says nothing imports it, and reach takes the diff', async () => {
+  it('is said in full as a record older than the file, with the commit, and ends with a gap that names no run when selection names none, and reach takes the diff', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at]);
 
     expect(answer.out).toMatch(new RegExp(
       `^unit \\(unit\\): \`src/refund\\.ts\` did not exist at ${then.slice(0, 12)}, the commit the record at \`[^\`]+/suites/unit/[^\`]+\` was made at, ` +
         'so that record has no answer for it\\.\\n' +
-        '  Gap \\(stale\\) on line 12 of src/refund\\.ts: which tests run it\\. Known: the record predates the file, and no file imports it\\.\\n' +
+        '  Gap \\(stale\\) on line 12 of src/refund\\.ts: which tests run it\\. ' +
+        'Known: the record predates the file, and selection runs no recorded test file for it\\.\\n' +
         '  Next, Record:\\n' +
-        '    variance index\\n' +
         `    variance reach --since ${then.slice(0, 12)}$`,
       'mu',
     ));
@@ -313,10 +319,10 @@ describe('a file added after the commit a suite recorded at', () => {
     expect(unit?.['gap']).toEqual({
       question: 'which tests run it',
       scope: 'line 12 of src/refund.ts',
-      known: 'the record predates the file, and no file imports it',
+      known: 'the record predates the file, and selection runs no recorded test file for it',
       reason: 'stale',
       remedy: 'record',
-      next: ['variance index', `variance reach --since ${then.slice(0, 12)}`],
+      next: [`variance reach --since ${then.slice(0, 12)}`],
     });
   });
 
@@ -359,12 +365,12 @@ describe('a repository whose declared suites have none of them run', () => {
         known: 'no run is recorded',
         reason: 'absent',
         remedy: 'record',
-        run: {},
+        run: { suites: ['unit', 'checkout', 'stories'] },
         next: [],
       },
     });
     expect(answer.err).toContain('none of the suites it declares, "checkout", "stories", "unit", has a per-case index');
     // No record counts the suite, so the gap names no cost rather than a zero.
-    expect(answer.err).toContain('Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.\nNext, Record, at a cost no record counts:\n  Wire the suite\'s producer and record one run of it: that first run is the record.');
+    expect(answer.err).toContain('Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.\nNext, Record, at a cost no record counts:\n  Wire the producers of `unit`, `checkout` and `stories` and record one run of each: that first run is the record.');
   });
 });

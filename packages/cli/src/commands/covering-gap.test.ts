@@ -142,11 +142,11 @@ describe('a line written since the recording', () => {
       known: 'line 20 was written since the recording',
       reason: 'stale',
       remedy: 'record',
-      run: { files: ['ledger.test.ts', 'book.test.ts', 'load.test.ts'] },
+      run: { files: ['book.test.ts', 'ledger.test.ts', 'load.test.ts'] },
       next: [],
       cost: { tests: 4, files: 3 },
     });
-    expect(formatCovering(answer, 'text')).toContain("Next, Record, 4 tests in 3 test files:\n  Run with the suite's own runner: ledger.test.ts book.test.ts load.test.ts");
+    expect(formatCovering(answer, 'text')).toContain("Next, Record, 4 tests in 3 test files:\n  Run with the suite's own runner: book.test.ts ledger.test.ts load.test.ts");
   });
 });
 
@@ -172,4 +172,8 @@ describe('a file whose recorded ranges were edited since', () => {
 
     expect((await ask()).gap).toBeUndefined();
   });
+});
+
+describe('an answer held at file grain', () => {
+  it.todo('a --function / --since / precondition answer held at file grain ends with its gap — needs a gap scope for a function, a diff and a precondition, which `gapScope` names only for a file, a line or a run of lines');
 });

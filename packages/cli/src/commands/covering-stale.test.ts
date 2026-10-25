@@ -10,6 +10,7 @@ import {
   type Placement,
 } from '@variance-authority/sense/test-selection';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
+import { digestString } from '@variance-authority/core/format';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -53,7 +54,22 @@ const INDEX: ExecutionIndex = {
 async function ask(argv: readonly string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-stale-'));
   const execution = join(root, 'coverage.bin');
-  await writeTestCoverage(execution, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
+  // `a.test.ts` ran whole and entered `src/cart.ts`, so selection names it for the file.
+  const cart = {
+    file: 'src/cart.ts',
+    sourceDigest: digestString('recorded cart'),
+    instrumented: true,
+    blocks: [{
+      ordinal: 0, kind: 'module' as const, digest: digestString('module src/cart.ts'), name: 'src/cart.ts', path: 'module',
+      startLine: 1, endLine: 7, source: true, testFiles: ['a.test.ts'],
+    }],
+  };
+  await writeTestCoverage(execution, {
+    version: 3,
+    instrumentation: INSTRUMENTATION_ID,
+    tests: [{ file: 'a.test.ts', complete: true, preconditions: [] }],
+    modules: [cart],
+  }, {
     index: encodeAsSetExecutionIndex(INDEX),
   });
   return covering(parseCoveringArgs(readFlags(

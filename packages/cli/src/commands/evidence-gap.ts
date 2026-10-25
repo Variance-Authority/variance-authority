@@ -18,6 +18,11 @@
  * one gap, and Record wins over Deep: a story of a test over text the record
  * no longer holds answers a question about a file that is not there.
  *
+ * Which test files a Record gap runs is selection's answer for the asked file
+ * (`gap-selection.ts`): the gap words and counts it, and never names an empty
+ * run. A recorded range edited since is the exception, run by the tests the
+ * record holds of that range.
+ *
  * No record and no configuration names the runner a suite runs under: a
  * declared suite says its role and its carrier, and a record names its cases'
  * files. So the run the suite's own runner makes is said as what it runs, the
@@ -26,11 +31,12 @@
  * be a guess the reader cannot check.
  */
 
-import { coveringTestsInFile, type CoveringTest, type ExecutionIndex } from '@variance-authority/sense/test-selection';
+import type { CoveringTest, ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { runsText, targetText } from './covering-at.js';
 import { casesByFile, coveringFiles, type CoveringFile } from './covering-files.js';
 import type { Covering } from './covering.js';
+import { selectedFor, type GapSource, type Selected } from './gap-selection.js';
 
 /**
  * The most tests a Deep gap names. A story is recorded and read one case at a
@@ -51,15 +57,12 @@ export const DEEP_TESTS = 3;
 export interface GapRun {
   /** The declared suite the run is of, when the answer is one suite's. */
   readonly suite?: string;
-  /**
-   * The test files to run, nearest first, or with `walk` the files the import
-   * walk reaches, in code-unit order, of which the runner runs its test files.
-   * Absent: the whole suite, which only a suite with no record is sent to,
-   * since that first run is the record.
-   */
+  /** The declared suites, when the run is one first run of each of several with no record. */
+  readonly suites?: readonly string[];
+  /** The test files to run, nearest first, or in code-unit order as selection names them. */
   readonly files?: readonly string[];
-  /** `files` are what `variance reach` walks to, test files and the source between: no record or configuration tells them apart, the runner does. */
-  readonly walk?: true;
+  /** The whole suite runs, for the reason selection gives. */
+  readonly whole?: string;
   /** The cases to run, each filtered by its name; absent when each file runs whole. */
   readonly cases?: readonly { readonly file: string; readonly name: string }[];
   /** Run under `VARIANCE_AUTHORITY_STORY=1`, so each case records its story. */
@@ -82,13 +85,8 @@ export interface EvidenceGap {
   readonly run?: GapRun;
   /** The commands that run as printed, in order, after `run`. */
   readonly next: readonly string[];
-  /**
-   * How many files the run takes, and how many tests the record holds of them.
-   * `uncounted` files are ones the record holds no case of, so `tests` counts
-   * the rest only, and is absent when it counts none. Absent when no record
-   * counts the run at all.
-   */
-  readonly cost?: { readonly files: number; readonly tests?: number; readonly uncounted?: number };
+  /** How many test files the run takes, and how many tests the record holds of them. Absent when no record counts the run. */
+  readonly cost?: { readonly files: number; readonly tests?: number };
 }
 
 /** A refusal that still names the run that would answer it. */
@@ -109,22 +107,24 @@ export function gapScope(file: string, target: Covering['target']): string {
 /**
  * The gap an answer about one file leaves open, read in order: a record of
  * another text first, then lines written or ranges edited since, then a line
- * held only at file grain. Nothing open is no gap.
+ * held only at file grain. Nothing open is no gap. `source` is where the
+ * record was read, which selection is asked of.
  */
-export function answerGap(answer: Covering, whole: ExecutionIndex): EvidenceGap | undefined {
+export async function answerGap(answer: Covering, whole: ExecutionIndex, source: GapSource): Promise<EvidenceGap | undefined> {
   const file = answer.file;
+  // FIXME: a `--function`, `--since` or precondition answer held at file grain ends with no gap; it should end with its Deep or Record one.
   if (file === undefined || answer.since !== undefined || answer.preconditionOf !== undefined) return undefined;
   if (answer.target !== undefined && 'function' in answer.target) return undefined;
   const scope = gapScope(file, answer.target);
   const tests = answer.tests ?? [];
 
   if (answer.frame === 'stale') {
-    return record('which of these tests ran it', scope, `${named(tests.length)} ran code in ${file}`, answer.files ?? coveringFiles(tests, whole));
+    return selected('which of these tests ran it', scope, `${named(tests.length)} ran code in ${file}`, await selectedFor(source, file), whole);
   }
   if (answer.written !== undefined && answer.written.length > 0) {
-    const ran = coveringTestsInFile(whole, file).flatMap((range) => range.tests);
     const one = answer.written.length === 1 && answer.written[0]!.startLine === answer.written[0]!.endLine;
-    return record('which tests run it now', scope, `${one ? 'line' : 'lines'} ${runsText(answer.written)} ${one ? 'was' : 'were'} written since the recording`, coveringFiles(distinct(ran), whole));
+    const known = `${one ? 'line' : 'lines'} ${runsText(answer.written)} ${one ? 'was' : 'were'} written since the recording`;
+    return selected('which tests run it now', scope, known, await selectedFor(source, file), whole);
   }
   const moved = (answer.ranges ?? []).filter((range) => range.moved === true);
   if (moved.length > 0) {
@@ -137,25 +137,52 @@ export function answerGap(answer: Covering, whole: ExecutionIndex): EvidenceGap 
   return undefined;
 }
 
+/**
+ * Selection's answer for the asked file, as the run a gap names and the words
+ * it adds to what is known: `said` after `joint`. A run of no file is no run.
+ */
+export function selectionRun(
+  answer: Selected,
+  suite: string | undefined,
+  whole: ExecutionIndex | undefined,
+): { readonly said: string; readonly joint: '; ' | ', and '; readonly run?: GapRun; readonly cost?: NonNullable<EvidenceGap['cost']> } {
+  const of = suite === undefined ? {} : { suite };
+  if ('unread' in answer) return { said: 'which test files selection runs for it could not be read', joint: ', and ' };
+  if ('none' in answer) return { said: 'selection runs no recorded test file for it', joint: ', and ' };
+  const tests = whole?.tests ?? [];
+  if ('whole' in answer) {
+    const files = new Set(tests.map((test) => test.file)).size;
+    return {
+      said: 'selection runs the whole suite for it',
+      joint: '; ',
+      run: { ...of, whole: answer.whole },
+      ...(whole === undefined ? {} : { cost: { files, ...(tests.length === 0 ? {} : { tests: tests.length }) } }),
+    };
+  }
+  const run = new Set(answer.files);
+  const held = tests.filter((test) => run.has(test.file)).length;
+  return {
+    said: `selection runs ${count(answer.files.length, 'recorded test file')} for it`,
+    joint: '; ',
+    run: { ...of, files: answer.files },
+    cost: { files: answer.files.length, ...(held === 0 ? {} : { tests: held }) },
+  };
+}
+
 /** The gap said as text, after the answer. */
 export function evidenceGapText(gap: EvidenceGap): string {
   const remedy = gap.remedy === 'deep' ? 'Deep' : 'Record';
   const cost = gap.cost !== undefined ? costText(gap.cost) : gap.run === undefined ? '' : ', at a cost no record counts';
-  return [
-    `Gap (${gap.reason}) on ${gap.scope}: ${gap.question}. Known: ${gap.known}.`,
-    `Next, ${remedy}${cost}:`,
-    ...(gap.run === undefined ? [] : runText(gap.run)),
-    ...gap.next.map((command) => `  ${command}`),
-  ].join('\n');
+  const next = gap.run === undefined && gap.next.length === 0
+    ? []
+    : [`Next, ${remedy}${cost}:`, ...(gap.run === undefined ? [] : runText(gap.run)), ...gap.next.map((command) => `  ${command}`)];
+  return [`Gap (${gap.reason}) on ${gap.scope}: ${gap.question}. Known: ${gap.known}.`, ...next].join('\n');
 }
 
-/** What a gap's run costs, counting tests only in the files the record holds cases of. */
+/** What a gap's run costs: its test files, and the tests the record holds of them when it holds any. */
 function costText(cost: NonNullable<EvidenceGap['cost']>): string {
-  const uncounted = cost.uncounted ?? 0;
-  const none = `${count(uncounted, 'file')} ${uncounted === cost.files ? 'the record holds' : 'it holds'} no case of`;
-  if (cost.tests === undefined) return `, ${none}`;
-  if (uncounted === 0) return `, ${count(cost.tests, 'test')} in ${count(cost.files, 'test file')}`;
-  return `, ${count(cost.tests, 'test')} in ${count(cost.files - uncounted, 'test file')} the record ran, and ${none}`;
+  const files = count(cost.files, 'test file');
+  return cost.tests === undefined ? `, ${files}` : `, ${count(cost.tests, 'test')} in ${files}`;
 }
 
 /** The run the suite's own runner makes, said as what it runs. */
@@ -168,25 +195,40 @@ function runText(run: GapRun): readonly string[] {
       ...run.cases.map((one) => `    ${quoted(one.file, false)}  ${quoted(one.name, true)}`),
     ];
   }
-  if (run.files === undefined) {
-    const of = run.suite === undefined ? "the suite's producer" : `the producer of \`${run.suite}\``;
-    return [`  Wire ${of} and record one run of it: that first run is the record.`];
+  if (run.whole !== undefined) return [`  Run the whole suite with ${runner}: ${run.whole}.`];
+  if (run.files !== undefined) return [`  Run with ${runner}: ${run.files.map((file) => quoted(file, false)).join(' ')}`];
+  if (run.suites !== undefined && run.suites.length > 1) {
+    return [`  Wire the producers of ${listed(run.suites.map((suite) => `\`${suite}\``))} and record one run of each: that first run is the record.`];
   }
-  const which = run.walk === true ? `the test files among these with ${runner}` : `with ${runner}`;
-  return [`  Run ${which}: ${run.files.map((file) => quoted(file, false)).join(' ')}`];
+  const of = run.suite === undefined ? "the suite's producer" : `the producer of \`${run.suite}\``;
+  return [`  Wire ${of} and record one run of it: that first run is the record.`];
 }
 
-function record(question: string, scope: string, known: string, files: readonly CoveringFile[]): EvidenceGap {
+/** `a`, `a and b`, `a, b and c`. */
+function listed(words: readonly string[]): string {
+  return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
+}
+
+/** A Record gap over what selection runs for the file; a run of no file is said in `known`, never named. */
+function selected(question: string, scope: string, known: string, answer: Selected, whole: ExecutionIndex): EvidenceGap {
+  const { said, joint, run, cost } = selectionRun(answer, undefined, whole);
   return {
     question,
     scope,
-    known,
+    known: run === undefined ? `${known}${joint}${said}` : known,
     reason: 'stale',
     remedy: 'record',
-    run: { files: files.map((row) => row.file) },
+    ...(run === undefined ? {} : { run }),
     next: [],
-    cost: { tests: files.reduce((sum, row) => sum + row.of, 0), files: files.length },
+    ...(cost === undefined ? {} : { cost }),
   };
+}
+
+function record(question: string, scope: string, known: string, files: readonly CoveringFile[]): EvidenceGap {
+  const ran = files.length === 0
+    ? { known: `${known}, and no recorded case called into them` }
+    : { known, run: { files: files.map((row) => row.file) }, cost: { tests: files.reduce((sum, row) => sum + row.of, 0), files: files.length } };
+  return { question, scope, reason: 'stale', remedy: 'record', next: [], ...ran };
 }
 
 function deep(scope: string, known: string, tests: readonly CoveringTest[]): EvidenceGap {
@@ -207,6 +249,7 @@ function nearest(tests: readonly CoveringTest[], files: readonly CoveringFile[])
   return [...casesByFile(tests, files).values()].flat();
 }
 
+/** Each case once: a case in two edited ranges is one test to run. */
 function distinct(tests: readonly CoveringTest[]): readonly CoveringTest[] {
   const seen = new Set<string>();
   return tests.filter((test) => {

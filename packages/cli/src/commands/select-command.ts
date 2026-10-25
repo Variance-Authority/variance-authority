@@ -137,7 +137,8 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   }
   // A snapshot named by path is the record, and so is the one `--suite` names.
   oneRecord(request.suite, request.execution, '--execution');
-  const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
+  const named = request.record ?? request.execution;
+  const found = named === undefined ? await recordedOrMainline(request) : { at: named, held: true };
   const { at, source } = found;
   // The record the selection reads, which a shard's record names; a skip list alone does not say which.
   const read = found.held ? selection.recordDigestAt(at) : undefined;

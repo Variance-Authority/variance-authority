@@ -42,16 +42,20 @@ export function addedSince(file: string, from: string, commit: string): RecordOl
     `\`${file}\` did not exist at ${commit.slice(0, 12)}, the commit the record at \`${from}\` was made at, ` +
       'so that record has no answer for it.',
     commit,
+    from,
   );
 }
 
 /** The `older` refusal, with the commit its record was made at: the base the diff of files added since is taken from. */
 export class RecordOlder extends OperatorError {
   readonly commit: string;
+  /** The record that predates the file, which the gap asks selection about. */
+  readonly from: string;
 
-  constructor(message: string, commit: string) {
+  constructor(message: string, commit: string, from: string) {
     super(message, { kind: 'older' });
     this.commit = commit;
+    this.from = from;
   }
 }
 
