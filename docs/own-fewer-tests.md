@@ -75,6 +75,24 @@ the sentence that gets a test deleted. `coveringTests` and `coveringTestsInFile`
 from `@variance-authority/sense/test-selection` answer the same two questions in
 process, for an editor or a script that needs the records rather than the text.
 
+An answer that leaves the question open ends with a gap: the question, why it
+stays open, and the run that closes it, counted in tests and test files. A line
+held at file grain names the story of the three nearest tests, the Deep gear of
+[FSD](reasoning.md#fast-smart-deep):
+
+```text
+…
+Gap (coarse) on line 3 of src/cart/total.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/cart/total.ts.
+Next, Deep, 3 tests in 2 test files:
+  VARIANCE_AUTHORITY_STORY=1 <runner> src/cart/total.test.ts -t 'splits a discount'
+  …
+```
+
+A record of another text, a line written since the recording, or no record at
+all names a recorded run of the test files instead. `<runner>` stands for the
+command your suite runs with, since no suite declares one. Under `--format json`
+the same gap is the answer's `gap`.
+
 When the list is long, narrow it to the tests that sit near the code:
 
 ```bash

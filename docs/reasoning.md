@@ -123,3 +123,34 @@ When the evidence cannot support the intended decision, the next step is one of:
 An open conclusion is still useful when it names what is missing. It keeps the
 current answer trustworthy and turns the missing observation into the next
 explicit question.
+
+### Fast, Smart, Deep
+
+Ask that next question at the cheapest reading that can answer it. The readings
+fall into three gears, Fast, Smart and Deep, FSD for short:
+
+- **Fast** reads what is known without a run: the diff, the source and the
+  [source index](source-index.md), through `variance ask` and `variance select`.
+- **Smart** reads what a run recorded: which cases ran which lines, at which
+  commit, and what the last runs found.
+- **Deep** reads [one case's story](test-stories.md): the functions it called,
+  in order, and the branches it took. It runs on at most three named tests,
+  never on a suite.
+
+When the record Smart reads is missing, of another text, or older than the
+file, a deeper reading does not help. The remedy is **Record**: a normal
+recorded run of the test files the record names.
+
+`variance covering` ends an answer that leaves its question open with that
+next question, a gap: what stays open, why, the exact commands, and how many
+tests in how many test files they run.
+
+```text
+Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
+Next, Deep, 3 tests in 2 test files:
+```
+
+An answer with nothing open ends without one. Run Deep only on a gap that names
+it, skip a gear only when its record cannot have the answer, and check a
+finding at the cheapest gear that could prove it wrong: a path a story shows
+against `variance covering`, a selection against the diff.

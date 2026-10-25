@@ -44,6 +44,9 @@ charges to the module too. Its cases are the ones that loaded the file, and the
 answer says so with `At file grain`, `grain: "file"` under `--format json`. In
 a run of lines, the lines held at file grain are named in `fileGrain`, and the
 lines no region holds, such as imports, types or blank lines, in `outside`.
+Which of the cases that loaded the file ran the line is then open, and the
+answer ends with a Deep gap: the story of its first three tests, in the order
+the answer lists them ([Fast, Smart, Deep](fsd.md)).
 Lines of a run your edit wrote are named in `written` and left out; when your
 edit wrote every line asked, the answer says that no case has run them. When
 no line asked is in a recorded region, the answer names no case and says, for
@@ -94,7 +97,8 @@ same way.
 and is refused beside `--execution`. Under `--format json` the answer is
 `{"file": …, "suites": [...]}`, with `since` in place of `file` for a diff. Each
 entry is that suite's answer with `suite` and `kind` added, or `{suite, kind,
-refused, reason}` for a suite that could not answer.
+refused, reason}` for a suite that could not answer, with its `gap` when a
+recorded run would answer it.
 
 A module the run loaded without instrumenting it has no recorded line, and is
 not refused: the answer is `preconditionOf`, every test file that loaded it, and
@@ -105,9 +109,10 @@ no case. Those are the files `variance select` selects on a change to it, whole.
 
 An empty list reads as *no test covers this line*, so a missing index is
 refused: exit `2`, and under `--format json` stdout is
-`{"refused":"unrecorded"}`, which separates *nothing recorded* from a failed
-question without reading the sentence. Asking again changes nothing until a
-wrapped run has happened. With suites declared, the refusal is exit `2` only
+`{"refused":"unrecorded","gap":{…}}`, which separates *nothing recorded* from a
+failed question without reading the sentence. The `gap` names the recorded run
+that answers it, [Record](fsd.md); asking again changes nothing until it has
+happened. With suites declared, the refusal is exit `2` only
 when no suite has a record; otherwise the answer exits `0`, and a suite with
 none has `refused` in its own entry.
 
@@ -178,8 +183,10 @@ The answer's `frame` names the coordinates its numbers are in:
   ran your line cannot be said.
 
 A `--line` your edit wrote is answered with no case, because no case has run
-it, and in a run of lines it is named in `written` and left out. Do not read
-that as a gap.
+it, and in a run of lines it is named in `written` and left out. That is not
+*no test covers it*: the answer ends with a Record gap naming the test files
+whose cases ran code in the file. A `stale` frame and a `moved` range end the
+same way.
 
 ## Ask about the whole change at review time
 
