@@ -113,3 +113,17 @@ fn a_parameter_only_an_empty_parameter_reaches_reads_through_its_type() {
     );
     assert_eq!(reads(source), [read("./lib", "type", "a", 1)]);
 }
+
+#[test]
+fn a_function_binding_the_file_reassigns_is_not_followed() {
+    // After `f = other`, a call to `f` may not reach the body declared under
+    // that name, so the module goes on whole at the call.
+    let source = concat!(
+        "import * as ns from './ns';\n",
+        "import { other } from './other';\n",
+        "function f(m: typeof ns) { return m.a; }\n",
+        "f = other;\n",
+        "f(ns);\n",
+    );
+    assert_eq!(reads(source), [read("./ns", "imports", "*", 5)]);
+}

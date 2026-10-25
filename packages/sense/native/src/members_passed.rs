@@ -16,7 +16,7 @@
 //! What the walk cannot pair with a parameter is the module going on whole at
 //! the argument, as before: a parameter written as a pattern or a rest, a
 //! position past a spread argument, a method, a function another module
-//! declares. Inside the function, the parameter going anywhere the walk does
+//! declares, a function whose name the file assigns again. Inside the function, the parameter going anywhere the walk does
 //! not follow is the module going on whole there.
 
 // compass: variance-authority.reach.source-index
@@ -145,7 +145,7 @@ struct Declared<'p> {
 
 impl Declared<'_> {
     fn declare(&mut self, binding: &BindingIdentifier, params: &FormalParameters) {
-        let Some(symbol) = binding.symbol_id.get() else { return };
+        let Some(symbol) = binding.symbol_id.get().filter(|symbol| !self.scoping.symbol_is_mutated(*symbol)) else { return };
         let positions = params
             .items
             .iter()
