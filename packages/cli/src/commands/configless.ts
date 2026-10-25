@@ -137,15 +137,21 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      const { coveringAnswer, formatCoveringAnswer } = await import('./covering-suites.js');
+      const [{ coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+        import('./covering-suites.js'),
+        import('./evidence-gap.js'),
+      ]);
       try {
         streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
+        const gap = error instanceof GapRefusal ? error.gap : undefined;
         if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
-          streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
+          streams.out(`${JSON.stringify({ refused: error.kind, ...(gap === undefined ? {} : { gap }) })}\n`);
         }
+        // The person reads the run that would answer it under the sentence.
+        if (gap !== undefined) throw new OperatorError(`${(error as Error).message}\n${evidenceGapText(gap)}`, { cause: error });
         throw error;
       }
       return EXIT_CLEAN;

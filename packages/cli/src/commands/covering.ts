@@ -50,6 +50,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
+import { answerGap, GapRefusal, refusalGap, type EvidenceGap } from './evidence-gap.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
@@ -184,6 +185,8 @@ export interface Covering {
    * open, for the asked file when one was asked (`probes-gap.ts`).
    */
   readonly probes?: ProbesGap & { readonly cut?: CutGap; readonly note: string };
+  /** The one question the answer leaves open, and the run that closes it (`evidence-gap.ts`). Absent when nothing is open. */
+  readonly gap?: EvidenceGap;
 }
 
 /**
@@ -218,15 +221,19 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       reached = tests;
     });
   } catch (error) {
+    if (!(error instanceof OperatorError)) throw error;
+    const gap = refusalGap(error.kind, request, whole);
     // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
     // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
-    if (!(error instanceof OperatorError) || !RECORD_SHAPED.has(error.kind ?? '')) throw error;
     // The refusal is the answer; a record that cannot be found again only leaves it without a note.
-    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
-    if (from === undefined) throw error;
-    const probes = await gapOf(request, from, undefined);
-    if (probes === undefined) throw error;
-    throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
+    const from = !RECORD_SHAPED.has(error.kind ?? '')
+      ? undefined
+      : request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
+    const probes = from === undefined ? undefined : await gapOf(request, from, undefined);
+    if (probes === undefined && gap === undefined) throw error;
+    const said = probes === undefined ? error.message : `${error.message} ${probes.note}`;
+    const kind = error.kind === undefined ? {} : { kind: error.kind };
+    throw gap === undefined ? new OperatorError(said, { ...kind, cause: error }) : new GapRefusal(said, { ...kind, gap, cause: error });
   }
   // Counts are read among every case the question reached before `--where` and `--read` narrowed it.
   if (where !== undefined) {
@@ -237,6 +244,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
   const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
   const probes = await gapOf(request, answer.from, whole);
+  const gap = whole === undefined ? undefined : answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole);
   return {
     ...answer,
     ...(probes === undefined ? {} : { probes }),
@@ -245,6 +253,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
     ...(motion === undefined ? {} : { motion }),
+    ...(gap === undefined ? {} : { gap }),
   };
 }
 

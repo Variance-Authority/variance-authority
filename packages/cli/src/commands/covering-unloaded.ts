@@ -33,8 +33,9 @@ export function unloadedFile(file: string, from: string, count: number): Operato
  * Refuse `file`, which the record at `from` does not hold because the commit
  * it was made at, `commit`, did not hold the file. That is a record older than
  * the file, not a run that never loaded it, so it is `older`, not `unloaded`.
- * No remedy is named: a run of the suite is often impossible where the
- * question is asked, and a reader who can run it knows so already.
+ * The sentence names no run: `covering` ends the refusal with its Record gap,
+ * which names the run and counts what it costs (`evidence-gap.ts`), so a
+ * reader for whom the run is out of reach sees that before starting it.
  */
 export function addedSince(file: string, from: string, commit: string): OperatorError {
   return new OperatorError(

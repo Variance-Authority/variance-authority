@@ -289,12 +289,15 @@ describe('a file added after the commit a suite recorded at', () => {
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
 
-  it('is said in full as a record older than the file, with the commit, and names no run', async () => {
+  it('is said in full as a record older than the file, with the commit, and ends with a Record gap', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at]);
 
     expect(answer.out).toMatch(new RegExp(
       `^unit \\(unit\\): \`src/refund\\.ts\` did not exist at ${then.slice(0, 12)}, the commit the record at \`[^\`]+/suites/unit/[^\`]+\` was made at, ` +
-        'so that record has no answer for it\\.$',
+        'so that record has no answer for it\\.\\n' +
+        '  Gap \\(stale\\) on line 12 of src/refund\\.ts: which tests run it\\. Known: the record predates the file\\.\\n' +
+        '  Next, Record, 1 test in 1 test file:\\n' +
+        '    <runner>$',
       'mu',
     ));
     expect(answer.out).not.toContain('Not loaded by');
@@ -304,7 +307,17 @@ describe('a file added after the commit a suite recorded at', () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at, '--format', 'json']);
 
     const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
-    expect(said.suites.find((one) => one['suite'] === 'unit')?.['refused']).toBe('older');
+    const unit = said.suites.find((one) => one['suite'] === 'unit');
+    expect(unit?.['refused']).toBe('older');
+    expect(unit?.['gap']).toEqual({
+      question: 'which tests run it',
+      scope: 'line 12 of src/refund.ts',
+      known: 'the record predates the file',
+      reason: 'stale',
+      gear: 'record',
+      next: ['<runner>'],
+      cost: { tests: 1, files: 1 },
+    });
   });
 
   it('says the commit could not be read, not that no test loaded the file, when git cannot list it', async () => {
@@ -338,9 +351,19 @@ describe('a repository whose declared suites have none of them run', () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--root', bare, '--format', 'json']);
 
     expect(answer.code).toBe(2);
-    expect(JSON.parse(answer.out)).toEqual({ refused: 'unrecorded' });
+    expect(JSON.parse(answer.out)).toEqual({
+      refused: 'unrecorded',
+      gap: {
+        question: 'which tests ran it',
+        scope: 'src/pay.ts',
+        known: 'no run is recorded',
+        reason: 'absent',
+        gear: 'record',
+        next: ['<runner>'],
+      },
+    });
     expect(answer.err).toContain('none of the suites it declares, "checkout", "stories", "unit", has a per-case index');
-    // A whole run is often impossible where the question is asked, so the refusal sends nobody to one.
-    expect(answer.err).not.toMatch(/\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i);
+    // No record counts the suite, so the gap names no cost rather than a zero.
+    expect(answer.err).toContain('Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.\nNext, Record, at a cost no record counts:\n  <runner>');
   });
 });

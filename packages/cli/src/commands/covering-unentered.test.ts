@@ -44,14 +44,17 @@ async function ask(line: string) {
 }
 
 describe('a run of lines no recorded region holds', () => {
-  it('answers with no case, and says which lines hold no region and which the edit wrote', async () => {
+  it('answers with no case, says which lines hold no region and which the edit wrote, and names the run of the file\'s tests that would read the new one', async () => {
     const answer = await ask('2-3');
 
     expect(answer).toMatchObject({ tests: [], frame: 'mapped', outside: [{ startLine: 2, endLine: 2 }], written: [{ startLine: 3, endLine: 3 }] });
     expect(formatCovering(answer, 'text')).toBe(
       'No named test covered lines 2-3 of src/cart.ts.\n'
         + 'Line 2 is outside every recorded region, so no case can be said to have run it.\n'
-        + 'Line 3 was written since the recording, so no case has run it.\n',
+        + 'Line 3 was written since the recording, so no case has run it.\n'
+        + 'Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 was written since the recording.\n'
+        + 'Next, Record, 1 test in 1 test file:\n'
+        + '  <runner> a.test.ts\n',
     );
   });
 

@@ -17,10 +17,11 @@
  * from the name: for one file, its regions in the record are counted against
  * the regions this build cuts in the text the record was made over.
  *
- * Nothing here tells a reader to run a suite: a whole run is often impossible
- * where the question is asked. When this machine holds a mainline record cut
- * under this build's probes that is not the one read, the note says where it
- * is; otherwise it names the gap and stops.
+ * The note names no run: it is about which build cut the record, and the run
+ * that closes a question an answer leaves open is the answer's gap, counted
+ * (`evidence-gap.ts`). When this machine holds a mainline record cut under
+ * this build's probes that is not the one read, the note says where it is;
+ * otherwise it names the gap and stops.
  */
 
 import { INSTRUMENTATION_ID, instrumentModeOf } from '@variance-authority/sense/instrument';

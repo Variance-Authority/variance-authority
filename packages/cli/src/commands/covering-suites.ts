@@ -27,6 +27,7 @@ import type { ParsedCovering } from '../covering-args.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
+import { evidenceGapText, GapRefusal, refusalGap, type EvidenceGap } from './evidence-gap.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's answer, or why its record could not give one. */
@@ -38,6 +39,8 @@ export type SuiteAnswer =
       /** Present when a program can act on the refusal: `unrecorded`, `unloaded` for a file the suite never loaded, or `older` for one its record predates. */
       readonly refused?: RefusalKind;
       readonly reason: string;
+      /** The run that would answer the question the refusal leaves open, when one would (`evidence-gap.ts`). */
+      readonly gap?: EvidenceGap;
     };
 
 /** The question asked of every declared suite, the nearest kind first (`nearestFirst`). */
@@ -72,7 +75,9 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
   const suites: SuiteAnswer[] = [];
   for (const one of nearestFirst(declared)) suites.push(await askSuite(asked, one));
   if (suites.every((answer) => 'refused' in answer && answer.refused === 'unrecorded')) {
-    throw nothingRecorded(request.root, declared.map((one) => one.name));
+    const refused = nothingRecorded(request.root, declared.map((one) => one.name));
+    const gap = refusalGap('unrecorded', request, undefined);
+    throw gap === undefined ? refused : new GapRefusal(refused.message, { kind: 'unrecorded', gap });
   }
 
   return {
@@ -102,6 +107,7 @@ async function askSuite(request: ParsedCovering, suite: DeclaredSuite): Promise<
       ...named,
       ...(error.kind === undefined ? {} : { refused: error.kind }),
       reason: error.message,
+      ...(error instanceof GapRefusal ? { gap: error.gap } : {}),
     };
   }
 }
@@ -124,7 +130,7 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
   const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
   const say = (one: SuiteAnswer): string => {
     const head = `${named(one)}:`;
-    if ('reason' in one) return `${head} ${one.reason}\n`;
+    if ('reason' in one) return `${head} ${one.reason}\n${one.gap === undefined ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`}`;
     const body = formatCovering(one, format);
     return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
   };
