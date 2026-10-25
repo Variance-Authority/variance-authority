@@ -20,8 +20,8 @@
  *
  * Which test files a Record gap runs is selection's answer for the asked file
  * (`gap-selection.ts`): the gap words and counts it, and never names an empty
- * run. A recorded range edited since is the exception, run by the tests the
- * record holds of that range.
+ * run, a range edited since as much as a line written since: every test file
+ * that loaded the file.
  *
  * No record and no configuration names the runner a suite runs under: a
  * declared suite says its role and its carrier, and a record names its cases'
@@ -147,7 +147,7 @@ export function selectionRun(
   whole: ExecutionIndex | undefined,
 ): { readonly said: string; readonly joint: '; ' | ', and '; readonly run?: GapRun; readonly cost?: NonNullable<EvidenceGap['cost']> } {
   const of = suite === undefined ? {} : { suite };
-  if ('unread' in answer) return { said: 'which test files selection runs for it could not be read', joint: ', and ' };
+  if ('unread' in answer) return { said: `which test files selection runs for it could not be read: ${answer.unread}`, joint: ', and ' };
   if ('none' in answer) return { said: 'selection runs no recorded test file for it', joint: ', and ' };
   const tests = whole?.tests ?? [];
   if ('whole' in answer) {
@@ -219,7 +219,7 @@ function selected(question: string, scope: string, known: string, answer: Select
     reason: 'stale',
     remedy: 'record',
     ...(run === undefined ? {} : { run }),
-    next: 'unread' in answer ? ['variance index'] : [],
+    next: [],
     ...(cost === undefined ? {} : { cost }),
   };
 }

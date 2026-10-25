@@ -184,8 +184,8 @@ the story that run recorded. An answer with nothing open ends without a gap.
 
 **Record is not a fourth gear.** It is the remedy when the record Smart reads
 cannot answer, because it is `absent` or `stale`. A deeper reading does not help
-then; a recorded run of what the gap names does, and never the whole suite
-again over a record that exists. Run the files under the suite's recording
+then; a recorded run of what the gap names does, and the whole suite over a record
+that exists only when selection runs it. Run the files under the suite's recording
 producer, the wrapped runner configuration [test-level coverage](test-level-coverage.md#the-process)
 sets up, so the run refreshes the record; a run without it leaves the gap
 where it was:

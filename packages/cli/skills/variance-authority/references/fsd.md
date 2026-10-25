@@ -53,7 +53,7 @@ Each answer of `covering` gives one gap, one per suite over several suites, and 
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) | Deep: the story of the first three tests, in the order the answer lists them |
 | `frame: "stale"`, lines `written` since the recording, or ranges `moved` | Record: the test files `variance select` runs for the file, the ones that loaded it, under the suite's own `relations`, `ignore` and `before` |
-| `older`: the record is older than the file, so the file is new | Record: the recorded test files `variance select` runs for the file, by reach, under the suite's own configuration, or the whole suite when selection runs it. Then `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once, new test files no record names among them, and `variance index` first when the source index could not be read, as in every Record gap. No run when selection names no file, and never the share |
+| `older`: the record is older than the file, so the file is new | Record: the recorded test files `variance select` runs for the file, by reach, under the suite's own configuration, or the whole suite when selection runs it. Then `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once, new test files no record names among them. When selection refuses, the gap says why in its words, as in every Record gap. No run when selection names no file, and never the share |
 | `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 
 A refusal keeps its exit code `2`. Under `--format json` its gap is beside
@@ -62,16 +62,16 @@ beside `refused` and `reason`.
 
 ## The rules
 
-- **One question in, one answer or one gap out.** Ask a line, a function or a
-  diff, never a whole area, and read the gap before you ask anything else.
+- **One question in, one answer or one gap out.** Ask a file or a line, never
+  a whole area, and read the gap before you ask anything else.
 - **Run Deep only on a gap that names it.** Never record a story of a suite or
   of tests you chose yourself; the Deep gap names at most three, nearest first,
   as [story](story.md) records the first three `covering --hops` lists.
 - **Record what the gap names when the record is missing, stale or older than
   the file.** That is a normal recorded run of the files it names; for a new
   file, the test files selection runs for it; for no record,
-  the mainline's record fetched. Never a story and never the suite again over a
-  record that exists. A story of a test
+  the mainline's record fetched. Never a story, and never the whole suite
+  over a record that exists unless selection runs it. A story of a test
   over text the record no longer has answers a question about another file.
 - **Skip a gear only when its record cannot have the answer.** The source index
   cannot say which case ran a line, so that is Smart; the record cannot say

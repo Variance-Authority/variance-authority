@@ -10,9 +10,9 @@
  * gap runs the recorded test files selection names for it, or the whole suite
  * when selection does, and no run when it names none. A test file added with
  * it is in no record, and reach owns it: `variance reach --since` from the
- * record's commit takes every file the diff added since, at once, and `variance index` comes first only when the
- * source index could not be read. A lookup that fails leaves the refusal standing, its gap
- * saying the run is unknown. The share's record predates a new file as well,
+ * record's commit takes every file the diff added since, at once. A lookup
+ * selection refuses leaves the refusal standing, its gap saying why in
+ * selection's words. The share's record predates a new file as well,
  * so a suite given to the share is asked the same way.
  *
  * No record at all is closed by the share's fetch, `variance share --suite
@@ -48,6 +48,7 @@ export async function refusalGap(
   whole: ExecutionIndex | undefined,
   context: RefusalContext = {},
 ): Promise<EvidenceGap | undefined> {
+  // FIXME: a `--since` or `--function` refusal ends with no gap; it should end with its Record one.
   if (request.file === undefined || request.since !== undefined || request.function !== undefined) return undefined;
   const target = request.line !== undefined ? { line: request.line } : request.lines === undefined ? undefined : { lines: request.lines };
   const scope = gapScope(request.file, target);
@@ -95,7 +96,7 @@ async function olderGap(
     reason: 'stale',
     remedy: 'record',
     ...(run === undefined ? {} : { run }),
-    next: 'unread' in selected ? ['variance index', ...reach] : reach,
+    next: reach,
     ...(cost === undefined ? {} : { cost }),
   };
 }

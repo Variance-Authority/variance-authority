@@ -37,14 +37,14 @@ export function graphOnce(root: string): Graph {
 
 /**
  * What selection runs for one file: these recorded test files, the whole suite
- * for the reason it gives, none, or `unread` when the answer could not be had
- * (an unpublished source index, a record selection cannot read).
+ * for the reason it gives, none, or `unread` when selection refused, in its own
+ * words: the refusal names its own remedy, which the gap does not guess.
  */
 export type Selected =
   | { readonly files: readonly string[] }
   | { readonly whole: string }
   | { readonly none: true }
-  | { readonly unread: true };
+  | { readonly unread: string };
 
 /**
  * Where the record a gap is of was read: the root, the suite whose
@@ -76,7 +76,7 @@ export async function selectedFor(source: GapSource, file: string): Promise<Sele
     const files = [...reading.whole].filter((one) => !reading.skip.has(one)).sort();
     return files.length === 0 ? { none: true } : { files };
   } catch (error) {
-    if (error instanceof OperatorError) return { unread: true };
+    if (error instanceof OperatorError) return { unread: error.message };
     throw error;
   }
 }

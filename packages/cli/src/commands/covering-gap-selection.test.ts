@@ -21,8 +21,8 @@ import { indexOutput } from './index-command.js';
 
 /** The frame the next question is read in; none unless a case sets one. */
 let framed: Placement | undefined;
-/** Whether the source index reads as unpublished, as on CI before `variance index` ran. */
-let unpublished = false;
+/** Whether selection's file graph refuses to read, as the operator's to fix. */
+let unreadable = false;
 
 vi.mock('./covering-frame.js', async (original) => ({
   ...await original<typeof import('./covering-frame.js')>(),
@@ -34,7 +34,7 @@ vi.mock('./source-graph.js', async (original) => {
   return {
     ...real,
     relationsFor: async (...args: Parameters<typeof real.relationsFor>) => {
-      if (unpublished) throw new OperatorError('the source index of this commit is not published; run `variance index`');
+      if (unreadable) throw new OperatorError('the file graph does not read here');
       return await real.relationsFor(...args);
     },
   };
@@ -48,7 +48,7 @@ beforeEach(() => {
 
 afterEach(() => {
   framed = undefined;
-  unpublished = false;
+  unreadable = false;
   process.chdir(cwd);
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
@@ -213,16 +213,16 @@ describe('a file added after the commit its suite recorded at', () => {
     expect(gap).not.toHaveProperty('run');
   });
 
-  it('keeps the refusal when the source index is unpublished, its gap saying the run is unknown', async () => {
+  it('keeps the refusal when selection refuses, its gap saying why in selection\'s words and naming no command it guessed', async () => {
     const { root } = await checkout({ unit: { kind: 'unit' } });
-    unpublished = true;
+    unreadable = true;
     const { gap, text } = await gapOf(root, '--file', 'src/extra.ts');
 
     expect(text).toContain('`src/extra.ts` did not exist at');
     expect(gap).toMatchObject({
-      known: 'the record predates the file, and which test files selection runs for it could not be read',
-      next: expect.arrayContaining(['variance index']),
+      known: 'the record predates the file, and which test files selection runs for it could not be read: the file graph does not read here',
     });
+    expect((gap as { next: readonly string[] }).next).toEqual([expect.stringMatching(/^variance reach --since /u)]);
     expect(gap).not.toHaveProperty('run');
   });
 });
@@ -263,15 +263,15 @@ describe('a recorded file whose only test merely imports it', () => {
     expect(gap).toMatchObject({ reason: 'stale', run: { files: ['test/beta.test.ts'] } });
   });
 
-  it('sends the reader to `variance index` when the source index is unpublished', async () => {
+  it('says why selection refused for a line written since, and names no command it guessed', async () => {
     const { root } = await checkout({ unit: { kind: 'unit' } });
     framed = mapped([1]);
-    unpublished = true;
+    unreadable = true;
     const { gap } = await gapOf(root, '--file', 'src/pad.ts', '--line', '1');
 
     expect(gap).toMatchObject({
-      known: 'line 1 was written since the recording, and which test files selection runs for it could not be read',
-      next: ['variance index'],
+      known: 'line 1 was written since the recording, and which test files selection runs for it could not be read: the file graph does not read here',
+      next: [],
     });
   });
 });
