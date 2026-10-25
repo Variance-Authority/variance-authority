@@ -97,9 +97,9 @@ A record made over a different version of the file than the one checked out,
 or a line written or a range edited since the recording, names a recorded run
 of the test files `variance select` runs for the file instead. A record older
 than the file means the file is new: the gap names the recorded test files
-`variance select` runs for it and the files added since the record that reach
-it, then `variance reach --since <base>` for the rest of the diff. The gap says what to run rather than a
-runner command, since no suite declares one. Under `--format json` the same
+`variance select` runs for it, then `variance reach --since <base>`, which
+takes every file added since, new test files among them. The gap says what to
+run rather than a runner command, since no suite declares one. Under `--format json` the same
 gap is the answer's `gap`.
 
 When the list is long, narrow it to the tests that sit near the code:

@@ -12,8 +12,8 @@ import { main } from '../bin.js';
  * The gap a record older than the asked file leaves: a new file is run by
  * reach, and selection owns that answer, so the gap runs the recorded test
  * files selection names for it, counts the cases the record holds of them,
- * adds the files added since that reach it, which reach owns, and names
- * `variance reach --since` from the record's commit for the rest of the diff.
+ * and names `variance reach --since` from the record's commit, which takes
+ * every file added since, the unrecorded tests among them.
  * A suite given to the share with no record fetches the mainline's.
  */
 
@@ -129,31 +129,27 @@ describe('a file added after the commit its suite recorded at', () => {
       known: 'the record predates the file; selection runs 1 recorded test file for it',
       reason: 'stale',
       remedy: 'record',
-      run: { suite: 'unit', files: ['src/refund.test.ts'], added: ['src/refund-new.test.ts'] },
+      run: { suite: 'unit', files: ['src/refund.test.ts'] },
       next: [since],
       cost: { files: 1, tests: 2 },
     });
     expect(text).toContain(
       'Next, Record, 2 tests in 1 test file:\n' +
         '    Run with the runner of `unit`: src/refund.test.ts\n' +
-        '    Added since the record, reaching it; run the test files among them: src/refund-new.test.ts\n' +
         `    ${since}\n`,
     );
   });
 
-  it('runs the new test files of a file only unrecorded tests import, and says selection runs none', async () => {
-    const { at } = await checkout();
-    const { gap, text } = await gapOf(at, 'src/credit.ts');
+  it('names no run for a file only unrecorded tests import, and leaves them to reach', async () => {
+    const { at, recordedAt } = await checkout();
+    const { gap } = await gapOf(at, 'src/credit.ts');
 
     expect(gap).toMatchObject({
       known: 'the record predates the file, and selection runs no recorded test file for it',
-      run: { suite: 'unit', added: ['src/credit.test.ts'] },
+      next: [`variance reach --since ${recordedAt.slice(0, 12)}`],
     });
+    expect(gap).not.toHaveProperty('run');
     expect(gap).not.toHaveProperty('cost');
-    expect(text).toContain(
-      'Next, Record, at a cost no record counts:\n' +
-        '    Added since the record, reaching it; run the test files among them with the runner of `unit`: src/credit.test.ts\n',
-    );
   });
 
   it('names no run for a file nothing imports, and keeps the reach over the diff', async () => {

@@ -63,8 +63,6 @@ export interface GapRun {
   readonly files?: readonly string[];
   /** The whole suite runs, for the reason selection gives. */
   readonly whole?: string;
-  /** The files added since the record that reach the asked one, in code-unit order; the test files among them run. */
-  readonly added?: readonly string[];
   /** The cases to run, each filtered by its name; absent when each file runs whole. */
   readonly cases?: readonly { readonly file: string; readonly name: string }[];
   /** Run under `VARIANCE_AUTHORITY_STORY=1`, so each case records its story. */
@@ -198,12 +196,7 @@ function runText(run: GapRun): readonly string[] {
     ];
   }
   if (run.whole !== undefined) return [`  Run the whole suite with ${runner}: ${run.whole}.`];
-  const added = (alone: boolean) =>
-    run.added === undefined
-      ? []
-      : [`  Added since the record, reaching it; run the test files among them${alone ? ` with ${runner}` : ''}: ${run.added.map((file) => quoted(file, false)).join(' ')}`];
-  if (run.files !== undefined) return [`  Run with ${runner}: ${run.files.map((file) => quoted(file, false)).join(' ')}`, ...added(false)];
-  if (run.added !== undefined) return added(true);
+  if (run.files !== undefined) return [`  Run with ${runner}: ${run.files.map((file) => quoted(file, false)).join(' ')}`];
   if (run.suites !== undefined && run.suites.length > 1) {
     return [`  Wire the producers of ${listed(run.suites.map((suite) => `\`${suite}\``))} and record one run of each: that first run is the record.`];
   }

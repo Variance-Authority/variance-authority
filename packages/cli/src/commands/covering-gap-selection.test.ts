@@ -146,7 +146,7 @@ async function gapOf(root: string, ...argv: string[]): Promise<{ readonly gap: u
 }
 
 describe('a file added after the commit its suite recorded at', () => {
-  it('runs the recorded test files selection reaches from it, and the files added since that reach it', async () => {
+  it('runs the recorded test files selection reaches from it, and leaves the files added since to reach', async () => {
     const { root, recordedAt } = await checkout({ unit: { kind: 'unit' } });
     const { gap, text } = await gapOf(root, '--file', 'src/extra.ts');
 
@@ -156,7 +156,7 @@ describe('a file added after the commit its suite recorded at', () => {
       known: 'the record predates the file; selection runs 1 recorded test file for it',
       reason: 'stale',
       remedy: 'record',
-      run: { suite: 'unit', files: ['test/beta.test.ts'], added: ['src/setup.ts'] },
+      run: { suite: 'unit', files: ['test/beta.test.ts'] },
       next: [`variance reach --since ${recordedAt.slice(0, 12)}`],
       cost: { files: 1, tests: 1 },
     });
@@ -168,22 +168,13 @@ describe('a file added after the commit its suite recorded at', () => {
     'test/lone.test.ts': 'export const lone = 1;\n',
   };
 
-  it('also names a new test file that imports it, added since the record, and no new test file that does not', async () => {
-    const { root } = await checkout({ unit: { kind: 'unit' } }, NEW_TESTS);
+  it('leaves a new test file that imports it to `variance reach --since`, which takes every file added since', async () => {
+    const { root, recordedAt } = await checkout({ unit: { kind: 'unit' } }, NEW_TESTS);
     const { gap, text } = await gapOf(root, '--file', 'src/extra.ts');
 
-    expect(gap).toMatchObject({ run: { suite: 'unit', files: ['test/beta.test.ts'], added: ['src/setup.ts', 'test/extra.test.ts'] } });
-    expect(text).toContain(
-      '    Run with the runner of `unit`: test/beta.test.ts\n' +
-        '    Added since the record, reaching it; run the test files among them: src/setup.ts test/extra.test.ts\n',
-    );
-  });
-
-  it('adds no file the suite ignores', async () => {
-    const { root } = await checkout({ unit: { kind: 'unit', ignore: ['test/extra.test.ts'] } }, NEW_TESTS);
-    const { gap } = await gapOf(root, '--file', 'src/extra.ts');
-
-    expect(gap).toMatchObject({ run: { added: ['src/setup.ts'] } });
+    expect(gap).toMatchObject({ run: { suite: 'unit', files: ['test/beta.test.ts'] }, next: [`variance reach --since ${recordedAt.slice(0, 12)}`] });
+    expect(gap).not.toHaveProperty('run.added');
+    expect(text).not.toContain('Added since');
   });
 
   it('adds nothing for a suite that declines relations', async () => {
