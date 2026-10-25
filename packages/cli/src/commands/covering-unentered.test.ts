@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { updateSourceIndex } from '@variance-authority/sense';
 import type { Placement } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
@@ -37,6 +39,9 @@ async function ask(line: string) {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-unentered-'));
   const execution = join(dir, 'cases.json');
   await writeFile(execution, JSON.stringify(INDEX));
+  // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+  execFileSync('git', ['init', '--quiet', dir]);
+  await updateSourceIndex(dir);
   return covering(parseCoveringArgs(readFlags(
     ['--file', 'src/cart.ts', '--line', line, '--execution', execution, '--root', dir],
     'covering', flagsFor('covering'), synopsisFor('covering'),

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { formatCoveringAnswer } from './covering-suites.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
@@ -289,6 +290,8 @@ describe('a file added after the commit a suite recorded at', () => {
     await writeFile(join(at, 'src/refund.ts'), 'export const refund = 1;\n');
     git('add', '.');
     git('commit', '--quiet', '-m', 'refund');
+    // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+    await updateSourceIndex(at);
     await recordIn(at, 'unit', indexOf('src/pay.ts', { id: 'u', file: 'src/pay.test.ts', name: 'charges once' }), then);
     await recordIn(at, 'checkout', indexOf('src/pay.ts', { id: 'c', file: 'e2e/pay.spec.ts', name: 'pays' }), UNFETCHED);
     await recordIn(at, 'stories', indexOf('src/refund.ts', { id: 's', file: 'src/Refund.stories.tsx', name: 'Refunded' }), git('rev-parse', 'HEAD'));

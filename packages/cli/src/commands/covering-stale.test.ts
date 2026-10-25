@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { updateSourceIndex } from '@variance-authority/sense';
 import {
   encodeAsSetExecutionIndex,
   writeTestCoverage,
@@ -54,6 +56,9 @@ const INDEX: ExecutionIndex = {
 async function ask(argv: readonly string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-stale-'));
   const execution = join(root, 'coverage.bin');
+  // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+  execFileSync('git', ['init', '--quiet', root]);
+  await updateSourceIndex(root);
   // `a.test.ts` ran whole and entered `src/cart.ts`, so selection names it for the file.
   const cart = {
     file: 'src/cart.ts',

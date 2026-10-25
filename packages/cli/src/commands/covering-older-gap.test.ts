@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { digestString } from '@variance-authority/core/format';
 import { main } from '../bin.js';
@@ -77,6 +78,9 @@ async function checkout(carry?: 'share'): Promise<{ readonly at: string; readonl
   await write('src/credit.test.ts', "import { credit } from './credit';\nexport const credited = credit;\n");
   git('add', '.');
   git('commit', '--quiet', '-m', 'refund');
+
+  // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+  await updateSourceIndex(at);
 
   const file = testCoverageFile(at, { suite: 'unit' });
   await mkdir(dirname(file), { recursive: true });
