@@ -30,30 +30,41 @@ whole suite again over a record that exists:
 - **A case, or a test file.** Run that file, filtered to the case by its name
   with the runner's own filter: `-t` under Vitest, Jest and Rstest, `--grep`
   under Playwright.
-- **A source file the suite never loaded, or one the record is older than** —
-  `covering`'s `Not loaded by` (`unloaded`) and `older`. For `older` in a suite
-  declared `"carry": "share"`, `variance share --suite <name>` fills it once the
-  mainline holds the file and has recorded since. Otherwise what runs next
-  depends on how the suite reaches the code, as
-  [selection wiring](references/selection-wiring.md) says:
-  - A suite that imports what it tests: find the test files that suite runs
-    that import the file, at any depth, with no record needed —
-    `variance ask discover --to <path> --path '\.test\.'`, with the regex your
-    test files match — nearest first, and run those. When none imports it, no
-    test of that suite runs the file, and the gap stays until one does.
-  - A suite that drives the code from another process, such as Playwright over
-    a running app or a built Storybook: no import leads from a spec to the
-    file, so the source names none of its specs. Run the specs that drive the
-    page, route or story the file serves, filtered with `--grep`, against a
-    build that carries `testSelectionProbes()`, so the run measures the file.
+- **A file the record is older than** — `covering`'s `older`: the commit the
+  record was made at did not hold the file, so the file is new. Run
+  `variance index`, then `variance reach --since <base>`: it takes every file
+  the diff added at once, with no record needed, and lists the files each one
+  reaches over imports. Run the test files in that list.
+- **Lines written since the recording, in a file the record holds** —
+  `covering` answers a line your edit wrote with no case and names it in
+  `written`; a `stale` frame or a `moved` range is the same gap. Record: the
+  test files that ran code in the file.
+  `variance covering --file <path> --format refs` lists them, in the cases
+  table at its end; run those.
+- **A file the suite never loaded** — `covering`'s `Not loaded by`
+  (`unloaded`). The file is in the record's commit, so a diff need not name it,
+  and `reach` has nothing to start from.
+  `variance ask discover --to <path> --path '\.test\.'`, with the regex your
+  test files match, lists the test files that import it at any depth, nearest
+  first, with no record needed. Run the ones that suite runs. When none imports
+  it, no test of that suite runs the file, and the gap stays until one does.
 - **A base the answer cannot compare against** — `undiffed`. The base names a
   commit this clone lacks or cannot diff from, or names none. This gap is the
   one no run fills: fetch that commit, for example by deepening a shallow
   clone, or ask without the base.
 
-A run of the whole suite is the gate before a change is done, and it is how the
-record is brought up to a commit, as [test selection](references/test-selection.md#test-an-edit-in-a-loop)
-says. It is not how one answer's gap is filled.
+`reach` and `discover` follow imports. A suite that drives the code from another
+process, such as Playwright over a running app or a built Storybook, has no
+import from a spec to the file, so for a new or an unloaded file the source
+names none of its specs. Run the specs that drive the page, route or story the
+file serves, filtered with `--grep`, against a build that carries
+`testSelectionProbes()`, so the run measures the file.
+
+Inside the edit loop, `VARIANCE_AUTHORITY_SINCE= <runner>` already selects
+what each edit reached, both legs, as [test selection](references/test-selection.md#test-an-edit-in-a-loop)
+says; these bullets fill one answer's gap. A run of the whole suite is the gate
+before a change is done, and it is how the record is brought up to a commit. It
+is not how one answer's gap is filled.
 
 ## Run the installed binary
 
