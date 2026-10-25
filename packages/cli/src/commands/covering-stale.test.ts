@@ -78,10 +78,11 @@ describe('a file whose recorded text is gone', () => {
       known: '3 named tests ran code in src/cart.ts',
       reason: 'stale',
       gear: 'record',
-      next: ['<runner> a.test.ts'],
+      run: { files: ['a.test.ts'] },
+      next: [],
       cost: { tests: 3, files: 1 },
     });
-    expect(text.trimEnd().endsWith('Next, Record, 3 tests in 1 test file:\n  <runner> a.test.ts')).toBe(true);
+    expect(text.trimEnd().endsWith("Next, Record, 3 tests in 1 test file:\n  Run with the suite's own runner: a.test.ts")).toBe(true);
   });
 
   it('answers the whole file the same way, with no range in it', async () => {

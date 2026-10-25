@@ -18,8 +18,12 @@
  * one gap, and Record wins over Deep: a story of a test over text the record
  * no longer holds answers a question about a file that is not there.
  *
- * No suite declares how it is run, so a command names the runner `<runner>`
- * and the test files or the case after it.
+ * No record and no configuration names the runner a suite runs under: a
+ * declared suite says its role and its carrier, and a record names its cases'
+ * files. So the run the suite's own runner makes is said as what it runs, the
+ * test files and the cases, in {@link GapRun}, and `next` holds only commands
+ * that run as printed. Naming a runner from the imports or the manifest would
+ * be a guess the reader cannot check.
  */
 
 import { coveringTestsInFile, type CoveringTest, type ExecutionIndex } from '@variance-authority/sense/test-selection';
@@ -29,8 +33,32 @@ import { coveringFiles, type CoveringFile } from './covering-files.js';
 import type { ParsedCovering } from '../covering-args.js';
 import type { Covering } from './covering.js';
 
-/** The most tests a Deep gap names: a story is read per case, never per suite. */
+/**
+ * The most tests a Deep gap names. A story is recorded and read one case at a
+ * time, never per suite, and three is the story skill's own rule for a
+ * question reading leaves open: record the first three tests `covering
+ * --hops` lists, and no more (`skills/variance-authority/references/story.md`).
+ * The gap holds the same number, so the skill and the answer send a reader to
+ * the same run.
+ */
 export const DEEP_TESTS = 3;
+
+/**
+ * What the suite's own runner runs to close a gap, which no record names the
+ * runner of: its test files, nearest first, or its cases, each filtered by its
+ * name with the runner's filter (`-t` under Vitest, Jest and Rstest, `--grep`
+ * under Playwright).
+ */
+export interface GapRun {
+  /** The declared suite the run is of, when the answer is one suite's. */
+  readonly suite?: string;
+  /** The test files to run, nearest first. Absent: the whole suite, which only a suite with no record is sent to, since that first run is the record. */
+  readonly files?: readonly string[];
+  /** The cases to run, each filtered by its name; absent when each file runs whole. */
+  readonly cases?: readonly { readonly file: string; readonly name: string }[];
+  /** Run under `VARIANCE_AUTHORITY_STORY=1`, so each case records its story. */
+  readonly story?: true;
+}
 
 /** One question an answer leaves open, and the run that closes it. */
 export interface EvidenceGap {
@@ -44,7 +72,9 @@ export interface EvidenceGap {
   readonly reason: 'absent' | 'stale' | 'coarse';
   /** `record`: a recorded run of the named test files; `deep`: a story of the named cases. */
   readonly gear: 'record' | 'deep';
-  /** The commands, in the order they run. */
+  /** What the suite's own runner runs first, when a run closes the gap. */
+  readonly run?: GapRun;
+  /** The commands that run as printed, in order, after `run`. */
   readonly next: readonly string[];
   /** How many tests, in how many test files, the commands run. Absent when no record counts them. */
   readonly cost?: { readonly tests: number; readonly files: number };
@@ -81,7 +111,7 @@ export function refusalGap(kind: RefusalKind | undefined, request: ParsedCoverin
     };
   }
   if (kind === 'unrecorded') {
-    return { question: 'which tests ran it', scope, known: 'no run is recorded', reason: 'absent', gear: 'record', next: ['<runner>'] };
+    return { question: 'which tests ran it', scope, known: 'no run is recorded', reason: 'absent', gear: 'record', run: {}, next: [] };
   }
   return undefined;
 }
@@ -125,14 +155,32 @@ export function answerGap(answer: Covering, whole: ExecutionIndex): EvidenceGap 
 /** The gap said as text, after the answer. */
 export function evidenceGapText(gap: EvidenceGap): string {
   const gear = gap.gear === 'deep' ? 'Deep' : 'Record';
-  const cost = gap.cost === undefined
-    ? 'at a cost no record counts'
-    : `${count(gap.cost.tests, 'test')} in ${count(gap.cost.files, 'test file')}`;
+  const cost = gap.cost !== undefined
+    ? `, ${count(gap.cost.tests, 'test')} in ${count(gap.cost.files, 'test file')}`
+    : gap.run === undefined ? '' : ', at a cost no record counts';
   return [
     `Gap (${gap.reason}) on ${gap.scope}: ${gap.question}. Known: ${gap.known}.`,
-    `Next, ${gear}, ${cost}:`,
+    `Next, ${gear}${cost}:`,
+    ...(gap.run === undefined ? [] : runText(gap.run)),
     ...gap.next.map((command) => `  ${command}`),
   ].join('\n');
+}
+
+/** The run the suite's own runner makes, said as what it runs. */
+function runText(run: GapRun): readonly string[] {
+  const runner = run.suite === undefined ? "the suite's own runner" : `the runner of \`${run.suite}\``;
+  if (run.cases !== undefined) {
+    const story = run.story === true ? ' under VARIANCE_AUTHORITY_STORY=1' : '';
+    return [
+      `  Run each case with ${runner}${story}, filtered by its name (-t; --grep under Playwright):`,
+      ...run.cases.map((one) => `    ${quoted(one.file, false)}  ${quoted(one.name, true)}`),
+    ];
+  }
+  if (run.files === undefined) {
+    const of = run.suite === undefined ? "the suite's producer" : `the producer of \`${run.suite}\``;
+    return [`  Wire ${of} and record one run of it: that first run is the record.`];
+  }
+  return [`  Run with ${runner}: ${run.files.map((file) => quoted(file, false)).join(' ')}`];
 }
 
 function record(question: string, scope: string, known: string, files: readonly CoveringFile[]): EvidenceGap {
@@ -142,7 +190,8 @@ function record(question: string, scope: string, known: string, files: readonly 
     known,
     reason: 'stale',
     gear: 'record',
-    next: [['<runner>', ...files.map((row) => quoted(row.file, false))].join(' ')],
+    run: { files: files.map((row) => row.file) },
+    next: [],
     cost: { tests: files.reduce((sum, row) => sum + row.of, 0), files: files.length },
   };
 }
@@ -154,10 +203,8 @@ function deep(scope: string, known: string, tests: readonly CoveringTest[]): Evi
     known,
     reason: 'coarse',
     gear: 'deep',
-    next: [
-      ...tests.map((test) => `VARIANCE_AUTHORITY_STORY=1 <runner> ${quoted(test.file, false)} -t ${quoted(test.name, true)}`),
-      ...tests.map((test) => `variance story --file ${quoted(test.file, false)} --name ${quoted(test.name, true)}`),
-    ],
+    run: { cases: tests.map((test) => ({ file: test.file, name: test.name })), story: true },
+    next: tests.map((test) => `variance story --file ${quoted(test.file, false)} --name ${quoted(test.name, true)}`),
     cost: { tests: tests.length, files: new Set(tests.map((test) => test.file)).size },
   };
 }

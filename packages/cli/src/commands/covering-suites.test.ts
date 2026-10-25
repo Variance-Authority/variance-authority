@@ -359,11 +359,12 @@ describe('a repository whose declared suites have none of them run', () => {
         known: 'no run is recorded',
         reason: 'absent',
         gear: 'record',
-        next: ['<runner>'],
+        run: {},
+        next: [],
       },
     });
     expect(answer.err).toContain('none of the suites it declares, "checkout", "stories", "unit", has a per-case index');
     // No record counts the suite, so the gap names no cost rather than a zero.
-    expect(answer.err).toContain('Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.\nNext, Record, at a cost no record counts:\n  <runner>');
+    expect(answer.err).toContain('Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.\nNext, Record, at a cost no record counts:\n  Wire the suite\'s producer and record one run of it: that first run is the record.');
   });
 });

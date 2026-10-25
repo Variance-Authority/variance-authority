@@ -63,7 +63,7 @@ function mapped(written: readonly number[], moved: readonly string[] = []): Plac
 }
 
 describe('a line the record holds at file grain', () => {
-  it('ends with a Deep gap naming the story of the three nearest tests, in the order the answer lists them', async () => {
+  it('ends with a Deep gap naming the story of the three nearest tests, as story.md has them recorded, in the order the answer lists them', async () => {
     const answer = await ask('--line', '20');
 
     expect(answer.gap).toEqual({
@@ -72,10 +72,15 @@ describe('a line the record holds at file grain', () => {
       known: '4 named tests loaded src/ledger.ts',
       reason: 'coarse',
       gear: 'deep',
+      run: {
+        cases: [
+          { file: 'ledger.test.ts', name: "finds the user's entry" },
+          { file: 'ledger.test.ts', name: 'records an entry' },
+          { file: 'book.test.ts', name: 'opens a book' },
+        ],
+        story: true,
+      },
       next: [
-        "VARIANCE_AUTHORITY_STORY=1 <runner> ledger.test.ts -t 'finds the user'\\''s entry'",
-        "VARIANCE_AUTHORITY_STORY=1 <runner> ledger.test.ts -t 'records an entry'",
-        "VARIANCE_AUTHORITY_STORY=1 <runner> book.test.ts -t 'opens a book'",
         "variance story --file ledger.test.ts --name 'finds the user'\\''s entry'",
         "variance story --file ledger.test.ts --name 'records an entry'",
         "variance story --file book.test.ts --name 'opens a book'",
@@ -91,9 +96,10 @@ describe('a line the record holds at file grain', () => {
     expect(text.trimEnd().endsWith([
       'Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.',
       'Next, Deep, 3 tests in 2 test files:',
-      "  VARIANCE_AUTHORITY_STORY=1 <runner> ledger.test.ts -t 'finds the user'\\''s entry'",
-      "  VARIANCE_AUTHORITY_STORY=1 <runner> ledger.test.ts -t 'records an entry'",
-      "  VARIANCE_AUTHORITY_STORY=1 <runner> book.test.ts -t 'opens a book'",
+      "  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):",
+      "    ledger.test.ts  'finds the user'\\''s entry'",
+      "    ledger.test.ts  'records an entry'",
+      "    book.test.ts  'opens a book'",
       "  variance story --file ledger.test.ts --name 'finds the user'\\''s entry'",
       "  variance story --file ledger.test.ts --name 'records an entry'",
       "  variance story --file book.test.ts --name 'opens a book'",
@@ -136,10 +142,11 @@ describe('a line written since the recording', () => {
       known: 'line 20 was written since the recording',
       reason: 'stale',
       gear: 'record',
-      next: ['<runner> ledger.test.ts book.test.ts load.test.ts'],
+      run: { files: ['ledger.test.ts', 'book.test.ts', 'load.test.ts'] },
+      next: [],
       cost: { tests: 4, files: 3 },
     });
-    expect(formatCovering(answer, 'text')).toContain('Next, Record, 4 tests in 3 test files:\n  <runner> ledger.test.ts book.test.ts load.test.ts');
+    expect(formatCovering(answer, 'text')).toContain("Next, Record, 4 tests in 3 test files:\n  Run with the suite's own runner: ledger.test.ts book.test.ts load.test.ts");
   });
 });
 
@@ -154,7 +161,8 @@ describe('a file whose recorded ranges were edited since', () => {
       scope: 'src/ledger.ts',
       reason: 'stale',
       gear: 'record',
-      next: ['<runner> ledger.test.ts'],
+      run: { files: ['ledger.test.ts'] },
+      next: [],
       cost: { tests: 2, files: 1 },
     });
   });

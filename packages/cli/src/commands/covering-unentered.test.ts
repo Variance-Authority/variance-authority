@@ -54,7 +54,7 @@ describe('a run of lines no recorded region holds', () => {
         + 'Line 3 was written since the recording, so no case has run it.\n'
         + 'Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 was written since the recording.\n'
         + 'Next, Record, 1 test in 1 test file:\n'
-        + '  <runner> a.test.ts\n',
+        + "  Run with the suite's own runner: a.test.ts\n",
     );
   });
 

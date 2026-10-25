@@ -19,9 +19,9 @@ describe('a project nothing was recorded in', () => {
     expect(answer.code).toBe(2);
     expect(JSON.parse(answer.out)).toEqual({
       refused: 'unrecorded',
-      gap: { question: 'which tests ran it', scope: 'src/total.ts', known: 'no run is recorded', reason: 'absent', gear: 'record', next: ['<runner>'] },
+      gap: { question: 'which tests ran it', scope: 'src/total.ts', known: 'no run is recorded', reason: 'absent', gear: 'record', run: {}, next: [] },
     });
-    expect(answer.err).toMatch(/^nothing is recorded in .*\nGap \(absent\) on src\/total\.ts: which tests ran it\. Known: no run is recorded\.\nNext, Record, at a cost no record counts:\n {2}<runner>\n/u);
+    expect(answer.err).toMatch(/^nothing is recorded in .*\nGap \(absent\) on src\/total\.ts: which tests ran it\. Known: no run is recorded\.\nNext, Record, at a cost no record counts:\n {2}Wire the suite's producer and record one run of it: that first run is the record\.\n/u);
   });
 
   it('prints only the sentence when a person asked', async () => {
