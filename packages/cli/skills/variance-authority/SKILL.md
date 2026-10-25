@@ -15,33 +15,41 @@ same read-only commands.
 ## Fill a gap with a run of what it names
 
 An answer gives what the record has and names what it lacks — its gap. Fill a
-gap with a recorded run of what it names, with the project's own runner, never
-with a run of the whole suite. Each gap names what to run:
+gap with what it names: a record fetched from the mainline, or a recorded run of
+the tests it names with the project's own runner. Never fill it by running the
+whole suite again over a record that exists:
 
-- **A domain no producer wrote, or a suite with no recording** — `covering`'s
-  `unrecorded`. Wire the producer, as [producers](references/producers.md)
-  says, then run the tests the answer names.
+- **A suite with no recording** — `covering`'s `unrecorded`. When the refusal
+  names `variance share --suite <name>`, run that: it fetches the mainline's
+  record of a suite the root config gives `"carry": "share"`, with no run.
+  Otherwise wire the suite's producer, as [producers](references/producers.md)
+  says, and record one run of the suite: that first run is the record.
+- **A domain no producer wrote.** Wire the producer, as
+  [producers](references/producers.md) says, then run again the tests whose
+  answer lacked it.
 - **A case, or a test file.** Run that file, filtered to the case by its name
   with the runner's own filter: `-t` under Vitest, Jest and Rstest, `--grep`
   under Playwright.
 - **A source file the suite never loaded, or one the record is older than** —
-  `covering`'s `Not loaded by` (`unloaded`) and `older`. What runs next depends
-  on how the suite reaches the code, as
+  `covering`'s `Not loaded by` (`unloaded`) and `older`. For `older` in a suite
+  declared `"carry": "share"`, `variance share --suite <name>` fills it once the
+  mainline holds the file and has recorded since. Otherwise what runs next
+  depends on how the suite reaches the code, as
   [selection wiring](references/selection-wiring.md) says:
-  - A suite that imports what it tests: find the test files that import the
-    file, at any depth, with no record needed —
+  - A suite that imports what it tests: find the test files that suite runs
+    that import the file, at any depth, with no record needed —
     `variance ask discover --to <path> --path '\.test\.'`, with the regex your
     test files match — nearest first, and run those. When none imports it, no
     test of that suite runs the file, and the gap stays until one does.
   - A suite that drives the code from another process, such as Playwright over
-    a running app: no import leads from a spec to the file, so the source names
-    none of its specs. Run the specs that drive the page or the route the file
-    serves, filtered with `--grep`, against a build that carries
-    `testSelectionProbes()`, so the run measures the file.
-- **A base the answer cannot compare against** — `undiffed`. The commit the
-  base was recorded at is missing from this clone, or the base names none. This
-  gap is the one no run fills: fetch that commit, for example by deepening a shallow clone, or
-  ask without the base.
+    a running app or a built Storybook: no import leads from a spec to the
+    file, so the source names none of its specs. Run the specs that drive the
+    page, route or story the file serves, filtered with `--grep`, against a
+    build that carries `testSelectionProbes()`, so the run measures the file.
+- **A base the answer cannot compare against** — `undiffed`. The base names a
+  commit this clone lacks or cannot diff from, or names none. This gap is the
+  one no run fills: fetch that commit, for example by deepening a shallow
+  clone, or ask without the base.
 
 A run of the whole suite is the gate before a change is done, and it is how the
 record is brought up to a commit, as [test selection](references/test-selection.md#test-an-edit-in-a-loop)
