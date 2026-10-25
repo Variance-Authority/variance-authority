@@ -14,22 +14,34 @@ same read-only commands.
 
 ## Fill a gap with a run of what it names
 
-An answer gives what the record has and names what it lacks — its gap. Fill the
+An answer gives what the record has and names what it lacks — its gap. Fill a
 gap with a recorded run of what it names, with the project's own runner, never
-with a run of the whole suite:
+with a run of the whole suite. Each gap names what to run:
 
-- **A domain no producer wrote.** Wire the producer, as
-  [producers](references/producers.md) says, then run the tests the answer
-  names.
+- **A domain no producer wrote, or a suite with no recording** — `covering`'s
+  `unrecorded`. Wire the producer, as [producers](references/producers.md)
+  says, then run the tests the answer names.
 - **A case, or a test file.** Run that file, filtered to the case by its name
   with the runner's own filter: `-t` under Vitest, Jest and Rstest, `--grep`
   under Playwright.
-- **A source file no recorded run went through, or one the record is older
-  than** — `covering`'s `unrecorded`, `older` and `Not loaded by`. Find the
-  test files that import it, at any depth, with no record needed:
-  `variance ask discover --to <path> --path <your test-file pattern>`, nearest
-  first. Run those. When none imports it, no test reaches the file by import,
-  and the answer stays a gap until you write one.
+- **A source file the suite never loaded, or one the record is older than** —
+  `covering`'s `Not loaded by` (`unloaded`) and `older`. What runs next depends
+  on how the suite reaches the code, as
+  [selection wiring](references/selection-wiring.md) says:
+  - A suite that imports what it tests: find the test files that import the
+    file, at any depth, with no record needed —
+    `variance ask discover --to <path> --path '\.test\.'`, with the regex your
+    test files match — nearest first, and run those. When none imports it, no
+    test of that suite runs the file, and the gap stays until one does.
+  - A suite that drives the code from another process, such as Playwright over
+    a running app: no import leads from a spec to the file, so the source names
+    none of its specs. Run the specs that drive the page or the route the file
+    serves, filtered with `--grep`, against a build that carries
+    `testSelectionProbes()`, so the run measures the file.
+- **A base the answer cannot compare against** — `undiffed`. The commit the
+  base was recorded at is missing from this clone, or the base names none. This
+  gap is the one no run fills: fetch that commit, for example by deepening a shallow clone, or
+  ask without the base.
 
 A run of the whole suite is the gate before a change is done, and it is how the
 record is brought up to a commit, as [test selection](references/test-selection.md#test-an-edit-in-a-loop)
