@@ -20,9 +20,10 @@ answer with nothing open has no gap.
 ```text
 Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
 Next, Deep, 3 tests in 2 test files:
-  VARIANCE_AUTHORITY_STORY=1 <runner> ledger.test.ts -t 'finds the entry'
-  VARIANCE_AUTHORITY_STORY=1 <runner> ledger.test.ts -t 'records an entry'
-  VARIANCE_AUTHORITY_STORY=1 <runner> book.test.ts -t 'opens a book'
+  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):
+    ledger.test.ts  'finds the entry'
+    ledger.test.ts  'records an entry'
+    book.test.ts  'opens a book'
   variance story --file ledger.test.ts --name 'finds the entry'
   variance story --file ledger.test.ts --name 'records an entry'
   variance story --file book.test.ts --name 'opens a book'
@@ -37,13 +38,14 @@ Under `--format json` the same gap is the answer's `gap` field:
 | `known` | what the answer does have |
 | `reason` | `absent`: no run is recorded; `stale`: the record is of another text, or older than the file; `coarse`: the record has the line only at file grain |
 | `gear` | `record` or `deep` |
-| `next` | the commands, in the order you run them |
-| `cost` | `{tests, files}` the commands run; absent when no record counts them |
+| `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `files`, the test files, nearest first; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. With no `files` and no `cases`: wire the producer and record one run of the suite. Absent when no run closes the gap |
+| `next` | the commands that run as printed, in order, after `run` |
+| `cost` | `{tests, files}` the run takes; absent when no record counts them |
 
-No suite declares how it runs, so `<runner>` stands for the project's runner
-command: `yarn vitest run`, `npx jest`, `npx playwright test`. Replace it, and
-keep the test files and the `-t` filter as they are; use `--grep` in place of
-`-t` under Playwright.
+No record and no configuration names the runner a suite runs under, so the gap
+says what to run, not a runner command: run the test files with the project's
+runner, and a case filtered by its name with the runner's own filter, `-t` under
+Vitest, Jest and Rstest, `--grep` under Playwright.
 
 Each case of `covering` gives one gap, and a stale record comes before Deep:
 
@@ -51,8 +53,8 @@ Each case of `covering` gives one gap, and a stale record comes before Deep:
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) | Deep: the story of the first three tests, in the order the answer lists them |
 | `frame: "stale"`, or lines `written` since the recording, or ranges `moved` | Record: the test files whose cases ran code in the file, or the edited ranges |
-| `older`: the record is older than the file | Record: the suite, counted from the record |
-| `unrecorded`: no run is recorded | Record: the suite, with no cost, since no record counts it |
+| `older`: the record is older than the file | Record: the test files the record ran that import the file, as `variance ask discover --to <path>` finds them, counted from the record. When none does, the gap says so and names that `discover`, never the suite. In a suite given to the share, `variance share --suite <name>` when the mainline holds the file |
+| `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 
 A refusal keeps its exit code `2`. Under `--format json` its gap is beside
 `refused`, as `{"refused": "unrecorded", "gap": {…}}`, and in a suite's entry
@@ -63,9 +65,12 @@ beside `refused` and `reason`.
 - **One question in, one answer or one gap out.** Ask a line, a function or a
   diff, never a whole area, and read the gap before you ask anything else.
 - **Run Deep only on a gap that names it.** Never record a story of a suite or
-  of tests you chose yourself; the Deep gap names at most three, nearest first.
+  of tests you chose yourself; the Deep gap names at most three, nearest first,
+  as [story](story.md) records the first three `covering --hops` lists.
 - **Record what the gap names when the record is missing, stale or older than
-  the file.** That is a normal recorded run, never a story. A story of a test
+  the file.** That is a normal recorded run of the files it names, or the
+  mainline's record fetched, never a story and never the suite again over a
+  record that exists. A story of a test
   over text the record no longer has answers a question about another file.
 - **Skip a gear only when its record cannot have the answer.** The source index
   cannot say which case ran a line, so that is Smart; the record cannot say

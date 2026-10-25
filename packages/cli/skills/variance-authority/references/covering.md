@@ -82,7 +82,8 @@ nearest kind first: unit, integration, e2e, visual. Once any suite answers, the
 answers come first, then any suite with no recording yet. A suite whose record
 was made at a commit that did not hold the file says so in full, with that
 commit, refused as `older` under `--format json`: the record is older than the
-file, so it has no answer for it. When git cannot read that commit
+file, so it has no answer for it, and its gap names the test files the record
+ran that import the file ([Fast, Smart, Deep](fsd.md)). When git cannot read that commit
 — a shallow clone — the suite says so instead of claiming either. Suites that
 never loaded the file are named together on the last line,
 `Not loaded by <suite> (<kind>): …`: no answer from them, which is not *no test

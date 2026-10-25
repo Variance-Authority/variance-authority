@@ -84,14 +84,16 @@ held at file grain names the story of the three nearest tests, the Deep gear of
 …
 Gap (coarse) on line 3 of src/cart/total.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/cart/total.ts.
 Next, Deep, 3 tests in 2 test files:
-  VARIANCE_AUTHORITY_STORY=1 <runner> src/cart/total.test.ts -t 'splits a discount'
+  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):
+    src/cart/total.test.ts  'splits a discount'
   …
 ```
 
-A record of another text, a line written since the recording, or no record at
-all names a recorded run of the test files instead. `<runner>` stands for the
-command your suite runs with, since no suite declares one. Under `--format json`
-the same gap is the answer's `gap`.
+A record of another text, or a line written since the recording, names a
+recorded run of the test files instead, and a record older than the file the
+test files it ran that import the file. The gap says what to run rather than a
+runner command, since no suite declares one. Under `--format json` the same
+gap is the answer's `gap`.
 
 When the list is long, narrow it to the tests that sit near the code:
 
