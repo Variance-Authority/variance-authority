@@ -90,11 +90,17 @@ worktree and `origin/main`, never from local `main`:
 1. **Description** — the body alone. Does it say what the problem was and
    how it was solved, in a few lines a stranger can follow, and does each block
    row say what changes there? Anything else in it is noise, and blocking.
-2. **Direction** — the body and the repository. Should this change happen at
-   all? Is it proportionate to the problem the body states, does something that
-   already exists carry it, and what is missing from it? These are
-   [refine](refine.md)'s questions, asked by a reader who did not write the
-   change.
+2. **Occam** — the `occam` agent, given the task sentence, the worktree and
+   the path of the body file. The other reviewers look for a way to make the
+   change better; Occam looks for the reason it should not be made, and never
+   suggests an addition. It argues the case for doing nothing before it reads
+   the diff, counts what the diff makes `main` carry, and reads the body last.
+   It answers **no, because** — the change should not happen — or **yes,
+   but** — this part should not — and always answers at least once. A
+   rejection is blocking until the body answers it with evidence: who asked,
+   quoted, a failing case, a measurement or a decision in `docs/context/`.
+   These are [refine](refine.md)'s questions, asked by a reader whose job is
+   to say no.
 3. **Fidelity** — the body, the diff and `origin/main`. Is every block row
    true of the diff, and does every hunk fall in a block a row names? A hunk no
    row covers is a finding. Does each row's *pinned by* test or command observe the change,
@@ -107,7 +113,7 @@ worktree and `origin/main`, never from local `main`:
    compass before it reads the diff, then reports each gap against the code
    rules: a second implementation, a wait or a reload, a neighbour's question,
    a runner favoured, complexity in the wrong role. It reads the body last,
-   and a reason clears a finding only with evidence. Direction asks whether the
+   and a reason clears a finding only with evidence. Occam asks whether the
    change should happen; Alignment asks whether its shape is ours.
 
 When the change writes or rewrites a top-layer page, a fifth runs first:
