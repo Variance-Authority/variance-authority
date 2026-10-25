@@ -197,8 +197,10 @@ where it was:
 - **Lines written since the recording, in a file the record holds**: run the
   test files that loaded the file, the ones `variance select` runs for it.
 - **A file the record is older than**, so a new file: run the recorded test
-  files `variance select` runs for it by reach. `variance reach --since <base>`
-  then takes every file the diff added, with no record needed.
+  files `variance select` runs for it by reach, and the test files among the
+  files added since the record that reach it, which no record names.
+  `variance reach --since <base>` then takes every file the diff added, with no
+  record needed.
 
 Run Deep only on a gap that names it, skip a gear only when its record cannot
 have the answer, and check a finding at the cheapest gear that could prove it

@@ -35,6 +35,7 @@ import type { CoveringTest, ExecutionIndex } from '@variance-authority/sense/tes
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { runsText, targetText } from './covering-at.js';
 import { casesByFile, coveringFiles, type CoveringFile } from './covering-files.js';
+import { entered } from './covering-stale.js';
 import type { Covering } from './covering.js';
 import { selectedFor, type GapSource, type Selected } from './gap-selection.js';
 
@@ -63,6 +64,8 @@ export interface GapRun {
   readonly files?: readonly string[];
   /** The whole suite runs, for the reason selection gives. */
   readonly whole?: string;
+  /** The files added since the record that reach the asked one, in code-unit order; the test files among them run. */
+  readonly added?: readonly string[];
   /** The cases to run, each filtered by its name; absent when each file runs whole. */
   readonly cases?: readonly { readonly file: string; readonly name: string }[];
   /** Run under `VARIANCE_AUTHORITY_STORY=1`, so each case records its story. */
@@ -129,7 +132,7 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
   const moved = (answer.ranges ?? []).filter((range) => range.moved === true);
   if (moved.length > 0) {
     const edited = moved.length === 1 ? 'a range' : `${moved.length} ranges`;
-    return record('which tests run the edited ranges now', scope, `${edited} the record holds ${moved.length === 1 ? 'was' : 'were'} edited since the recording`, coveringFiles(distinct(moved.flatMap((range) => range.tests)), whole));
+    return record('which tests run the edited ranges now', scope, `${edited} the record holds ${moved.length === 1 ? 'was' : 'were'} edited since the recording`, coveringFiles(entered(moved.flatMap((range) => range.tests)), whole));
   }
   if ((answer.grain === 'file' || (answer.fileGrain?.length ?? 0) > 0) && tests.length > 0) {
     return deep(scope, `${named(tests.length)} loaded ${file}`, nearest(tests, answer.files ?? []).slice(0, DEEP_TESTS));
@@ -196,7 +199,12 @@ function runText(run: GapRun): readonly string[] {
     ];
   }
   if (run.whole !== undefined) return [`  Run the whole suite with ${runner}: ${run.whole}.`];
-  if (run.files !== undefined) return [`  Run with ${runner}: ${run.files.map((file) => quoted(file, false)).join(' ')}`];
+  const added = (alone: boolean) =>
+    run.added === undefined
+      ? []
+      : [`  Added since the record, reaching it; run the test files among them${alone ? ` with ${runner}` : ''}: ${run.added.map((file) => quoted(file, false)).join(' ')}`];
+  if (run.files !== undefined) return [`  Run with ${runner}: ${run.files.map((file) => quoted(file, false)).join(' ')}`, ...added(false)];
+  if (run.added !== undefined) return added(true);
   if (run.suites !== undefined && run.suites.length > 1) {
     return [`  Wire the producers of ${listed(run.suites.map((suite) => `\`${suite}\``))} and record one run of each: that first run is the record.`];
   }
@@ -247,16 +255,6 @@ function deep(scope: string, known: string, tests: readonly CoveringTest[]): Evi
 /** The cases in the order the answer lists them: by its file rows, then any file they leave out. */
 function nearest(tests: readonly CoveringTest[], files: readonly CoveringFile[]): readonly CoveringTest[] {
   return [...casesByFile(tests, files).values()].flat();
-}
-
-/** Each case once: a case in two edited ranges is one test to run. */
-function distinct(tests: readonly CoveringTest[]): readonly CoveringTest[] {
-  const seen = new Set<string>();
-  return tests.filter((test) => {
-    if (seen.has(test.id)) return false;
-    seen.add(test.id);
-    return true;
-  });
 }
 
 function named(n: number): string {

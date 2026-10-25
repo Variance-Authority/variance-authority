@@ -66,8 +66,9 @@ const RECORDED: Readonly<Record<string, string>> = {
  * then `src/pad.ts`, which only `beta.test.ts` loads, imports it, and so does
  * `src/setup.ts`, which no test imports. The record holds `pad.ts` only as a
  * module its one test loaded, and its case index credits no case with it.
+ * `added` are more files the second commit adds, such as new test files.
  */
-async function checkout(suites: unknown): Promise<{ readonly root: string; readonly recordedAt: string }> {
+async function checkout(suites: unknown, added: Readonly<Record<string, string>> = {}): Promise<{ readonly root: string; readonly recordedAt: string }> {
   const root = mkdtempSync(join(tmpdir(), 'va-gap-selection-'));
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('init', '--quiet', '--initial-branch', 'main');
@@ -82,6 +83,7 @@ async function checkout(suites: unknown): Promise<{ readonly root: string; reado
   write(root, 'src/extra.ts', 'export const extra = 1;\n');
   write(root, 'src/pad.ts', "import { extra } from './extra';\nexport const pad = extra;\n");
   write(root, 'src/setup.ts', "import './extra';\n");
+  for (const [file, text] of Object.entries(added)) write(root, file, text);
   git('add', '-A');
   git('commit', '--quiet', '-m', 'extra');
   process.chdir(root);
@@ -144,7 +146,7 @@ async function gapOf(root: string, ...argv: string[]): Promise<{ readonly gap: u
 }
 
 describe('a file added after the commit its suite recorded at', () => {
-  it('runs the recorded test files selection reaches from it, and no source file the walk passes', async () => {
+  it('runs the recorded test files selection reaches from it, and the files added since that reach it', async () => {
     const { root, recordedAt } = await checkout({ unit: { kind: 'unit' } });
     const { gap, text } = await gapOf(root, '--file', 'src/extra.ts');
 
@@ -154,11 +156,41 @@ describe('a file added after the commit its suite recorded at', () => {
       known: 'the record predates the file; selection runs 1 recorded test file for it',
       reason: 'stale',
       remedy: 'record',
-      run: { suite: 'unit', files: ['test/beta.test.ts'] },
+      run: { suite: 'unit', files: ['test/beta.test.ts'], added: ['src/setup.ts'] },
       next: [`variance reach --since ${recordedAt.slice(0, 12)}`],
       cost: { files: 1, tests: 1 },
     });
     expect(text).toContain("Next, Record, 1 test in 1 test file:\n    Run with the runner of `unit`: test/beta.test.ts\n");
+  });
+
+  const NEW_TESTS = {
+    'test/extra.test.ts': "import { extra } from '../src/extra';\nexport const extraed = extra;\n",
+    'test/lone.test.ts': 'export const lone = 1;\n',
+  };
+
+  it('also names a new test file that imports it, added since the record, and no new test file that does not', async () => {
+    const { root } = await checkout({ unit: { kind: 'unit' } }, NEW_TESTS);
+    const { gap, text } = await gapOf(root, '--file', 'src/extra.ts');
+
+    expect(gap).toMatchObject({ run: { suite: 'unit', files: ['test/beta.test.ts'], added: ['src/setup.ts', 'test/extra.test.ts'] } });
+    expect(text).toContain(
+      '    Run with the runner of `unit`: test/beta.test.ts\n' +
+        '    Added since the record, reaching it; run the test files among them: src/setup.ts test/extra.test.ts\n',
+    );
+  });
+
+  it('adds no file the suite ignores', async () => {
+    const { root } = await checkout({ unit: { kind: 'unit', ignore: ['test/extra.test.ts'] } }, NEW_TESTS);
+    const { gap } = await gapOf(root, '--file', 'src/extra.ts');
+
+    expect(gap).toMatchObject({ run: { added: ['src/setup.ts'] } });
+  });
+
+  it('adds nothing for a suite that declines relations', async () => {
+    const { root } = await checkout({ unit: { kind: 'unit', relations: false } }, NEW_TESTS);
+    const { gap } = await gapOf(root, '--file', 'src/extra.ts');
+
+    expect(gap).not.toHaveProperty('run');
   });
 
   it('walks no import for a suite that declines relations, and names no empty run', async () => {

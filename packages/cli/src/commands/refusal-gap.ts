@@ -8,10 +8,12 @@
  * new, and a new file is run by reach. Selection owns that answer, under the
  * suite's own `relations`, `ignore` and `before` (`gap-selection.ts`), so the
  * gap runs the recorded test files selection names for it, or the whole suite
- * when selection does, and names no run when it names none. Then `variance
- * reach --since` from the record's commit takes every other file the diff added
- * since, at once, and `variance index` comes first only when the source index
- * could not be read. A lookup that fails leaves the refusal standing, its gap
+ * when selection does. A test file added with it is in no record, and reach
+ * owns it: the gap adds the files added since the record's commit that reach
+ * the asked file (`addedReaching`), and names no run when neither names any.
+ * Then `variance reach --since` from the record's commit takes every other file
+ * the diff added since, at once, and `variance index` comes first only when the
+ * source index could not be read. A lookup that fails leaves the refusal standing, its gap
  * saying the run is unknown. The share's record predates a new file as well,
  * so a suite given to the share is asked the same way.
  *
@@ -25,7 +27,7 @@ import type { ParsedCovering } from '../covering-args.js';
 import type { RefusalKind } from '../exit.js';
 import { gapScope, selectionRun, type EvidenceGap } from './evidence-gap.js';
 import { declaredSuite, shareCommand } from './execution-input.js';
-import { graphOnce, selectedFor, type Graph } from './gap-selection.js';
+import { addedReaching, graphOnce, selectedFor, type Graph } from './gap-selection.js';
 
 /** What a refusal knows beyond its kind. */
 export interface RefusalContext {
@@ -83,10 +85,14 @@ async function olderGap(
   { commit, record }: RefusalContext,
   graph: Graph,
 ): Promise<EvidenceGap> {
-  const suite = (await declaredSuite(request.root, request.suite))?.name;
+  const declared = await declaredSuite(request.root, request.suite);
+  const suite = declared?.name;
   const source = { root: request.root, suite: request.suite, execution: request.execution, record, graph };
   const selected = await selectedFor(source, request.file!);
-  const { said, joint, run, cost } = selectionRun(selected, suite, whole);
+  const { said, joint, run: recorded, cost } = selectionRun(selected, suite, whole);
+  const reached = commit === undefined || 'whole' in selected ? [] : await addedReaching(source, request.file!, commit, declared);
+  const added = reached.filter((file) => !(recorded?.files ?? []).includes(file));
+  const run = added.length === 0 ? recorded : { ...(recorded ?? (suite === undefined ? {} : { suite })), added };
   const reach = commit === undefined ? [] : [`variance reach --since ${commit.slice(0, 12)}`];
   return {
     question: 'which tests run it',

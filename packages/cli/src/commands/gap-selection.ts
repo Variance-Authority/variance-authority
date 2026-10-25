@@ -1,8 +1,8 @@
 // compass: variance-authority.reach
 
 /**
- * Which test files a gap runs: selection's answer for the asked file, and no
- * other.
+ * Which test files a gap runs: selection's answer for the asked file, and, for
+ * a file added since the record, the files added with it that reach it.
  *
  * `variance select` owns "which tests run this change". It runs a new file by
  * reach, over the file graph, and new code in a recorded file by the test
@@ -14,17 +14,25 @@
  * selection named.
  *
  * Selection names recorded test files only: a test file the record never ran
- * is not in it, so a new test file beside a new source file is not named here.
+ * is not in it. Reach owns those (`variance reach --since`): {@link addedReaching}
+ * asks its walk which files reach the asked one over the same graph, and keeps
+ * the ones git says were added since the record's commit, under the same
+ * suite's `relations` and `ignore`.
  *
  * The file graph is read once per invocation and handed to every reader that
  * needs it, the answer's own and selection's alike: a `covering` asked of
  * several suites reads it once, not once per suite.
  */
 
+import { realpathSync } from 'node:fs';
+import { relative, resolve, sep } from 'node:path';
 import type { Relations } from '@variance-authority/core/relate';
-import { wholeEntry } from '@variance-authority/sense/test-selection';
+import { existedAt } from '@variance-authority/sense';
+import { ignoredBy, unmeasuredOf, wholeEntry, type DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { fileGraph } from './covering-at.js';
+import { affectedFiles, refused } from './reach.js';
+import { changedSince } from './since.js';
 
 /** The checkout's file graph, read on first ask and shared by every later one. */
 export type Graph = () => Promise<Relations>;
@@ -77,6 +85,36 @@ export async function selectedFor(source: GapSource, file: string): Promise<Sele
     return files.length === 0 ? { none: true } : { files };
   } catch (error) {
     if (error instanceof OperatorError) return { unread: true };
+    throw error;
+  }
+}
+
+/**
+ * The files added since `commit` that reach `file`, `file` aside, in code-unit
+ * order: reach's walk over the graph, kept to what git lists as changed since
+ * the commit and did not exist at it. None for a suite that declines
+ * relations, a file the suite ignores, or a walk or a git listing that could
+ * not answer; `variance reach --since` from the same commit still runs then.
+ */
+export async function addedReaching(
+  source: Pick<GapSource, 'root' | 'graph'>,
+  file: string,
+  commit: string,
+  declared: DeclaredSuite | undefined,
+): Promise<readonly string[]> {
+  if (unmeasuredOf(declared) === 'nothing' || ignoredBy(declared?.ignore, [file]).length > 0) return [];
+  try {
+    const reach = affectedFiles(await source.graph(), [file], ['.']);
+    if (refused(reach)) return [];
+    const ignored = new Set(ignoredBy(declared?.ignore, reach.files));
+    // `changedSince` speaks from the working directory, the graph from the
+    // root; both are read through the real path, which a symlinked root hides.
+    const at = realpathSync(source.root);
+    const changed = await changedSince(commit, [relative(realpathSync(process.cwd()), at)]);
+    const since = new Set(changed.map((one) => relative(at, resolve(realpathSync(process.cwd()), one)).split(sep).join('/')));
+    return reach.files.filter((one) => one !== file && since.has(one) && !ignored.has(one) && existedAt(source.root, commit, one) === false);
+  } catch (error) {
+    if (error instanceof OperatorError) return [];
     throw error;
   }
 }
