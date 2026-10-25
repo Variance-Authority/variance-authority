@@ -35,7 +35,7 @@ next, so the design can be read apart from what the diff made of it:
    rule of their own, and you ask them too: does the new code sit in the
    container its `// compass:` header names, and does the change add a flag
    between two behaviours, an option no task asked for or an abstraction with
-   one caller. Whether the change should happen at all is the Direction
+   one caller. Whether the change should happen at all is the `occam`
    reviewer's question, not yours. What `tools/owners.check.ts` and `yarn restrictions`
    already fail is not a finding; say only when the diff gets past them.
    A change that adds a check — a ratchet, a fence, a reviewer — is judged the

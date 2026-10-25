@@ -198,10 +198,11 @@ Write the body to
 [`.github/pull_request_template.md`](.github/pull_request_template.md): the
 problem, the solution, and one row per block the change touches. Before
 anything is pushed, four subagents with no other context review the change,
-each for one question: does the body say the problem and the solution, should the change
-happen at all, does the diff do what the body says, and is its shape ours — one
-implementation, the right role, no runner favoured, nothing a neighbour owns
-(the `alignment` reviewer). A change that writes a
+each for one question: does the body say the problem and the solution, is there
+a reason not to make the change at all, or not this much of it (the `occam`
+reviewer, who argues against the change), does the diff do what the task and
+the body say, and is its shape ours — one implementation, the right role, no runner favoured,
+nothing a neighbour owns (the `alignment` reviewer). A change that writes a
 top-layer page gets a fifth, the `content-flow` reviewer, and it runs first:
 the other four wait until the page's structure passes. Fix what they mark
 blocking and run them again until none does; a finding still blocking after the
