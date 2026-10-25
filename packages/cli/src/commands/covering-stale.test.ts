@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -30,7 +30,7 @@ vi.mock('./covering-frame.js', async (original) => ({
 
 function said(name: string, flag?: string): ExecutionTest {
   const file = 'a.test.ts';
-  return { id: `${file} > ${name}`, file, name, said: JSON.stringify(flag === undefined ? [] : [['flag', flag, `${file}:3`, 1]]) };
+  return { id: `${file} > ${name}`, file, name, said: JSON.stringify({ said: flag === undefined ? [] : [['flags:checkout', JSON.stringify(flag), `${file}:3`, 1]] }) };
 }
 
 const TESTS: readonly ExecutionTest[] = [said('on', 'ff-on'), said('off', 'ff-off'), said('plain')];
@@ -56,7 +56,6 @@ async function ask(argv: readonly string[]) {
   await writeTestCoverage(execution, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeAsSetExecutionIndex(INDEX),
   });
-  await writeFile(join(root, 'variance.config.json'), JSON.stringify({ names: { axes: [{ axis: 'flag', values: ['ff-off', 'ff-on'] }] } }));
   return covering(parseCoveringArgs(readFlags(
     ['--file', 'src/cart.ts', '--execution', execution, '--root', root, ...argv],
     'covering', flagsFor('covering'), synopsisFor('covering'),
@@ -72,7 +71,7 @@ describe('a file whose recorded text is gone', () => {
 
     expect(answer).toMatchObject({ frame: 'stale', target: { line: 6 }, at: '0123456789abcdef' });
     expect(answer.tests?.map((test) => test.name)).toEqual(['off', 'on', 'plain']);
-    expect(text).toContain(`${GONE}\n3 named tests ran code in src/cart.ts; which of them ran line 6 cannot be said:\n  a.test.ts — 3/3\n    off — flag=ff-off`);
+    expect(text).toContain(`${GONE}\n3 named tests ran code in src/cart.ts; which of them ran line 6 cannot be said:\n  a.test.ts — 3/3\n    off — flags:checkout=ff-off`);
     expect(text).not.toMatch(/[Rr]un the suite|[Rr]ecord .* again/);
   });
 
@@ -92,9 +91,9 @@ describe('a file whose recorded text is gone', () => {
   });
 
   it('counts `--where` out of the cases that ran code in the file, not out of a line it cannot place', async () => {
-    const text = formatCovering(await ask(['--line', '6', '--where', 'flag=ff-on']), 'text');
+    const text = formatCovering(await ask(['--line', '6', '--where', 'flags:checkout=ff-on']), 'text');
 
-    expect(text).toContain('Kept the 1 of 3 cases that covered src/cart.ts and recorded flag=ff-on.\n');
+    expect(text).toContain('Kept the 1 of 3 cases that covered src/cart.ts and recorded flags:checkout=ff-on.\n');
     expect(text).toContain('1 named test ran code in src/cart.ts; which of them ran line 6 cannot be said:');
   });
 });

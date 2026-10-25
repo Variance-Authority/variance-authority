@@ -5,6 +5,7 @@
 > A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this package does
 
@@ -314,12 +315,13 @@ WebKit.
 
 ### Only Chromium can be told how to paint text
 
-`CHROMIUM_RASTER_ARGS` — `--disable-lcd-text`, `--font-render-hinting=none` —
-makes Chromium's text independent of host defaults, and there is no equivalent
-for Firefox or WebKit. Their text is painted the way the host paints text.
-WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
-substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the
-subject rather than the conditions the subject is photographed under.
+Two of `CHROMIUM_RASTER_ARGS`, `--disable-lcd-text` and
+`--font-render-hinting=none`, make Chromium's text independent of host defaults,
+and there is no equivalent for Firefox or WebKit. Their text is painted the way
+the host paints text. WebKit's one lever is the page's own
+`-webkit-font-smoothing`, which is not a substitute: it changes 4,204 pixels of
+a 500x160 subject, so it changes the subject rather than the conditions the
+subject is photographed under.
 
 On macOS none of this bites. The system has had no subpixel antialiasing since
 10.14, all four candidate flags are no-ops, and every engine paints greyscale
@@ -465,10 +467,10 @@ const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);
 ```
 
-Chromium launches with `--disable-lcd-text` and `--font-render-hinting=none` by
-default. An explicit ordered `launchArgs` list replaces that default. Headless
-mode and the ordered launch recipe are hashed into
-`RenderIdentity.rasterization`, so changing font rasterization settings
+Chromium launches with `--disable-lcd-text`, `--font-render-hinting=none` and
+`--disable-partial-raster` by default. An explicit ordered `launchArgs` list
+replaces that default. Headless mode and the ordered launch recipe are hashed
+into `RenderIdentity.rasterization`, so changing font rasterization settings
 is named as the cause instead of appearing as a product diff.
 
 A resource-closed document is rendered without network access: archived resource

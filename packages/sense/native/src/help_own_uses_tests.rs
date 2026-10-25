@@ -2,6 +2,7 @@
 
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 
 use super::own_uses_in;
@@ -10,7 +11,8 @@ use crate::read::Lines;
 fn uses(text: &str, source_type: SourceType) -> Vec<(String, u32)> {
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, text, source_type).parse();
-    own_uses_in(&parsed.program, &Lines::new(text))
+    let built = SemanticBuilder::new().build(&parsed.program);
+    own_uses_in(&parsed.program, built.semantic.scoping(), &Lines::new(text))
         .into_iter()
         .map(|found| (found.name, found.line))
         .collect()
@@ -70,4 +72,22 @@ fn a_file_whose_every_declaration_is_exported_uses_its_names() {
         SourceType::ts(),
     );
     assert_eq!(found, vec![one("greet", 4), one("greet", 5), one("greet", 6)]);
+}
+
+#[test]
+fn a_key_of_the_object_the_module_hands_out_passes_the_name_on() {
+    let found = uses(
+        "function recorder() {}\nfunction scoped() {\n  return recorder();\n}\nexport = { recorder, scoped: scoped, later: () => recorder(), [`name`]: recorder.name };\n",
+        SourceType::ts(),
+    );
+    assert_eq!(found, vec![one("recorder", 3), one("recorder", 5)]);
+    let found = uses("function hush() {}\nmodule.exports = { hush };\nconst other = { hush };\n", SourceType::cjs());
+    assert_eq!(found, vec![one("hush", 3)]);
+}
+
+#[test]
+fn a_key_of_an_object_with_unspelled_keys_is_a_use() {
+    // The object exports nothing, so naming a declaration in it passes nothing on.
+    let found = uses("function a() {}\nexport = {\n  a,\n  ...rest,\n};\n", SourceType::ts());
+    assert_eq!(found, vec![one("a", 3)]);
 }

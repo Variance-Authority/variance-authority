@@ -1,5 +1,7 @@
 import { checkoutPath } from '@variance-authority/sense';
 import type { TestState, VantageState, WatchedTest } from '@variance-authority/vantage';
+import { limitOf } from './limit.js';
+import { spellingOf } from './spelling.js';
 import { heading, tally, unattached } from './vantage-lines.js';
 import type { Tool } from './tool.js';
 
@@ -48,7 +50,8 @@ export const runSignals: Tool<VantageState> = {
     );
     if (matching.length === 0) return nothingMatched(state, wanted, file);
 
-    const limit = limitArg(input);
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, 50, spell);
     const shown = matching.slice(Math.max(0, matching.length - limit));
     const elided = matching.length - shown.length;
 
@@ -56,7 +59,7 @@ export const runSignals: Tool<VantageState> = {
       summary(state, matching),
       '',
       ...shown.map(row),
-      ...(elided === 0 ? [] : ['', `… ${elided} earlier match(es) not listed; raise \`limit\`.`]),
+      ...(elided === 0 ? [] : ['', `… ${elided} earlier match(es) not listed; a higher \`${spell.input('limit')}\` lists them.`]),
       ...(state.forgotten === 0
         ? []
         : ['', `${state.forgotten} earlier test(s) were dropped to keep this watcher bounded.`]),
@@ -140,13 +143,4 @@ function fileArg(input: Readonly<Record<string, unknown>>, root: string | undefi
     throw new Error(`${value} is outside the checkout at ${root}, and the suite running there reports only files inside it.`);
   }
   return spelled.path;
-}
-
-function limitArg(input: Readonly<Record<string, unknown>>): number {
-  const value = input['limit'];
-  if (value === undefined) return 50;
-  if (!Number.isInteger(value) || (value as number) < 1) {
-    throw new Error('`limit` must be a positive integer');
-  }
-  return value as number;
 }

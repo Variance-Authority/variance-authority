@@ -13,13 +13,13 @@ import { decodeExecutionIndex } from './index.js';
 const SAID: readonly ExecutionTest[] = [
   {
     id: 'cart.test.ts > pays mocked', file: 'cart.test.ts', name: 'pays mocked',
-    said: JSON.stringify([['network', 'mocked', 'cart.test.ts:4', 1]]),
+    said: JSON.stringify({ said: [['fixture:network', '"mocked"', 'cart.test.ts:4', 1]] }),
   },
   {
     id: 'flow.test.ts > replays', file: 'flow.test.ts', name: 'replays',
-    said: JSON.stringify([['flag', 'ff-on', 'flow.test.ts:9', 65535], ['network', 'recorded', 'flow.test.ts:3', 0]]),
+    said: JSON.stringify({ said: [['fixture:flag', '"ff-on"', 'flow.test.ts:9', 65535], ['fixture:network', '"recorded"', 'flow.test.ts:3', 0]] }),
   },
-  { id: 'quiet.test.ts > says nothing', file: 'quiet.test.ts', name: 'says nothing', said: '[]' },
+  { id: 'quiet.test.ts > says nothing', file: 'quiet.test.ts', name: 'says nothing', said: '{"said":[]}' },
 ];
 
 function indexOf(tests: readonly ExecutionTest[]): ExecutionIndex {

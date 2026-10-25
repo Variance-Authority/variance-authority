@@ -62,12 +62,17 @@ export async function landingRecord(root: string, suite?: string): Promise<strin
 /**
  * {@link suiteRecord}, with what its suite does with a file the record did not
  * measure — a suite declaring `relations: false` asks the graph nothing — and
- * the precision it declares.
+ * the precision and the `ignore` globs it declares.
  */
 export async function selectingRecord(
   root: string,
   suite?: string,
-): Promise<{ readonly file: string; readonly unmeasured?: Unmeasured; readonly precision?: Precision }> {
+): Promise<{
+  readonly file: string;
+  readonly unmeasured?: Unmeasured;
+  readonly precision?: Precision;
+  readonly ignore?: readonly string[];
+}> {
   const { file, declared } = await recordedSuite(root, suite);
   const { unmeasuredOf } = await import('@variance-authority/sense/test-selection');
   const unmeasured = unmeasuredOf(declared);
@@ -75,6 +80,7 @@ export async function selectingRecord(
     file,
     ...(unmeasured === undefined ? {} : { unmeasured }),
     ...(declared?.precision === undefined ? {} : { precision: declared.precision }),
+    ...(declared?.ignore === undefined ? {} : { ignore: declared.ignore }),
   };
 }
 

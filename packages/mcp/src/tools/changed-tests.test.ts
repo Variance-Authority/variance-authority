@@ -52,12 +52,12 @@ describe('variance_changed_tests', () => {
       ...INDEX,
       tests: [INDEX.tests[0]!, {
         ...INDEX.tests[1]!,
-        said: JSON.stringify([['role', 'staff', 'test/cart.test.ts:4', 1]]),
+        said: JSON.stringify({ said: [['auth:role', '"staff"', 'test/cart.test.ts:4', 1]] }),
       }],
     };
     const text = changedTests.run(index, { diff: diff('src/cart/total.ts', 3) });
 
-    expect(text).toContain('applies the staff discount [staff] — role=staff (test/cart.test.ts:4)');
+    expect(text).toContain('applies the staff discount [staff] — auth:role=staff (test/cart.test.ts:4)');
     expect(text).toMatch(/uses the guest price \[guest\]$/m);
   });
 

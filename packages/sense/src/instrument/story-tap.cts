@@ -56,6 +56,25 @@
  * tape and hands it on unchanged. Both happen only in a realm that is recording
  * a story, which somebody asked for by name.
  *
+ * ## What a region was handed
+ *
+ * The walk ends every function's first region, once its parameters are bound,
+ * and every module, once its top level has run, with a call nobody answers:
+ * `__vaL&&__vaL(region, "a,b", a, b)`. `__vaL` is the `V` a root hands a
+ * module when it registers, and only the tap hands one over, so the values
+ * reach a story and nothing else. Each call is a note — `handed c=ref1 Object,
+ * tax=2` for a function, `holds cart=ref1 Object, Till=ref2 class Till` for a
+ * module — said where the region was entered.
+ *
+ * A value is shown as it is when it is a primitive, and a string is cut. An
+ * object is a ref and a word: the ref is its identity, the same wherever it is
+ * handed, so a reader follows one value from a provider to its consumer, and
+ * the word is what it is, read without calling any of its code. What it holds
+ * is never shown. A framework that knows its own objects better names them: a
+ * function it puts in the realm's `Symbol.for('variance-authority.story.kind')`
+ * array is asked first, and the word it answers is the kind —
+ * `@variance-authority/react/story` answers `react.memo` for a memo.
+ *
  * ## Written to be sent as text
  *
  * {@link createTap} closes over everything it uses, like `createEngine`, so a
@@ -78,8 +97,13 @@ interface Tape {
   readonly keys: readonly string[];
   /** Each note: how many visits were taped before it, the bucket it was said in, and the text. */
   readonly notes: readonly (readonly [at: number, key: string, text: string])[];
-  /** Notes past {@link NOTE_LIMIT}, counted and not kept. */
+  /** Notes past either {@link NOTE_LIMIT}, counted and not kept. */
   readonly unnoted: number;
+  /**
+   * What each module held when it last ran, by module. A module runs once, when
+   * it loads, and the cases that go through it run after: a reset keeps these.
+   */
+  readonly held: ReadonlyMap<ModuleId, string>;
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
 }
 
@@ -96,14 +120,19 @@ interface Tap {
   read(): Tape;
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
-  /** Start the tape again, keeping what the realm registered. */
+  /** Ask the namers in `scope`'s kind array, as it holds them then, what each object is. */
+  nameIn(scope: object): void;
+  /** Start the tape again, keeping what the realm registered and the refs it gave. */
   reset(): void;
 }
 
 /** How many visits one tape holds before it stops taping. */
 const TAPE_LIMIT = 1 << 24;
 
-/** How many notes one tape keeps, and how many characters of each. */
+/**
+ * How many notes one tape keeps of what the code said, and as many again of
+ * what its regions were handed; and how many characters of each.
+ */
 const NOTE_LIMIT = 4096;
 const NOTE_LENGTH = 240;
 
@@ -136,8 +165,109 @@ function createTap(engine: Engine, limit: number): Tap {
   let seen = -1;
   let notes: [number, string, string][] = [];
   let unnoted = 0;
+  // How many notes each kind put on the tape: what a region was handed never
+  // crowds out what the code said, however hot the function.
+  let spoken = 0;
+  let handedOver = 0;
+  const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
+
+  // Every object a region handed over, by identity, for as long as the realm
+  // holds it: refs outlive a reset, so a module's bindings, held once when it
+  // ran, still name what a later case is handed.
+  const sightings = new WeakMap<object, { ref: string; kind?: string }>();
+  let refs = 0;
+  const describe = Function.prototype.toString;
+  const KIND = Symbol.for('variance-authority.story.kind');
+  let namers: { [KIND]?: unknown } | undefined;
+
+  // What the realm's frameworks call an object, from the first namer that
+  // answers. One that throws or answers anything but a word is passed over.
+  const named = (value: object): string | undefined => {
+    const asked = namers?.[KIND];
+    if (!Array.isArray(asked)) return undefined;
+    for (const namer of asked) {
+      if (typeof namer !== 'function') continue;
+      try {
+        const kind: unknown = namer(value);
+        if (typeof kind === 'string' && kind !== '') return kind;
+      } catch {
+        // A namer that cannot tell is not the story's failure.
+      }
+    }
+    return undefined;
+  };
+
+  // What an object is, in a word, read without running any of its code: no
+  // getter, no proxy trap past the first that throws, no `toString` of its own.
+  const kindOf = (value: object): string => {
+    const framed = named(value);
+    if (framed !== undefined) return framed;
+    try {
+      if (typeof value === 'function') {
+        const name = Object.getOwnPropertyDescriptor(value, 'name')?.value;
+        const named = typeof name === 'string' && name !== '' ? ` ${name}` : '';
+        return describe.call(value).startsWith('class') ? `class${named}` : `function${named}`;
+      }
+      if (Array.isArray(value)) return `Array(${value.length})`;
+      const prototype = Object.getPrototypeOf(value) as object | null;
+      if (prototype === null) return 'Object';
+      const made = Object.getOwnPropertyDescriptor(prototype, 'constructor')?.value;
+      const name = typeof made === 'function' ? Object.getOwnPropertyDescriptor(made, 'name')?.value : undefined;
+      return typeof name === 'string' && name !== '' ? name : 'Object';
+    } catch {
+      return 'Object';
+    }
+  };
+
+  const shown = (value: unknown): string => {
+    if (typeof value === 'string') {
+      const cut = value.length > 39 ? `${value.slice(0, 39)}…` : value;
+      // One note is one line: a string's own line breaks are spelled.
+      return `'${cut.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}'`;
+    }
+    if (typeof value === 'bigint') return `${value}n`;
+    if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return String(value);
+    let sighting = sightings.get(value);
+    if (sighting === undefined) {
+      refs += 1;
+      sighting = { ref: `ref${refs}` };
+      sightings.set(value, sighting);
+    }
+    // A function's kind is its source's first word and its name, which do not change.
+    if (typeof value !== 'function') return `${sighting.ref} ${kindOf(value)}`;
+    sighting.kind ??= kindOf(value);
+    return `${sighting.ref} ${sighting.kind}`;
+  };
+
+  const put = (text: string): string => {
+    const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
+    // Where an async scope decides the bucket, ask it, as a probe would
+    // before it writes: a note said in a case's continuation is the case's.
+    inner.s?.();
+    notes.push([taped, engine.current().key, line]);
+    return line;
+  };
+
+  // What a row's regions hand over: the names the walk wrote, and their values.
+  const handing =
+    (module: ModuleId) =>
+    (region: number, names: string, ...values: unknown[]): void => {
+      // Past the limit nothing is read: a hot function pays for a count.
+      if (handedOver >= NOTE_LIMIT) {
+        unnoted += 1;
+        return;
+      }
+      try {
+        const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
+        handedOver += 1;
+        if (region !== 0) put(`handed ${said.join(', ')}`);
+        else held.set(module, put(`holds ${said.join(', ')}`));
+      } catch {
+        // What the story could not say never reaches the code that said it.
+      }
+    };
 
   const record = (entry: number): void => {
     const activation = inner.a;
@@ -186,7 +316,7 @@ function createTap(engine: Engine, limit: number): Tap {
         rowCounts.push(count);
         rowBases.push(registered.b);
       }
-      return { f: registered.f, s: registered.s, b: registered.b, p: pass };
+      return { f: registered.f, s: registered.s, b: registered.b, p: pass, V: handing(id) };
     },
     e(): void {
       inner.e();
@@ -194,6 +324,16 @@ function createTap(engine: Engine, limit: number): Tap {
     },
     x(): void {
       inner.x();
+    },
+    // A module marked loaded is a visit to its own region, as the header's is.
+    m(id: ModuleId): void {
+      if (inner.s !== null) inner.s();
+      const { s: flags, b: base } = root.r(id, 1);
+      if ((flags[0]! & 2) === 0) {
+        flags[0] = flags[0]! | 2;
+        rooting = true;
+        root.g(base | -2147483648);
+      }
     },
     // A test line's cut is not a visit: the tape is what the code entered.
     c(line: number): void {
@@ -205,22 +345,24 @@ function createTap(engine: Engine, limit: number): Tap {
     root,
     engine,
     read() {
-      return { tape, taped, visits, at, keys, notes, unnoted, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+      return { tape, taped, visits, at, keys, notes, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
-      if (notes.length >= NOTE_LIMIT) {
+      if (spoken >= NOTE_LIMIT) {
         unnoted += 1;
         return;
       }
-      const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
-      // Where an async scope decides the bucket, ask it, as a probe would
-      // before it writes: a note said in a case's continuation is the case's.
-      inner.s?.();
-      notes.push([taped, engine.current().key, line]);
+      spoken += 1;
+      put(text);
+    },
+    nameIn(scope: object): void {
+      namers = scope as { [KIND]?: unknown };
     },
     reset(): void {
       notes = [];
       unnoted = 0;
+      spoken = 0;
+      handedOver = 0;
       taped = 0;
       visits = 0;
       at = [];
@@ -242,7 +384,8 @@ const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
 type Channel = (text: string) => void;
 
 /**
- * Have `scope`'s announcements, attention and console lines put on `tap`.
+ * Have `scope`'s announcements, attention and console lines put on `tap`,
+ * and its frameworks name the objects `tap` is handed.
  *
  * The channel is replaced on every call, so a realm that makes a second
  * collector notes onto the tap it uses now. The console is wrapped once: the
@@ -251,6 +394,7 @@ type Channel = (text: string) => void;
 function listen(tap: Tap, scope: object): void {
   const global = scope as { [NOTE]?: Channel; console?: Console };
   global[NOTE] = (text: string): void => tap.note(String(text));
+  tap.nameIn(scope);
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;
   Object.defineProperty(printer, NOTE, { value: true });

@@ -112,7 +112,7 @@ link or that reproduction's output.
 
 A fix made in this phase is reviewed before it is pushed, by the reviewers in
 [pull request](pull-request.md) its change concerns: fidelity on the diff it
-adds, description when the body changed, and direction when what the PR does
+adds, description when the body changed, and occam when what the PR does
 changed.
 
 **A CodeRabbit comment is a signal, not an instruction.** Classify each one

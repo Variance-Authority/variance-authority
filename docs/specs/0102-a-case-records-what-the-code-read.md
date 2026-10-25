@@ -24,7 +24,7 @@ default configuration or by another flag's case. Today the recording can say
 that a case entered the changed line, and nothing about the flag it ran under.
 
 Arrange and Act each hold half of the answer. A **precondition** is what the
-test *said*: `flags` set as `{ 'new-checkout': true }`. A **gate** is what the
+test *said*: `flags` set as `{ 'new-checkout': true }`. A **breadcrumb** is what the
 code *read*: `flags:new-checkout` was `true` when line 41 of `pay.ts` consulted it. Laid
 on the same case, beside the regions it entered, the two make the reading the
 rule needs:
@@ -33,7 +33,7 @@ rule needs:
 checkout/pay.ts  lines 41-58  (changed)
   pay › charges a new card   read flags:new-checkout=true   said true
   pay › retries on 502       read flags:new-checkout=true   said nothing
-  cart › totals              read nothing
+  cart › totals
 ```
 
 Variance does not judge the row. Whether `cart › totals` reaching new code with
@@ -49,8 +49,8 @@ arm, so every region it entered holds the same cases it held before, and
 and each of those cases read the flag on.
 
 That holds where the new arm is added beside old code the edit leaves alone. The
-usual shapes — `if (gate) { … } else { … }`, `gate ? next() : previous()`, an
-early `if (!gate) return previous()` — move the old code into the flag-off arm.
+usual shapes — `if (enabled) { … } else { … }`, `enabled ? next() : previous()`, an
+early `if (!enabled) return previous()` — move the old code into the flag-off arm.
 Whether a line that only moved or re-indented is a changed region is the change
 reading's rule, not this spec's; where it is, the cases that reach it read the
 flag `false`, and that is the expected reading, not a leak. The reader tells
@@ -63,12 +63,12 @@ Both take a **dimension** first:
 
 ```ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { varianceGate } from '@variance-authority/event';
+import { varianceBreadcrumb } from '@variance-authority/event';
 
 variancePrecondition('flags', flags);   // { 'new-checkout': true, … }, as the test hands it to its provider
 variancePrecondition('network', { upsell: 'mocked' });
 
-if (varianceGate('flags', 'new-checkout', flags['new-checkout'])) {
+if (varianceBreadcrumb('flags', 'new-checkout', flags['new-checkout'])) {
   // the new arm
 }
 ```
@@ -84,7 +84,7 @@ if (varianceGate('flags', 'new-checkout', flags['new-checkout'])) {
   system spells it with, dots and colons included. A said key and a read key
   join only when they are spelled the same. A dimension holding `:` makes
   `variancePrecondition` throw, naming the call site, as spec 0093's misuse
-  does; the gate's answer to it is below.
+  does; the breadcrumb's answer to it is below.
 - **A value is untyped.** It is recorded as the JSON text of what was passed, a
   JSON flag variant included. A value JSON cannot hold — a function, a cycle, a
   `bigint` — is recorded as its key, named unrecorded, never dropped.
@@ -93,7 +93,7 @@ if (varianceGate('flags', 'new-checkout', flags['new-checkout'])) {
   an inner `describe` over an outer one, two values at one level a
   contradiction. Passing the whole flag set the test configured is the intended
   shape.
-- **The gate takes one key and returns its value unchanged**, so it wraps a read
+- **The breadcrumb takes one key and returns its value unchanged**, so it wraps a read
   where the read already stands and changes nothing the code does. *Read
   nothing* is only as complete as the wrapping: a read nobody wrapped is
   silent. Wrapping the flag client's getter once records every read through it,
@@ -101,11 +101,15 @@ if (varianceGate('flags', 'new-checkout', flags['new-checkout'])) {
   costs a call per read and keeps the line that decided, a value the
   application cached after one evaluation included.
 
-The gate is called from application source, and that fixes three things the
+The breadcrumb is called from application source, and that fixes three things the
 precondition does not share:
 
-- **It never throws.** A misuse — a dimension with a `:` — is recorded on the
-  case and reported, and the value is returned. A recorder's failure is
+- **It never throws.** A misuse — a dimension or key that is not a non-empty
+  string, or a dimension with a `:` — is recorded on the case as a fact of its
+  own, the argument that was wrong and what it was given, at its site, apart
+  from what the code read, once per argument and value as a read is once per
+  key and value, and the value
+  is returned. A recorder's failure is
   swallowed, as the precondition's is.
 - **It imports nothing and costs one property read without a recording**,
   measured, because it runs in production builds. Like the precondition's
@@ -115,8 +119,8 @@ precondition does not share:
   whose calls already live in application source and ship with it, and whose
   one dependency is `@variance-authority/wire`. `@variance-authority/sense`
   brings a native addon per platform with it, which no product bundle should
-  depend on. A gate is not an announcement: `vae` carries no value by design,
-  and the value is the point of a gate. It shares the transport, not the
+  depend on. A breadcrumb is not an announcement: `vae` carries no value by design,
+  and the value is the point of a breadcrumb. It shares the transport, not the
   contract.
 
 ## Which case a read belongs to
@@ -136,20 +140,21 @@ precondition does not share:
   `describe` that declared it: a value built once there is the value each of
   those cases ran under.
 - **A read where no case is running after load** — an `afterAll`, a timer that
-  outlives its case — lands on no case. The gate cannot throw where the
+  outlives its case — lands on no case. The breadcrumb cannot throw where the
   precondition would, so the read is counted on its test file and reported with
   its site.
 - **One key read twice with one value** is recorded once. **One key read with two
   values** in one case keeps both, each with the site of its first read.
-- **Each read keeps its site**, the repository-relative `file:line` of the gate
-  call, taken only on the first read of a key and value in a case so that a flag
+- **Each read keeps its site**, the repository-relative `file:line` of the
+  breadcrumb call, taken only on the first read of a key and value in a case so that a flag
   read on every render costs a set lookup after the first.
 
 ## What is recorded
 
 On the case row of spec 0094, beside the preconditions: for each dimension the
 case read, its `(key, value, site)` reads, a value JSON cannot hold marked
-*unrecorded*, and each misuse of the gate with its site. On the test file: the
+*unrecorded*, and each misuse of the breadcrumb: the argument, the value it was
+given and its site. On the test file: the
 reads made *at load*, which every case of the file carries, and the count of
 reads made where no case was running, with their sites.
 
@@ -162,10 +167,12 @@ distinct facts, not with the cases; the size that adds to this repository's
 recording is measured and stated.
 
 Absent is not empty. A record made before this column existed answers
-**unmeasured**. A case from a recording that listened and read nothing answers
-*read nothing*.
+**unmeasured**. A case from a recording that listened and read nothing keeps an
+empty read: its case line prints nothing about reads, since in a codebase that
+leaves no breadcrumb that is every case, and a region's split counts it under
+`not by`.
 
-A gate, like a precondition, **never selects and never excludes** a test.
+A breadcrumb, like a precondition, **never selects and never excludes** a test.
 
 ## Where it is read
 
@@ -178,6 +185,9 @@ A gate, like a precondition, **never selects and never excludes** a test.
 - **`--read <dimension>[:<key>][=<value>]`** keeps the cases that read it, as
   `--where` keeps the cases that said it, with the same grammar. The two filters
   stay separate, because said and read are separate facts.
+- **A misused breadcrumb** prints after the reads, with its site and what was
+  wrong, and a region's split names it after the split by key, with the number
+  of cases that met it. No filter and no split counts it as a read.
 - **The handover `review --format handover` writes for a reviewer** carries the
   reads of every case it names on a changed region.
 
@@ -185,7 +195,7 @@ A gate, like a precondition, **never selects and never excludes** a test.
 
 - **SPLat** (Kim, Marinov, Khurshid, Batory, Souto, Barros and d'Amorim, FSE
   2013) records which configuration variables an execution reads and explores
-  only the configurations over those. The gate is SPLat's observation, kept as a
+  only the configurations over those. The breadcrumb is SPLat's observation, kept as a
   fact on the case rather than used to enumerate runs.
 - **Piranha** (Uber, ICSE SEIP 2020) declares the flag API in configuration so
   that a static rewrite finds every read. It is static only and answers flag
@@ -206,7 +216,7 @@ None of them joins what was read to the cases that entered a changed region.
 1. `variancePrecondition(dimension, record)`, with the one-argument form deleted
    and every caller in the repository and its examples moved; values recorded as
    JSON text; a dimension holding `:` refused.
-2. `varianceGate` in `@variance-authority/event`: returns its value, never
+2. `varianceBreadcrumb` in `@variance-authority/event`: returns its value, never
    throws, the no-recording call measured as one property read, misuse recorded
    on the case.
 3. The recording side under Vitest, Jest and Rstest through the case scope, in
@@ -225,7 +235,7 @@ None of them joins what was read to the cases that entered a changed region.
    into the flag-off arm by an `else`, a ternary and an early return, each with
    the output it is expected to print.
 
-Items 1 and 2, item 3 under Vitest in Node and item 5 for `review` land first,
+Items 1 and 2, item 3 under Vitest, Jest and Rstest in Node and item 5 for `review` land first,
 end to end; the other runners and readings follow.
 
 ## Open
@@ -234,15 +244,9 @@ end to end; the other runners and readings follow.
   case through the journey's trace context
   ([spec 0036](0036-a-journey-crosses-processes.md)); nothing carries it there
   yet.
-- **The twin of spec 0093** reads a precondition against a `names.axes` axis, and
-  an axis is named by one word with a closed vocabulary. A name is now a
-  `(dimension, key)` pair with an untyped value, so the twin needs an axis that
-  names a pair and a value spelled as the case said it. Until that is settled,
-  no precondition is read against an axis: `--where` filters by its grammar
-  alone, and no twin is printed.
 - **The site of a read in a page** is a bundled location. Turning it into a
   repository file needs the bundle's source map; what is recorded without one
   is open.
 - **Skipping a flag-off case** in selection, rather than running it and reading
   that it did not move, would need a static proof that the change is guarded by
-  the gate. It is not part of this spec.
+  the flag. It is not part of this spec.

@@ -1,62 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
+import { index, ran, read } from './__fixtures__/case-indexes.js';
+import { layerCaseIndex } from './case-layer.js';
 import { caseMotion } from './case-motion.js';
 import type { Said } from './case-said.js';
 import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { NO_OWNER } from './format-layout.js';
-import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
-import { repinnedCases } from './milestone-repin.js';
-
-/** A region, the cases that called it by id, and whether it ran at load. */
-type Region = readonly [name: string, callers: readonly string[], loaded?: boolean, kind?: string];
-
-/**
- * Spell a case index the way a fold writes one, from cases and the regions
- * they called, and what each case said it arranged where `said` names it.
- */
-function index(
-  cases: readonly string[],
-  modules: Record<string, readonly Region[]>,
-  said: (id: string) => Said | undefined = () => undefined,
-): Buffer {
-  const tests = cases.map((id) => {
-    const held = said(id);
-    return { id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]!, ...(held === undefined ? {} : { said: held }) };
-  });
-  const sets = new CrossingSets(tests.length);
-  sets.intern([]);
-  const at = new Map(cases.map((id, position) => [id, position]));
-  const spelled: SetExecutionModule[] = Object.entries(modules).map(([file, regions]) => ({
-    file,
-    blocks: regions.map(([name, , , kind = 'function'], line) => ({
-      kind, name, path: name, startLine: line + 1, endLine: line + 1, source: true,
-    })),
-    called: Uint32Array.from(regions, ([, callers]) => sets.intern(callers.map((id) => at.get(id)!))),
-    loaded: Uint8Array.from(regions, ([, , loaded]) => (loaded ? 1 : 0)),
-  }));
-  return encodeSetExecutionIndex({ tests, modules: spelled, sets: sets.pool() });
-}
-
-/** Read an index back as the cases each region names, by file and region name. */
-function read(bytes: Uint8Array): { cases: string[]; regions: Record<string, Record<string, string[]>> } {
-  const decoded = decodeExecutionIndex(bytes);
-  return {
-    cases: decoded.tests.map((test) => test.id),
-    regions: Object.fromEntries(decoded.modules.map((module) => [
-      module.file,
-      Object.fromEntries(module.blocks.map((block) => [
-        `${block.name}${block.loaded ? ' (loaded)' : ''}`,
-        block.crossings.map((crossing) => decoded.tests[crossing.test]!.id),
-      ])),
-    ])),
-  };
-}
-
-function ran(files: readonly string[], finished: readonly string[] = files, absent: readonly string[] = []): CaseRunFiles {
-  return { ran: new Set(files), finished: new Set(finished), present: (file) => !absent.includes(file) };
-}
+import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 
 const suite = index(
   ['a.test.ts > one', 'a.test.ts > two', 'b.test.ts > three'],
@@ -187,7 +137,7 @@ describe('layerCaseIndex', () => {
     const decoded = (untouched: number): number => {
       const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
       // Each case says it in its own body, so no two share a spelling.
-      const said = (id: string): Said => JSON.stringify([['flag', id, `kept.test.ts:${kept.indexOf(id) + 2}`, 65535]]);
+      const said = (id: string): Said => JSON.stringify({ said: [['fixture:flag', JSON.stringify(id), `kept.test.ts:${kept.indexOf(id) + 2}`, 65535]] });
       const held = index([...kept, 'a.test.ts > one'], {
         'src/shared.ts': [['entry', ['a.test.ts > one', ...kept]]],
       }, said);
@@ -324,6 +274,26 @@ describe('a module the index holds at an older text than the snapshot', () => {
     expect(unlined).toBeUndefined();
   });
 
+  it('lands a held callback on neither sibling when a comment on its own line leaves its lines nothing to match, and keeps the rest', () => {
+    const other = 'other.test.ts > keeps';
+    const [filter, map] = ['changelogOf/filter.arg0', 'changelogOf/map.arg0'];
+    const lacking = cutAt([one, other], 'src/changelog.ts', [[273, [one, other], filter], [283, [one, other], map]]);
+    const whole = cutAt([one], 'src/changelog.ts', [[273, [one], filter], [276, [], map], [283, [one], map]]);
+    // A comment written on the second callback's own line: nothing that runs moved.
+    const comment = { hunks: [{ oldStart: 283, oldCount: 1, newStart: 283, newCount: 1 }], reading: 'none' as const };
+
+    const { merged } = layerCaseIndex(lacking, whole, { ...ran(['blocks.test.ts']), edit: () => comment });
+
+    // The index holds `map` once and the run twice, so the address names neither.
+    const regions = decodeExecutionIndex(merged).modules[0]!.blocks;
+    const tests = decodeExecutionIndex(merged).tests;
+    expect(regions.map((block) => [block.startLine, block.crossings.map((crossing) => tests[crossing.test]!.id)])).toEqual([
+      [273, [one, other]],
+      [276, []],
+      [283, [one]],
+    ]);
+  });
+
   it('names a module unlined when a held callback finds no sibling at its lines in a cut that lacks one', () => {
     const other = 'other.test.ts > keeps';
     const map = 'changelogOf/map.arg0';
@@ -351,145 +321,3 @@ describe('a module the index holds at an older text than the snapshot', () => {
 function linesOf(layer: Uint8Array | undefined): number[] {
   return decodeExecutionIndex(layer!).modules[0]!.blocks.map((block) => block.startLine);
 }
-
-/** A region with its lines: kind, name, first and last line, the cases that called it, and whether it ran while the module loaded. */
-type Nested = readonly [kind: string, name: string, lines: readonly [number, number], callers: readonly string[], loaded?: boolean];
-
-/**
- * One module cut into regions that nest, as a function's resumptions sit in its
- * continuation. A region's owner is the one whose path its own extends by one
- * step, the region around it the cut recorded; the outermost has none.
- */
-function nestedAt(cases: readonly string[], file: string, regions: readonly Nested[]): Buffer {
-  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
-  const sets = new CrossingSets(tests.length);
-  sets.intern([]);
-  const at = new Map(cases.map((id, position) => [id, position]));
-  const named = new Map(regions.map(([, name], position) => [name, position]));
-  const ownerOf = (name: string): number =>
-    name === '' ? NO_OWNER : named.get(name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : '')!;
-  const module: SetExecutionModule = {
-    file,
-    blocks: regions.map(([kind, name, [startLine, endLine]]) => ({ kind, name, path: name, startLine, endLine, source: true })),
-    called: Uint32Array.from(regions, ([, , , callers]) => sets.intern(callers.map((id) => at.get(id)!))),
-    loaded: Uint8Array.from(regions, ([, , , , loaded]) => (loaded ? 1 : 0)),
-    owner: Uint32Array.from(regions, ([, name]) => ownerOf(name)),
-  };
-  return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
-}
-
-describe('a module the run cut into more regions than the index holds', () => {
-  const [observe, parity, run] = ['observe.test.ts > reads', 'parity.test.ts > agrees', 'run.test.ts > runs'];
-  // The index holds the cut a source build gives; the run loaded only the
-  // dist build of the same text, which cuts a resumption inside the
-  // continuation, and one inside that, the source build never cut.
-  const held = nestedAt([observe, parity, run], 'src/durable.ts', [
-    ['module', '', [1, 40], [observe, parity, run]],
-    ['function', 'put', [5, 30], [observe, parity, run]],
-    ['continuation', 'put/continuation', [10, 29], [observe, parity]],
-    ['resume', 'put/continuation/resume', [29, 29], [observe]],
-  ]);
-  const fresh = nestedAt([run], 'src/durable.ts', [
-    ['module', '', [1, 40], [run]],
-    ['function', 'put', [5, 30], [run]],
-    ['continuation', 'put/continuation', [10, 29], []],
-    ['resume', 'put/continuation/born', [12, 16], []],
-    ['resume', 'put/continuation/born/inner', [14, 15], []],
-    ['resume', 'put/continuation/resume', [29, 29], []],
-  ]);
-
-  it('carries the cases of the region around a newly cut one onto it, as the rows take crossings from the region around', () => {
-    const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: () => true });
-
-    expect(read(merged).regions['src/durable.ts']).toEqual({
-      '': [observe, parity, run],
-      put: [observe, parity, run],
-      'put/continuation': [observe, parity],
-      'put/continuation/born': [observe, parity],
-      'put/continuation/born/inner': [observe, parity],
-      'put/continuation/resume': [observe],
-    });
-  });
-
-  it('carries the load flag of the region around a newly cut one with its cases, as the rows carry `loadedBy` with `testFiles`', () => {
-    const loadedHeld = nestedAt([observe, run], 'src/durable.ts', [
-      ['module', '', [1, 40], [observe, run], true],
-    ]);
-    const loadedFresh = nestedAt([run], 'src/durable.ts', [
-      ['module', '', [1, 40], [run], true],
-      ['function', 'helper', [32, 38], []],
-    ]);
-    const { merged } = layerCaseIndex(loadedHeld, loadedFresh, { ...ran(['run.test.ts']), sameText: () => true });
-
-    expect(read(merged).regions['src/durable.ts']).toEqual({
-      ' (loaded)': [observe, run],
-      'helper (loaded)': [observe],
-    });
-  });
-
-  it('carries the cases of its owner onto a one-line region born on the line a sibling ends, not the sibling\'s', () => {
-    // A branch on a sibling's last line sits inside the sibling's lines too;
-    // the cut says it is the function's, and the rows take the function's crossings.
-    const siblingHeld = nestedAt([observe, parity, run], 'src/durable.ts', [
-      ['module', '', [1, 40], [observe, parity, run]],
-      ['function', 'put', [5, 30], [observe, parity, run]],
-      ['continuation', 'put/first', [6, 12], [observe]],
-    ]);
-    const siblingFresh = nestedAt([run], 'src/durable.ts', [
-      ['module', '', [1, 40], [run]],
-      ['function', 'put', [5, 30], [run]],
-      ['continuation', 'put/first', [6, 12], []],
-      ['branch', 'put/branch', [12, 12], []],
-    ]);
-    const { merged } = layerCaseIndex(siblingHeld, siblingFresh, { ...ran(['run.test.ts']), sameText: () => true });
-
-    expect(read(merged).regions['src/durable.ts']).toEqual({
-      '': [observe, parity, run],
-      put: [observe, parity, run],
-      'put/first': [observe],
-      'put/branch': [observe, parity],
-    });
-  });
-
-  it('carries the cases of the region around a newly cut one onto it when a repin lays the checkout\'s cases over a newer milestone', () => {
-    const repinned = repinnedCases(held, fresh, new Set(['run.test.ts']));
-
-    expect(read(repinned!).regions['src/durable.ts']).toMatchObject({
-      'put/continuation/born': [observe, parity],
-      'put/continuation/born/inner': [observe, parity],
-    });
-  });
-
-  it('keeps the owners the run recorded, so a landing that lays its shard\'s index again walks them too', () => {
-    const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: () => true });
-
-    expect(openSetExecutionIndex(merged)!.modules[0]!.owner).toEqual(openSetExecutionIndex(fresh)!.modules[0]!.owner);
-  });
-
-  it('moves no case when a run lays one cut, another, and the first again, so a region\'s inherited cases never read as lost or thinned', () => {
-    const again = nestedAt([run], 'src/durable.ts', [
-      ['module', '', [1, 40], [run]],
-      ['function', 'put', [5, 30], [run]],
-      ['continuation', 'put/continuation', [10, 29], []],
-      ['resume', 'put/continuation/resume', [29, 29], []],
-    ]);
-    const lay = (previous: Uint8Array, cut: Uint8Array) =>
-      layerCaseIndex(previous, cut, { ...ran(['run.test.ts']), sameText: () => true }).merged;
-    const first = lay(held, again);
-    const second = lay(first, fresh);
-    const third = lay(second, again);
-    const moved = (base: Uint8Array, now: Uint8Array) =>
-      caseMotion(decodeExecutionIndex(base), decodeExecutionIndex(now), { diff: new Map() }).regions;
-
-    expect(read(second).regions['src/durable.ts']!['put/continuation/born']).toEqual([observe, parity]);
-    expect([moved(first, second), moved(second, third), moved(first, third)]).toEqual([[], [], []]);
-  });
-
-  it('keeps the owners of a module the run did not record, as the index stored them', () => {
-    const elsewhere = index([run], { 'src/elsewhere.ts': [['', [run]]] });
-    const { merged } = layerCaseIndex(held, elsewhere, ran(['run.test.ts']));
-
-    const kept = openSetExecutionIndex(merged)!.modules.find((module) => module.file === 'src/durable.ts');
-    expect(kept!.owner).toEqual(openSetExecutionIndex(held)!.modules[0]!.owner);
-  });
-});

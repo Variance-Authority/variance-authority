@@ -127,6 +127,10 @@ const PACKAGES: {
         name: "ioc",
         role: "module-level state that outlives the test that wrote it, reset by the module that owns it on the runner's schedule — wiring a test run drives and a production build ignores",
       },
+      {
+        name: "isolator",
+        role: "the same reset without a handler: an experimental build transform that gives a module's mutable state one value per test, request or run",
+      },
     ],
   },
   {

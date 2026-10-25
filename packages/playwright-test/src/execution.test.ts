@@ -421,9 +421,9 @@ describe('a worker that is one of several', () => {
 
       let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, pays.id), depth: 1 };
       const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
-      variancePrecondition({ network: 'live' });
+      variancePrecondition('fixture', { network: 'live' });
       standing = { at: 'case', key: caseKey(owner, pays.id) };
-      variancePrecondition({ network: 'mocked' });
+      variancePrecondition('fixture', { network: 'mocked' });
       await recorder.note(
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
         owner,
@@ -431,13 +431,13 @@ describe('a worker that is one of several', () => {
       );
       recorder.mark(owner, true, pays);
       standing = { at: 'case', key: caseKey(owner, refunds.id) };
-      variancePrecondition({ seeded: true });
+      variancePrecondition('fixture', { seeded: true });
       recorder.mark(owner, true, refunds);
       await recorder.close();
 
       const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((one) => [one.name, rowOf(one)?.map(({ name, value, level }) => [name, value, level])]))
-        .toEqual([['pays', [['network', 'mocked', 0xffff]]], ['refunds', [['seeded', true, 0xffff]]]]);
+        .toEqual([['pays', [['fixture:network', 'mocked', 0xffff]]], ['refunds', [['fixture:seeded', true, 0xffff]]]]);
       expect(rowOf(index.tests[0]!)![0]!.site).toMatch(/execution\.test\.ts:\d+$/);
     });
   });

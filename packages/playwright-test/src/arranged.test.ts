@@ -92,9 +92,9 @@ describe('snapshotCaseOf', () => {
       let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, 'one'), depth: 1 };
       const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
 
-      variancePrecondition({ network: 'live' });
+      variancePrecondition('fixture', { network: 'live' });
       standing = { at: 'case', key: caseKey(owner, 'one') };
-      variancePrecondition({ network: 'mocked' });
+      variancePrecondition('fixture', { network: 'mocked' });
 
       const taken = snapshotCaseOf(pays, recorder);
       expect({ ...taken, preconditions: lines(taken) }).toEqual({
@@ -103,16 +103,16 @@ describe('snapshotCaseOf', () => {
         id: 'one',
         project: 'chromium',
         // The body's call overrides the beforeEach's, as it does on the row.
-        preconditions: [['network', 'mocked', 0xffff]],
+        preconditions: [['fixture:network', 'mocked', 0xffff]],
       });
       expect(taken.preconditions![0]!.site).toMatch(/arranged\.test\.ts:\d+$/);
       // Another case of the same file has said nothing.
       expect(snapshotCaseOf(refunds, recorder).preconditions).toEqual([]);
 
       // Said after the snapshot: on the next view and on the row, not on the one taken.
-      variancePrecondition({ seeded: true });
+      variancePrecondition('fixture', { seeded: true });
       expect(lines(taken)).toHaveLength(1);
-      expect(lines(snapshotCaseOf(pays, recorder))).toEqual([['network', 'mocked', 0xffff], ['seeded', true, 0xffff]]);
+      expect(lines(snapshotCaseOf(pays, recorder))).toEqual([['fixture:network', 'mocked', 0xffff], ['fixture:seeded', true, 0xffff]]);
 
       // Reading what a case holds leaves it in place for the row.
       const drained = {
@@ -123,7 +123,7 @@ describe('snapshotCaseOf', () => {
       await recorder.close();
       const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((one) => [one.name, rowOf(one)?.map(({ name, value }) => [name, value])]))
-        .toEqual([['mocked > pays', [['network', 'mocked'], ['seeded', true]]]]);
+        .toEqual([['mocked > pays', [['fixture:network', 'mocked'], ['fixture:seeded', true]]]]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

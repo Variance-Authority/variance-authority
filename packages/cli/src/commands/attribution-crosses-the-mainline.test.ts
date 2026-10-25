@@ -42,8 +42,8 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
-const MOCKED = { name: 'network', value: 'mocked', site: 'test/total.test.ts:2', level: 1 };
-const SAID: ExecutionTest = { ...DISCOUNTS, said: JSON.stringify([[MOCKED.name, MOCKED.value, MOCKED.site, MOCKED.level]]) };
+const MOCKED = { name: 'network:api', value: 'mocked', site: 'test/total.test.ts:2', level: 1 };
+const SAID: ExecutionTest = { ...DISCOUNTS, said: JSON.stringify({ said: [[MOCKED.name, JSON.stringify(MOCKED.value), MOCKED.site, MOCKED.level]] }) };
 const JOURNAL = { complete: true, attention: [], by: 'ci' };
 const EYES = { watched: [SAID.id], journals: [{ case: SAID.id, attempt: 1, journal: JOURNAL }] };
 
@@ -96,7 +96,7 @@ describe('a record laid from the mainline', () => {
 
     process.chdir(clone);
     const at = ['--file', 'src/total.ts', '--line', '2', '--root', clone, '--execution', laid];
-    expect((await coveringOf([...at, '--where', 'network=mocked'])).tests).toEqual([{ ...SAID, distance: 0 }]);
-    expect((await coveringOf([...at, '--where', 'network=live'])).tests).toEqual([]);
+    expect((await coveringOf([...at, '--where', 'network:api=mocked'])).tests).toEqual([{ ...SAID, distance: 0 }]);
+    expect((await coveringOf([...at, '--where', 'network:api=live'])).tests).toEqual([]);
   });
 });

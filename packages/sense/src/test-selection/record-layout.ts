@@ -37,6 +37,13 @@ export interface RecordLayout {
     readonly parts: readonly (readonly [string, string])[];
     /** A kind's position is the byte `blocks.kind` holds for it; the list is append-only. */
     readonly blockKinds: readonly BlockKind[];
+    /**
+     * The kinds of region each reading of an edit leaves running as they ran:
+     * `none` changes nothing that runs, and `bodies` only what runs when a
+     * function is called, so the module's own region runs as it did. A reading
+     * absent here, `load` or none at all, spares nothing.
+     */
+    readonly spared: { readonly none: readonly BlockKind[]; readonly bodies: readonly BlockKind[] };
   };
   readonly sets: { readonly list: number; readonly bits: number; readonly runs: number; readonly narrow: number };
   readonly cases: {

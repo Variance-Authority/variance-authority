@@ -48,6 +48,8 @@ packages/react/browser-check/www/bundle.js
 .claude/worktrees/
 docker/results/
 storybook-static/
+# What wrangler keeps beside a descriptor it deployed: local state and a cache.
+.wrangler/
 
 # What tribunal's stories draw: recorded from the service by
 # `yarn workspace @variance-authority/tribunal stories:record`, which the

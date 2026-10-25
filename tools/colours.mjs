@@ -80,6 +80,7 @@ export const COLOURS = {
   '@variance-authority/help': 'mixed',
   '@variance-authority/history': 'none',
   '@variance-authority/ioc': 'none',
+  '@variance-authority/isolator': 'none',
   '@variance-authority/jsx-source': 'react',
   '@variance-authority/mcp': 'mixed',
   '@variance-authority/observe': 'none',

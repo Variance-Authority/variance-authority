@@ -57,7 +57,7 @@ describe('variance ask symbol says what is true of a name', () => {
       expect(code).toBe(EXIT_CLEAN);
       expect(out).toContain('a member of `Scanner`, declared at packages/lib/src/native.ts:2');
       expect(out).toContain(
-        "docs_uses names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
+        "`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.",
       );
       expect(out).not.toContain('Members are read');
       expect(out).not.toContain('lexicon');
@@ -82,7 +82,7 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(out).not.toMatch(/^variance: the dependency lexicon is not published/m);
     expect(out).toContain('No file in this workspace declares `nowhereWritten`, at its top level or as a member.');
     expect(out).toContain(
-      'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and `variance index` publishes it.',
+      'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.',
     );
   });
 

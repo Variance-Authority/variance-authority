@@ -10,9 +10,19 @@
     "count": 1
   },
   {
+    "colour": "react",
+    "at": "packages/isolator/src/react.ts",
+    "count": 1
+  },
+  {
     "colour": "jest",
     "at": "packages/sense/src/test-selection/jest-setup.cts",
     "count": 4
+  },
+  {
+    "colour": "jest",
+    "at": "packages/sense/src/test-selection/jest-trace-environment.cts",
+    "count": 1
   },
   {
     "colour": "vitest",

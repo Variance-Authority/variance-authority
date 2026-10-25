@@ -151,6 +151,12 @@
             "$ref": "#/$defs/before",
             "description": "What this suite rests on before any of its tests imports anything: its runner config, and the setup files that config loads. Each entry is walked down the file graph, and a change to any file or package it reaches runs the whole suite. Without it, nothing is before this suite's reach."
           },
+          "ignore": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Globs, from the repository root and matching dotfiles, of changed files whose regions, import and asset edges and before select none of this suite's tests; a `!` glob takes a file back out. A test that declares a matching file, as a precondition or through a `/// <depends>`, still runs, and the selection names the file as ignored. A unit suite under jsdom paints nothing, so it can ignore stylesheets and images. Without it, nothing is ignored."
+          },
           "precision": {
             "enum": ["file", "symbol", "file-use", "function-use", "region-use"],
             "description": "How precisely selection decides which of this suite's tests to skip, coarsest first. file runs every recorded test that imports a changed file, directly or through other files. symbol walks the same graph through only the importers of the exports a change moved. Both also run every test file-use runs, so each step runs every test a finer step runs. file-use runs every test that loaded a changed file, function-use every test that entered the function a changed line is in, and region-use every test that entered the region a changed line is in. Without it, region-use. Nothing is recorded differently at any step. file and symbol read the import graph, so a suite that sets relations to false cannot declare them."

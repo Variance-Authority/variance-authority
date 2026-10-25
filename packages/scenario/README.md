@@ -5,6 +5,7 @@
 > Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

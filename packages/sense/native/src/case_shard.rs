@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::case_id;
 use crate::case_said;
+use crate::crossing_sets::{decode_set, set_slice};
 use crate::journey_columns::{self, Decoded};
 use crate::journey_format::{self, Gaps};
 use crate::journey_journal::Test;
@@ -77,7 +78,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
             project: projects.as_ref().map(|column| column[at]).filter(|word| *word != case_id::UNNAMED).map(|word| string(&strings, word).map(str::to_owned)).transpose()?,
             runner: runners.as_ref().map(|column| string(&strings, column[at]).map(str::to_owned)).transpose()?,
             settled: settled[at],
-            said: None,
+            heard: None,
         }))
         .collect::<Result<_, String>>()?;
     let no_duration = LAYOUT.coverage.no_duration;
@@ -97,10 +98,14 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     };
     let set_bytes = decoded.bytes("sets.blob")?;
     let set_offsets = decoded.words("sets.off")?;
-    if decoded.has(case_said::SECTION) {
+    let section = |name: &str| if decoded.has(name) { decoded.bytes(name).map(Some) } else { Ok(None) };
+    let [said, read, misused] = case_said::SECTIONS.map(section);
+    let [said, read, misused] = [said?, read?, misused?];
+    if said.is_some() || read.is_some() || misused.is_some() {
         let members = |set| decode_set(set_slice(&set_bytes, &set_offsets, set)?, count);
-        for (test, said) in tests.iter_mut().zip(case_said::read(&decoded.bytes(case_said::SECTION)?, count, members)?) {
-            test.said = said;
+        let sections = [said.as_deref(), read.as_deref(), misused.as_deref()];
+        for (test, heard) in tests.iter_mut().zip(case_said::read(sections, count, members)?) {
+            test.heard = heard;
         }
     }
     let module_files = decoded.words("modules.file")?;
@@ -216,72 +221,6 @@ pub(crate) fn string(strings: &[String], id: u32) -> Result<&str, String> {
         .get(id as usize)
         .map(String::as_str)
         .ok_or_else(|| format!("journey string id {id} is out of bounds"))
-}
-
-/// The stored bytes of set `set` in a pool.
-pub(crate) fn set_slice<'a>(bytes: &'a [u8], offsets: &[u32], set: u32) -> Result<&'a [u8], String> {
-    let at = set as usize;
-    let missing = || format!("journey set id {set} is out of bounds");
-    let from = *offsets.get(at).ok_or_else(missing)? as usize;
-    let to = *offsets.get(at + 1).ok_or_else(missing)? as usize;
-    if to < from || to > bytes.len() {
-        return Err("journey set bounds are invalid".to_owned());
-    }
-    Ok(&bytes[from..to])
-}
-
-/// The members of one stored set over `tests` tests, in the order stored.
-/// Every member is checked against `tests` before it is held, so a set costs
-/// what its bytes cost whatever it states.
-pub(crate) fn decode_set(bytes: &[u8], tests: usize) -> Result<Vec<u32>, String> {
-    let (&kind, body) = bytes
-        .split_first()
-        .ok_or_else(|| "journey set is empty".to_owned())?;
-    let sets = &LAYOUT.sets;
-    let width = sets.width(tests);
-    let number = |bytes: &[u8]| -> u32 {
-        if width == 2 {
-            u32::from(u16::from_le_bytes([bytes[0], bytes[1]]))
-        } else {
-            u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
-        }
-    };
-    let missing = || "journey set names a missing test".to_owned();
-    if kind == sets.list && body.len() % width == 0 {
-        let members: Vec<u32> = body.chunks_exact(width).map(number).collect();
-        if members.iter().any(|member| *member as usize >= tests) {
-            return Err(missing());
-        }
-        return Ok(members);
-    }
-    if kind == sets.bits && body.len() == tests.div_ceil(32) * 4 {
-        let mut found = Vec::new();
-        for (word_at, bytes) in body.chunks_exact(4).enumerate() {
-            let mut word = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
-            while word != 0 {
-                let member = (word_at as u32) * 32 + word.trailing_zeros();
-                if member as usize >= tests {
-                    return Err(missing());
-                }
-                found.push(member);
-                word &= word - 1;
-            }
-        }
-        return Ok(found);
-    }
-    if kind == sets.runs && body.len() % (width * 2) == 0 {
-        let mut found = Vec::new();
-        for run in body.chunks_exact(width * 2) {
-            let first = u64::from(number(run));
-            let length = u64::from(number(&run[width..]));
-            if first + length > tests as u64 {
-                return Err(missing());
-            }
-            found.extend(first as u32..(first + length) as u32);
-        }
-        return Ok(found);
-    }
-    Err("journey set has an invalid encoding".to_owned())
 }
 
 /// One case's lines with its modules named by `rows[module]`, their rows in

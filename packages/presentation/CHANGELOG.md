@@ -1,5 +1,51 @@
 # @variance-authority/presentation
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.16.0
+
+### Minor Changes
+
+- 009b089: A presentation signal with one side missing is `changed`, not `incomparable`.
+
+  A side with no presentation reading, or a reading with no layout findings, now
+  gives `verdict: 'changed'` with a `because` that names that side and no effects.
+  This is the rule ADR-0090 already applies to one-sided accessibility evidence.
+  The signal still changes no subject's verdict.
+
+  `presentationSignal` returns `undefined` when neither side was measured, with
+  no reading or no layout findings on both sides, so the member stays absent
+  rather than holding a signal about nothing.
+  `PresentationSignalRecord` no longer has an `incomparable` variant: tell a
+  one-sided record from a compared one by `'because' in signal`. A run-report
+  file whose presentation signal says `incomparable` is refused when read.
+- 85e4e01: `sensePresentation` rejects a subject whose React Suspense boundary is still
+  pending when the `suspense.timeoutMs` bound is reached, and names the subject.
+  It used to sense the fallback as the presentation. A subject that is its
+  loading state passes `loading: true`, and its fallback is sensed on purpose.
+
 ## 0.15.0
 
 ### Minor Changes

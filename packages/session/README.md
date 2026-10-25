@@ -5,6 +5,7 @@
 > Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

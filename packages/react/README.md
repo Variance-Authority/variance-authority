@@ -5,6 +5,7 @@
 > Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What you get
 
@@ -230,6 +231,25 @@ The options are caller policy rather than hidden defaults:
 | `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, `interval` controls polling; a timeout returns `settled: false` with the restless component names |
 | `awaitSuspense` | `timeoutMs`, `pollMs` and `confirmations`, as above |
 | `walkFiberSubtree` | `limit` caps the fibers one read-only walk visits, 500,000 by default; at the limit the walk returns `truncated: true` rather than a short answer that looks complete |
+
+## Name React objects in a test story
+
+A [test story](https://variance-authority.dev/docs/test-stories) shows each
+object a function was handed as a ref and a kind. Without help, a context, a
+memo and an element are each `Object`, because that is their constructor. Add
+this package's `story` entry to your suite's setup files, and the story names
+each by the `$$typeof` mark React gave it — `react.context`, `react.memo`,
+`react.forward_ref`:
+
+```ts
+// vitest.config.ts
+export default defineConfig({
+  test: { setupFiles: ['@variance-authority/react/story'] },
+});
+```
+
+In Jest the same entry goes in `setupFiles`. It reads the mark as a property
+and runs none of React's code.
 
 ## Where the source location comes from
 

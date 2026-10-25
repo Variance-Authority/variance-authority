@@ -162,16 +162,23 @@ export interface RegionTally {
 /**
  * The parts one suite's change in `run` is made of, between two of its records.
  *
- * `now.run − base.run` is `gained − lost − hidden + written.run − deleted.run +
- * arrived.run − departed.run`, and `now.regions − base.regions` is the same sum
- * over `regions`. `thinned` changes no count and is here because the motion
- * names it.
+ * `now.run − base.run` is `gained − lost − hidden − unmeasured + written.run −
+ * deleted.run + arrived.run − departed.run`, and `now.regions − base.regions` is
+ * the same sum over `regions`. `thinned` changes no count and is here because
+ * the motion names it.
  */
 export interface SuiteChange {
   readonly gained: number;
   readonly lost: number;
   readonly hidden: number;
   readonly thinned: number;
+  /**
+   * Regions run at the base that no case is recorded running now, where a case
+   * that ran one last ran before an edit to its file and the record carried it
+   * over the edit without it ({@link CaseMotion.unmeasured}): whether it still
+   * runs there was not measured.
+   */
+  readonly unmeasured: number;
   /** Regions only the current record holds, in modules both records hold. */
   readonly written: RegionTally;
   /** Regions only the base holds, in modules both records hold. */
@@ -189,7 +196,7 @@ export interface SuiteChange {
  * through the diff between the texts the two were recorded over, as the motion
  * pairs them.
  */
-export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, options: Pick<CaseMotionOptions, 'diff'>): SuiteChange {
+export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, options: Pick<CaseMotionOptions, 'diff' | 'stands'>): SuiteChange {
   const motion = caseMotion(base, now, options);
   const current = new Map(now.modules.map((module) => [module.file, module]));
   const held = new Set(base.modules.map((module) => module.file));
@@ -230,6 +237,7 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
     lost: motion.counts.lost,
     hidden: motion.counts.hidden,
     thinned: motion.counts.thinned,
+    unmeasured: (motion.unmeasured ?? []).filter((region) => region.now.length === 0).length,
     written,
     deleted,
     arrived: { ...arrived, files: arrived.files.sort() },

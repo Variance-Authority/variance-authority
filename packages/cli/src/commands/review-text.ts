@@ -18,7 +18,7 @@ import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
 import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
-import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
+import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';
@@ -37,7 +37,7 @@ const EDITS = [
   ['load', 'what the module loads'],
 ] as const;
 
-/** Each answer in a few words, for a line that names a place: the handover's breadcrumbs. */
+/** Each answer in a few words, for a line that names a place: the handover's pointers. */
 export const REACH_WORD: Readonly<Record<Reach, string>> = {
   near: 'near',
   far: 'far',
@@ -95,7 +95,7 @@ function text(review: Review): string {
   lines.push(...motionText(review.motion));
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
-      region.name === '' ? region.kind : `${region.kind} ${region.name}`
+      regionKind(region)
     } — ${REACH_TEXT[region.reach]} (${editText(file.file, region)})`));
   if (detail.length > 0) lines.push('', 'Regions not covered by a test one import away:', ...detail);
   for (const reading of review.coverage ?? []) {
@@ -230,15 +230,15 @@ function lostMarkdown(review: Review, code: (value: string) => string): readonly
   const moved = review.motion?.moved;
   const unwritten = review.motion?.unwritten?.length ?? 0;
   const at = runsAt(review, code);
+  const there = review.runs?.commit === undefined ? 'in them' : 'there';
+  const files = unwritten === 1 ? `the one test file run ${there}` : `the ${unwritten} test files run ${there}`;
+  const notWritten = unwritten === 0 ? [] : [`No case index was written ${at} for ${files}, so no case is compared against the base.`];
+  if (review.motion?.undiffed !== undefined) return ['', `No case is compared against the base: ${review.motion.undiffed}`, ...notWritten];
+  // A record whose last run does not read says nothing of which files a run wrote, so no file is named unwritten beside it.
   if (review.motion?.lastRunUnread !== undefined) {
     return ['', `Which test files a run ${at} wrote to the case index could not be read, so no case is compared against the base.`];
   }
-  if (moved === undefined) {
-    if (unwritten === 0) return [];
-    const there = review.runs?.commit === undefined ? 'in them' : 'there';
-    const files = unwritten === 1 ? `the one test file run ${there}` : `the ${unwritten} test files run ${there}`;
-    return ['', `No case index was written ${at} for ${files}, so no case is compared against the base.`];
-  }
+  if (moved === undefined) return notWritten.length === 0 ? [] : ['', ...notWritten];
   const lost = moved.regions.filter((region) => region.motion === 'lost' || region.motion === 'hidden');
   const thinned = moved.counts.thinned;
   const fewer = thinned === 0 ? '' : `▽ ${thinned} changed region${thinned === 1 ? ' is' : 's are'} run by fewer cases than at the base.`;

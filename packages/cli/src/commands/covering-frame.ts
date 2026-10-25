@@ -94,7 +94,8 @@ async function readStandardInput(): Promise<string> {
 
 /**
  * Every range where it stands now, with its state. A range whose every line an
- * edit removed is dropped: there is nowhere in the held text to paint it.
+ * edit removed is dropped: there is nowhere in the held text to paint it. The
+ * regions no case entered move with it, and one the edit removed is dropped.
  */
 export function placeRanges(
   ranges: readonly SourceTestRange[],
@@ -110,7 +111,16 @@ export function placeRanges(
     }
     const where = placement.place(range);
     if (where === undefined) continue;
-    placed.push({ ...stated, ...where.lines, ...(where.moved ? { moved: true as const } : {}) });
+    const unentered = range.unentered?.flatMap((region) => {
+      const now = placement.place(region);
+      return now === undefined ? [] : [{ ...region, ...now.lines }];
+    });
+    const { unentered: _, ...rest } = stated;
+    placed.push({
+      ...rest, ...where.lines,
+      ...(where.moved ? { moved: true as const } : {}),
+      ...(unentered === undefined || unentered.length === 0 ? {} : { unentered }),
+    });
   }
   return placed;
 }
@@ -127,4 +137,40 @@ export function regionState(region: CoveringRegion): RangeState | undefined {
     tests: [...region.tests, ...(region.passengers ?? []).map((test) => ({ ...test, loaded: true as const }))],
     ...(region.stopped === undefined ? {} : { stopped: region.stopped }),
   });
+}
+
+/**
+ * What a region no case called adds up to, or undefined where a case called
+ * it: a case that was inside it only while its module loaded did not call it.
+ * The review's reach and `covering --function`'s unrun parts both read it, so
+ * the handover and `covering` cannot disagree on a part.
+ */
+export function unrunOf(region: CoveringRegion): 'loaded' | 'hole' | 'unwalked' | 'unknown' | undefined {
+  if (region.tests.some((test) => test.loaded !== true)) return undefined;
+  const state = regionState(region);
+  return state === 'loaded' || state === 'hole' || state === 'unwalked' ? state : 'unknown';
+}
+
+/**
+ * The regions a reader counts: each one whose reach differs from the region
+ * around it. A function no case covered is one finding, not one per branch
+ * inside it. A region is around another only where it holds every line of it:
+ * an `else` that opens on the line its `then` closes on is beside it, and so
+ * is a branch with the same lines as another branch, a one-line ternary's arm.
+ */
+export function outermostOf<Region extends { readonly kind: string; readonly startLine: number; readonly endLine: number; readonly reach: string }>(
+  regions: readonly Region[],
+): readonly Region[] {
+  const sorted = [...regions].sort((left, right) => left.startLine - right.startLine || right.endLine - left.endLine);
+  const kept: Region[] = [];
+  const open: Region[] = [];
+  const around = (outer: Region, inner: Region): boolean =>
+    outer.startLine <= inner.startLine && inner.endLine <= outer.endLine
+    && !(outer.kind === 'branch' && inner.kind === 'branch' && outer.startLine === inner.startLine && outer.endLine === inner.endLine);
+  for (const region of sorted) {
+    while (open.length > 0 && !around(open.at(-1)!, region)) open.pop();
+    if (open.at(-1)?.reach !== region.reach) kept.push(region);
+    open.push(region);
+  }
+  return kept;
 }

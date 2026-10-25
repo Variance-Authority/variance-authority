@@ -56,11 +56,11 @@ describe('a route', () => {
       repeat: [
         {
           token: {
-            place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 },
+            place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 },
             entered: 1,
             arms: [
-              { path: 'for#0/body', startLine: 18, endLine: 20, times: 3 },
-              { path: 'for#0/body/if#0/then', startLine: 19, endLine: 19, times: 2 },
+              { path: 'for#0/body', at: 'src/cart.ts#removeItem/for#0/body', startLine: 18, endLine: 20, times: 3 },
+              { path: 'for#0/body/if#0/then', at: 'src/cart.ts#removeItem/for#0/body/if#0/then', startLine: 19, endLine: 19, times: 2 },
             ],
           },
         },
@@ -99,12 +99,12 @@ describe('a route', () => {
 
   it('names the arms of each declaration it stopped at that the case never went into, leaving out one inside an arm it lists', () => {
     const files = ['src/cart.ts', 'src/format.ts'];
-    const removeItem = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 };
+    const removeItem = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 };
     expect(drawRoute(ROOT, story([1, 4]), files, [CART, undefined]).untaken).toEqual([
-      { place: removeItem, arms: [{ path: 'for#0/body', startLine: 18, endLine: 20 }] },
+      { place: removeItem, arms: [{ path: 'for#0/body', at: 'src/cart.ts#removeItem/for#0/body', startLine: 18, endLine: 20 }] },
     ]);
     expect(drawRoute(ROOT, story([1, 2]), files, [CART, undefined]).untaken).toEqual([
-      { place: removeItem, arms: [{ path: 'for#0/body/if#0/then', startLine: 19, endLine: 19 }] },
+      { place: removeItem, arms: [{ path: 'for#0/body/if#0/then', at: 'src/cart.ts#removeItem/for#0/body/if#0/then', startLine: 19, endLine: 19 }] },
     ]);
   });
 
@@ -119,5 +119,24 @@ describe('a route', () => {
   it('counts an arm taken before the case as taken, and names nothing in a file the recording holds no regions for', () => {
     const files = ['src/cart.ts', 'src/format.ts'];
     expect(drawRoute(ROOT, story([1, 2, 6], [3]), files, [CART, undefined]).untaken).toEqual([]);
+  });
+
+  it('keeps two declarations of one name as two stops, each with its own arms', () => {
+    // Two `handle`s, as two methods of one name in two object literals are.
+    const twins: Region[] = [
+      { kind: 'module', name: '', path: 'module', startLine: 1, endLine: 20 },
+      { kind: 'function', name: 'handle', path: 'entry', startLine: 2, endLine: 6 },
+      { kind: 'branch', name: 'handle', path: 'if#0/then', startLine: 3, endLine: 3 },
+      { kind: 'function', name: 'handle', path: 'entry', startLine: 10, endLine: 14 },
+      { kind: 'branch', name: 'handle', path: 'if#0/then', startLine: 11, endLine: 11 },
+    ];
+    const route = drawRoute(ROOT, story([1, 2, 3]), ['src/cart.ts', 'src/format.ts'], [twins, undefined]);
+    expect(route.route).toMatchObject([
+      { token: { place: { at: 'src/cart.ts#handle/entry', startLine: 2 }, arms: [{ at: 'src/cart.ts#handle/if#0/then' }] } },
+      { token: { place: { at: 'src/cart.ts#handle~2/entry', startLine: 10 }, arms: [] } },
+    ]);
+    expect(route.untaken).toEqual([
+      { place: expect.objectContaining({ at: 'src/cart.ts#handle~2/entry' }), arms: [{ path: 'if#0/then', at: 'src/cart.ts#handle~2/if#0/then', startLine: 11, endLine: 11 }] },
+    ]);
   });
 });

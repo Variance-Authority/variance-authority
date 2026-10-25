@@ -15,7 +15,7 @@ use crate::dialect::dialect;
 use sha2::{Digest, Sha256};
 
 use crate::digest;
-use crate::walk::{Block, Edit, Kind, Walker};
+use crate::walk::{capture, Block, Edit, Kind, Walker};
 
 /// `header_at` and `digests` are the addon's: [`crate::instrument`] reads neither.
 #[cfg_attr(not(feature = "addon"), allow(dead_code))]
@@ -104,6 +104,10 @@ pub(crate) fn splice(source: &str, program: &Program, mut walker: Walker, keep: 
         (None, None) => prologue,
     };
     let from = walker.texts.len() as u32;
+    if let Some(held) = capture::call(0, &capture::module(program)) {
+        walker.texts.push(';');
+        walker.texts.push_str(&held);
+    }
     walker.texts.push_str(";__vaE();");
     walker.edits.push(Edit { at: prologue.max(last), from, to: walker.texts.len() as u32 });
 

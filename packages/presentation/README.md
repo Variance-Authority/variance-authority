@@ -5,6 +5,7 @@
 > Measure how a rendered interface groups, separates, aligns and emphasizes its content, and return those measurements as data a test or an agent can read.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 

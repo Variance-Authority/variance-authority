@@ -521,11 +521,6 @@
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/case-axes.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
     "at": "packages/sense/src/test-selection/case-motion.ts",
     "count": 1
   },
@@ -571,6 +566,11 @@
   },
   {
     "idiom": "atomic-write",
+    "at": "packages/sense/src/test-selection/jest-environment-entry.ts",
+    "count": 1
+  },
+  {
+    "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/jest-journey-artifact.ts",
     "count": 1
   },
@@ -612,16 +612,6 @@
   {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/record-location.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/reverse.ts",
-    "count": 1
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/select.ts",
     "count": 1
   },
   {
@@ -802,7 +792,7 @@
   {
     "idiom": "fresh-page",
     "at": "cases/storybook-case/src/finish.chromium.test.js",
-    "count": 4
+    "count": 6
   },
   {
     "idiom": "fresh-page",

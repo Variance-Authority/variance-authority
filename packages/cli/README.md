@@ -5,6 +5,7 @@
 > Run the Variance Authority workflow from a project config: collect subjects, compare, render what changed, report, accept.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 `variance` is the executable. It captures every **subject** your project
 declares — one named UI state you asked for and can ask for again: one story,
@@ -148,7 +149,7 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
@@ -161,10 +162,10 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record> | inspect <record.bin> [--format text|json]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
-variance doctor  [--config <path>]
+variance doctor  [--config <path>] [--baselines]
 variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
@@ -187,7 +188,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | prints what this machine can observe, before a run, not after one |
+| `doctor` | prints what this machine can observe, before a run, not after one; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
@@ -420,6 +421,20 @@ module's own region, such as a module-level statement or the first line of a
 top-level function, is answered at file grain, with the cases that loaded the
 file, and the answer says so.
 
+Over a whole file, a region no case entered on a line the function around it
+also charges, such as a one-line branch or the line that opens a longer one,
+gets a range of its own and a line saying no case entered it, and whether that
+is unwalked or a hole; `--format json` lists it under the range's `unentered`.
+A narrowed answer and a file edited since the run say the same, at the line the
+region stands on now.
+
+A function some cases entered can still hold a part none ran: a branch no case
+took, or a callback no case called. `--function` names each one under its
+cases, `No case ran a part of it: the branch at line 112`, and `unrun` under
+`--format json`. They are read over every case, before `--where` or
+`--at-distance` narrows the list, with the review's own reading over the whole
+function, in each suite the answer reads, as the handover reads them.
+
 A module the run loaded without instrumenting it, such as one named in
 `unprobed` or one whose text the run could not parse, has no recorded line. It is a
 precondition of every test file that loaded it, and `variance select` selects
@@ -650,20 +665,27 @@ that recorded it. `--where` keeps the covering cases that ran under a
 precondition, in every form of the question:
 
 ```bash
-variance covering --file src/checkout/total.ts --function total --where prices=discounted
+variance covering --file src/checkout/total.ts --function total --where mocks:prices=discounted
 ```
 
 ```text
-Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded mocks:prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > applies the discount — read flags:discount=true said true, mocks:prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — read flags:discount=false said false, mocks:prices=discounted (test/prices.ts:12)
 ```
 
 The count is out of the cases that covered what you asked about, before
-`--where` narrowed them. `--where prices` keeps every value of `prices`, and
-every repeated `--where` must hold. Two values recorded at one level print as a
+`--where` narrowed them. `--where mocks:prices` keeps every value of
+`mocks:prices`, `--where mocks` every key of the dimension, and every repeated
+`--where` must hold. Where the code under test leaves a breadcrumb with
+[`varianceBreadcrumb`](https://variance-authority.dev/reference/packages/event),
+each case prints what the code read beside what the case said under the same
+name, `read flags:discount=true said true`, and `--read` keeps the cases by
+what the code read, in the same forms. The two filters never stand in for each
+other: `--where flags:discount=true --read flags:discount=false` keeps the
+cases whose claim never reached the code. Two values recorded at one level print as a
 contradiction, and match a `--where` naming either. A record made before cases
 recorded preconditions keeps none and counts every case as unmeasured, rather
 than answering that no test covered it, and a case from a runner that does not
@@ -674,33 +696,6 @@ function, range or changed region, and the cases that stopped before it, are
 read over the same cases before `--where`: a line three cases ran stays `walked`
 when `--where` keeps one of them, and a hole stays a hole when it leaves out the
 case that stopped.
-
-When `names.axes` in `variance.config.json` declares a name, its first value is
-the base. `covering` reads a case that recorded nothing for that name at the
-base, so with `discount` declared as `["off", "on"]`, `--where discount=off`
-keeps it. That reading comes from your configuration, not from the run. A value
-the axis does not list is printed by name with its site, and kept.
-
-Beside each case recorded away from the base, with or without `--where`, is its
-twin: the case in the same test file that covered the same code with the axis
-nearer its base and every other precondition the same; on a two-value axis,
-that is the base. A case recorded with
-`discount=on` prints the case in its file that ran the same code with
-`discount=off` and the same `prices`:
-
-```text
-    applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-      twin at discount=off: charges the regular price
-```
-
-With several axes declared, the twin differs on one axis only: the last declared
-axis on which the case is away from the base. On it, the twin is at the nearest
-lower value a case in the file covered the code at: on `["off", "half", "on"]`,
-a case at `on` is twinned with `half` when one exists, and with `off` otherwise.
-Twins are looked for among the cases that covered what you asked, before
-`--where` narrowed them. Several twins print as their count and the first three
-names. When no case in the file matches, the line under the case is `no twin
-recorded at discount=off`.
 
 #### Asking about the text you hold
 
@@ -819,6 +814,13 @@ landed. Each region whose cases moved is one of four:
 - **thinned**: several cases walked it at the base, one does now.
 - **gained**: no case walked it at the base, one or more do now.
 
+A region is none of the four when a case that walked it at the base belongs to
+a test file that has not run since the region's file changed. The record kept
+that file's cases from its last run and dropped them where the edit could have
+changed what they did, so whether the test still walks the region is not
+measured. The answer lists the region as not measured, and does not say that
+the test file no longer enters it.
+
 A region that stayed walked is not listed. When nothing moved, the answer prints
 *no region moved*, because an empty list and a comparison that was not made
 are different answers.
@@ -840,7 +842,7 @@ names the moved regions' cases by the numbers of its case table.
 variance review --since origin/main --format handover
 ```
 
-prints breadcrumbs to the coverage of the changed area as one folded
+points to the coverage of the changed area as one folded
 `<details>` block for the pull request body. A review bot reads the body when
 the pull request opens, before any check has finished. A changed function gets
 a line when there is something to look at: 🔴 when part of it ran under no
@@ -982,7 +984,11 @@ after that commit is left out and named, as in
 this commit wrote to the case index are compared, as are the cases each test
 file added and removed. A run that writes no case index, such as one whose only
 file a browser gate skips, replaced no case: the review names its files and
-compares nothing for them.
+compares nothing for them. A second run at this commit that ran a test file
+again retired cases that name no commit to diff from, so the review compares no
+case and says why, in every format, under `motion.undiffed` in `review.json`;
+the rest of the review is answered as usual. Commit, and the first run after it
+compares again.
 `--against <record>` compares with a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
@@ -1062,11 +1068,16 @@ review is cut at a line break before that length, and its last line gives the
 number of characters not shown.
 
 When the cases that entered a function recorded more than one value of a
-precondition, its row names every value — `ran under discount=off,
-discount=on` — so you see which states ran the change without asking
-`covering --where`. `review.json` keeps each case with the preconditions it
-recorded, the way `covering` prints them: `applies the discount — discount=on
-(test/flags.ts:6)`. For a record made before cases recorded preconditions, the
+precondition, its row names every value — `ran under flags:discount=false,
+flags:discount` — so you see which states ran the change without asking
+`covering --where`. When they read a breadcrumb, the row splits them by what
+they read — `flags:express read false by 1, true by 1, not by 6`, where `not`
+counts the cases that entered the function and never read the key — so new
+code behind a flag that only the flag-on case reached shows
+`flags:express read true by 1`. `review.json` keeps each case with the
+preconditions it recorded and the reads its code made, as `preconditions` and
+`reads`, and any misused breadcrumb as `misused`, the way `covering` prints
+them. For a record made before cases recorded preconditions, the
 state they ran under is printed as unmeasured, and cases from a runner that
 does not record preconditions are counted apart from the cases that recorded
 nothing.
@@ -1150,18 +1161,24 @@ coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the b
     checkout  e2e     3,832 → 3,900  80.0% → 81.0%  +51 newly run · −2 no longer run · +19 run in 22 added regions
     stories   visual  1,437 →   718  30.0% → 14.9%  −716 no longer run · −3 no longer run after a case stopped
     unit      unit    3,353 → 3,352  70.0% → 69.7%  +4 newly run · −9 no longer run · +4 run in 22 added regions
-  stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
+  stories: src/checkout.stories.tsx no longer runs 212 functions in 9 files (716 regions) at the base
+  unit: src/checkout/total.test.ts no longer runs total in src/checkout/total.ts (3 regions) at the base
 ```
 
 Each part is signed by what it does to the count. `newly run` and `no longer
 run` are regions whose cases changed, the `gained` and `lost` of
 [What a change moved](#what-a-change-moved); `no longer run after a case
-stopped` is its `hidden`. `added regions` and `removed regions` are regions
+stopped` is its `hidden`. `unmeasured` regions lost a case of a test that has
+not run since the region's file changed, so they are not counted as no longer
+run. `added regions` and `removed regions` are regions
 only one of the two records has, in a file both have, and `newly loaded files`
 and `files no longer loaded` count the files only one of them has. `run by
 fewer cases` is unsigned, because those regions still run. The signed parts add
 up to the change in the count, and the markdown says so when they do not. The test files whose regions changed most
-are named under the table.
+are named under the table, up to three that stopped running regions and three
+that started, each with the functions its moved regions sit in, file by file,
+or a count of them when there are more than four; a count says how many test
+files were left out, and `--format json` lists every one.
 
 Each suite's base is the record its mainline published to the
 [share](https://variance-authority.dev/docs/sharing), for a suite the root config gives to it with

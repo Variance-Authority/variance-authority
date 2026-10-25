@@ -182,6 +182,13 @@ export interface RunOptions {
   readonly identity?: RunIdentity;
 
   /**
+   * The selected suite's `ignore` globs. A changed file they match narrows as
+   * `variance select` reads it: it moves no subject and no `before`, but
+   * through a module that declares it with a `/// <depends>`.
+   */
+  readonly ignore?: readonly string[];
+
+  /**
    * `--since <ref>`: observe only what this diff could have changed.
    *
    * The subjects it rules out are recorded as `excluded` with the sentence that
@@ -282,6 +289,12 @@ export interface ObserveContext {
    * no clock, and then nothing is timed: the same rule as `costMs`.
    */
   readonly steps?: StepClock;
+  /**
+   * Where a second visit to this subject says what it could not read on the
+   * way. The first visit's warnings are the run's already; a second may say
+   * more, and the run states each once.
+   */
+  readonly said?: (warning: string) => void;
 }
 
 export type Outcome =

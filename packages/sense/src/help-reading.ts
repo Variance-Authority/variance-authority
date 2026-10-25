@@ -153,7 +153,7 @@ export interface NativeHelp {
   declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
   aliasesOf?(root: string, index: string, local: string): Alias[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
-  declaredDescribedOf?(root: string, index: string, query: string, stems: string[], needed: number, files: string[] | null): DeclaredNames | null;
+  declaredDescribedOf?(root: string, index: string, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
   declaredTermsOf?(index: string, files: string[] | null): string[] | null;
   declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
 }
@@ -291,10 +291,16 @@ export interface DeclaredName {
   readonly reach?: SourceSymbolReach | null;
   /** Asked by `declaredDescribedOf`: the positions, ascending, of the asked stems its name or doc holds. */
   readonly held?: readonly number[] | null;
-  /** Asked by `declaredDescribedOf`: how many of those its name holds. */
-  readonly named?: number | null;
+  /** Asked by `declaredDescribedOf`: the positions, ascending, of those its name holds. */
+  readonly named?: readonly number[] | null;
   /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes adjacent. */
   readonly near?: number | null;
+  /** Asked by `declaredDescribedOf`: the bytes of the doc the words were held against, its lines joined by single spaces; absent when it writes none. */
+  readonly docLength?: number | null;
+  /** The name of the function whose body declares it, when that function has one. */
+  readonly holder?: string | null;
+  /** The line the function whose body declares it starts on: present only for a declaration inside a function. */
+  readonly holderLine?: number | null;
 }
 
 /** A file a description reached by its own name and the doc it opens with. */
@@ -307,10 +313,12 @@ export interface DescribedFile {
   readonly docEnd?: number | null;
   /** The positions, ascending, of the asked stems its name or its module doc holds. */
   readonly held: readonly number[];
-  /** How many of those its name holds. */
-  readonly named: number;
+  /** The positions, ascending, of those its name holds. */
+  readonly named: readonly number[];
   /** How many of the question's adjacent word pairs its module doc writes adjacent. */
   readonly near: number;
+  /** The bytes of the module doc the words were held against, its lines joined by single spaces; absent when it writes none. */
+  readonly docLength?: number | null;
 }
 
 /** What `declaredOf` found, and the files whose declarations it could not read. */
@@ -319,7 +327,7 @@ export interface DeclaredNames {
   readonly names: readonly DeclaredName[];
   /** Files whose declarations were not read — no parse, or one its reader did not harvest: unknown, not empty. */
   readonly unread: readonly string[];
-  /** Asked by `declaredDescribedOf`: the files whose name and module doc hold enough of the question; empty otherwise. */
+  /** Asked by `declaredDescribedOf`: the files whose name and module doc hold any of the question; empty otherwise. */
   readonly files: readonly DescribedFile[];
 }
 
@@ -345,22 +353,21 @@ export function declaredOf(
 /**
  * Every top-level declaration the index at `index` holds that no export of its
  * file binds, whose name and doc comment, cut into stems by the rule
- * `describedWordsNative` cuts `query` by, hold at least `needed` of
- * `stems`, in any order; only in `files`, repo-relative, when they are named.
+ * `describedWordsNative` cuts `query` by, hold any of `stems`, in any
+ * order; only in `files`, repo-relative, when they are named.
  * Each carries the positions of the stems it holds, how many its name holds,
  * and how many of the question's adjacent word pairs its doc writes adjacent.
- * Beside them, the files whose name and module doc hold as many, the same way.
+ * Beside them, the files whose name and module doc hold any, the same way.
  * `undefined` when no index was published; throws when the index does not read.
  */
 export function declaredDescribedOf(
   root: string,
   query: string,
   stems: readonly string[],
-  needed: number,
   files?: Iterable<string>,
   index: string = sourceIndexPath(root),
 ): DeclaredNames | undefined {
-  return entry('declaredDescribedOf')(root, index, query, [...stems], needed, files === undefined ? null : [...files]) ?? undefined;
+  return entry('declaredDescribedOf')(root, index, query, [...stems], files === undefined ? null : [...files]) ?? undefined;
 }
 
 /**

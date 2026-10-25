@@ -1,5 +1,6 @@
 use super::*;
-use crate::journey_format::{encode, CaseExtras, EncodedModule, SetPool};
+use crate::crossing_sets::SetPool;
+use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_read::Journey;
 use crate::journey_record::{Block, Module};
@@ -53,7 +54,7 @@ fn masks_of(names: &[&str], file: impl Fn(usize) -> String, modules: &[Module], 
     let tests: Vec<Test> = names
         .iter()
         .enumerate()
-        .map(|(case, name)| Test { id: format!("t{case}"), file: file(case), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, said: None })
+        .map(|(case, name)| Test { id: format!("t{case}"), file: file(case), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, heard: None })
         .collect();
     let mut sets = SetPool::new(tests.len());
     let called: Vec<Vec<_>> = entered.iter().map(|blocks| blocks.iter().map(|members| sets.intern(members)).collect()).collect();
@@ -140,7 +141,7 @@ fn a_test_is_named_by_its_file_and_a_word_of_its_name() {
 fn several_tests_in_a_file_are_named_rather_than_chosen() {
     let tests: Vec<Test> = ["first", "second"]
         .iter()
-        .map(|name| Test { id: (*name).to_owned(), file: "x.test.ts".to_owned(), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, said: None })
+        .map(|name| Test { id: (*name).to_owned(), file: "x.test.ts".to_owned(), name: (*name).to_owned(), project: None, runner: None, settled: FINISHED, heard: None })
         .collect();
     let module = Module { id: "src/x.ts".to_owned(), file: "src/x.ts".to_owned(), blocks: Vec::new(), owners: None };
     let mut sets = SetPool::new(tests.len());

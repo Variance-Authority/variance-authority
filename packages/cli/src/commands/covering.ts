@@ -33,14 +33,12 @@
 import { realpath } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
-  caseTwins,
   changedLines,
   coveringChange,
   anyStopped,
   coveringTestsInFile,
   keepsCases,
   recordedCommit,
-  type CaseTwin,
   type CoveringChange,
   type CoveringRegion,
   type CoveringTest,
@@ -54,17 +52,17 @@ import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
-import { hopsToTests, identities, nearbyWitnesses, refold } from './covering-reach.js';
+import { hopsToTests, identities, nearbyWitnesses } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
 import { heldAsPrecondition } from './held-as-precondition.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { listedIn, namesAt, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
+import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { coveringAt, countOf, fileGraph } from './covering-at.js';
+import { coveringAt, countOf, fileGraph, type UnrunPart } from './covering-at.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
@@ -134,6 +132,8 @@ export interface Covering {
   readonly stopped?: readonly ExecutionTest[];
   /** With `tests`: the one state the line or function is painted as, when it can be told, over the cases before `--where`. */
   readonly state?: RangeState;
+  /** With `--function` and a case that entered it: the outermost parts of it no case ran, as the review reads them, over the cases before `--where`. */
+  readonly unrun?: readonly UnrunPart[];
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
   /**
@@ -162,8 +162,6 @@ export interface Covering {
   readonly scope?: CoveringScope;
   /** Under `--where`: how many of the cases that covered it said it, and what could not be read. */
   readonly where?: CoveringWhere;
-  /** With `names.axes`: each listed case's twin one step toward the base, in its own test file. */
-  readonly twins?: readonly CaseTwin[];
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
   /** The commit the record stands at, when it says. The diff is measured from it. */
@@ -201,7 +199,6 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
   let where: CoveringWhere | undefined;
-  const names = await namesAt(request.root);
   let reached: readonly ExecutionTest[] | undefined;
   const reader: IndexReader = async (from, changed) => {
     const read = await readIndex(from, changed);
@@ -210,8 +207,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     if (request.cases !== undefined) {
       ({ index, scope } = await scopeCases((full = read.index), from, request.cases, request.root));
     }
-    if (request.where === undefined) return { index, files: read.files };
-    const kept = whereCases(index, request.where, names);
+    if (request.where === undefined && request.read === undefined) return { index, files: read.files };
+    const kept = whereCases(index, request.where ?? [], request.read ?? []);
     where = kept.where;
     return { index: kept.index, files: read.files, before: index };
   };
@@ -231,10 +228,11 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     if (probes === undefined) throw error;
     throw new OperatorError(`${error.message} ${probes.note}`, { ...(error.kind === undefined ? {} : { kind: error.kind }), cause: error });
   }
-  // Twins and counts are read among every case the question reached before `--where` narrowed it.
-  const listed = listedIn(answer);
-  const twins = names === undefined ? undefined : caseTwins(listed, reached ?? listed, names);
-  if (where !== undefined) where = whereOver(where, listed, reached ?? listed, names);
+  // Counts are read among every case the question reached before `--where` and `--read` narrowed it.
+  if (where !== undefined) {
+    const listed = listedIn(answer);
+    where = whereOver(where, listed, reached ?? listed);
+  }
   const motion = await motionFor(request, answer.from, scope, full);
   const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
   const files = answer.tests === undefined || whole === undefined ? undefined : coveringFiles(answer.tests, whole, hops?.byFile);
@@ -246,7 +244,6 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
     ...(scope === undefined ? {} : { scope }),
     ...(where === undefined ? {} : { where }),
-    ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
 }
@@ -316,8 +313,8 @@ async function ask(
   if (module === undefined) {
     const held = heldAsPrecondition(from, [file]);
     const loaded = held?.of.get(file);
-    // The record holds every test file's preconditions; `--cases` and `--where` ask about the cases left in the index.
-    const asked = request.cases === undefined && request.where === undefined
+    // The record holds every test file's preconditions; `--cases`, `--where` and `--read` ask about the cases left in the index.
+    const asked = request.cases === undefined && request.where === undefined && request.read === undefined
       ? undefined
       : new Set(index.tests.map((test) => test.file));
     if (loaded !== undefined) {
@@ -358,7 +355,8 @@ async function ask(
     : ranges.map((range) => ({ ...range, tests: range.tests.filter((test) => listed.has(test.id)) }));
   if (before !== undefined) reach?.(listedIn({ tests: found.flatMap((range) => range.tests).filter(near.keep) }));
   if (near.whole) return { file: file, ranges: listing(placeRanges(found, placement)), ...frame, from };
-  const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
+  // The narrowing is read inside the fold, so a range boundary still marks where the claim changes.
+  const narrowed = coveringTestsInFile(before ?? index, file, { ...graph, keep: near.keep });
   return {
     file: file,
     ranges: listing(placeRanges(narrowed, placement)),

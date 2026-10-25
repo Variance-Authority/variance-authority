@@ -337,7 +337,7 @@ describe('variance ask about a name declared and not exported', () => {
 
     const { out } = await run(['ask', 'uses', '--name', '_relaunch']);
     expect(out).toContain(
-      "`_relaunch` [function] is declared, not exported, at packages/kit/kit/restart.py:4; another module can still import it by name, which `ask grep --query '\\b_relaunch\\b' --to packages/kit/kit/restart.py` finds.",
+      "`_relaunch` [function] is declared, not exported, at packages/kit/kit/restart.py:4; another module can still import it by name, which `variance ask grep --query '\\b_relaunch\\b' --to packages/kit/kit/restart.py` finds.",
     );
   });
 
@@ -355,7 +355,7 @@ describe('variance ask about a name declared and not exported', () => {
     checkout({
       ...PRIVATE_RUST,
       'packages/kit/src/again.rs': '#[macro_export]\nmacro_rules! again {\n    () => {};\n}\n',
-      'packages/kit/src/money/legacy.cjs': 'function rerun(argv) {\n  return argv.length;\n}\nmodule.exports = { rerun };\n',
+      'packages/kit/src/money/legacy.cjs': 'function rerun(argv) {\n  return argv.length;\n}\nexports.rerun = rerun;\n',
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 

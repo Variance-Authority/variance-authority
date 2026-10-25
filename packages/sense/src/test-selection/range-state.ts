@@ -1,4 +1,4 @@
-import type { SourceTestRange } from './reverse.js';
+import type { ExecutionTest, SourceTestRange } from './reverse.js';
 
 /**
  * What the record says about one range, as the one word every client paints.
@@ -28,6 +28,11 @@ export function stateOf(range: SourceTestRange): RangeState | undefined {
     return range.stopped.length === 0 ? 'alone' : 'walked';
   }
   if (range.tests.length > 0 || range.loaded === true) return 'loaded';
-  if (range.stopped === undefined) return undefined;
-  return range.stopped.length === 0 ? 'unwalked' : 'hole';
+  return unenteredState(range.stopped);
+}
+
+/** The state of what no case entered, by the stopped cases that could have reached it: `unwalked`, `hole`, or absent when that cannot be told. */
+export function unenteredState(stopped: readonly ExecutionTest[] | undefined): 'unwalked' | 'hole' | undefined {
+  if (stopped === undefined) return undefined;
+  return stopped.length === 0 ? 'unwalked' : 'hole';
 }
