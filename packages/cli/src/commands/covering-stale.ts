@@ -64,7 +64,7 @@ export async function staleAnswer(
 }
 
 /** Each case once, in the order the ranges name them, starred only when it never called in. */
-export function entered(tests: readonly CoveringTest[]): readonly CoveringTest[] {
+function entered(tests: readonly CoveringTest[]): readonly CoveringTest[] {
   const once = new Map<string, CoveringTest>();
   for (const test of tests) {
     const held = once.get(test.id);

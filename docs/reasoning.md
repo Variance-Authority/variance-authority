@@ -154,7 +154,7 @@ one of three:
 An `absent` gap and a `stale` one name a recorded run:
 
 ```text
-Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.
+Gap (absent) on src/total.ts: which tests ran it. Known: no run is recorded.
 Next, Record, at a cost no record counts:
   Wire the suite's producer and record one run of it: that first run is the record.
 ```

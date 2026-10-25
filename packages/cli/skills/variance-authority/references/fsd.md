@@ -47,14 +47,13 @@ says what to run, not a runner command: run the test files with the project's
 runner, and a case filtered by its name with the runner's own filter, `-t` under
 Vitest, Jest and Rstest, `--grep` under Playwright.
 
-Each case of `covering` gives one gap, and a stale record comes before Deep:
+Each answer of `covering` gives one gap, one per suite over several suites, and a stale record comes before Deep:
 
 | The answer | Gap |
 |---|---|
 | a line at file grain (`At file grain`, `grain: "file"`, `fileGrain`) | Deep: the story of the first three tests, in the order the answer lists them |
-| `frame: "stale"`, or lines `written` since the recording | Record: the test files `variance select` runs for the file, the ones that loaded it, under the suite's own `relations`, `ignore` and `before` |
-| ranges `moved` | Record: the test files whose cases ran the edited ranges, as `variance covering --file <path> --format refs` lists them in the cases table at its end |
-| `older`: the record is older than the file, so the file is new | Record: the recorded test files `variance select` runs for the file, by reach, under the suite's own configuration, or the whole suite when selection runs it, and the test files among the files added since the record that reach the file (`added`), under the suite's `relations` and `ignore`. Then `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once, and `variance index` first when the source index could not be read. No run when neither names a file, and never the share |
+| `frame: "stale"`, lines `written` since the recording, or ranges `moved` | Record: the test files `variance select` runs for the file, the ones that loaded it, under the suite's own `relations`, `ignore` and `before` |
+| `older`: the record is older than the file, so the file is new | Record: the recorded test files `variance select` runs for the file, by reach, under the suite's own configuration, or the whole suite when selection runs it, and the test files among the files added since the record that reach the file (`added`), under the suite's `relations` and `ignore`. Then `variance reach --since <base>`, from the commit the record was made at: it takes every file the diff added at once, and `variance index` first when the source index could not be read, as in every Record gap. No run when neither names a file, and never the share |
 | `unrecorded`: no run is recorded | `variance share --suite <name>` in a suite given to the share; otherwise Record: wire the producer and record one run of the suite, with no cost, since no record counts it |
 
 A refusal keeps its exit code `2`. Under `--format json` its gap is beside

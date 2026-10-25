@@ -131,7 +131,7 @@ describe('an answer that leaves nothing open', () => {
 });
 
 describe('a line written since the recording', () => {
-  it('ends with a Record gap over the test files that ran code in the file, before any Deep one', async () => {
+  it('ends with a Record gap over the test files selection runs for the file, before any Deep one', async () => {
     framed = mapped([20]);
     const answer = await ask('--line', '19-20');
 
@@ -151,7 +151,7 @@ describe('a line written since the recording', () => {
 });
 
 describe('a file whose recorded ranges were edited since', () => {
-  it('ends with a Record gap over the test files that ran the edited ranges', async () => {
+  it('ends with a Record gap over the test files selection runs for the file, every one that loaded it', async () => {
     framed = mapped([], ['6-8']);
     const answer = await ask();
 
@@ -161,9 +161,9 @@ describe('a file whose recorded ranges were edited since', () => {
       scope: 'src/ledger.ts',
       reason: 'stale',
       remedy: 'record',
-      run: { files: ['ledger.test.ts'] },
+      run: { files: ['book.test.ts', 'ledger.test.ts', 'load.test.ts'] },
       next: [],
-      cost: { tests: 2, files: 1 },
+      cost: { tests: 4, files: 3 },
     });
   });
 

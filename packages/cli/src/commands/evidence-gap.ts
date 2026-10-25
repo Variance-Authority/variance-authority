@@ -34,8 +34,7 @@
 import type { CoveringTest, ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { runsText, targetText } from './covering-at.js';
-import { casesByFile, coveringFiles, type CoveringFile } from './covering-files.js';
-import { entered } from './covering-stale.js';
+import { casesByFile, type CoveringFile } from './covering-files.js';
 import type { Covering } from './covering.js';
 import { selectedFor, type GapSource, type Selected } from './gap-selection.js';
 
@@ -132,7 +131,7 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
   const moved = (answer.ranges ?? []).filter((range) => range.moved === true);
   if (moved.length > 0) {
     const edited = moved.length === 1 ? 'a range' : `${moved.length} ranges`;
-    return record('which tests run the edited ranges now', scope, `${edited} the record holds ${moved.length === 1 ? 'was' : 'were'} edited since the recording`, coveringFiles(entered(moved.flatMap((range) => range.tests)), whole));
+    return selected('which tests run the edited ranges now', scope, `${edited} the record holds ${moved.length === 1 ? 'was' : 'were'} edited since the recording`, await selectedFor(source, file), whole);
   }
   if ((answer.grain === 'file' || (answer.fileGrain?.length ?? 0) > 0) && tests.length > 0) {
     return deep(scope, `${named(tests.length)} loaded ${file}`, nearest(tests, answer.files ?? []).slice(0, DEEP_TESTS));
@@ -227,16 +226,9 @@ function selected(question: string, scope: string, known: string, answer: Select
     reason: 'stale',
     remedy: 'record',
     ...(run === undefined ? {} : { run }),
-    next: [],
+    next: 'unread' in answer ? ['variance index'] : [],
     ...(cost === undefined ? {} : { cost }),
   };
-}
-
-function record(question: string, scope: string, known: string, files: readonly CoveringFile[]): EvidenceGap {
-  const ran = files.length === 0
-    ? { known: `${known}, and no recorded case called into them` }
-    : { known, run: { files: files.map((row) => row.file) }, cost: { tests: files.reduce((sum, row) => sum + row.of, 0), files: files.length } };
-  return { question, scope, reason: 'stale', remedy: 'record', next: [], ...ran };
 }
 
 function deep(scope: string, known: string, tests: readonly CoveringTest[]): EvidenceGap {

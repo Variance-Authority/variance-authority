@@ -188,7 +188,7 @@ The answer's `frame` names the coordinates its numbers are in:
 A `--line` your edit wrote is answered with no case, because no case has run
 it, and in a run of lines it is named in `written` and left out. That is not
 *no test covers it*: the answer ends with a Record gap naming the test files
-whose cases ran code in the file. A `stale` frame and a `moved` range end the
+`variance select` runs for the file, every one that loaded it. A `stale` frame and a `moved` range end the
 same way.
 
 ## Ask about the whole change at review time

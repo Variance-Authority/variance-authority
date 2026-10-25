@@ -263,6 +263,26 @@ describe('a recorded file whose only test merely imports it', () => {
 
     expect(gap).toMatchObject({ reason: 'stale', run: { files: ['test/beta.test.ts'] } });
   });
+
+  it('names that test for a recorded range edited since, which no case called into', async () => {
+    const { root } = await checkout({ unit: { kind: 'unit' } });
+    framed = { frame: 'mapped', place: (range) => ({ lines: range, moved: true }), recordedLine: (line) => line };
+    const { gap } = await gapOf(root, '--file', 'src/pad.ts');
+
+    expect(gap).toMatchObject({ reason: 'stale', run: { files: ['test/beta.test.ts'] } });
+  });
+
+  it('sends the reader to `variance index` when the source index is unpublished', async () => {
+    const { root } = await checkout({ unit: { kind: 'unit' } });
+    framed = mapped([1]);
+    unpublished = true;
+    const { gap } = await gapOf(root, '--file', 'src/pad.ts', '--line', '1');
+
+    expect(gap).toMatchObject({
+      known: 'line 1 was written since the recording, and which test files selection runs for it could not be read',
+      next: ['variance index'],
+    });
+  });
 });
 
 describe('a refused suite beside one that answered, under `--format refs`', () => {
