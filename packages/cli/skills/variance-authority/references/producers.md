@@ -1,9 +1,12 @@
 # Connect the producer that owns a missing reading
 
 Every command in this skill reads evidence and creates none of it. When a
-reading, a field or a domain is unavailable, wire the package that produces it
-and re-run the suite with the project's own runner. Treat the missing domain as
-unknown until then, never as an empty reading.
+reading, a field or a domain is unavailable, the answer names it and gives what
+the record does have. Wire the package below that produces it, then run the
+tests the answer named — their files, and `-t` with a case's name — with the
+project's own runner, so that run records them. A whole-suite run is not the
+remedy. Treat the missing domain as unknown until then, never as an empty
+reading.
 
 ## Eyes attention
 

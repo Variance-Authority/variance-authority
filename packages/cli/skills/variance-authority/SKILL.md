@@ -7,11 +7,16 @@ description: How to use `variance`, the Variance Authority CLI. Read it before y
 
 Every command here reads. It reads a file a run left, a watcher that is still
 listening, the test-selection recording, or the checkout's source. None of them
-renders, navigates, clicks, replays an event or starts a suite. When an answer
-is missing, connect the producer that owns it and re-run the suite with the
-project's own runner. Never drive the page from here to manufacture the
-reading. The distillation loop does rerun a test: that is an experiment you
-run, and its evidence comes back through the same read-only commands.
+renders, navigates, clicks, replays an event or starts a suite. An answer gives
+what the record has and names what it lacks: a domain no producer wrote, a file
+or a case no recorded run went through, a reading older than the source. To
+close that gap, wire the [producer](references/producers.md) it names when one
+is missing, then run the tests the gap names — their files, and `-t` with a
+case's name — with the project's own runner, so the run records them. A
+whole-suite run is not the remedy for a gap. Never drive the page from here to
+manufacture the reading. The distillation loop does rerun a test: that is an
+experiment you run, and its evidence comes back through the same read-only
+commands.
 
 ## Run the installed binary
 
