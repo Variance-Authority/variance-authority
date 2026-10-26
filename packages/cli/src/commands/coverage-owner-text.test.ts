@@ -31,7 +31,8 @@ describe('the ownership report at size', () => {
 
     expect(lines).toContain('  and 1 package no test ran');
     expect(lines).toContain('  and 2 more packages; --format json lists every file');
-    expect(ownershipMarkdown(entries(...packages), files)).toContain('  and 2 more packages');
+    expect(ownershipMarkdown(entries(...packages, 'libs/idle'), files)).toContain('  and 2 more packages');
+    expect(ownershipMarkdown(entries(...packages, 'libs/idle'), files)).toContain('And 1 package no test ran.');
   });
 
   it('names three packages that ran a region and counts the rest', () => {

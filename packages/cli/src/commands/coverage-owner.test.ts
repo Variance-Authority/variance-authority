@@ -150,7 +150,7 @@ describe('coverage counted from the tests near the code they ran', () => {
     const answer = await ask(['coverage', '--root', repo, '--packages', '--at-distance', '0-1']);
 
     expect(answer.code).toBe(0);
-    expect(answer.out).toMatch(/^coverage .* counted from the tests 0-1 import hops from the code they ran$/mu);
+    expect(answer.out).toMatch(/^coverage .* counted where the nearest test that ran the code is 0-1 import hops away$/mu);
     expect(answer.out).toMatch(/^ {2}libs\/ui\s+2\s+50\.0%\s+1\s+50\.0%\s+libs\/specs 1$/mu);
   });
 
@@ -158,15 +158,16 @@ describe('coverage counted from the tests near the code they ran', () => {
     const answer = await ask(['coverage', '--root', repo, '--at-distance', '2-', '--format', 'json']);
 
     const json = JSON.parse(answer.out) as { atDistance: unknown; count: { run: number }; suites: readonly { baseMissed?: string }[] };
-    expect(json.atDistance).toEqual({ from: 2, unplaced: [] });
-    expect(json.count.run).toBe(3);
+    expect(json.atDistance).toEqual({ from: 2, unplaced: [], unmeasured: 0 });
+    // The icon's nearest test is its own spec, so only the button counts from afar.
+    expect(json.count.run).toBe(2);
     expect(json.suites[0]!.baseMissed).toContain('--at-distance');
   });
 
   it('says the band in the pull request comment', async () => {
     const answer = await ask(['coverage', '--root', repo, '--at-distance', '1', '--format', 'markdown']);
 
-    expect(answer.out).toContain('the recorded suites loaded, counted from the tests 1 import hop from the code they ran.');
+    expect(answer.out).toContain('the recorded suites loaded, counted where the nearest test that ran the code is 1 import hop away.');
   });
 
   it('refuses a band that is not hop counts', async () => {

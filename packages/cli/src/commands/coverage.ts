@@ -29,6 +29,7 @@ import {
   sharedPreconditions,
   testCoverageFile,
   type CountedSuite,
+  type CoverageAtDistance,
   type CoverageCount,
   type DeclaredSuite,
   type ExecutionIndex,
@@ -85,11 +86,13 @@ export interface Coverage {
   readonly ownership?: readonly OwnedFile[];
   /**
    * With `--at-distance`, the band every count above was narrowed to: a region
-   * counts as run only when a test file within it of the region's module ran
-   * it. `to` is absent for an open end. `unplaced` names the test files no walk
-   * could measure, which no band holds.
+   * counts as run only when the nearest test file that ran it, across every
+   * suite, is within the band of the region's module, so the bands partition
+   * what ran. `to` is absent for an open end. `unplaced` names the test files
+   * no walk could measure; `unmeasured` counts the regions only they ran, which
+   * no band holds.
    */
-  readonly atDistance?: { readonly from: number; readonly to?: number; readonly unplaced: readonly string[] };
+  readonly atDistance?: { readonly from: number; readonly to?: number; readonly unplaced: readonly string[]; readonly unmeasured: number };
   /**
    * The files changed since the commit every base was recorded at, when no
    * counted suite loads any of them and no suite's count changed. Absent
@@ -156,7 +159,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     const whole = await readExecutionIndex(from);
     for (const module of whole.modules) loaded.add(module.file);
     for (const test of whole.tests) loaded.add(test.file);
-    const index = banded.narrow(within(whole, scope));
+    const index = within(whole, scope);
     const recorded = await recordedCommit(record);
     for (const entry of restsOn(record)) harness.add(entry);
     now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
@@ -185,6 +188,9 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   if (now.length === 0) {
     throw nothingRecorded(request.root, declared === undefined ? undefined : counted.map((one) => one!.name));
   }
+  // Every suite at once: a region is in the band of its nearest test in any of them.
+  const narrowed = banded.narrow(now.map((one) => one.index));
+  narrowed.indexes.forEach((index, at) => (now[at] = { ...now[at]!, index }));
   const at = await head(request.root);
   const count = countCoverage(now);
   const indexes = now.map((one) => one.index);
@@ -201,7 +207,8 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       atDistance: {
         from: request.atDistance.from,
         ...(request.atDistance.to === Number.MAX_SAFE_INTEGER ? {} : { to: request.atDistance.to }),
-        unplaced: [...banded.unplaced].sort(),
+        unplaced: narrowed.unplaced,
+        unmeasured: narrowed.unmeasured,
       },
     }),
     ...('missed' in reading
@@ -225,22 +232,14 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
 
 /**
  * The narrowing `--at-distance` asks for, over the import graph of the tree as
- * it is, and the test files it could not place, gathered across every suite it
- * narrows. Without the flag it narrows nothing and reads no graph.
+ * it is, across every suite at once. Without the flag it narrows nothing and
+ * reads no graph.
  */
-async function band(request: ParsedCoverage): Promise<{ readonly narrow: (index: ExecutionIndex) => ExecutionIndex; readonly unplaced: ReadonlySet<string> }> {
-  const unplaced = new Set<string>();
+async function band(request: ParsedCoverage): Promise<{ readonly narrow: (indexes: readonly ExecutionIndex[]) => CoverageAtDistance }> {
   const { atDistance } = request;
-  if (atDistance === undefined) return { narrow: (index) => index, unplaced };
+  if (atDistance === undefined) return { narrow: (indexes) => ({ indexes, unplaced: [], unmeasured: 0 }) };
   const relations = await relationsFor(request.root, ['.'], [], []);
-  return {
-    narrow: (index) => {
-      const narrowed = coverageAtDistance(index, atDistance, { relations });
-      for (const file of narrowed.unplaced) unplaced.add(file);
-      return narrowed.index;
-    },
-    unplaced,
-  };
+  return { narrow: (indexes) => coverageAtDistance(indexes, atDistance, { relations }) };
 }
 
 /**

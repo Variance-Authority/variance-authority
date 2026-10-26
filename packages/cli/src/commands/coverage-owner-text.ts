@@ -69,6 +69,8 @@ export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFil
     ...ran.map((row) =>
       `| \`${row.from}\` | ${grouped(row.run)} | ${ratio(row.own, row.run)} | ${grouped(row.others)} | ${ratio(row.others, row.run)} | ${testers(row.by, (name) => `\`${name}\``)} |`),
   ];
+  const idle = packages.length - ran.length;
+  if (idle > 0) lines.push('', `And ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran.`);
   const { rows, more } = trees(packages, ownership);
   if (rows.length > 0) {
     lines.push('', '```', "run only by other packages' tests", ...table(rows));

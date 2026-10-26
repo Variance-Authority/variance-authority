@@ -138,9 +138,9 @@ could not place is left out and counted. Both measure from one file, so neither
 combines with `--since`.
 
 The same band counts a whole suite: `variance coverage --at-distance 2-` counts
-only what tests ran from two or more hops away, over every region the suites
-loaded, and with `--packages` names the packages whose regions only another
-package's tests reach.
+only what no test within one hop ran, by the nearest test across every suite,
+over every region the suites loaded, and with `--packages` names the packages
+whose regions only another package's tests reach.
 
 ## Read the state of every range
 

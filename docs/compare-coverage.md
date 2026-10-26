@@ -87,8 +87,8 @@ instrument and no second run.
 |---|---|---|
 | Share of the code each suite runs | one upload per flag | one count per [declared suite](execution-record.md#one-record-for-each-suite), all over the same total |
 | Code that only one kind of suite runs | no answer | counted per kind: unit, integration, e2e, visual |
-| Code a package's own tests never run | no answer | counted per package by [whose tests ran it](own-fewer-tests.md#ask-which-code-only-distant-tests-run), and walked down to the files only another package's tests reach |
-| Code reached only from far away | no answer | counted from the tests within a band of import hops of the code they ran, with [`--at-distance`](own-fewer-tests.md#ask-which-code-only-distant-tests-run) |
+| Code only another package's tests run | no answer | counted per package by [whose tests ran it](own-fewer-tests.md#ask-which-code-only-distant-tests-run), and walked down to the files only another package's tests reach |
+| Code reached only from far away | no answer | counted by the import hops of the nearest test that ran it, with [`--at-distance`](own-fewer-tests.md#ask-which-code-only-distant-tests-run) |
 | Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change; a region whose test has not run since its file changed is counted as unmeasured, not as no longer run |
 | Which test file caused it | no answer | named |
 | Files no test ran | at 0%, when the reporter is told to include every file under a glob | listed with their lines and regions, within the application `--from` names, following its imports into shared packages |

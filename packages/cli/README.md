@@ -1286,35 +1286,43 @@ run only by other packages' tests
 A region is the package's own when one of the package's tests ran it, whoever
 else did too. A region that only other packages' tests ran is counted apart,
 under each package that ran it. The tree walks the five packages with the most
-such regions down to their files, largest first, so the first file named is
-where a test of the package's own is missing. A region a test entered only
-while its module loaded counts for no package, and test files are left out.
-`--format json` lists every file under `ownership`.
+such regions down to their files, largest first, so the first file named is the
+first place to ask whether the package needs a test of its own. A region a test
+entered only while its module loaded counts for no package, and test files are
+left out. A package here is a directory `--packages` lists, and a file belongs
+to the deepest one that holds it, so a suite kept at the repository root owns
+`.` and everything it runs elsewhere is another package's. `--format json`
+lists every file under `ownership`.
 
 Owning a region is not the same as testing it closely. A package's own
 integration test can reach a helper four imports down, and an import chain can
 run inside one package as easily as across two. `--at-distance <hops>` counts
-only the tests within that many import hops of the code they ran, the band
+each region by the nearest test that ran it, in any suite, in the band
 `covering --at-distance` takes:
 
 ```bash
+variance coverage --at-distance 0-1
 variance coverage --at-distance 2-
 ```
 
 ```text
-coverage at 59e231ef — 40,330 regions in 1,159 files the suites loaded, counted from the tests 2 or more import hops from the code they ran
-  any suite                   22,087      54.8%
+coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,204 regions run from no measured distance, in no band
+  any suite                   24,163      59.9%
+coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,204 regions run from no measured distance, in no band
+  any suite                   10,100      25.0%
 ```
 
-A region counts under the band when a test ran it from that many hops away: its
-own file is `0`, a module it imports directly is `1`. The total stays every
-region the suites loaded, so the shares under `0-1` and `2-` read against each
-other. The band composes
-with `--packages`, so the ownership table under `--at-distance 0-1` names the
-regions only another package's near tests ran, and with `--from`. The hops are measured on the import graph of the tree as it is
-now, so no suite is compared with its base under a band, and each says so. A
-test file the graph does not hold is left out, never counted as near, and the
-heading counts it.
+A test's own file is `0` hops from it and a module it imports directly is `1`,
+walked over the modules the test entered. A region counts under `2-` only when
+no test ran it from closer, so the bands split what ran: here 24,163, 10,100
+and the 2,204 no walk placed add up to the 36,467 regions run with no band.
+Within a band, only the crossings of the tests in it are kept, so `--packages`
+under `--at-distance 0-1` names the regions only another package's near tests
+ran. The band also composes with `--from`. A test file the graph does not hold
+is left out of every band and counted in the heading, and so are the regions
+only an unplaced walk ran. The hops are measured on the import graph of the
+tree as it is now, so no suite is compared with its base under a band, and each
+says so.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever

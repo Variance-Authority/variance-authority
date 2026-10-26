@@ -100,10 +100,11 @@ function heading(answer: Coverage): string {
 function banded(answer: Coverage): string {
   const { atDistance } = answer;
   if (atDistance === undefined) return '';
-  const { from, to, unplaced } = atDistance;
+  const { from, to, unplaced, unmeasured } = atDistance;
   const hops = to === undefined ? `${from} or more` : from === to ? `${from}` : `${from}-${to}`;
   const left = unplaced.length === 0 ? '' : `; ${grouped(unplaced.length)} test file${unplaced.length === 1 ? '' : 's'} not on the import graph left out`;
-  return `, counted from the tests ${hops} import hop${hops === '1' ? '' : 's'} from the code they ran${left}`;
+  const outside = unmeasured === 0 ? '' : `; ${grouped(unmeasured)} region${unmeasured === 1 ? '' : 's'} run from no measured distance, in no band`;
+  return `, counted where the nearest test that ran the code is ${hops} import hop${hops === '1' ? '' : 's'} away${left}${outside}`;
 }
 
 /**
