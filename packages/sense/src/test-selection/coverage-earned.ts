@@ -10,18 +10,19 @@
  * same regions, not halves of one, so both can reach 100%: the end-to-end suite
  * that passes runs everything out, and the unit next to each file runs it in.
  * *Accidental* is out and not in: code something ran on its way to
- * something else, and nothing next to it pins.
+ * something else, and no test of its own package within one hop ran.
  *
- * The hops are the ones {@link testHops} walks, the owner the caller's, and a
- * region runs the way {@link countCoverage} counts it: a crossing made only at
- * load runs nothing. A test no walk placed is never in, since an unmeasured
+ * The hops are the ones {@link testHops} walks, the owner the caller's, and the regions
+ * and their callers are {@link calledRegions}'s, the pass {@link coverageByOwner}
+ * counts over. A test no walk placed is never in, since an unmeasured
  * distance is not a short one; what only such tests ran is counted apart as
- * unmeasured. Test files are left out, as {@link coverageByOwner} leaves them.
+ * unmeasured. A hop is any runtime import, a re-export or a test helper as well.
  */
 
 import type { SuiteKind } from './suites.js';
 import type { TestHops } from './coverage-distance.js';
-import { joinedRegions, type CountedSuite } from './coverage-count.js';
+import type { CountedSuite } from './coverage-count.js';
+import { calledRegions } from './coverage-owner.js';
 
 /** In and out over one set of regions. */
 export interface EarnedCount {
@@ -52,31 +53,24 @@ const MEASURED = 4;
 
 /** Count each suite's regions in and out, and every suite's joined. */
 export function earnedCoverage(suites: readonly CountedSuite[], ownerOf: (file: string) => string, walked: TestHops): EarnedCoverage {
-  const tests = new Set(suites.flatMap((suite) => suite.index.tests.map((test) => test.file)));
+  const marks = suites.map((): number[] => []);
   // file and address and kind → what ran it, over every suite.
   const joined = new Map<string, number>();
-  const counted = suites.map((suite) => {
-    const marks: number[] = [];
-    for (const module of suite.index.modules) {
-      if (tests.has(module.file)) continue;
-      const owner = ownerOf(module.file);
-      for (const [key, block] of joinedRegions(module.blocks)) {
-        let mark = 0;
-        for (const crossing of block.crossings) {
-          if (crossing.loaded === true) continue;
-          const test = suite.index.tests[crossing.test]?.file;
-          if (test === undefined) continue;
-          const hop = walked.hops.get(test)?.get(module.file);
-          if (hop !== undefined) mark |= MEASURED;
-          mark |= hop !== undefined && hop <= 1 && ownerOf(test) === owner ? IN : OUT;
-        }
-        marks.push(mark);
-        const at = `${module.file}\0${key}`;
-        joined.set(at, (joined.get(at) ?? 0) | mark);
-      }
+  for (const { suite, file, key, tests } of calledRegions(suites)) {
+    const owner = ownerOf(file);
+    let mark = 0;
+    for (const test of tests) {
+      const hop = walked.hops.get(test)?.get(file);
+      if (hop !== undefined) mark |= MEASURED;
+      mark |= hop !== undefined && hop <= 1 && ownerOf(test) === owner ? IN : OUT;
     }
-    return { ...(suite.name === undefined ? {} : { name: suite.name }), ...(suite.kind === undefined ? {} : { kind: suite.kind }), ...tally(marks) };
-  });
+    marks[suite]!.push(mark);
+    const at = `${file}\0${key}`;
+    joined.set(at, (joined.get(at) ?? 0) | mark);
+  }
+  const counted = suites.map((suite, at) => ({
+    ...(suite.name === undefined ? {} : { name: suite.name }), ...(suite.kind === undefined ? {} : { kind: suite.kind }), ...tally(marks[at]!),
+  }));
   return { suites: counted, total: tally(joined.values()) };
 }
 

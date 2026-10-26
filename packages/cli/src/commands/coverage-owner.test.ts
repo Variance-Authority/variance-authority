@@ -154,6 +154,14 @@ describe("coverage by the package whose tests ran it", () => {
     expect(earned).toEqual({ suites: [{ name: 'unit', kind: 'unit', ...unit }], total: unit });
   });
 
+  it('counts in and out over every crossing under a band, since out is any other test', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--packages', '--at-distance', '2-', '--format', 'json']);
+
+    const { earned } = JSON.parse(answer.out) as { earned: unknown };
+    const unit = { regions: 5, in: 2, out: 4, accidental: 3, unmeasured: 0 };
+    expect(earned).toEqual({ suites: [{ name: 'unit', kind: 'unit', ...unit }], total: unit });
+  });
+
   it('puts in and out in the pull request comment', async () => {
     const answer = await ask(['coverage', '--root', repo, '--packages', '--format', 'markdown']);
 

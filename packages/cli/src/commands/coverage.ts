@@ -202,6 +202,8 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   }
   // Every suite at once: a region is in the band of its nearest test in any of them.
   const walked: TestHops | undefined = relations === undefined ? undefined : testHops(now.map((one) => one.index), { relations });
+  // In and out are a distance split of their own: out is any other test, so they count every crossing, band or not.
+  const unbanded = [...now];
   const narrowed = request.atDistance === undefined || walked === undefined
     ? { indexes: now.map((one) => one.index), unplaced: [], unmeasured: 0 }
     : coverageAtDistance(now.map((one) => one.index), request.atDistance, walked);
@@ -241,7 +243,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
             }),
             ...(reading.ownerOf === undefined ? {} : {
               ownership: coverageByOwner(now, reading.ownerOf),
-              ...(walked === undefined ? {} : { earned: earnedCoverage(now, reading.ownerOf, walked) }),
+              ...(walked === undefined ? {} : { earned: earnedCoverage(unbanded, reading.ownerOf, walked) }),
             }),
           }),
         }),

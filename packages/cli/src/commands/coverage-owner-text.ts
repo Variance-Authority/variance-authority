@@ -112,18 +112,19 @@ export const EARNED_HEADER = [
 /** One row per suite of the in and out table, and every suite joined when there are several. */
 export function earnedRows(earned: EarnedCoverage | undefined): readonly string[] {
   if (earned === undefined || earned.total.regions === 0) return [];
-  const row = (name: string, count: EarnedCount) =>
-    `| \`${name.replaceAll('|', '\\|')}\` | ${grouped(count.regions)} | ${ratio(count.in, count.regions)} | ${ratio(count.out, count.regions)} | ${grouped(count.accidental)} (${ratio(count.accidental, count.regions)}) |`;
-  return [...earned.suites.map((suite) => row(suite.name ?? 'the record', suite)), ...(earned.suites.length > 1 ? [row('any suite', earned.total).replace(/`any suite`/u, 'Any suite')] : [])];
+  const row = (label: string, count: EarnedCount) =>
+    `| ${label} | ${grouped(count.regions)} | ${ratio(count.in, count.regions)} | ${ratio(count.out, count.regions)} | ${grouped(count.accidental)} (${ratio(count.accidental, count.regions)}) |`;
+  const name = (suite: string) => `\`${suite.replaceAll('|', '\\|')}\``;
+  return [...earned.suites.map((suite) => row(name(suite.name ?? 'the record'), suite)), ...(earned.suites.length > 1 ? [row('Any suite', earned.total)] : [])];
 }
 
 /** What in and out mean, under the table in a pull request comment. */
 export const EARNED_NOTE =
-  'In and out are two coverages of the same regions, and both can reach 100%. The farther a test is from the code it ran, the less it is about that code; ' +
-  'whether a test that ran a region checks it is a question for mutation testing.';
+  'In and out are two coverages of the same regions, and both can reach 100%. They rest on an assumption: the farther a test is from the code it ran, the less it is about that code. ' +
+  'Whether a test that ran a region checks it is a question for mutation testing.';
 
 /** The regions only tests no walk placed ran. */
-export function unmeasuredSentence(regions: number): string {
+function unmeasuredSentence(regions: number): string {
   return `${grouped(regions)} accidental region${regions === 1 ? '' : 's'} ran only under tests at no measured distance`;
 }
 

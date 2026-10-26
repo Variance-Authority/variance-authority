@@ -1340,9 +1340,11 @@ in: its own package's tests within one import hop ran it · out: any other test 
 ```
 
 In and out are separate coverages, so each can reach 100%: a passing end-to-end
-suite runs everything out, and the unit next to each file runs it in. The
-farther a test is from the code, the less it is about that code; whether it
-checks what it ran is for mutation testing to say. A test no walk placed is
+suite runs everything out, and the unit next to each file runs it in. They
+assume the farther a test is from the code, the less it is about that code;
+whether it checks what it ran is for mutation testing to say. A hop is any
+runtime import, a re-export or a helper as well, and `--at-distance` leaves in
+and out counted over every test. A test no walk placed is
 never in, and the regions only such tests ran are counted on the last line.
 `--format json` carries the counts under `earned`, per suite and joined.
 

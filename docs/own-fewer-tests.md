@@ -291,7 +291,11 @@ see what one test runs that no narrower test does, ask
 the test's own file or a module the test imports directly. It is **out** when
 any other test ran it: another package's, or the package's own from further
 away. In is earned coverage. Out and never in is accidental coverage: code that
-ran on the way to something else, with no test next to it.
+ran on the way to something else, and no test of its own package within one
+hop ran. A hop is any runtime import, so a test that reaches its subject through
+an `index` re-export or a shared helper is two hops from it, and counts out.
+Under `--at-distance` the band narrows the coverage above it, not in and out:
+those count every test, since out is any test.
 
 ```text
 in: its own package's tests within one import hop ran it · out: any other test did · accidental: out, never in

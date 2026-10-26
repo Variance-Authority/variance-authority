@@ -48,22 +48,12 @@ export interface OwnedFile {
 export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file: string) => string): readonly OwnedFile[] {
   // file → address and kind → the packages whose cases called into the region.
   const joined = new Map<string, Map<string, Set<string>>>();
-  const tests = new Set(suites.flatMap((suite) => suite.index.tests.map((test) => test.file)));
-  for (const suite of suites) {
-    const owners = suite.index.tests.map((test) => ownerOf(test.file));
-    for (const module of suite.index.modules) {
-      if (tests.has(module.file)) continue;
-      let regions = joined.get(module.file);
-      if (regions === undefined) joined.set(module.file, (regions = new Map()));
-      for (const [key, block] of joinedRegions(module.blocks)) {
-        let ran = regions.get(key);
-        if (ran === undefined) regions.set(key, (ran = new Set()));
-        for (const crossing of block.crossings) {
-          const owner = owners[crossing.test];
-          if (crossing.loaded !== true && owner !== undefined) ran.add(owner);
-        }
-      }
-    }
+  for (const { file, key, tests } of calledRegions(suites)) {
+    let regions = joined.get(file);
+    if (regions === undefined) joined.set(file, (regions = new Map()));
+    let ran = regions.get(key);
+    if (ran === undefined) regions.set(key, (ran = new Set()));
+    for (const test of tests) ran.add(ownerOf(test));
   }
 
   const files: OwnedFile[] = [];
@@ -84,6 +74,39 @@ export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file:
     files.push({ file, owner, regions: regions.size, run, own, others: run - own, by: sortedKeys(by) });
   }
   return files.sort((left, right) => codeUnitOrder(left.file, right.file));
+}
+
+/** One suite's source region, and the test files whose cases called into it. */
+export interface CalledRegion {
+  /** Which of the given suites holds it. */
+  readonly suite: number;
+  readonly file: string;
+  /** Address and kind, the key regions join by across suites. */
+  readonly key: string;
+  /** A file once per case that called in; a crossing made at load is left out. */
+  readonly tests: readonly string[];
+}
+
+/**
+ * Every suite's source regions in files no suite runs as a test, each with the
+ * test files that called into it: the one pass both who ran a region and how
+ * near count over.
+ */
+export function* calledRegions(suites: readonly CountedSuite[]): Generator<CalledRegion> {
+  const tests = new Set(suites.flatMap((suite) => suite.index.tests.map((test) => test.file)));
+  for (const [suite, { index }] of suites.entries()) {
+    for (const module of index.modules) {
+      if (tests.has(module.file)) continue;
+      for (const [key, block] of joinedRegions(module.blocks)) {
+        const called: string[] = [];
+        for (const crossing of block.crossings) {
+          const test = index.tests[crossing.test]?.file;
+          if (crossing.loaded !== true && test !== undefined) called.push(test);
+        }
+        yield { suite, file: module.file, key, tests: called };
+      }
+    }
+  }
 }
 
 /** The same counts, keyed in code-unit order, so a program reads one order whatever order the record held. */
