@@ -34,9 +34,12 @@ export function boundOf(root: string | undefined, held: Pick<Named, 'at' | 'name
 
 /** The declaration `held` passes on from another file, as `boundOf` reaches it; none when its own file declares it. */
 export function originOf(root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
-  const bound = boundOf(root, held);
-  return bound === undefined || bound.at === held.at ? undefined : bound;
+  return elsewhere(boundOf(root, held), held);
 }
+
+/** `bound`, when it is in another file than `held`. */
+const elsewhere = (bound: ExportedDeclaration | undefined, held: Pick<Named, 'at'>): ExportedDeclaration | undefined =>
+  bound === undefined || bound.at === held.at ? undefined : bound;
 
 /** `passes on `taxOf`, declared at <file>:<line>`, for a sentence to carry. */
 export function passesOn(origin: ExportedDeclaration): string {
@@ -55,7 +58,7 @@ export function passesOn(origin: ExportedDeclaration): string {
  */
 export function exportedRows(root: string | undefined, name: string, held: Named): { readonly declared: Named; readonly rows: readonly string[] } {
   const bound = boundOf(root, held);
-  const origin = bound === undefined || bound.at === held.at ? undefined : bound;
+  const origin = elsewhere(bound, held);
   const declared: Named = origin === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
   const text = root === undefined ? [] : bound === undefined ? lineOf(root, declared) : textRows(root, bound);
   return {

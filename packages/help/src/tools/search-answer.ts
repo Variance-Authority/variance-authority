@@ -9,7 +9,7 @@ import { looseNames, matchingTerms, termsOfStems } from './loose.js';
 import { describedDeclarations, describedNames, describedShown, fileMatch, type Reached } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
-import { declaredMatches } from './declared.js';
+import { declaredMatches, exactness } from './declared.js';
 import { docRows, exported, first } from './exported-matches.js';
 
 /**
@@ -318,8 +318,8 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   // it: as written first, then the same word in another case.
   const exact = new Map<number, number>();
   for (const name of named) {
-    const written = index.name(name);
-    if (written.toLowerCase() === query) exact.set(name, written === question.query ? 0 : 1);
+    const tier = exactness(index.name(name), question.query);
+    if (tier !== undefined) exact.set(name, tier);
   }
   const field = (row: number, name: number): number => exact.get(name) ?? (byName.has(name) ? 2 : openings.has(row) ? 3 : 4);
   const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within, field);

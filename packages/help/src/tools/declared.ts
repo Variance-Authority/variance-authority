@@ -241,9 +241,9 @@ export function declaredAt(root: string | undefined, name: string, wanted: strin
 /**
  * The declarations whose names hold `query`, as the `search` section lists
  * them: the first `cap`, source first, in `files` when an area named them;
- * nothing when no checkout was named or its index could not be read. The
- * index puts a name that is the whole query first; of those, the one written
- * as the query is comes before the same word in another case.
+ * nothing when no checkout was named or its index could not be read. A name
+ * that is the query as written comes first, the same name in another case
+ * second, and every name only holding it after them.
  */
 export function declaredMatches(
   root: string | undefined,
@@ -254,9 +254,18 @@ export function declaredMatches(
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
   // Stable, so the index's order holds within each.
-  const written = (one: DeclaredName): number => (one.name === query ? 0 : 1);
+  const written = (one: DeclaredName): number => exactness(one.name, query) ?? 2;
   const names = [...read.names].sort((left, right) => written(left) - written(right));
   return { total: names.length, shown: names.slice(0, cap).map(declaredMatch), unread: read.unread };
+}
+
+/**
+ * How exactly a name is the question, as every `search` list ranks it: 0 as
+ * written, 1 the same name in another case, nothing when it only holds it.
+ */
+export function exactness(written: string, question: string): 0 | 1 | undefined {
+  if (written === question) return 0;
+  return written.toLowerCase() === question.toLowerCase() ? 1 : undefined;
 }
 
 /** One declaration, as a `search` section holds it. */

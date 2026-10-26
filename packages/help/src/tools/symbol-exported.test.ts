@@ -100,3 +100,5 @@ it('answers a name its file exports under another name with the declaration it b
     expect(out).not.toContain(`export { taxOf as ${name} };`);
   }
 });
+
+it.todo('answers an export list that names a type and a value of one name with both declarations it binds — needs the walk to end at every declaration of the bound name');

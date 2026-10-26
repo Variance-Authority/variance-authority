@@ -113,6 +113,8 @@ impl<'a> Parsed<'a> {
     /// The file's top-level declaration of `name`: the one written on `line`
     /// when two share the name, `interface Rate` and `const Rate`, else the
     /// first.
+    // FIXME: `export { Rate }` binds both `interface Rate` and `const Rate`,
+    // and answers the first alone; spec 0104 answers each declaration apart.
     fn declares(&self, name: &str, line: Option<u32>) -> Option<usize> {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
         let mut named = parses.symbols.range(self.row).filter(|&symbol| text.text(parses.symbol_name.at(symbol)) == name);

@@ -57,12 +57,12 @@ const UNPUBLISHED = [
   'export const call = 0;',
 ].join('\n');
 
-// Declared and not exported: more names holding the word than a section shows, and then the word itself.
+// Declared and not exported: more names holding the word than a section shows, and then the word in both cases.
 const KEPT = [
-  ...Array.from({ length: 30 }, (_, at) => `const tallied${at} = ${at};`),
+  ...Array.from({ length: 30 }, (_, at) => `const tally${at} = ${at};`),
   'function Tally(): number {\n  return 0;\n}',
   'function tally(): number {\n  return 0;\n}',
-  'export const kept = [tally(), Tally(), tallied0];',
+  'export const kept = [tally(), Tally(), tally0];',
 ].join('\n');
 
 let index: SearchIndex;
@@ -121,7 +121,7 @@ describe('the names a question puts first', () => {
     expect(exportedFirst('call')[0]).toBe('call');
   });
 
-  it('puts the declared name that is the question first, however many names holding it come before it', () => {
+  it('puts the declared name that is the question first, then the same name in another case, however many names holding it come before them', () => {
     expect(declaredFirst('tally').slice(0, 2)).toEqual(['tally', 'Tally']);
     expect(declaredFirst('Tally').slice(0, 2)).toEqual(['Tally', 'tally']);
   });
