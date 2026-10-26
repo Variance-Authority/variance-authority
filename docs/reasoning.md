@@ -200,7 +200,8 @@ where it was:
   the suite's own `relations`, `ignore` and `before`.
 - **A file the record is older than**, so a new file: run the recorded test
   files `variance select` runs for it by reach. `variance reach --since
-  <base>` then takes every file the diff added, the new test files no record
+  <commit>`, from the commit the record was made at, then takes every file
+  added since, the new test files no record
   names among them, with no record needed.
 
 Run Deep only on a gap that names it, skip a gear only when its record cannot
