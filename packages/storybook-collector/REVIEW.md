@@ -20,8 +20,3 @@
   in [README › Skipping stories nothing
   touched](README.md#skipping-stories-nothing-touched); pinned by
   [src/preset.test.ts](src/preset.test.ts).
-
-## Not this package's
-
-- Index parsing and readiness: `@variance-authority/storybook`.
-- Placing probes and cutting regions: `@variance-authority/sense`.

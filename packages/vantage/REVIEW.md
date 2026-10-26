@@ -17,9 +17,3 @@
 - **A snapshot is frozen.** Pinned by
   [src/observatory.test.ts](src/observatory.test.ts) and
   [src/attach.test.ts](src/attach.test.ts).
-
-## Not this package's
-
-- How `ask run-signals` and the `variance_*` tools print a snapshot:
-  `@variance-authority/cli` and `@variance-authority/mcp`. The `vae` coordinates
-  and the page listener: `@variance-authority/event`.

@@ -18,7 +18,3 @@
   [entry.test.ts](src/entry.test.ts).
 - **One workspace, one answer.** Pinned by
   [surface.test.ts](src/surface.test.ts).
-
-## Not this package's
-
-- Whether two readings differ: `@variance-authority/core`.

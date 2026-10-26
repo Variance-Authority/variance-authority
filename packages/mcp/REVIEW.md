@@ -3,8 +3,7 @@
 ## Contracts
 
 - **It never runs tests, re-renders anything or changes a baseline.** Written in
-  [README](README.md); pinned by
-  [`src/server-diff.test.ts`](src/server-diff.test.ts).
+  [README](README.md).
 - **A run with unobserved subjects never reads as clean.** Written in
   [README](README.md#coverage-boundary); pinned by
   [`src/scenario.test.ts`](src/scenario.test.ts).
@@ -25,8 +24,3 @@
 - **`./tools` and `./protocol` are pure, and `.` loads no server until one
   starts.** Written in [README](README.md#entrypoints); pinned by
   [`src/root-entry.test.ts`](src/root-entry.test.ts).
-
-## Not this package's
-
-- What a verdict or an adjudication means: `@variance-authority/report` and
-  `@variance-authority/core`.

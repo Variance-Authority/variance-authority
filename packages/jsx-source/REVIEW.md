@@ -22,8 +22,3 @@
 - **The production entry records nothing.** Written in [README ›
   Entrypoints](README.md#entrypoints); pinned by
   [src/entrypoints.test.ts](src/entrypoints.test.ts).
-
-## Not this package's
-
-- Reading the symbol and making a path relative: `@variance-authority/react` and
-  the collector. Whether the transform emits `jsxDEV`: the build's config.

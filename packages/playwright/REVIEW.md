@@ -19,7 +19,3 @@
   pinned by [src/engines.test.ts](src/engines.test.ts).
 - **Each width is its own subject id.** Pinned by
   [src/viewport.test.ts](src/viewport.test.ts).
-
-## Not this package's
-
-- Which subjects exist and how they mount: the collectors and their callers.

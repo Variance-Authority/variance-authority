@@ -18,10 +18,5 @@
 - **`select` prints a skip list.** Written in [README ›
   select](README.md#select-what-your-own-runner-may-skip) and
   [ADR-0062](../../docs/context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md).
-- **Legs partition the selection, from the record's commit.** Written in [README
+- **Every selected file runs in at least one leg.** Written in [README
   › select](README.md#select-what-your-own-runner-may-skip).
-
-## Not this package's
-
-- How a line is charged, a region's state, the skip arithmetic:
-  `@variance-authority/sense`.

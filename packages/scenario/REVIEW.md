@@ -21,8 +21,3 @@ names its own source.
 - **The archive admits before it writes, and never reconstructs.** Written in
   [ADR-0048](../../docs/context/adr/0048-a-scenario-archive-holds-semantic-objects.md);
   pinned by [src/archive.test.ts](src/archive.test.ts).
-
-## Not this package's
-
-- A digest spelled as a file name, and what a band or a parting slice means:
-  `@variance-authority/core`.

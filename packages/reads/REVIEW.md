@@ -10,8 +10,3 @@
 - **A path the attribute cannot carry throws.** Pinned by
   [index.test.ts](src/index.test.ts).
 - **Safe in production.** Written in [README](README.md#requirements).
-
-## Not this package's
-
-- Reading the attribute, digesting the file and selecting the page:
-  `@variance-authority/route-collector` and `@variance-authority/sense`.

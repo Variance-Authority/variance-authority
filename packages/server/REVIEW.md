@@ -24,8 +24,3 @@
   [README](README.md#upgrading).
 - **A malformed write stores nothing.** Pinned by
   [`src/http-refusals.test.ts`](src/http-refusals.test.ts).
-
-## Not this package's
-
-- The wire types, the client, splitting a long subject list, churn and drift
-  arithmetic: `@variance-authority/history`.

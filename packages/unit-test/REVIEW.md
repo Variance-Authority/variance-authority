@@ -18,8 +18,3 @@
   [value.test.ts](src/value.test.ts).
 - **Removed styles come back in insertion order, once.** Pinned by
   [styles.test.ts](src/styles.test.ts).
-
-## Not this package's
-
-- Painting, comparing and the verdict: `@variance-authority/cli` and
-  `@variance-authority/raster`.

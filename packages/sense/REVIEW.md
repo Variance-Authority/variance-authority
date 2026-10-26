@@ -23,7 +23,3 @@
   [lookup.test.ts](src/test-selection/lookup.test.ts).
 - **Two checkouts never share bytes.** Pinned by
   [cache-layers.test.ts](src/test-selection/cache-layers.test.ts).
-
-## Not this package's
-
-- The install and harness stages: `@variance-authority/core/relate`.

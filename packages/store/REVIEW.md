@@ -16,8 +16,3 @@
   [share-line.test.ts](src/share-line.test.ts).
 - **The render cache never throws.** Written in
   [README](README.md#choose-a-backend).
-
-## Not this package's
-
-- Whether two images differ: `@variance-authority/raster`. The HTTP cell:
-  `@variance-authority/core/share`.

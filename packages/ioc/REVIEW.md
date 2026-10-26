@@ -21,9 +21,3 @@
 - **A handler registered after the driver is picked up; an unregistered one
   stops running.** Pinned by
   [`src/reset/reset.test.ts`](src/reset/reset.test.ts).
-
-## Not this package's
-
-- State in a dependency nobody can put a handler in: `variance run` observes
-  it by reading a subject twice (README "What it does not cover").
-- Module isolation between files: `@variance-authority/isolator`.

@@ -22,9 +22,8 @@ Report a finding as:
    base kept the contract), a command run on a fixture with its output, or a
    trace from the input to the wrong result, file and line at each step.
 
-A finding with its proof is **Important**, and Important is what blocks a
-merge. A suspicion you could not prove is posted as a question naming the step
-you could not get past. A question never blocks.
+A suspicion you could not prove is a question that names the step you could
+not get past.
 
 ## Where the contracts come from
 
@@ -69,7 +68,7 @@ fallback, a shortcut, an early return, a threshold, a cap, a cache, a filter.
   switch turned off, an ignored file, a value declared rather than inferred,
   and the same input reached twice.
 - **A false positive is a defect.** A tool, a page or an error message that
-  reports something that did not happen is Important.
+  reports something that did not happen is wrong, however rarely it fires.
 
 ## Skip
 

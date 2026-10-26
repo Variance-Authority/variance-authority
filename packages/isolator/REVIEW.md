@@ -20,8 +20,3 @@
   Written in [README › Where the session comes
   from](README.md#where-the-session-comes-from); pinned by
   [src/runtime.test.ts](src/runtime.test.ts).
-
-## Not this package's
-
-- Matching `sideEffects`: `@variance-authority/sense`. When a reset
-  runs: `@variance-authority/ioc`.

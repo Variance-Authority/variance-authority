@@ -24,8 +24,3 @@
 - **It never writes a baseline**, and answers alike through every store. Written
   in [README › Approving the first image](README.md#approving-the-first-image);
   pinned by [src/parity.test.ts](src/parity.test.ts).
-
-## Not this package's
-
-- Where a baseline lives, and approval: `@variance-authority/store` and the
-  CLI's `variance accept`. Pixel policies: `@variance-authority/raster`.

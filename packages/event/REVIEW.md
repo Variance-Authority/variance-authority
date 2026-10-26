@@ -25,8 +25,3 @@
   [`src/head.test.ts`](src/head.test.ts).
 - **The page collector holds what came before the channel, in order, once.**
   Pinned by [`src/page.test.ts`](src/page.test.ts).
-
-## Not this package's
-
-- Routing and delivery: `@variance-authority/wire`. Laying a breadcrumb on a
-  case: `sense` ([spec 0102](../../docs/specs/0102-a-case-records-what-the-code-read.md)).

@@ -20,7 +20,3 @@
 - **Rows never carry pixels.** Written in [README](README.md#what-is-recorded);
   pinned by [observation.test.ts](src/observation.test.ts).
 - **Rows stay in their scope.** Pinned by [client.test.ts](src/client.test.ts).
-
-## Not this package's
-
-- Storage, authentication and the database: `@variance-authority/server`.

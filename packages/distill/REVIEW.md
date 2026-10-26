@@ -17,7 +17,3 @@
 - **An import is charged once.** Written in [spec
   0095](../../docs/specs/0095-an-import-spills-what-the-test-never-used.md).
 - **Order is deterministic.** Pinned by [scope.test.ts](src/scope.test.ts).
-
-## Not this package's
-
-- How the case index is written or read natively: `@variance-authority/sense`.

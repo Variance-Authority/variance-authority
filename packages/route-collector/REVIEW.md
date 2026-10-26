@@ -17,9 +17,3 @@
   [src/widths.chromium.test.ts](src/widths.chromium.test.ts).
 - **Alone reads what the shared world reads.** Pinned by
   [src/alone.chromium.test.ts](src/alone.chromium.test.ts).
-
-## Not this package's
-
-- How the hydration and Suspense waits read React: `@variance-authority/react`.
-- What a document carries, though these tests exercise it:
-  `@variance-authority/dom`.
