@@ -60,11 +60,14 @@ labelled `agent:debugging` then says somebody is working on a PR that is ready.
 So every cycle that is not stopping blocked, including one woken by a comment
 with nothing to fix, ends by watching the checks until each has finished,
 `site` included, then reading them. Where a foreground `sleep` is refused, run
-the watch in the background. It stops when `gh` fails, a PR with no checks
-included, as `--watch` did:
+the watch in the background. `site` is named only once the `variance`
+workflow's `plan` has passed, so after that the watch also waits for `site` to
+appear; when `plan` did not pass, `site` never will, and the watch ends without
+it, and `plan` is what to read in place of a verdict. It stops when `gh` fails, a PR
+with no checks included, as `--watch` did:
 
 ```bash
-while done=$(gh pr checks <n> --json name,bucket --jq 'all(.[]; .bucket != "pending")') && [ "$done" != true ]; do sleep 30; done
+while done=$(gh pr checks <n> --json workflow,name,bucket --jq 'all(.[]; .bucket != "pending") and (any(.[]; .name == "site") or (any(.[]; .workflow == "variance" and .name == "plan" and .bucket == "pass") | not))') && [ "$done" != true ]; do sleep 30; done
 gh pr checks <n>
 ```
 
