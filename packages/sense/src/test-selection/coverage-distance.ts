@@ -34,19 +34,20 @@ export interface CoverageAtDistance {
   readonly unmeasured: number;
 }
 
+/** Every test file's import hops to the modules it entered, and the test files no walk could start from. */
+export interface TestHops {
+  /** test file → module → hops. A module the walk did not reach is absent. */
+  readonly hops: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  /** Test files the graph does not hold, in code-unit order. */
+  readonly unplaced: readonly string[];
+}
+
 /**
- * Keep the crossings of each region whose nearest test is between `from` and
- * `to` import hops of it, both ends included, and of those only the ones made
- * from within the band. A crossing that only loaded the module places nothing
- * and stays in every band, so what loaded is the same under any band.
+ * Walk from every test file any index names, over the modules its cases
+ * entered, loading included: a module that only loaded still carried the
+ * import the walk goes through. One walk per test file, whatever suites name it.
  */
-export function coverageAtDistance(
-  indexes: readonly ExecutionIndex[],
-  band: { readonly from: number; readonly to: number },
-  options: DistanceOptions,
-): CoverageAtDistance {
-  // test file → every module a case of it entered, loading included: a module
-  // that only loaded still carried the import the walk goes through.
+export function testHops(indexes: readonly ExecutionIndex[], options: DistanceOptions): TestHops {
   const entered = new Map<string, Set<string>>();
   for (const index of indexes) {
     for (const module of index.modules) {
@@ -69,8 +70,22 @@ export function coverageAtDistance(
     if ('because' in walked) unplaced.push(file);
     else hops.set(file, walked);
   }
+  return { hops, unplaced: unplaced.sort(codeUnitOrder) };
+}
+
+/**
+ * Keep the crossings of each region whose nearest test is between `from` and
+ * `to` import hops of it, both ends included, and of those only the ones made
+ * from within the band. A crossing that only loaded the module places nothing
+ * and stays in every band, so what loaded is the same under any band.
+ */
+export function coverageAtDistance(
+  indexes: readonly ExecutionIndex[],
+  band: { readonly from: number; readonly to: number },
+  walked: TestHops,
+): CoverageAtDistance {
   const distance = (index: ExecutionIndex, test: number, module: string): number | undefined =>
-    hops.get(index.tests[test]?.file ?? '')?.get(module);
+    walked.hops.get(index.tests[test]?.file ?? '')?.get(module);
 
   // A source region joins across suites by its address; any other block is its own region.
   const keyOf = new Map<ExecutionBlock, string>();
@@ -114,7 +129,7 @@ export function coverageAtDistance(
           : { ...block, crossings: block.crossings.filter((crossing) => crossing.loaded === true) }),
       })),
     })),
-    unplaced: unplaced.sort(codeUnitOrder),
+    unplaced: walked.unplaced,
     unmeasured: [...ran].filter((key) => regions.has(key) && !nearest.has(key)).length,
   };
 }

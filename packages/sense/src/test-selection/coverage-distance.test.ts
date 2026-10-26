@@ -1,6 +1,7 @@
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
-import { coverageAtDistance } from './coverage-distance.js';
+import { coverageAtDistance as narrowed, testHops } from './coverage-distance.js';
+import type { DistanceOptions } from './distance.js';
 import type { ExecutionBlock, ExecutionIndex } from './reverse.js';
 
 // card.test imports card, card imports button, button imports icon.
@@ -31,6 +32,9 @@ const index: ExecutionIndex = {
     { file: 'src/icon.ts', blocks: [block([0, 1, 2])] },
   ],
 };
+
+const coverageAtDistance = (indexes: readonly ExecutionIndex[], band: { from: number; to: number }, options: DistanceOptions) =>
+  narrowed(indexes, band, testHops(indexes, options));
 
 const callers = (narrowed: ExecutionIndex): readonly (readonly [string, readonly string[]])[] =>
   narrowed.modules.map((module) => [module.file, module.blocks.flatMap((one) => one.crossings.map((crossing) => narrowed.tests[crossing.test]!.id))]);

@@ -28,6 +28,7 @@ import {
   recordedCommit,
   sharedPreconditions,
   testCoverageFile,
+  testHops,
   type CountedSuite,
   type CoverageAtDistance,
   type CoverageCount,
@@ -239,7 +240,7 @@ async function band(request: ParsedCoverage): Promise<{ readonly narrow: (indexe
   const { atDistance } = request;
   if (atDistance === undefined) return { narrow: (indexes) => ({ indexes, unplaced: [], unmeasured: 0 }) };
   const relations = await relationsFor(request.root, ['.'], [], []);
-  return { narrow: (indexes) => coverageAtDistance(indexes, atDistance, { relations }) };
+  return { narrow: (indexes) => coverageAtDistance(indexes, atDistance, testHops(indexes, { relations })) };
 }
 
 /**

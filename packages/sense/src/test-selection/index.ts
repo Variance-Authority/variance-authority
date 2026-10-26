@@ -226,7 +226,7 @@ export {
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
-export { coverageAtDistance, type CoverageAtDistance } from './coverage-distance.js';
+export { coverageAtDistance, testHops, type CoverageAtDistance, type TestHops } from './coverage-distance.js';
 export { coverageByOwner, type OwnedFile } from './coverage-owner.js';
 
 /**
