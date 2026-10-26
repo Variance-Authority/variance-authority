@@ -179,13 +179,6 @@ What no piece ran splits in two:
   only this test takes. A narrower test could run them more cheaply, and that is
   usually where a unit test is missing.
 
-Composition answers for one test. For the whole suite,
-[`variance coverage --at-distance`](compare-coverage.md#count-what-near-tests-run)
-counts what tests ran from within a range of import hops, so `0-1` against `2-`
-shows how much is held up only by distant tests, and `--packages` names the
-packages whose regions only another package's tests reach, down to their
-files.
-
 ### Connect the regions to test statements
 
 [Cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
@@ -223,6 +216,62 @@ risk you act on. Otherwise it is the test to retire, or to cut down to the one
 assertion about the order. For one candidate test read on its own rather than
 against its pieces, [Distill](distill.md) separates what it loaded, covered and
 addressed.
+
+## Ask which code only distant tests run
+
+Split a component into three files and change no test, then move two of the
+files into a shared package. Coverage stays at 100%, and the shared package has
+no test of its own: everything in it runs because a test in another package
+imports it, often several imports away. `variance coverage --packages` counts
+each package by whose tests ran it:
+
+```bash
+npx variance coverage --packages
+```
+
+```text
+which package's tests ran each package
+                 ran    own tests  only others'         by
+  packages/cli   8,020  100.0%     0             0.0%
+  packages/help  2,069  88.9%      229           11.1%  packages/cli 229
+run only by other packages' tests
+  packages/help/src/  229  packages/cli 229
+    tools/            210  packages/cli 210
+      uses-of.ts      32   packages/cli 32
+      uses.ts         28   packages/cli 28
+```
+
+A region is the package's own when one of its own tests ran it, whoever else
+did too. The tree under the table walks the packages with the most regions only
+other packages' tests ran down to their files, largest first, so the first file
+it names is the first place to ask whether the package needs a test of its own.
+
+Owning a region is not testing it closely: a package's own flow test can reach a
+helper four imports down. `--at-distance` counts only what tests ran from within
+a range of import hops, from each test's own file (`0`) and the modules it
+imports directly (`1`) outward:
+
+```bash
+npx variance coverage --at-distance 0-1
+npx variance coverage --at-distance 2-
+```
+
+```text
+coverage at 88749cde — 40,306 regions in 1,159 files the suites loaded, counted from the tests 0-1 import hops from the code they ran
+  any suite                   24,145      59.9%
+coverage at 88749cde — 40,306 regions in 1,159 files the suites loaded, counted from the tests 2 or more import hops from the code they ran
+  any suite                   22,087      54.8%
+```
+
+That is Variance Authority's own suite, which runs 90.4% of what it loads with
+no range. Both ranges are counted over the same total, so the shares read
+against each other. The range composes with `--packages`: `npx variance coverage
+--packages --at-distance 0-1` counts each package by whose near tests ran it. A
+test file the import graph does not hold is left out of a range, never taken as
+near, and the heading ends with how many were left out when any were. The hops are
+measured on the tree as it is now, so a count under a range is not compared with
+the suite's base. To see what one test runs that no narrower test does, ask
+[what that test is made of](#ask-what-one-test-is-made-of).
 
 ## Do you need a test?
 
