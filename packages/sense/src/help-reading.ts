@@ -109,11 +109,21 @@ export interface ContainerMember {
   readonly line: number;
 }
 
-/** The declaration an export passes on: the file that declares it, the name it has there, and its line. */
-export interface PassedOnDeclaration {
+/**
+ * The declaration an export binds: the file that declares it, the name it has
+ * there, its line and kind, and the spans of its signature and doc comment in
+ * the file's UTF-16 offsets, when the parser kept them.
+ */
+export interface ExportedDeclaration {
   readonly at: string;
   readonly name: string;
   readonly line: number;
+  /** As the parser harvested it: `function`, `const`, … */
+  readonly kind: string;
+  readonly signatureStart?: number | null;
+  readonly signatureEnd?: number | null;
+  readonly docStart?: number | null;
+  readonly docEnd?: number | null;
 }
 
 /** One line that uses a member, and how. */
@@ -150,10 +160,9 @@ export interface NativeHelp {
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
-  declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
+  declarationExportedOf?(index: string, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
   aliasesOf?(root: string, index: string, local: string): Alias[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
-  declarationsWrittenOf?(root: string, index: string, name: string, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
   declaredTermsOf?(index: string, files: string[] | null): string[] | null;
   declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
@@ -241,21 +250,21 @@ export function membersOn(root: string, file: string, on: string, index: string 
 }
 
 /**
- * The declaration the export `name` of `file`, repo-relative, passes on,
- * through every `export … from` and every import a file exports again between
+ * The declaration the export `name` of `file`, repo-relative, binds: the
+ * file's own, under its own name or another, or the one it passes on through
+ * every `export … from` and every import a file exports again between
  * them, renamed or not and type-only or not, and through an `export *` when no
  * named export passes the name, as ECMAScript resolves an export: a file's own
  * export list first, then a named `export … from`, then its stars, none of
- * which passes `default`. `null` when `file` declares the name itself, and
- * when the walk ends short of a declaration: at a namespace (`export * as`,
- * `import * as`), at a request that resolved to no file of the checkout, at a
- * file with no export list in the index that does not declare the name, back
- * at a file it passed through, or at stars that reach different declarations.
+ * which passes `default`. `null` when the walk ends short of a declaration:
+ * at a namespace (`export * as`, `import * as`), at a request that resolved
+ * to no file of the checkout, at a file with no export list in the index that
+ * does not declare the name, back at a file it passed through, or at stars that reach different declarations.
  * `undefined` when no index was published; throws when the index does not
  * read.
  */
-export function declarationPassedOn(root: string, file: string, name: string, index: string = sourceIndexPath(root)): PassedOnDeclaration | null | undefined {
-  const read = entry('declarationPassedOnOf')(index, file, name);
+export function declarationExported(root: string, file: string, name: string, index: string = sourceIndexPath(root)): ExportedDeclaration | null | undefined {
+  const read = entry('declarationExportedOf')(index, file, name);
   return read === null ? undefined : (read.declaration ?? null);
 }
 
@@ -349,22 +358,6 @@ export function declaredOf(
   const containing = options.containing === true;
   const files = options.files === undefined ? null : [...options.files];
   return entry('declaredOf')(root, index, containing ? query.toLowerCase() : query, containing, files) ?? undefined;
-}
-
-/**
- * Every top-level declaration the index at `index` holds named `name`, whether
- * an export of its file binds it or not: what an exported declaration is read
- * from, its kind, its signature and its doc, which no export list holds. Only
- * in `files`, repo-relative, when they are named. `undefined` when no index was
- * published; throws when the index does not read.
- */
-export function declarationsWrittenOf(
-  root: string,
-  name: string,
-  files?: Iterable<string>,
-  index: string = sourceIndexPath(root),
-): DeclaredNames | undefined {
-  return entry('declarationsWrittenOf')(root, index, name, files === undefined ? null : [...files]) ?? undefined;
 }
 
 /**

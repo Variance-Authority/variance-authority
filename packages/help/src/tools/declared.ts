@@ -20,7 +20,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { declarationsWrittenOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
+import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
 import { sharedSegments } from './shared-segments.js';
@@ -77,37 +77,19 @@ function declaredBlock(root: string, held: DeclaredName, spell: Spelling): strin
   ].join('\n');
 }
 
+/** Where a declaration is, and the spans of its signature and documentation. */
+type Spanned = Pick<DeclaredName, 'at' | 'name' | 'line' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
+
 /**
  * A declaration's signature and documentation, as the checkout holds them;
  * neither when the file no longer holds the name where the index read it.
  */
-function textRows(root: string, held: DeclaredName): readonly string[] {
+export function textRows(root: string, held: Spanned): readonly string[] {
   const text = textAt(root, held);
   if (text === undefined) return [];
   const signature = headOf(text, spanOf(held.signatureStart, held.signatureEnd));
   const doc = docOf(text, spanOf(held.docStart, held.docEnd));
   return [...(signature === undefined ? [] : [signature]), ...(doc === undefined ? [] : [doc])];
-}
-
-/**
- * What the source index says a declaration an export of `at` binds is: its
- * kind, and its signature and documentation as the checkout holds them, read
- * as an unexported one's are. The one written at `line` when two of the file's
- * share the name, and the only one when none is written there; `undefined`
- * when no checkout is named, the index does not read, or it holds no single
- * declaration of `name` in `at` to answer by.
- */
-export function writtenAt(root: string | undefined, name: string, at: string, line: number): { readonly kind: string; readonly rows: readonly string[] } | undefined {
-  if (root === undefined) return undefined;
-  let read: ReturnType<typeof declarationsWrittenOf>;
-  try {
-    read = declarationsWrittenOf(root, name, [at]);
-  } catch {
-    return undefined;
-  }
-  const held = read?.names.filter((one) => one.at === at && !isNested(one)) ?? [];
-  const one = held.find((candidate) => candidate.line === line) ?? (held.length === 1 ? held[0] : undefined);
-  return one === undefined ? undefined : { kind: one.kind, rows: textRows(root, one) };
 }
 
 /**
@@ -186,7 +168,7 @@ function spanOf(start: number | null | undefined, end: number | null | undefined
 }
 
 /** The file's text, when it still holds the name on the line the index read it at. */
-function textAt(root: string, held: DeclaredName): string | undefined {
+function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>): string | undefined {
   let text: string;
   try {
     text = readFileSync(join(root, held.at), 'utf8');

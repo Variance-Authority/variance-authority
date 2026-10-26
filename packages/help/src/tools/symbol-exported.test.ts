@@ -42,8 +42,12 @@ async function workspace(): Promise<string> {
     'packages/kit/src/internal/clamp.ts': '/** The value, held under the ceiling. */\nexport const clamp = (value: number): number => value;\n',
     'packages/kit/src/internal/rate.ts': '/** What a rate holds. */\ninterface Rate {\n  percent: number;\n}\n/** The rate every bill starts from. */\nexport const Rate = 0.2;\n',
     'packages/kit/src/internal/limit.ts': "export { clamp as limit } from './clamp.js';\n",
+    'packages/kit/src/internal/tax.ts': '/** The tax an amount owes. */\nfunction taxOf(amount: number): number {\n  return amount;\n}\nexport { taxOf as levy };\n',
+    'tools/tax.mjs': '/** The tax an amount owes. */\nfunction taxOf(amount) {\n  return amount;\n}\nexport { taxOf as duty };\n',
+    'tools/pay.mjs': "import { duty } from './tax.mjs';\nduty(1);\n",
     'packages/app/package.json': JSON.stringify({ name: 'app' }),
     'packages/app/src/bounded.ts': "import { clamp } from 'kit/src/internal/clamp';\nexport const bounded = clamp(140);\n",
+    'packages/app/src/levied.ts': "import { levy } from 'kit/src/internal/tax';\nexport const levied = levy(140);\n",
     'packages/app/src/limited.ts': "import { limit } from 'kit/src/internal/limit';\nexport const limited = limit(140);\n",
   };
   for (const [path, value] of Object.entries(files)) {
@@ -84,4 +88,15 @@ it('answers a name imported by the path of a file that passes it on with what it
   const out = symbol.run(readHelp(root), { name: 'limit' }, { root });
   expect(out).toContain('limit [const]\n');
   expect(out).toContain('The value, held under the ceiling.');
+});
+
+it('answers a name its file exports under another name with the declaration it binds', async () => {
+  const root = await workspace();
+  for (const name of ['levy', 'duty']) {
+    const out = symbol.run(readHelp(root), { name }, { root });
+    expect(out).toContain(`${name} [function]\n`);
+    expect(out).toContain('function taxOf(amount');
+    expect(out).toContain('The tax an amount owes.');
+    expect(out).not.toContain(`export { taxOf as ${name} };`);
+  }
 });

@@ -14,10 +14,6 @@
 //! holds it. Only the exact question reads that table: a closure is its
 //! holder's working name, documented for its holder, and a description or a
 //! piece of a name is asked of what a caller can reach.
-//!
-//! `symbol` reads the same harvest for a name a file exports and no entry
-//! publishes, so it can answer with its kind, signature and doc: asked as
-//! written, the declarations an export binds are kept too.
 
 // compass: variance-authority.report.agent-surface
 
@@ -129,10 +125,6 @@ pub(crate) enum Matching {
     /// name, hold one of every group: the terms the loose pass let each word of
     /// the question stand for.
     Terms { groups: Vec<Vec<String>> },
-    /// The name is `query`, as [`Matching::Exact`] matches it, and an export
-    /// of its file may bind it: where an exported declaration's signature and
-    /// doc are read from, which no export list holds.
-    Written,
 }
 
 /// Which of `asked` the words of `text` hold, as positions into it.
@@ -154,7 +146,7 @@ fn source_of<'s>(source: &'s mut Option<Option<Vec<u16>>>, root: &str, file: &st
         .as_deref()
 }
 
-fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: usize) -> (Option<u32>, Option<u32>) {
+pub(crate) fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: usize) -> (Option<u32>, Option<u32>) {
     let (start, end) = (starts.at(at), ends.at(at));
     if start == NONE || end == NONE { (None, None) } else { (Some(start), Some(end)) }
 }
@@ -227,9 +219,9 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
 /// that name, whose name `matching` admits for `query`, or whose doc does when it
 /// is `Containing` or `Described`, in `files` when they are named, less the
 /// ones its file exports, under that name or another, which the export list
-/// already answers. A name declared twice in one file, as an interface and a
-/// const, is one entry: the first. Asked [`Matching::Written`], neither holds:
-/// every declaration of the name is kept, bound by an export or not.
+/// already answers. A name
+/// declared twice in one file, as an interface and a const, is one entry: the
+/// first.
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
     let folded = fold(layers);
     let crossings = crossings(layers, &folded, files);
@@ -269,15 +261,13 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                // Asked as written, every declaration of the name is kept: an export binds one of them, and its line tells which.
-                let written = matches!(matching, Matching::Written);
-                if !written && (own.contains(&name) || named.contains(&name)) { continue }
+                if own.contains(&name) || named.contains(&name) { continue }
                 let mut doc = || {
                     let (Some(start), Some(end)) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol) else { return None };
                     source_of(&mut source, root, crossing.file).and_then(|source| prose(source, start, end))
                 };
                 let described = match &matching {
-                    Matching::Exact | Matching::Written if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
+                    Matching::Exact if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
                     Matching::Containing if name.to_lowercase().contains(query) || doc().is_some_and(|doc| doc.contains(query)) => None,
                     Matching::Terms { groups } => {
                         let terms = crate::help_search::name_terms(name);

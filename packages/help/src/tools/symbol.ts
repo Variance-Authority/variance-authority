@@ -8,10 +8,10 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { declarations, declaredAt, declaredBlocks, isNested, unreadLine, writtenAt } from './declared.js';
+import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
-import { exportedRows, originOf } from './passed-on.js';
+import { boundOf, exportedRows, originOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
@@ -284,20 +284,19 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
     const [first] = held;
     if (first === undefined) return '';
     const exported = declaration(help, name, first);
-    // A file that passes the name on declares nothing: the file it passes it on from does.
-    const declared = exported === undefined ? undefined : (originOf(root, exported) ?? exported);
-    const written = declared === undefined ? undefined : writtenAt(root, declared.name, declared.at, declared.line);
+    const bound = exported === undefined ? undefined : boundOf(root, exported);
+    const declared = bound ?? exported;
     const why = {
       deep: `not published: ${first.owner} declares an entry, and this file is not behind it.`,
       byPath: `not published: ${first.owner} declares no entry, so every import of it names a file.`,
       unfollowed: `not listed: ${first.owner} declares ${first.held.specifier} as an entry, and this reading could not follow it to a source file.`,
     }[first.kind];
     return [
-      written === undefined ? name : `${name} [${written.kind}]`,
+      bound === undefined ? name : `${name} [${bound.kind}]`,
       ...(name === 'default' ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
       ...(declared === undefined ? [] : [`declared at ${declared.at}:${declared.line}`]),
       why,
-      ...(written?.rows ?? []),
+      ...(root === undefined || bound === undefined ? [] : textRows(root, bound)),
       '',
       `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
       ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.local === undefined ? '' : ` (as ${site.taken.local})`}${site.taken.type ? ' (type only)' : ''}`),
