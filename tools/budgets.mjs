@@ -130,7 +130,9 @@ export function surfacesOf(file, text) {
   const found = [];
   let overview = false;
 
-  for (const group of groupsOf(text, comments)) {
+  // oxc lists the hashbang among the comments; it is an interpreter line.
+  const written = comments.filter((comment) => comment.start !== program.hashbang?.start);
+  for (const group of groupsOf(text, written)) {
     const parts = group.parts.filter((part) => !PRAGMA.test(part.value.replace(/^\*+/, '')));
     if (parts.length === 0) continue;
     const gap = /^\s*/.exec(text.slice(group.end))[0];

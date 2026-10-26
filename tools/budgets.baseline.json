@@ -3,10 +3,10 @@
     7
   ],
   ".github/actions/variance/post-comment.mjs overview": [
-    36
+    35
   ],
   ".github/scripts/variance-accept.mjs overview": [
-    32
+    31
   ],
   "cases/event-announcement-case/src/spec/announcement.spec.mjs block test(without the announcement the negative passes for the wrong reason)": [
     6
@@ -21,11 +21,13 @@
     33
   ],
   "cases/incumbent-case/scripts/engines.mjs block": [
-    31,
     6
   ],
   "cases/incumbent-case/scripts/engines.mjs docblock model": [
     12
+  ],
+  "cases/incumbent-case/scripts/engines.mjs overview": [
+    31
   ],
   "cases/incumbent-case/src/bundle.test.ts block": [
     11
@@ -1641,9 +1643,6 @@
   "packages/dom/src/typeface.ts docblock hostChosenFonts": [
     16
   ],
-  "packages/editors/scripts/build.mjs block": [
-    7
-  ],
   "packages/event/src/head.ts overview": [
     18
   ],
@@ -1812,16 +1811,13 @@
   "packages/mcp/README.md lead": [
     17
   ],
-  "packages/mcp/scripts/locate-corpus.mjs block": [
+  "packages/mcp/scripts/locate-corpus.mjs overview": [
     27
   ],
-  "packages/mcp/scripts/locate-place.mjs block": [
+  "packages/mcp/scripts/locate-place.mjs overview": [
     23
   ],
-  "packages/mcp/scripts/locate-scale.mjs block": [
-    12
-  ],
-  "packages/mcp/scripts/locate-sheet.mjs block": [
+  "packages/mcp/scripts/locate-sheet.mjs overview": [
     22
   ],
   "packages/mcp/src/bin.ts overview": [
@@ -2134,16 +2130,16 @@
   "packages/playwright-test/src/with-test-selection.ts overview": [
     18
   ],
-  "packages/playwright/scripts/execute.mjs block": [
+  "packages/playwright/scripts/execute.mjs overview": [
     28
-  ],
-  "packages/playwright/scripts/host.mjs block": [
-    34
   ],
   "packages/playwright/scripts/host.mjs docblock outward": [
     15
   ],
-  "packages/playwright/scripts/paint.mjs block": [
+  "packages/playwright/scripts/host.mjs overview": [
+    34
+  ],
+  "packages/playwright/scripts/paint.mjs overview": [
     29
   ],
   "packages/playwright/src/acquire.ts docblock acquireFromAgent": [
@@ -2715,14 +2711,11 @@
   "packages/sense/README.md lead": [
     36
   ],
-  "packages/sense/native/build.mjs block": [
-    47
-  ],
   "packages/sense/native/build.mjs docblock buildScanner": [
     15
   ],
-  "packages/sense/native/consumer.mjs block": [
-    13
+  "packages/sense/native/build.mjs overview": [
+    47
   ],
   "packages/sense/native/targets.mjs docblock TARGETS": [
     11
@@ -2730,7 +2723,7 @@
   "packages/sense/scripts/chunk-store.mjs overview": [
     26
   ],
-  "packages/sense/scripts/coverage.mjs block": [
+  "packages/sense/scripts/coverage.mjs overview": [
     35
   ],
   "packages/sense/scripts/crossings.mjs overview": [
@@ -2738,9 +2731,6 @@
   ],
   "packages/sense/scripts/depth-load.mjs overview": [
     18
-  ],
-  "packages/sense/scripts/distill-corpus.mjs block": [
-    9
   ],
   "packages/sense/scripts/journey-load.mjs overview": [
     20
@@ -2751,29 +2741,26 @@
   "packages/sense/scripts/local-sets.mjs overview": [
     17
   ],
-  "packages/sense/scripts/native.mjs block": [
+  "packages/sense/scripts/native.mjs overview": [
     24
   ],
-  "packages/sense/scripts/overhead.mjs block": [
+  "packages/sense/scripts/overhead.mjs overview": [
     28
   ],
-  "packages/sense/scripts/probe-write.mjs block": [
+  "packages/sense/scripts/probe-write.mjs overview": [
     23
   ],
-  "packages/sense/scripts/published-index.mjs block": [
+  "packages/sense/scripts/published-index.mjs overview": [
     20
   ],
   "packages/sense/scripts/reach-probe.mjs overview": [
     20
   ],
-  "packages/sense/scripts/read-width.mjs block": [
+  "packages/sense/scripts/read-width.mjs overview": [
     27
   ],
   "packages/sense/scripts/record-load.mjs overview": [
     20
-  ],
-  "packages/sense/scripts/round-trip.mjs block": [
-    7
   ],
   "packages/sense/scripts/scale-chunks.mjs block": [
     8,
@@ -2782,7 +2769,7 @@
   "packages/sense/scripts/scale-chunks.mjs overview": [
     27
   ],
-  "packages/sense/scripts/scan-cost.mjs block": [
+  "packages/sense/scripts/scan-cost.mjs overview": [
     17
   ],
   "packages/sense/scripts/selection-scale.mjs overview": [
@@ -2794,11 +2781,11 @@
   "packages/sense/scripts/snapshot-scale.mjs overview": [
     28
   ],
-  "packages/sense/scripts/source-index.mjs block": [
-    22
-  ],
   "packages/sense/scripts/source-index.mjs block scan": [
     11
+  ],
+  "packages/sense/scripts/source-index.mjs overview": [
+    22
   ],
   "packages/sense/scripts/storage.mjs block build": [
     9
@@ -2806,10 +2793,10 @@
   "packages/sense/scripts/storage.mjs docblock asJson": [
     11
   ],
-  "packages/sense/scripts/tree-cost.mjs block": [
+  "packages/sense/scripts/tree-cost.mjs overview": [
     16
   ],
-  "packages/sense/scripts/tuned-cost.mjs block": [
+  "packages/sense/scripts/tuned-cost.mjs overview": [
     32
   ],
   "packages/sense/scripts/variance-store-classes.mjs block": [
@@ -2829,7 +2816,7 @@
   "packages/sense/scripts/variance-store.mjs overview": [
     19
   ],
-  "packages/sense/scripts/witnesses.mjs block": [
+  "packages/sense/scripts/witnesses.mjs overview": [
     26
   ],
   "packages/sense/src/addon.ts docblock PLATFORMS": [
@@ -4527,17 +4514,11 @@
   "tools/boundaries.check.ts overview": [
     22
   ],
-  "tools/budgets.mjs block": [
-    9
-  ],
   "tools/changelog-tidy.mjs docblock LOCKSTEP": [
     19
   ],
   "tools/changelog.check.ts docblock ExpressionStatement": [
     11
-  ],
-  "tools/clones.mjs block": [
-    10
   ],
   "tools/comments.ts docblock SOURCE": [
     11
@@ -4575,9 +4556,6 @@
   "tools/documented.check.ts overview": [
     20
   ],
-  "tools/documented.mjs block": [
-    13
-  ],
   "tools/keep-base.mjs overview": [
     18
   ],
@@ -4592,9 +4570,6 @@
   ],
   "tools/native-sources.mjs docblock nativeSources": [
     18
-  ],
-  "tools/owners.mjs block": [
-    14
   ],
   "tools/page-agents.check.ts docblock ExpressionStatement": [
     13
@@ -4612,7 +4587,7 @@
     16
   ],
   "tools/publish.mjs overview": [
-    24
+    23
   ],
   "tools/register-histogram.mjs overview": [
     18
@@ -4636,7 +4611,7 @@
     20
   ],
   "tools/site-reach.mjs overview": [
-    41
+    40
   ],
   "tools/skips.check.ts block GATED.GATED": [
     7
@@ -4656,7 +4631,7 @@
   "tools/surface.check.ts overview": [
     23
   ],
-  "tools/surface.mjs block": [
+  "tools/surface.mjs overview": [
     18
   ],
   "tools/surfaces.check.ts block REACH_THROUGH_DEBT.REACH_THROUGH_DEBT": [
@@ -4681,7 +4656,7 @@
   "tools/tribunal-ui.mjs overview": [
     16
   ],
-  "tools/unrun.mjs block": [
+  "tools/unrun.mjs overview": [
     20
   ],
   "tools/workspaces.ts block workspaces": [
