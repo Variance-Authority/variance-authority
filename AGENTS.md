@@ -217,15 +217,18 @@ or a conflict, puts the `agent:debugging` label on. Handing over swaps it for
 `agent:done`; stopping short of that takes it off and puts nothing on. Nothing
 announces a PR that has finished passing, so a cycle that is not stopping
 blocked ends by watching every check until it has finished, never with
-`agent:debugging` left on. `site` is the exception: it reports a change as a
-warning rather than failing on it, and nothing waits for it.
+`agent:debugging` left on. `site` included: a change it finds shows on a green
+check, so its verdict is read, not its colour.
 
 ### 6. Validate
 
 Look around:
 
-- Every check but `site`, until each has finished, with the watch in
+- Every check, `site` included, until each has finished, with the watch in
   [validate and correct](.agents/references/outer-loop.md).
+- `site`'s verdict, not only its colour: a change it found is a warning
+  annotation on a green check and a docket in its PR comment, and each change
+  is a finding to classify.
 - CodeRabbit's inline comments, once its check reads `Review completed`.
 - The coverage and "What this change might do" comments CI posts. Do they
   describe the change you meant to make?
@@ -242,10 +245,10 @@ pre-verify. A failure is not called flaky, pre-existing or unrelated without the
 same failure on `main`. A CodeRabbit comment is a signal, not an instruction: fix
 what is real, set aside what is not, and never reply to or resolve a thread.
 
-A PR is handed over only when every check but a running `site` is green and
-every finding is classified. The report starts from the task as it was set —
-where it stands, what is not done — and ends with what you need from the person
-who asked.
+A PR is handed over only when every check is green and every finding,
+`site`'s included, is classified. The report starts from the task as it was
+set — where it stands, what is not done — and ends with what you need from the
+person who asked.
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.50.1 -->

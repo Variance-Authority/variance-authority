@@ -2,18 +2,33 @@
 
 Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
 parties answer: CI, CodeRabbit, the person who asked. A PR is handed over only
-when every check except a running `site` is green and every finding is
-classified.
+when every check is green and every finding is classified.
 
-**`site` reports; it is not waited for.** It photographs variance-authority.dev,
-takes the longest of any check, and a change it finds is a warning on a green
-check rather than a red one: a docs page that renders differently is far more
-often what the PR was for than a defect. Neither a watch nor a handover waits
-for it. A red `site` is a run that did not happen, a subject it could not
+**`site` is waited for and read.** It photographs variance-authority.dev, the
+only check that sees the public site, and takes the longest of any check. A
+change it finds is a warning on a green check rather than a red one, because a
+docs page that renders differently is often what the PR was for. So read its
+verdict, not its colour, from the check's annotations:
+
+```bash
+link=$(gh pr checks <n> --json name,link --jq '.[] | select(.name == "site").link')
+gh api "repos/{owner}/{repo}/check-runs/${link##*/}/annotations" --jq '.[] | "\(.annotation_level): \(.title // "") \(.message)"'
+```
+
+The verdict is one of three. The `warning` "variance found changes that need
+review" means a docket: the PR comment holding
+`<!-- variance-authority: pr-docket v2 project=site -->` lists each change
+(`tribunal`'s comment has the same heading and another marker). The `notice`
+titled `site not observed` means the change does not reach the site; the run
+did not happen, so a docket left from an earlier push is stale. Neither means
+nothing needs review; a docket from an earlier push then reads "nothing to
+review". Other warnings, a deprecated action or a reach not decided, are not a
+verdict. Each change in a current docket is a finding: one the PR meant is
+named in the report as the person's to accept, one it did not mean is fixed on
+the branch. A red `site` is a run that did not happen, a subject it could not
 observe, or an accept the comparison after it did not hold, and that is yours
-like any other red check; one that goes red after you handed over reaches the
-person, and the next cycle picks it up. Its docket is the person's to read, and
-accepting what it found is their label, `variance: accept site`.
+like any other red check. Accepting what it found is the person's label,
+`variance: accept site`, never yours.
 
 ## Labels
 
@@ -32,8 +47,8 @@ When you [hand it over](#handing-over), swap them:
 gh pr edit <n> --remove-label agent:debugging --add-label agent:done
 ```
 
-`agent:done` means what handing over means: every check except a running
-`site` green, and every finding classified. A cycle that stops short of that,
+`agent:done` means what handing over means: every check green, and every
+finding classified. A cycle that stops short of that,
 because you are blocked or waiting on the person who asked, takes
 `agent:debugging` off and does not put `agent:done` on. A PR with neither label is one nobody is working on and nobody
 has finished, and the report says why.
@@ -43,14 +58,13 @@ Nothing tells you when the last check turns green. A failure, a comment or a
 conflict reaches you; a PR that simply finishes passing does not, and one left
 labelled `agent:debugging` then says somebody is working on a PR that is ready.
 So every cycle that is not stopping blocked, including one woken by a comment
-with nothing to fix, ends by watching the checks until each but `site` has
-finished, then reading them. Where a foreground `sleep` is refused, run the
-watch in the background. It stops when `gh` fails, a PR with no checks
-included, as `--watch` did; the `gh pr checks <n>` after it exits 8 while
-`site` is still running, which is not a failure:
+with nothing to fix, ends by watching the checks until each has finished,
+`site` included, then reading them. Where a foreground `sleep` is refused, run
+the watch in the background. It stops when `gh` fails, a PR with no checks
+included, as `--watch` did:
 
 ```bash
-while done=$(gh pr checks <n> --json name,bucket --jq 'all(.[]; .name == "site" or .bucket != "pending")') && [ "$done" != true ]; do sleep 30; done
+while done=$(gh pr checks <n> --json name,bucket --jq 'all(.[]; .bucket != "pending")') && [ "$done" != true ]; do sleep 30; done
 gh pr checks <n>
 ```
 
@@ -64,7 +78,8 @@ label off and says why, and the next cycle watches them.
 
 ### Look around
 
-**Every check but `site`, until each has finished**, with the watch above.
+**Every check, `site` included, until each has finished**, with the watch
+above. Then `site`'s verdict, as above.
 
 **CodeRabbit.** It reviews pull requests here and reports as the `CodeRabbit` check, which
 reads `Review completed` when it is done. The inline comments are where the
@@ -134,9 +149,10 @@ it.
 
 Swap `agent:debugging` for `agent:done` when you hand over, and not before.
 
-Never report a PR as done, ready or passing while any check is red, or any
-check but `site` is still running. Say which check, what it said, and what you did about it.
-A `site` still running is named as running.
+Never report a PR as done, ready or passing while any check is red or still
+running. Say which check, what it said, and what you did about it. `site`'s
+verdict is always in the report: nothing needs review, not observed, or each
+change it found and whose it is to accept.
 
 The report starts from the task as it was set in [refine](refine.md): which
 parts are done, where they live, and what is not done. Then the CodeRabbit
