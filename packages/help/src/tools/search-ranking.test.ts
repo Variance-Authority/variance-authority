@@ -57,6 +57,14 @@ const UNPUBLISHED = [
   'export const call = 0;',
 ].join('\n');
 
+// Declared and not exported: more names holding the word than a section shows, and then the word itself.
+const KEPT = [
+  ...Array.from({ length: 30 }, (_, at) => `const tallied${at} = ${at};`),
+  'function Tally(): number {\n  return 0;\n}',
+  'function tally(): number {\n  return 0;\n}',
+  'export const kept = [tally(), Tally(), tallied0];',
+].join('\n');
+
 let index: SearchIndex;
 let root: string;
 
@@ -67,6 +75,7 @@ beforeAll(async () => {
     'packages/probes/tsconfig.json': TSCONFIG,
     'packages/probes/src/index.ts': `${PROBES}\n`,
     'packages/probes/src/unpublished.ts': `${UNPUBLISHED}\n`,
+    'packages/probes/src/kept.ts': `${KEPT}\n`,
     'packages/probes/src/counted.ts': "export { callCount } from './unpublished.js';\n",
     ...app('first', 'Flakiness, probeSites'),
     ...app('second', 'Flakiness'),
@@ -78,6 +87,7 @@ beforeAll(async () => {
 const ask = (query: string) => searchNames(index, { query }, treeOf([], root), root);
 const publishedFirst = (query: string): readonly string[] => (ask(query).published?.shown ?? []).map((one) => one.name);
 const exportedFirst = (query: string): readonly string[] => (ask(query).exported?.shown ?? []).map((one) => one.name);
+const declaredFirst = (query: string): readonly string[] => (ask(query).declared?.shown ?? []).map((one) => one.name);
 const describedFirst = (query: string): readonly string[] =>
   (ask(query).described?.shown ?? []).map((one) => ('name' in one ? one.name : one.at));
 
@@ -109,6 +119,11 @@ describe('the names a question puts first', () => {
 
   it('puts the exported name that is the question before an exported name holding it that more files export', () => {
     expect(exportedFirst('call')[0]).toBe('call');
+  });
+
+  it('puts the declared name that is the question first, however many names holding it come before it', () => {
+    expect(declaredFirst('tally').slice(0, 2)).toEqual(['tally', 'Tally']);
+    expect(declaredFirst('Tally').slice(0, 2)).toEqual(['Tally', 'tally']);
   });
 
   it('orders the names the source exports without publishing by the same fields', () => {

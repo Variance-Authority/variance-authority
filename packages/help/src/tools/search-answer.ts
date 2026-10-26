@@ -369,7 +369,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // is what the location reaches, and a package another workspace declares is that workspace's
   // to offer, so ownership is asked of the paths the question started at and not of the closure.
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to]);
-  const declared = declaredMatches(root, query, area?.files, ELSEWHERE_CAP);
+  const declared = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP);
 
   const answer: SearchAnswer = {
     query,
