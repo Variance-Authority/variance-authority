@@ -116,7 +116,9 @@ it('answers an export no entry publishes beside a published namesake', () => {
   const answer = ask({ name: 'keyOf' });
   expect(answer).toContain("import { keyOf } from '@x/core';");
   expect(answer).toContain('exported, without being published, at packages/react/src/story.ts:2 by @x/react');
-  expect(answer).toContain('export function keyOf(title: string, name: string): string');
+  expect(answer).toContain('keyOf [function]\n');
+  expect(answer).toContain('function keyOf(title: string, name: string): string');
+  expect(answer).not.toContain('export function keyOf(');
 });
 
 it('counts the declarations it does not write out, and writes out those nearest the file asked from first', () => {

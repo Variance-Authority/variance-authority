@@ -191,7 +191,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(out).toMatch(/Imported in 1 place\b/);
     expect(out).not.toContain('packages/lib/src/internal/index.ts');
-    expect(out.match(/^roundTax$/gm)).toHaveLength(1);
+    expect(out.match(/^roundTax \[\w+\]$/gm)).toHaveLength(1);
   });
 
   it('counts a published name read off `import x = require()` in another package, in `uses` and in `symbol`', async () => {

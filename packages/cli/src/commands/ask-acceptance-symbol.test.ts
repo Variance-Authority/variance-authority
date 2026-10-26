@@ -30,7 +30,12 @@ describe('ask symbol', () => {
 
   it('tells a name exported behind no entry apart from a published one', async () => {
     const { declarations } = await symbol('clamp');
-    expect(declarations).toEqual([expect.objectContaining({ visibility: 'exported', file: 'packages/lib-exports/src/internal/clamp.ts' })]);
+    expect(declarations).toEqual([expect.objectContaining({ kind: 'const', visibility: 'exported', file: 'packages/lib-exports/src/internal/clamp.ts' })]);
+  });
+
+  it('answers a name exported for a neighbour by its kind, as a published one is', async () => {
+    const { declarations } = await symbol('limitOf');
+    expect(declarations).toEqual([expect.objectContaining({ kind: 'function', visibility: 'exported', file: 'apps/app/src/limits.ts' })]);
   });
 
   it('names the files that import a declaration under another name', async () => {

@@ -42,6 +42,8 @@ const ACCEPTANCE: Readonly<Record<string, string>> = {
     "import type { Tree } from '@acme/core';\nexport const stub = (tree: Tree): Tree => {\n  tree.has = () => true;\n  return tree;\n};\n",
   'apps/app/src/later.ts': "export const later = async (): Promise<string> => (await import('@acme/lib')).greet('later');\n",
   'apps/app/src/whole.ts': "import * as lib from '@acme/lib';\nimport { hold } from './hold.js';\nexport const whole = hold(lib);\n",
+  'apps/app/src/limits.ts': '/** The most a size may be. */\nexport function limitOf(size: number): number {\n  return size;\n}\n',
+  'apps/app/src/limited.ts': "import { limitOf } from './limits.js';\nexport const limited = limitOf(3);\n",
   'apps/app/src/hold.ts': 'export const hold = (value: unknown): unknown => value;\n',
   'apps/app/src/pair.ts': 'export const left = 1;\nexport const right = 2;\n',
   'apps/app/src/handed.ts': [
