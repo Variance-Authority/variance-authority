@@ -46,12 +46,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   non-finite value, because NaN >= t is false at every level".
 - **The default policy counts a colour change above 1%.** Written in the
   [README](README.md#contracts-the-rest-of-the-pipeline-is-written-against).
-
-## Where to look for a counterexample
-
-- `assemble.ts`: the frame a kept rule needs, the parent's own width, a
-  layered body's padding, the inherited floor losing to every root rule.
-- `codec.ts`: a sidecar field it cannot parse is dropped, never invented, and
-  a digest it cannot parse still refuses the baseline.
-- `ephemeral.ts`: the `heldBytes` ceiling must count a hit as use and keep
-  an image larger than the whole ceiling rather than refuse the run.

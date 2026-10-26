@@ -46,14 +46,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   pinned by [src/parity.test.ts](src/parity.test.ts) › "does not record a new
   baseline when the store cannot be reached".
 
-## Where to look for a counterexample
-
-- `src/decide.ts`: a change straddling an excluded box, and a relaxed verdict
-  that loses its forgiven count.
-- `src/render-once.ts`: a snapshot-derived value kept beside a cached image.
-- `src/because.ts`, `src/summarize.ts`: a sentence naming a cause the
-  `Observation` does not carry.
-
 ## Not this package's
 
 - Where a baseline lives, and approval: `@variance-authority/store` and the

@@ -48,10 +48,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **A sweep keeps what a later run or reader needs.** Pinned by
   [`src/objects.test.ts`](src/objects.test.ts) › "keeps the object a promoted
   baseline shares with the build that proposed it".
-
-## Where to look for a counterexample
-
-- `review-baseline.ts`: two approvals between one read and the decision.
-- `node/bucket.ts`: `branch/Feature` and `branch/feature` on APFS.
-- `src/ui/`: a mask the page could not compute must say so, never draw a
-  comparison it did not make.

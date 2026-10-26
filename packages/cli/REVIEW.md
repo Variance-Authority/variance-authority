@@ -35,24 +35,9 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under `packages/cli/`.
   an answer that cannot narrow prints nothing, so the suite runs. Written in
   [README › select](README.md#select-what-your-own-runner-may-skip) and
   [ADR-0062](../../docs/context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md).
-- **Absence selects nothing.** A changed path no record measured is named and
-  widens nothing. Written in [spec
-  0091](../../docs/specs/0091-a-suite-is-selected-by-a-machine.md#what-would-discharge-it),
-  item 5.
 - **Legs partition the selection, from the record's commit.** Every selected
   file runs once in a loop of legs covering every hop; the diff's line numbers
   are the record's commit's. Written in README › select.
-
-## Where to look for a counterexample
-
-- `src/commands/covering-suites.ts`, `covering-unloaded.ts`: a refusal kind
-  swapped under an unreadable record, a shallow clone, or a namesake.
-- `src/commands/covering-reach.ts`, `covering-where.ts`: a state read after a
-  filter, or an unplaced test counted near.
-- `src/commands/runs-base.ts`, `suite-base.ts`: a shallow clone, a branch-line
-  record, a second run at one commit.
-- `src/commands/select-command.ts`, `select-leg.ts`: a sentence on stdout, or a
-  leg loop that drops or doubles an unplaced test.
 
 ## Not this package's
 

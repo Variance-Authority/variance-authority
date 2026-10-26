@@ -46,13 +46,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under `packages/mcp/`.
   [`src/root-entry.test.ts`](src/root-entry.test.ts) › "evaluates nothing a
   server reads until a server is started".
 
-## Where to look for a counterexample
-
-- `src/server.ts`: a tool that throws on a stale subject, a call missing an
-  argument, a host that passes `answered` but no `again`.
-- `src/tools/spelling.ts`: a hint must name a declared tool; try a refusal whose
-  suggestion is a tool the served set does not carry.
-
 ## Not this package's
 
 - What a verdict or an adjudication means: `report` and `core`. Tool names and

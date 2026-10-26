@@ -46,15 +46,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [ADR-0088][adr-0088] and pinned by
   [`src/playwright.chromium.test.ts`](src/playwright.chromium.test.ts) ›
   "hands focus back to the field that held it once the reading is taken".
-
-## Where to look for a counterexample
-
-- `findings.ts` and `measure.ts`: a fixture one side of 1.15x or 2px; ADR-0050
-  pins each threshold by a firing and a non-firing case, and moving one moves
-  both.
-- `compare.ts`: two reports with the same counts and different text.
-
-[adr-0050]:
-  ../../docs/context/adr/0050-presentation-relationships-are-evidence-not-a-design-policy.md
-[adr-0088]:
-  ../../docs/context/adr/0088-a-page-is-read-as-nobody-is-using-it.md

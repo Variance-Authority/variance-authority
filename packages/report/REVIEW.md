@@ -51,10 +51,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [`src/changelog.test.ts`](src/changelog.test.ts) › "survives a squash merge,
   where the trailers stop being the last paragraph" and "refuses an encoding it
   does not know rather than reading the half it recognises".
-
-## Where to look for a counterexample
-
-- `src/file.ts` and `src/presentation-record.ts`: a field read with `??` or an
-  optional chain that turns a malformed entry into an absent one.
-- `src/intent.ts`: a claim whose root rendered in no subject, with and without a
-  census; a `maxSubjects` equal to the reach.

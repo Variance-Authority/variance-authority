@@ -45,14 +45,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [src/alone.chromium.test.ts](src/alone.chromium.test.ts) › "reads the same
   document alone as it does in the shared world".
 
-## Where to look for a counterexample
-
-- `src/sitemap.ts`: the root `index.html`, `cart/empty.html` beside
-  `cart/empty/index.html`, one URL listed twice, an entry on another host.
-- `src/read.ts`: whatever `collect` computes that `collectAlone` does not.
-- `src/execution.ts`: a head named in `heads` that never reports. A page no
-  named head saw keeping a complete row is the `FIXME` there, not a finding.
-
 ## Not this package's
 
 - How the hydration and Suspense waits read React: `@variance-authority/react`.

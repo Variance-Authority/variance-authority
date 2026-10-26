@@ -36,13 +36,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [styles.test.ts](src/styles.test.ts) › "restores in insertion order, because
   that is cascade order".
 
-## Where to look for a counterexample
-
-- `src/capture.ts`: a `url()` written with escapes, a `srcset` candidate, an SVG
-  `<use href>`; the capture must name the URL the style meant.
-- `src/archive.ts`: a subject id longer than a filename keeps a readable prefix
-  and is told apart by digest.
-
 ## Not this package's
 
 - Painting, comparing and the verdict: `@variance-authority/cli` and

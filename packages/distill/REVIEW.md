@@ -39,13 +39,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **Order is deterministic.** Pinned by [scope.test.ts](src/scope.test.ts) ›
   "answers the same whatever order the record lists its modules in".
 
-## Where to look for a counterexample
-
-- `src/own.ts`: a diamond under an unused import, a barrel that re-exports part
-  of what it imports, and a module a static and a dynamic import both reach.
-- `src/file.ts` and `src/scope.ts`: a phase a runner did not time is absent,
-  never `0`.
-
 ## Not this package's
 
 - How the case index is written or read natively: `@variance-authority/sense`.

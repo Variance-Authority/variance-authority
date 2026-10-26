@@ -40,14 +40,7 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [share-line.test.ts](src/share-line.test.ts) › "keeps every suite when jobs
   publish at once".
 - **The render cache never throws.** A miss and a failure both mean "render it".
-  Written in [README](README.md#bound-the-render-cache).
-
-## Where to look for a counterexample
-
-- `src/legacy.ts` and `src/partition-name.ts`: a `put` moves only its own line's
-  pair, never another scale factor's or project's.
-- `src/share.ts`: a lock whose age the file system will not tell, and a staged
-  manifest left behind on a throw.
+  Written in [README](README.md#choose-a-backend).
 
 ## Not this package's
 

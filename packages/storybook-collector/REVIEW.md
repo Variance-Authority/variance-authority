@@ -42,17 +42,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   touched](README.md#skipping-stories-nothing-touched); pinned by
   [src/preset.test.ts](src/preset.test.ts) › "which builds the addon probes".
 
-## Where to look for a counterexample
-
-- `src/parameters.ts`: `storyIdOf` takes every `@` as the width suffix. Try a
-  subject re-read at a width the story dropped, and a dark 2x viewport with
-  widths, which must keep the story's viewport, not the run's.
-- `src/preset.ts` under Rsbuild, Webpack and Vite: a `main.js` hook that adds a
-  post loader, a probes rule, or a `vite.config` that already holds the plugin
-  with a different `mode`.
-- `src/execution.ts` beside `src/read.ts`: a story with two widths and a story
-  read again to rule out its neighbours must keep each row's phases.
-
 ## Not this package's
 
 - Index parsing, readiness and the `storyFinished` wait:

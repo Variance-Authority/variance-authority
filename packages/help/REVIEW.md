@@ -44,15 +44,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   under their own counted heading. Written in [README][not].
 - **Files are uncapped.** `intersection` gets every file `search` matched, not
   the rows shown. Written in `searchedFiles` ([search-answer.ts][answer]).
-
-## Where to look for a counterexample
-
-- `describedShown` in `src/tools/described.ts`: more distinct words than
-  `DESCRIBED_CAP`, a tie at the last level shown, a word only a file holds.
-- The loose/described split in `src/tools/search-answer.ts`: a name in neither
-  section, or both, as the number of competitors crosses a cap.
-
-[answer]: src/tools/search-answer.ts [described]: src/tools/described.ts
-[loose]: README.md#when-the-word-you-typed-is-not-the-word-that-was-written
-[not]: README.md#what-it-does-not-do [adr57]:
-../../docs/context/adr/0057-the-run-writes-every-name-it-saw.md

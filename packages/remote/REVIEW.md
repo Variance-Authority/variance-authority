@@ -49,11 +49,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   deadline when the runtime refuses the signal".
 - **The renderer takes no credential.** A token field nothing transmits would
   read as protection. Written in the [README](README.md#authentication).
-
-## Where to look for a counterexample
-
-- `src/store.ts`: every `catch` and every `?? default` on a decoded field. Try a
-  `404` on `/baseline/working-set` (the per-key fallback) against a `404` on
-  `/baseline/find`, and a body with `comparable` missing.
-- `src/batch.ts`: a batch flushed at `maxBatch` while another call joins, and a
-  reply shorter than the batch.

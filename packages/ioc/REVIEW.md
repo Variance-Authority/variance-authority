@@ -44,14 +44,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under `packages/ioc/`.
   registered after the driver, as a late import would" and "stops running a
   handler that has been unregistered".
 
-## Where to look for a counterexample
-
-- `src/reset/state.ts`: any state moved off the `globalThis` symbol into module
-  scope. Try two imports of the module through different specifiers, or a
-  registry reset between setup and application import.
-- `src/reset/setup.ts`: the run loop. Try a handler that throws first, and a
-  handler that unregisters itself or another while the loop runs.
-
 ## Not this package's
 
 - State in a dependency nobody can put a handler in: `variance run` observes

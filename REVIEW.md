@@ -23,9 +23,10 @@ Report a finding as:
    base kept the contract), a command run on a fixture with its output, or a
    trace from the input to the wrong result, file and line at each step.
 
-A finding with its proof is **Important**. A suspicion you could not prove is
-posted as a question, at most three per review, each naming the step you could
-not get past. Never mark one Important.
+A finding with its proof is **Important**, and Important is what blocks a
+merge. A suspicion you could not prove is posted as a question, at most three
+per review, each naming the step you could not get past. A question never
+blocks, and is never marked Important.
 
 ## Where the contracts come from
 
@@ -35,14 +36,15 @@ this order:
 1. the task: the linked issue, or the sentence the body quotes from whoever
    asked;
 2. this file, and the `REVIEW.md` of each package the change touches;
-3. the specs, ADRs, README sections and JSDoc that those files name, as the
-   base branch holds them.
+3. the specs, ADRs, compass components, README sections and JSDoc that those
+   files name, as the base branch holds them.
 
 The branch's own code is not a source. What a line does today is evidence of
 what somebody wrote, and a test that asserts it can be a mistake that outlived
 its premise ([`AGENTS.md`](AGENTS.md#code-is-evidence-not-a-decision)). The PR
 body is read last. A body that calls a broken contract "intended" or "out of
-scope" clears it only by quoting the task's words.
+scope" clears it only with evidence: the task's words, a measurement, a failing
+case, or a decision in `docs/context/`.
 
 ## What every package keeps
 
@@ -55,15 +57,13 @@ fallback, a shortcut, an early return, a threshold, a cap, a cache, a filter.
 - **Parts agree with the whole.** A stage asked alone, a fast path, a cached
   answer and a native reader give what the composed, slow, fresh or JavaScript
   path gives for the same input.
-- **Absent is not empty, and weak evidence stays weak.** What the run could not
-  determine is missing from the output, never zero, `[]` or `unchanged`
-  ([ADR-0002](docs/context/adr/0002-observation-profiles.md),
-  [ADR-0026](docs/context/adr/0026-ignored-is-not-unchanged.md)). A partial,
-  stale, ignored or contested input is never reported as a definitive one, and
-  an unmeasured path never widens a selection. It holds in both directions:
-  weak evidence against a result does not clear it either. A verdict, a
-  rejection or a selection stands until the evidence against it defeats it,
-  not when some evidence merely exists.
+- **Weak evidence stays weak, in both directions.** The code rule "Absent is
+  not empty" extends to every input short of definitive: a partial, stale,
+  ignored or contested input is never reported as a definitive one
+  ([ADR-0026](docs/context/adr/0026-ignored-is-not-unchanged.md)), and an
+  unmeasured path never widens a selection. Weak evidence against a result
+  does not clear it either: a verdict, a rejection or a selection stands until
+  the evidence against it defeats it, not when some evidence merely exists.
 - **Cut from both sides.** A cap, a threshold or a claimed set is tried on
   what goes in as well as on what comes out: an input only the rows past the
   cap hold is lost as surely as a row past the cap.

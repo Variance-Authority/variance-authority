@@ -47,13 +47,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **Each width is its own subject id.** Pinned by
   [src/viewport.test.ts](src/viewport.test.ts) › "names each width apart".
 
-## Where to look for a counterexample
-
-- `src/acquire.ts`, `src/arrivals.ts`: an asset map still filling while the
-  agent reads; a request from a removed frame or a dedicated worker.
-- `src/network.ts` with `cache: true`: an answer from memory that skips the
-  observation. `src/page-pool.ts`: concurrency above 1 and a render that throws.
-
 ## Not this package's
 
 - Which subjects exist and how they mount: the collectors and their callers.

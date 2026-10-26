@@ -50,11 +50,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   yet](README.md#a-subject-that-had-not-arrived-yet).
 - **Wiring is recorded, never a verdict.** Hook shape, `memo` and contexts never
   make a subject `changed`: [README › `wiring`](README.md#about-wiring).
-
-## Where to look for a counterexample
-
-- `src/node.ts`, where `accept`, the runner's `--update` and the baseline's
-  identity meet: try `accept: false` with `-u`, an unchanged subject from
-  another machine, and a changed one under a new stabilization recipe.
-- `src/observe.ts`, `src/protocol.ts`: a title holding ` > `, a call outside a
-  test, anything sent across that is not plain JSON.

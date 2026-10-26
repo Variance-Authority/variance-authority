@@ -46,14 +46,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [src/runtime.test.ts](src/runtime.test.ts) › "reads the innermost isolated
   session, whichever copy of the Node entry started it".
 
-## Where to look for a counterexample
-
-- `src/transform.ts`, the aliasing pass: an object reached through a member, a
-  spread or a `push`, beside a type-only import. A holder that moves while what
-  it holds stays gives a session a copy of a shared object.
-- `src/scope.ts`: a name a parameter default, a catch clause or a nested block
-  declares again. `src/jest.ts`: a cache key missing an input the output reads.
-
 ## Not this package's
 
 - Matching `sideEffects`: `@variance-authority/sense/side-effects`. When a reset

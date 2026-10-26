@@ -48,11 +48,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **Unlistened preconditions are unmeasured, not none.** Pinned by
   [src/arranged.test.ts](src/arranged.test.ts) › "prints a run that did not
   record preconditions as unmeasured, not empty".
-
-## Where to look for a counterexample
-
-- `src/execution.ts`, `src/reporter.ts`: a document replaced before the last
-  drain, a context the spec made itself. `src/whole-file-shard.ts`:
-  `repeatEach`, a setup project, `.only`.
-
-Combining shards' records and choosing what to skip are the CLI's.

@@ -37,13 +37,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [surface.test.ts](src/surface.test.ts) › "reads the same workspace the same
   way twice".
 
-## Where to look for a counterexample
-
-- `src/exports.ts` and `src/manifest.ts`: a custom condition after `types`,
-  conditions nested two deep, and a JSONC `extends` chain.
-- `src/reach.ts`: an `export *` cycle, and a re-export through a `paths` alias.
-- `src/use.ts`: `usage` handed back must give what a fresh walk gives.
-
 ## Not this package's
 
 - Whether two readings differ: `@variance-authority/core`. Signatures:

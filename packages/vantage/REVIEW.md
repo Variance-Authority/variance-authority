@@ -44,13 +44,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [src/attach.test.ts](src/attach.test.ts) › "holds the previous reading, which
   is the state a live diff compares against".
 
-## Where to look for a counterexample
-
-- `src/observatory.ts`: a bound that trims `heard` while `pending` is read from
-  what is left; a remark that keeps more than its last write.
-- `src/watch.ts`: the per-endpoint `POST` queue under a refused connection, and
-  `waits` when the test is closed while it polls.
-
 ## Not this package's
 
 - How `ask run-signals` and the `variance_*` tools print a snapshot:

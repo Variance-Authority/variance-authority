@@ -45,14 +45,6 @@ tests are in [src/scenario.test.ts](src/scenario.test.ts).
   snapshot that retention policy cannot admit" and "reports expired evidence as
   unobserved and garbage-collects its objects".
 
-## Where to look for a counterexample
-
-- `src/assessment.ts`: a repeated key whose occurrences differ by side, and an
-  unobserved frame on one side only.
-- `src/machine.ts`: a forged run whose frames cross a terminal outcome.
-- `src/archive.ts`: a refusal on a later frame after earlier objects were
-  written; a collection while another manifest still names an object.
-
 ## Not this package's
 
 - A digest spelled as a file name: `digestFileName` in `core`. What a band or a

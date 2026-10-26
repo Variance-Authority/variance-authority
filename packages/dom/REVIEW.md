@@ -47,13 +47,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under `packages/dom/`.
 - **No framework code.** Names and portals come only from the providers a
   caller passes. Written in
   [spec 0019](../../docs/specs/0019-provenance-without-react.md).
-
-## Where to look for a counterexample
-
-- `css-index.ts` and `selector-parts.ts`: a selector with `:where()`, `:is()`,
-  `:not()`, an escape or a quoted `)` filed under a key no element carries
-  drops a rule that applies.
-- `document.ts`, `frame.ts`, `layers.ts`, `font-faces.ts`: the frame rebuilt
-  around the subject must keep the ancestors, layers, faces and `:root`
-  tokens a kept rule needs; a Tailwind v4 or layered page loses height here.
-- `generated-box.ts`: `::before`/`::after` under jsdom against a browser.

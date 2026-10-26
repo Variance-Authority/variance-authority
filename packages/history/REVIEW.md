@@ -46,14 +46,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [client.test.ts](src/client.test.ts) › "refuses to write rows belonging to
   another project".
 
-## Where to look for a counterexample
-
-- `src/token-drift.ts` and `src/drift.ts`: a unit change, a value that came
-  back, a colour, and a slice out of time order.
-- `src/observation.ts`: structure compares across tiers; style stays inside one.
-- `src/client.ts`: a long subject list split across requests must concatenate
-  every answer, and a repeated subject is asked once.
-
 ## Not this package's
 
 - Storage, authentication and the database: `@variance-authority/server`.

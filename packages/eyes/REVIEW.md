@@ -51,10 +51,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **No phase is inferred.** Arrange, Act and Assert begin only at a declared
   phase. Written in
   [spec 0054](../../docs/specs/0054-eyes-attention-is-read-as-test-steps.md).
-
-## Where to look for a counterexample
-
-- `archive.ts`: a version, a no-fiber reason or an updater set it cannot read
-  must be refused, never read as empty.
-- `playwright-proxy.ts`: a chained locator, a `setContent` that replaces the
-  document, a receiver-bound method.

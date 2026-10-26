@@ -46,14 +46,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [README](README.md#cost) and pinned by
   [`src/session.test.ts`](src/session.test.ts) › "keeps probe overhead a small
   share of session time".
-
-## Where to look for a counterexample
-
-- `src/ledger.ts` and `src/findings.ts`: a subject that reads and writes a key
-  another also writes, and a key written by two earlier subjects.
-- `src/session.ts` with `clearContainer: false`: an empty mount after a full
-  one passes the emptiness check.
-- `src/state.ts`: a cross-origin sheet fingerprints as `unreadable`; a change
-  that makes it compare as changed, or as absent, is a false positive.
-- Module-level state is outside the probe, by the README's "Limits":
-  `@variance-authority/ioc` resets it, and it is not a finding here.

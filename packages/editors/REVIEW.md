@@ -36,13 +36,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [README](README.md#what-the-plugins-show) and the JSDoc of
   [`scripts/build.mjs`](scripts/build.mjs).
 
-## Where to look for a counterexample
-
-- `src/run.mjs`: anything added to stdout on the named-editor path breaks the
-  `$(...)` composition; try it with the plugin present and absent.
-- `package.json` `files` against `PLUGINS` in `src/where.mjs`: a plugin file
-  renamed in one and not the other packs a package `pluginPath` cannot find.
-
 ## Not this package's
 
 - What the gutter paints, hover and click behaviour: the plugins under

@@ -11,7 +11,9 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 ## Contracts
 
 - **No DOM, no I/O, no runtime dependency;** `share` reaches a store only
-  through its `cell`. Written in the [README](README.md#what-this-is-for).
+  through its `cell`. Written in [README › What this is
+  for](README.md#what-this-is-for) and [README › Hand an answer to another
+  machine](README.md#hand-an-answer-to-another-machine).
 - **Every name lives in one entrypoint, and `compare` returns no verdict.**
   The bare specifier exports only the capture artifact; policy is `judge`'s.
   Written in the [README](README.md#entrypoints).
@@ -48,12 +50,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   and `unreadable` stay apart. Pinned by
   [`src/share/line.test.ts`](src/share/line.test.ts) › "answers a newer format
   as newer, not as broken".
-
-## Where to look for a counterexample
-
-- `src/compare/band.ts`: a `style-changed` across two tags landing in `token`.
-- `src/compare/parting.ts`: a holding with no hooks read whose output moved.
-- `src/relate/`: a caller that passes `RUNTIME_EDGES` where a type change must
-  reach, or omits it in selection.
-- `src/share/publish.ts`: `descends` answering `undefined`, and a concurrent
-  writer that moves the manifest between read and `If-Match`.

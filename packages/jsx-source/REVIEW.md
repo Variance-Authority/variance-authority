@@ -41,13 +41,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [src/entrypoints.test.ts](src/entrypoints.test.ts) › "re-exports React s
   runtime unchanged".
 
-## Where to look for a counterexample
-
-- `src/record.ts`: a frozen config, a spread-in symbol, no column, `null`. The
-  answer is React's own call, or that call with one symbol added.
-- `jest-resolver.cjs`: `src/vite.ts`'s swap in CommonJS, which no test enters. A
-  guard changed in one and not the other makes the two installs disagree.
-
 ## Not this package's
 
 - Reading the symbol and making a path relative: `@variance-authority/react` and

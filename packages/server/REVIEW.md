@@ -46,13 +46,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [`src/http-refusals.test.ts`](src/http-refusals.test.ts) › "refuses a row
   with an unknown band and stores nothing from that write".
 
-## Where to look for a counterexample
-
-- `src/sqlite-queries.ts`: a `WHERE` that decides what counts, a `limit`
-  applied before a join so `omitted` undercounts, a bound compared as a string.
-- `src/sqlite-schema.ts`: a migration that rewrites a row, or bumps the version
-  outside its transaction.
-
 ## Not this package's
 
 - The wire types, the client, splitting a long subject list, churn and drift

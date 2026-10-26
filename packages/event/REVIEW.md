@@ -44,14 +44,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   Pinned by [`src/page.test.ts`](src/page.test.ts) › "holds what was announced
   before the channel existed, in order".
 
-## Where to look for a counterexample
-
-- `src/head.ts`: two requests whose handlers interleave across `await`, and a
-  request with no cookie while another execution is open.
-- `src/log.ts`: a wait subscribed after the announcement, a start heard twice
-  and ended once, a timer left behind after a wait settles.
-- `src/index.ts`: anything that makes the no-listener path throw or allocate.
-
 ## Not this package's
 
 - Routing and delivery: `@variance-authority/wire`. Laying a breadcrumb on a

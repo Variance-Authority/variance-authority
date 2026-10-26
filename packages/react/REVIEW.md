@@ -47,10 +47,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **Holding is written into no hash, and never guesses from the DOM.**
   Written in the [README](README.md#what-else-the-same-fiber-answers) and
   [README](README.md#limits).
-
-## Where to look for a counterexample
-
-- `root-state.ts` and `hydration.ts`: a React release that renames a root or
-  lane field, a transition-hydrated shell, a portal out of its root.
-- `holding.ts`: a hook that builds no cell or two shifts every later name.
-- `props.ts`: a `digestPass` reused across captures reads stale contents.

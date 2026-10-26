@@ -23,13 +23,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **A native addon stays out of `png`.** Whoever cannot load a `.node` file
   uses `png` alone. Written in [ADR-0013][adr-0013].
 
-## Where to look for a counterexample
-
-- `src/index.ts`, against `src/decoder.test.ts`: every parity case is 8-bit
-  RGBA that `pngjs` wrote. An RGB PNG, a 16-bit, greyscale, palette or
-  Adam7-interlaced one, all of which `png` documents `pngjs` accepting, is
-  where libvips' depth or channels can part from `pngjs` with no test failing.
-
 ## Not this package's
 
 - Falling back to `pngjs` when the addon will not load, and failing under

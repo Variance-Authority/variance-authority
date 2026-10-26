@@ -44,13 +44,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   Written in the [README](README.md#the-pages-half).
 - **The root entry imports no module.** Written in the
   [README](README.md#requirements).
-
-## Where to look for a counterexample
-
-- `src/index.ts`: a carrier installed while a non-loopback cookie is present,
-  `localhost` against `127.0.0.1` for `home`, an `https:` loopback address, and
-  a last `deliver` attempt that resolves on a non-`204`.
-- `src/listen.ts` `wireCarrierSource`: an announcement before `__VAW_REPORT__`
-  exists, then two after it.
-- A body's shape belongs to the instrument that sends it; the medium imposes no
-  schema.

@@ -47,11 +47,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   components, because absent means unknown".
 - **`pngSize` says nothing about bytes that are not a PNG.** Pinned by
   [`src/size.test.ts`](src/size.test.ts).
-
-## Where to look for a counterexample
-
-- `align.ts` and `edit-script.ts`: a grown blank run, a band rewritten
-  between two kept runs, a one-pixel rule starting a row earlier, a page past
-  the 2,000-run search.
-- `change.ts` and `change-draw.ts`: the change image is read by a person; a
-  region it marks that the mask does not hold is a false positive.

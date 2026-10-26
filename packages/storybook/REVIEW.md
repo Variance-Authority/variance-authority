@@ -45,15 +45,3 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   Phases](../../docs/execution-record.md); pinned by
   [src/story-timing.test.ts](src/story-timing.test.ts) › "gives the preview load
   to the first story, the story file to collect and the render to cases".
-
-## Where to look for a counterexample
-
-- `src/show-story.ts` runs rebuilt from its source text: a closed-over constant
-  type-checks and throws in the browser. Try one outside `request`.
-- The URL-selected story in `src/show-story.ts` and `src/finish-wait.ts` may
-  have rendered or finished before anything listened. Try no `currentRender`, a
-  render already in `afterEach`, one story asked twice on one page, and, in
-  `src/story-timing.ts`, a timing watch installed twice.
-
-The browser, the capture and the Suspense wait are
-`@variance-authority/storybook-collector`'s.
