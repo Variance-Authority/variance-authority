@@ -1289,8 +1289,8 @@ under each package that ran it. The tree walks the five packages with the most
 such regions down to their files, largest first, so the first file named is the
 first place to ask whether the package needs a test of its own. A region a test
 entered only while its module loaded counts for no package, and test files are
-left out. A package here is a directory `--packages` lists, and a file belongs
-to the deepest one that holds it, so a suite kept at the repository root owns
+left out. A package here is a row of the table, and a file belongs to the
+deepest one that holds it, so a suite kept at the repository root belongs to
 `.` and everything it runs elsewhere is another package's. `--format json`
 lists every file under `ownership`.
 

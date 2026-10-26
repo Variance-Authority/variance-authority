@@ -222,8 +222,9 @@ addressed.
 Split a component into three files and change no test, then move two of the
 files into a shared package. Coverage stays at 100%, and the shared package has
 no test of its own: everything in it runs because a test in another package
-imports it, often several imports away. `variance coverage --packages` counts
-each package by whose tests ran it:
+imports it, often several imports away. `variance coverage --packages` reads
+the same per-case [execution index](execution-record.md) the first section
+records, and counts each workspace package by whose tests ran it:
 
 ```bash
 npx variance coverage --packages
@@ -245,9 +246,9 @@ A region is the package's own when one of its own tests ran it, whoever else
 did too. The tree under the table walks the packages with the most regions only
 other packages' tests ran down to their files, largest first, so the first file
 it names is the first place to ask whether the package needs a test of its own.
-A package here is a directory `--packages` lists, and a file belongs to the
-deepest one that holds it: a suite you keep at the repository root owns `.`, so
-everything it runs in a package counts as another package's.
+A package is a workspace the root `package.json` names, and a file belongs to
+the deepest one that holds it. A suite you keep at the repository root belongs
+to `.`, so everything it runs in a package counts as another package's.
 
 Owning a region is not testing it closely: a package's own flow test can reach a
 helper four imports down. `--at-distance` counts each region by the nearest test
@@ -266,16 +267,22 @@ coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counte
   any suite                   10,100      25.0%
 ```
 
-That is Variance Authority's own suite, which runs 90.4% of what it loads with
-no range. A quarter of it runs only from two or more imports away: no test
-within one hop reaches it. The ranges split what ran, so the two shares and
-the regions no walk placed add up to the 90.4%. The range composes with
-`--packages`: `npx variance coverage --packages --at-distance 0-1` counts each
-package by whose near tests ran it. A test file the import graph does not hold
-is left out of every range, never taken as near, and the heading counts it when
-any were. The hops are measured on the tree as it is now, so a count under a
-range is not compared with the suite's base. To see what one test runs that no
-narrower test does, ask [what that test is made of](#ask-what-one-test-is-made-of).
+That is Variance Authority's own suite, which runs 90.4% of what it loads
+without `--at-distance`. A quarter of it runs only from two or more imports
+away: no test within one hop reaches it. The ranges split what ran: 59.9%,
+25.0%, and the 2,204 regions (5.5%) that only a test the import walk could not
+reach ran add up to the 90.4%. A test file the import graph does not hold at
+all is left out of every range, never taken as near, and the heading counts it
+too. The hops are measured on the tree as it is now, so a count under a range
+is not compared with the count the suite recorded on the base branch.
+
+The range composes with `--packages`, which is how you find the files:
+`npx variance coverage --packages --at-distance 2-` lists, per package and then
+file by file, the regions only another package's far tests ran. Neither reading
+says a test is missing. Before you write one, change a region the tree names and
+rerun the package's own tests: if none fails, nothing near pins that code. To
+see what one test runs that no narrower test does, ask
+[what that test is made of](#ask-what-one-test-is-made-of).
 
 ## Do you need a test?
 
