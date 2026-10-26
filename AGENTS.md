@@ -134,9 +134,8 @@ Look around:
   `docs/` — gets its structure from
   [content flow](.agents/references/content-flow.md) before it is outlined: a
   brief, then a spine read cold by the `content-flow` reviewer. Detail goes to
-  the skill reference or the JSDoc that owns it, and every surface it lands on
-  has a budget: a file overview 15 lines, a docblock 10, a block comment 5, a
-  page's lead 15. [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
+  the skill reference or the JSDoc that owns it.
+  [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
   published sentence: a README, `docs/`, the site, CLI output or an error
   message.
 - Whether the change reaches a published package. If it does, it carries a

@@ -128,7 +128,7 @@ describe('nothing grows into a monster', () => {
   const LIMIT = 500;
 
   /** The collapse a breach triggers: well under the limit, so the next edit does not trip it. */
-  const SPLIT = `split it by responsibility, each part near ${LIMIT * 0.6} lines`;
+  const SPLIT = 'split it by responsibility, each part near 300 lines';
 
   /**
    * Files over the limit, each held at the length it has.

@@ -26,7 +26,7 @@ export const BASELINE = join(ROOT, 'tools/budgets.baseline.json');
 export const BUDGET = { overview: 15, docblock: 10, block: 5, lead: 15 };
 
 const PRAGMA =
-  /^\s*(?:compass:|eslint-|oxlint-|@ts-|biome-ignore|prettier-ignore|c8 |v8 |istanbul |@vitest-environment|@jsx|#region|#endregion|<reference|FIXME|TODO)/;
+  /^\s*(?:compass:|eslint-|oxlint-|@ts-|biome-ignore|prettier-ignore|c8 |v8 |istanbul |@vitest-environment|@jsx|#region|#endregion|<reference)/;
 const TAG = /^(?:@\w+(?:\s+\S+)?|\{@link\s+[^}]*\})$/;
 const FIXTURE = /(?:^|\/)(?:fixtures?|__fixtures__)\//;
 
@@ -58,7 +58,7 @@ function nameOf(node) {
  * Every node start, mapped to the outermost node there, and every named range.
  *
  * The starts decide what a comment is attached to; the ranges name the scope a
- * block comment sits in, so a baseline entry survives an edit above it.
+ * block comment sits in, so a refusal can say which one grew.
  */
 function index(program) {
   const starts = new Map();
@@ -100,7 +100,7 @@ function groupsOf(text, comments) {
 }
 
 /**
- * Each comment surface of one module: its kind, the scope it is keyed by, the
+ * Each comment surface of one module: its kind, the scope it is named by, the
  * line it opens on and its content lines.
  *
  * The overview is the first comment before the first statement that is not an
@@ -188,14 +188,18 @@ export const tracked = (...patterns) =>
 export const MODULES = tracked('*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs');
 
 /**
- * Every surface over its budget, grouped by file, kind and scope.
+ * Every surface over its budget, grouped by file and kind, and where each opens.
  *
- * Grouping keeps a key stable across edits that move a comment within its
- * scope; the sizes, largest first, are what a change may not exceed.
+ * A key names no scope, so renaming a test or a function moves no debt; the
+ * sizes, largest first, are what a change may not exceed.
  */
 export function overBudget(modules, pages, read = (file) => readFileSync(join(ROOT, file), 'utf8')) {
   const debt = new Map();
-  const add = (key, lines) => debt.set(key, [...(debt.get(key) ?? []), lines]);
+  const where = new Map();
+  const add = (key, lines, at) => {
+    debt.set(key, [...(debt.get(key) ?? []), lines]);
+    where.set(key, [...(where.get(key) ?? []), at]);
+  };
   let surfaces = 0;
 
   for (const file of modules) {
@@ -203,17 +207,19 @@ export function overBudget(modules, pages, read = (file) => readFileSync(join(RO
     const found = surfacesOf(file, read(file));
     surfaces += found.length;
     for (const surface of found) {
-      if (surface.lines > BUDGET[surface.kind]) add(`${file} ${surface.kind} ${surface.scope}`.trimEnd(), surface.lines);
+      if (surface.lines > BUDGET[surface.kind]) {
+        add(`${file} ${surface.kind}`, surface.lines, `${file}:${surface.line} ${surface.scope} (${surface.lines})`.replace('  ', ' '));
+      }
     }
   }
   for (const file of pages.filter((page) => PAGE.test(page))) {
     const lines = leadOf(read(file));
     if (lines === undefined) continue;
     surfaces += 1;
-    if (lines > BUDGET.lead) add(`${file} lead`, lines);
+    if (lines > BUDGET.lead) add(`${file} lead`, lines, `${file} (${lines})`);
   }
   for (const sizes of debt.values()) sizes.sort((a, b) => b - a);
-  return { surfaces, debt: new Map([...debt].sort(([a], [b]) => codeUnitOrder(a, b))) };
+  return { surfaces, where, debt: new Map([...debt].sort(([a], [b]) => codeUnitOrder(a, b))) };
 }
 
 /**

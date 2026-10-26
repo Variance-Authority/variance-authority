@@ -5,8 +5,8 @@ import { BASELINE, BUDGET, MODULES, judge, leadOf, overBudget, surfacesOf, track
 /**
  * Every written surface has a budget, and a breach is collapsed where it happens.
  *
- * The debt recorded in `tools/budgets.baseline.json` is held per file, kind and
- * scope, largest first. A change may not add to it: a surface that grows past
+ * The debt recorded in `tools/budgets.baseline.json` is held per file and kind,
+ * largest first. A change may not add to it: a surface that grows past
  * its entry, or a new one over budget, is collapsed to about half its budget in
  * the same change, its overflow moved to the owner. A debt entry that shrinks is
  * written down with `yarn budgets --write`, so a line given back stays given back.
@@ -66,6 +66,25 @@ describe('a surface is told by what its comment is attached to', () => {
   });
 });
 
+describe('the debt is keyed by file and kind', () => {
+  const block = (name: string): string => `function ${name}() {\n${lines(6, '  // ')}\n}\n`;
+
+  it('holds a renamed scope at its entry, and names where each breach opens', () => {
+    const before = overBudget(['a.ts'], [], () => block('run'));
+    const after = overBudget(['a.ts'], [], () => block('go'));
+
+    expect([...before.debt]).toEqual([['a.ts block', [6]]]);
+    expect(judge(Object.fromEntries(before.debt), after.debt)).toEqual({ grown: [], slack: [] });
+    expect(after.where.get('a.ts block')).toEqual(['a.ts:2 go (6)']);
+  });
+
+  it('counts a TODO line as content', () => {
+    expect(surfacesOf('x.ts', `function run() {\n  // TODO: one.\n  // Two.\n}\n`)).toEqual([
+      { kind: 'block', scope: 'run', line: 2, lines: 2 },
+    ]);
+  });
+});
+
 describe('the debt only shrinks', () => {
   const recorded = { 'a.ts block run': [9, 7] };
 
@@ -83,7 +102,8 @@ describe('the debt only shrinks', () => {
 });
 
 describe('the repository', () => {
-  const { surfaces, debt } = overBudget(MODULES, tracked('*.md'));
+  const { surfaces, debt, where } = overBudget(MODULES, tracked('*.md'));
+  const grownKeys = (lines: string[]): string[] => lines.map((line) => line.slice(0, line.indexOf(':')));
   const { grown, slack } = judge(JSON.parse(readFileSync(BASELINE, 'utf8')) as Record<string, number[]>, debt);
 
   it('adds nothing over budget', () => {
@@ -91,6 +111,7 @@ describe('the repository', () => {
       grown.length === 0
         ? ''
         : `${grown.length} surface(s) grew over budget:\n\n  ${grown.join('\n  ')}\n\n` +
+            `Over budget there now: ${grownKeys(grown).flatMap((key) => where.get(key) ?? []).join(', ')}.\n\n` +
             `Collapse each to about half its budget (${Object.entries(BUDGET).map(([kind, n]) => `${kind} ${n}`).join(', ')}) ` +
             'in this change: move the overflow down to the site it governs, up to the folder or package ' +
             'that owns it, or to the docblock of the export it describes. A file over 500 lines is split ' +
