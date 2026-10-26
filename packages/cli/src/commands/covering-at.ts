@@ -105,7 +105,7 @@ export async function coveringAt(
     return undefined;
   }
 
-  const graph = await loadersFor(before ?? index, target, request.root);
+  const graph = await loadersOf(before ?? index, file, request.root, target);
   const found = coveringTests(index, target, graph);
   const kept = near.whole ? found : found.filter(near.keep);
   const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
@@ -274,20 +274,23 @@ export function countOf(
 
 /**
  * The file graph, read only when the record marks load time on the region the
- * question landed on, on a block or a crossing, or when a recorded case stopped
- * and a hole has to be told from a region nobody walked.
+ * question landed on — or on any block of the module when the question named
+ * no region — on a block or a crossing, or when a recorded case stopped and a
+ * hole has to be told from a region nobody walked.
  *
  * The record credits no case with that: a module evaluates once per realm, for
  * whichever case imported it first. The graph names every case whose file
  * imports the module, and rules out one that mocked it. A question about a
- * region only a case called into never pays for the scan.
+ * region only a case called into never pays for the scan. Every covering
+ * answer, fresh or stale, whole file or one line, decides here.
  */
-async function loadersFor(
+export async function loadersOf(
   index: ExecutionIndex,
-  target: SourceTestTarget,
+  file: string,
   root: string,
+  target?: SourceTestTarget,
 ): Promise<{ readonly relations?: Relations }> {
-  const module = index.modules.find((candidate) => candidate.file === target.file);
+  const module = index.modules.find((candidate) => candidate.file === file);
   return (module !== undefined && marksLoadTime(module.blocks, target)) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
 }
 

@@ -35,8 +35,6 @@ import { relative, resolve } from 'node:path';
 import {
   changedLines,
   coveringChange,
-  anyStopped,
-  marksLoadTime,
   coveringTestsInFile,
   keepsCases,
   recordedCommit,
@@ -63,7 +61,7 @@ import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { coveringAt, countOf, fileGraph, type UnrunPart } from './covering-at.js';
+import { coveringAt, countOf, fileGraph, loadersOf, type UnrunPart } from './covering-at.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
@@ -339,15 +337,13 @@ async function ask(
   const placement = await placementFor(request, from);
   const frame = placement === undefined ? {} : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
-    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, near, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
+    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
   const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near }, reach);
   if (at !== undefined) return at;
 
-  const graph = marksLoadTime(module.blocks) || anyStopped(before ?? index)
-    ? { relations: await fileGraph(request.root) }
-    : {};
+  const graph = await loadersOf(before ?? index, file, request.root);
   // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.
   const found = coveringTestsInFile(before ?? index, file, graph);
   const listed = before === undefined ? undefined : new Set(index.tests.map((test) => test.id));
