@@ -19,6 +19,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   askCoverageFile,
+  coverageAtDistance,
   countCoverage,
   coverageByOwner,
   coverageChange,
@@ -30,6 +31,7 @@ import {
   type CountedSuite,
   type CoverageCount,
   type DeclaredSuite,
+  type ExecutionIndex,
   type OwnedFile,
   type SuiteChange,
   type SuiteKind,
@@ -41,6 +43,7 @@ import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import { relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
@@ -80,6 +83,13 @@ export interface Coverage {
    * files are left out, so these regions are fewer than the count above.
    */
   readonly ownership?: readonly OwnedFile[];
+  /**
+   * With `--at-distance`, the band every count above was narrowed to: a region
+   * counts as run only when a test file within it of the region's module ran
+   * it. `to` is absent for an open end. `unplaced` names the test files no walk
+   * could measure, which no band holds.
+   */
+  readonly atDistance?: { readonly from: number; readonly to?: number; readonly unplaced: readonly string[] };
   /**
    * The files changed since the commit every base was recorded at, when no
    * counted suite loads any of them and no suite's count changed. Absent
@@ -122,6 +132,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
   const scope = 'missed' in reading ? undefined : reading.scope;
+  const banded = await band(request);
   const suites: CoverageSuite[] = [];
   const now: CountedSuite[] = [];
   const bases: CountedSuite[] = [];
@@ -145,11 +156,13 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     const whole = await readExecutionIndex(from);
     for (const module of whole.modules) loaded.add(module.file);
     for (const test of whole.tests) loaded.add(test.file);
-    const index = within(whole, scope);
+    const index = banded.narrow(within(whole, scope));
     const recorded = await recordedCommit(record);
     for (const entry of restsOn(record)) harness.add(entry);
     now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
-    const found = await baseOf(request, one);
+    const found = request.atDistance === undefined
+      ? await baseOf(request, one)
+      : { missed: 'no base: `--at-distance` measures import hops on the graph of the tree as it is now, and the base ran on another' };
     if ('missed' in found) {
       suites.push({ ...named, from, ...(recorded === undefined ? {} : { recorded }), baseMissed: found.missed });
       continue;
@@ -184,6 +197,13 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     suites,
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
     ...(unloadedChange === undefined ? {} : { unloadedChange }),
+    ...(request.atDistance === undefined ? {} : {
+      atDistance: {
+        from: request.atDistance.from,
+        ...(request.atDistance.to === Number.MAX_SAFE_INTEGER ? {} : { to: request.atDistance.to }),
+        unplaced: [...banded.unplaced].sort(),
+      },
+    }),
     ...('missed' in reading
       ? { sourceMissed: reading.missed }
       : {
@@ -203,7 +223,26 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   };
 }
 
-/** The per-case index a run left for a suite, or `undefined` when none did. */
+/**
+ * The narrowing `--at-distance` asks for, over the import graph of the tree as
+ * it is, and the test files it could not place, gathered across every suite it
+ * narrows. Without the flag it narrows nothing and reads no graph.
+ */
+async function band(request: ParsedCoverage): Promise<{ readonly narrow: (index: ExecutionIndex) => ExecutionIndex; readonly unplaced: ReadonlySet<string> }> {
+  const unplaced = new Set<string>();
+  const { atDistance } = request;
+  if (atDistance === undefined) return { narrow: (index) => index, unplaced };
+  const relations = await relationsFor(request.root, ['.'], [], []);
+  return {
+    narrow: (index) => {
+      const narrowed = coverageAtDistance(index, atDistance, { relations });
+      for (const file of narrowed.unplaced) unplaced.add(file);
+      return narrowed.index;
+    },
+    unplaced,
+  };
+}
+
 /**
  * What every test in the recording rests on, or nothing when the recording
  * cannot be opened: the count over the case index stands without it, and the
@@ -217,6 +256,7 @@ function restsOn(file: string): readonly string[] {
   }
 }
 
+/** The per-case index a run left for a suite, or `undefined` when none did. */
 async function recordOf(root: string, suite: string | undefined, record: string): Promise<string | undefined> {
   try {
     return await recordedExecutionFile(root, suite, record);

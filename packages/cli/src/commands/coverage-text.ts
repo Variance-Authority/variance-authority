@@ -92,8 +92,18 @@ function heading(answer: Coverage): string {
   const at = answer.at === undefined ? 'coverage' : `coverage at ${short(answer.at)}`;
   const regions = regionCount(answer.count.regions);
   const files = `${grouped(answer.count.files)} file${answer.count.files === 1 ? '' : 's'} the suites loaded`;
-  if (answer.base === undefined) return `${at} — ${regions} in ${files}`;
-  return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}`;
+  if (answer.base === undefined) return `${at} — ${regions} in ${files}${banded(answer)}`;
+  return `${at} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}${banded(answer)}`;
+}
+
+/** What `--at-distance` narrowed the counts to, as a clause after the heading, and the test files it could not place. */
+function banded(answer: Coverage): string {
+  const { atDistance } = answer;
+  if (atDistance === undefined) return '';
+  const { from, to, unplaced } = atDistance;
+  const hops = to === undefined ? `${from} or more` : from === to ? `${from}` : `${from}-${to}`;
+  const left = unplaced.length === 0 ? '' : `; ${grouped(unplaced.length)} test file${unplaced.length === 1 ? '' : 's'} not on the import graph left out`;
+  return `, counted from the tests ${hops} import hop${hops === '1' ? '' : 's'} from the code they ran${left}`;
 }
 
 /**
@@ -125,7 +135,7 @@ function markdown(answer: Coverage): string {
     '|---|--:|---|',
     ...coverageRows(answer, true),
     '',
-    `Percentages count the ${regionCount(answer.count.regions)} in ${files(answer.count.files)} the recorded suites loaded. Module-load execution is counted separately.`,
+    `Percentages count the ${regionCount(answer.count.regions)} in ${files(answer.count.files)} the recorded suites loaded${banded(answer)}. Module-load execution is counted separately.`,
     ...coverageBreakdown(answer),
   ];
   if (answer.source !== undefined || answer.sourceMissed !== undefined) {

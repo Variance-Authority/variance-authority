@@ -142,3 +142,37 @@ describe("coverage by the package whose tests ran it", () => {
     expect(JSON.parse(answer.out)).not.toHaveProperty('ownership');
   });
 });
+
+describe('coverage counted from the tests near the code they ran', () => {
+  // `main.test` reaches the button two imports away and the icon three; the
+  // icon's own spec imports it. Within one hop, the button ran under no test.
+  it('counts a region as run only when a test within the band of import hops ran it', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--packages', '--at-distance', '0-1']);
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toMatch(/^coverage .* counted from the tests 0-1 import hops from the code they ran$/mu);
+    expect(answer.out).toMatch(/^ {2}libs\/ui\s+2\s+50\.0%\s+1\s+50\.0%\s+libs\/specs 1$/mu);
+  });
+
+  it('gives a program the band beside the counts it narrowed, and no comparison over a base it was not measured on', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--at-distance', '2-', '--format', 'json']);
+
+    const json = JSON.parse(answer.out) as { atDistance: unknown; count: { run: number }; suites: readonly { baseMissed?: string }[] };
+    expect(json.atDistance).toEqual({ from: 2, unplaced: [] });
+    expect(json.count.run).toBe(3);
+    expect(json.suites[0]!.baseMissed).toContain('--at-distance');
+  });
+
+  it('says the band in the pull request comment', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--at-distance', '1', '--format', 'markdown']);
+
+    expect(answer.out).toContain('the recorded suites loaded, counted from the tests 1 import hop from the code they ran.');
+  });
+
+  it('refuses a band that is not hop counts', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--at-distance', 'near']);
+
+    expect(answer.code).not.toBe(0);
+    expect(answer.err).toContain('--at-distance takes hop counts');
+  });
+});

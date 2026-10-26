@@ -369,6 +369,36 @@ function walk(
 }
 
 /**
+ * Import hops from a test's file to every module it entered, walked over the
+ * modules it entered alone — the walk {@link distanceFromView} measures a
+ * change by, read for every module at once. A module the walk could not reach
+ * from the test's file is absent, never far: the graph has no executed path to
+ * it, which says nothing of how far it is. The test's own file is 0.
+ */
+export function hopsFromTest(
+  test: string,
+  entered: ReadonlySet<string>,
+  options: DistanceOptions,
+): ReadonlyMap<string, number> | { readonly because: string } {
+  const { relations } = options;
+  if (relations === undefined) return { because: 'no import graph was supplied' };
+  const nodes = nodesOf(relations, options.knownAs ?? ownName);
+  const start = nodes(test);
+  if (start.length === 0) return { because: `the graph does not hold ${test}` };
+  const { traversal } = executed(relations, start, entered, [], nodes);
+  const hops = new Map<string, number>();
+  for (const file of entered) {
+    for (const id of nodes(file)) {
+      if (traversal.mask[id] !== 1) continue;
+      const length = trailOf(traversal, id).length - 1;
+      const known = hops.get(file);
+      if (known === undefined || length < known) hops.set(file, length);
+    }
+  }
+  return hops;
+}
+
+/**
  * Every node one file is held under. Every name, not the first one that
  * resolves: one module can be two nodes — a workspace package is imported
  * through its manifest, so an importer's edge lands on `dist` while the
