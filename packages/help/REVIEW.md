@@ -19,3 +19,9 @@
 - **An area is a boundary.** Written in [README](README.md).
 - **A miss is a miss of the text.** Written in [README][not].
 - **Files are uncapped.** Written in [search-answer.ts][answer].
+
+[answer]: src/tools/search-answer.ts
+[described]: src/tools/described.ts
+[loose]: README.md#when-the-word-you-typed-is-not-the-word-that-was-written
+[not]: README.md#what-it-does-not-do
+[adr57]: ../../docs/context/adr/0057-the-run-writes-every-name-it-saw.md

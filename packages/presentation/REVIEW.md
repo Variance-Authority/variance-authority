@@ -20,3 +20,6 @@
 - **The caller's page is read, never driven.** Written in [ADR-0088][adr-0088];
   pinned by
   [`src/playwright.chromium.test.ts`](src/playwright.chromium.test.ts).
+
+[adr-0050]: ../../docs/context/adr/0050-presentation-relationships-are-evidence-not-a-design-policy.md
+[adr-0088]: ../../docs/context/adr/0088-a-page-is-read-as-nobody-is-using-it.md

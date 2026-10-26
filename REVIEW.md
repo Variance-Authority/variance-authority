@@ -1,7 +1,6 @@
 # Reviewing a change to variance
 
-This file says what a review of a pull request flags here, at what severity,
-and what it skips. It is the root of a cascade: every package has its own
+This file says what a review of a pull request flags here, and what it skips. It is the root of a cascade: every package has its own
 `packages/<name>/REVIEW.md`, which adds the contracts of that package for the
 changes under it. A package file narrows this one and never loosens it. How a
 change is made is [`AGENTS.md`](AGENTS.md); the rules a diff is judged by are
@@ -33,8 +32,7 @@ this order:
 1. the task: the linked issue, or the sentence the body quotes from whoever
    asked. Take only that from the body now;
 2. this file, and `packages/<name>/REVIEW.md` for each package whose files the
-   change touches, as the base branch holds it. Open it yourself when it was
-   not given to you;
+   change touches, as the base branch holds it;
 3. the specs, ADRs, compass components, README sections, JSDoc and tests that
    those files name, as the base branch holds them.
 
