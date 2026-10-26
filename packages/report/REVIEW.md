@@ -39,8 +39,8 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   list, or a difference that vanishes in a clean world is refused, and "already
   the baseline" is not a refusal. Pinned by
   [`src/promotion.test.ts`](src/promotion.test.ts) › "refuses a subject whose
-  region list was capped, however its regions look" and "keeps "already the
-  baseline" apart from "refused"".
+  region list was capped, however its regions look" and "keeps \"already the
+  baseline\" apart from \"refused\"".
 - **A changelog is never empty.** Nothing accepted, or no run id, is an
   `Unrecordable` with a `because`; entries are the intersection with `accepted`;
   `at` is injected. Written in the

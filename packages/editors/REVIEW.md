@@ -15,12 +15,13 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   stdout, so it can sit inside `code --install-extension "$(...)"`. Written in
   the [README](README.md#install) and pinned by
   [`src/run.test.ts`](src/run.test.ts) › "prints the path alone for an editor
-  whose plugin is here".
+  whose plugin is here, so it can sit inside an install command".
 - **An unknown editor exits `2`, a missing plugin exits `1`.** The first names
   the editors it carries; the second says the file was not built into this copy.
   Neither prints a path. Written in the [README](README.md#install) and pinned
   by [`src/run.test.ts`](src/run.test.ts) › "exits 2 for an editor it carries no
-  plugin for" and "exits 1 and says the plugin was not built".
+  plugin for" and "exits 1 and says the plugin was not built
+  when the copy lacks it".
 - **No editor named lists every editor, built or not.** Each gets one line: the
   install step where the plugin is, the absence where it is not. Pinned by
   [`src/where.integration.test.ts`](src/where.integration.test.ts) › "names

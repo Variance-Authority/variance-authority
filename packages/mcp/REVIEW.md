@@ -17,8 +17,8 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under `packages/mcp/`.
 - **A run with unobserved subjects never reads as clean.** An absent coverage
   list stays absent; an entry that is neither kind is refused, not defaulted.
   Written in the [README](README.md#coverage-boundary) and pinned by
-  [`src/scenario.test.ts`](src/scenario.test.ts) › "never says "nothing to
-  review" over a 50-subject hole" and "preserves an absent coverage list as
+  [`src/scenario.test.ts`](src/scenario.test.ts) › "never says \"nothing to
+  review\" over a 50-subject hole" and "preserves an absent coverage list as
   absent, never as empty".
 - **An answer comes from the subject as it is now.** `subject` is a function
   awaited per request. Written in the [README](README.md#serve-a-custom-subject)

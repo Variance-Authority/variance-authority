@@ -19,20 +19,20 @@ tests are in [src/scenario.test.ts](src/scenario.test.ts).
   for](README.md#what-this-is-for).
 - **Three variances stay three.** Arrange, each act's effect and the divergence
   between effects are typed apart; an effect is the variation digest, not the
-  render hash. Pinned by › "keeps Arrange variation separate while equal
+  render hash. Pinned by [`src/scenario.test.ts`](src/scenario.test.ts) › "keeps Arrange variation separate while equal
   transition effects agree".
 - **Acts align by `(key, occurrence)` on the common prefix, never shifted.**
-  Pinned by › "stops alignment at an inserted Act and reports every unmatched
+  Pinned by [`src/scenario.test.ts`](src/scenario.test.ts) › "stops alignment at an inserted Act and reports every unmatched
   identity" and "refuses a shifted ordinal instead of guessing which authored
   Act it meant".
 - **An unobserved outcome ends the path**, and `firstDivergence` is
-  `unresolved`, never `none`. Pinned by › "terminates at an unobserved outcome
+  `unresolved`, never `none`. Pinned by [`src/scenario.test.ts`](src/scenario.test.ts) › "terminates at an unobserved outcome
   and refuses synthetic later frames".
-- **A blind side is named, never agreement.** Pinned by › "names the
+- **A blind side is named, never agreement.** Pinned by [`src/scenario.test.ts`](src/scenario.test.ts) › "names the
   profile-blind side rather than reporting absent geometry as equal".
-- **An unread cause is `unread`, never a flake.** Pinned by › "says the reading
+- **An unread cause is `unread`, never a flake.** Pinned by [`src/scenario.test.ts`](src/scenario.test.ts) › "says the reading
   was not made when no fiber was read".
-- **A fold keeps every witnessed edge and invents none.** Pinned by › "joins
+- **A fold keeps every witnessed edge and invents none.** Pinned by [`src/scenario.test.ts`](src/scenario.test.ts) › "joins
   converged states and preserves two destinations for one state and Act" and
   "keeps an unobserved Act as unknown rather than inventing an edge".
 - **A precondition link is carried, never inferred.** Also in

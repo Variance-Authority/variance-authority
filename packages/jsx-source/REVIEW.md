@@ -20,7 +20,7 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   what it would have received. Pinned by
   [src/located.test.ts](src/located.test.ts) › "renders exactly as React would,
   and reports no source" and [src/record.test.ts](src/record.test.ts) › "hands
-  back what React would have received".
+  back what React would have received: %s".
 - **A keyed element keeps its location**, and the config's key wins. Written in
   [README › Runtime cost](README.md#runtime-cost); pinned by
   [src/located.test.ts](src/located.test.ts) › "keeps the location on a keyed

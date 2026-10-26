@@ -88,7 +88,7 @@ no other context, and each gets only what its question needs, read from your
 worktree and `origin/main`, never from local `main`. Each one that reads the
 diff also gets the root [`REVIEW.md`](../../REVIEW.md) and the `REVIEW.md` of
 every package the diff touches, as `origin/main` holds them: the contracts a
-change here must keep.
+change here must keep. What blocks is still each reviewer's own question.
 
 1. **Description** — the body alone. Does it say what the problem was and
    how it was solved, in a few lines a stranger can follow, and does each block

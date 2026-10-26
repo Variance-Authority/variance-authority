@@ -32,9 +32,9 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   identity by the browser rasterization recipe", "does not key rasterization on
   how a recipe spells a trick" and "serves a cached raster only to a renderer in
   the timezone and locale it was painted in".
-- **A resource-closed document never reaches the network.** Pinned by the same
-  file › "refuses queued HTTP and WebSocket egress from a resource-closed
-  document".
+- **A resource-closed document never reaches the network.** Pinned by
+  [src/renderer.chromium.test.ts](src/renderer.chromium.test.ts) › "refuses queued
+  HTTP and WebSocket egress from a resource-closed document".
 - **Same content, same bytes.** A shot does not depend on what the page painted
   before, and the harness lays text out under the renderer's raster flags.
   Pinned by [src/harness.chromium.test.ts](src/harness.chromium.test.ts) ›
@@ -45,7 +45,9 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   pinned by [src/engines.test.ts](src/engines.test.ts) › "is all or nothing, and
   names what is missing when it is neither".
 - **Each width is its own subject id.** Pinned by
-  [src/viewport.test.ts](src/viewport.test.ts) › "names each width apart".
+  [src/viewport.test.ts](src/viewport.test.ts) ›
+  "names each width apart, so a baseline filed by its name is one file per
+  width".
 
 ## Not this package's
 

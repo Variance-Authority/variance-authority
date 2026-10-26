@@ -36,8 +36,8 @@ this order:
 1. the task: the linked issue, or the sentence the body quotes from whoever
    asked;
 2. this file, and the `REVIEW.md` of each package the change touches;
-3. the specs, ADRs, compass components, README sections and JSDoc that those
-   files name, as the base branch holds them.
+3. the specs, ADRs, compass components, README sections, JSDoc and tests that
+   those files name, as the base branch holds them.
 
 The branch's own code is not a source. What a line does today is evidence of
 what somebody wrote, and a test that asserts it can be a mistake that outlived
@@ -54,9 +54,10 @@ fallback, a shortcut, an early return, a threshold, a cap, a cache, a filter.
 - **No path loses an answer.** Every input that reached a result on the base
   still reaches it, unless the task sets that result aside. A cap, a dedupe or
   a "claimed" set that hides a row the base showed is a finding.
-- **Parts agree with the whole.** A stage asked alone, a fast path, a cached
-  answer and a native reader give what the composed, slow, fresh or JavaScript
-  path gives for the same input.
+- **Parts agree with the whole.** A stage asked alone and a cached answer give
+  what the composed, fresh path gives for the same input. A fast path beside
+  the general one is not a pair to compare: it is a second implementation,
+  which the code rules already make a finding.
 - **Weak evidence stays weak, in both directions.** The code rule "Absent is
   not empty" extends to every input short of definitive: a partial, stale,
   ignored or contested input is never reported as a definitive one

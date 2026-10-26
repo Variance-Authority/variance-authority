@@ -19,7 +19,7 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 - **Four channels, always.** A PNG with no alpha decodes to RGBA, never to
   three bytes a comparison reads at the wrong offsets. Written in the
   [README](README.md#the-two-decoders-produce-the-same-pixels) and the comment
-  in [`sharpDecoder`](src/index.ts); no parity case has three channels.
+  in [`sharpDecoder`](src/index.ts).
 - **A native addon stays out of `png`.** Whoever cannot load a `.node` file
   uses `png` alone. Written in [ADR-0013][adr-0013].
 

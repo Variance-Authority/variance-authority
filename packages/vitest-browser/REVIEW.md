@@ -13,7 +13,7 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   running test, its titles sent apart so a ` > ` inside one stays whole; with no
   test and no id the call refuses. Pinned by
   [src/observe.test.ts](src/observe.test.ts) › "refuses a subject with no id
-  rather than inventing one" and › "sends the titles the runner declared, a
+  rather than inventing one" and "sends the titles the runner declared, a
   separator inside one kept whole".
 - **No baseline is `new`, and a write is a promotion.** A subject with no
   baseline is `new` and stores nothing; an accepting run promotes the image it
@@ -21,7 +21,7 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   Run it and approve the first
   baseline](README.md#run-it-and-approve-the-first-baseline); pinned by
   [src/node.test.ts](src/node.test.ts) › "reports a subject with no baseline as
-  new, and stores nothing" and › "promotes the image this run painted when the
+  new, and stores nothing" and "promotes the image this run painted when the
   run is accepting".
 - **`--update` keeps an unchanged baseline current.** An unchanged subject whose
   baseline kept no snapshot, or was painted under another identity, is
