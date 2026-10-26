@@ -226,6 +226,7 @@ export {
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
+export { coverageByOwner, type OwnedFile } from './coverage-owner.js';
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.

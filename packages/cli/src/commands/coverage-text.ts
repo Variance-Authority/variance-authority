@@ -10,7 +10,8 @@
  */
 
 import type { MovedRegion, TestFileMotion } from '@variance-authority/sense/test-selection';
-import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed } from './coverage-summary.js';
+import { ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
+import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed, table } from './coverage-summary.js';
 import { functionsIn, notListed } from './covering-motion.js';
 import { text as escape } from './report-html-elements.js';
 import type { CoverageFormat } from '../coverage-args.js';
@@ -67,7 +68,7 @@ function text(answer: Coverage): string {
   if (count.load > 0) tail.push(['  ran only at load', grouped(count.load), '']);
   lines.push(...table(tail));
   if (count.unjoined > 0) lines.push(`not joined across suites: ${grouped(count.unjoined)} region${count.unjoined === 1 ? '' : 's'}`);
-  lines.push(...sourceLines(answer));
+  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? []));
 
   if (base !== undefined) {
     for (const suite of answer.suites) {
@@ -130,6 +131,7 @@ function markdown(answer: Coverage): string {
   if (answer.source !== undefined || answer.sourceMissed !== undefined) {
     lines.push('', `<details><summary>${escape(breakdownLabel(answer))}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
   }
+  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? []));
   return `${lines.join('\n')}\n`;
 }
 
@@ -341,13 +343,6 @@ function countCell(now: number, was: number | undefined): string {
 function ratioCell(run: number, regions: number, wasRun: number | undefined, wasRegions: number | undefined): string {
   const now = ratio(run, regions);
   return wasRun === undefined || wasRegions === undefined ? now : `${ratio(wasRun, wasRegions)} → ${now}`;
-}
-
-/** Columns padded to the widest cell, with no trailing space. */
-function table(rows: readonly (readonly string[])[]): readonly string[] {
-  const widths: number[] = [];
-  for (const row of rows) row.forEach((cell, at) => (widths[at] = Math.max(widths[at] ?? 0, cell.length)));
-  return rows.map((row) => row.map((cell, at) => cell.padEnd(widths[at]!)).join('  ').trimEnd());
 }
 
 function regionCount(regions: number): string {

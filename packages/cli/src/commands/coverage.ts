@@ -20,6 +20,7 @@ import { promisify } from 'node:util';
 import {
   askCoverageFile,
   countCoverage,
+  coverageByOwner,
   coverageChange,
   declaredSuites,
   readableTestCoverage,
@@ -29,6 +30,7 @@ import {
   type CountedSuite,
   type CoverageCount,
   type DeclaredSuite,
+  type OwnedFile,
   type SuiteChange,
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
@@ -72,6 +74,12 @@ export interface Coverage {
   /** Each package with `--packages`, or each directory the root config declares entry points for, counted over its own files and over everything it reaches. Absent with `--from`. */
   readonly entries?: readonly (CoverageEntry | MissedEntry)[];
   /**
+   * With `--packages`, every recorded file but a test file, with how many of
+   * its regions its own package's tests ran and how many only other packages'
+   * tests did. A file in no listed package belongs to `.`, the root.
+   */
+  readonly ownership?: readonly OwnedFile[];
+  /**
    * The files changed since the commit every base was recorded at, when no
    * counted suite loads any of them and no suite's count changed. Absent
    * whenever git or a record cannot say so, and whenever the change is
@@ -87,7 +95,6 @@ export interface UnloadedChange {
   readonly files: readonly string[];
 }
 
-/** Count the records the request names, and compare them with their bases. */
 /** One directory counted on its own. */
 export interface CoverageEntry {
   readonly from: string;
@@ -95,6 +102,7 @@ export interface CoverageEntry {
   readonly uses: CoverageSource;
 }
 
+/** Count the records the request names, and compare them with their bases. */
 export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
@@ -188,9 +196,16 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
+            ...(request.packages === true ? { ownership: coverageByOwner(now, ownerIn(reading.entries.map((entry) => entry.from))) } : {}),
           }),
         }),
   };
+}
+
+/** The package a file is in: the deepest listed directory that holds it, or `.`. */
+function ownerIn(packages: readonly string[]): (file: string) => string {
+  const deepest = [...packages].sort((left, right) => right.length - left.length);
+  return (file) => deepest.find((dir) => file.startsWith(`${dir}/`)) ?? '.';
 }
 
 /** The per-case index a run left for a suite, or `undefined` when none did. */

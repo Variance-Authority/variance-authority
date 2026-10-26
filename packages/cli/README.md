@@ -1265,6 +1265,32 @@ table:
 files reach, including the other workspaces they import. Each is followed by
 how much of what ran is before reach.
 
+A package at 100% can be run entirely by the tests of the packages that import
+it. Split a component into three files and move two of them to a shared
+package, and the coverage stays where it was while the shared package has no
+test of its own. So `--packages` also counts each package by whose tests ran
+it:
+
+```text
+which package's tests ran each package
+                 ran    own tests  only others'         by
+  packages/cli   8,020  100.0%     0             0.0%
+  packages/help  2,069  88.9%      229           11.1%  packages/cli 229
+run only by other packages' tests
+  packages/help/src/  229  packages/cli 229
+    tools/            210  packages/cli 210
+      uses-of.ts      32   packages/cli 32
+      uses.ts         28   packages/cli 28
+```
+
+A region is the package's own when one of the package's tests ran it, whoever
+else did too. A region that only other packages' tests ran is counted apart,
+under each package that ran it. The tree walks the five packages with the most
+such regions down to their files, largest first, so the first file named is
+where a test of the package's own is missing. A region a test entered only
+while its module loaded counts for no package, and test files are left out.
+`--format json` lists every file under `ownership`.
+
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever
 the numbers are: a threshold is a line in your own workflow.
