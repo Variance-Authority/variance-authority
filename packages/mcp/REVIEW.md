@@ -10,8 +10,8 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under `packages/mcp/`.
 
 ## Contracts
 
-- **It never runs, renders or writes a baseline;** `variance_diff` keeps one
-  value in the process. Pinned by
+- **It never runs tests, re-renders anything or changes a baseline;** `variance_diff` keeps one
+  value in the process. Written in the [README](README.md) and pinned by
   [`src/server-diff.test.ts`](src/server-diff.test.ts) › "diffs against exactly
   the previous successful invocation".
 - **A run with unobserved subjects never reads as clean.** An absent coverage

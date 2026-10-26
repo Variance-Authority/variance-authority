@@ -20,7 +20,7 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   class instance, a top-level `await` or `eval` is left with a reason. Written
   in [README › What it leaves](README.md#what-it-leaves-and-tells-you); pinned
   by [src/transform.test.ts](src/transform.test.ts) › "an object that holds an
-  import" (once broken) and "leaves a module that calls eval whole".
+  import" and "leaves a module that calls eval whole".
 - **A session starts from the module as it finished loading, copied as the
   module would see it.** Never from what the loading session wrote since;
   arrays, plain objects and `Map` values are copied once each, aliases stay

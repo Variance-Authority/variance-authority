@@ -43,6 +43,6 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   snapshot a subject that mounted nothing" and "refuses to start a subject
   while another is still mounting".
 - **The probe stays below 15% of session time.** Written in the
-  [README](README.md#cost) and pinned by
-  [`src/session.test.ts`](src/session.test.ts) › "keeps probe overhead a small
-  share of session time".
+  [README](README.md#cost) and gated by
+  [`src/cost.measure.ts`](src/cost.measure.ts) › "keeps the safety net cheaper
+  than the thing it replaces".

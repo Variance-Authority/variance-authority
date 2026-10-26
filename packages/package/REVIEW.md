@@ -11,9 +11,11 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
 
 - **Entrypoints open as Node opens them.** A string, an array or a
   conditions-only object opens `.`; a mixed object throws naming the manifest.
-  Pinned by [manifest.test.ts](src/manifest.test.ts) › "reads `exports: null` as
-  no `exports`, as Node does: `main` opens `.`, and without one the package
-  declares no entry".
+  Pinned by [manifest.test.ts](src/manifest.test.ts) › "reads a string
+  `exports` as `.`", "takes the first entry of an array fallback that names
+  something to open", "reads a condition-only object with no custom condition
+  as `.`" and "refuses an object that mixes subpaths and conditions, naming the
+  manifest".
 - **Members are read as pnpm reads them.** A wildcard skips a dot directory, and
   a list that is not globs throws naming the file. Pinned by
   [members.test.ts](src/members.test.ts) › "leaves a directory whose name starts

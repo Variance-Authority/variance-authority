@@ -27,7 +27,9 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   ending where the record never looked selects nobody, and a `type` edge or a
   mock cuts a walk. Written in [README](README.md#what-selects-what).
 - **A precondition is unconditional.** A row on the declared file narrows
-  nothing. Written in ADR-0062 and pinned by
+  nothing. Written in
+  [ADR-0062](../../docs/context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md)
+  and pinned by
   [select-unread.test.ts](src/test-selection/select-unread.test.ts) › "runs a
   test that declares a changed file it entered nothing of, row or no row".
 - **What cannot be read is charged, never dropped.** A diff that does not apply,

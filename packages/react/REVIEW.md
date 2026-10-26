@@ -44,6 +44,5 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [README](README.md#component-level-quiet) and pinned by
   [`src/traversal.test.ts`](src/traversal.test.ts) › "reports a bound instead
   of returning a quietly partial walk".
-- **Holding is written into no hash, and never guesses from the DOM.**
-  Written in the [README](README.md#what-else-the-same-fiber-answers) and
-  [README](README.md#limits).
+- **Holding is written into no hash.** Written in the
+  [README](README.md#what-else-the-same-fiber-answers).

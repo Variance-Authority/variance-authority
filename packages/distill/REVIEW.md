@@ -33,8 +33,8 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [spec 0097](../../docs/specs/0097-a-consumer-pays-for-what-it-loads.md) and
   pinned by [charge.test.ts](src/charge.test.ts) › "proposes no mock where a
   case runs, or the subject hands on, what reads the import".
-- **An import is charged once.** A cycle is not a second way in, and a module
-  two used imports reach goes to neither. Written in
+- **An import is charged once.** A module two used imports reach goes to
+  neither. Written in
   [spec 0095](../../docs/specs/0095-an-import-spills-what-the-test-never-used.md).
 - **Order is deterministic.** Pinned by [scope.test.ts](src/scope.test.ts) ›
   "answers the same whatever order the record lists its modules in".

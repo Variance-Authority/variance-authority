@@ -30,7 +30,10 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   hydrating with nothing arriving is refused at once; one React never loaded on
   waits only on scripts. Written in [README › Readiness and
   loading](README.md#readiness-and-loading); pinned by
-  [src/hydration.chromium.test.ts](src/hydration.chromium.test.ts).
+  [src/hydration.chromium.test.ts](src/hydration.chromium.test.ts) › "waits for
+  as long as the response the shell holds on takes", "refuses at once a route
+  whose shell holds on something no response settles" and "reads a route React
+  never loaded on once nothing is arriving".
 - **An excluded page is named, not photographed.** `data-variance-exclude`
   anywhere lists the page as `excluded` with its reason and reads nothing.
   Pinned by

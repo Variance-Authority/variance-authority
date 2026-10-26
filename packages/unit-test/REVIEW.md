@@ -24,7 +24,7 @@ Adds to the [root REVIEW.md](../../REVIEW.md) for changes under
   [archive.test.ts](src/archive.test.ts) › "refuses a directory that is not
   there instead of reporting no captures".
 - **Without the React callbacks, no component names.** A capture without
-  `provenanceOf` stores none, not empty ones. Written in
+  `provenanceOf` attaches no chain. Written in
   [README](README.md#every-option).
 - **A value capture is canonical and refused where a document is read.** Keys
   sort, `undefined` drops, and a function, `Date`, `bigint` or non-finite number
