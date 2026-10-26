@@ -128,7 +128,9 @@ describe('variance ask over a private app that reaches into another package', ()
     const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
-    expect(out).toContain('export const roundTax = (amount: number): number => amount;');
+    expect(out).toContain('roundTax [const]\n');
+    expect(out).toContain('const roundTax = (amount: number): number =>');
+    expect(out).not.toContain('export const roundTax');
     expect(out).toMatch(/Imported in 1 place\b/);
   });
 
@@ -141,8 +143,8 @@ describe('variance ask over a private app that reaches into another package', ()
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/lib\//)).toMatch(/Imported in 1 place\b/);
-    expect(paragraph(out, /^roundTax\nexported, without being published, at packages\/kit\//)).toContain(
+    expect(paragraph(out, /^roundTax \[const\]\nexported, without being published, at packages\/lib\//)).toMatch(/Imported in 1 place\b/);
+    expect(paragraph(out, /^roundTax \[const\]\nexported, without being published, at packages\/kit\//)).toContain(
       'Nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.',
     );
 

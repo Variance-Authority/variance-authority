@@ -11,7 +11,8 @@ import { searchIndexOf } from './search.js';
  * that must open their answers. A name answers by its own words before its
  * doc, by the doc's opening before the rest of it, and by every word of the
  * question before some of them; an inflected word reaches the name written in
- * its stem.
+ * its stem. A name that is the question comes before every name holding it,
+ * as written before in another case.
  */
 
 const manifest = (name: string, dependencies: Readonly<Record<string, string>> = {}): string =>
@@ -38,6 +39,10 @@ const PROBES = [
   'export const written: readonly number[] = [];',
   '/** How many there are. */',
   'export const regionCount = 0;',
+  '/** A region by where it starts. */',
+  'export interface Region {\n  readonly start: number;\n}',
+  '/** One probe, by where it is placed. */',
+  'export function probe(at: number): number {\n  return at;\n}',
 ].join('\n');
 
 // Exported by a file no entrypoint reaches, declared in the reverse of the order expected.
@@ -48,6 +53,8 @@ const UNPUBLISHED = [
   'export const callCount = 0;',
   '/** Records every call. */',
   'export function instrumentCalls(): void {}',
+  '/** One call. */',
+  'export const call = 0;',
 ].join('\n');
 
 let index: SearchIndex;
@@ -60,6 +67,7 @@ beforeAll(async () => {
     'packages/probes/tsconfig.json': TSCONFIG,
     'packages/probes/src/index.ts': `${PROBES}\n`,
     'packages/probes/src/unpublished.ts': `${UNPUBLISHED}\n`,
+    'packages/probes/src/counted.ts': "export { callCount } from './unpublished.js';\n",
     ...app('first', 'Flakiness, probeSites'),
     ...app('second', 'Flakiness'),
     ...app('third', 'Flakiness'),
@@ -87,6 +95,20 @@ describe('the names a question puts first', () => {
     // `Flakiness` is imported by three packages and `instrumentModule` by none:
     // where the word was found decides first, and the importers only within that.
     expect(publishedFirst('instrument')).toEqual(['instrumentModule', 'probeSites', 'Flakiness']);
+  });
+
+  it('puts the name that is the question before a name holding it that more packages import', () => {
+    expect(publishedFirst('probe')[0]).toBe('probe');
+    expect(publishedFirst('Probe')[0]).toBe('probe');
+  });
+
+  it('puts the name as the question writes it before the same word in another case', () => {
+    expect(publishedFirst('region').slice(0, 2)).toEqual(['region', 'Region']);
+    expect(publishedFirst('Region').slice(0, 2)).toEqual(['Region', 'region']);
+  });
+
+  it('puts the exported name that is the question before an exported name holding it that more files export', () => {
+    expect(exportedFirst('call')[0]).toBe('call');
   });
 
   it('orders the names the source exports without publishing by the same fields', () => {

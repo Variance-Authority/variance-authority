@@ -203,7 +203,11 @@ interface Hit {
   readonly rank: number;
   readonly usedBy: number;
   readonly uses: number;
-  /** Where the question was found: 0 in the name, 1 in the doc's opening paragraph, 2 later in the doc. */
+  /**
+   * Where the question was found: 0 as the whole name as written, 1 as the
+   * whole name in another case, 2 in the name, 3 in the doc's opening
+   * paragraph, 4 later in the doc.
+   */
   readonly field: number;
   /** What the area saw of it — nothing, when there is no area. */
   readonly scoped: InArea | undefined;
@@ -236,8 +240,8 @@ function usedWithin(index: SearchIndex, row: number, area: Area, inArea: Readonl
  * with an unscoped ranking.
  *
  * `field` says where the question was found in a row, and orders before
- * anything the area or the importers say: a name holding the word is that
- * thing, a doc opening with it says what the name is for, and a doc saying it
+ * anything the area or the importers say: a name that is the word is the thing
+ * asked for, a name holding the word is that thing, a doc opening with it says what the name is for, and a doc saying it
  * three paragraphs down mentions it. Absent, every row was reached alike.
  */
 function surface(
@@ -310,13 +314,20 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   const named = ascending(index.namesContaining(query), namesOfWords(index, query));
   const byName = new Set(named);
   const openings = new Set(index.docOpeningsContaining(query));
-  const field = (row: number, name: number): number => (byName.has(name) ? 0 : openings.has(row) ? 1 : 2);
+  // The name that is the question is the thing asked for, however few import
+  // it: as written first, then the same word in another case.
+  const exact = new Map<number, number>();
+  for (const name of named) {
+    const written = index.name(name);
+    if (written.toLowerCase() === query) exact.set(name, written === question.query ? 0 : 1);
+  }
+  const field = (row: number, name: number): number => exact.get(name) ?? (byName.has(name) ? 2 : openings.has(row) ? 3 : 4);
   const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within, field);
   const answered = new Set(hits.map((hit) => hit.name));
   // An exported row is reached by its doc as a published one is, and inside an
   // area only through a row whose file is in it.
   const through = docRows(index, index.exportedDocsContaining(query), within, byName);
-  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, new Set(index.exportedDocOpeningsContaining(query)));
+  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, new Set(index.exportedDocOpeningsContaining(query)), exact);
   return { query, area, within, named, hits, answered, rest } as const;
 }
 
