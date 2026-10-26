@@ -165,8 +165,10 @@ export function ownedIn(
  * files, and cut one by a mock on the way: the one file that would have loaded
  * it replaced it. Every other answer keeps the flag — no graph, no shadows, a
  * module or a case's file the graph does not hold, so it cannot say who loaded
- * it, or a run no mock explains, such as a page-side module a browser spec
- * reached through the page. Asked only of a graph that carries shadows.
+ * it, a case that runs a file whose imports the scan could not all read, so the
+ * graph does not know everything that case loaded, or a run no mock explains,
+ * such as a page-side module a browser spec reached through the page. Asked
+ * only of a graph that carries shadows.
  */
 function loadOwned(index: ExecutionIndex, file: string, relations: Relations): boolean {
   const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
@@ -174,8 +176,35 @@ function loadOwned(index: ExecutionIndex, file: string, relations: Relations): b
   const recorded = new Set(index.tests.map((test) => test.file));
   if ([...recorded].some((one) => idOf(relations, 'file', one) === undefined)) return true;
   if (affected.files.some((one) => recorded.has(one))) return true;
+  // A case that mocks the module itself loads the mock by every route, read or
+  // not; any other case running an unread import may have loaded the real one.
+  const mocks = (test: string) => relations.shadows.get(test)?.includes(file) === true;
+  if (unreadFor(relations).some((one) => recorded.has(one) && !mocks(one))) return true;
   return !affected.shadowed.some((one) => recorded.has(one));
 }
+
+/**
+ * The files that run a file whose imports the scan could not all read
+ * (`Relations.unknown`), itself or through what they import: the files whose
+ * every load the graph cannot name. A file that reaches one only through its
+ * own mock is not among them, by the same cut as {@link shadowedFor}, since
+ * that file ran under the mock's evaluation. One walk per graph, whatever the
+ * module asked.
+ */
+function unreadFor(relations: Relations): readonly string[] {
+  const kept = unreadPerGraph.get(relations);
+  if (kept !== undefined) return kept;
+  const seeds = [];
+  for (let id: NodeId = 0; id < relations.unknown.length; id++) {
+    const node = relations.unknown[id] === 1 ? nodeAt(relations, id) : undefined;
+    if (node?.kind === 'file') seeds.push(node);
+  }
+  const found = seeds.length === 0 ? [] : affectedBy(relations, seeds, { through: RUNTIME_EDGES }).files;
+  unreadPerGraph.set(relations, found);
+  return found;
+}
+
+const unreadPerGraph = new WeakMap<Relations, readonly string[]>();
 
 /**
  * The module's blocks holding only what their cases own, by {@link ownedIn}

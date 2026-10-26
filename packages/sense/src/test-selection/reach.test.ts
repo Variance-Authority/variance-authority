@@ -105,6 +105,68 @@ describe('the reach of a region', () => {
     expect(both(index, 1, relations)).toEqual({ file: 'unwalked', change: 'unwalked', target: 'unwalked' });
   });
 
+  it('stays loaded when a recorded case loads through an import the scan could not read', () => {
+    // `mocked.test.ts` mocks `total.ts`; `cart.test.ts` loads the real one
+    // through `import('./' + name)`, an edge the graph does not hold.
+    const index: ExecutionIndex = {
+      tests,
+      modules: [{ file, blocks: [
+        { kind: 'statement', name: 'RATE', path: 'statement#0', startLine: 1, endLine: 1, source: true, loaded: true, crossings: [] },
+      ] }],
+    };
+    const relations = relationsOfFiles(
+      [
+        { file },
+        { file: 'test/cart.test.ts', unknown: 'a computed dynamic import' },
+        { file: 'test/mocked.test.ts', edges: [{ to: file, kind: 'imports' as const }] },
+      ],
+      { shadows: new Map([['test/mocked.test.ts', [file]]]) },
+    );
+
+    expect(both(index, 1, relations)).toEqual({ file: 'loaded', change: 'loaded', target: 'loaded' });
+  });
+
+  it('is unwalked when the only case with an import the scan could not read mocks the module itself', () => {
+    // A mock replaces the module on every route, a computed one included.
+    const index: ExecutionIndex = {
+      tests,
+      modules: [{ file, blocks: [
+        { kind: 'statement', name: 'RATE', path: 'statement#0', startLine: 1, endLine: 1, source: true, loaded: true, crossings: [] },
+      ] }],
+    };
+    const relations = relationsOfFiles(
+      [
+        { file },
+        { file: 'test/cart.test.ts' },
+        { file: 'test/mocked.test.ts', edges: [{ to: file, kind: 'imports' as const }], unknown: 'a computed dynamic import' },
+      ],
+      { shadows: new Map([['test/mocked.test.ts', [file]]]) },
+    );
+
+    expect(both(index, 1, relations)).toEqual({ file: 'unwalked', change: 'unwalked', target: 'unwalked' });
+  });
+
+  it('stays loaded when the import the scan could not read is in a file a recorded case reaches', () => {
+    const helper = 'test/load-page.ts';
+    const index: ExecutionIndex = {
+      tests,
+      modules: [{ file, blocks: [
+        { kind: 'statement', name: 'RATE', path: 'statement#0', startLine: 1, endLine: 1, source: true, loaded: true, crossings: [] },
+      ] }],
+    };
+    const relations = relationsOfFiles(
+      [
+        { file },
+        { file: helper, unknown: 'a computed dynamic import' },
+        { file: 'test/cart.test.ts', edges: [{ to: helper, kind: 'imports' as const }] },
+        { file: 'test/mocked.test.ts', edges: [{ to: file, kind: 'imports' as const }] },
+      ],
+      { shadows: new Map([['test/mocked.test.ts', [file]]]) },
+    );
+
+    expect(both(index, 1, relations)).toEqual({ file: 'loaded', change: 'loaded', target: 'loaded' });
+  });
+
   it('stays loaded when the graph holds no file the module is', () => {
     // The graph carries a mock, but not this module: it cannot say who loaded it.
     const index: ExecutionIndex = {

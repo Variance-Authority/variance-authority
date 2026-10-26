@@ -25,9 +25,11 @@ passenger. A whole-file range that is loaded no longer prints "a hole" or its
 stopped cases beneath its `— loaded` header.
 
 With a file graph, a mock's own evaluation counts nowhere: a region that ran at
-module load only because the one file importing it mocks it is unwalked, and a
-stopped case whose only crossing was its mock's evaluation is not a case that
-could have reached the region, so it does not make the region a hole. The
+module load only because the one file importing it mocks it is unwalked — unless
+another case runs an import the scan could not read, which may have loaded the
+real module, and then it stays loaded — and a stopped case whose only crossing
+was its mock's evaluation is not a case that could have reached the region, so
+it does not make the region a hole. The
 covering commands read the file graph whenever the record marks load time on
 the region, on a block or on a crossing, so the mock is told apart on every
 answer, not only on `--since`.
