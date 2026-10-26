@@ -361,7 +361,7 @@
   "examples/todomvc/src/ds/components.tsx block": [
     6
   ],
-  "examples/todomvc/src/entry.test.tsx block": [
+  "examples/todomvc/src/entry.test.tsx docblock": [
     27
   ],
   "examples/todomvc/src/fiber.test.tsx overview": [
@@ -391,11 +391,8 @@
     6,
     6
   ],
-  "examples/todomvc/src/pixel/instability.tsx block": [
-    23,
-    9
-  ],
   "examples/todomvc/src/pixel/instability.tsx docblock": [
+    23,
     17
   ],
   "examples/todomvc/src/pixel/probes.tsx overview": [
@@ -431,10 +428,6 @@
   "packages/cli/src/commands/affected-install.test.ts block": [
     7
   ],
-  "packages/cli/src/commands/affected.test.ts block": [
-    10,
-    8
-  ],
   "packages/cli/src/commands/affected.ts docblock": [
     11
   ],
@@ -456,8 +449,10 @@
     14
   ],
   "packages/cli/src/commands/ask.ts block": [
-    47,
     7
+  ],
+  "packages/cli/src/commands/ask.ts docblock": [
+    47
   ],
   "packages/cli/src/commands/asking.ts docblock": [
     14
@@ -512,9 +507,6 @@
   ],
   "packages/cli/src/commands/configless.ts docblock": [
     14
-  ],
-  "packages/cli/src/commands/costs.ts block": [
-    8
   ],
   "packages/cli/src/commands/coverage-source.ts overview": [
     32
@@ -685,9 +677,6 @@
     18,
     18,
     12
-  ],
-  "packages/cli/src/commands/report-html-elements.ts block": [
-    6
   ],
   "packages/cli/src/commands/report-html-pictures.ts docblock": [
     13
@@ -871,10 +860,8 @@
   "packages/cli/src/config-values.ts docblock": [
     16
   ],
-  "packages/cli/src/config.ts block": [
-    32
-  ],
   "packages/cli/src/config.ts docblock": [
+    32,
     19,
     12,
     12,
@@ -910,7 +897,7 @@
   "packages/cli/src/index.ts overview": [
     32
   ],
-  "packages/cli/src/parse.ts block": [
+  "packages/cli/src/parse.ts docblock": [
     29
   ],
   "packages/cli/src/project-segment.ts docblock": [
@@ -1219,7 +1206,7 @@
   "packages/core/src/judge/fingerprint.ts overview": [
     16
   ],
-  "packages/core/src/judge/ignore.ts block": [
+  "packages/core/src/judge/ignore.ts docblock": [
     38
   ],
   "packages/core/src/judge/index.ts overview": [
@@ -1895,9 +1882,6 @@
   "packages/playwright-test/src/in-place.ts docblock": [
     11
   ],
-  "packages/playwright-test/src/matcher.ts block": [
-    7
-  ],
   "packages/playwright-test/src/options.ts docblock": [
     15
   ],
@@ -2342,12 +2326,12 @@
     21
   ],
   "packages/route-collector/src/index.ts block": [
-    26,
     9,
     7,
     6
   ],
   "packages/route-collector/src/index.ts docblock": [
+    26,
     20,
     11
   ],
@@ -3433,11 +3417,9 @@
     8,
     7
   ],
-  "packages/store/src/durable.ts block": [
-    11
-  ],
   "packages/store/src/durable.ts docblock": [
     16,
+    11,
     11
   ],
   "packages/store/src/lfs-fetch.ts docblock": [
@@ -3486,12 +3468,12 @@
     10
   ],
   "packages/storybook-collector/src/index.ts block": [
-    23,
     11,
     9,
     7
   ],
   "packages/storybook-collector/src/index.ts docblock": [
+    23,
     17,
     11
   ],
@@ -3664,9 +3646,6 @@
   ],
   "packages/tribunal/src/node/bucket.ts overview": [
     52
-  ],
-  "packages/tribunal/src/node/database.test.ts block": [
-    7
   ],
   "packages/tribunal/src/node/database.ts overview": [
     23
@@ -4014,9 +3993,6 @@
   ],
   "site/app/components/TableOfContents.tsx docblock": [
     13
-  ],
-  "site/app/id-references.test.tsx block": [
-    6
   ],
   "site/variance/routes.mjs overview": [
     16

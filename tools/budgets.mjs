@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { parseSync } from 'oxc-parser';
+import { MODULES, ROOT } from './modules.mjs';
 
 /**
  * How many lines each written surface may hold, and which surfaces hold more.
@@ -19,7 +20,6 @@ import { parseSync } from 'oxc-parser';
  * the debt `tools/budgets.check.ts` holds every change to.
  */
 
-export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const BASELINE = join(ROOT, 'tools/budgets.baseline.json');
 
 /** Content lines per surface. A breach collapses the surface to about half. */
@@ -140,7 +140,8 @@ export function surfacesOf(file, text) {
     const parts = group.parts.filter((part) => part.value.includes('\n') || !PRAGMA.test(part.value.replace(/^\*+/, '')));
     if (parts.length === 0) continue;
     const gap = /^\s*/.exec(text.slice(group.end))[0];
-    const next = /\n[ \t]*\n/.test(gap) ? undefined : starts.get(group.end + gap.length);
+    // Above the first statement a blank line parts an overview from the code; below it, as in TypeScript, it does not.
+    const next = group.start < firstStart && /\n[ \t]*\n/.test(gap) ? undefined : starts.get(group.end + gap.length);
     const doc = group.type === 'Block' && group.parts[0].value.startsWith('*');
     const declaration = next !== undefined && next.node.type !== 'ImportDeclaration' && DECLARATION.test(next.node.type);
     const lines = parts.flatMap(contentOf).length;
@@ -188,8 +189,6 @@ export const tracked = (...patterns) =>
     .filter((file) => file !== '' && existsSync(join(ROOT, file)));
 
 // TODO: Rust's comments are held to no budget here; the addon's tree-sitter reader can read them.
-/** The modules `tools/modules.ts` lists, by the same extensions. */
-export const MODULES = tracked('*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs');
 
 /**
  * Every surface over its budget, grouped by file and kind, and where each opens.

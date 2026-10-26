@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, BUDGET, MODULES, judge, leadOf, overBudget, recordable, surfacesOf, tracked } from './budgets.mjs';
+import { BASELINE, BUDGET, judge, leadOf, overBudget, recordable, surfacesOf, tracked } from './budgets.mjs';
+import { MODULES } from './modules.js';
 
 /**
  * Every written surface has a budget, and a breach is collapsed where it happens.
@@ -93,6 +94,12 @@ describe('the debt is keyed by file and kind', () => {
     ]);
   });
 
+  it('attaches a docblock past a blank line once the overview is behind it', () => {
+    expect(surfacesOf('x.ts', `export const a = 1;\n\n/**\n * One.\n * Two.\n */\n\nexport function f() {}\n`)).toEqual([
+      { kind: 'docblock', scope: 'f', line: 3, lines: 2 },
+    ]);
+  });
+
   it('names a variable scope once, and a default export by `default`', () => {
     expect(surfacesOf('x.ts', `export const a = {\n  b() {\n    // x\n    // y\n  },\n};\n`)).toEqual([
       { kind: 'block', scope: 'a.b', line: 3, lines: 2 },
@@ -144,8 +151,7 @@ describe('the repository', () => {
             `Over budget there now: ${grownKeys(grown).flatMap((key) => where.get(key) ?? []).join(', ')}.\n\n` +
             `Collapse each to about half its budget (${Object.entries(BUDGET).map(([kind, n]) => `${kind} ${n}`).join(', ')}) ` +
             'in this change: move the overflow down to the site it governs, up to the folder or package ' +
-            'that owns it, or to the docblock of the export it describes. A file over 500 lines is split ' +
-            'by responsibility the same way.',
+            'that owns it, or to the docblock of the export it describes.',
     ).toBe('');
   });
 
