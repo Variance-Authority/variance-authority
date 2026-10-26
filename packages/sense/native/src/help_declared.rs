@@ -14,6 +14,10 @@
 //! holds it. Only the exact question reads that table: a closure is its
 //! holder's working name, documented for its holder, and a description or a
 //! piece of a name is asked of what a caller can reach.
+//!
+//! `symbol` reads the same harvest for a name a file exports and no entry
+//! publishes, so it can answer with its kind, signature and doc: asked as
+//! written, the declarations an export binds are kept too.
 
 // compass: variance-authority.report.agent-surface
 

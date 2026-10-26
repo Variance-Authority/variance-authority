@@ -62,9 +62,9 @@ through every value written as its container, each use a read or a write;
 whatever a type checker would have to infer is TypeScript's to answer.
 
 **`search <words>`** answers one ranked list of declarations by the words of
-their name and their documentation: a name that is the question first, as
-written before in another case, then a rare word above a common one, published
-above exported above unexported. It opens on its first hit, and on a miss names
+their name and their documentation: a name that is the question first — as
+written, then the same name in another case — then a rare word above a common
+one, published above exported above unexported. It opens on its first hit, and on a miss names
 the word nothing carries.
 
 **`covering --file <path>`** answers, per region of the file and per suite, the

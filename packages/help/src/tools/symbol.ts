@@ -11,7 +11,7 @@ import { thirdBlock } from './third-party.js';
 import { declarations, declaredAt, declaredBlocks, isNested, unreadLine, writtenAt } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
-import { lineOf, originOf, passedOnRows } from './passed-on.js';
+import { exportedRows, originOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { localNames, renamedSites } from './renamed.js';
 
@@ -330,13 +330,8 @@ function declaration(help: Help, name: string, site: PathSite): { readonly at: s
 function exportedOnly(name: string, exported: readonly Named[], root: string | undefined, spell: Spelling): string {
   return declaringExports(name, exported, root)
     .map(([held, within]) => {
-      const { declared, rows } = passedOnRows(root, held);
-      // A file that passes the name on writes no declaration of it: its line, and the one it passes on, say what it is.
-      const written = rows.length > 0 ? undefined : writtenAt(root, name, held.at, held.line);
+      const { declared, rows } = exportedRows(root, name, held);
       return [
-        written === undefined ? name : `${name} [${written.kind}]`,
-        `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
-        ...(written !== undefined ? written.rows : root === undefined ? [] : lineOf(root, held)),
         ...rows,
         ...('uses' in within ? [importedIn(within.uses.length, spell), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
         ...memberRows(root, declared.at, declared.name, declared.line),
