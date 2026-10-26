@@ -451,7 +451,7 @@
   "packages/cli/src/commands/ask.ts block": [
     7
   ],
-  "packages/cli/src/commands/ask.ts docblock": [
+  "packages/cli/src/commands/ask.ts overview": [
     47
   ],
   "packages/cli/src/commands/asking.ts docblock": [
@@ -777,9 +777,6 @@
   "packages/cli/src/commands/serve.ts overview": [
     31
   ],
-  "packages/cli/src/commands/share.ts block": [
-    10
-  ],
   "packages/cli/src/commands/since.ts docblock": [
     28,
     26,
@@ -840,9 +837,6 @@
   "packages/cli/src/config-ignore.ts docblock": [
     12
   ],
-  "packages/cli/src/config-placement.ts block": [
-    11
-  ],
   "packages/cli/src/config-sections.ts block": [
     6
   ],
@@ -861,11 +855,13 @@
     16
   ],
   "packages/cli/src/config.ts docblock": [
-    32,
     19,
     12,
     12,
     11
+  ],
+  "packages/cli/src/config.ts overview": [
+    32
   ],
   "packages/cli/src/covering-args.ts docblock": [
     19
@@ -897,7 +893,7 @@
   "packages/cli/src/index.ts overview": [
     32
   ],
-  "packages/cli/src/parse.ts docblock": [
+  "packages/cli/src/parse.ts overview": [
     29
   ],
   "packages/cli/src/project-segment.ts docblock": [
@@ -925,7 +921,6 @@
     11
   ],
   "packages/core/src/attribute/boundary.ts block": [
-    31,
     20,
     13,
     6,
@@ -936,6 +931,9 @@
     17,
     13,
     13
+  ],
+  "packages/core/src/attribute/boundary.ts overview": [
+    31
   ],
   "packages/core/src/attribute/call-site.test.ts block": [
     6
@@ -1206,7 +1204,7 @@
   "packages/core/src/judge/fingerprint.ts overview": [
     16
   ],
-  "packages/core/src/judge/ignore.ts docblock": [
+  "packages/core/src/judge/ignore.ts overview": [
     38
   ],
   "packages/core/src/judge/index.ts overview": [
@@ -1380,7 +1378,6 @@
     7
   ],
   "packages/dom/src/collect.ts block": [
-    12,
     6
   ],
   "packages/dom/src/collect.ts docblock": [
@@ -1500,7 +1497,7 @@
   "packages/help/src/scan-scope.ts docblock": [
     13
   ],
-  "packages/help/src/search-index.ts block": [
+  "packages/help/src/search-index.ts overview": [
     17
   ],
   "packages/help/src/search-read.ts docblock": [
@@ -1685,11 +1682,11 @@
   "packages/mcp/src/tools/locate.test.ts block": [
     6
   ],
-  "packages/mcp/src/tools/locate.ts block": [
-    66
-  ],
   "packages/mcp/src/tools/locate.ts docblock": [
     13
+  ],
+  "packages/mcp/src/tools/locate.ts overview": [
+    66
   ],
   "packages/mcp/src/tools/orient.test.ts block": [
     6
@@ -1818,8 +1815,7 @@
     21
   ],
   "packages/package/src/manifest.ts block": [
-    14,
-    7
+    14
   ],
   "packages/package/src/manifest.ts docblock": [
     12
@@ -1995,11 +1991,11 @@
     7
   ],
   "packages/playwright/src/renderer.ts block": [
+    23,
     13,
     10
   ],
   "packages/playwright/src/renderer.ts docblock": [
-    23,
     20,
     16,
     13
@@ -2331,9 +2327,11 @@
     6
   ],
   "packages/route-collector/src/index.ts docblock": [
-    26,
     20,
     11
+  ],
+  "packages/route-collector/src/index.ts overview": [
+    26
   ],
   "packages/route-collector/src/object-urls.chromium.test.ts overview": [
     19
@@ -2542,9 +2540,6 @@
   ],
   "packages/sense/src/declaration-siblings.test.ts overview": [
     16
-  ],
-  "packages/sense/src/digest.ts block": [
-    15
   ],
   "packages/sense/src/emitted.ts overview": [
     20
@@ -3417,9 +3412,11 @@
     8,
     7
   ],
+  "packages/store/src/durable.ts block": [
+    11
+  ],
   "packages/store/src/durable.ts docblock": [
     16,
-    11,
     11
   ],
   "packages/store/src/lfs-fetch.ts docblock": [

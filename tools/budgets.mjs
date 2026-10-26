@@ -30,6 +30,11 @@ const PRAGMA =
 const TAG = /^(?:@\w+(?:\s+\S+)?|\{@link\s+[^}]*\})$/;
 /** What a docblock documents: a declaration, a member or a property, never a statement. */
 const DECLARATION = /(?:Declaration|Definition|Signature|^TSEnumMember|^Property|^AccessorProperty)$/;
+/** A statement that names other modules and declares nothing here. */
+const passes = (node) =>
+  node.type === 'ImportDeclaration' ||
+  node.type === 'ExportAllDeclaration' ||
+  (node.type === 'ExportNamedDeclaration' && node.declaration == null);
 const FIXTURE = /(?:^|\/)(?:fixtures?|__fixtures__)\//;
 
 /** The lines of one comment a reader reads: no frame, no blank, no bare tag. */
@@ -38,7 +43,9 @@ function contentOf(comment) {
     comment.type === 'Block'
       ? comment.value.split('\n').map((line) => line.trim().replace(/^\*+\s?/, '').trim())
       : [comment.value.trim()];
-  return lines.filter((line) => line !== '' && !/^\*+$/.test(line) && !TAG.test(line) && !PRAGMA.test(line));
+  return lines.filter(
+    (line) => line !== '' && !/^\*+$/.test(line) && !TAG.test(line) && !PRAGMA.test(line.replace(/^\/\s*/, '')),
+  );
 }
 
 /** The name a node declares, or nothing when it declares none. */
@@ -128,7 +135,7 @@ export function surfacesOf(file, text) {
     }
     return low + 1;
   };
-  const first = program.body.find((statement) => statement.type !== 'ImportDeclaration' && !statement.directive);
+  const first = program.body.find((statement) => !passes(statement) && !statement.directive);
   const firstStart = first === undefined ? text.length : first.start;
   const found = [];
   let overview = false;
@@ -137,13 +144,13 @@ export function surfacesOf(file, text) {
   const written = comments.filter((comment) => comment.start !== program.hashbang?.start);
   for (const group of groupsOf(text, written)) {
     // A one-line pragma is no surface; a pragma line in a longer comment is dropped by `contentOf`.
-    const parts = group.parts.filter((part) => part.value.includes('\n') || !PRAGMA.test(part.value.replace(/^\*+/, '')));
+    const parts = group.parts.filter((part) => part.value.includes('\n') || !PRAGMA.test(part.value.replace(/^[*/]+\s*/, '')));
     if (parts.length === 0) continue;
     const gap = /^\s*/.exec(text.slice(group.end))[0];
     // Above the first statement a blank line parts an overview from the code; below it, as in TypeScript, it does not.
     const next = group.start < firstStart && /\n[ \t]*\n/.test(gap) ? undefined : starts.get(group.end + gap.length);
     const doc = group.type === 'Block' && group.parts[0].value.startsWith('*');
-    const declaration = next !== undefined && next.node.type !== 'ImportDeclaration' && DECLARATION.test(next.node.type);
+    const declaration = next !== undefined && !passes(next.node) && DECLARATION.test(next.node.type);
     const lines = parts.flatMap(contentOf).length;
     let kind;
 
@@ -172,11 +179,17 @@ export function surfacesOf(file, text) {
  */
 export function leadOf(text) {
   const lines = text.replace(/^---\n[\s\S]*?\n---\n/, '').split('\n');
-  const title = lines.findIndex((line) => line.startsWith('# '));
+  // A `#` line inside a code fence is the fence's text, not a heading.
+  let fenced = false;
+  const heading = lines.map((line) => {
+    if (/^\s*(?:```|~~~)/.test(line)) fenced = !fenced;
+    else if (!fenced) return /^(#+) /.exec(line)?.[1].length;
+    return undefined;
+  });
+  const title = heading.indexOf(1);
   if (title === -1) return undefined;
-  const rest = lines.slice(title + 1);
-  const end = rest.findIndex((line) => /^#{2,} /.test(line));
-  return (end === -1 ? rest : rest.slice(0, end)).filter((line) => line.trim() !== '').length;
+  const end = heading.findIndex((level, at) => at > title && level !== undefined && level >= 2);
+  return lines.slice(title + 1, end === -1 ? undefined : end).filter((line) => line.trim() !== '').length;
 }
 
 /** The pages a stranger lands on: the root, `docs/` and every package README. */
@@ -188,7 +201,7 @@ export const tracked = (...patterns) =>
     .split('\n')
     .filter((file) => file !== '' && existsSync(join(ROOT, file)));
 
-// TODO: Rust's comments are held to no budget here; the addon's tree-sitter reader can read them.
+// TODO: Rust, shell, YAML and Dockerfile comments are held to no budget here; the addon's tree-sitter reader can read Rust.
 
 /**
  * Every surface over its budget, grouped by file and kind, and where each opens.

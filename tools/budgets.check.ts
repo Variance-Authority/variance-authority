@@ -64,6 +64,7 @@ describe('a surface is told by what its comment is attached to', () => {
   it('reads a lead as the lines between the title and the first section', () => {
     expect(leadOf('---\nx: 1\n---\n# Title\n\nOne.\nTwo.\n\n## Next\n\nThree.\n')).toBe(2);
     expect(leadOf('No title.\n')).toBeUndefined();
+    expect(leadOf('```\n# Not\n```\n# T\n\nOne.\n\n```sh\n## c\n```\nTwo.\n\n## S\n')).toBe(5);
   });
 });
 
@@ -115,6 +116,13 @@ describe('the debt is keyed by file and kind', () => {
     expect(recordable(undefined, new Map([['a.ts block', [7]]]))).toBe('{\n  "a.ts block": [\n    7\n  ]\n}\n');
   });
 
+  it('reads a re-export as an import, so the overview after it keeps its slot', () => {
+    expect(surfacesOf('x.ts', `export * from './a';\nexport { b } from './b';\n\n/**\n * One.\n */\n\nexport const c = 1;\n`)).toEqual([
+      { kind: 'overview', scope: '', line: 4, lines: 1 },
+    ]);
+    expect(surfacesOf('x.ts', `/// <reference types="a" />\n/// <reference types="b" />\nexport const c = 1;\n`)).toEqual([]);
+  });
+
   it('counts a TODO line as content', () => {
     expect(surfacesOf('x.ts', `function run() {\n  // TODO: one.\n  // Two.\n}\n`)).toEqual([
       { kind: 'block', scope: 'run', line: 2, lines: 2 },
@@ -123,18 +131,18 @@ describe('the debt is keyed by file and kind', () => {
 });
 
 describe('the debt only shrinks', () => {
-  const recorded = { 'a.ts block run': [9, 7] };
+  const recorded = { 'a.ts block': [9, 7] };
 
   it('refuses a surface that grew past its entry, and a new breach', () => {
-    expect(judge(recorded, new Map([['a.ts block run', [10, 7]]])).grown).toEqual(['a.ts block run: 10, 7 (held at 9, 7)']);
-    expect(judge(recorded, new Map([['a.ts block run', [9, 7, 6]]])).grown).toEqual(['a.ts block run: 9, 7, 6 (held at 9, 7)']);
+    expect(judge(recorded, new Map([['a.ts block', [10, 7]]])).grown).toEqual(['a.ts block: 10, 7 (held at 9, 7)']);
+    expect(judge(recorded, new Map([['a.ts block', [9, 7, 6]]])).grown).toEqual(['a.ts block: 9, 7, 6 (held at 9, 7)']);
     expect(judge({}, new Map([['b.ts overview', [16]]])).grown).toEqual(['b.ts overview: 16 (held at nothing)']);
   });
 
   it('asks for the entry to come down when a surface shrank or left', () => {
-    expect(judge(recorded, new Map([['a.ts block run', [8, 7]]])).slack).toEqual(['a.ts block run: 8, 7 (held at 9, 7)']);
-    expect(judge(recorded, new Map()).slack).toEqual(['a.ts block run: nothing (held at 9, 7)']);
-    expect(judge(recorded, new Map([['a.ts block run', [9, 7]]]))).toEqual({ grown: [], slack: [] });
+    expect(judge(recorded, new Map([['a.ts block', [8, 7]]])).slack).toEqual(['a.ts block: 8, 7 (held at 9, 7)']);
+    expect(judge(recorded, new Map()).slack).toEqual(['a.ts block: nothing (held at 9, 7)']);
+    expect(judge(recorded, new Map([['a.ts block', [9, 7]]]))).toEqual({ grown: [], slack: [] });
   });
 });
 
