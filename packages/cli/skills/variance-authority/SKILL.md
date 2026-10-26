@@ -32,9 +32,11 @@ whole suite again over a record that exists:
   under Playwright.
 - **A file the record is older than** — `covering`'s `older`: the commit the
   record was made at did not hold the file, so the file is new. Run
-  `variance index`, then `variance reach --since <base>`: it takes every file
-  the diff added at once, with no record needed, and lists the files each one
-  reaches over imports. Run the test files in that list.
+  `variance index`, then `variance reach --since <commit>` with the commit the
+  refusal names: it takes every file added since the record at once, with no
+  record needed, and lists the files each one reaches over imports. Run the
+  test files in that list. A ref such as `origin/main` diffs from its merge base
+  with `HEAD`, which can already hold the file.
 - **Lines written since the recording, in a file the record holds** —
   `covering` answers a line your edit wrote with no case and names it in
   `written`; a `stale` frame or a `moved` range is the same gap. Record: the
@@ -42,12 +44,12 @@ whole suite again over a record that exists:
   `variance covering --file <path> --format refs` lists them, in the cases
   table at its end; run those.
 - **A file the suite never loaded** — `covering`'s `Not loaded by`
-  (`unloaded`). The file is in the record's commit, so a diff need not name it,
-  and `reach` has nothing to start from.
-  `variance ask discover --to <path> --path '\.test\.'`, with the regex your
-  test files match, lists the test files that import it at any depth, nearest
-  first, with no record needed. Run the ones that suite runs. When none imports
-  it, no test of that suite runs the file, and the gap stays until one does.
+  (`unloaded`). The file is in the record's commit, and the recorded run of the
+  suite loaded it by no import at all — static, dynamic, or a setup file's.
+  Running the same tests again records the same thing. A test file added since
+  the recording is the diff's: `variance reach --since <commit>`, with the
+  commit the record was made at, names it when it imports the file. Otherwise
+  the gap is a test that loads the file, which no run fills.
 - **A base the answer cannot compare against** — `undiffed`. The base names a
   commit this clone lacks or cannot diff from, or names none. This gap is the
   one no run fills: fetch that commit, for example by deepening a shallow
