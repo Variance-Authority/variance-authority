@@ -52,6 +52,13 @@ describe('one review summary with coverage available on demand', () => {
     expect(markdown).toContain('their percentages cannot be added');
   });
 
+  it('puts each suite in and out behind the coverage disclosure, not on the first screen', () => {
+    const earned = { regions: 20000, in: 12000, out: 15000, accidental: 6000, unmeasured: 10 };
+    const markdown = formatReview({ ...REVIEW, coverage: [{ ...UNIT, earned: { suites: [{ name: 'unit', kind: 'unit', ...earned }], total: earned } }, INTEGRATION] }, 'markdown');
+    expect(markdown).toContain('| `unit` | 20,000 | 60.0% | 75.0% | 6,000 (30.0%) |');
+    expect(closed(markdown)).not.toContain('20,000');
+  });
+
   it('keeps missing recordings and unreadable coverage visible without replacing them with zero', () => {
     const empty: Coverage = { ...INTEGRATION, suites: [{ suite: 'browser' }], count: { regions: 0, files: 0, run: 0, load: 0, none: 0, unjoined: 0, suites: [] } };
     const markdown = formatReview({ ...REVIEW, coverage: [UNIT, empty, { suite: 'broken', missed: 'the index could not be read' }] }, 'markdown');

@@ -217,6 +217,113 @@ assertion about the order. For one candidate test read on its own rather than
 against its pieces, [Distill](distill.md) separates what it loaded, covered and
 addressed.
 
+## Ask which code only distant tests run
+
+Split a component into three files and change no test, then move two of the
+files into a shared package. Coverage stays at 100%, and the shared package has
+no test of its own: everything in it runs because a test in another package
+imports it, often several imports away. `variance coverage --packages` reads
+the same per-case [execution index](execution-record.md) the first section
+records, and counts each workspace package by whose tests ran it:
+
+```bash
+npx variance coverage --packages
+```
+
+```text
+which package's tests ran each package
+                 ran    own tests  only others'         by
+  packages/cli   8,020  100.0%     0             0.0%
+  packages/help  2,069  88.9%      229           11.1%  packages/cli 229
+run only by other packages' tests
+  packages/help/src/  229  packages/cli 229
+    tools/            210  packages/cli 210
+      uses-of.ts      32   packages/cli 32
+      uses.ts         28   packages/cli 28
+```
+
+A region is the package's own when one of its own tests ran it, whoever else
+did too. The tree under the table walks the packages with the most regions only
+other packages' tests ran down to their files, largest first, so the first file
+it names is the first place to ask whether the package needs a test of its own.
+A package is a workspace the root `package.json` names, and a file belongs to
+the deepest one that holds it. A suite you keep at the repository root belongs
+to `.`, so everything it runs in a package counts as another package's.
+
+Owning a region is not testing it closely: a package's own flow test can reach a
+helper four imports down. `--at-distance` counts each region by the nearest test
+that ran it, in any suite, measured in import hops from that test's own file
+(`0`) and the modules it imports directly (`1`) outward:
+
+```bash
+npx variance coverage --at-distance 0-1
+npx variance coverage --at-distance 2-
+```
+
+```text
+coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,204 regions run from no measured distance, in no band
+  any suite                   24,163      59.9%
+coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,204 regions run from no measured distance, in no band
+  any suite                   10,100      25.0%
+```
+
+That is Variance Authority's own suite, which runs 90.4% of what it loads
+without `--at-distance`. A quarter of it runs only from two or more imports
+away: no test within one hop reaches it. The ranges split what ran: 59.9%,
+25.0%, and the 2,204 regions (5.5%) that only a test the import walk could not
+reach ran add up to the 90.4%. A test file the import graph does not hold at
+all is left out of every range, never taken as near, and the heading counts it
+too. The hops are measured on the tree as it is now, so a count under a range
+is not compared with the count the suite recorded on the base branch.
+
+The range composes with `--packages`, which is how you find the files:
+`npx variance coverage --packages --at-distance 2-` lists, per package and then
+file by file, the regions only another package's far tests ran. Neither reading
+says a test is missing. Before you write one, change a region the tree names and
+rerun the package's own tests: if none fails, nothing near pins that code. To
+see what one test runs that no narrower test does, ask
+[what that test is made of](#ask-what-one-test-is-made-of).
+
+### Earned and accidental coverage
+
+`--packages` also counts each suite twice over the same regions. A region is
+**in** when a test of its own package ran it from at most one import hop: from
+the test's own file or a module the test imports directly. It is **out** when
+any other test ran it: another package's, or the package's own from further
+away. In is earned coverage. Out and never in is accidental coverage: code that
+ran on the way to something else, and no test of its own package within one
+hop ran. A hop is any runtime import, so a test that reaches its subject through
+an `index` re-export or a shared helper is two hops from it, and counts out.
+Under `--at-distance` the band narrows the coverage above it, not in and out:
+those count every test, since out is any test.
+
+```text
+in: its own package's tests within one import hop ran it · out: any other test did · accidental: out, never in
+               regions  in             out            accidental
+  chromium     29,797   466     1.6%   5,642   18.9%  5,408       18.1%
+  integration  29,788   1,365   4.6%   6,109   20.5%  5,496       18.5%
+  unit         39,849   23,596  59.2%  27,157  68.1%  11,971      30.0%
+  any suite    40,368   24,145  59.8%  28,455  70.5%  12,347      30.6%
+  2,204 accidental regions ran only under tests at no measured distance
+```
+
+In and out are two coverages, not two halves of one, and the target for each is
+100%. A passing end-to-end suite says the product works, whatever it ran on the
+way, so out at 100% is worth having. In at 100% puts each failure next to its
+cause. Most of what the wider suites run is accidental. In Variance
+Authority's own suite that is 5,496 of the 6,861 regions the integration suite
+ran (80%) and 5,408 of the 5,874 the chromium suite ran (92%), against 11,971
+of 35,567 for the unit suite (34%).
+
+Accidental names a distance, not a verdict on the test. It rests on one
+assumption: the farther a test is from the code it ran, the less that test is
+about the code. Whether a test checks a region it ran is a separate question,
+and only a break answers it: mutation testing across the suite, or, for one
+region, the change-and-rerun above. A test the import walk could not place is
+never in, and what only such tests ran is counted on the last line. The
+comment `variance review --coverage` posts on a pull request carries the same
+table under **Coverage by suite**.
+
 ## Do you need a test?
 
 Add a test when its result can change what happens next. It might prevent a
