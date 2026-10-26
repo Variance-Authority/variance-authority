@@ -146,7 +146,7 @@ fn source_of<'s>(source: &'s mut Option<Option<Vec<u16>>>, root: &str, file: &st
         .as_deref()
 }
 
-fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: usize) -> (Option<u32>, Option<u32>) {
+pub(crate) fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: usize) -> (Option<u32>, Option<u32>) {
     let (start, end) = (starts.at(at), ends.at(at));
     if start == NONE || end == NONE { (None, None) } else { (Some(start), Some(end)) }
 }

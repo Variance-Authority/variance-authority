@@ -85,7 +85,7 @@ block over the one between its markers.
 Before anything is pushed, four subagents review the change, and a fifth when
 the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your
-worktree and `origin/main`, never from local `main`:
+worktree and `origin/main`, never from local `main`.
 
 1. **Description** — the body alone. Does it say what the problem was and
    how it was solved, in a few lines a stranger can follow, and does each block
@@ -99,7 +99,10 @@ worktree and `origin/main`, never from local `main`:
    Does the diff deliver everything the task sentence asks? A part of the task
    no hunk delivers is a finding, even when the body leaves it out too. Is
    every block row true of the diff, and does every hunk fall in a block a row
-   names? A hunk no row covers is a finding. Does each row's *pinned by* test or command observe the change,
+   names? A hunk no row covers is a finding. Does the diff keep every
+   contract in the root [`REVIEW.md`](../../REVIEW.md), the `REVIEW.md` of
+   each package it touches, and [`site/REVIEW.md`](../../site/REVIEW.md),
+   read from `origin/main`? Does each row's *pinned by* test or command observe the change,
    and fail on `origin/main` when the row changes behaviour? In a `test` or
    `refactor` PR it passes on both sides instead. For a top-layer page, does each fact the brief puts off the
    spine sit in the file it names, and does that file say it? Does each fact

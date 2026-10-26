@@ -9,6 +9,7 @@
  * matches or shards a file is its seam's question, never this one's.
  */
 
+import type { Relations } from '@variance-authority/core/relate';
 import type { SuiteSelection } from '@variance-authority/sense/test-selection';
 import { inLeg, type Leg } from './select-leg.js';
 import { skippableTests, type SelectInput, type TestSelection } from './select.js';
@@ -25,8 +26,22 @@ export interface SuiteRequest {
   readonly atDistance?: Leg;
   /** A journey file, or a snapshot by path, to read instead of the recorded one. */
   readonly execution?: string;
+  /**
+   * The snapshot a caller in this process already answered from, by path:
+   * read as the record of `suite`, whose declared configuration still selects,
+   * so one invocation asks one record and looks for no other.
+   */
+  readonly record?: string;
   /** The change, handed in as a patch file; `-` is stdin. */
   readonly diff?: string;
+  /**
+   * The change, handed in as patch text by a caller in this process, read as
+   * `diff` is: a question about one file asks the selection of that file's
+   * entry alone (`wholeEntry`).
+   */
+  readonly change?: string;
+  /** The file graph, when the caller has read it already: one invocation reads it once. */
+  readonly relations?: Relations;
   readonly noGit?: boolean;
   /**
    * `case` also names, in each test file that runs, the cases that ran none of

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { main } from '../bin.js';
 import { formatCoveringAnswer } from './covering-suites.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
@@ -49,12 +50,18 @@ beforeAll(async () => {
   await record('stories', indexOf('src/Button.tsx', { id: 's', file: 'src/Button.stories.tsx', name: 'Primary' }));
 });
 
-/** Lay one suite's record of a run, as the runner would have left it, made at `commit` when one is given. */
+/**
+ * Lay one suite's record of a run, as the runner would have left it, made at
+ * `commit` when one is given. Every test file of the index ran whole, so
+ * selection reads the record as a run it can answer from.
+ */
 async function recordIn(at: string, suite: string, index: unknown, commit?: string) {
   const file = testCoverageFile(at, { suite });
   await mkdir(dirname(file), { recursive: true });
   const made = commit === undefined ? {} : { commit };
-  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, ...made, tests: [], modules: [] }, {
+  const files = [...new Set((index as { tests: readonly { file: string }[] }).tests.map((test) => test.file))];
+  const tests = files.map((test) => ({ file: test, complete: true, preconditions: [] }));
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, ...made, tests, modules: [] }, {
     index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
   });
 }
@@ -283,18 +290,24 @@ describe('a file added after the commit a suite recorded at', () => {
     await writeFile(join(at, 'src/refund.ts'), 'export const refund = 1;\n');
     git('add', '.');
     git('commit', '--quiet', '-m', 'refund');
+    // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+    await updateSourceIndex(at);
     await recordIn(at, 'unit', indexOf('src/pay.ts', { id: 'u', file: 'src/pay.test.ts', name: 'charges once' }), then);
     await recordIn(at, 'checkout', indexOf('src/pay.ts', { id: 'c', file: 'e2e/pay.spec.ts', name: 'pays' }), UNFETCHED);
     await recordIn(at, 'stories', indexOf('src/refund.ts', { id: 's', file: 'src/Refund.stories.tsx', name: 'Refunded' }), git('rev-parse', 'HEAD'));
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
 
-  it('is said in full as a record older than the file, with the commit, and names no run', async () => {
+  it('is said in full as a record older than the file, with the commit, and ends with a gap that names no run when selection names none, and reach takes the diff', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at]);
 
     expect(answer.out).toMatch(new RegExp(
       `^unit \\(unit\\): \`src/refund\\.ts\` did not exist at ${then.slice(0, 12)}, the commit the record at \`[^\`]+/suites/unit/[^\`]+\` was made at, ` +
-        'so that record has no answer for it\\.$',
+        'so that record has no answer for it\\.\\n' +
+        '  Gap \\(stale\\) on line 12 of src/refund\\.ts: which tests run it\\. ' +
+        'Known: the record predates the file, and selection runs no recorded test file for it\\.\\n' +
+        '  Next, Record:\\n' +
+        `    variance reach --since ${then.slice(0, 12)}$`,
       'mu',
     ));
     expect(answer.out).not.toContain('Not loaded by');
@@ -304,7 +317,16 @@ describe('a file added after the commit a suite recorded at', () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at, '--format', 'json']);
 
     const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
-    expect(said.suites.find((one) => one['suite'] === 'unit')?.['refused']).toBe('older');
+    const unit = said.suites.find((one) => one['suite'] === 'unit');
+    expect(unit?.['refused']).toBe('older');
+    expect(unit?.['gap']).toEqual({
+      question: 'which tests run it',
+      scope: 'line 12 of src/refund.ts',
+      known: 'the record predates the file, and selection runs no recorded test file for it',
+      reason: 'stale',
+      remedy: 'record',
+      next: [`variance reach --since ${then.slice(0, 12)}`],
+    });
   });
 
   it('says the commit could not be read, not that no test loaded the file, when git cannot list it', async () => {
@@ -338,9 +360,20 @@ describe('a repository whose declared suites have none of them run', () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--root', bare, '--format', 'json']);
 
     expect(answer.code).toBe(2);
-    expect(JSON.parse(answer.out)).toEqual({ refused: 'unrecorded' });
+    expect(JSON.parse(answer.out)).toEqual({
+      refused: 'unrecorded',
+      gap: {
+        question: 'which tests ran it',
+        scope: 'src/pay.ts',
+        known: 'no run is recorded',
+        reason: 'absent',
+        remedy: 'record',
+        run: { suites: ['unit', 'checkout', 'stories'] },
+        next: [],
+      },
+    });
     expect(answer.err).toContain('none of the suites it declares, "checkout", "stories", "unit", has a per-case index');
-    // A whole run is often impossible where the question is asked, so the refusal sends nobody to one.
-    expect(answer.err).not.toMatch(/\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i);
+    // No record counts the suite, so the gap names no cost rather than a zero.
+    expect(answer.err).toContain('Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.\nNext, Record, at a cost no record counts:\n  Wire the producers of `unit`, `checkout` and `stories` and record one run of each: that first run is the record.');
   });
 });
