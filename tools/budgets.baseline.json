@@ -4527,6 +4527,9 @@
   "tools/boundaries.check.ts overview": [
     22
   ],
+  "tools/budgets.mjs block": [
+    9
+  ],
   "tools/changelog-tidy.mjs docblock LOCKSTEP": [
     19
   ],

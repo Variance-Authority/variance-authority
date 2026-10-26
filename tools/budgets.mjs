@@ -181,6 +181,7 @@ export const tracked = (...patterns) =>
     .split('\n')
     .filter((file) => file !== '' && existsSync(join(ROOT, file)));
 
+// TODO: Rust's comments are held to no budget here; the addon's tree-sitter reader can read them.
 /** The modules `tools/modules.ts` lists, by the same extensions. */
 export const MODULES = tracked('*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs');
 
