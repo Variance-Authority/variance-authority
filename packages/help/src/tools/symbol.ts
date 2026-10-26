@@ -8,7 +8,7 @@ import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { declarations, declaredAt, declaredBlocks, isNested, unreadLine } from './declared.js';
+import { declarations, declaredAt, declaredBlocks, isNested, unreadLine, writtenAt } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { lineOf, originOf, passedOnRows } from './passed-on.js';
@@ -93,7 +93,7 @@ export const symbol: Tool<Help> = {
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
       const rest = exported.filter((held) => !imported.has(held.at));
-      return [importedByPath(help, name, byPath), ...(rest.length > 0 ? [exportedOnly(name, rest, invocation?.root, spell)] : []), ...declared, ...aliased].join('\n\n');
+      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(name, rest, invocation?.root, spell)] : []), ...declared, ...aliased].join('\n\n');
     }
     const kept = [
       ...(found.length === 0 ? others : []),
@@ -274,7 +274,7 @@ function byCodeUnit(left: string, right: string): number {
  * one block per file, each with the import line, where the name is declared,
  * why it is not published, and every import of it.
  */
-function importedByPath(help: Help, name: string, sites: readonly PathSite[]): string {
+function importedByPath(help: Help, root: string | undefined, name: string, sites: readonly PathSite[]): string {
   const files = new Map<string, PathSite[]>();
   for (const site of sites) {
     const file = site.held.to ?? site.held.specifier;
@@ -284,16 +284,18 @@ function importedByPath(help: Help, name: string, sites: readonly PathSite[]): s
     const [first] = held;
     if (first === undefined) return '';
     const declared = declaration(help, name, first);
+    const written = declared === undefined ? undefined : writtenAt(root, name, declared.at, declared.line);
     const why = {
       deep: `not published: ${first.owner} declares an entry, and this file is not behind it.`,
       byPath: `not published: ${first.owner} declares no entry, so every import of it names a file.`,
       unfollowed: `not listed: ${first.owner} declares ${first.held.specifier} as an entry, and this reading could not follow it to a source file.`,
     }[first.kind];
     return [
-      name,
+      written === undefined ? name : `${name} [${written.kind}]`,
       ...(name === 'default' ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
       ...(declared === undefined ? [] : [`declared at ${declared.at}:${declared.line}`]),
       why,
+      ...(written?.rows ?? []),
       '',
       `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
       ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.local === undefined ? '' : ` (as ${site.taken.local})`}${site.taken.type ? ' (type only)' : ''}`),
@@ -329,10 +331,12 @@ function exportedOnly(name: string, exported: readonly Named[], root: string | u
   return declaringExports(name, exported, root)
     .map(([held, within]) => {
       const { declared, rows } = passedOnRows(root, held);
+      // A file that passes the name on writes no declaration of it: its line, and the one it passes on, say what it is.
+      const written = rows.length > 0 ? undefined : writtenAt(root, name, held.at, held.line);
       return [
-        name,
+        written === undefined ? name : `${name} [${written.kind}]`,
         `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
-        ...(root === undefined ? [] : lineOf(root, held)),
+        ...(written !== undefined ? written.rows : root === undefined ? [] : lineOf(root, held)),
         ...rows,
         ...('uses' in within ? [importedIn(within.uses.length, spell), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
         ...memberRows(root, declared.at, declared.name, declared.line),

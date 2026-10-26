@@ -206,6 +206,7 @@ export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-chan
 export {
   aliasesOf,
   declarationPassedOn,
+  declarationsWrittenOf,
   declaredDescribedOf,
   declaredLooseOf,
   declaredOf,

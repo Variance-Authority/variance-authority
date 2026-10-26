@@ -125,6 +125,10 @@ pub(crate) enum Matching {
     /// name, hold one of every group: the terms the loose pass let each word of
     /// the question stand for.
     Terms { groups: Vec<Vec<String>> },
+    /// The name is `query`, as [`Matching::Exact`] matches it, and an export
+    /// of its file may bind it: where an exported declaration's signature and
+    /// doc are read from, which no export list holds.
+    Written,
 }
 
 /// Which of `asked` the words of `text` hold, as positions into it.
@@ -219,7 +223,7 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
 /// that name, whose name `matching` admits for `query`, or whose doc does when it
 /// is `Containing` or `Described`, in `files` when they are named, less the
 /// ones its file exports, under that name or another, which the export list
-/// already answers. A name
+/// already answers — unless `matching` is [`Matching::Written`]. A name
 /// declared twice in one file, as an interface and a const, is one entry: the
 /// first.
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
@@ -261,13 +265,14 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                if own.contains(&name) || named.contains(&name) { continue }
+                let bound = !matches!(matching, Matching::Written) && own.contains(&name);
+                if bound || named.contains(&name) { continue }
                 let mut doc = || {
                     let (Some(start), Some(end)) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol) else { return None };
                     source_of(&mut source, root, crossing.file).and_then(|source| prose(source, start, end))
                 };
                 let described = match &matching {
-                    Matching::Exact if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
+                    Matching::Exact | Matching::Written if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
                     Matching::Containing if name.to_lowercase().contains(query) || doc().is_some_and(|doc| doc.contains(query)) => None,
                     Matching::Terms { groups } => {
                         let terms = crate::help_search::name_terms(name);

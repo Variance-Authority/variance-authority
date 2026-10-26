@@ -153,6 +153,7 @@ export interface NativeHelp {
   declarationPassedOnOf?(index: string, file: string, name: string): { readonly declaration?: PassedOnDeclaration | null } | null;
   aliasesOf?(root: string, index: string, local: string): Alias[] | null;
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
+  declarationsWrittenOf?(root: string, index: string, name: string, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
   declaredTermsOf?(index: string, files: string[] | null): string[] | null;
   declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
@@ -348,6 +349,22 @@ export function declaredOf(
   const containing = options.containing === true;
   const files = options.files === undefined ? null : [...options.files];
   return entry('declaredOf')(root, index, containing ? query.toLowerCase() : query, containing, files) ?? undefined;
+}
+
+/**
+ * Every top-level declaration the index at `index` holds named `name`, whether
+ * an export of its file binds it or not: what an exported declaration is read
+ * from, its kind, its signature and its doc, which no export list holds. Only
+ * in `files`, repo-relative, when they are named. `undefined` when no index was
+ * published; throws when the index does not read.
+ */
+export function declarationsWrittenOf(
+  root: string,
+  name: string,
+  files?: Iterable<string>,
+  index: string = sourceIndexPath(root),
+): DeclaredNames | undefined {
+  return entry('declarationsWrittenOf')(root, index, name, files === undefined ? null : [...files]) ?? undefined;
 }
 
 /**

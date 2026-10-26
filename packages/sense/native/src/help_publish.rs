@@ -153,6 +153,14 @@ pub fn declared_of(root: String, index: String, query: String, containing: bool,
     opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
 }
 
+/// Every top-level declaration on the chain at `index` named `name`, whether
+/// an export of its file binds it or not, only in `files` when they are named.
+/// `None` when there is no index.
+#[napi]
+pub fn declarations_written_of(root: String, index: String, name: String, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    opened_chain(&index, |layers| declared(&root, layers, &name, Matching::Written, files.as_deref()))
+}
+
 /// The declarations no export binds whose name and doc hold any of `stems` —
 /// `describedWords`' stems of `query` — in `files` when they are named, each
 /// with the positions of the stems it holds and how near its doc writes
