@@ -137,6 +137,11 @@ and a short list look the same and lead to opposite decisions. A test the walk
 could not place is left out and counted. Both measure from one file, so neither
 combines with `--since`.
 
+The same band counts a whole suite: `variance coverage --at-distance 2-` counts
+only what tests ran from two or more hops away, over every region the suites
+loaded, and with `--packages` names the packages whose regions only another
+package's tests reach.
+
 ## Read the state of every range
 
 Every range, and the answer about one line, has a `state`:

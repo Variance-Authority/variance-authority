@@ -169,6 +169,16 @@ A distance is not a time estimate. Take a near range when you want feedback
 during the edit, and run the whole selection before you treat the change as
 verified.
 
+## Count coverage at a distance
+
+The same range cuts a coverage count. `variance coverage --at-distance 0-1`
+counts only what tests ran from their own file or a module they import
+directly, and `2-` what they ran from further away, both over every region the
+suites loaded, so the two read against each other. A test whose distance was
+never measured is left out of both and counted, as it is left out of a
+selection's range. Code only `2-` reaches is the code a near wave would not
+see fail.
+
 ## Connections worth investigating
 
 **`reach-through` points to an import that bypasses an interface.** The reading

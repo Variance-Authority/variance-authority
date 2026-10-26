@@ -150,7 +150,7 @@ variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] 
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -1290,6 +1290,32 @@ such regions down to their files, largest first, so the first file named is
 where a test of the package's own is missing. A region a test entered only
 while its module loaded counts for no package, and test files are left out.
 `--format json` lists every file under `ownership`.
+
+Owning a region is not the same as testing it closely. A package's own
+integration test can reach a helper four imports down, and an import chain can
+run inside one package as easily as across two. `--at-distance <hops>` counts
+only the tests within that many import hops of the code they ran, the band
+`covering --at-distance` takes:
+
+```bash
+variance coverage --at-distance 2-
+```
+
+```text
+coverage at 59e231ef — 40,330 regions in 1,159 files the suites loaded, counted from the tests 2 or more import hops from the code they ran
+  any suite                   22,087      54.8%
+```
+
+A region counts under the band when a test ran it from that many hops away: its
+own file is `0`, a module it imports directly is `1`. The total stays every
+region the suites loaded, so `0-1` and `2-` read against each other: code that
+`2-` reaches and `0-1` does not is code only far tests run. The band composes
+with `--packages`, so the ownership table under `--at-distance 0-1` names the
+packages whose own near tests leave regions only another package reaches, and
+with `--from`. The hops are measured on the import graph of the tree as it is
+now, so no suite is compared with its base under a band, and each says so. A
+test file the graph does not hold is left out, never counted as near, and the
+heading counts it.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever

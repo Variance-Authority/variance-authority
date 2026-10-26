@@ -179,6 +179,15 @@ What no piece ran splits in two:
   only this test takes. A narrower test could run them more cheaply, and that is
   usually where a unit test is missing.
 
+Composition answers for one test. For the whole suite, `variance coverage
+--at-distance 2-` counts what tests ran from two or more import hops away, and
+`--at-distance 0-1` what they ran from their own file or a direct import: code
+the first reaches and the second does not is code only far tests run.
+`--packages` adds whose tests those are, so a package whose regions only another
+package's tests reach is named down to its files. The
+[CLI reference](../packages/cli/README.md#coverage-how-much-each-kind-of-suite-runs-and-what-changed-it)
+describes both.
+
 ### Connect the regions to test statements
 
 [Cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
