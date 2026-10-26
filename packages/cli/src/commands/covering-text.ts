@@ -15,13 +15,14 @@ import {
   type HeldLines,
 } from '@variance-authority/sense/test-selection';
 import { runsText, targetText, type UnrunPart } from './covering-at.js';
-import type { CoveringFile } from './covering-files.js';
+import { casesByFile, type CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
 import { formatCoveringRefs } from './covering-refs.js';
 import { heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
+import { evidenceGapText } from './evidence-gap.js';
 import { staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
@@ -29,7 +30,7 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */
@@ -308,14 +309,8 @@ function caseLines(
   indent: string,
   files: readonly CoveringFile[] = [],
 ): readonly string[] {
-  const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
-  for (const test of tests) {
-    const held = byFile.get(test.file);
-    if (held === undefined) byFile.set(test.file, [test]);
-    else held.push(test);
-  }
   const rows = new Map(files.map((row) => [row.file, row]));
-  return [...byFile].flatMap(([file, cases]) => [
+  return [...casesByFile(tests, files)].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
     ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test)}`),
   ]);

@@ -42,6 +42,7 @@ import type { Narrowing } from './covering-reach.js';
 import { outermostOf, unrunOf } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { Covering, CoveringTarget } from './covering.js';
+import type { Graph } from './gap-selection.js';
 
 /** What the command already read before the question narrowed past the file. */
 export interface ReadForTarget {
@@ -52,6 +53,8 @@ export interface ReadForTarget {
   readonly from: string;
   readonly placement?: Placement;
   readonly near: Narrowing;
+  /** The checkout's file graph, read at most once per invocation. */
+  readonly graph: Graph;
 }
 
 /**
@@ -105,7 +108,7 @@ export async function coveringAt(
     return undefined;
   }
 
-  const graph = await loadersOf(before ?? index, file, request.root, target);
+  const graph = await loadersOf(before ?? index, file, read.graph, target);
   const found = coveringTests(index, target, graph);
   const kept = near.whole ? found : found.filter(near.keep);
   const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
@@ -287,11 +290,11 @@ export function countOf(
 export async function loadersOf(
   index: ExecutionIndex,
   file: string,
-  root: string,
+  graph: Graph,
   target?: SourceTestTarget,
 ): Promise<{ readonly relations?: Relations }> {
   const module = index.modules.find((candidate) => candidate.file === file);
-  return (module !== undefined && marksLoadTime(module.blocks, target)) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
+  return (module !== undefined && marksLoadTime(module.blocks, target)) || anyStopped(index) ? { relations: await graph() } : {};
 }
 
 /** The file graph of the checkout, which names who imports what and who mocked it. */
