@@ -1,11 +1,12 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 #
-# The rules CodeRabbit reviews against live in AGENTS.md, `.agents/references/`
-# and `.compass/`; this file points it at them and adds the one check a reviewer
-# that reads only the diff can still answer: is the change's shape ours. What a
-# tool already decides stays with the tool: `tools/owners.check.ts` holds timers,
-# navigations, reloads and new pages, and `yarn restrictions` holds which file
-# may import a runner.
+# The rules CodeRabbit reviews against live in AGENTS.md, `.agents/references/`,
+# `.compass/` and the `REVIEW.md` cascade (the root file, and one per package,
+# applied to the files under it); this file points it at them and adds the one
+# check a reviewer that reads only the diff can still answer: is the change's
+# shape ours. What a tool already decides stays with the tool:
+# `tools/owners.check.ts` holds timers, navigations, reloads and new pages, and
+# `yarn restrictions` holds which file may import a runner.
 language: en-US
 reviews:
   pre_merge_checks:
@@ -33,3 +34,4 @@ knowledge_base:
     filePatterns:
       - ".agents/references/*.md"
       - ".compass/**/*.md"
+      - "**/REVIEW.md"

@@ -85,7 +85,11 @@ block over the one between its markers.
 Before anything is pushed, four subagents review the change, and a fifth when
 the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your
-worktree and `origin/main`, never from local `main`:
+worktree and `origin/main`, never from local `main`. Each one that reads the
+diff also gets the root [`REVIEW.md`](../../REVIEW.md) and the `REVIEW.md` of
+every package the diff touches, as `origin/main` holds them: the contracts a
+change here must keep, and what a finding needs before it blocks.
+
 
 1. **Description** — the body alone. Does it say what the problem was and
    how it was solved, in a few lines a stranger can follow, and does each block

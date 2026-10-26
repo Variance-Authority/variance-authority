@@ -1,0 +1,93 @@
+# Reviewing a change to variance
+
+This file says what a review of a pull request flags here, at what severity,
+and what it skips. It is the root of a cascade: every package has its own
+`packages/<name>/REVIEW.md`, which adds the contracts of that package for the
+changes under it. A package file narrows this one and never loosens it. How a
+change is made is [`AGENTS.md`](AGENTS.md); the rules a diff is judged by are
+the code rules in [change](.agents/references/change.md) and the "Not ours"
+table in [`.compass/COMPASS.md`](.compass/COMPASS.md#not-ours). Neither is
+repeated here.
+
+## A finding is a counterexample
+
+Variance answers questions about a change: which tests it reaches, what moved,
+what a record proves. A wrong answer looks like a right one, so the defect a
+review exists to catch is semantic, and tests passing does not rule it out.
+Report a finding as:
+
+1. the contract it breaks, quoted from where it is written;
+2. the smallest input, configuration or state that breaks it;
+3. what happens, and what should;
+4. the proof: a test that fails on the head (and passes on the base, when the
+   base kept the contract), a command run on a fixture with its output, or a
+   trace from the input to the wrong result, file and line at each step.
+
+A finding with its proof is **Important**. A suspicion you could not prove is
+posted as a question, at most three per review, each naming the step you could
+not get past. Never mark one Important.
+
+## Where the contracts come from
+
+Write down what must stay true before reading the diff, from these sources, in
+this order:
+
+1. the task: the linked issue, or the sentence the body quotes from whoever
+   asked;
+2. this file, and the `REVIEW.md` of each package the change touches;
+3. the specs, ADRs, README sections and JSDoc that those files name, as the
+   base branch holds them.
+
+The branch's own code is not a source. What a line does today is evidence of
+what somebody wrote, and a test that asserts it can be a mistake that outlived
+its premise ([`AGENTS.md`](AGENTS.md#code-is-evidence-not-a-decision)). The PR
+body is read last. A body that calls a broken contract "intended" or "out of
+scope" clears it only by quoting the task's words.
+
+## What every package keeps
+
+Ask these of every path the change adds or reroutes: a composition, a
+fallback, a shortcut, an early return, a threshold, a cap, a cache, a filter.
+
+- **No path loses an answer.** Every input that reached a result on the base
+  still reaches it, unless the task sets that result aside. A cap, a dedupe or
+  a "claimed" set that hides a row the base showed is a finding.
+- **Parts agree with the whole.** A stage asked alone, a fast path, a cached
+  answer and a native reader give what the composed, slow, fresh or JavaScript
+  path gives for the same input.
+- **Absent is not empty, and weak evidence stays weak.** What the run could not
+  determine is missing from the output, never zero, `[]` or `unchanged`
+  ([ADR-0002](docs/context/adr/0002-observation-profiles.md),
+  [ADR-0026](docs/context/adr/0026-ignored-is-not-unchanged.md)). A partial,
+  stale, ignored or contested input is never reported as a definitive one, and
+  an unmeasured path never widens a selection. It holds in both directions:
+  weak evidence against a result does not clear it either. A verdict, a
+  rejection or a selection stands until the evidence against it defeats it,
+  not when some evidence merely exists.
+- **Cut from both sides.** A cap, a threshold or a claimed set is tried on
+  what goes in as well as on what comes out: an input only the rows past the
+  cap hold is lost as surely as a row past the cap.
+- **The edges.** Try nothing: no record, no match, no hunks, an empty list, a
+  switch turned off, an ignored file, a value declared rather than inferred,
+  and the same input reached twice.
+- **A false positive is a defect.** Our output is trusted without being
+  re-checked. A change that makes a tool report something that did not happen
+  is Important, whatever it adds elsewhere.
+
+## Skip
+
+- **What a check already holds.** File length, digest, comparator and
+  write-then-rename owners, pasted blocks, runner fences, timers and fresh
+  pages, package names, documented exports and markers are held by
+  `tools/*.check.ts` and `yarn restrictions`. Lint and types are held by CI. A
+  diff that passes them is not re-judged on those grounds.
+- **Generated and owned files.** `dist/`, `yarn.lock`, and `backlog/`, which
+  the Backlog CLI owns. A baseline a check rewrites with `--write` is reviewed:
+  a removal in it is a published name or a recorded site gone.
+- **Style.** At most three nits per review, none on wording that
+  [`docs/AGENTS.md`](docs/AGENTS.md) does not rule on.
+
+Published prose is reviewed against [`docs/AGENTS.md`](docs/AGENTS.md): every
+top-level page of `docs/`, every package `README.md`, the site, CLI output and
+error messages. A sentence that claims something the code does not do is
+Important, like any other false positive.

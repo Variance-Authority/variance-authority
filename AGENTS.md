@@ -202,7 +202,9 @@ each for one question: does the body say the problem and the solution, is there
 a reason not to make the change at all, or not this much of it (the `occam`
 reviewer, who argues against the change), does the diff do what the task and
 the body say, and is its shape ours — one implementation, the right role, no runner favoured,
-nothing a neighbour owns (the `alignment` reviewer). A change that writes a
+nothing a neighbour owns (the `alignment` reviewer). The ones that read the
+diff read it against the root `REVIEW.md` and the `REVIEW.md` of each package
+it touches. A change that writes a
 top-layer page gets a fifth, the `content-flow` reviewer, and it runs first:
 the other four wait until the page's structure passes. Fix what they mark
 blocking and run them again until none does; a finding still blocking after the
