@@ -45,21 +45,22 @@ describe('a name only passed on', () => {
     expect(duty.out).toContain(`it is exported at packages/kit/src/money/duty.ts:1, ${DECLARED}.`);
   });
 
-  it('is answered by symbol with the declaration and its line', async () => {
+  it("is answered by symbol with the kind, signature and doc of the declaration it passes on", async () => {
     checkout(RATES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'levy']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain("export { taxOf as levy } from './tax.js';");
     expect(out).toContain(
       [
+        'levy [function]',
         'exported, without being published, at packages/kit/src/money/rates.ts:1 by @acme/kit',
-        "export { taxOf as levy } from './tax.js';",
         'It passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1:',
-        'export function taxOf(amount: number): number {',
+        'function taxOf(amount: number): number',
       ].join('\n'),
     );
+    expect(out).not.toContain('export {');
+    expect(out).not.toContain('export function');
   });
 
   it('follows a bare `export *` on the way', async () => {

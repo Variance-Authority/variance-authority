@@ -18,7 +18,7 @@ import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
-import { passedOnRows } from './passed-on.js';
+import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
 /** How many renamed sites are worth naming on one line. */
@@ -130,11 +130,9 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
     const held = help.exported.find((one) => one.name === name && one.at === to);
     if (held !== undefined) {
       if (wanted !== undefined && held.by !== wanted) return undefined;
-      const { declared, rows } = passedOnRows(root, held);
+      const { declared, rows } = exportedRows(root, name, held);
       return {
         text: [
-          name,
-          `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
           ...rows,
           ...memberRows(root, declared.at, declared.name, declared.line),
         ].join('\n'),

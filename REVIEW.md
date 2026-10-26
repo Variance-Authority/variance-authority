@@ -2,7 +2,9 @@
 
 This file says what a review of a pull request flags here, and what it skips. It is the root of a cascade: every package has its own
 `packages/<name>/REVIEW.md`, which adds the contracts of that package for the
-changes under it. A package file narrows this one and never loosens it. How a
+changes under it, and [`site/REVIEW.md`](site/REVIEW.md) adds those of what the
+site publishes, for every change, since whether a page describes the changed
+behaviour is what that file has you search. A nested file narrows this one and never loosens it. How a
 change is made is [`AGENTS.md`](AGENTS.md); the rules a diff is judged by are
 the code rules in [change](.agents/references/change.md) and the "Not ours"
 table in [`.compass/COMPASS.md`](.compass/COMPASS.md#not-ours).
@@ -31,8 +33,8 @@ this order:
 
 1. the task: the linked issue, or the sentence the body quotes from whoever
    asked. Take only that from the body now;
-2. this file, and `packages/<name>/REVIEW.md` for each package whose files the
-   change touches, as the base branch holds it;
+2. this file, `packages/<name>/REVIEW.md` for each package whose files the
+   change touches, and `site/REVIEW.md`, as the base branch holds them;
 3. the specs, ADRs, compass components, README sections, JSDoc and tests that
    those files name, as the base branch holds them.
 
