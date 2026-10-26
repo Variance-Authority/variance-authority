@@ -120,6 +120,7 @@ when its condition holds, not before.
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which sections occupy a record's bytes? | [record storage](references/record-storage.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
+| An answer ended with a `Gap`. What runs next, and what does it cost? Which reading answers this question at all? | [Fast, Smart, Deep](references/fsd.md) | the gap names Deep: [story](references/story.md) |
 | Which of them ran it with discounted prices mocked or a flag on? What state did a test run under? | [case preconditions](references/case-preconditions.md) | |
 | Where does this one test, or the few I am looking into, go, and in what order? What was each function handed, and where did this object come from? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | you are writing a suite's `before` or `relations`, the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |

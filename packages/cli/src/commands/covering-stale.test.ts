@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { updateSourceIndex } from '@variance-authority/sense';
 import {
   encodeAsSetExecutionIndex,
   writeTestCoverage,
@@ -10,6 +12,7 @@ import {
   type Placement,
 } from '@variance-authority/sense/test-selection';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
+import { digestString } from '@variance-authority/core/format';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -53,7 +56,25 @@ const INDEX: ExecutionIndex = {
 async function ask(argv: readonly string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-covering-stale-'));
   const execution = join(root, 'coverage.bin');
-  await writeTestCoverage(execution, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
+  // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+  execFileSync('git', ['init', '--quiet', root]);
+  await updateSourceIndex(root);
+  // `a.test.ts` ran whole and entered `src/cart.ts`, so selection names it for the file.
+  const cart = {
+    file: 'src/cart.ts',
+    sourceDigest: digestString('recorded cart'),
+    instrumented: true,
+    blocks: [{
+      ordinal: 0, kind: 'module' as const, digest: digestString('module src/cart.ts'), name: 'src/cart.ts', path: 'module',
+      startLine: 1, endLine: 7, source: true, testFiles: ['a.test.ts'],
+    }],
+  };
+  await writeTestCoverage(execution, {
+    version: 3,
+    instrumentation: INSTRUMENTATION_ID,
+    tests: [{ file: 'a.test.ts', complete: true, preconditions: [] }],
+    modules: [cart],
+  }, {
     index: encodeAsSetExecutionIndex(INDEX),
   });
   return covering(parseCoveringArgs(readFlags(
@@ -72,7 +93,17 @@ describe('a file whose recorded text is gone', () => {
     expect(answer).toMatchObject({ frame: 'stale', target: { line: 6 }, at: '0123456789abcdef' });
     expect(answer.tests?.map((test) => test.name)).toEqual(['off', 'on', 'plain']);
     expect(text).toContain(`${GONE}\n3 named tests ran code in src/cart.ts; which of them ran line 6 cannot be said:\n  a.test.ts — 3/3\n    off — flags:checkout=ff-off`);
-    expect(text).not.toMatch(/[Rr]un the suite|[Rr]ecord .* again/);
+    expect(answer.gap).toEqual({
+      question: 'which of these tests ran it',
+      scope: 'line 6 of src/cart.ts',
+      known: '3 named tests ran code in src/cart.ts',
+      reason: 'stale',
+      remedy: 'record',
+      run: { files: ['a.test.ts'] },
+      next: [],
+      cost: { tests: 3, files: 1 },
+    });
+    expect(text.trimEnd().endsWith("Next, Record, 3 tests in 1 test file:\n  Run with the suite's own runner: a.test.ts")).toBe(true);
   });
 
   it('answers the whole file the same way, with no range in it', async () => {

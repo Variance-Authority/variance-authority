@@ -50,7 +50,7 @@ import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from '
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
-import { handedDiff, journeyReading } from './select-journey.js';
+import { handedChange, isHanded, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { probesGap, probesNote } from './probes-gap.js';
@@ -137,7 +137,8 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   }
   // A snapshot named by path is the record, and so is the one `--suite` names.
   oneRecord(request.suite, request.execution, '--execution');
-  const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
+  const named = request.record ?? request.execution;
+  const found = named === undefined ? await recordedOrMainline(request) : { at: named, held: true };
   const { at, source } = found;
   // The record the selection reads, which a shard's record names; a skip list alone does not say which.
   const read = found.held ? selection.recordDigestAt(at) : undefined;
@@ -160,7 +161,8 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // here and throws by name a moment later, where the message belongs.
   const commit = await selection.recordedCommit(at);
   const from = commit ?? request.since;
-  if (from === undefined && request.diff === undefined) {
+  const handed = isHanded(request);
+  if (from === undefined && !handed) {
     // `recordedCommit` answers `undefined` for two different files: one that
     // names no commit, and one this build cannot read at all. Those are an
     // operator's two different afternoons, and the reader is what tells them
@@ -188,7 +190,6 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // commit, or from where its runs started, and a note says so. A patch handed
   // in is the whole change, so it is read for every test alike, and a note says
   // when some test last ran before the journal's commit.
-  const handed = request.diff !== undefined;
   // The stands, the diff, the installs and the import graph are named from the top
   // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
   const top = await topLevel(request.root);
@@ -209,9 +210,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   if (!handed && reading?.widened !== undefined) {
     return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
   }
-  const diff = request.diff === undefined
-    ? await diffSince(request.since ?? base, [], commit, { cwd: here })
-    : await handedDiff(request.diff);
+  const diff = handed ? await handedChange(request) : await diffSince(request.since ?? base, [], commit, { cwd: here });
   if (diff === undefined) {
     const ground: SelectGround = { kind: 'no-diff', from: base };
     return said({ ...recorded, ground });
@@ -235,7 +234,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const installs = new Map<string | undefined, InstallDiff | undefined>();
   const unkept = new Set<string>();
   const ranOver = new Set<string | undefined>();
-  if (request.diff !== undefined) installs.set(undefined, await installDiffOfPatch(diff, here));
+  if (handed) installs.set(undefined, await installDiffOfPatch(diff, here));
   else {
     const groups = [undefined, ...stands];
     const asked = await Promise.all(groups.map(async (stand) => {
@@ -268,7 +267,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     }
   }
 
-  const relations = await relationsFor(here, ['.'], [], [], request.noGit);
+  const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
   // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.

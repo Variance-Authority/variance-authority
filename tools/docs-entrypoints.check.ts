@@ -44,6 +44,7 @@ const CONCEPTS: readonly Concept[] = [
   { name: 'case precondition', pattern: /\bcase preconditions?\b/i, owner: 'docs/case-preconditions.md' },
   { name: 'breadcrumb', pattern: /\bvarianceBreadcrumb\b/, owner: 'docs/case-preconditions.md' },
   { name: 'cadence', pattern: /\bcadence\b/i, owner: 'docs/test-level-coverage.md' },
+  { name: 'FSD', pattern: /\bFSD\b/, owner: 'docs/reasoning.md' },
 ];
 
 const PUBLIC_PAGES = MARKDOWN.filter((file) => /^docs\/[^/]+\.md$/.test(file))

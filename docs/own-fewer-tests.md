@@ -75,6 +75,33 @@ the sentence that gets a test deleted. `coveringTests` and `coveringTestsInFile`
 from `@variance-authority/sense/test-selection` answer the same two questions in
 process, for an editor or a script that needs the records rather than the text.
 
+An answer that leaves the question open ends with a gap: the question, why it
+stays open, and the run that closes it, counted in tests and test files when a record counts it. A line
+held at file grain names the story of the three nearest tests, the Deep gear of
+[FSD](reasoning.md#fast-smart-deep):
+
+```text
+…
+Gap (coarse) on line 20 of src/ledger.ts: which of the nearest 3 ran it, and in what order. Known: 4 named tests loaded src/ledger.ts, and 1 past the nearest 3 stays unread.
+Next, Deep, 3 tests in 2 test files:
+  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name as a regular expression (-t; --grep under Playwright):
+    ledger.test.ts  'finds the user'\''s entry'
+    ledger.test.ts  'records an entry'
+    book.test.ts  'opens a book \(draft\)'
+  variance story --file ledger.test.ts --name 'finds the user'\''s entry'
+  variance story --file ledger.test.ts --name 'records an entry'
+  variance story --file book.test.ts --name 'opens a book (draft)'
+```
+
+A record made over a different version of the file than the one checked out,
+or a line written or a range edited since the recording, names a recorded run
+of the test files `variance select` runs for the file instead. A record older
+than the file means the file is new: the gap names the recorded test files
+`variance select` runs for it, then `variance reach --since <commit>`, from the commit the record was
+made at, which takes every file added since, new test files among them. The gap says what to
+run rather than a runner command, since no suite declares one. Under `--format json` the same
+gap is the answer's `gap`.
+
 When the list is long, narrow it to the tests that sit near the code:
 
 ```bash
