@@ -87,4 +87,13 @@ describe('which package\'s tests ran each region', () => {
 
     expect(coverageByOwner([{ index: index() }, helper], ownerOf)).toEqual([]);
   });
+
+  it('counts a package named like an object\'s own property as any other', () => {
+    const names: Record<string, string> = { 'a.test.ts': 'constructor', 'b.test.ts': '__proto__', 'x.ts': 'libs/x' };
+    const tests = ['a.test.ts', 'b.test.ts'].map((file) => ({ id: file, file, name: file, stopped: false }));
+
+    const [file] = coverageByOwner([{ index: { tests, modules: [module('x.ts', block('x', [0, 1]))] } }], (at) => names[at]!);
+
+    expect(Object.entries(file!.by)).toEqual([['__proto__', 1], ['constructor', 1]]);
+  });
 });

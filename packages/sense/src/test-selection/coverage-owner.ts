@@ -71,7 +71,7 @@ export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file:
     const owner = ownerOf(file);
     let run = 0;
     let own = 0;
-    const by: Record<string, number> = {};
+    const by = new Map<string, number>();
     for (const ran of regions.values()) {
       if (ran.size === 0) continue;
       run += 1;
@@ -79,7 +79,7 @@ export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file:
         own += 1;
         continue;
       }
-      for (const other of ran) by[other] = (by[other] ?? 0) + 1;
+      for (const other of ran) by.set(other, (by.get(other) ?? 0) + 1);
     }
     files.push({ file, owner, regions: regions.size, run, own, others: run - own, by: sortedKeys(by) });
   }
@@ -87,6 +87,6 @@ export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file:
 }
 
 /** The same counts, keyed in code-unit order, so a program reads one order whatever order the record held. */
-function sortedKeys(counts: Readonly<Record<string, number>>): Readonly<Record<string, number>> {
-  return Object.fromEntries(Object.entries(counts).sort(([left], [right]) => codeUnitOrder(left, right)));
+function sortedKeys(counts: ReadonlyMap<string, number>): Readonly<Record<string, number>> {
+  return Object.fromEntries([...counts].sort(([left], [right]) => codeUnitOrder(left, right)));
 }
