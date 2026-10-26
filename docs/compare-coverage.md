@@ -88,7 +88,7 @@ instrument and no second run.
 | Share of the code each suite runs | one upload per flag | one count per [declared suite](execution-record.md#one-record-for-each-suite), all over the same total |
 | Code that only one kind of suite runs | no answer | counted per kind: unit, integration, e2e, visual |
 | Code a package's own tests never run | no answer | counted per package by whose tests ran it, with `--packages`, and walked down to the files only another package's tests reach |
-| Code only far tests run | no answer | counted from the tests within a band of import hops of the code they ran, with `--at-distance` |
+| Code reached only from far away | no answer | counted from the tests within a band of import hops of the code they ran, with [`--at-distance`](#count-what-near-tests-run) |
 | Why a suite's number changed | the difference of two totals | regions newly run, no longer run, added and removed, which add up to the change; a region whose test has not run since its file changed is counted as unmeasured, not as no longer run |
 | Which test file caused it | no answer | named |
 | Files no test ran | at 0%, when the reporter is told to include every file under a glob | listed with their lines and regions, within the application `--from` names, following its imports into shared packages |
@@ -100,6 +100,30 @@ the commit it was recorded at, so your clone needs that commit: without it,
 `variance coverage` exits `2` and names the commit to fetch, rather than
 comparing regions that may not be the same code. [The CLI reference](../packages/cli/README.md#coverage-how-much-each-kind-of-suite-runs-and-what-changed-it)
 describes every line of the output.
+
+## Count what near tests run
+
+A suite can hold a file at 100% while every test that runs it sits four imports
+away, behind a page or a flow. `--at-distance` counts only the regions tests
+ran from within a range of import hops, measured from each test's own file to
+the code it ran over the modules that test entered: `0` is the test's file, `1`
+a module it imports directly.
+
+```bash
+variance coverage --at-distance 0-1
+variance coverage --at-distance 2-
+```
+
+Both counts are taken over every region the suites loaded, so their shares
+read against each other. Split at the range your near wave runs, `0-2` and
+`3-` for a [distance loop](distance.md) of that shape, to see how much of the
+code that wave runs at all. With `--packages` and `--from` the same counts are
+taken per package and per file, and under `0-1` the ownership tree names, down
+to the files, the regions only another package's near tests ran. A
+test file the import graph does not hold is left out of the count, never taken
+as near: the heading says how many, and `--format json` names them under
+`atDistance.unplaced`. The hops are measured on the import graph of the tree as
+it is now, so a count under a range is not compared with the suite's base.
 
 ## What it does not replace
 

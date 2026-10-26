@@ -1308,11 +1308,10 @@ coverage at 59e231ef — 40,330 regions in 1,159 files the suites loaded, counte
 
 A region counts under the band when a test ran it from that many hops away: its
 own file is `0`, a module it imports directly is `1`. The total stays every
-region the suites loaded, so `0-1` and `2-` read against each other: code that
-`2-` reaches and `0-1` does not is code only far tests run. The band composes
+region the suites loaded, so the shares under `0-1` and `2-` read against each
+other. The band composes
 with `--packages`, so the ownership table under `--at-distance 0-1` names the
-packages whose own near tests leave regions only another package reaches, and
-with `--from`. The hops are measured on the import graph of the tree as it is
+regions only another package's near tests ran, and with `--from`. The hops are measured on the import graph of the tree as it is
 now, so no suite is compared with its base under a band, and each says so. A
 test file the graph does not hold is left out, never counted as near, and the
 heading counts it.
