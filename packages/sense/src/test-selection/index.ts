@@ -3,12 +3,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import type { FilePhases } from './reported-time.js';
 import { deviationFromView } from './deviation.js';
-import {
-  journeyDivergences,
-  type JourneyDivergence,
-  type JourneyDivergenceOptions,
-  type JourneyRegion,
-} from './divergence.js';
+import { journeyDivergences, type JourneyDivergence, type JourneyDivergenceOptions, type JourneyRegion } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';

@@ -37,6 +37,7 @@ export interface EarnedCount {
   readonly unmeasured: number;
 }
 
+/** In and out for each suite, and for every suite joined. */
 export interface EarnedCoverage {
   /** Per suite, in the order given. */
   readonly suites: readonly (EarnedCount & { readonly name?: string; readonly kind?: SuiteKind })[];

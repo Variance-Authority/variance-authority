@@ -407,9 +407,7 @@ export function hopsFromTest(
   for (const file of entered) {
     for (const id of nodes(file)) {
       const length = depth.get(id);
-      if (length === undefined) continue;
-      const known = hops.get(file);
-      if (known === undefined || length < known) hops.set(file, length);
+      if (length !== undefined && length < (hops.get(file) ?? Infinity)) hops.set(file, length);
     }
   }
   return hops;
