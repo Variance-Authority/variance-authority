@@ -42,7 +42,7 @@
  * first, which is the right place for it and the wrong reason.
  */
 
-import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
+import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
@@ -374,6 +374,10 @@ function walk(
  * change by, read for every module at once. A module the walk could not reach
  * from the test's file is absent, never far: the graph has no executed path to
  * it, which says nothing of how far it is. The test's own file is 0.
+ *
+ * Breadth-first over the entered nodes only, so a test costs the imports of
+ * what it entered and never the size of the graph: `coverage --at-distance`
+ * walks once per test file.
  */
 export function hopsFromTest(
   test: string,
@@ -385,18 +389,34 @@ export function hopsFromTest(
   const nodes = nodesOf(relations, options.knownAs ?? ownName);
   const start = nodes(test);
   if (start.length === 0) return { because: `the graph does not hold ${test}` };
-  const { traversal } = executed(relations, start, entered, [], nodes);
+  const open = new Set<NodeId>(start);
+  for (const file of entered) for (const id of nodes(file)) open.add(id);
+  const depth = new Map<NodeId, number>(start.map((id) => [id, 0]));
+  const { offset, target, kind } = relations.depends;
+  for (let queue = [...start], next: NodeId[] = [], hop = 1; queue.length > 0; queue = next, next = [], hop += 1) {
+    for (const from of queue) {
+      for (let edge = offset[from]!; edge < offset[from + 1]!; edge += 1) {
+        const to = target[edge]!;
+        if (!RUNTIME_KINDS[kind[edge]!] || !open.has(to) || depth.has(to)) continue;
+        depth.set(to, hop);
+        next.push(to);
+      }
+    }
+  }
   const hops = new Map<string, number>();
   for (const file of entered) {
     for (const id of nodes(file)) {
-      if (traversal.mask[id] !== 1) continue;
-      const length = trailOf(traversal, id).length - 1;
+      const length = depth.get(id);
+      if (length === undefined) continue;
       const known = hops.get(file);
       if (known === undefined || length < known) hops.set(file, length);
     }
   }
   return hops;
 }
+
+/** Whether each edge kind, by its index, is one a run loads through. */
+const RUNTIME_KINDS = EDGE_KINDS.map((one) => RUNTIME_EDGES.includes(one));
 
 /**
  * Every node one file is held under. Every name, not the first one that
