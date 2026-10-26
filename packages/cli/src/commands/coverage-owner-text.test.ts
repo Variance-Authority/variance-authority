@@ -43,6 +43,12 @@ describe('the ownership report at size', () => {
     expect(lines).toContainEqual(expect.stringMatching(/apps\/a 4 · apps\/b 3 · apps\/c 2 · and 1 more$/u));
   });
 
+  it('walks the root package from each file\'s whole path', () => {
+    const lines = ownershipLines(entries('.'), [owned('tools/check.ts', '.', 2)]);
+
+    expect(lines).toContainEqual(expect.stringMatching(/^ {2}\.\/tools\/\s+2/u));
+  });
+
   it('says nothing when no file was counted', () => {
     expect(ownershipLines(entries('libs/ui'), [])).toEqual([]);
     expect(ownershipMarkdown(entries('libs/ui'), [])).toEqual([]);

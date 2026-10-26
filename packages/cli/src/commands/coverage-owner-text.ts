@@ -177,7 +177,7 @@ function tree(from: string, ownership: readonly OwnedFile[]): Node {
   const root = node(`${from}/`);
   for (const file of ownership) {
     if (file.owner !== from || file.others === 0) continue;
-    const parts = file.file.slice(from.length + 1).split('/');
+    const parts = (from === '.' ? file.file : file.file.slice(from.length + 1)).split('/');
     let at = root;
     add(at.by, file.by);
     at.others += file.others;
