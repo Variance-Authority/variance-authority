@@ -80,6 +80,14 @@ export function regionRun(block: ExecutionBlock): RegionRun {
   return load ? 'load' : 'none';
 }
 
+/**
+ * A module's source regions, each under the key that joins it to the same
+ * region in another suite's record of the module: its address and its kind.
+ */
+export function* joinedRegions(blocks: readonly ExecutionBlock[]): Generator<readonly [string, ExecutionBlock]> {
+  for (const [address, block] of regionAddresses(blocks)) if (block.source) yield [`${address}\0${block.kind}`, block];
+}
+
 /** Count every suite's record over the regions any of them loaded. */
 export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
   // file → address and kind → what each suite that holds the region did there.
@@ -94,9 +102,7 @@ export function countCoverage(suites: readonly CountedSuite[]): CoverageCount {
       let holders = loadedBy.get(module.file);
       if (holders === undefined) loadedBy.set(module.file, (holders = new Set()));
       holders.add(at);
-      for (const [address, block] of regionAddresses(module.blocks)) {
-        if (!block.source) continue;
-        const key = `${address}\0${block.kind}`;
+      for (const [key, block] of joinedRegions(module.blocks)) {
         let runs = regions.get(key);
         if (runs === undefined) regions.set(key, (runs = Array.from<RegionRun | undefined>({ length: suites.length })));
         const run = regionRun(block);

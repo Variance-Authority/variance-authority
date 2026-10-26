@@ -16,8 +16,7 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { regionAddresses } from './case-motion.js';
-import type { CountedSuite } from './coverage-count.js';
+import { joinedRegions, type CountedSuite } from './coverage-count.js';
 
 /** One recorded source file, and which package's tests ran its regions. */
 export interface OwnedFile {
@@ -55,9 +54,7 @@ export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file:
       if (tests.has(module.file)) continue;
       let regions = joined.get(module.file);
       if (regions === undefined) joined.set(module.file, (regions = new Map()));
-      for (const [address, block] of regionAddresses(module.blocks)) {
-        if (!block.source) continue;
-        const key = `${address}\0${block.kind}`;
+      for (const [key, block] of joinedRegions(module.blocks)) {
         let ran = regions.get(key);
         if (ran === undefined) regions.set(key, (ran = new Set()));
         for (const crossing of block.crossings) {
