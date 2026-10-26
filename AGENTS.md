@@ -229,7 +229,9 @@ Look around:
 - `site`'s verdict, not only its colour: a change it found is a warning
   annotation on a green check and a docket in its PR comment, and each change
   is a finding to classify.
-- CodeRabbit's inline comments, once its check reads `Review completed`.
+- CodeRabbit's inline comments, when its check reads `Review completed`. It is
+  an opportunity, never a blocker: a push it skipped or was rate limited on is
+  named, not waited for.
 - The coverage and "What this change might do" comments CI posts. Do they
   describe the change you meant to make?
 

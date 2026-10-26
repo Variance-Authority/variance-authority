@@ -71,9 +71,10 @@ while done=$(gh pr checks <n> --json workflow,name,bucket --jq 'all(.[]; .bucket
 gh pr checks <n>
 ```
 
-CodeRabbit is one of those checks, so the watch ends only after its review is
-complete. Then read what it found, classify it, and either go round again or
-hand over. A cycle you had to start by fixing something ends the same way, after
+CodeRabbit is one of those checks, and an opportunity, never a blocker: its
+check passes when it skipped a push or ran out of reviews, and neither is waited
+for. Read what it found, classify it, and either go round again or hand over.
+A cycle you had to start by fixing something ends the same way, after
 the push. A cycle that stops blocked does not wait for the checks: it takes the
 label off and says why, and the next cycle watches them.
 
@@ -85,7 +86,9 @@ label off and says why, and the next cycle watches them.
 above. Then `site`'s verdict, as above.
 
 **CodeRabbit.** It reviews pull requests here and reports as the `CodeRabbit` check, which
-reads `Review completed` when it is done. The inline comments are where the
+reads `Review completed` when it reviewed, and something else, such as `Review
+skipped` or `Review rate limited`, when it did not. A review it did not make is
+named in the report, never waited for. The inline comments are where the
 findings are:
 
 ```bash
@@ -93,9 +96,9 @@ gh api --paginate repos/{owner}/{repo}/pulls/<n>/comments --jq '.[] | select(.us
 ```
 
 Its walkthrough also carries the pre-merge checks `.coderabbit.yaml` declares.
-An **Alignment** check that reads failed is red, like a failing CI check: the
-same questions as the `alignment` reviewer, asked of the pushed diff. Classify
-its finding like a comment; one that is real goes back to the inner loop.
+An **Alignment** check that reads failed asks the same questions as the
+`alignment` reviewer of the pushed diff. Its finding is classified like a
+comment; one that is real goes back to the inner loop.
 
 **What CI says the change does.** `check.yml` posts two comments: a coverage
 report, compared with the unit suite's base record when one was restored, and
