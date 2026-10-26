@@ -169,15 +169,15 @@ Next, Record, 1 test in 1 test file:
 A `coarse` gap names Deep:
 
 ```text
-Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
+Gap (coarse) on line 20 of src/ledger.ts: which of the nearest 3 ran it, and in what order. Known: 4 named tests loaded src/ledger.ts, and 1 past the nearest 3 stays unread.
 Next, Deep, 3 tests in 2 test files:
-  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):
+  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name as a regular expression (-t; --grep under Playwright):
     ledger.test.ts  'finds the user'\''s entry'
     ledger.test.ts  'records an entry'
-    book.test.ts  'opens a book'
+    book.test.ts  'opens a book \(draft\)'
   variance story --file ledger.test.ts --name 'finds the user'\''s entry'
   variance story --file ledger.test.ts --name 'records an entry'
-  variance story --file book.test.ts --name 'opens a book'
+  variance story --file book.test.ts --name 'opens a book (draft)'
 ```
 
 You run the three cases with your runner, and each `variance story` then reads

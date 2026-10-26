@@ -46,7 +46,8 @@ a run of lines, the lines held at file grain are named in `fileGrain`, and the
 lines no region holds, such as imports, types or blank lines, in `outside`.
 Which of the cases that loaded the file ran the line is then open, and the
 answer ends with a Deep gap: the story of its first three tests, in the order
-the answer lists them ([Fast, Smart, Deep](fsd.md)).
+the answer lists them ([Fast, Smart, Deep](fsd.md)). A whole-file answer asks of
+no line, so it ends with no Deep gap: ask `--line` on the range you mean.
 Lines of a run your edit wrote are named in `written` and left out; when your
 edit wrote every line asked, the answer says that no case has run them. When
 no line asked is in a recorded region, the answer names no case and says, for

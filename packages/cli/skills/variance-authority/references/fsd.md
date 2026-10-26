@@ -18,15 +18,15 @@ one question, the reason it is open, and the exact run that closes it. An
 answer with nothing open has no gap.
 
 ```text
-Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.
+Gap (coarse) on line 20 of src/ledger.ts: which of the nearest 3 ran it, and in what order. Known: 4 named tests loaded src/ledger.ts, and 1 past the nearest 3 stays unread.
 Next, Deep, 3 tests in 2 test files:
-  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):
+  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name as a regular expression (-t; --grep under Playwright):
     ledger.test.ts  'finds the user'\''s entry'
     ledger.test.ts  'records an entry'
-    book.test.ts  'opens a book'
+    book.test.ts  'opens a book \(draft\)'
   variance story --file ledger.test.ts --name 'finds the user'\''s entry'
   variance story --file ledger.test.ts --name 'records an entry'
-  variance story --file book.test.ts --name 'opens a book'
+  variance story --file book.test.ts --name 'opens a book (draft)'
 ```
 
 Under `--format json` the same gap is the answer's `gap` field:
@@ -38,14 +38,16 @@ Under `--format json` the same gap is the answer's `gap` field:
 | `known` | what the answer does have |
 | `reason` | `absent`: no run is recorded; `stale`: the record was made over a different version of the file than the checkout's, or before the file existed; `coarse`: the record has the line only at file grain |
 | `remedy` | what closes the gap: `record`, a recorded run of the files it names, or `deep`, the Deep gear, a story of the cases it names |
-| `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `suites`, when it is several suites' with no record; `files`, the test files; `whole`, why the whole suite runs, when selection runs it; `cases`, `{file, name}`, each filtered by its name; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. A `run` of only `suite` or `suites`: wire the producer of each suite and record one run of it; a suite given to the share has no `run`, and `next` fetches its record. Absent when no run closes the gap |
+| `run` | what the suite's own runner runs first: `suite`, when the answer is one suite's; `suites`, when it is several suites' with no record; `files`, the test files; `whole`, why the whole suite runs, when selection runs it; `cases`, `{file, name, pattern}`, each filtered by `pattern`, its name escaped as the regular expression `-t` and `--grep` read; `story: true`, under `VARIANCE_AUTHORITY_STORY=1`. A `run` of only `suite` or `suites`: wire the producer of each suite and record one run of it; a suite given to the share has no `run`, and `next` fetches its record. Absent when no run closes the gap |
 | `next` | the commands that run as printed, in order, after `run` |
 | `cost` | `files`, how many the run takes, and `tests`, the cases the record holds of them, absent when it holds none. Absent when no record counts the run |
 
 No record and no configuration names the runner a suite runs under, so the gap
 says what to run, not a runner command: run the test files with the project's
-runner, and a case filtered by its name with the runner's own filter, `-t` under
-Vitest, Jest and Rstest, `--grep` under Playwright.
+runner, and a case filtered by its `pattern` with the runner's own filter, `-t`
+under Vitest, Jest and Rstest, `--grep` under Playwright: each reads a regular
+expression, so the pattern escapes the name, which `variance story --name` takes
+as written.
 
 Each answer of `covering` gives one gap, one per suite over several suites, and a stale record comes before Deep:
 

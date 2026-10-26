@@ -52,7 +52,8 @@ export const DEEP_TESTS = 3;
  * What the suite's own runner runs to close a gap, which no record names the
  * runner of: its test files, nearest first, or its cases, each filtered by its
  * name with the runner's filter (`-t` under Vitest, Jest and Rstest, `--grep`
- * under Playwright).
+ * under Playwright). Each of those filters reads a regular expression, so a
+ * case carries its name escaped as one beside the name itself.
  */
 export interface GapRun {
   /** The declared suite the run is of, when the answer is one suite's. */
@@ -63,8 +64,8 @@ export interface GapRun {
   readonly files?: readonly string[];
   /** The whole suite runs, for the reason selection gives. */
   readonly whole?: string;
-  /** The cases to run, each filtered by its name; absent when each file runs whole. */
-  readonly cases?: readonly { readonly file: string; readonly name: string }[];
+  /** The cases to run, each filtered by `pattern`, its name as a regular expression that matches it as written; absent when each file runs whole. */
+  readonly cases?: readonly { readonly file: string; readonly name: string; readonly pattern: string }[];
   /** Run under `VARIANCE_AUTHORITY_STORY=1`, so each case records its story. */
   readonly story?: true;
 }
@@ -132,7 +133,9 @@ export async function answerGap(answer: Covering, whole: ExecutionIndex, source:
     return selected('which tests run the edited ranges now', scope, `${edited} the record holds ${moved.length === 1 ? 'was' : 'were'} edited since the recording`, await selectedFor(source, file), whole);
   }
   if ((answer.grain === 'file' || (answer.fileGrain?.length ?? 0) > 0) && tests.length > 0) {
-    return deep(scope, `${named(tests.length)} loaded ${file}`, nearest(tests, answer.files ?? []).slice(0, DEEP_TESTS));
+    const read = nearest(tests, answer.files ?? []).slice(0, DEEP_TESTS);
+    const unread = tests.length - read.length;
+    return deep(scope, `${named(tests.length)} loaded ${file}${unread === 0 ? '' : `, and ${unread} past the nearest ${read.length} ${unread === 1 ? 'stays' : 'stay'} unread`}`, read, unread > 0);
   }
   return undefined;
 }
@@ -191,8 +194,8 @@ function runText(run: GapRun): readonly string[] {
   if (run.cases !== undefined) {
     const story = run.story === true ? ' under VARIANCE_AUTHORITY_STORY=1' : '';
     return [
-      `  Run each case with ${runner}${story}, filtered by its name (-t; --grep under Playwright):`,
-      ...run.cases.map((one) => `    ${quoted(one.file, false)}  ${quoted(one.name, true)}`),
+      `  Run each case with ${runner}${story}, filtered by its name as a regular expression (-t; --grep under Playwright):`,
+      ...run.cases.map((one) => `    ${quoted(one.file, false)}  ${quoted(one.pattern, true)}`),
     ];
   }
   if (run.whole !== undefined) return [`  Run the whole suite with ${runner}: ${run.whole}.`];
@@ -224,14 +227,15 @@ function selected(question: string, scope: string, known: string, answer: Select
   };
 }
 
-function deep(scope: string, known: string, tests: readonly CoveringTest[]): EvidenceGap {
+/** A Deep gap over `tests`; `fewer` when the answer named more than the story reads, so the question is asked of these alone. */
+function deep(scope: string, known: string, tests: readonly CoveringTest[], fewer: boolean): EvidenceGap {
   return {
-    question: 'which of these tests ran it, and in what order',
+    question: fewer ? `which of the nearest ${tests.length} ran it, and in what order` : 'which of these tests ran it, and in what order',
     scope,
     known,
     reason: 'coarse',
     remedy: 'deep',
-    run: { cases: tests.map((test) => ({ file: test.file, name: test.name })), story: true },
+    run: { cases: tests.map((test) => ({ file: test.file, name: test.name, pattern: escaped(test.name) })), story: true },
     next: tests.map((test) => `variance story --file ${quoted(test.file, false)} --name ${quoted(test.name, true)}`),
     cost: { tests: tests.length, files: new Set(tests.map((test) => test.file)).size },
   };
@@ -248,6 +252,11 @@ function named(n: number): string {
 
 function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+/** `name` as a regular expression that matches it as written. */
+function escaped(name: string): string {
+  return name.replaceAll(/[\\^$.*+?()[\]{}|]/gu, '\\$&');
 }
 
 /** A shell word: a name always quoted, a path only when the shell would split or expand it. */

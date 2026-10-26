@@ -29,7 +29,7 @@ const INDEX = {
     { id: 'loads', file: 'load.test.ts', name: 'loads the ledger' },
     { id: 'records', file: 'ledger.test.ts', name: 'records an entry' },
     { id: 'finds', file: 'ledger.test.ts', name: "finds the user's entry" },
-    { id: 'books', file: 'book.test.ts', name: 'opens a book' },
+    { id: 'books', file: 'book.test.ts', name: 'opens a [draft] book (v2+)?' },
   ],
   modules: [{
     file: 'src/ledger.ts',
@@ -68,27 +68,27 @@ function mapped(written: readonly number[], moved: readonly string[] = []): Plac
 }
 
 describe('a line the record holds at file grain', () => {
-  it('ends with a Deep gap naming the story of the three nearest tests, as story.md has them recorded, in the order the answer lists them', async () => {
+  it('ends with a Deep gap naming the story of the three nearest tests, in the order the answer lists them, and the one it leaves unread', async () => {
     const answer = await ask('--line', '20');
 
     expect(answer.gap).toEqual({
-      question: 'which of these tests ran it, and in what order',
+      question: 'which of the nearest 3 ran it, and in what order',
       scope: 'line 20 of src/ledger.ts',
-      known: '4 named tests loaded src/ledger.ts',
+      known: '4 named tests loaded src/ledger.ts, and 1 past the nearest 3 stays unread',
       reason: 'coarse',
       remedy: 'deep',
       run: {
         cases: [
-          { file: 'ledger.test.ts', name: "finds the user's entry" },
-          { file: 'ledger.test.ts', name: 'records an entry' },
-          { file: 'book.test.ts', name: 'opens a book' },
+          { file: 'ledger.test.ts', name: "finds the user's entry", pattern: "finds the user's entry" },
+          { file: 'ledger.test.ts', name: 'records an entry', pattern: 'records an entry' },
+          { file: 'book.test.ts', name: 'opens a [draft] book (v2+)?', pattern: 'opens a \\[draft\\] book \\(v2\\+\\)\\?' },
         ],
         story: true,
       },
       next: [
         "variance story --file ledger.test.ts --name 'finds the user'\\''s entry'",
         "variance story --file ledger.test.ts --name 'records an entry'",
-        "variance story --file book.test.ts --name 'opens a book'",
+        "variance story --file book.test.ts --name 'opens a [draft] book (v2+)?'",
       ],
       cost: { tests: 3, files: 2 },
     });
@@ -99,16 +99,22 @@ describe('a line the record holds at file grain', () => {
     const text = formatCovering(await ask('--line', '20'), 'text');
 
     expect(text.trimEnd().endsWith([
-      'Gap (coarse) on line 20 of src/ledger.ts: which of these tests ran it, and in what order. Known: 4 named tests loaded src/ledger.ts.',
+      'Gap (coarse) on line 20 of src/ledger.ts: which of the nearest 3 ran it, and in what order. Known: 4 named tests loaded src/ledger.ts, and 1 past the nearest 3 stays unread.',
       'Next, Deep, 3 tests in 2 test files:',
-      "  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name (-t; --grep under Playwright):",
+      "  Run each case with the suite's own runner under VARIANCE_AUTHORITY_STORY=1, filtered by its name as a regular expression (-t; --grep under Playwright):",
       "    ledger.test.ts  'finds the user'\\''s entry'",
       "    ledger.test.ts  'records an entry'",
-      "    book.test.ts  'opens a book'",
+      "    book.test.ts  'opens a \\[draft\\] book \\(v2\\+\\)\\?'",
       "  variance story --file ledger.test.ts --name 'finds the user'\\''s entry'",
       "  variance story --file ledger.test.ts --name 'records an entry'",
-      "  variance story --file book.test.ts --name 'opens a book'",
+      "  variance story --file book.test.ts --name 'opens a [draft] book (v2+)?'",
     ].join('\n'))).toBe(true);
+  });
+
+  it('asks of every test that loaded the file when the story reads them all', async () => {
+    const answer = await ask('--line', '20', '--cases', 'ledger.test.ts');
+
+    expect(answer.gap).toMatchObject({ question: 'which of these tests ran it, and in what order', known: '2 named tests loaded src/ledger.ts' });
   });
 
   it('opens a Deep gap for a run of lines that holds some at file grain', async () => {
