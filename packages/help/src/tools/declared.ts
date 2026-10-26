@@ -93,8 +93,9 @@ function textRows(root: string, held: DeclaredName): readonly string[] {
  * What the source index says a declaration an export of `at` binds is: its
  * kind, and its signature and documentation as the checkout holds them, read
  * as an unexported one's are. The one written at `line` when two of the file's
- * share the name; `undefined` when no checkout is named, the index does not
- * read, or it holds no declaration of `name` in `at`.
+ * share the name, and the only one when none is written there; `undefined`
+ * when no checkout is named, the index does not read, or it holds no single
+ * declaration of `name` in `at` to answer by.
  */
 export function writtenAt(root: string | undefined, name: string, at: string, line: number): { readonly kind: string; readonly rows: readonly string[] } | undefined {
   if (root === undefined) return undefined;

@@ -40,8 +40,11 @@ async function workspace(): Promise<string> {
     'tools/run.mjs': "import { idle } from './loop.mjs';\nawait idle(1, 2);\n",
     'packages/kit/package.json': JSON.stringify({ name: 'kit' }),
     'packages/kit/src/internal/clamp.ts': '/** The value, held under the ceiling. */\nexport const clamp = (value: number): number => value;\n',
+    'packages/kit/src/internal/rate.ts': '/** What a rate holds. */\ninterface Rate {\n  percent: number;\n}\n/** The rate every bill starts from. */\nexport const Rate = 0.2;\n',
+    'packages/kit/src/internal/limit.ts': "export { clamp as limit } from './clamp.js';\n",
     'packages/app/package.json': JSON.stringify({ name: 'app' }),
     'packages/app/src/bounded.ts': "import { clamp } from 'kit/src/internal/clamp';\nexport const bounded = clamp(140);\n",
+    'packages/app/src/limited.ts': "import { limit } from 'kit/src/internal/limit';\nexport const limited = limit(140);\n",
   };
   for (const [path, value] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -65,5 +68,20 @@ it('answers a name imported by the path of its file with its kind, its signature
   const root = await workspace();
   const out = symbol.run(readHelp(root), { name: 'clamp' }, { root });
   expect(out).toContain('clamp [const]\n');
+  expect(out).toContain('The value, held under the ceiling.');
+});
+
+it('answers an export by the declaration it binds when the file declares a type of the same name first', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'Rate' }, { root });
+  expect(out).toContain('Rate [const]\n');
+  expect(out).toContain('The rate every bill starts from.');
+  expect(out).not.toContain('What a rate holds.');
+});
+
+it('answers a name imported by the path of a file that passes it on with what it passes on', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'limit' }, { root });
+  expect(out).toContain('limit [const]\n');
   expect(out).toContain('The value, held under the ceiling.');
 });

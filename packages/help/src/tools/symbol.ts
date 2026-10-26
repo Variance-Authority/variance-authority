@@ -283,8 +283,10 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
   const blocks = [...files.values()].map((held) => {
     const [first] = held;
     if (first === undefined) return '';
-    const declared = declaration(help, name, first);
-    const written = declared === undefined ? undefined : writtenAt(root, name, declared.at, declared.line);
+    const exported = declaration(help, name, first);
+    // A file that passes the name on declares nothing: the file it passes it on from does.
+    const declared = exported === undefined ? undefined : (originOf(root, exported) ?? exported);
+    const written = declared === undefined ? undefined : writtenAt(root, declared.name, declared.at, declared.line);
     const why = {
       deep: `not published: ${first.owner} declares an entry, and this file is not behind it.`,
       byPath: `not published: ${first.owner} declares no entry, so every import of it names a file.`,
@@ -310,7 +312,7 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
  * export of that name its package holds. Two candidates and no resolution is
  * no answer, and says nothing.
  */
-function declaration(help: Help, name: string, site: PathSite): { readonly at: string; readonly line: number } | undefined {
+function declaration(help: Help, name: string, site: PathSite): Named | undefined {
   const to = site.held.to;
   if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
   const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);

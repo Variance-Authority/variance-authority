@@ -227,9 +227,9 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
 /// that name, whose name `matching` admits for `query`, or whose doc does when it
 /// is `Containing` or `Described`, in `files` when they are named, less the
 /// ones its file exports, under that name or another, which the export list
-/// already answers — unless `matching` is [`Matching::Written`]. A name
-/// declared twice in one file, as an interface and a const, is one entry: the
-/// first.
+/// already answers. A name declared twice in one file, as an interface and a
+/// const, is one entry: the first. Asked [`Matching::Written`], neither holds:
+/// every declaration of the name is kept, bound by an export or not.
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
     let folded = fold(layers);
     let crossings = crossings(layers, &folded, files);
@@ -269,8 +269,9 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                let bound = !matches!(matching, Matching::Written) && own.contains(&name);
-                if bound || named.contains(&name) { continue }
+                // Asked as written, every declaration of the name is kept: an export binds one of them, and its line tells which.
+                let written = matches!(matching, Matching::Written);
+                if !written && (own.contains(&name) || named.contains(&name)) { continue }
                 let mut doc = || {
                     let (Some(start), Some(end)) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol) else { return None };
                     source_of(&mut source, root, crossing.file).and_then(|source| prose(source, start, end))
