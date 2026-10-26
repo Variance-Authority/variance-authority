@@ -32,14 +32,18 @@ Write down what must stay true before reading the diff, from these sources, in
 this order:
 
 1. the task: the linked issue, or the sentence the body quotes from whoever
-   asked;
-2. this file, and the `REVIEW.md` of each package the change touches;
+   asked. Take only that from the body now;
+2. this file, and `packages/<name>/REVIEW.md` for each package whose files the
+   change touches, as the base branch holds it. Open it yourself when it was
+   not given to you;
 3. the specs, ADRs, compass components, README sections, JSDoc and tests that
    those files name, as the base branch holds them.
 
 The branch's own code is not a source
-([`AGENTS.md`](AGENTS.md#code-is-evidence-not-a-decision)). The PR body is read
-last, and calling a broken contract "intended" clears it only with evidence.
+([`AGENTS.md`](AGENTS.md#code-is-evidence-not-a-decision)). The rest of the
+body, the author's solution and why it is right, is read after your contracts
+are written, and calling a broken contract "intended" clears it only with
+evidence.
 
 ## What every package keeps
 
