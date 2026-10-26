@@ -28,6 +28,8 @@ export const BUDGET = { overview: 15, docblock: 10, block: 5, lead: 15 };
 const PRAGMA =
   /^\s*(?:compass:|eslint-|oxlint-|@ts-|biome-ignore|prettier-ignore|c8 |v8 |istanbul |@vitest-environment|@jsx|#region|#endregion|<reference)/;
 const TAG = /^(?:@\w+(?:\s+\S+)?|\{@link\s+[^}]*\})$/;
+/** What a docblock documents: a declaration, a member or a property, never a statement. */
+const DECLARATION = /(?:Declaration|Definition|Signature|^TSEnumMember|^Property|^AccessorProperty)$/;
 const FIXTURE = /(?:^|\/)(?:fixtures?|__fixtures__)\//;
 
 /** The lines of one comment a reader reads: no frame, no blank, no bare tag. */
@@ -36,7 +38,7 @@ function contentOf(comment) {
     comment.type === 'Block'
       ? comment.value.split('\n').map((line) => line.trim().replace(/^\*+\s?/, '').trim())
       : [comment.value.trim()];
-  return lines.filter((line) => line !== '' && !/^\*+$/.test(line) && !TAG.test(line));
+  return lines.filter((line) => line !== '' && !/^\*+$/.test(line) && !TAG.test(line) && !PRAGMA.test(line));
 }
 
 /** The name a node declares, or nothing when it declares none. */
@@ -70,7 +72,8 @@ function index(program) {
     if (typeof node.type === 'string') {
       if (node.type !== 'Program' && !starts.has(node.start)) starts.set(node.start, { node, path });
       const name = nameOf(node);
-      if (name !== undefined && node.type !== 'Identifier') {
+      // A declaration names its declarator's scope; naming both would say it twice.
+      if (name !== undefined && node.type !== 'Identifier' && node.type !== 'VariableDeclaration') {
         inner = path === '' ? name : `${path}.${name}`;
         scopes.push({ start: node.start, end: node.end, name: inner });
       }
@@ -133,12 +136,13 @@ export function surfacesOf(file, text) {
   // oxc lists the hashbang among the comments; it is an interpreter line.
   const written = comments.filter((comment) => comment.start !== program.hashbang?.start);
   for (const group of groupsOf(text, written)) {
-    const parts = group.parts.filter((part) => !PRAGMA.test(part.value.replace(/^\*+/, '')));
+    // A one-line pragma is no surface; a pragma line in a longer comment is dropped by `contentOf`.
+    const parts = group.parts.filter((part) => part.value.includes('\n') || !PRAGMA.test(part.value.replace(/^\*+/, '')));
     if (parts.length === 0) continue;
     const gap = /^\s*/.exec(text.slice(group.end))[0];
     const next = /\n[ \t]*\n/.test(gap) ? undefined : starts.get(group.end + gap.length);
     const doc = group.type === 'Block' && group.parts[0].value.startsWith('*');
-    const declaration = next !== undefined && next.node.type !== 'ImportDeclaration';
+    const declaration = next !== undefined && next.node.type !== 'ImportDeclaration' && DECLARATION.test(next.node.type);
     const lines = parts.flatMap(contentOf).length;
     let kind;
 
@@ -153,7 +157,7 @@ export function surfacesOf(file, text) {
       kind === 'overview'
         ? ''
         : kind === 'docblock'
-          ? [next.path, nameOf(next.node.declaration ?? next.node) ?? next.node.type].filter(Boolean).join('.')
+          ? [next.path, nameOf(next.node.declaration ?? {}) ?? nameOf(next.node) ?? next.node.type].filter(Boolean).join('.')
           : (scopes.filter((range) => range.start <= group.start && group.end <= range.end).at(-1)?.name ?? '');
     found.push({ kind, scope, line: lineOf(group.start), lines });
   }
@@ -242,14 +246,22 @@ export function judge(recorded, now) {
   return { grown, slack };
 }
 
+/** The debt as the baseline records it, refused when it grew past a recorded baseline. */
+export function recordable(recorded, now) {
+  const { grown } = recorded === undefined ? { grown: [] } : judge(recorded, now);
+  if (grown.length > 0) throw new Error(`budgets: refusing to record growth:\n  ${grown.join('\n  ')}`);
+  return `${JSON.stringify(Object.fromEntries(now), null, 2)}\n`;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { debt } = overBudget(MODULES, tracked('*.md'));
-  const text = `${JSON.stringify(Object.fromEntries(debt), null, 2)}\n`;
 
   if (process.argv.includes('--write')) {
-    writeFileSync(BASELINE, text, 'utf8');
-    process.stdout.write(`budgets: ${debt.size} surfaces over budget, recorded\n`);
+    const recorded = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : undefined;
+    writeFileSync(BASELINE, recordable(recorded, debt), 'utf8');
+    const surfaces = [...debt.values()].reduce((sum, sizes) => sum + sizes.length, 0);
+    process.stdout.write(`budgets: ${surfaces} surfaces over budget in ${debt.size} entries, recorded\n`);
   } else {
-    process.stdout.write(text);
+    process.stdout.write(`${JSON.stringify(Object.fromEntries(debt), null, 2)}\n`);
   }
 }

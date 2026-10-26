@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, BUDGET, MODULES, judge, leadOf, overBudget, surfacesOf, tracked } from './budgets.mjs';
+import { BASELINE, BUDGET, MODULES, judge, leadOf, overBudget, recordable, surfacesOf, tracked } from './budgets.mjs';
 
 /**
  * Every written surface has a budget, and a breach is collapsed where it happens.
@@ -76,6 +76,36 @@ describe('the debt is keyed by file and kind', () => {
     expect([...before.debt]).toEqual([['a.ts block', [6]]]);
     expect(judge(Object.fromEntries(before.debt), after.debt)).toEqual({ grown: [], slack: [] });
     expect(after.where.get('a.ts block')).toEqual(['a.ts:2 go (6)']);
+  });
+
+  it('drops a pragma line, not the comment it opens', () => {
+    expect(surfacesOf('x.ts', `function g() {\n  /* eslint-disable no-x\n   real line\n   another */\n}\n`)).toEqual([
+      { kind: 'block', scope: 'g', line: 2, lines: 2 },
+    ]);
+  });
+
+  it('reads a `/**` on a statement as a block, and one on a directive as the overview', () => {
+    expect(surfacesOf('x.ts', `export function f() {\n  /**\n   * One.\n   * Two.\n   */\n  return 1;\n}\n`)).toEqual([
+      { kind: 'block', scope: 'f', line: 2, lines: 2 },
+    ]);
+    expect(surfacesOf('x.ts', `/**\n * One.\n */\n'use client';\nexport const b = 1;\n`)).toEqual([
+      { kind: 'overview', scope: '', line: 1, lines: 1 },
+    ]);
+  });
+
+  it('names a variable scope once, and a default export by `default`', () => {
+    expect(surfacesOf('x.ts', `export const a = {\n  b() {\n    // x\n    // y\n  },\n};\n`)).toEqual([
+      { kind: 'block', scope: 'a.b', line: 3, lines: 2 },
+    ]);
+    expect(surfacesOf('x.ts', `export const a = 1;\n/** One. */\nexport default defineConfig({});\n`)).toEqual([
+      { kind: 'docblock', scope: 'default', line: 2, lines: 1 },
+    ]);
+  });
+
+  it('refuses to record growth', () => {
+    expect(() => recordable({ 'a.ts block': [6] }, new Map([['a.ts block', [7]]]))).toThrow('a.ts block: 7 (held at 6)');
+    expect(recordable({ 'a.ts block': [6] }, new Map())).toBe('{}\n');
+    expect(recordable(undefined, new Map([['a.ts block', [7]]]))).toBe('{\n  "a.ts block": [\n    7\n  ]\n}\n');
   });
 
   it('counts a TODO line as content', () => {

@@ -36,6 +36,7 @@
     17
   ],
   "cases/incumbent-case/src/locale.chromium.test.ts block": [
+    8,
     7
   ],
   "cases/incumbent-case/src/migration.chromium.test.ts block": [
@@ -49,10 +50,8 @@
     8
   ],
   "cases/incumbent-case/src/replacement.chromium.test.ts block": [
+    15,
     6
-  ],
-  "cases/incumbent-case/src/replacement.chromium.test.ts docblock": [
-    15
   ],
   "cases/incumbent-case/src/replacement.chromium.test.ts overview": [
     26
@@ -86,7 +85,8 @@
     12,
     11,
     10,
-    9
+    9,
+    7
   ],
   "cases/storybook-case/src/cli.chromium.test.js docblock": [
     15
@@ -321,7 +321,12 @@
     17
   ],
   "examples/kitchen-sink/src/measure.chromium.test.tsx block": [
-    11
+    11,
+    6,
+    6
+  ],
+  "examples/kitchen-sink/src/measure.test.tsx block": [
+    6
   ],
   "examples/kitchen-sink/src/observation.ts block": [
     6
@@ -334,6 +339,9 @@
     8,
     6
   ],
+  "examples/todomvc/src/closure.test.tsx block": [
+    10
+  ],
   "examples/todomvc/src/code-mutation.ts overview": [
     16
   ],
@@ -344,6 +352,7 @@
     8
   ],
   "examples/todomvc/src/contrast.test.tsx block": [
+    8,
     6
   ],
   "examples/todomvc/src/contrast.test.tsx overview": [
@@ -371,7 +380,15 @@
   "examples/todomvc/src/offload.chromium.test.tsx overview": [
     19
   ],
+  "examples/todomvc/src/page-agent.ts block": [
+    10
+  ],
   "examples/todomvc/src/pixel.chromium.test.ts block": [
+    10,
+    8,
+    7,
+    6,
+    6,
     6
   ],
   "examples/todomvc/src/pixel/instability.tsx block": [
@@ -390,17 +407,29 @@
   "jvm/test/suite.mjs overview": [
     16
   ],
+  "packages/cli/src/bin.test.ts block": [
+    6
+  ],
   "packages/cli/src/bin.ts block": [
     6
   ],
   "packages/cli/src/commands/accept-message.ts overview": [
     19
   ],
+  "packages/cli/src/commands/accept.test.ts block": [
+    6
+  ],
   "packages/cli/src/commands/accept.ts overview": [
     36
   ],
   "packages/cli/src/commands/adjudicate.ts overview": [
     18
+  ],
+  "packages/cli/src/commands/affected-before.test.ts block": [
+    8
+  ],
+  "packages/cli/src/commands/affected-install.test.ts block": [
+    7
   ],
   "packages/cli/src/commands/affected.test.ts block": [
     10,
@@ -496,6 +525,9 @@
   "packages/cli/src/commands/covering-text.ts docblock": [
     11
   ],
+  "packages/cli/src/commands/covering.test.ts block": [
+    6
+  ],
   "packages/cli/src/commands/covering.ts docblock": [
     13
   ],
@@ -544,7 +576,8 @@
   "packages/cli/src/commands/images.ts block": [
     16,
     13,
-    7
+    7,
+    6
   ],
   "packages/cli/src/commands/index-command.ts overview": [
     27
@@ -740,14 +773,8 @@
   "packages/cli/src/commands/select-journey.ts docblock": [
     13
   ],
-  "packages/cli/src/commands/select-journeys.test.ts docblock": [
-    15
-  ],
   "packages/cli/src/commands/select-leg.ts overview": [
     44
-  ],
-  "packages/cli/src/commands/select-partial-run.test.ts docblock": [
-    11
   ],
   "packages/cli/src/commands/select.ts block": [
     6
@@ -923,6 +950,9 @@
     13,
     13
   ],
+  "packages/core/src/attribute/call-site.test.ts block": [
+    6
+  ],
   "packages/core/src/attribute/call-site.ts docblock": [
     15,
     11
@@ -992,6 +1022,7 @@
     38
   ],
   "packages/core/src/attribute/region.test.ts block": [
+    7,
     6
   ],
   "packages/core/src/attribute/region.ts block": [
@@ -1005,11 +1036,17 @@
   "packages/core/src/attribute/region.ts overview": [
     17
   ],
+  "packages/core/src/attribute/source-map.test.ts block": [
+    6
+  ],
   "packages/core/src/attribute/source-map.test.ts docblock": [
     15
   ],
   "packages/core/src/attribute/source.ts overview": [
     21
+  ],
+  "packages/core/src/attribute/stack.test.ts block": [
+    6
   ],
   "packages/core/src/attribute/stack.ts block": [
     8
@@ -1023,6 +1060,7 @@
     18
   ],
   "packages/core/src/compare/band.ts block": [
+    9,
     9
   ],
   "packages/core/src/compare/band.ts docblock": [
@@ -1049,6 +1087,10 @@
     9,
     7
   ],
+  "packages/core/src/compare/diff/diff.test.ts block": [
+    6,
+    6
+  ],
   "packages/core/src/compare/diff/index.ts docblock": [
     12
   ],
@@ -1066,6 +1108,9 @@
   ],
   "packages/core/src/compare/observability.ts docblock": [
     16
+  ],
+  "packages/core/src/compare/parting.test.ts block": [
+    7
   ],
   "packages/core/src/compare/parting.ts docblock": [
     31,
@@ -1133,6 +1178,7 @@
     13
   ],
   "packages/core/src/format/stabilize.test.ts block": [
+    7,
     6
   ],
   "packages/core/src/format/stabilize.ts block": [
@@ -1179,6 +1225,10 @@
   "packages/core/src/judge/index.ts overview": [
     17
   ],
+  "packages/core/src/judge/inspect-visibility.test.ts block": [
+    7,
+    6
+  ],
   "packages/core/src/judge/inspect.ts block": [
     6,
     6
@@ -1196,7 +1246,7 @@
   "packages/core/src/judge/intent.ts overview": [
     16
   ],
-  "packages/core/src/judge/locale.test.ts docblock": [
+  "packages/core/src/judge/locale.test.ts block": [
     11
   ],
   "packages/core/src/judge/locale.ts block": [
@@ -1275,6 +1325,9 @@
   "packages/core/src/rules/normalize/index.ts docblock": [
     16
   ],
+  "packages/core/src/rules/normalize/normalize.test.ts block": [
+    8
+  ],
   "packages/core/src/rules/normalize/shorthand.ts block": [
     7
   ],
@@ -1330,8 +1383,14 @@
   "packages/dom/src/assets.ts overview": [
     18
   ],
+  "packages/dom/src/attributed.test.ts block": [
+    7
+  ],
   "packages/dom/src/attributed.ts overview": [
     43
+  ],
+  "packages/dom/src/collect.test.ts block": [
+    7
   ],
   "packages/dom/src/collect.ts block": [
     12,
@@ -1356,7 +1415,7 @@
     11,
     8
   ],
-  "packages/dom/src/document.test.ts docblock": [
+  "packages/dom/src/document.test.ts block": [
     11
   ],
   "packages/dom/src/document.ts block": [
@@ -1542,6 +1601,9 @@
     19,
     13
   ],
+  "packages/history/src/store.ts block": [
+    6
+  ],
   "packages/history/src/store.ts docblock": [
     24
   ],
@@ -1568,6 +1630,12 @@
   ],
   "packages/jsx-source/jest-resolver.cjs overview": [
     19
+  ],
+  "packages/jsx-source/src/under.test.ts block": [
+    8
+  ],
+  "packages/jsx-source/src/under.ts block": [
+    9
   ],
   "packages/mcp/README.md lead": [
     17
@@ -1655,6 +1723,7 @@
     7
   ],
   "packages/mcp/src/tools/scope.test.ts block": [
+    6,
     6
   ],
   "packages/mcp/src/tools/scope.ts block": [
@@ -1715,6 +1784,7 @@
     17
   ],
   "packages/observe/src/ignore.test.ts block": [
+    7,
     6
   ],
   "packages/observe/src/observe.ts block": [
@@ -1891,6 +1961,9 @@
   "packages/playwright/src/browsers.ts overview": [
     16
   ],
+  "packages/playwright/src/capture.chromium.test.ts block": [
+    6
+  ],
   "packages/playwright/src/capture.ts docblock": [
     55
   ],
@@ -1909,7 +1982,7 @@
   "packages/playwright/src/gif.ts overview": [
     30
   ],
-  "packages/playwright/src/harness.chromium.test.ts docblock": [
+  "packages/playwright/src/harness.chromium.test.ts block": [
     11
   ],
   "packages/playwright/src/harness.ts docblock": [
@@ -1934,7 +2007,8 @@
     18
   ],
   "packages/playwright/src/renderer.chromium.test.ts block": [
-    8
+    8,
+    7
   ],
   "packages/playwright/src/renderer.ts block": [
     13,
@@ -2099,6 +2173,9 @@
     18,
     18,
     14
+  ],
+  "packages/react/src/resolve.ts block": [
+    7
   ],
   "packages/react/src/resolve.ts docblock": [
     27,
@@ -2327,11 +2404,10 @@
     7
   ],
   "packages/route-collector/src/zero-config.chromium.test.ts block": [
+    11,
+    9,
     7,
     7
-  ],
-  "packages/route-collector/src/zero-config.chromium.test.ts docblock": [
-    11
   ],
   "packages/route-collector/src/zero-config.chromium.test.ts overview": [
     40
@@ -2359,6 +2435,9 @@
   ],
   "packages/sense/scripts/coverage.mjs overview": [
     35
+  ],
+  "packages/sense/scripts/crossings.mjs block": [
+    7
   ],
   "packages/sense/scripts/crossings.mjs overview": [
     25
@@ -2412,6 +2491,9 @@
   "packages/sense/scripts/shape-sweep.mjs overview": [
     17
   ],
+  "packages/sense/scripts/snapshot-scale.mjs block": [
+    7
+  ],
   "packages/sense/scripts/snapshot-scale.mjs overview": [
     28
   ],
@@ -2434,18 +2516,23 @@
     32
   ],
   "packages/sense/scripts/variance-store-classes.mjs block": [
+    15,
     8,
+    7,
     7,
     6
   ],
-  "packages/sense/scripts/variance-store-classes.mjs docblock": [
-    15
+  "packages/sense/scripts/variance-store-query.mjs block": [
+    10,
+    6
   ],
-  "packages/sense/scripts/variance-store-shape.mjs docblock": [
+  "packages/sense/scripts/variance-store-shape.mjs block": [
     14
   ],
-  "packages/sense/scripts/variance-store-verify.mjs docblock": [
-    12
+  "packages/sense/scripts/variance-store-verify.mjs block": [
+    12,
+    9,
+    7
   ],
   "packages/sense/scripts/variance-store.mjs overview": [
     19
@@ -2486,9 +2573,6 @@
   ],
   "packages/sense/src/instrument/cadence.ts docblock": [
     14
-  ],
-  "packages/sense/src/instrument/hot-path.test.ts docblock": [
-    13
   ],
   "packages/sense/src/instrument/index.ts docblock": [
     28,
@@ -2549,6 +2633,9 @@
   "packages/sense/src/read.ts overview": [
     55
   ],
+  "packages/sense/src/resolve.test.ts block": [
+    8
+  ],
   "packages/sense/src/resolve.ts block": [
     9,
     9
@@ -2584,6 +2671,7 @@
     34
   ],
   "packages/sense/src/sense.test.ts block": [
+    6,
     6
   ],
   "packages/sense/src/source-index-file.ts block": [
@@ -2840,6 +2928,9 @@
   ],
   "packages/sense/src/test-selection/importers.ts overview": [
     47
+  ],
+  "packages/sense/src/test-selection/index-lock.test.ts block": [
+    6
   ],
   "packages/sense/src/test-selection/index-lock.test.ts docblock": [
     13
@@ -3158,8 +3249,9 @@
   "packages/sense/src/test-selection/shadowed.ts overview": [
     27
   ],
-  "packages/sense/src/test-selection/source-lines.test.ts docblock": [
-    13
+  "packages/sense/src/test-selection/source-lines.test.ts block": [
+    13,
+    6
   ],
   "packages/sense/src/test-selection/source-lines.ts docblock": [
     36,
@@ -3333,8 +3425,13 @@
   "packages/store/src/changelog.ts overview": [
     24
   ],
+  "packages/store/src/durable-records.test.ts block": [
+    8
+  ],
   "packages/store/src/durable.test.ts block": [
-    10
+    10,
+    8,
+    7
   ],
   "packages/store/src/durable.ts block": [
     11
@@ -3416,6 +3513,7 @@
     26
   ],
   "packages/storybook-collector/src/read.ts block": [
+    7,
     7,
     6
   ],
@@ -3585,6 +3683,9 @@
   "packages/tribunal/src/node/ui-assets.ts overview": [
     25
   ],
+  "packages/tribunal/src/objects.test.ts block": [
+    10
+  ],
   "packages/tribunal/src/objects.ts docblock": [
     14,
     14,
@@ -3713,6 +3814,9 @@
   "packages/tribunal/src/ui/distance.ts overview": [
     22
   ],
+  "packages/tribunal/src/ui/docket.test.tsx block": [
+    6
+  ],
   "packages/tribunal/src/ui/docket.tsx block": [
     8
   ],
@@ -3758,6 +3862,9 @@
   ],
   "packages/tribunal/src/ui/look.tsx overview": [
     39
+  ],
+  "packages/tribunal/src/ui/moved.test.tsx block": [
+    8
   ],
   "packages/tribunal/src/ui/order.ts block": [
     6
@@ -3918,22 +4025,17 @@
     17
   ],
   "tools/boundaries.check.ts block": [
+    17,
     16,
+    11,
     8,
     7
-  ],
-  "tools/boundaries.check.ts docblock": [
-    17,
-    11
   ],
   "tools/boundaries.check.ts overview": [
     22
   ],
   "tools/changelog-tidy.mjs docblock": [
     19
-  ],
-  "tools/changelog.check.ts docblock": [
-    11
   ],
   "tools/comments.ts docblock": [
     11
@@ -3948,19 +4050,25 @@
     20
   ],
   "tools/docs-claims.check.ts block": [
-    7
-  ],
-  "tools/docs-claims.check.ts docblock": [
     19,
     14,
     14,
-    11
+    11,
+    9,
+    7,
+    7
+  ],
+  "tools/docs-cli.check.ts block": [
+    10
   ],
   "tools/docs-cli.check.ts docblock": [
     31
   ],
   "tools/docs-links.check.ts docblock": [
     12
+  ],
+  "tools/docs-options.check.ts block": [
+    10
   ],
   "tools/docs-options.check.ts docblock": [
     11
@@ -3977,7 +4085,7 @@
   "tools/native-grammars.check.ts docblock": [
     14
   ],
-  "tools/native-packages.check.ts docblock": [
+  "tools/native-packages.check.ts block": [
     11
   ],
   "tools/native-packages.check.ts overview": [
@@ -3986,8 +4094,8 @@
   "tools/native-sources.mjs docblock": [
     18
   ],
-  "tools/page-agents.check.ts docblock": [
-    13
+  "tools/package-links.check.ts block": [
+    8
   ],
   "tools/page-agents.mjs overview": [
     21
@@ -4017,8 +4125,9 @@
   "tools/released.mjs overview": [
     26
   ],
-  "tools/shape.check.ts docblock": [
-    12
+  "tools/shape.check.ts block": [
+    12,
+    10
   ],
   "tools/site-packages.check.ts overview": [
     20
@@ -4036,7 +4145,7 @@
   "tools/skips.check.ts overview": [
     22
   ],
-  "tools/surface.check.ts docblock": [
+  "tools/surface.check.ts block": [
     16
   ],
   "tools/surface.check.ts overview": [
@@ -4064,6 +4173,9 @@
   ],
   "tools/tribunal-ui.mjs overview": [
     16
+  ],
+  "tools/unrun.check.ts block": [
+    8
   ],
   "tools/unrun.mjs overview": [
     20
