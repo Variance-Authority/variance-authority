@@ -76,7 +76,8 @@ export interface Coverage {
   /**
    * With `--packages`, every recorded file but a test file, with how many of
    * its regions its own package's tests ran and how many only other packages'
-   * tests did. A file in no listed package belongs to `.`, the root.
+   * tests did. A file in no listed package belongs to `.`, the root. Test
+   * files are left out, so these regions are fewer than the count above.
    */
   readonly ownership?: readonly OwnedFile[];
   /**
