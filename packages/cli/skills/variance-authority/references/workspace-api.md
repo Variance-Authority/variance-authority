@@ -274,7 +274,8 @@ a namespace, `lib.ns.name`, one destructured off it, `const { ns } = lib` or
 followed the same way, and a name destructured off a namespace is that name,
 not a declaration of its own. An entry that publishes the name only inside such a namespace
 publishes it as `ns.name`, and the first line says `published as \`ns.name\` by
-<package>`. A namespace imported by name that goes somewhere whole, such as
+<package>`. A namespace handed to a function the same file declares is followed
+into it. One that goes somewhere else whole, such as
 `[ns]`, and outside Rust a call through a qualified path, are not listed, and
 the answer ends by saying so. With `--package` naming one subpath specifier, an import through
 another specifier of the same package is left to that one. When the source

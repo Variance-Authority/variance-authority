@@ -64,6 +64,10 @@ mod typed;
 mod held;
 use held::{all_of, handed_on, Chain, Chains, Held, Via, WHOLE};
 
+#[path = "members_passed.rs"]
+mod passed;
+use passed::Passing;
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Member {
     /// The index of the request, in the same parse, the name is read through.
@@ -122,11 +126,14 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
             }
         }
     }
+    let passing = Passing::of(program, scoping);
+    holders.extend(passing.stand_ins());
     let mut walker = Walker {
         lines,
         scoping,
         followed: held::passed_on(program, scoping, &holders),
         holders,
+        passing,
         chains,
         aliases: typed::aliases(program),
         typed_at: HashMap::new(),
@@ -141,9 +148,18 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
     let required = walker.stated + walker.loads.dynamic.len() as u32;
     let typed = required + walker.loads.required.len() as u32;
     let typed_at = &walker.typed_at;
+    let passed = walker.passing.resolve();
     let mut members = BTreeSet::new();
     let mut binding_members = BTreeSet::new();
-    for (held, name, line) in walker.found {
+    // A read through a parameter is a read through each request handed to it.
+    let found = walker.found.into_iter().flat_map(|(held, name, line)| {
+        let vias: Vec<Via> = match held.via {
+            Via::Param(parameter) => passed.get(&parameter).into_iter().flatten().copied().collect(),
+            via => vec![via],
+        };
+        vias.into_iter().map(move |via| (Held { via, ..held }, name.clone(), line))
+    });
+    for (held, name, line) in found {
         let Some(request) = held.via.index(required, typed, typed_at) else { continue };
         match held.named {
             None => _ = members.insert(Member { request, name, line, through_default: held.off }),
@@ -161,6 +177,8 @@ struct Walker<'l, 's> {
     scoping: &'s Scoping,
     /// A binding to what it holds.
     holders: HashMap<SymbolId, Held>,
+    /// The functions the module declares, and what calls hand their parameters.
+    passing: Passing,
     /// The values inside a module a holder holds, which a [`Held`] names by index.
     chains: Chains,
     /// A top-level alias of `typeof import()`, to where its `import()` type starts.
@@ -424,7 +442,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
 
     fn visit_formal_parameter(&mut self, it: &FormalParameter<'a>) {
         if let Some(held) = it.type_annotation.as_ref().and_then(|it| self.typed(&it.type_annotation)) {
-            self.bind(&it.pattern, held);
+            self.typed_parameter(it, held);
         }
         walk::walk_formal_parameter(self, it);
     }
@@ -474,6 +492,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
                 }
             }
         }
+        self.pass(it);
         walk::walk_call_expression(self, it);
     }
 }

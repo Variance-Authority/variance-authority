@@ -434,9 +434,14 @@ the reader cannot tell which module the value came from, not because the line
 reads no name. A name read off the module's
 `default` is marked "through `default`": `default` holds the name only when the
 module is CommonJS, so the line may read it and is counted apart from the
-imports. A module your code passes on whole —
-to a call, a property or a return — may read any name it exports, because what
-the receiver reads is out of the file's sight. It is listed as a site that may
+imports. A module your code hands to a function the same file declares, as
+`count(lib)` with `function count(held)`, is followed into that function, and
+what it reads off the parameter is what the line reads, not a type-only read,
+whatever the parameter's type says. A parameter the function writes to is not
+followed. A module that goes on
+whole anywhere else — to a call the file does not declare, a property or a
+return — may read any name it exports, because what the receiver reads is out
+of the file's sight. It is listed as a site that may
 read the name, marked "passed on whole", and counted apart too. Neither is an
 import of the name, so neither makes a name look used, and a name with only
 these is unknown rather than unused: the catalogue says where it may be read.
