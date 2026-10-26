@@ -10,6 +10,7 @@ type Index = Parameters<typeof encodeExecutionIndex>[0];
 
 const MAIN = { id: 'm', file: 'apps/main/src/main.test.ts', name: 'boots', stopped: false };
 const LABEL = { id: 'l', file: 'libs/ui/src/label.test.ts', name: 'labels', stopped: false };
+const SPECS = { id: 's', file: 'libs/specs/icon.test.ts', name: 'draws', stopped: false };
 
 const files: Record<string, string> = {
   'package.json': JSON.stringify({ name: 'root', private: true, workspaces: ['apps/*', 'libs/*'] }),
@@ -22,6 +23,8 @@ const files: Record<string, string> = {
   'libs/ui/src/button/icon.ts': 'export function icon() {\n  return 1;\n}\n',
   'libs/ui/src/label.ts': 'export function label() {\n  return 1;\n}\n',
   'libs/ui/src/label.test.ts': "import { label } from './label';\nlabel();\n",
+  'libs/specs/package.json': JSON.stringify({ name: 'specs' }),
+  'libs/specs/icon.test.ts': "import { icon } from '../ui/src/button/icon';\nicon();\n",
 };
 
 /** A region the cases at `tests` called into. */
@@ -52,7 +55,8 @@ async function ask(argv: readonly string[]) {
 }
 
 // `apps/main`'s test runs the button and its icon; `libs/ui`'s own test runs
-// only the label, so three of the four `libs/ui` regions that ran are run only
+// only the label, and `libs/specs`, a package of nothing but tests, runs the
+// icon too. So three of the four `libs/ui` regions that ran are run only
 // by a test in another package.
 beforeAll(async () => {
   cache = await mkdtemp(join(tmpdir(), 'variance-coverage-owner-cache-'));
@@ -74,12 +78,12 @@ beforeAll(async () => {
     process.chdir(cwd);
   }
   await record(testCoverageFile(repo, { suite: 'unit' }), {
-    tests: [MAIN, LABEL],
+    tests: [MAIN, LABEL, SPECS],
     modules: [
       { file: 'apps/main/src/main.test.ts', blocks: [region('module', [0])] },
       { file: 'apps/main/src/main.ts', blocks: [region('module', [0])] },
       { file: 'libs/ui/src/button/button.ts', blocks: [region('button', [0]), region('press', [0])] },
-      { file: 'libs/ui/src/button/icon.ts', blocks: [region('icon', [0])] },
+      { file: 'libs/ui/src/button/icon.ts', blocks: [region('icon', [0, 2])] },
       { file: 'libs/ui/src/label.ts', blocks: [region('label', [0, 1])] },
     ],
   });
@@ -98,7 +102,7 @@ describe("coverage by the package whose tests ran it", () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toMatch(/^ {2}apps\/main\s+1\s+100\.0%\s+0\s+0\.0%$/mu);
-    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+25\.0%\s+3\s+75\.0%\s+apps\/main 3$/mu);
+    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+25\.0%\s+3\s+75\.0%\s+apps\/main 3 · libs\/specs 1$/mu);
   });
 
   it('names where in a package only other packages\' tests reach, directory by directory', async () => {
@@ -106,9 +110,9 @@ describe("coverage by the package whose tests ran it", () => {
 
     const tree = answer.out.slice(answer.out.indexOf("run only by other packages' tests"));
     expect(tree.split('\n').slice(1, 4)).toEqual([
-      expect.stringMatching(/^ {2}libs\/ui\/src\/button\/\s+3\s+apps\/main 3$/u),
+      expect.stringMatching(/^ {2}libs\/ui\/src\/button\/\s+3\s+apps\/main 3 · libs\/specs 1$/u),
       expect.stringMatching(/^ {4}button\.ts\s+2\s+apps\/main 2$/u),
-      expect.stringMatching(/^ {4}icon\.ts\s+1\s+apps\/main 1$/u),
+      expect.stringMatching(/^ {4}icon\.ts\s+1\s+apps\/main 1 · libs\/specs 1$/u),
     ]);
     expect(tree).not.toContain('label.ts');
   });
@@ -129,7 +133,7 @@ describe("coverage by the package whose tests ran it", () => {
     const answer = await ask(['coverage', '--root', repo, '--packages', '--format', 'markdown']);
 
     expect(answer.out).toContain("only other packages' tests");
-    expect(answer.out).toContain('| `libs/ui` | 4 | 25.0% | 3 | 75.0% | `apps/main` 3 |');
+    expect(answer.out).toContain('| `libs/ui` | 4 | 25.0% | 3 | 75.0% | `apps/main` 3 · `libs/specs` 1 |');
   });
 
   it('leaves the ownership out without `--packages`', async () => {

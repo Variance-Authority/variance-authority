@@ -17,6 +17,8 @@ import type { Coverage } from './coverage.js';
 
 /** How many children of one directory the tree names before it counts the rest. */
 const NAMED_CHILDREN = 5;
+/** How many packages the tree walks before it counts the rest. */
+const NAMED_PACKAGES = 5;
 /** How many other packages a row names before it counts the rest. */
 const NAMED_TESTERS = 3;
 
@@ -54,16 +56,17 @@ export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]
 /** The same table for a pull request, the tree behind a disclosure of its own. */
 export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
   const packages = counted(entries, ownership);
-  if (packages.length === 0) return [];
+  const ran = packages.filter((row) => row.run > 0);
+  if (ran.length === 0) return [];
   const lines = [
     '',
-    `<details><summary>🧭 How much of each of ${grouped(packages.length)} packages only other packages' tests ran</summary>`,
+    `<details><summary>🧭 How much of each of ${grouped(ran.length)} packages only other packages' tests ran</summary>`,
     '',
     'A region counts as its own when a test in its package ran it, whoever else did.',
     '',
     "| Package | Regions ran | By its own tests | Only by others' | | By |",
     '|---|--:|--:|--:|--:|---|',
-    ...packages.filter((row) => row.run > 0).map((row) =>
+    ...ran.map((row) =>
       `| \`${row.from}\` | ${grouped(row.run)} | ${ratio(row.own, row.run)} | ${grouped(row.others)} | ${ratio(row.others, row.run)} | ${testers(row.by, (name) => `\`${name}\``)} |`),
   ];
   const { rows, more } = trees(packages, ownership);
@@ -104,8 +107,8 @@ function counted(entries: Entries, ownership: readonly OwnedFile[]): readonly Pa
 function trees(packages: readonly PackageRow[], ownership: readonly OwnedFile[]): { rows: readonly (readonly string[])[]; more: number } {
   const roots = packages.filter((row) => row.others > 0).map((row) => tree(row.from, ownership)).sort(larger);
   const rows: (readonly string[])[] = [];
-  for (const root of roots.slice(0, NAMED_CHILDREN)) walk(root, 1, rows);
-  return { rows, more: Math.max(0, roots.length - NAMED_CHILDREN) };
+  for (const root of roots.slice(0, NAMED_PACKAGES)) walk(root, 1, rows);
+  return { rows, more: Math.max(0, roots.length - NAMED_PACKAGES) };
 }
 
 /** The package's files only other packages' tests reached, nested by directory. */

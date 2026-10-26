@@ -12,7 +12,8 @@
  * A region counts as run the way {@link countCoverage} counts it: a case
  * called into it. A crossing made while the module evaluated names an import
  * order, not a test aimed at the code, so it counts no package as running the
- * region. A test file is left out: its own tests run it by being it.
+ * region. A test file is left out, in every suite, once any suite runs it as one: its
+ * own tests run it by being it.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -47,9 +48,9 @@ export interface OwnedFile {
 export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file: string) => string): readonly OwnedFile[] {
   // file → address and kind → the packages whose cases called into the region.
   const joined = new Map<string, Map<string, Set<string>>>();
+  const tests = new Set(suites.flatMap((suite) => suite.index.tests.map((test) => test.file)));
   for (const suite of suites) {
     const owners = suite.index.tests.map((test) => ownerOf(test.file));
-    const tests = new Set(suite.index.tests.map((test) => test.file));
     for (const module of suite.index.modules) {
       if (tests.has(module.file)) continue;
       let regions = joined.get(module.file);

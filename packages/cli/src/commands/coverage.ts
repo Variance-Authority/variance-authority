@@ -196,16 +196,10 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
-            ...(request.packages === true ? { ownership: coverageByOwner(now, ownerIn(reading.entries.map((entry) => entry.from))) } : {}),
+            ...(reading.ownerOf === undefined ? {} : { ownership: coverageByOwner(now, reading.ownerOf) }),
           }),
         }),
   };
-}
-
-/** The package a file is in: the deepest listed directory that holds it, or `.`. */
-function ownerIn(packages: readonly string[]): (file: string) => string {
-  const deepest = [...packages].sort((left, right) => right.length - left.length);
-  return (file) => deepest.find((dir) => file.startsWith(`${dir}/`)) ?? '.';
 }
 
 /** The per-case index a run left for a suite, or `undefined` when none did. */

@@ -81,4 +81,10 @@ describe('which package\'s tests ran each region', () => {
 
     expect(files.map((file) => file.file)).toEqual(['packages/core/src/store.ts']);
   });
+
+  it('leaves a test file out of every suite once one suite runs it as a test', () => {
+    const helper = { index: { tests: [], modules: [module(CORE.file, block('stores', []))] } };
+
+    expect(coverageByOwner([{ index: index() }, helper], ownerOf)).toEqual([]);
+  });
 });
