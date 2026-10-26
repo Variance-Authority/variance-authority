@@ -284,6 +284,42 @@ rerun the package's own tests: if none fails, nothing near pins that code. To
 see what one test runs that no narrower test does, ask
 [what that test is made of](#ask-what-one-test-is-made-of).
 
+### Earned and accidental coverage
+
+`--packages` also counts each suite twice over the same regions. A region is
+**in** when a test of its own package ran it from at most one import hop: from
+the test's own file or a module the test imports directly. It is **out** when
+any other test ran it: another package's, or the package's own from further
+away. In is earned coverage. Out and never in is accidental coverage: code that
+ran on the way to something else, with no test next to it.
+
+```text
+in: its own package's tests within one import hop ran it · out: any other test did · accidental: out, never in
+               regions  in             out            accidental
+  chromium     29,797   466     1.6%   5,642   18.9%  5,408       18.1%
+  integration  29,788   1,365   4.6%   6,109   20.5%  5,496       18.5%
+  unit         39,849   23,596  59.2%  27,157  68.1%  11,971      30.0%
+  any suite    40,368   24,145  59.8%  28,455  70.5%  12,347      30.6%
+  2,204 accidental regions ran only under tests at no measured distance
+```
+
+In and out are two coverages, not two halves of one, and the target for each is
+100%. A passing end-to-end suite says the product works, whatever it ran on the
+way, so out at 100% is worth having. In at 100% puts each failure next to its
+cause. Most of what the wider suites run is accidental. In Variance
+Authority's own suite that is 5,496 of the 6,861 regions the integration suite
+ran (80%) and 5,408 of the 5,874 the chromium suite ran (92%), against 11,971
+of 35,567 for the unit suite (34%).
+
+Accidental names a distance, not a verdict on the test. It rests on one
+assumption: the farther a test is from the code it ran, the less that test is
+about the code. Whether a test checks a region it ran is a separate question,
+and only a break answers it: mutation testing across the suite, or, for one
+region, the change-and-rerun above. A test the import walk could not place is
+never in, and what only such tests ran is counted on the last line. The
+comment `variance review --coverage` posts on a pull request carries the same
+table under **Coverage by suite**.
+
 ## Do you need a test?
 
 Add a test when its result can change what happens next. It might prevent a

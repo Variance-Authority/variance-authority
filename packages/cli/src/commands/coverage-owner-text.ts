@@ -11,7 +11,7 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { OwnedFile } from '@variance-authority/sense/test-selection';
+import type { EarnedCount, EarnedCoverage, OwnedFile } from '@variance-authority/sense/test-selection';
 import { grouped, ratio, table } from './coverage-summary.js';
 import type { Coverage } from './coverage.js';
 
@@ -79,6 +79,64 @@ export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFil
   }
   lines.push('', '</details>');
   return lines;
+}
+
+/**
+ * Each suite in and out, and every suite joined when there are several. The
+ * two are separate coverages of the same regions, so each has its own share.
+ */
+export function earnedLines(earned: EarnedCoverage | undefined): readonly string[] {
+  if (earned === undefined || earned.total.regions === 0) return [];
+  const row = (name: string, count: EarnedCount) => [
+    `  ${name}`, grouped(count.regions), grouped(count.in), ratio(count.in, count.regions),
+    grouped(count.out), ratio(count.out, count.regions), grouped(count.accidental), ratio(count.accidental, count.regions),
+  ];
+  const lines = [
+    "in: its own package's tests within one import hop ran it · out: any other test did · accidental: out, never in",
+    ...table([
+      ['', 'regions', 'in', '', 'out', '', 'accidental', ''],
+      ...earned.suites.map((suite) => row(suite.name ?? 'the record', suite)),
+      ...(earned.suites.length > 1 ? [row('any suite', earned.total)] : []),
+    ]),
+  ];
+  if (earned.total.unmeasured > 0) lines.push(`  ${unmeasuredSentence(earned.total.unmeasured)}`);
+  return lines;
+}
+
+/** The header of the in and out table in a pull request comment. */
+export const EARNED_HEADER = [
+  "| Suite | Regions | In: its own package's tests, within one import hop | Out: any other test | Accidental: out, never in |",
+  '|---|--:|--:|--:|--:|',
+] as const;
+
+/** One row per suite of the in and out table, and every suite joined when there are several. */
+export function earnedRows(earned: EarnedCoverage | undefined): readonly string[] {
+  if (earned === undefined || earned.total.regions === 0) return [];
+  const row = (name: string, count: EarnedCount) =>
+    `| \`${name.replaceAll('|', '\\|')}\` | ${grouped(count.regions)} | ${ratio(count.in, count.regions)} | ${ratio(count.out, count.regions)} | ${grouped(count.accidental)} (${ratio(count.accidental, count.regions)}) |`;
+  return [...earned.suites.map((suite) => row(suite.name ?? 'the record', suite)), ...(earned.suites.length > 1 ? [row('any suite', earned.total).replace(/`any suite`/u, 'Any suite')] : [])];
+}
+
+/** What in and out mean, under the table in a pull request comment. */
+export const EARNED_NOTE =
+  'In and out are two coverages of the same regions, and both can reach 100%. The farther a test is from the code it ran, the less it is about that code; ' +
+  'whether a test that ran a region checks it is a question for mutation testing.';
+
+/** The regions only tests no walk placed ran. */
+export function unmeasuredSentence(regions: number): string {
+  return `${grouped(regions)} accidental region${regions === 1 ? '' : 's'} ran only under tests at no measured distance`;
+}
+
+/** In and out for `coverage --format markdown`, behind its own disclosure. */
+export function earnedMarkdown(earned: EarnedCoverage | undefined): readonly string[] {
+  const rows = earnedRows(earned);
+  if (rows.length === 0) return [];
+  return [
+    '', '<details><summary>🧭 Coverage in and out: by each package\'s own near tests, and by every other</summary>', '',
+    ...EARNED_HEADER, ...rows,
+    ...(earned!.total.unmeasured > 0 ? ['', `${unmeasuredSentence(earned!.total.unmeasured)}.`] : []),
+    '', EARNED_NOTE, '', '</details>',
+  ];
 }
 
 interface PackageRow {

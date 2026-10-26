@@ -24,19 +24,20 @@ import {
   coverageByOwner,
   coverageChange,
   declaredSuites,
+  earnedCoverage,
   readableTestCoverage,
   recordedCommit,
   sharedPreconditions,
   testCoverageFile,
   testHops,
   type CountedSuite,
-  type CoverageAtDistance,
   type CoverageCount,
   type DeclaredSuite,
-  type ExecutionIndex,
+  type EarnedCoverage,
   type OwnedFile,
   type SuiteChange,
   type SuiteKind,
+  type TestHops,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
@@ -85,6 +86,13 @@ export interface Coverage {
    * files are left out, so these regions are fewer than the count above.
    */
   readonly ownership?: readonly OwnedFile[];
+  /**
+   * With `--packages`, each suite's regions in and out, and every suite's
+   * joined: in when a test of the region's own package called into it from at
+   * most one import hop, out when any other test did. Test files are left out,
+   * as in `ownership`.
+   */
+  readonly earned?: EarnedCoverage;
   /**
    * With `--at-distance`, the band every count above was narrowed to: a region
    * counts as run only when the nearest test file that ran it, across every
@@ -136,7 +144,10 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
   const scope = 'missed' in reading ? undefined : reading.scope;
-  const banded = await band(request);
+  // The import graph, when a band or the in and out count asks how far each test is.
+  const relations = request.atDistance !== undefined || ('ownerOf' in reading && reading.ownerOf !== undefined)
+    ? await relationsFor(request.root, ['.'], [], [])
+    : undefined;
   const suites: CoverageSuite[] = [];
   const now: CountedSuite[] = [];
   const bases: CountedSuite[] = [];
@@ -190,7 +201,10 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     throw nothingRecorded(request.root, declared === undefined ? undefined : counted.map((one) => one!.name));
   }
   // Every suite at once: a region is in the band of its nearest test in any of them.
-  const narrowed = banded.narrow(now.map((one) => one.index));
+  const walked: TestHops | undefined = relations === undefined ? undefined : testHops(now.map((one) => one.index), { relations });
+  const narrowed = request.atDistance === undefined || walked === undefined
+    ? { indexes: now.map((one) => one.index), unplaced: [], unmeasured: 0 }
+    : coverageAtDistance(now.map((one) => one.index), request.atDistance, walked);
   narrowed.indexes.forEach((index, at) => (now[at] = { ...now[at]!, index }));
   const at = await head(request.root);
   const count = countCoverage(now);
@@ -225,22 +239,13 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
-            ...(reading.ownerOf === undefined ? {} : { ownership: coverageByOwner(now, reading.ownerOf) }),
+            ...(reading.ownerOf === undefined ? {} : {
+              ownership: coverageByOwner(now, reading.ownerOf),
+              ...(walked === undefined ? {} : { earned: earnedCoverage(now, reading.ownerOf, walked) }),
+            }),
           }),
         }),
   };
-}
-
-/**
- * The narrowing `--at-distance` asks for, over the import graph of the tree as
- * it is, across every suite at once. Without the flag it narrows nothing and
- * reads no graph.
- */
-async function band(request: ParsedCoverage): Promise<{ readonly narrow: (indexes: readonly ExecutionIndex[]) => CoverageAtDistance }> {
-  const { atDistance } = request;
-  if (atDistance === undefined) return { narrow: (indexes) => ({ indexes, unplaced: [], unmeasured: 0 }) };
-  const relations = await relationsFor(request.root, ['.'], [], []);
-  return { narrow: (indexes) => coverageAtDistance(indexes, atDistance, testHops(indexes, { relations })) };
 }
 
 /**

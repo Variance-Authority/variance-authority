@@ -136,10 +136,35 @@ describe("coverage by the package whose tests ran it", () => {
     expect(answer.out).toContain('| `libs/ui` | 4 | 25.0% | 3 | 75.0% | `apps/main` 3 · `libs/specs` 1 |');
   });
 
+  // In: main.ts by its own test one hop away, and the label by its own.
+  // Out: the button's two regions and the icon, from `apps/main` and
+  // `libs/specs`, and the label from `apps/main` as well. Accidental: out and
+  // not in, the button's two and the icon.
+  it('counts each suite in, from its own package within one hop, and out, from any other test', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--packages']);
+
+    expect(answer.out).toMatch(/^ {2}unit\s+5\s+2\s+40\.0%\s+4\s+80\.0%\s+3\s+60\.0%$/mu);
+  });
+
+  it('gives a program in and out per suite and joined', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--packages', '--format', 'json']);
+
+    const { earned } = JSON.parse(answer.out) as { earned: unknown };
+    const unit = { regions: 5, in: 2, out: 4, accidental: 3, unmeasured: 0 };
+    expect(earned).toEqual({ suites: [{ name: 'unit', kind: 'unit', ...unit }], total: unit });
+  });
+
+  it('puts in and out in the pull request comment', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--packages', '--format', 'markdown']);
+
+    expect(answer.out).toContain('| `unit` | 5 | 40.0% | 80.0% | 3 (60.0%) |');
+  });
+
   it('leaves the ownership out without `--packages`', async () => {
     const answer = await ask(['coverage', '--root', repo, '--format', 'json']);
 
     expect(JSON.parse(answer.out)).not.toHaveProperty('ownership');
+    expect(JSON.parse(answer.out)).not.toHaveProperty('earned');
   });
 });
 

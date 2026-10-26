@@ -1000,9 +1000,9 @@ an integration case ran is counted as run, by that case; each region is read
 from the suite that came nearest. Where no suite ran the file's current text,
 the suite named with `--suite` answers alone, as it does without `--coverage`.
 The comment leads with the changed-code finding, which test files ran, and the
-execution changes per suite. Percentages and source inventories
-are folded under **Coverage by suite**. Each suite keeps its own denominator
-and baseline; a missing record or baseline is named rather than counted as zero.
+execution changes per suite. Percentages, each suite's coverage in and out,
+and source inventories are folded under **Coverage by suite**. Each suite keeps
+its own denominator and baseline; a missing record or baseline is named rather than counted as zero.
 The coverage readings travel in `review.json`, so `--from-run` prints the same
 evidence without reading the laptop’s recordings.
 
@@ -1323,6 +1323,28 @@ is left out of every band and counted in the heading, and so are the regions
 only an unplaced walk ran. The hops are measured on the import graph of the
 tree as it is now, so no suite is compared with its base under a band, and each
 says so.
+
+`--packages` also counts each suite in and out over the same regions. A region
+is in when a test of its own package ran it from at most one import hop, and out
+when any other test ran it: another package's, or the package's own from
+further away. Out and never in is accidental coverage, and in is earned:
+
+```text
+in: its own package's tests within one import hop ran it · out: any other test did · accidental: out, never in
+               regions  in             out            accidental
+  chromium     29,797   466     1.6%   5,642   18.9%  5,408       18.1%
+  integration  29,788   1,365   4.6%   6,109   20.5%  5,496       18.5%
+  unit         39,849   23,596  59.2%  27,157  68.1%  11,971      30.0%
+  any suite    40,368   24,145  59.8%  28,455  70.5%  12,347      30.6%
+  2,204 accidental regions ran only under tests at no measured distance
+```
+
+In and out are separate coverages, so each can reach 100%: a passing end-to-end
+suite runs everything out, and the unit next to each file runs it in. The
+farther a test is from the code, the less it is about that code; whether it
+checks what it ran is for mutation testing to say. A test no walk placed is
+never in, and the regions only such tests ran are counted on the last line.
+`--format json` carries the counts under `earned`, per suite and joined.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever
