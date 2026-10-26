@@ -134,7 +134,9 @@ Look around:
   `docs/` — gets its structure from
   [content flow](.agents/references/content-flow.md) before it is outlined: a
   brief, then a spine read cold by the `content-flow` reviewer. Detail goes to
-  the skill reference or the JSDoc that owns it. [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
+  the skill reference or the JSDoc that owns it, and every surface it lands on
+  has a budget: a file overview 15 lines, a docblock 10, a block comment 5, a
+  page's lead 15. [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
   published sentence: a README, `docs/`, the site, CLI output or an error
   message.
 - Whether the change reaches a published package. If it does, it carries a
@@ -142,10 +144,11 @@ Look around:
   change that ships nothing worth naming carries `yarn changeset --empty`. CI
   refuses a pull request that changes a package without either.
 - The code rules in the reference: absent is not empty, a package is named for
-  what it is for, code-unit sorting, 500 lines per file, a documented export is
-  run by something, every answer has an owner, one browser and one page, no
-  magic and not alone, a path is the file, stop only what you started, a status
-  claim is a marker.
+  what it is for, code-unit sorting, 500 lines per file, a budget per written
+  surface, a breach is a collapse and not a trim, a documented export is run by
+  something, every answer has an owner, one browser and one page, no magic and
+  not alone, a path is the file, stop only what you started, a status claim is a
+  marker.
 
 After each edit, run `yarn test:loop` and read its verdict before the next
 edit: the compiler, then the unit tests within one import of what changed. A

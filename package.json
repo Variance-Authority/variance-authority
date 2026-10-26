@@ -32,6 +32,7 @@
     "test:watch": "vitest",
     "unrun": "node tools/unrun.mjs",
     "surface": "node tools/surface.mjs",
+    "budgets": "node tools/budgets.mjs",
     "documented": "node tools/documented.mjs",
     "owners": "node tools/owners.mjs",
     "restrictions": "variance index && variance restrictions",

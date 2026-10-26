@@ -1,0 +1,4715 @@
+{
+  ".github/actions/variance/post-comment.mjs block request": [
+    7
+  ],
+  ".github/actions/variance/post-comment.mjs overview": [
+    36
+  ],
+  ".github/scripts/variance-accept.mjs overview": [
+    32
+  ],
+  "cases/event-announcement-case/src/spec/announcement.spec.mjs block test(without the announcement the negative passes for the wrong reason)": [
+    6
+  ],
+  "cases/incumbent-case/playwright.config.ts docblock ExportDefaultDeclaration": [
+    11
+  ],
+  "cases/incumbent-case/scripts/bundle.mjs block bundle.result.result": [
+    9
+  ],
+  "cases/incumbent-case/scripts/bundle.mjs docblock stale": [
+    33
+  ],
+  "cases/incumbent-case/scripts/engines.mjs block": [
+    31,
+    6
+  ],
+  "cases/incumbent-case/scripts/engines.mjs docblock model": [
+    12
+  ],
+  "cases/incumbent-case/src/bundle.test.ts block": [
+    11
+  ],
+  "cases/incumbent-case/src/incumbent.spec.ts overview": [
+    17
+  ],
+  "cases/incumbent-case/src/locale.chromium.test.ts block live(one panel, two languages).it(finds the box that stopped fitting, and whose it is)": [
+    7
+  ],
+  "cases/incumbent-case/src/migration.chromium.test.ts block live(a baseline the incumbent recorded).it(cannot supply the ordering, because a PNG is not a semantic baseline)": [
+    8
+  ],
+  "cases/incumbent-case/src/migration.chromium.test.ts block live(a baseline the incumbent recorded).it(carries no identity, which is what migration actually costs)": [
+    10
+  ],
+  "cases/incumbent-case/src/migration.chromium.test.ts overview": [
+    20
+  ],
+  "cases/incumbent-case/src/page-agent.ts block capture": [
+    8
+  ],
+  "cases/incumbent-case/src/replacement.chromium.test.ts block live(the row where we lose).it(reports a change to the note that the camera correctly does not)": [
+    6
+  ],
+  "cases/incumbent-case/src/replacement.chromium.test.ts docblock ExpressionStatement": [
+    15
+  ],
+  "cases/incumbent-case/src/replacement.chromium.test.ts overview": [
+    26
+  ],
+  "cases/incumbent-case/src/scenarios.ts block Handed": [
+    6
+  ],
+  "cases/incumbent-case/src/scenarios.ts block SCENARIOS.SCENARIOS": [
+    7
+  ],
+  "cases/incumbent-case/src/surface.tsx docblock MESSAGES": [
+    15
+  ],
+  "cases/storybook-case/.storybook-a11y/main.js docblock ExportDefaultDeclaration": [
+    17
+  ],
+  "cases/storybook-case/.storybook/main.js docblock default.viteFinal.esbuild.jsxDev": [
+    13
+  ],
+  "cases/storybook-case/.storybook/main.js docblock default.viteFinal.esbuild.keepNames": [
+    14
+  ],
+  "cases/storybook-case/collector/index.mjs overview": [
+    27
+  ],
+  "cases/storybook-case/src/alone.chromium.test.js block live(a subject nothing has touched).it(reads the same alone as it does in company)": [
+    6
+  ],
+  "cases/storybook-case/src/alone.chromium.test.js overview": [
+    20
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js block live(the durable workflow, end to end).it(names a component and a file, and cannot yet name the culprit)": [
+    12,
+    11,
+    9
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js block live(the durable workflow, end to end).it(reports every subject as new, and neither fails nor accepts it)": [
+    19
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js block live(the durable workflow, end to end).it(reports exactly the stories that render the edited component)": [
+    12,
+    10
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js docblock writeConfig": [
+    15
+  ],
+  "cases/storybook-case/src/cli.chromium.test.js overview": [
+    32
+  ],
+  "cases/storybook-case/src/ds.jsx block": [
+    10
+  ],
+  "cases/storybook-case/src/ds.jsx docblock SheetLeak": [
+    17
+  ],
+  "cases/storybook-case/src/ds.jsx docblock WIDE_BUTTON": [
+    11
+  ],
+  "cases/storybook-case/src/finish.chromium.test.js block live(a story switched to over the channel).it(pays no fixed wait of Storybook's, and keeps the animation state the page set)": [
+    6
+  ],
+  "cases/storybook-case/src/finish.chromium.test.js overview": [
+    30
+  ],
+  "cases/storybook-case/src/globals.chromium.test.js overview": [
+    29
+  ],
+  "cases/storybook-case/src/one-browser.chromium.test.js overview": [
+    16
+  ],
+  "cases/storybook-case/src/page.stories.jsx docblock FinishesLate": [
+    34
+  ],
+  "cases/storybook-case/src/page.stories.jsx docblock LeaksASheet": [
+    12
+  ],
+  "cases/storybook-case/src/storybook.chromium.test.js block live(a story whose subject only exists after its play function).it(captures what the interaction produced, not what rendered before it)": [
+    9
+  ],
+  "cases/storybook-case/src/suspense.chromium.test.js block live(a boundary that never resolves).it(refuses a declaration whose subject settles, too)": [
+    8
+  ],
+  "cases/storybook-case/src/suspense.chromium.test.js block live(waiting for a boundary nobody declared).it(waits again for a boundary that only appears once the first one resolves)": [
+    7
+  ],
+  "cases/storybook-case/src/suspense.chromium.test.js overview": [
+    21
+  ],
+  "docs/a-b-testing.md lead": [
+    16
+  ],
+  "docs/agent-interrogate.md lead": [
+    16
+  ],
+  "docs/attribution.md lead": [
+    24
+  ],
+  "docs/better-tests.md lead": [
+    19
+  ],
+  "docs/cases.md lead": [
+    18
+  ],
+  "docs/changelog.md lead": [
+    23
+  ],
+  "docs/changes-before-and-beyond.md lead": [
+    44
+  ],
+  "docs/compare-coverage.md lead": [
+    18
+  ],
+  "docs/compare-visual-review.md lead": [
+    36
+  ],
+  "docs/composition.md lead": [
+    27
+  ],
+  "docs/distance.md lead": [
+    35
+  ],
+  "docs/distill.md lead": [
+    61
+  ],
+  "docs/execution-record.md lead": [
+    17
+  ],
+  "docs/eyes.md lead": [
+    18
+  ],
+  "docs/flakiness.md lead": [
+    19
+  ],
+  "docs/flows.md lead": [
+    44
+  ],
+  "docs/framework-reference.md lead": [
+    21
+  ],
+  "docs/framework.md lead": [
+    19
+  ],
+  "docs/history.md lead": [
+    20
+  ],
+  "docs/information.md lead": [
+    16
+  ],
+  "docs/lexicon.md lead": [
+    53
+  ],
+  "docs/locate.md lead": [
+    18
+  ],
+  "docs/metrics.md lead": [
+    18
+  ],
+  "docs/on-testing.md lead": [
+    17
+  ],
+  "docs/orientation.md lead": [
+    20
+  ],
+  "docs/parting.md lead": [
+    17
+  ],
+  "docs/performance.md lead": [
+    29
+  ],
+  "docs/placement.md lead": [
+    32
+  ],
+  "docs/polyglot.md lead": [
+    32
+  ],
+  "docs/presentation-reference.md lead": [
+    17
+  ],
+  "docs/presentation.md lead": [
+    18
+  ],
+  "docs/run-relevant-work.md lead": [
+    23
+  ],
+  "docs/scale.md lead": [
+    63
+  ],
+  "docs/scenarios.md lead": [
+    21
+  ],
+  "docs/selecting.md lead": [
+    88
+  ],
+  "docs/selection-tanstack-query.md lead": [
+    27
+  ],
+  "docs/selection-zod.md lead": [
+    27
+  ],
+  "docs/sensitivity.md lead": [
+    23
+  ],
+  "docs/sharding.md lead": [
+    18
+  ],
+  "docs/sharing.md lead": [
+    26
+  ],
+  "docs/source-index.md lead": [
+    17
+  ],
+  "docs/source.md lead": [
+    19
+  ],
+  "docs/stabilization.md lead": [
+    18
+  ],
+  "docs/start-custom.md lead": [
+    16
+  ],
+  "docs/start-routes.md lead": [
+    25
+  ],
+  "docs/surface.md lead": [
+    20
+  ],
+  "docs/test-an-edit.md lead": [
+    30
+  ],
+  "docs/understand-execution.md lead": [
+    16
+  ],
+  "editors/vscode/record.js block": [
+    7
+  ],
+  "examples/kitchen-sink/scripts/agent-bundle.mjs block": [
+    6
+  ],
+  "examples/kitchen-sink/src/components/Dialog.tsx overview": [
+    21
+  ],
+  "examples/kitchen-sink/src/components/Hero.tsx overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/components/ItemList.tsx overview": [
+    20
+  ],
+  "examples/kitchen-sink/src/components/Tabs.tsx overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/components/Wrappers.tsx overview": [
+    20
+  ],
+  "examples/kitchen-sink/src/corpus-case.ts docblock CorpusCase.blames": [
+    11
+  ],
+  "examples/kitchen-sink/src/corpus-restyled.ts overview": [
+    16
+  ],
+  "examples/kitchen-sink/src/corpus.test.tsx block describe(cascade fixtures behave as the corpus claims).it(documents that JSDOM cannot see the true conditional through getComputedStyle)": [
+    8
+  ],
+  "examples/kitchen-sink/src/corpus.test.tsx block describe(cascade fixtures behave as the corpus claims).it(documents that JSDOM drops shorthands whose value is a var())": [
+    6
+  ],
+  "examples/kitchen-sink/src/corpus.ts block CORPUS.CORPUS": [
+    6
+  ],
+  "examples/kitchen-sink/src/corpus.ts overview": [
+    22
+  ],
+  "examples/kitchen-sink/src/cruft/css-runtime.ts overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/cruft/irrelevant-css.ts docblock LOSING_RULES_CSS": [
+    15
+  ],
+  "examples/kitchen-sink/src/cruft/irrelevant-css.ts overview": [
+    20
+  ],
+  "examples/kitchen-sink/src/cruft/spelling.ts overview": [
+    17
+  ],
+  "examples/kitchen-sink/src/measure.chromium.test.tsx block it(agrees across profiles on structure, and reports where style diverges)": [
+    11
+  ],
+  "examples/kitchen-sink/src/observation.ts block collectBothProfiles": [
+    6
+  ],
+  "examples/kitchen-sink/src/styles/sheets.ts docblock COMPONENTS_CSS": [
+    12
+  ],
+  "examples/todomvc/scripts/pixel-arm.mjs block": [
+    13,
+    8,
+    6
+  ],
+  "examples/todomvc/src/code-mutation.ts overview": [
+    16
+  ],
+  "examples/todomvc/src/compare.test.tsx overview": [
+    25
+  ],
+  "examples/todomvc/src/composition.test.tsx block describe(the echoes — the same rendering in two subjects).it(reports no echo at all for the three button stories, which is the finding)": [
+    8
+  ],
+  "examples/todomvc/src/contrast.test.tsx block describe(what one prop controls).it(separates the bands each prop reaches)": [
+    6
+  ],
+  "examples/todomvc/src/contrast.test.tsx overview": [
+    36
+  ],
+  "examples/todomvc/src/ds/components.tsx block TextField": [
+    6
+  ],
+  "examples/todomvc/src/entry.test.tsx block": [
+    27
+  ],
+  "examples/todomvc/src/fiber.test.tsx overview": [
+    26
+  ],
+  "examples/todomvc/src/mutations.ts block MUTATIONS.MUTATIONS": [
+    13
+  ],
+  "examples/todomvc/src/observe.chromium.test.ts block chromium_(reading a pixel diff further than a number).it(ranks causes above collateral, which area alone does not)": [
+    10
+  ],
+  "examples/todomvc/src/offload.chromium.test.tsx block chromium_(rendering a document jsdom produced).it(carries the tokens that pruning correctly removed)": [
+    10
+  ],
+  "examples/todomvc/src/offload.chromium.test.tsx block chromium_(rendering a document jsdom produced).it(reports the fonts the renderer did not have)": [
+    7
+  ],
+  "examples/todomvc/src/offload.chromium.test.tsx overview": [
+    19
+  ],
+  "examples/todomvc/src/pixel/instability.tsx block": [
+    23,
+    9
+  ],
+  "examples/todomvc/src/pixel/instability.tsx docblock INSTABILITY_PROBES.INSTABILITY_PROBES.expect": [
+    17
+  ],
+  "examples/todomvc/src/pixel/probes.tsx overview": [
+    21
+  ],
+  "jvm/test/record.mjs overview": [
+    16
+  ],
+  "jvm/test/suite.mjs overview": [
+    16
+  ],
+  "packages/cli/src/bin.ts block main": [
+    6
+  ],
+  "packages/cli/src/commands/accept-message.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/accept.ts overview": [
+    36
+  ],
+  "packages/cli/src/commands/adjudicate.ts overview": [
+    18
+  ],
+  "packages/cli/src/commands/affected.test.ts block": [
+    10,
+    8
+  ],
+  "packages/cli/src/commands/affected.ts docblock AffectedInput.install": [
+    11
+  ],
+  "packages/cli/src/commands/affected.ts overview": [
+    58
+  ],
+  "packages/cli/src/commands/again.ts block again": [
+    10,
+    7,
+    6
+  ],
+  "packages/cli/src/commands/again.ts docblock again": [
+    45
+  ],
+  "packages/cli/src/commands/alone.ts docblock alone": [
+    22
+  ],
+  "packages/cli/src/commands/ask-questions.ts docblock questions": [
+    14
+  ],
+  "packages/cli/src/commands/ask.ts block": [
+    47
+  ],
+  "packages/cli/src/commands/ask.ts block askSource": [
+    7
+  ],
+  "packages/cli/src/commands/asking.ts docblock Question": [
+    14
+  ],
+  "packages/cli/src/commands/budget.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/carry.ts overview": [
+    27
+  ],
+  "packages/cli/src/commands/changed-since.test.ts block describe(what a diff touched, named the way the run names files)": [
+    7
+  ],
+  "packages/cli/src/commands/changelog.ts docblock formatChangelog": [
+    14
+  ],
+  "packages/cli/src/commands/changelog.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/changes.ts overview": [
+    22
+  ],
+  "packages/cli/src/commands/collector.ts docblock Collector": [
+    24
+  ],
+  "packages/cli/src/commands/collector.ts docblock Collector.collectAlone": [
+    15
+  ],
+  "packages/cli/src/commands/comment-blocks.ts docblock bulkBlocks": [
+    12
+  ],
+  "packages/cli/src/commands/comment-blocks.ts docblock driftBlocks": [
+    16
+  ],
+  "packages/cli/src/commands/comment-images.ts docblock Pictures": [
+    12
+  ],
+  "packages/cli/src/commands/comment.ts docblock commentMarker": [
+    16
+  ],
+  "packages/cli/src/commands/comment.ts overview": [
+    71
+  ],
+  "packages/cli/src/commands/compose.ts block lexiconReadingOf": [
+    8
+  ],
+  "packages/cli/src/commands/compose.ts docblock movedIn": [
+    13
+  ],
+  "packages/cli/src/commands/compose.ts overview": [
+    21
+  ],
+  "packages/cli/src/commands/configless.ts block answerConfigless": [
+    11,
+    6
+  ],
+  "packages/cli/src/commands/configless.ts docblock constantAnswer": [
+    14
+  ],
+  "packages/cli/src/commands/costs.ts block": [
+    8
+  ],
+  "packages/cli/src/commands/coverage-source.ts overview": [
+    32
+  ],
+  "packages/cli/src/commands/covering-reach.ts overview": [
+    28
+  ],
+  "packages/cli/src/commands/covering-text.ts docblock narrowedText": [
+    11
+  ],
+  "packages/cli/src/commands/covering.ts docblock changeSince": [
+    13
+  ],
+  "packages/cli/src/commands/covering.ts overview": [
+    25
+  ],
+  "packages/cli/src/commands/docket.ts block labelOf": [
+    10
+  ],
+  "packages/cli/src/commands/docket.ts docblock labelOf": [
+    11
+  ],
+  "packages/cli/src/commands/doctor-baselines.ts block baselineFinding": [
+    6
+  ],
+  "packages/cli/src/commands/doctor-probes.ts docblock DoctorProbes.partitions": [
+    13
+  ],
+  "packages/cli/src/commands/doctor.ts docblock RenderCacheFinding": [
+    11
+  ],
+  "packages/cli/src/commands/doctor.ts overview": [
+    31
+  ],
+  "packages/cli/src/commands/evidence-gap.ts overview": [
+    24
+  ],
+  "packages/cli/src/commands/history-rows.ts block instabilitiesOf": [
+    6
+  ],
+  "packages/cli/src/commands/history-rows.ts docblock tokensOf": [
+    11
+  ],
+  "packages/cli/src/commands/history.ts docblock RecordedRun.movedTokens": [
+    11
+  ],
+  "packages/cli/src/commands/history.ts docblock identityOf": [
+    11
+  ],
+  "packages/cli/src/commands/history.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/ignores.ts block": [
+    10
+  ],
+  "packages/cli/src/commands/ignores.ts block ledgerOf": [
+    7
+  ],
+  "packages/cli/src/commands/images.ts block images": [
+    13,
+    7
+  ],
+  "packages/cli/src/commands/images.ts block images.raster.raster": [
+    15
+  ],
+  "packages/cli/src/commands/index-command.ts overview": [
+    27
+  ],
+  "packages/cli/src/commands/index-follow-ups.ts overview": [
+    21
+  ],
+  "packages/cli/src/commands/installed.ts docblock InstallDiff": [
+    17
+  ],
+  "packages/cli/src/commands/installed.ts docblock installDiff": [
+    17
+  ],
+  "packages/cli/src/commands/installed.ts docblock installDiffOfPatch": [
+    11
+  ],
+  "packages/cli/src/commands/installed.ts overview": [
+    36
+  ],
+  "packages/cli/src/commands/journey.ts overview": [
+    40
+  ],
+  "packages/cli/src/commands/journeys.ts block": [
+    10
+  ],
+  "packages/cli/src/commands/journeys.ts overview": [
+    34
+  ],
+  "packages/cli/src/commands/land.ts block landCombined": [
+    14,
+    7
+  ],
+  "packages/cli/src/commands/land.ts block landCombined.locked.locked": [
+    11
+  ],
+  "packages/cli/src/commands/land.ts docblock landJourneys": [
+    35
+  ],
+  "packages/cli/src/commands/layers-command.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/mainline-base.ts overview": [
+    32
+  ],
+  "packages/cli/src/commands/merge.ts block mergeReports": [
+    9
+  ],
+  "packages/cli/src/commands/merge.ts docblock lexiconOf": [
+    12
+  ],
+  "packages/cli/src/commands/merge.ts docblock unmergeable": [
+    16
+  ],
+  "packages/cli/src/commands/merge.ts overview": [
+    34
+  ],
+  "packages/cli/src/commands/narrowing.ts docblock narrowingFor": [
+    12
+  ],
+  "packages/cli/src/commands/observe-one.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/observe-one.ts block observeOne": [
+    13,
+    9,
+    6
+  ],
+  "packages/cli/src/commands/observe-one.ts block observeOne.record": [
+    6
+  ],
+  "packages/cli/src/commands/observe-one.ts docblock investigate": [
+    12
+  ],
+  "packages/cli/src/commands/observe-one.ts docblock located": [
+    13
+  ],
+  "packages/cli/src/commands/observe-one.ts docblock sensitivityFor": [
+    11
+  ],
+  "packages/cli/src/commands/probes-gap.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/prune-cache.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/push-have.ts docblock alreadyHeld": [
+    16
+  ],
+  "packages/cli/src/commands/push-progress.ts docblock pushTicker": [
+    21
+  ],
+  "packages/cli/src/commands/push.ts block push": [
+    9
+  ],
+  "packages/cli/src/commands/push.ts overview": [
+    54
+  ],
+  "packages/cli/src/commands/reach-command.ts block": [
+    8
+  ],
+  "packages/cli/src/commands/reach-command.ts overview": [
+    39
+  ],
+  "packages/cli/src/commands/reach.ts docblock seedsOf": [
+    28
+  ],
+  "packages/cli/src/commands/reach.ts overview": [
+    38
+  ],
+  "packages/cli/src/commands/record.test.ts block": [
+    9
+  ],
+  "packages/cli/src/commands/record.test.ts block describe(dated).it(calls every defect inherited when the document did not change at all)": [
+    6
+  ],
+  "packages/cli/src/commands/record.test.ts block describe(qualification).it(counts a code carrying more than one fact instead of repeating it)": [
+    6
+  ],
+  "packages/cli/src/commands/record.ts docblock diagnosticsOf": [
+    14
+  ],
+  "packages/cli/src/commands/record.ts docblock findingsOf": [
+    11
+  ],
+  "packages/cli/src/commands/record.ts docblock qualification": [
+    16
+  ],
+  "packages/cli/src/commands/renders.ts docblock renderCacheLine": [
+    12
+  ],
+  "packages/cli/src/commands/renders.ts docblock renderCacheRoot": [
+    18
+  ],
+  "packages/cli/src/commands/renders.ts docblock sweepRenders": [
+    18
+  ],
+  "packages/cli/src/commands/report-html-elements.ts block": [
+    6
+  ],
+  "packages/cli/src/commands/report-html-pictures.ts docblock locatePictures": [
+    13
+  ],
+  "packages/cli/src/commands/report-html-pictures.ts overview": [
+    38
+  ],
+  "packages/cli/src/commands/report-html-settled.ts overview": [
+    18
+  ],
+  "packages/cli/src/commands/report-html-style.ts block": [
+    7
+  ],
+  "packages/cli/src/commands/report-html-subjects.ts docblock commands": [
+    11
+  ],
+  "packages/cli/src/commands/report-html-subjects.ts docblock findings": [
+    18
+  ],
+  "packages/cli/src/commands/report-html-subjects.ts docblock subject": [
+    14
+  ],
+  "packages/cli/src/commands/report-html.ts overview": [
+    38
+  ],
+  "packages/cli/src/commands/report-source.ts overview": [
+    16
+  ],
+  "packages/cli/src/commands/report.ts docblock ignores": [
+    19
+  ],
+  "packages/cli/src/commands/report.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/resources.ts docblock decoderFor": [
+    15
+  ],
+  "packages/cli/src/commands/resources.ts docblock journeyAgainst": [
+    21
+  ],
+  "packages/cli/src/commands/resources.ts docblock recordedJourneys": [
+    11
+  ],
+  "packages/cli/src/commands/review-suites.ts docblock everySuiteRegions": [
+    11
+  ],
+  "packages/cli/src/commands/review.ts block": [
+    11
+  ],
+  "packages/cli/src/commands/run-context.ts docblock RunDeps.readJourney": [
+    12
+  ],
+  "packages/cli/src/commands/run-context.ts docblock RunOptions.flakes": [
+    11
+  ],
+  "packages/cli/src/commands/run-report.ts docblock CliObservationRecord": [
+    13
+  ],
+  "packages/cli/src/commands/run-report.ts docblock CliObservationRecord.steps": [
+    13
+  ],
+  "packages/cli/src/commands/run-select.ts docblock journalOf": [
+    14
+  ],
+  "packages/cli/src/commands/run-select.ts docblock notesFor": [
+    12
+  ],
+  "packages/cli/src/commands/run-select.ts overview": [
+    22
+  ],
+  "packages/cli/src/commands/run.test.ts block describe(run).it(carries the collector’s diagnostics to the verdict instead of dropping them)": [
+    6
+  ],
+  "packages/cli/src/commands/run.ts block observeAll": [
+    12,
+    6
+  ],
+  "packages/cli/src/commands/run.ts block observeAll.acquired.acquired.read": [
+    6
+  ],
+  "packages/cli/src/commands/run.ts block run": [
+    7,
+    7,
+    6
+  ],
+  "packages/cli/src/commands/run.ts overview": [
+    30
+  ],
+  "packages/cli/src/commands/runs-base.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/select-command.ts block selectSuite": [
+    14,
+    10,
+    6
+  ],
+  "packages/cli/src/commands/select-command.ts overview": [
+    30
+  ],
+  "packages/cli/src/commands/select-journey.ts docblock journeyReading": [
+    13
+  ],
+  "packages/cli/src/commands/select-journeys.test.ts docblock ExpressionStatement": [
+    15
+  ],
+  "packages/cli/src/commands/select-leg.ts overview": [
+    44
+  ],
+  "packages/cli/src/commands/select-partial-run.test.ts docblock ExpressionStatement": [
+    11
+  ],
+  "packages/cli/src/commands/select.ts block formatSelection.lines.lines": [
+    6
+  ],
+  "packages/cli/src/commands/select.ts docblock formatSelection": [
+    14
+  ],
+  "packages/cli/src/commands/select.ts overview": [
+    62
+  ],
+  "packages/cli/src/commands/serve.ts overview": [
+    31
+  ],
+  "packages/cli/src/commands/share.ts block": [
+    10
+  ],
+  "packages/cli/src/commands/since.ts docblock changedSince": [
+    28
+  ],
+  "packages/cli/src/commands/since.ts docblock diffSince": [
+    26
+  ],
+  "packages/cli/src/commands/since.ts docblock inCoordinates": [
+    15
+  ],
+  "packages/cli/src/commands/since.ts docblock indexPosition": [
+    12
+  ],
+  "packages/cli/src/commands/since.ts docblock movedSince": [
+    11
+  ],
+  "packages/cli/src/commands/source-graph.ts block sourceGraphFor": [
+    6
+  ],
+  "packages/cli/src/commands/source-graph.ts docblock relationsFor": [
+    16
+  ],
+  "packages/cli/src/commands/step-progress.ts docblock stepTicker": [
+    13
+  ],
+  "packages/cli/src/commands/story-levels.ts overview": [
+    20
+  ],
+  "packages/cli/src/commands/story-tree.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/story.ts overview": [
+    19
+  ],
+  "packages/cli/src/commands/suite-base.ts docblock layMainline": [
+    14
+  ],
+  "packages/cli/src/commands/suite-base.ts overview": [
+    27
+  ],
+  "packages/cli/src/commands/suite-record.ts docblock suiteRecord": [
+    16
+  ],
+  "packages/cli/src/commands/suite-share.ts overview": [
+    17
+  ],
+  "packages/cli/src/commands/unplanned.ts docblock unplanned": [
+    21
+  ],
+  "packages/cli/src/commands/unplanned.ts docblock unplannedNote": [
+    12
+  ],
+  "packages/cli/src/commands/variations.ts block resolveParents": [
+    9
+  ],
+  "packages/cli/src/commands/variations.ts docblock namedParent": [
+    19
+  ],
+  "packages/cli/src/commands/variations.ts docblock variationsWanted": [
+    12
+  ],
+  "packages/cli/src/commands/variations.ts overview": [
+    41
+  ],
+  "packages/cli/src/commands/watch.ts overview": [
+    18
+  ],
+  "packages/cli/src/config-blank.ts docblock BlankConfig": [
+    13
+  ],
+  "packages/cli/src/config-ignore.ts docblock IgnoreConfig.tags": [
+    12
+  ],
+  "packages/cli/src/config-placement.ts block": [
+    11
+  ],
+  "packages/cli/src/config-sections.ts block parseRenderer": [
+    6
+  ],
+  "packages/cli/src/config-sections.ts docblock AloneConfig": [
+    15
+  ],
+  "packages/cli/src/config-sections.ts docblock DiscoveredSubjects": [
+    12
+  ],
+  "packages/cli/src/config-sections.ts docblock ReviewConfig": [
+    16
+  ],
+  "packages/cli/src/config-sensitivity.ts docblock parseSensitivities": [
+    13
+  ],
+  "packages/cli/src/config-share.ts docblock ShareConfig": [
+    14
+  ],
+  "packages/cli/src/config-values.ts docblock secret": [
+    16
+  ],
+  "packages/cli/src/config.ts block": [
+    32
+  ],
+  "packages/cli/src/config.ts docblock Config.blank": [
+    19
+  ],
+  "packages/cli/src/config.ts docblock Config.concurrency": [
+    11
+  ],
+  "packages/cli/src/config.ts docblock Config.ignore": [
+    12
+  ],
+  "packages/cli/src/config.ts docblock Config.sensitivity": [
+    12
+  ],
+  "packages/cli/src/covering-args.ts docblock parseCoveringArgs": [
+    19
+  ],
+  "packages/cli/src/direct-call.ts overview": [
+    24
+  ],
+  "packages/cli/src/dispatch.ts block dispatch": [
+    7,
+    7
+  ],
+  "packages/cli/src/dispatch.ts docblock sideJob": [
+    11
+  ],
+  "packages/cli/src/exit.test.ts block describe(exitFor).it(refuses to call a run clean while a subject carries an error diagnostic)": [
+    6
+  ],
+  "packages/cli/src/exit.ts docblock OPERATOR_ERROR_MARKER": [
+    14
+  ],
+  "packages/cli/src/exit.ts docblock RefusalKind": [
+    15
+  ],
+  "packages/cli/src/exit.ts docblock exitFor": [
+    45
+  ],
+  "packages/cli/src/exit.ts overview": [
+    24
+  ],
+  "packages/cli/src/here.ts docblock said": [
+    17
+  ],
+  "packages/cli/src/index.ts overview": [
+    32
+  ],
+  "packages/cli/src/parse.ts block": [
+    29
+  ],
+  "packages/cli/src/project-segment.ts docblock projectSegment": [
+    12
+  ],
+  "packages/cli/src/reach-args.ts docblock parseReachArgs": [
+    12
+  ],
+  "packages/cli/src/renderer.ts docblock openRenderer": [
+    12
+  ],
+  "packages/cli/src/renderer.ts docblock rendererFor": [
+    13
+  ],
+  "packages/cli/src/share-entries.ts docblock suiteEntryOf": [
+    24
+  ],
+  "packages/cli/src/share-entries.ts docblock wholeRunAt": [
+    15
+  ],
+  "packages/cli/src/share-entries.ts overview": [
+    20
+  ],
+  "packages/cli/src/share-lines.ts block runLineOf": [
+    6
+  ],
+  "packages/cli/src/share-lines.ts docblock lineOfReader": [
+    11
+  ],
+  "packages/cli/src/share-lines.ts docblock lineOfRun": [
+    11
+  ],
+  "packages/core/src/attribute/boundary.ts block": [
+    31,
+    20
+  ],
+  "packages/core/src/attribute/boundary.ts block LAYOUT_OUTPUT.LAYOUT_OUTPUT": [
+    6
+  ],
+  "packages/core/src/attribute/boundary.ts block ownershipOf": [
+    12
+  ],
+  "packages/core/src/attribute/boundary.ts block shapeOf.walk.walk": [
+    6
+  ],
+  "packages/core/src/attribute/boundary.ts docblock LAYOUT_OUTPUT": [
+    17
+  ],
+  "packages/core/src/attribute/boundary.ts docblock Ownership": [
+    13
+  ],
+  "packages/core/src/attribute/boundary.ts docblock Shape.values": [
+    13
+  ],
+  "packages/core/src/attribute/boundary.ts docblock shapeOf": [
+    18
+  ],
+  "packages/core/src/attribute/call-site.ts docblock CallSiteOptions.sourceRoot": [
+    11
+  ],
+  "packages/core/src/attribute/call-site.ts docblock locateSites": [
+    15
+  ],
+  "packages/core/src/attribute/call-site.ts overview": [
+    25
+  ],
+  "packages/core/src/attribute/closure.ts docblock NodeClosure": [
+    32
+  ],
+  "packages/core/src/attribute/component-hash.ts block": [
+    7
+  ],
+  "packages/core/src/attribute/component-hash.ts block causesBetween": [
+    7
+  ],
+  "packages/core/src/attribute/component-hash.ts docblock ComponentBands": [
+    19
+  ],
+  "packages/core/src/attribute/component-hash.ts docblock causesBetween": [
+    22
+  ],
+  "packages/core/src/attribute/component-hash.ts docblock grewBetween": [
+    12
+  ],
+  "packages/core/src/attribute/component-hash.ts docblock movedBands": [
+    34
+  ],
+  "packages/core/src/attribute/component-hash.ts docblock movedBandsBetween": [
+    12
+  ],
+  "packages/core/src/attribute/composition.ts docblock ComponentEntry.createdBy": [
+    15
+  ],
+  "packages/core/src/attribute/composition.ts docblock exampleOf": [
+    15
+  ],
+  "packages/core/src/attribute/composition.ts docblock structuralComponents": [
+    11
+  ],
+  "packages/core/src/attribute/composition.ts overview": [
+    30
+  ],
+  "packages/core/src/attribute/control.ts overview": [
+    17
+  ],
+  "packages/core/src/attribute/coverage.ts overview": [
+    35
+  ],
+  "packages/core/src/attribute/divergence.ts docblock Divergence": [
+    12
+  ],
+  "packages/core/src/attribute/divergence.ts docblock Divergence.partings": [
+    14
+  ],
+  "packages/core/src/attribute/divergence.ts docblock divergencesOf": [
+    30
+  ],
+  "packages/core/src/attribute/divergence.ts docblock partingsOf": [
+    13
+  ],
+  "packages/core/src/attribute/instability.ts overview": [
+    21
+  ],
+  "packages/core/src/attribute/instances.ts docblock ComponentInstance.wiring": [
+    12
+  ],
+  "packages/core/src/attribute/instances.ts docblock localAliases": [
+    12
+  ],
+  "packages/core/src/attribute/instances.ts overview": [
+    36
+  ],
+  "packages/core/src/attribute/landmark.ts docblock LANDMARK_CAP": [
+    11
+  ],
+  "packages/core/src/attribute/lexicon.ts docblock lexiconOf": [
+    15
+  ],
+  "packages/core/src/attribute/mask.ts docblock excludedBoxes": [
+    12
+  ],
+  "packages/core/src/attribute/mask.ts docblock subtractRegions": [
+    14
+  ],
+  "packages/core/src/attribute/movement.ts docblock Evidence.hashesMoved": [
+    12
+  ],
+  "packages/core/src/attribute/movement.ts docblock editedAncestor": [
+    19
+  ],
+  "packages/core/src/attribute/movement.ts overview": [
+    38
+  ],
+  "packages/core/src/attribute/region.test.ts block": [
+    6
+  ],
+  "packages/core/src/attribute/region.ts block attributeRegions": [
+    9
+  ],
+  "packages/core/src/attribute/region.ts docblock AttributedRegion.unattributed": [
+    11
+  ],
+  "packages/core/src/attribute/region.ts docblock AttributionOptions.before": [
+    11
+  ],
+  "packages/core/src/attribute/region.ts docblock rankRegions": [
+    26
+  ],
+  "packages/core/src/attribute/region.ts overview": [
+    17
+  ],
+  "packages/core/src/attribute/source-map.test.ts docblock VITE_MAP": [
+    15
+  ],
+  "packages/core/src/attribute/source.ts overview": [
+    21
+  ],
+  "packages/core/src/attribute/stack.ts block writerLocationOf": [
+    8
+  ],
+  "packages/core/src/attribute/stack.ts docblock isVendorPath": [
+    11
+  ],
+  "packages/core/src/attribute/stack.ts docblock writerLocationOf": [
+    17
+  ],
+  "packages/core/src/attribute/stack.ts docblock writtenPath": [
+    36
+  ],
+  "packages/core/src/attribute/subject-pieces.ts overview": [
+    18
+  ],
+  "packages/core/src/compare/band.ts block Band": [
+    9
+  ],
+  "packages/core/src/compare/band.ts docblock bandOf": [
+    19
+  ],
+  "packages/core/src/compare/cascade.ts docblock cascadeInputs": [
+    18
+  ],
+  "packages/core/src/compare/derive.ts docblock Variation": [
+    11
+  ],
+  "packages/core/src/compare/derive.ts docblock Variation.digest": [
+    11
+  ],
+  "packages/core/src/compare/diff/attribution.ts block attribute.classify.classify": [
+    16,
+    11,
+    9
+  ],
+  "packages/core/src/compare/diff/attribution.ts docblock USED_VALUE_PROPERTIES": [
+    12
+  ],
+  "packages/core/src/compare/diff/compare-nodes.ts block changedTokenFor": [
+    11,
+    11
+  ],
+  "packages/core/src/compare/diff/compare-nodes.ts block compareNodes": [
+    9,
+    7
+  ],
+  "packages/core/src/compare/diff/index.ts docblock compareTrees": [
+    12
+  ],
+  "packages/core/src/compare/diff/match.ts block matchTrees.matchChildren": [
+    17
+  ],
+  "packages/core/src/compare/explain.ts docblock explainParting": [
+    15
+  ],
+  "packages/core/src/compare/impact.ts overview": [
+    17
+  ],
+  "packages/core/src/compare/instance.ts docblock boundarySnapshot": [
+    21
+  ],
+  "packages/core/src/compare/observability.ts docblock observableBands": [
+    16
+  ],
+  "packages/core/src/compare/parting.ts docblock Parting": [
+    31
+  ],
+  "packages/core/src/compare/parting.ts docblock boundaryNodes": [
+    17
+  ],
+  "packages/core/src/compare/parting.ts docblock pairBoundaries": [
+    17
+  ],
+  "packages/core/src/compare/slice.ts docblock PartingSlice": [
+    33
+  ],
+  "packages/core/src/compare/value.ts overview": [
+    18
+  ],
+  "packages/core/src/format/canonical.test.ts block describe(propsDigest).it(names a DOM node instead of walking into it)": [
+    6
+  ],
+  "packages/core/src/format/capture.ts docblock RawCapture": [
+    13
+  ],
+  "packages/core/src/format/capture.ts docblock RawNode.ignoredBy": [
+    12
+  ],
+  "packages/core/src/format/document.ts docblock Raster": [
+    12
+  ],
+  "packages/core/src/format/document.ts docblock Raster.components": [
+    15
+  ],
+  "packages/core/src/format/document.ts docblock Raster.findingMarks": [
+    18
+  ],
+  "packages/core/src/format/document.ts docblock Raster.snapshot": [
+    15
+  ],
+  "packages/core/src/format/document.ts docblock RenderDocument": [
+    23
+  ],
+  "packages/core/src/format/document.ts docblock RenderIdentity.stabilization": [
+    12
+  ],
+  "packages/core/src/format/document.ts docblock documentDigest": [
+    16
+  ],
+  "packages/core/src/format/drive.ts docblock freezeClockAt": [
+    19
+  ],
+  "packages/core/src/format/drive.ts docblock noFocus": [
+    11
+  ],
+  "packages/core/src/format/drive.ts overview": [
+    22
+  ],
+  "packages/core/src/format/environment.ts docblock EnvironmentInputs.stabilization": [
+    12
+  ],
+  "packages/core/src/format/environment.ts docblock EnvironmentKey.semanticDigest": [
+    16
+  ],
+  "packages/core/src/format/holding.hash.test.ts docblock holding": [
+    11
+  ],
+  "packages/core/src/format/holding.ts docblock Holding": [
+    39
+  ],
+  "packages/core/src/format/holding.ts docblock Holding.unread": [
+    11
+  ],
+  "packages/core/src/format/profile.ts docblock tierOfProfile": [
+    11
+  ],
+  "packages/core/src/format/provenance.ts docblock JSX_SOURCE": [
+    18
+  ],
+  "packages/core/src/format/provenance.ts docblock Provenance.stack": [
+    11
+  ],
+  "packages/core/src/format/provenance.ts docblock asHostObject": [
+    15
+  ],
+  "packages/core/src/format/provenance.ts docblock heldDigest": [
+    13
+  ],
+  "packages/core/src/format/provenance.ts docblock propsDigest": [
+    16
+  ],
+  "packages/core/src/format/provenance.ts docblock relativizeSource": [
+    12
+  ],
+  "packages/core/src/format/sha256.ts block utf8Bytes": [
+    6
+  ],
+  "packages/core/src/format/sha256.ts overview": [
+    23
+  ],
+  "packages/core/src/format/snapshot.ts docblock SemanticNode.holding": [
+    13
+  ],
+  "packages/core/src/format/stabilize.test.ts block describe(waiting for images).it(refuses the subject rather than hanging on a response that never comes)": [
+    6
+  ],
+  "packages/core/src/format/stabilize.ts block hidePresentationalImages.hidePresentationalImages": [
+    6
+  ],
+  "packages/core/src/format/stabilize.ts docblock COLLECT_RECIPE": [
+    20
+  ],
+  "packages/core/src/format/stabilize.ts docblock hideCaret": [
+    11
+  ],
+  "packages/core/src/format/stabilize.ts docblock hidePresentationalImages": [
+    18
+  ],
+  "packages/core/src/format/stabilize.ts overview": [
+    38
+  ],
+  "packages/core/src/format/tier.ts docblock Tier": [
+    11
+  ],
+  "packages/core/src/format/value.ts docblock opaque": [
+    12
+  ],
+  "packages/core/src/format/waits.ts block waitForImages.waitForImages.settle": [
+    19,
+    11,
+    8
+  ],
+  "packages/core/src/format/wiring.ts docblock Wiring.hooks": [
+    11
+  ],
+  "packages/core/src/format/wiring.ts overview": [
+    33
+  ],
+  "packages/core/src/index.ts overview": [
+    19
+  ],
+  "packages/core/src/judge/fingerprint.ts docblock fingerprintOfMask": [
+    14
+  ],
+  "packages/core/src/judge/fingerprint.ts docblock sizeBucket": [
+    11
+  ],
+  "packages/core/src/judge/fingerprint.ts overview": [
+    16
+  ],
+  "packages/core/src/judge/ignore.ts block": [
+    38
+  ],
+  "packages/core/src/judge/index.ts overview": [
+    17
+  ],
+  "packages/core/src/judge/inspect.ts block inspect.visit": [
+    6,
+    6
+  ],
+  "packages/core/src/judge/inspect.ts docblock exposed": [
+    12
+  ],
+  "packages/core/src/judge/inspect.ts docblock findingMark": [
+    12
+  ],
+  "packages/core/src/judge/inspect.ts overview": [
+    43
+  ],
+  "packages/core/src/judge/intent.ts docblock adjudicate": [
+    12
+  ],
+  "packages/core/src/judge/intent.ts overview": [
+    16
+  ],
+  "packages/core/src/judge/locale.test.ts docblock ExpressionStatement": [
+    11
+  ],
+  "packages/core/src/judge/locale.ts block": [
+    6
+  ],
+  "packages/core/src/judge/locale.ts docblock LocaleComparison.uncompared": [
+    14
+  ],
+  "packages/core/src/judge/locale.ts docblock pairByPosition": [
+    21
+  ],
+  "packages/core/src/judge/locale.ts overview": [
+    22
+  ],
+  "packages/core/src/judge/sensitivity.test.ts block describe(a route that asserts on layout).it(still reports a control whose announced state changed)": [
+    8
+  ],
+  "packages/core/src/judge/sensitivity.ts block Level": [
+    9
+  ],
+  "packages/core/src/judge/sensitivity.ts docblock asIgnore": [
+    11
+  ],
+  "packages/core/src/judge/sensitivity.ts docblock relaxes": [
+    13
+  ],
+  "packages/core/src/judge/sensitivity.ts overview": [
+    29
+  ],
+  "packages/core/src/judge/trail.ts overview": [
+    34
+  ],
+  "packages/core/src/nearest.ts overview": [
+    19
+  ],
+  "packages/core/src/relate/before.ts overview": [
+    51
+  ],
+  "packages/core/src/relate/beyond.ts overview": [
+    21
+  ],
+  "packages/core/src/relate/carried.ts block carried": [
+    8
+  ],
+  "packages/core/src/relate/carried.ts overview": [
+    31
+  ],
+  "packages/core/src/relate/graph.ts overview": [
+    55
+  ],
+  "packages/core/src/relate/merkle.ts docblock CLOSURE_EDGES": [
+    15
+  ],
+  "packages/core/src/relate/merkle.ts overview": [
+    35
+  ],
+  "packages/core/src/relate/narrow.ts overview": [
+    20
+  ],
+  "packages/core/src/relate/reach.ts overview": [
+    20
+  ],
+  "packages/core/src/relate/records.ts block": [
+    10
+  ],
+  "packages/core/src/relate/records.ts docblock affectedBy": [
+    14
+  ],
+  "packages/core/src/rules/normalize/cascade.ts block resolveStyle": [
+    9,
+    7,
+    6
+  ],
+  "packages/core/src/rules/normalize/cascade.ts docblock tokenValue": [
+    13
+  ],
+  "packages/core/src/rules/normalize/index.ts block normalize": [
+    8
+  ],
+  "packages/core/src/rules/normalize/index.ts docblock rooted": [
+    16
+  ],
+  "packages/core/src/rules/normalize/shorthand.ts block EXPANDERS.EXPANDERS": [
+    7
+  ],
+  "packages/core/src/rules/normalize/wrapper.ts block isInertWrapper": [
+    13,
+    13,
+    9
+  ],
+  "packages/core/src/rules/ruleset.ts docblock ALLOWED": [
+    11
+  ],
+  "packages/core/src/rules/ruleset.ts docblock ALLOWLIST_VERSION": [
+    11
+  ],
+  "packages/core/src/rules/ruleset.ts docblock ATTRIBUTE_ALLOWLIST": [
+    11
+  ],
+  "packages/core/src/rules/ruleset.ts docblock RULESET_VERSION": [
+    13
+  ],
+  "packages/core/src/rules/ruleset.ts docblock STYLE_ALLOWLIST": [
+    21
+  ],
+  "packages/core/src/segment/index.ts overview": [
+    24
+  ],
+  "packages/core/src/shard/placement.ts docblock shardCount": [
+    11
+  ],
+  "packages/core/src/shard/placement.ts overview": [
+    18
+  ],
+  "packages/core/src/share/index.ts overview": [
+    21
+  ],
+  "packages/core/src/share/line.ts overview": [
+    16
+  ],
+  "packages/distill/src/attribution.ts docblock Attribution": [
+    12
+  ],
+  "packages/distill/src/charge.ts docblock ImportCharge": [
+    18
+  ],
+  "packages/distill/src/charge.ts docblock reachLine": [
+    12
+  ],
+  "packages/distill/src/file.ts docblock distillFile": [
+    13
+  ],
+  "packages/distill/src/own.ts docblock LoadCause": [
+    14
+  ],
+  "packages/dom/src/aria.ts block accessibleName": [
+    7
+  ],
+  "packages/dom/src/aria.ts block roleOf": [
+    7
+  ],
+  "packages/dom/src/aria.ts docblock accessibleDescription": [
+    13
+  ],
+  "packages/dom/src/aria.ts docblock transformOf": [
+    16
+  ],
+  "packages/dom/src/aria.ts docblock visibleText": [
+    32
+  ],
+  "packages/dom/src/assets.ts overview": [
+    18
+  ],
+  "packages/dom/src/attributed.ts overview": [
+    43
+  ],
+  "packages/dom/src/collect.ts block": [
+    12
+  ],
+  "packages/dom/src/collect.ts block captureNode": [
+    6
+  ],
+  "packages/dom/src/collect.ts docblock CollectOptions.index": [
+    17
+  ],
+  "packages/dom/src/css-index.ts block": [
+    10
+  ],
+  "packages/dom/src/css-index.ts block indexStyleSheets": [
+    12
+  ],
+  "packages/dom/src/css-index.ts docblock StyleIndex.evaluatedConditions": [
+    16
+  ],
+  "packages/dom/src/css-index.ts docblock conditionKey": [
+    11
+  ],
+  "packages/dom/src/css-index.ts docblock isStabilizationSheet": [
+    20
+  ],
+  "packages/dom/src/css-match.ts docblock MatchResult.couplings": [
+    11
+  ],
+  "packages/dom/src/declarations.ts block declarationsOf": [
+    11,
+    8
+  ],
+  "packages/dom/src/document.test.ts docblock ExpressionStatement": [
+    11
+  ],
+  "packages/dom/src/document.ts block applicableCss": [
+    14
+  ],
+  "packages/dom/src/document.ts docblock materializeAttributes": [
+    18
+  ],
+  "packages/dom/src/document.ts docblock settleStamps": [
+    26
+  ],
+  "packages/dom/src/document.ts overview": [
+    20
+  ],
+  "packages/dom/src/form-state.ts overview": [
+    22
+  ],
+  "packages/dom/src/generated-box.ts docblock GENERATED_BOXES": [
+    12
+  ],
+  "packages/dom/src/inherit.ts docblock declaredAncestorSeed": [
+    12
+  ],
+  "packages/dom/src/media.ts docblock evaluateSupports": [
+    11
+  ],
+  "packages/dom/src/object-urls.ts overview": [
+    25
+  ],
+  "packages/dom/src/painted-styles.ts docblock paintedStyles": [
+    19
+  ],
+  "packages/dom/src/stabilize.ts block stabilizeForObservation": [
+    18
+  ],
+  "packages/dom/src/stabilize.ts docblock StabilizeOptions.tier": [
+    17
+  ],
+  "packages/dom/src/stabilize.ts overview": [
+    26
+  ],
+  "packages/dom/src/style-index.test.ts block describe(reusing a style index).it(collects against the index it was given instead of rebuilding one per subject)": [
+    6
+  ],
+  "packages/dom/src/style-index.test.ts block describe(reusing a style index).it(refuses an index built for a different viewport rather than answering for the wrong one)": [
+    6
+  ],
+  "packages/dom/src/style-index.test.ts block describe(the cost of rebuilding the index per subject)": [
+    6
+  ],
+  "packages/dom/src/style-index.test.ts block describe(the cost of rebuilding the index per subject).it(falls materially when one index is shared across the subjects of a document)": [
+    6
+  ],
+  "packages/dom/src/style-index.test.ts overview": [
+    18
+  ],
+  "packages/dom/src/typeface.ts docblock hostChosenFonts": [
+    16
+  ],
+  "packages/editors/scripts/build.mjs block": [
+    7
+  ],
+  "packages/event/src/head.ts overview": [
+    18
+  ],
+  "packages/event/src/index.ts docblock varianceBreadcrumb": [
+    21
+  ],
+  "packages/event/src/index.ts overview": [
+    51
+  ],
+  "packages/eyes/src/access.ts docblock eyesTestAttention": [
+    11
+  ],
+  "packages/eyes/src/rtl.ts docblock watchTest": [
+    16
+  ],
+  "packages/help/src/ask.ts docblock ask": [
+    11
+  ],
+  "packages/help/src/caught-up.ts docblock caughtUp": [
+    23
+  ],
+  "packages/help/src/dependency-scale.measure.ts overview": [
+    22
+  ],
+  "packages/help/src/index.ts overview": [
+    22
+  ],
+  "packages/help/src/indexed-surface.ts block indexedNames.namesAt.namesAt": [
+    11
+  ],
+  "packages/help/src/read.ts block scanIndexed.records.records": [
+    6
+  ],
+  "packages/help/src/read.ts docblock IndexedUsageOptions.records": [
+    12
+  ],
+  "packages/help/src/read.ts docblock readWorkspace": [
+    11
+  ],
+  "packages/help/src/read.ts overview": [
+    25
+  ],
+  "packages/help/src/refresh-native.ts docblock refreshOver": [
+    17
+  ],
+  "packages/help/src/scan-scope.ts docblock scanScope": [
+    13
+  ],
+  "packages/help/src/search-index.ts block": [
+    17
+  ],
+  "packages/help/src/search-read.ts docblock readSearchForAnswer": [
+    15
+  ],
+  "packages/help/src/server.ts block serveWorkspace": [
+    13
+  ],
+  "packages/help/src/tools.ts docblock dated": [
+    47
+  ],
+  "packages/help/src/tools/area.ts overview": [
+    36
+  ],
+  "packages/help/src/tools/described.ts overview": [
+    49
+  ],
+  "packages/help/src/tools/discover.ts overview": [
+    31
+  ],
+  "packages/help/src/tools/entrypoint.ts docblock entrypoint": [
+    17
+  ],
+  "packages/help/src/tools/exported-matches.ts docblock exported": [
+    15
+  ],
+  "packages/help/src/tools/find.ts docblock doorOf": [
+    12
+  ],
+  "packages/help/src/tools/grep.ts overview": [
+    16
+  ],
+  "packages/help/src/tools/intersection.ts overview": [
+    17
+  ],
+  "packages/help/src/tools/loose.ts overview": [
+    19
+  ],
+  "packages/help/src/tools/members.ts overview": [
+    19
+  ],
+  "packages/help/src/tools/orient.ts overview": [
+    21
+  ],
+  "packages/help/src/tools/search-answer.ts block searched": [
+    6
+  ],
+  "packages/help/src/tools/search-answer.ts docblock surface": [
+    14
+  ],
+  "packages/help/src/tools/search.ts block answerSearch": [
+    6
+  ],
+  "packages/help/src/tools/search.ts overview": [
+    75
+  ],
+  "packages/help/src/tools/silent.ts docblock silentBlocks": [
+    11
+  ],
+  "packages/help/src/tools/uses.ts overview": [
+    69
+  ],
+  "packages/history/src/absent.ts block createAbsentStore.current": [
+    7
+  ],
+  "packages/history/src/absent.ts overview": [
+    19
+  ],
+  "packages/history/src/approval.ts overview": [
+    17
+  ],
+  "packages/history/src/churn.ts block accumulateChurn": [
+    7
+  ],
+  "packages/history/src/churn.ts overview": [
+    25
+  ],
+  "packages/history/src/flakiness.ts overview": [
+    23
+  ],
+  "packages/history/src/observation.ts block observationsFrom": [
+    7
+  ],
+  "packages/history/src/observation.ts docblock RunRecord.swept": [
+    13
+  ],
+  "packages/history/src/observation.ts docblock observationsFrom": [
+    19
+  ],
+  "packages/history/src/store.ts docblock HistoryStore.current": [
+    24
+  ],
+  "packages/ioc/README.md lead": [
+    18
+  ],
+  "packages/ioc/src/reset/index.ts docblock registerResetHandler": [
+    31
+  ],
+  "packages/ioc/src/reset/setup.ts docblock configureResetHandler": [
+    24
+  ],
+  "packages/ioc/src/reset/state.ts docblock ResetHandler": [
+    13
+  ],
+  "packages/isolator/README.md lead": [
+    24
+  ],
+  "packages/isolator/src/jest.ts overview": [
+    21
+  ],
+  "packages/isolator/src/transform.ts overview": [
+    29
+  ],
+  "packages/jsx-source/jest-resolver.cjs overview": [
+    19
+  ],
+  "packages/mcp/README.md lead": [
+    17
+  ],
+  "packages/mcp/scripts/locate-corpus.mjs block": [
+    27
+  ],
+  "packages/mcp/scripts/locate-place.mjs block": [
+    23
+  ],
+  "packages/mcp/scripts/locate-scale.mjs block": [
+    12
+  ],
+  "packages/mcp/scripts/locate-sheet.mjs block": [
+    22
+  ],
+  "packages/mcp/src/bin.ts overview": [
+    17
+  ],
+  "packages/mcp/src/index.ts overview": [
+    22
+  ],
+  "packages/mcp/src/server.ts docblock ServerOptions.answered": [
+    12
+  ],
+  "packages/mcp/src/server.ts docblock ServerOptions.subject": [
+    11
+  ],
+  "packages/mcp/src/tools.ts docblock VANTAGE_TOOLS": [
+    14
+  ],
+  "packages/mcp/src/tools.ts overview": [
+    61
+  ],
+  "packages/mcp/src/tools/adjudicate.ts docblock adjudicate": [
+    17
+  ],
+  "packages/mcp/src/tools/changed-tests.ts docblock changedTests": [
+    15
+  ],
+  "packages/mcp/src/tools/changelog.ts overview": [
+    26
+  ],
+  "packages/mcp/src/tools/changes.ts docblock changes": [
+    12
+  ],
+  "packages/mcp/src/tools/composition.ts overview": [
+    19
+  ],
+  "packages/mcp/src/tools/continue.ts docblock Releasing": [
+    11
+  ],
+  "packages/mcp/src/tools/describe.ts block describe.describe.run.lines.lines": [
+    6
+  ],
+  "packages/mcp/src/tools/describe.ts docblock findingLines": [
+    12
+  ],
+  "packages/mcp/src/tools/findings.ts docblock findings": [
+    22
+  ],
+  "packages/mcp/src/tools/hops.ts overview": [
+    67
+  ],
+  "packages/mcp/src/tools/locate.test.ts block describe(locateSubjects — the rank, in integers).it(counts rarity per field, so a region every subject entered does not dull the word in an id)": [
+    6
+  ],
+  "packages/mcp/src/tools/locate.ts block": [
+    66
+  ],
+  "packages/mcp/src/tools/locate.ts docblock relationArgument": [
+    13
+  ],
+  "packages/mcp/src/tools/orient.test.ts block describe(the relation the reading cannot support).it(still answers a containment question, which needs no rectangles)": [
+    6
+  ],
+  "packages/mcp/src/tools/orient.ts block orient": [
+    6
+  ],
+  "packages/mcp/src/tools/orient.ts docblock anchors": [
+    16
+  ],
+  "packages/mcp/src/tools/orient.ts overview": [
+    29
+  ],
+  "packages/mcp/src/tools/recall.ts docblock recall": [
+    13
+  ],
+  "packages/mcp/src/tools/scope-reach.test.ts block describe(the path is the entrance, not the room).it(holds a file both areas import, and what that file produced elsewhere)": [
+    7
+  ],
+  "packages/mcp/src/tools/scope.test.ts block describe(the tree says what exists, and the run says what it produced).it(says the two sides spell paths differently, rather than answering nothing)": [
+    6
+  ],
+  "packages/mcp/src/tools/scope.ts block scopeLine": [
+    6
+  ],
+  "packages/mcp/src/tools/scope.ts docblock Scope.recorded": [
+    11
+  ],
+  "packages/mcp/src/tools/scope.ts docblock scopeOf": [
+    15
+  ],
+  "packages/mcp/src/tools/scope.ts overview": [
+    34
+  ],
+  "packages/mcp/src/tools/self.ts docblock self": [
+    11
+  ],
+  "packages/mcp/src/tools/start-point.ts docblock START_POINT_SCHEMA": [
+    12
+  ],
+  "packages/mcp/src/tools/start-point.ts overview": [
+    39
+  ],
+  "packages/mcp/src/tools/summary.ts block summarize.summarize.run": [
+    12
+  ],
+  "packages/mcp/src/tools/summary.ts block summarize.summarize.run.join(\n)": [
+    8
+  ],
+  "packages/mcp/src/tools/summary.ts docblock instability": [
+    18
+  ],
+  "packages/mcp/src/tools/summary.ts docblock orderDependence": [
+    14
+  ],
+  "packages/mcp/src/tools/summary.ts docblock remedies": [
+    11
+  ],
+  "packages/mcp/src/tools/summary.ts docblock summarize": [
+    14
+  ],
+  "packages/mcp/src/tools/tree.ts overview": [
+    28
+  ],
+  "packages/mcp/src/tools/variations.ts overview": [
+    18
+  ],
+  "packages/observe/src/attribution.ts docblock attributionOf": [
+    13
+  ],
+  "packages/observe/src/because.ts docblock forgiveness": [
+    13
+  ],
+  "packages/observe/src/because.ts docblock unjoined": [
+    13
+  ],
+  "packages/observe/src/causes.test.ts block describe(a warm render cache).it(does not let a previous run’s hashes answer for this one)": [
+    6
+  ],
+  "packages/observe/src/causes.test.ts block describe(what the cause list drops, and the band record keeps).it(reports the enclosure that only moved, and does not call it a cause)": [
+    6
+  ],
+  "packages/observe/src/decide.ts block decide": [
+    17,
+    6
+  ],
+  "packages/observe/src/decide.ts docblock declaredIgnores": [
+    13
+  ],
+  "packages/observe/src/decide.ts docblock relaxedVerdict": [
+    13
+  ],
+  "packages/observe/src/frame.ts docblock frameDiagnostics": [
+    17
+  ],
+  "packages/observe/src/ignore.test.ts block describe(absorbing by shape rather than by place).it(does not absorb the same shape an order of magnitude larger)": [
+    6
+  ],
+  "packages/observe/src/observe.ts block RasterVerdict": [
+    7
+  ],
+  "packages/observe/src/observe.ts docblock observeRasters": [
+    18
+  ],
+  "packages/observe/src/parity.test.ts block describe(switching where baselines are kept).it(carries the fonts the baseline was painted without, wherever it is kept)": [
+    7
+  ],
+  "packages/observe/src/parity.test.ts block describe(switching where baselines are kept).it(survives its render cache being broken, wherever the baseline is kept)": [
+    7
+  ],
+  "packages/observe/src/render-once.ts block renderOnce": [
+    7
+  ],
+  "packages/observe/src/render-once.ts docblock renderOnce": [
+    12
+  ],
+  "packages/observe/src/render-once.ts docblock withEvidence": [
+    16
+  ],
+  "packages/observe/src/sensitivity.test.ts overview": [
+    18
+  ],
+  "packages/observe/src/summarize.ts block line": [
+    7
+  ],
+  "packages/observe/src/summarize.ts block summarizeObservation": [
+    7
+  ],
+  "packages/observe/src/summarize.ts docblock summarizeObservation": [
+    13
+  ],
+  "packages/observe/src/unpictured.ts block withoutPixels": [
+    7
+  ],
+  "packages/observe/src/unpictured.ts docblock documentMovedUnpainted": [
+    18
+  ],
+  "packages/observe/src/unpictured.ts docblock withoutPixels": [
+    11
+  ],
+  "packages/package/src/doc.ts overview": [
+    23
+  ],
+  "packages/package/src/help.ts docblock Help.exported": [
+    11
+  ],
+  "packages/package/src/help.ts overview": [
+    21
+  ],
+  "packages/package/src/manifest.ts block": [
+    14,
+    7
+  ],
+  "packages/package/src/manifest.ts docblock declarationsOf": [
+    12
+  ],
+  "packages/package/src/members.ts docblock members": [
+    30
+  ],
+  "packages/package/src/mention.ts overview": [
+    20
+  ],
+  "packages/package/src/use.ts overview": [
+    23
+  ],
+  "packages/package/src/write.ts overview": [
+    18
+  ],
+  "packages/playwright-test/README.md lead": [
+    22
+  ],
+  "packages/playwright-test/src/bundle.ts docblock bundlePageAgent": [
+    11
+  ],
+  "packages/playwright-test/src/cadence-babel.cts overview": [
+    17
+  ],
+  "packages/playwright-test/src/completed.ts block varianceCompletedFixtures.varianceCompletedFixtures.varianceCompleted": [
+    6
+  ],
+  "packages/playwright-test/src/completed.ts docblock usableOutcome": [
+    17
+  ],
+  "packages/playwright-test/src/completed.ts docblock varianceCompletedFixtures": [
+    13
+  ],
+  "packages/playwright-test/src/docket.ts docblock describeObservation": [
+    15
+  ],
+  "packages/playwright-test/src/documents.ts docblock drainEachStatement": [
+    14
+  ],
+  "packages/playwright-test/src/documents.ts overview": [
+    18
+  ],
+  "packages/playwright-test/src/execution.ts block createExecutionRecorder.contribute": [
+    10,
+    6
+  ],
+  "packages/playwright-test/src/execution.ts block createExecutionRecorder.mark": [
+    6
+  ],
+  "packages/playwright-test/src/fixture.ts block varianceFixtures.varianceFixtures": [
+    6
+  ],
+  "packages/playwright-test/src/fixture.ts block varianceFixtures.varianceFixtures.variance": [
+    7
+  ],
+  "packages/playwright-test/src/fixture.ts overview": [
+    22
+  ],
+  "packages/playwright-test/src/in-place.ts block stableRaster": [
+    7,
+    6
+  ],
+  "packages/playwright-test/src/in-place.ts docblock settledCapture": [
+    11
+  ],
+  "packages/playwright-test/src/matcher.ts block": [
+    7
+  ],
+  "packages/playwright-test/src/options.ts docblock VarianceOptions.stabilize": [
+    15
+  ],
+  "packages/playwright-test/src/promote.ts block promote": [
+    6
+  ],
+  "packages/playwright-test/src/render-cache.ts docblock checkoutStore": [
+    11
+  ],
+  "packages/playwright-test/src/renderers.ts overview": [
+    17
+  ],
+  "packages/playwright-test/src/reporter.ts overview": [
+    25
+  ],
+  "packages/playwright-test/src/rstest.ts overview": [
+    16
+  ],
+  "packages/playwright-test/src/run.ts docblock baselineKeyOf": [
+    11
+  ],
+  "packages/playwright-test/src/vantage.ts overview": [
+    48
+  ],
+  "packages/playwright-test/src/whole-file-shard.ts overview": [
+    19
+  ],
+  "packages/playwright-test/src/with-test-selection.ts docblock withTestSelection": [
+    16
+  ],
+  "packages/playwright-test/src/with-test-selection.ts overview": [
+    18
+  ],
+  "packages/playwright/scripts/execute.mjs block": [
+    28
+  ],
+  "packages/playwright/scripts/host.mjs block": [
+    34
+  ],
+  "packages/playwright/scripts/host.mjs docblock outward": [
+    15
+  ],
+  "packages/playwright/scripts/paint.mjs block": [
+    29
+  ],
+  "packages/playwright/src/acquire.ts docblock acquireFromAgent": [
+    32
+  ],
+  "packages/playwright/src/arrivals.ts docblock watchArrivals": [
+    19
+  ],
+  "packages/playwright/src/blank.ts docblock imageSize": [
+    11
+  ],
+  "packages/playwright/src/blank.ts overview": [
+    39
+  ],
+  "packages/playwright/src/browsers.ts overview": [
+    16
+  ],
+  "packages/playwright/src/capture.ts docblock captureSubject": [
+    55
+  ],
+  "packages/playwright/src/declarations.ts docblock DeclarationReader": [
+    26
+  ],
+  "packages/playwright/src/engines.chromium.test.ts block gated(one document, every declared engine).it(measures how far apart the engines actually are)": [
+    8
+  ],
+  "packages/playwright/src/engines.chromium.test.ts overview": [
+    20
+  ],
+  "packages/playwright/src/engines.ts docblock BrowserEngine": [
+    13
+  ],
+  "packages/playwright/src/gif.ts overview": [
+    30
+  ],
+  "packages/playwright/src/harness.chromium.test.ts docblock ExpressionStatement": [
+    11
+  ],
+  "packages/playwright/src/harness.ts docblock checkAgent": [
+    17
+  ],
+  "packages/playwright/src/index.ts overview": [
+    20
+  ],
+  "packages/playwright/src/modules.ts docblock fetchModules": [
+    15
+  ],
+  "packages/playwright/src/network.fixture.ts block animatedGif.frame.frame": [
+    10
+  ],
+  "packages/playwright/src/network.ts overview": [
+    34
+  ],
+  "packages/playwright/src/page-pool.ts block PagePool": [
+    6
+  ],
+  "packages/playwright/src/pause.ts docblock pauseByProtocol": [
+    18
+  ],
+  "packages/playwright/src/renderer.chromium.test.ts block it(returns a page to the pool when a render throws, rather than deadlocking).broken.broken": [
+    8
+  ],
+  "packages/playwright/src/renderer.ts block createPlaywrightRenderer.identity.identity": [
+    13
+  ],
+  "packages/playwright/src/renderer.ts block createPlaywrightRenderer.render": [
+    10
+  ],
+  "packages/playwright/src/renderer.ts docblock CHROMIUM_RASTER_ARGS": [
+    16
+  ],
+  "packages/playwright/src/renderer.ts docblock ExportNamedDeclaration": [
+    23
+  ],
+  "packages/playwright/src/renderer.ts docblock PlaywrightRendererOptions.concurrency": [
+    13
+  ],
+  "packages/playwright/src/renderer.ts docblock probeFonts": [
+    20
+  ],
+  "packages/playwright/src/resources.ts docblock serveOpenFaces": [
+    11
+  ],
+  "packages/playwright/src/viewport.ts docblock widthsOf": [
+    13
+  ],
+  "packages/png-sharp/src/index.ts docblock sharpDecoder": [
+    26
+  ],
+  "packages/png/src/align.ts docblock AlignedRows": [
+    28
+  ],
+  "packages/png/src/align.ts docblock explainsMore": [
+    15
+  ],
+  "packages/png/src/align.ts docblock pairing": [
+    15
+  ],
+  "packages/png/src/change.ts docblock ChangeImages": [
+    19
+  ],
+  "packages/png/src/compare.ts docblock PngDecoder": [
+    14
+  ],
+  "packages/png/src/difference.test.ts block describe(what a severity threshold cannot express).it(antialias forgiveness is spatial, so it is not a level set of any field)": [
+    7
+  ],
+  "packages/png/src/edit-script.ts docblock edits": [
+    17
+  ],
+  "packages/png/src/foreign.ts docblock foreignRaster": [
+    14
+  ],
+  "packages/png/src/foreign.ts overview": [
+    26
+  ],
+  "packages/png/src/mask.ts docblock differencePixels": [
+    12
+  ],
+  "packages/presentation/src/analyze.ts docblock fontsOf": [
+    13
+  ],
+  "packages/raster/src/assemble.ts block assemble.join()": [
+    8
+  ],
+  "packages/raster/src/assemble.ts docblock sheet": [
+    15
+  ],
+  "packages/raster/src/codec.ts block sidecarFrom": [
+    6
+  ],
+  "packages/raster/src/difference/index.ts overview": [
+    40
+  ],
+  "packages/raster/src/difference/metric.ts docblock YIQ_DISTANCE": [
+    28
+  ],
+  "packages/raster/src/difference/serialize.ts overview": [
+    19
+  ],
+  "packages/raster/src/ephemeral.ts docblock createEphemeralStore": [
+    17
+  ],
+  "packages/raster/src/gate.ts overview": [
+    22
+  ],
+  "packages/raster/src/index.ts overview": [
+    24
+  ],
+  "packages/raster/src/policy.ts docblock DEFAULT_POLICY": [
+    12
+  ],
+  "packages/raster/src/renderer.ts block describeIdentity": [
+    8
+  ],
+  "packages/raster/src/renderer.ts docblock Renderer": [
+    13
+  ],
+  "packages/raster/src/renderer.ts docblock Renderer.identityFor": [
+    14
+  ],
+  "packages/raster/src/renderer.ts docblock identityDifference": [
+    19
+  ],
+  "packages/raster/src/settle.ts block settle": [
+    7
+  ],
+  "packages/raster/src/settle.ts docblock settle": [
+    60
+  ],
+  "packages/raster/src/store.test.ts block describe(a record that claims to be a raster).it(carries every field the identity digest covers, including the optional ones)": [
+    9
+  ],
+  "packages/raster/src/store.ts docblock Described.components": [
+    13
+  ],
+  "packages/raster/src/store.ts docblock Described.keepsSnapshot": [
+    14
+  ],
+  "packages/raster/src/store.ts docblock Described.pictured": [
+    13
+  ],
+  "packages/raster/src/store.ts docblock RasterStore.describe": [
+    15
+  ],
+  "packages/raster/src/store.ts docblock RasterStore.expect": [
+    13
+  ],
+  "packages/raster/src/store.ts docblock RasterStore.unplanned": [
+    28
+  ],
+  "packages/raster/src/store.ts docblock RasterStoreError": [
+    12
+  ],
+  "packages/raster/src/store.ts docblock RenderCache": [
+    29
+  ],
+  "packages/raster/src/store.ts docblock identityFrom": [
+    18
+  ],
+  "packages/raster/src/store.ts overview": [
+    21
+  ],
+  "packages/react/src/arrival.ts docblock awaitSuspense": [
+    13
+  ],
+  "packages/react/src/arrival.ts docblock suspenseRefusal": [
+    18
+  ],
+  "packages/react/src/callsite.test.tsx block describe(the reach of it).it(yields to a location a runtime recorded, rather than duplicating it)": [
+    7
+  ],
+  "packages/react/src/commits.ts block TapRefusal": [
+    7
+  ],
+  "packages/react/src/commits.ts docblock PERFORMED_WORK": [
+    12
+  ],
+  "packages/react/src/commits.ts docblock tapCommits": [
+    15
+  ],
+  "packages/react/src/commits.ts overview": [
+    31
+  ],
+  "packages/react/src/declared.ts docblock DeclaredComponents": [
+    13
+  ],
+  "packages/react/src/fiber.ts docblock Fiber._debugStack": [
+    12
+  ],
+  "packages/react/src/fiber.ts docblock currentFiber": [
+    16
+  ],
+  "packages/react/src/fiber.ts docblock isOwnerFrame": [
+    17
+  ],
+  "packages/react/src/holding.ts block cellsOf": [
+    11
+  ],
+  "packages/react/src/holding.ts block holdingOf": [
+    7
+  ],
+  "packages/react/src/holding.ts overview": [
+    43
+  ],
+  "packages/react/src/hydration.ts block HydrationState": [
+    7
+  ],
+  "packages/react/src/hydration.ts docblock HydrationWaitOptions.outstanding": [
+    13
+  ],
+  "packages/react/src/hydration.ts overview": [
+    57
+  ],
+  "packages/react/src/identity.ts overview": [
+    36
+  ],
+  "packages/react/src/index.ts overview": [
+    16
+  ],
+  "packages/react/src/names.ts docblock fiberComponentName": [
+    13
+  ],
+  "packages/react/src/props.ts docblock DigestPass": [
+    18
+  ],
+  "packages/react/src/props.ts docblock boundaryPropsDigest": [
+    18
+  ],
+  "packages/react/src/props.ts docblock digestableProps": [
+    14
+  ],
+  "packages/react/src/resolve.ts docblock callSiteFrames": [
+    14
+  ],
+  "packages/react/src/resolve.ts docblock sourceLocation": [
+    27
+  ],
+  "packages/react/src/root-state.ts docblock rootCommitted": [
+    25
+  ],
+  "packages/react/src/root-state.ts docblock rootHasWork": [
+    16
+  ],
+  "packages/react/src/suspense.ts docblock SuspenseState": [
+    13
+  ],
+  "packages/react/src/suspense.ts docblock boundariesUnder": [
+    18
+  ],
+  "packages/react/src/suspense.ts overview": [
+    18
+  ],
+  "packages/react/src/wiring.test.tsx block describe(hook shape).it(says nothing about a component that declares no hooks)": [
+    7
+  ],
+  "packages/react/src/wiring.ts block wiringOf": [
+    9
+  ],
+  "packages/react/src/wiring.ts docblock climb": [
+    12
+  ],
+  "packages/react/src/wiring.ts docblock hookNames": [
+    12
+  ],
+  "packages/react/src/wiring.ts overview": [
+    38
+  ],
+  "packages/reads/README.md lead": [
+    20
+  ],
+  "packages/remote/src/answers.ts block": [
+    13
+  ],
+  "packages/remote/src/answers.ts block readDescribed": [
+    7
+  ],
+  "packages/remote/src/batch.ts block batching": [
+    8
+  ],
+  "packages/remote/src/batch.ts overview": [
+    21
+  ],
+  "packages/remote/src/store-described.test.ts block describe(a description that cannot be trusted).it(refuses a description that does not say which fonts were missing)": [
+    6
+  ],
+  "packages/remote/src/store.test.ts block describe(a store that cannot answer).it(answers a cache body it cannot read as a miss, where a baseline body refuses)": [
+    7
+  ],
+  "packages/remote/src/store.ts block": [
+    9
+  ],
+  "packages/remote/src/store.ts block createRemoteStore": [
+    11
+  ],
+  "packages/remote/src/store.ts docblock workingSet": [
+    11
+  ],
+  "packages/remote/src/store.ts overview": [
+    39
+  ],
+  "packages/remote/src/transport.ts overview": [
+    24
+  ],
+  "packages/report/src/changelog-message.ts docblock changelogBody": [
+    15
+  ],
+  "packages/report/src/changelog-message.ts docblock describe": [
+    13
+  ],
+  "packages/report/src/changelog-message.ts overview": [
+    39
+  ],
+  "packages/report/src/changelog.test.ts block describe(the commit message is the store).it(keeps a field it does not know, so a newer writer does not lose it here)": [
+    6
+  ],
+  "packages/report/src/changelog.test.ts block describe(the commit message is the store).it(round-trips a record through a message a reviewer can also read)": [
+    8
+  ],
+  "packages/report/src/changelog.ts block changelogOf": [
+    10
+  ],
+  "packages/report/src/changelog.ts block driftOf": [
+    6
+  ],
+  "packages/report/src/changelog.ts docblock ChangelogOptions.entries": [
+    19
+  ],
+  "packages/report/src/changelog.ts overview": [
+    55
+  ],
+  "packages/report/src/cluster.ts block": [
+    7
+  ],
+  "packages/report/src/cluster.ts docblock clusterChanges": [
+    11
+  ],
+  "packages/report/src/cluster.ts overview": [
+    39
+  ],
+  "packages/report/src/composition.ts docblock ComponentRecord.createdBy": [
+    12
+  ],
+  "packages/report/src/composition.ts overview": [
+    23
+  ],
+  "packages/report/src/declarations.ts docblock IgnoreState": [
+    13
+  ],
+  "packages/report/src/declarations.ts overview": [
+    19
+  ],
+  "packages/report/src/file.ts docblock readRunReport": [
+    11
+  ],
+  "packages/report/src/finding-record.ts docblock FindingRecord.standing": [
+    12
+  ],
+  "packages/report/src/findings.ts docblock byArrival": [
+    18
+  ],
+  "packages/report/src/findings.ts overview": [
+    32
+  ],
+  "packages/report/src/format.ts docblock ObservationRecord.alone": [
+    12
+  ],
+  "packages/report/src/format.ts docblock ObservationRecord.findings": [
+    16
+  ],
+  "packages/report/src/format.ts docblock ObservationRecord.unstable": [
+    15
+  ],
+  "packages/report/src/format.ts docblock ObservationRecord.unstable.absorbed": [
+    15
+  ],
+  "packages/report/src/format.ts docblock RunReport.flakiness": [
+    15
+  ],
+  "packages/report/src/format.ts docblock RunReport.narrowing": [
+    11
+  ],
+  "packages/report/src/format.ts docblock RunReport.notObserved": [
+    12
+  ],
+  "packages/report/src/format.ts docblock RunReport.reach": [
+    11
+  ],
+  "packages/report/src/format.ts docblock RunReport.variations": [
+    14
+  ],
+  "packages/report/src/index.ts overview": [
+    21
+  ],
+  "packages/report/src/intent.ts overview": [
+    48
+  ],
+  "packages/report/src/lexicon.ts overview": [
+    44
+  ],
+  "packages/report/src/promotion.ts docblock selectByShape": [
+    12
+  ],
+  "packages/report/src/promotion.ts overview": [
+    16
+  ],
+  "packages/report/src/reach.ts docblock ReachReport": [
+    12
+  ],
+  "packages/report/src/reach.ts overview": [
+    35
+  ],
+  "packages/report/src/suite-index.ts docblock SuiteIndex": [
+    35
+  ],
+  "packages/route-collector/src/alone.chromium.test.ts block live(a subject nothing else touched).it(reads the same document alone as it does in the shared world)": [
+    7
+  ],
+  "packages/route-collector/src/alone.chromium.test.ts overview": [
+    18
+  ],
+  "packages/route-collector/src/contract.ts docblock Collector.collectAlone": [
+    16
+  ],
+  "packages/route-collector/src/directory.chromium.test.ts block chromium_(one build, served twice).it(reads to the same key and the same hashes whichever port served it)": [
+    7
+  ],
+  "packages/route-collector/src/hydration.chromium.test.ts overview": [
+    21
+  ],
+  "packages/route-collector/src/index.ts block": [
+    26
+  ],
+  "packages/route-collector/src/index.ts block routeCollector.createCollector": [
+    9,
+    7
+  ],
+  "packages/route-collector/src/index.ts block routeCollector.createCollector.recipe.recipe.harness": [
+    6
+  ],
+  "packages/route-collector/src/index.ts docblock routeCollector": [
+    11
+  ],
+  "packages/route-collector/src/index.ts docblock routeCollector.createCollector.collector.collector.collectAlone": [
+    20
+  ],
+  "packages/route-collector/src/object-urls.chromium.test.ts overview": [
+    19
+  ],
+  "packages/route-collector/src/operator.ts docblock operatorError": [
+    11
+  ],
+  "packages/route-collector/src/options.ts docblock RouteCollectorOptions.portable": [
+    13
+  ],
+  "packages/route-collector/src/options.ts docblock RouteCollectorOptions.ready": [
+    11
+  ],
+  "packages/route-collector/src/options.ts docblock RouteCollectorOptions.sitemap": [
+    18
+  ],
+  "packages/route-collector/src/options.ts docblock RouteCollectorOptions.tests": [
+    15
+  ],
+  "packages/route-collector/src/options.ts docblock RouteCollectorOptions.widths": [
+    13
+  ],
+  "packages/route-collector/src/page-agent-entry.ts docblock TAP_GLOBAL": [
+    11
+  ],
+  "packages/route-collector/src/page-agent.ts block acquire": [
+    9,
+    6
+  ],
+  "packages/route-collector/src/presentational.chromium.test.ts block it(still moves the environment key when its bytes change, and should)": [
+    6
+  ],
+  "packages/route-collector/src/presentational.chromium.test.ts overview": [
+    17
+  ],
+  "packages/route-collector/src/read.ts block readRoute": [
+    8,
+    7,
+    6
+  ],
+  "packages/route-collector/src/read.ts block readRoute.document": [
+    8
+  ],
+  "packages/route-collector/src/read.ts block readRoute.readyFor.readyFor": [
+    6
+  ],
+  "packages/route-collector/src/sitemap.ts docblock routesFrom": [
+    13
+  ],
+  "packages/route-collector/src/sitemap.ts docblock routesFromFiles": [
+    14
+  ],
+  "packages/route-collector/src/source.ts overview": [
+    20
+  ],
+  "packages/route-collector/src/stabilization.chromium.test.ts docblock collectTwice": [
+    11
+  ],
+  "packages/route-collector/src/stabilization.chromium.test.ts overview": [
+    19
+  ],
+  "packages/route-collector/src/web-fonts.chromium.test.ts overview": [
+    17
+  ],
+  "packages/route-collector/src/wiring.chromium.test.ts block": [
+    7
+  ],
+  "packages/route-collector/src/zero-config.chromium.test.ts block build": [
+    7,
+    7
+  ],
+  "packages/route-collector/src/zero-config.chromium.test.ts docblock ExpressionStatement": [
+    11
+  ],
+  "packages/route-collector/src/zero-config.chromium.test.ts overview": [
+    40
+  ],
+  "packages/scenario/src/assessment.ts docblock partingBetween": [
+    14
+  ],
+  "packages/scenario/src/execution.ts block startScenario": [
+    6
+  ],
+  "packages/sense/README.md lead": [
+    36
+  ],
+  "packages/sense/native/build.mjs block": [
+    47
+  ],
+  "packages/sense/native/build.mjs docblock buildScanner": [
+    15
+  ],
+  "packages/sense/native/consumer.mjs block": [
+    13
+  ],
+  "packages/sense/native/targets.mjs docblock TARGETS": [
+    11
+  ],
+  "packages/sense/scripts/chunk-store.mjs overview": [
+    26
+  ],
+  "packages/sense/scripts/coverage.mjs block": [
+    35
+  ],
+  "packages/sense/scripts/crossings.mjs overview": [
+    25
+  ],
+  "packages/sense/scripts/depth-load.mjs overview": [
+    18
+  ],
+  "packages/sense/scripts/distill-corpus.mjs block": [
+    9
+  ],
+  "packages/sense/scripts/journey-load.mjs overview": [
+    20
+  ],
+  "packages/sense/scripts/local-sets.mjs block": [
+    12
+  ],
+  "packages/sense/scripts/local-sets.mjs overview": [
+    17
+  ],
+  "packages/sense/scripts/native.mjs block": [
+    24
+  ],
+  "packages/sense/scripts/overhead.mjs block": [
+    28
+  ],
+  "packages/sense/scripts/probe-write.mjs block": [
+    23
+  ],
+  "packages/sense/scripts/published-index.mjs block": [
+    20
+  ],
+  "packages/sense/scripts/reach-probe.mjs overview": [
+    20
+  ],
+  "packages/sense/scripts/read-width.mjs block": [
+    27
+  ],
+  "packages/sense/scripts/record-load.mjs overview": [
+    20
+  ],
+  "packages/sense/scripts/round-trip.mjs block": [
+    7
+  ],
+  "packages/sense/scripts/scale-chunks.mjs block": [
+    8,
+    6
+  ],
+  "packages/sense/scripts/scale-chunks.mjs overview": [
+    27
+  ],
+  "packages/sense/scripts/scan-cost.mjs block": [
+    17
+  ],
+  "packages/sense/scripts/selection-scale.mjs overview": [
+    23
+  ],
+  "packages/sense/scripts/shape-sweep.mjs overview": [
+    17
+  ],
+  "packages/sense/scripts/snapshot-scale.mjs overview": [
+    28
+  ],
+  "packages/sense/scripts/source-index.mjs block": [
+    22
+  ],
+  "packages/sense/scripts/source-index.mjs block scan": [
+    11
+  ],
+  "packages/sense/scripts/storage.mjs block build": [
+    9
+  ],
+  "packages/sense/scripts/storage.mjs docblock asJson": [
+    11
+  ],
+  "packages/sense/scripts/tree-cost.mjs block": [
+    16
+  ],
+  "packages/sense/scripts/tuned-cost.mjs block": [
+    32
+  ],
+  "packages/sense/scripts/variance-store-classes.mjs block": [
+    8,
+    7,
+    6
+  ],
+  "packages/sense/scripts/variance-store-classes.mjs docblock IfStatement": [
+    15
+  ],
+  "packages/sense/scripts/variance-store-shape.mjs docblock IfStatement": [
+    14
+  ],
+  "packages/sense/scripts/variance-store-verify.mjs docblock IfStatement": [
+    12
+  ],
+  "packages/sense/scripts/variance-store.mjs overview": [
+    19
+  ],
+  "packages/sense/scripts/witnesses.mjs block": [
+    26
+  ],
+  "packages/sense/src/addon.ts docblock PLATFORMS": [
+    11
+  ],
+  "packages/sense/src/addon.ts docblock native": [
+    12
+  ],
+  "packages/sense/src/cache.ts docblock MEMORY_PARSE_ENTRIES": [
+    21
+  ],
+  "packages/sense/src/cache.ts overview": [
+    25
+  ],
+  "packages/sense/src/conditions.ts overview": [
+    19
+  ],
+  "packages/sense/src/declaration-siblings.test.ts overview": [
+    16
+  ],
+  "packages/sense/src/digest.ts block": [
+    15
+  ],
+  "packages/sense/src/emitted.ts overview": [
+    20
+  ],
+  "packages/sense/src/help-reading.ts docblock declarationPassedOn": [
+    12
+  ],
+  "packages/sense/src/index.ts overview": [
+    16
+  ],
+  "packages/sense/src/instrument/cadence.ts docblock cadence": [
+    14
+  ],
+  "packages/sense/src/instrument/hot-path.test.ts docblock ExpressionStatement": [
+    13
+  ],
+  "packages/sense/src/instrument/index.ts docblock EVALUATING": [
+    12
+  ],
+  "packages/sense/src/instrument/index.ts docblock probeRuntime": [
+    28
+  ],
+  "packages/sense/src/instrument/index.ts overview": [
+    109
+  ],
+  "packages/sense/src/instrument/probe-log.cts block createEngine": [
+    8
+  ],
+  "packages/sense/src/instrument/probe-log.cts overview": [
+    53
+  ],
+  "packages/sense/src/instrument/spliced.ts docblock InstrumentMode": [
+    13
+  ],
+  "packages/sense/src/instrument/spliced.ts docblock spliced": [
+    13
+  ],
+  "packages/sense/src/instrument/spliced.ts overview": [
+    23
+  ],
+  "packages/sense/src/instrument/story-tap.cts overview": [
+    65
+  ],
+  "packages/sense/src/journeys-share.measure.ts overview": [
+    21
+  ],
+  "packages/sense/src/jvm.ts overview": [
+    43
+  ],
+  "packages/sense/src/language.ts docblock grainOf": [
+    13
+  ],
+  "packages/sense/src/language.ts overview": [
+    26
+  ],
+  "packages/sense/src/lock/index.ts overview": [
+    18
+  ],
+  "packages/sense/src/lock/lockfile.ts overview": [
+    19
+  ],
+  "packages/sense/src/lock/pnpm.ts overview": [
+    16
+  ],
+  "packages/sense/src/lock/yaml.ts overview": [
+    16
+  ],
+  "packages/sense/src/lock/yarn.ts docblock BERRY_FLOOR": [
+    11
+  ],
+  "packages/sense/src/python.ts overview": [
+    36
+  ],
+  "packages/sense/src/read.ts docblock Request.guessed": [
+    14
+  ],
+  "packages/sense/src/read.ts overview": [
+    55
+  ],
+  "packages/sense/src/resolve.ts block landed": [
+    8
+  ],
+  "packages/sense/src/resolve.ts block resolveAll": [
+    9
+  ],
+  "packages/sense/src/resolve.ts docblock Asking": [
+    24
+  ],
+  "packages/sense/src/resolve.ts docblock Landing": [
+    16
+  ],
+  "packages/sense/src/resolve.ts docblock Resolvers.tree": [
+    13
+  ],
+  "packages/sense/src/resolve.ts docblock landed": [
+    17
+  ],
+  "packages/sense/src/resolve.ts overview": [
+    18
+  ],
+  "packages/sense/src/restrictions-transitive.ts overview": [
+    17
+  ],
+  "packages/sense/src/reuse.ts overview": [
+    41
+  ],
+  "packages/sense/src/rust.ts overview": [
+    61
+  ],
+  "packages/sense/src/scan.ts block scanning": [
+    8
+  ],
+  "packages/sense/src/scan.ts docblock LARGEST_FILE": [
+    12
+  ],
+  "packages/sense/src/scan.ts docblock ScanOptions.before": [
+    11
+  ],
+  "packages/sense/src/scan.ts docblock ScanOptions.largestFile": [
+    13
+  ],
+  "packages/sense/src/scan.ts docblock ScanOptions.parsed": [
+    11
+  ],
+  "packages/sense/src/scan.ts overview": [
+    34
+  ],
+  "packages/sense/src/sense.test.ts block describe(reading a module).it(reads JSX in a file whose extension does not announce it)": [
+    6
+  ],
+  "packages/sense/src/source-index-file.ts block append": [
+    8
+  ],
+  "packages/sense/src/source-scope.ts overview": [
+    18
+  ],
+  "packages/sense/src/specifier.ts docblock packageOf": [
+    12
+  ],
+  "packages/sense/src/story/compare.ts overview": [
+    28
+  ],
+  "packages/sense/src/story/fold.ts overview": [
+    19
+  ],
+  "packages/sense/src/story/format.cts overview": [
+    39
+  ],
+  "packages/sense/src/story/read.ts overview": [
+    30
+  ],
+  "packages/sense/src/style.ts docblock readStyle": [
+    12
+  ],
+  "packages/sense/src/swift.ts overview": [
+    40
+  ],
+  "packages/sense/src/taint/audit.ts overview": [
+    22
+  ],
+  "packages/sense/src/taint/cache.ts overview": [
+    27
+  ],
+  "packages/sense/src/taint/index.ts overview": [
+    66
+  ],
+  "packages/sense/src/taint/mocks.ts overview": [
+    41
+  ],
+  "packages/sense/src/test-selection/at-distance.ts overview": [
+    42
+  ],
+  "packages/sense/src/test-selection/at-source.ts overview": [
+    52
+  ],
+  "packages/sense/src/test-selection/blocks-around.ts docblock blocksAround": [
+    59
+  ],
+  "packages/sense/src/test-selection/cache-layers.ts docblock cacheRootFor": [
+    19
+  ],
+  "packages/sense/src/test-selection/cache-layers.ts docblock markCheckout": [
+    11
+  ],
+  "packages/sense/src/test-selection/cache-layers.ts overview": [
+    33
+  ],
+  "packages/sense/src/test-selection/captured-modules.ts docblock captureAfter": [
+    13
+  ],
+  "packages/sense/src/test-selection/captured-modules.ts docblock markLoaded": [
+    12
+  ],
+  "packages/sense/src/test-selection/captured-modules.ts docblock planModule": [
+    11
+  ],
+  "packages/sense/src/test-selection/carried-rows.ts docblock addressKey": [
+    18
+  ],
+  "packages/sense/src/test-selection/carried-rows.ts docblock sameNumbering": [
+    41
+  ],
+  "packages/sense/src/test-selection/carried-sources.ts block readSources.reader.reader": [
+    9
+  ],
+  "packages/sense/src/test-selection/carried-sources.ts docblock readSources": [
+    19
+  ],
+  "packages/sense/src/test-selection/case-cuts.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/case-fold.ts docblock freshCases": [
+    23
+  ],
+  "packages/sense/src/test-selection/case-landing.ts docblock landCases": [
+    35
+  ],
+  "packages/sense/src/test-selection/case-landing.ts docblock layCases": [
+    26
+  ],
+  "packages/sense/src/test-selection/case-layer.ts docblock CaseRunFiles.sameBeforeText": [
+    11
+  ],
+  "packages/sense/src/test-selection/case-layer.ts docblock layerCaseIndex": [
+    30
+  ],
+  "packages/sense/src/test-selection/case-lines.ts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/case-motion.ts docblock caseMotion": [
+    11
+  ],
+  "packages/sense/src/test-selection/case-motion.ts docblock matchedThrough": [
+    11
+  ],
+  "packages/sense/src/test-selection/case-preconditions.cts docblock recorder": [
+    11
+  ],
+  "packages/sense/src/test-selection/case-preconditions.cts overview": [
+    26
+  ],
+  "packages/sense/src/test-selection/case-record.ts docblock CaseSections": [
+    19
+  ],
+  "packages/sense/src/test-selection/cases.ts docblock caseIds": [
+    17
+  ],
+  "packages/sense/src/test-selection/cases.ts overview": [
+    96
+  ],
+  "packages/sense/src/test-selection/collectors.cts docblock attach": [
+    12
+  ],
+  "packages/sense/src/test-selection/collectors.cts docblock preload": [
+    13
+  ],
+  "packages/sense/src/test-selection/columns.test.ts block describe(when a column gives up and materializes).it(never does for searches that keep landing back on the top of a wide column)": [
+    7
+  ],
+  "packages/sense/src/test-selection/columns.ts docblock HELD": [
+    13
+  ],
+  "packages/sense/src/test-selection/columns.ts docblock cache": [
+    36
+  ],
+  "packages/sense/src/test-selection/columns.ts overview": [
+    24
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts docblock CommitRuns.over": [
+    12
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts docblock commitRunsAfter": [
+    11
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts docblock landRun": [
+    13
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts docblock readCommitRuns": [
+    11
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts docblock standingAfter": [
+    21
+  ],
+  "packages/sense/src/test-selection/commit-runs.ts overview": [
+    35
+  ],
+  "packages/sense/src/test-selection/commit.ts overview": [
+    25
+  ],
+  "packages/sense/src/test-selection/coverage-file.ts docblock CoverageFile": [
+    13
+  ],
+  "packages/sense/src/test-selection/coverage-rows.ts block recordedBlocks": [
+    9
+  ],
+  "packages/sense/src/test-selection/coverage-rows.ts docblock coverageBlock": [
+    16
+  ],
+  "packages/sense/src/test-selection/coverage-rows.ts docblock coverageBlocks": [
+    11
+  ],
+  "packages/sense/src/test-selection/coverage-rows.ts docblock recordedBlocks": [
+    16
+  ],
+  "packages/sense/src/test-selection/covering-change-text.ts block": [
+    14
+  ],
+  "packages/sense/src/test-selection/crossing-fold.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/crossing-function.integration.test.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/crossing-sets.ts overview": [
+    50
+  ],
+  "packages/sense/src/test-selection/diff-lines.ts block changedLines": [
+    11
+  ],
+  "packages/sense/src/test-selection/diff-lines.ts docblock changedLines": [
+    27
+  ],
+  "packages/sense/src/test-selection/distance.ts block walk": [
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/distance.ts docblock Bearing": [
+    30
+  ],
+  "packages/sense/src/test-selection/distance.ts docblock DistanceOptions.enumerated": [
+    11
+  ],
+  "packages/sense/src/test-selection/distance.ts docblock distanceFromView": [
+    23
+  ],
+  "packages/sense/src/test-selection/distance.ts docblock walk": [
+    11
+  ],
+  "packages/sense/src/test-selection/distance.ts overview": [
+    34
+  ],
+  "packages/sense/src/test-selection/divergence.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/effects.ts docblock declaredEffects": [
+    11
+  ],
+  "packages/sense/src/test-selection/execution-format.ts overview": [
+    29
+  ],
+  "packages/sense/src/test-selection/execution-select.ts overview": [
+    31
+  ],
+  "packages/sense/src/test-selection/eyes-frame.cts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/eyes-record.ts docblock layEyes": [
+    13
+  ],
+  "packages/sense/src/test-selection/faces.ts docblock Faces": [
+    15
+  ],
+  "packages/sense/src/test-selection/faces.ts docblock indexFaces": [
+    14
+  ],
+  "packages/sense/src/test-selection/faces.ts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/finished-files.ts block coverageTest": [
+    8,
+    8
+  ],
+  "packages/sense/src/test-selection/finished-files.ts block reportedComplete": [
+    6
+  ],
+  "packages/sense/src/test-selection/finished-files.ts docblock oneRowPerFile": [
+    12
+  ],
+  "packages/sense/src/test-selection/finished-files.ts docblock outcome": [
+    17
+  ],
+  "packages/sense/src/test-selection/finished-files.ts docblock runnerSkipped": [
+    19
+  ],
+  "packages/sense/src/test-selection/finished-files.ts docblock stopped": [
+    20
+  ],
+  "packages/sense/src/test-selection/finished-files.ts docblock usableOutcome": [
+    26
+  ],
+  "packages/sense/src/test-selection/format-layout.ts docblock FORMAT": [
+    32
+  ],
+  "packages/sense/src/test-selection/format-view.ts docblock TestCoverageView.dictionary": [
+    11
+  ],
+  "packages/sense/src/test-selection/format.ts block decodeTestCoverage": [
+    8
+  ],
+  "packages/sense/src/test-selection/format.ts block dictionary": [
+    7
+  ],
+  "packages/sense/src/test-selection/frame.ts docblock frameOf": [
+    22
+  ],
+  "packages/sense/src/test-selection/governing-config.ts docblock declareConfig": [
+    18
+  ],
+  "packages/sense/src/test-selection/importer-walk.ts docblock walkImporters": [
+    20
+  ],
+  "packages/sense/src/test-selection/importers-module.test.ts block describe(a changed module with no row, asked of the files that import it).it(selects the tests of the nearest recorded importer, and looks no further)": [
+    6
+  ],
+  "packages/sense/src/test-selection/importers.ts block answerByImporters": [
+    6
+  ],
+  "packages/sense/src/test-selection/importers.ts docblock ImporterAnswer.governed": [
+    12
+  ],
+  "packages/sense/src/test-selection/importers.ts overview": [
+    47
+  ],
+  "packages/sense/src/test-selection/index-lock.test.ts docblock pastTheWait": [
+    13
+  ],
+  "packages/sense/src/test-selection/index.ts docblock writeTestCoverage": [
+    18
+  ],
+  "packages/sense/src/test-selection/inert.test.ts block describe(bindsOnly).it(is false for a function declaration, which hoists over a name the lines above it already call)": [
+    14
+  ],
+  "packages/sense/src/test-selection/inert.test.ts block describe(bindsOnly).it(is false for an enum block, which merges into an enum the file already declared)": [
+    12
+  ],
+  "packages/sense/src/test-selection/inert.test.ts block describe(bindsOnly).it(is false for comments and blank lines, which say nothing about where they landed)": [
+    8
+  ],
+  "packages/sense/src/test-selection/inert.ts block erased": [
+    9,
+    6
+  ],
+  "packages/sense/src/test-selection/inert.ts docblock bindsOnly": [
+    24
+  ],
+  "packages/sense/src/test-selection/inert.ts overview": [
+    44
+  ],
+  "packages/sense/src/test-selection/instrumented-modules.ts docblock crossingsOf": [
+    14
+  ],
+  "packages/sense/src/test-selection/jest-globals.cts overview": [
+    34
+  ],
+  "packages/sense/src/test-selection/jest-registry.cts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/jest-reporter.ts block coverageTest": [
+    9
+  ],
+  "packages/sense/src/test-selection/jest-selection.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/jest-setup.cts docblock bracketEveryCase": [
+    18
+  ],
+  "packages/sense/src/test-selection/jest-setup.cts docblock scopeCase": [
+    11
+  ],
+  "packages/sense/src/test-selection/jest-setup.cts overview": [
+    28
+  ],
+  "packages/sense/src/test-selection/jest-trace-environment.cts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/jest-transform.ts block createTransformer": [
+    6
+  ],
+  "packages/sense/src/test-selection/jest-transform.ts docblock createTransformer": [
+    11
+  ],
+  "packages/sense/src/test-selection/jest-transform.ts overview": [
+    26
+  ],
+  "packages/sense/src/test-selection/jest.integration.test.ts block describe(the Jest integration).it(assembles shard artifacts while giving a branch only to the case that walked it)": [
+    7
+  ],
+  "packages/sense/src/test-selection/jest.integration.test.ts block describe(the Jest integration).it(records tests transformed by @swc/jest beside the project's own setup file and reporter, and selects the one that covered a changed line)": [
+    6
+  ],
+  "packages/sense/src/test-selection/jest.ts docblock JestTestSelectionOptions.continuations": [
+    19
+  ],
+  "packages/sense/src/test-selection/jest.ts docblock withTestSelection": [
+    21
+  ],
+  "packages/sense/src/test-selection/jest.ts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/journal-cases.test.ts block describe(a case that is the first to need a module)": [
+    6
+  ],
+  "packages/sense/src/test-selection/journal-format.cts docblock encodeJournal": [
+    16
+  ],
+  "packages/sense/src/test-selection/journal-format.cts overview": [
+    21
+  ],
+  "packages/sense/src/test-selection/journal-moved-on.test.ts block describe(a file that moved on since the build).it(declares a module whose text the join can no longer find)": [
+    7
+  ],
+  "packages/sense/src/test-selection/journal-moved-on.test.ts block describe(a file that moved on since the build).it(gives a module that moved on to every subject the page served)": [
+    7
+  ],
+  "packages/sense/src/test-selection/journal-moved-on.test.ts block describe(a file that moved on since the build).it(keeps a subject declared over a moved file once a later run reads the module)": [
+    9
+  ],
+  "packages/sense/src/test-selection/journal.test.ts block describe(a browser run records what it executed).it(records one row for a subject the run read twice)": [
+    6
+  ],
+  "packages/sense/src/test-selection/journal.ts block recordExecution": [
+    8,
+    7,
+    7
+  ],
+  "packages/sense/src/test-selection/journal.ts block recordExecution.tests.tests": [
+    9,
+    6
+  ],
+  "packages/sense/src/test-selection/journal.ts overview": [
+    36
+  ],
+  "packages/sense/src/test-selection/journey-native.test.ts block describe(selecting off a journey file in the addon).describe(a line that opens a branch)": [
+    8
+  ],
+  "packages/sense/src/test-selection/journey-parts.ts docblock writeParts": [
+    17
+  ],
+  "packages/sense/src/test-selection/journey-reading.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/journey.ts docblock collectJourneys": [
+    13
+  ],
+  "packages/sense/src/test-selection/journey.ts overview": [
+    55
+  ],
+  "packages/sense/src/test-selection/kept-install.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/kept-texts.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/lay-carry.test.ts block describe(carrying crossings onto repeated addresses).it(leaves each of two regions at one address holding the crossing it was recorded with)": [
+    11
+  ],
+  "packages/sense/src/test-selection/lay-carry.test.ts block describe(carrying crossings onto repeated addresses).it(re-cuts two regions at one address onto the regions their crossings name)": [
+    9
+  ],
+  "packages/sense/src/test-selection/lay-carry.test.ts block describe(re-cutting over an edited body).it(demotes the test on the region whose text moved, and only that one)": [
+    6
+  ],
+  "packages/sense/src/test-selection/lay-carry.test.ts block describe(re-cutting over text a region was written into).it(gives a region the text gained the crossings of the region around it)": [
+    6
+  ],
+  "packages/sense/src/test-selection/lay-carry.test.ts block describe(re-cutting over text a region was written into).it(still selects the test that reaches a gained region when its text is edited)": [
+    7
+  ],
+  "packages/sense/src/test-selection/lay-renumber.test.ts block describe(a lay over renumbered siblings).it(re-cuts a module that gained regions of its own)": [
+    6
+  ],
+  "packages/sense/src/test-selection/lay-renumber.test.ts block describe(a lay over renumbered siblings).it(re-cuts a module whose sibling regions were renumbered, each renumbered branch taking what the function took)": [
+    8
+  ],
+  "packages/sense/src/test-selection/lay-reseated.test.ts block describe(a lay over a re-recorded module that changed seats).it(does not seat a recorded branch on one written before it)": [
+    8
+  ],
+  "packages/sense/src/test-selection/lay.test.ts block describe(a laid record).it(carries the row of a build this run did not re-record)": [
+    11
+  ],
+  "packages/sense/src/test-selection/lay.test.ts block describe(a laid record).it(keeps a carried test whole when another build of the same text cut its regions)": [
+    6
+  ],
+  "packages/sense/src/test-selection/lay.test.ts block describe(a laid record).it(re-cuts a carried module's rows over the text it has now)": [
+    8
+  ],
+  "packages/sense/src/test-selection/lookup.ts docblock testsGovernedBy": [
+    36
+  ],
+  "packages/sense/src/test-selection/lookup.ts overview": [
+    26
+  ],
+  "packages/sense/src/test-selection/mainline-layer.ts docblock layFetchedMainline": [
+    13
+  ],
+  "packages/sense/src/test-selection/mainline-layer.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/name-grammar.ts docblock structuralParent": [
+    15
+  ],
+  "packages/sense/src/test-selection/name-grammar.ts overview": [
+    28
+  ],
+  "packages/sense/src/test-selection/narrowing.ts docblock ExecutionNarrowing": [
+    11
+  ],
+  "packages/sense/src/test-selection/narrowing.ts docblock ExecutionNarrowing.because": [
+    11
+  ],
+  "packages/sense/src/test-selection/narrowing.ts docblock ExecutionNarrowing.stale": [
+    21
+  ],
+  "packages/sense/src/test-selection/narrowing.ts docblock ExecutionNarrowing.unread": [
+    14
+  ],
+  "packages/sense/src/test-selection/narrowing.ts docblock ExecutionNarrowingOptions.sourceAt": [
+    23
+  ],
+  "packages/sense/src/test-selection/observed.ts docblock ObservedCase": [
+    11
+  ],
+  "packages/sense/src/test-selection/observed.ts docblock caseJournals": [
+    14
+  ],
+  "packages/sense/src/test-selection/operations.ts docblock importersFromView": [
+    13
+  ],
+  "packages/sense/src/test-selection/operations.ts overview": [
+    16
+  ],
+  "packages/sense/src/test-selection/own-layer.ts overview": [
+    21
+  ],
+  "packages/sense/src/test-selection/precision.ts overview": [
+    24
+  ],
+  "packages/sense/src/test-selection/precondition-source.ts docblock scopeGlobalsSource": [
+    17
+  ],
+  "packages/sense/src/test-selection/precondition.ts docblock variancePrecondition": [
+    12
+  ],
+  "packages/sense/src/test-selection/probes-loader.ts block probed": [
+    8
+  ],
+  "packages/sense/src/test-selection/probes-rule.ts docblock testSelectionRule": [
+    19
+  ],
+  "packages/sense/src/test-selection/probes.ts block testSelectionProbes.transform.handler": [
+    6
+  ],
+  "packages/sense/src/test-selection/probes.ts docblock testSelectionProbes": [
+    22
+  ],
+  "packages/sense/src/test-selection/prune.ts overview": [
+    27
+  ],
+  "packages/sense/src/test-selection/ran-over.ts docblock arrivedDigests": [
+    11
+  ],
+  "packages/sense/src/test-selection/range-state.ts docblock RangeState": [
+    13
+  ],
+  "packages/sense/src/test-selection/react-compiler.integration.test.ts block describe(React Compiler ahead of the probes).it(memoises the component the author wrote, and every region of it has a probe in what it wrote)": [
+    7,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/reading.ts overview": [
+    39
+  ],
+  "packages/sense/src/test-selection/record-base.ts docblock recordBase": [
+    12
+  ],
+  "packages/sense/src/test-selection/record-combine.ts docblock combineRecords": [
+    19
+  ],
+  "packages/sense/src/test-selection/record-location.ts block seedTestCoverage": [
+    8
+  ],
+  "packages/sense/src/test-selection/record-location.ts docblock readableTestCoverage": [
+    11
+  ],
+  "packages/sense/src/test-selection/record-location.ts docblock seedCommitRuns": [
+    26
+  ],
+  "packages/sense/src/test-selection/record-location.ts docblock seedTestCoverage": [
+    40
+  ],
+  "packages/sense/src/test-selection/recorded-text.ts block read": [
+    6
+  ],
+  "packages/sense/src/test-selection/recorded-text.ts docblock textAtRecording": [
+    11
+  ],
+  "packages/sense/src/test-selection/recorded-text.ts overview": [
+    56
+  ],
+  "packages/sense/src/test-selection/region-edit.ts block": [
+    19
+  ],
+  "packages/sense/src/test-selection/region-landing.ts block": [
+    13
+  ],
+  "packages/sense/src/test-selection/region-landing.ts docblock landing": [
+    14
+  ],
+  "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block describe(which of the two complete writers this checkout drives).it(declares both hooks, because a reporter a runner does not recognise is silent)": [
+    6
+  ],
+  "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block describe(which of the two complete writers this checkout drives).it(settles the run from the task tree, and leaves the reported modules undriven)": [
+    10
+  ],
+  "packages/sense/src/test-selection/reverse.test.ts block describe(a line that opens a branch inside another)": [
+    8
+  ],
+  "packages/sense/src/test-selection/reverse.ts docblock CoveringChange": [
+    12
+  ],
+  "packages/sense/src/test-selection/route.ts overview": [
+    19
+  ],
+  "packages/sense/src/test-selection/rstest-after-loader.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/rstest-loader.ts overview": [
+    20
+  ],
+  "packages/sense/src/test-selection/rstest.integration.test.ts block describe(the Rstest integration).it(records modules Rspack bundled and SWC transpiled, and selects the test that covered a changed line)": [
+    6
+  ],
+  "packages/sense/src/test-selection/rstest.ts block withTestSelection": [
+    8,
+    6
+  ],
+  "packages/sense/src/test-selection/rstest.ts docblock RstestTestSelectionOptions.continuations": [
+    19
+  ],
+  "packages/sense/src/test-selection/rstest.ts overview": [
+    17
+  ],
+  "packages/sense/src/test-selection/runner.ts docblock instrumentModule": [
+    12
+  ],
+  "packages/sense/src/test-selection/runner.ts overview": [
+    22
+  ],
+  "packages/sense/src/test-selection/runs-as-before.ts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/select-charging.test.ts block describe(charging a changed line to the regions that hold it).it(charges an added function declaration to the region the text landed in)": [
+    7
+  ],
+  "packages/sense/src/test-selection/select-charging.test.ts block describe(charging a changed line to the regions that hold it).it(charges the region that opens on a line beside the narrower one that closes there)": [
+    10
+  ],
+  "packages/sense/src/test-selection/select-charging.test.ts block describe(charging a changed line to the regions that hold it).it(unions two hunks in one file rather than letting the deeper one erase the other)": [
+    6
+  ],
+  "packages/sense/src/test-selection/select-unread.test.ts block describe(a changed file the recording cannot answer for).it(answers a file by the name that was measured, whatever the name beside it holds)": [
+    6
+  ],
+  "packages/sense/src/test-selection/select-unread.test.ts block describe(a changed file the recording cannot answer for).it(runs a test that declares a changed file it entered nothing of, row or no row)": [
+    6
+  ],
+  "packages/sense/src/test-selection/select-unread.test.ts block describe(a changed file the recording cannot answer for).it(runs a test whose own file changed, however the build also read that file)": [
+    7
+  ],
+  "packages/sense/src/test-selection/select.ts block readDiff": [
+    8,
+    7,
+    7,
+    7
+  ],
+  "packages/sense/src/test-selection/selection-run.ts docblock IGNORE_HEADER": [
+    13
+  ],
+  "packages/sense/src/test-selection/selection-run.ts docblock writeSeamModule": [
+    16
+  ],
+  "packages/sense/src/test-selection/shadowed.ts docblock loadOwned": [
+    11
+  ],
+  "packages/sense/src/test-selection/shadowed.ts docblock shadowedFor": [
+    18
+  ],
+  "packages/sense/src/test-selection/shadowed.ts overview": [
+    27
+  ],
+  "packages/sense/src/test-selection/source-lines.test.ts docblock ExpressionStatement": [
+    13
+  ],
+  "packages/sense/src/test-selection/source-lines.ts docblock RecordedFrame": [
+    36
+  ],
+  "packages/sense/src/test-selection/source-lines.ts docblock originalFile": [
+    16
+  ],
+  "packages/sense/src/test-selection/source-lines.ts docblock rawFrame": [
+    29
+  ],
+  "packages/sense/src/test-selection/source-lines.ts docblock sourceLines": [
+    26
+  ],
+  "packages/sense/src/test-selection/source-lines.ts overview": [
+    21
+  ],
+  "packages/sense/src/test-selection/source-target.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/stage.ts docblock STAGE_VARIABLE": [
+    14
+  ],
+  "packages/sense/src/test-selection/stands.ts block readingFrom": [
+    8
+  ],
+  "packages/sense/src/test-selection/stands.ts docblock askPerStand": [
+    12
+  ],
+  "packages/sense/src/test-selection/stands.ts docblock standsAt": [
+    18
+  ],
+  "packages/sense/src/test-selection/stands.ts overview": [
+    37
+  ],
+  "packages/sense/src/test-selection/subject-recorder.ts block createSubjectRecorder.contribute": [
+    11
+  ],
+  "packages/sense/src/test-selection/suites.ts overview": [
+    23
+  ],
+  "packages/sense/src/test-selection/unmapped-transforms.ts overview": [
+    18
+  ],
+  "packages/sense/src/test-selection/vitest-plugin.ts block selectionPlugin": [
+    6,
+    6,
+    6
+  ],
+  "packages/sense/src/test-selection/vitest-plugin.ts block selectionPlugin.configureVitest": [
+    6
+  ],
+  "packages/sense/src/test-selection/vitest-plugin.ts block selectionPlugin.transform.handler": [
+    9,
+    8,
+    6
+  ],
+  "packages/sense/src/test-selection/vitest-reporter.ts block selectionReporter": [
+    10
+  ],
+  "packages/sense/src/test-selection/vitest-sequencer.ts docblock readCommandLine": [
+    11
+  ],
+  "packages/sense/src/test-selection/vitest-sequencer.ts docblock seedInBanner": [
+    12
+  ],
+  "packages/sense/src/test-selection/vitest-sequencer.ts overview": [
+    28
+  ],
+  "packages/sense/src/test-selection/vitest-serializers.integration.test.ts block": [
+    6
+  ],
+  "packages/sense/src/test-selection/vitest.integration.test.ts block describe(the Vitest integration).it(counts a module every file consumed when the runner shares one module graph across files)": [
+    6
+  ],
+  "packages/sense/src/test-selection/vitest.integration.test.ts block describe(the Vitest integration).it(refuses a file where every test is skipped, which leaves no record to exclude it by)": [
+    7
+  ],
+  "packages/sense/src/test-selection/vitest.integration.test.ts block describe(the Vitest integration).it(refuses a file whose fixture threw, which the runner reports as tests skipped)": [
+    7
+  ],
+  "packages/sense/src/test-selection/vitest.integration.test.ts block describe(the Vitest integration).it(separates a module the test loaded from a module the test entered)": [
+    6
+  ],
+  "packages/sense/src/test-selection/vitest.test.ts block describe(coverage generations).it(carries an outcome through an edit to the region that governs it)": [
+    6
+  ],
+  "packages/sense/src/test-selection/vitest.test.ts block describe(coverage generations).it(hands a region the module no longer names the crossings around it)": [
+    12
+  ],
+  "packages/sense/src/test-selection/vitest.test.ts block describe(what a finished test file is worth)": [
+    14
+  ],
+  "packages/sense/src/test-selection/vitest.ts block withTestSelection": [
+    8,
+    7
+  ],
+  "packages/sense/src/test-selection/vitest.ts block withTestSelection.test": [
+    8
+  ],
+  "packages/sense/src/test-selection/vitest.ts docblock TestSelectionOptions.continuations": [
+    18
+  ],
+  "packages/sense/src/test-selection/vitest.ts docblock runnerImports": [
+    19
+  ],
+  "packages/sense/src/test-selection/worker-source.ts docblock browserSetupSource": [
+    12
+  ],
+  "packages/sense/src/test-selection/worker-source.ts docblock caseGlobalsSource": [
+    23
+  ],
+  "packages/sense/src/test-selection/worker-source.ts docblock caseRunnerSource": [
+    31
+  ],
+  "packages/sense/src/text-digests.ts block": [
+    12
+  ],
+  "packages/sense/src/tree.ts docblock Tree": [
+    11
+  ],
+  "packages/sense/src/tree.ts overview": [
+    20
+  ],
+  "packages/sense/src/typescript-use.ts docblock tsconfigUse": [
+    13
+  ],
+  "packages/sense/src/witness.ts overview": [
+    45
+  ],
+  "packages/sense/src/working-tree-changes.ts docblock workingTreeChanges": [
+    14
+  ],
+  "packages/sense/src/world.ts overview": [
+    28
+  ],
+  "packages/server/README.md lead": [
+    16
+  ],
+  "packages/server/src/answers.ts docblock churnFrom": [
+    12
+  ],
+  "packages/server/src/answers.ts docblock createBackedStore": [
+    11
+  ],
+  "packages/server/src/answers.ts docblock journeyFrom": [
+    22
+  ],
+  "packages/server/src/backend-journey.test.ts block describe(a token journey).it(holds the values of runs written unapproved and accepted afterwards)": [
+    6
+  ],
+  "packages/server/src/backend-sqlite.ts block": [
+    12
+  ],
+  "packages/server/src/backend.ts overview": [
+    21
+  ],
+  "packages/server/src/bin.ts overview": [
+    19
+  ],
+  "packages/server/src/http.ts overview": [
+    20
+  ],
+  "packages/server/src/index.ts overview": [
+    20
+  ],
+  "packages/server/src/sqlite-queries.ts docblock currentRows": [
+    13
+  ],
+  "packages/server/src/sqlite-queries.ts docblock reachRows": [
+    11
+  ],
+  "packages/server/src/sqlite-schema.ts docblock MIGRATIONS": [
+    12
+  ],
+  "packages/server/src/sqlite-schema.ts docblock prepareSchema": [
+    14
+  ],
+  "packages/session/src/cost.measure.ts block describe(the cost of not rinsing)": [
+    8
+  ],
+  "packages/session/src/cost.measure.ts block describe(the cost of not rinsing).it(builds one world for any number of subjects, and the world is most of the cost)": [
+    8
+  ],
+  "packages/session/src/cost.measure.ts overview": [
+    28
+  ],
+  "packages/session/src/index.ts overview": [
+    28
+  ],
+  "packages/session/src/session.ts block Session": [
+    22,
+    6
+  ],
+  "packages/session/src/session.ts docblock Session.MethodDefinition": [
+    19
+  ],
+  "packages/session/src/session.ts docblock Session.verify": [
+    12
+  ],
+  "packages/session/src/session.ts overview": [
+    29
+  ],
+  "packages/session/src/state.ts docblock SheetRegistry.fingerprint": [
+    11
+  ],
+  "packages/store/src/changelog.integration.test.ts block describe(what a repository can say about its own baselines).it(asks about the root the caller named, not one relative to where git ran)": [
+    8
+  ],
+  "packages/store/src/changelog.ts block readChangelog": [
+    6
+  ],
+  "packages/store/src/changelog.ts overview": [
+    24
+  ],
+  "packages/store/src/durable.test.ts block describe(a baseline the store cannot read).it(answers the same damage two ways, because a cache and a baseline are not one thing)": [
+    10
+  ],
+  "packages/store/src/durable.ts block": [
+    11
+  ],
+  "packages/store/src/durable.ts docblock DurableStoreOptions.recordRoot": [
+    16
+  ],
+  "packages/store/src/durable.ts docblock touch": [
+    11
+  ],
+  "packages/store/src/lfs-fetch.ts docblock fetchingReader": [
+    12
+  ],
+  "packages/store/src/lfs-pointer.ts docblock refuseAPointer": [
+    17
+  ],
+  "packages/store/src/lfs.test.ts block describe(a clone without git-lfs).it(still describes a baseline from its sidecar, which a pointer cannot corrupt)": [
+    6
+  ],
+  "packages/store/src/lfs.ts block createLfsStore": [
+    6
+  ],
+  "packages/store/src/lfs.ts docblock LfsStoreOptions.pattern": [
+    11
+  ],
+  "packages/store/src/lfs.ts docblock createLfsStore.describe": [
+    17
+  ],
+  "packages/store/src/lfs.ts overview": [
+    31
+  ],
+  "packages/store/src/pair.ts docblock readRaster": [
+    22
+  ],
+  "packages/store/src/retention.ts block sweepRenderCache": [
+    6
+  ],
+  "packages/store/src/retention.ts overview": [
+    37
+  ],
+  "packages/store/src/share-git.ts block createGitLineCell.store": [
+    6
+  ],
+  "packages/store/src/share.ts docblock createDirectoryLineCell": [
+    15
+  ],
+  "packages/store/src/share.ts docblock foldOf": [
+    15
+  ],
+  "packages/storybook-collector/src/contract.ts docblock Collector.collectAlone": [
+    15
+  ],
+  "packages/storybook-collector/src/contract.ts docblock PlannedSubject.tags": [
+    11
+  ],
+  "packages/storybook-collector/src/execution.ts block createStoryRecorder.note": [
+    9
+  ],
+  "packages/storybook-collector/src/index.ts block": [
+    23
+  ],
+  "packages/storybook-collector/src/index.ts block storybookCollector.createCollector": [
+    11,
+    9
+  ],
+  "packages/storybook-collector/src/index.ts block storybookCollector.createCollector.recipe.recipe.harness": [
+    7
+  ],
+  "packages/storybook-collector/src/index.ts docblock storybookCollector": [
+    11
+  ],
+  "packages/storybook-collector/src/index.ts docblock storybookCollector.createCollector.collector.collector.collectAlone": [
+    17
+  ],
+  "packages/storybook-collector/src/operator.ts docblock operatorError": [
+    11
+  ],
+  "packages/storybook-collector/src/options.ts docblock StorybookCollectorOptions.loading": [
+    11
+  ],
+  "packages/storybook-collector/src/options.ts docblock StorybookCollectorOptions.network": [
+    15
+  ],
+  "packages/storybook-collector/src/options.ts docblock StorybookCollectorOptions.tests": [
+    14
+  ],
+  "packages/storybook-collector/src/page-agent.ts block acquire": [
+    6
+  ],
+  "packages/storybook-collector/src/preset.ts docblock PREVIEW_REWRITE": [
+    16
+  ],
+  "packages/storybook-collector/src/preset.ts overview": [
+    26
+  ],
+  "packages/storybook-collector/src/read.ts block readStory": [
+    7,
+    6
+  ],
+  "packages/storybook-collector/src/source.ts overview": [
+    20
+  ],
+  "packages/storybook/src/finish-wait.ts docblock awaitFinish": [
+    23
+  ],
+  "packages/storybook/src/finish-wait.ts docblock failedFinish": [
+    13
+  ],
+  "packages/storybook/src/index-file.ts overview": [
+    23
+  ],
+  "packages/storybook/src/index.ts overview": [
+    23
+  ],
+  "packages/storybook/src/preview-fake.ts docblock ChannelShape": [
+    14
+  ],
+  "packages/storybook/src/preview-fake.ts overview": [
+    21
+  ],
+  "packages/storybook/src/preview-finished.test.ts block describe(the end of a render).it(does not hand a story back until Storybook has finished with it)": [
+    9
+  ],
+  "packages/storybook/src/preview-finished.test.ts block describe(the end of a render).it(does not wait on a story the preview is already showing)": [
+    9
+  ],
+  "packages/storybook/src/preview-finished.test.ts block describe(the end of a render).it(takes a first story whose render was over before the watch opened as finished)": [
+    7
+  ],
+  "packages/storybook/src/preview-finished.test.ts block describe(the end of a render).it(warns when a preview that does emit the event leaves one story unfinished)": [
+    6
+  ],
+  "packages/storybook/src/preview-finished.test.ts overview": [
+    16
+  ],
+  "packages/storybook/src/preview-globals.ts overview": [
+    16
+  ],
+  "packages/storybook/src/preview-protocol.ts docblock FinishRecord": [
+    12
+  ],
+  "packages/storybook/src/preview-protocol.ts docblock PreviewGlobals": [
+    20
+  ],
+  "packages/storybook/src/preview-protocol.ts docblock Readiness": [
+    14
+  ],
+  "packages/storybook/src/preview-protocol.ts docblock ShowEvents.storyFinished": [
+    13
+  ],
+  "packages/storybook/src/preview-protocol.ts docblock TestEnvironmentRequest": [
+    15
+  ],
+  "packages/storybook/src/preview-protocol.ts overview": [
+    20
+  ],
+  "packages/storybook/src/preview-readiness.test.ts block describe(a subject that declares its own readiness).it(times out rather than falling back when a configured marker never appears)": [
+    6
+  ],
+  "packages/storybook/src/preview.test.ts block describe(showing stories on one page).it(removes its listeners between stories)": [
+    6
+  ],
+  "packages/storybook/src/preview.test.ts block describe(the page function).it(leaves nothing running once it has handed back a result)": [
+    8
+  ],
+  "packages/storybook/src/preview.ts overview": [
+    23
+  ],
+  "packages/storybook/src/show-story.ts docblock showStory.showStory.settleByMarker": [
+    12
+  ],
+  "packages/storybook/src/show-story.ts overview": [
+    29
+  ],
+  "packages/storybook/src/story-finished.ts block beginFinishWatch.beginFinishWatch": [
+    12,
+    6
+  ],
+  "packages/storybook/src/story-finished.ts docblock beginFinishWatch": [
+    12
+  ],
+  "packages/storybook/src/story-finished.ts overview": [
+    33
+  ],
+  "packages/storybook/src/story-parameters.ts docblock loadStoryParameters": [
+    18
+  ],
+  "packages/storybook/src/story-timing-read.ts docblock takeStoryTiming": [
+    11
+  ],
+  "packages/storybook/src/story-timing.ts overview": [
+    22
+  ],
+  "packages/storybook/src/subjects.ts overview": [
+    21
+  ],
+  "packages/tribunal/src/bindings.ts docblock D1Like.batch": [
+    17
+  ],
+  "packages/tribunal/src/bindings.ts docblock requireD1": [
+    17
+  ],
+  "packages/tribunal/src/bindings.ts overview": [
+    17
+  ],
+  "packages/tribunal/src/changelog.ts overview": [
+    25
+  ],
+  "packages/tribunal/src/concerns.ts docblock ConcernStore": [
+    16
+  ],
+  "packages/tribunal/src/history.ts block createD1Backend.append.statements.statements": [
+    10
+  ],
+  "packages/tribunal/src/history.ts overview": [
+    27
+  ],
+  "packages/tribunal/src/migration-steps-later.ts block LATER_MIGRATIONS.LATER_MIGRATIONS": [
+    19,
+    16,
+    12,
+    9,
+    6
+  ],
+  "packages/tribunal/src/migration-steps.ts block MIGRATIONS.MIGRATIONS": [
+    22,
+    17,
+    11,
+    11,
+    10,
+    9,
+    9,
+    9,
+    8,
+    8,
+    8,
+    8,
+    6
+  ],
+  "packages/tribunal/src/migration-steps.ts docblock MIGRATIONS": [
+    13
+  ],
+  "packages/tribunal/src/migrations.ts block INITIAL.INITIAL": [
+    13
+  ],
+  "packages/tribunal/src/migrations.ts overview": [
+    27
+  ],
+  "packages/tribunal/src/movements.test.ts block describe(what the run concluded survives the ingest).it(drops a pair the second reading no longer names)": [
+    6
+  ],
+  "packages/tribunal/src/next.ts overview": [
+    33
+  ],
+  "packages/tribunal/src/node/bin.ts docblock authorizeFor": [
+    15
+  ],
+  "packages/tribunal/src/node/bin.ts docblock readArguments": [
+    12
+  ],
+  "packages/tribunal/src/node/bin.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/node/bucket.ts docblock foldOf": [
+    11
+  ],
+  "packages/tribunal/src/node/bucket.ts overview": [
+    52
+  ],
+  "packages/tribunal/src/node/database.test.ts block": [
+    7
+  ],
+  "packages/tribunal/src/node/database.ts overview": [
+    23
+  ],
+  "packages/tribunal/src/node/index.ts overview": [
+    30
+  ],
+  "packages/tribunal/src/node/serve.ts docblock pageOrAsset": [
+    11
+  ],
+  "packages/tribunal/src/node/serve.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/node/ui-assets.ts overview": [
+    25
+  ],
+  "packages/tribunal/src/objects.ts docblock claim": [
+    13
+  ],
+  "packages/tribunal/src/objects.ts docblock have": [
+    14
+  ],
+  "packages/tribunal/src/objects.ts docblock keep": [
+    14
+  ],
+  "packages/tribunal/src/objects.ts docblock unreferenced": [
+    11
+  ],
+  "packages/tribunal/src/objects.ts overview": [
+    57
+  ],
+  "packages/tribunal/src/repeats.ts docblock repeatsStatement": [
+    25
+  ],
+  "packages/tribunal/src/review-baseline.ts docblock refuseMoved": [
+    13
+  ],
+  "packages/tribunal/src/review-ingest-types.ts docblock CandidateImage": [
+    12
+  ],
+  "packages/tribunal/src/review-ingest.ts block ingestBuild": [
+    14,
+    9,
+    7,
+    7
+  ],
+  "packages/tribunal/src/review-ingest.ts docblock ingestBuild": [
+    12
+  ],
+  "packages/tribunal/src/review-ingest.ts docblock recordSnapshot": [
+    15
+  ],
+  "packages/tribunal/src/review-sweep.ts block sweepProject": [
+    16,
+    9,
+    8,
+    6
+  ],
+  "packages/tribunal/src/review-types.ts docblock BuildDetail.movements": [
+    11
+  ],
+  "packages/tribunal/src/review-types.ts docblock BuildDetail.variations": [
+    11
+  ],
+  "packages/tribunal/src/review-write.ts block store": [
+    7
+  ],
+  "packages/tribunal/src/review-write.ts docblock AT_ONCE": [
+    14
+  ],
+  "packages/tribunal/src/review-write.ts docblock accessibilityField": [
+    15
+  ],
+  "packages/tribunal/src/review-write.ts docblock pendingOf": [
+    12
+  ],
+  "packages/tribunal/src/review-write.ts docblock promotedIdentity": [
+    11
+  ],
+  "packages/tribunal/src/review-write.ts docblock store": [
+    19
+  ],
+  "packages/tribunal/src/review.approve.test.ts block describe(retention holds nothing more than is needed).it(reports what it removed rather than removing quietly)": [
+    9
+  ],
+  "packages/tribunal/src/review.approve.test.ts block describe(what the promoted baseline carries).it(files it under the identity the document was painted at, not the run's)": [
+    6
+  ],
+  "packages/tribunal/src/review.ts block createReviewStore.build.reads.reads": [
+    9
+  ],
+  "packages/tribunal/src/review.ts docblock createReviewStore.build": [
+    11
+  ],
+  "packages/tribunal/src/review.ts overview": [
+    35
+  ],
+  "packages/tribunal/src/store.ts block createBucketStore": [
+    6
+  ],
+  "packages/tribunal/src/store.ts block createBucketStore.describe": [
+    6
+  ],
+  "packages/tribunal/src/store.ts block createBucketStore.put": [
+    6
+  ],
+  "packages/tribunal/src/store.ts docblock locate": [
+    18
+  ],
+  "packages/tribunal/src/store.ts overview": [
+    40
+  ],
+  "packages/tribunal/src/testing.ts overview": [
+    18
+  ],
+  "packages/tribunal/src/ui/attribution.ts overview": [
+    19
+  ],
+  "packages/tribunal/src/ui/because.tsx overview": [
+    21
+  ],
+  "packages/tribunal/src/ui/builds.tsx docblock CoverageLine": [
+    13
+  ],
+  "packages/tribunal/src/ui/builds.tsx docblock NoBuilds": [
+    13
+  ],
+  "packages/tribunal/src/ui/carried.tsx overview": [
+    19
+  ],
+  "packages/tribunal/src/ui/cause.ts overview": [
+    26
+  ],
+  "packages/tribunal/src/ui/change-story.tsx block Arrival": [
+    6
+  ],
+  "packages/tribunal/src/ui/change-story.tsx docblock Arrival": [
+    15
+  ],
+  "packages/tribunal/src/ui/change-story.tsx docblock Tally": [
+    14
+  ],
+  "packages/tribunal/src/ui/change.tsx overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/consumers.tsx docblock Consumers": [
+    12
+  ],
+  "packages/tribunal/src/ui/consumers.tsx overview": [
+    25
+  ],
+  "packages/tribunal/src/ui/control.tsx overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/crossing.ts docblock previousOf": [
+    13
+  ],
+  "packages/tribunal/src/ui/declarations.tsx overview": [
+    22
+  ],
+  "packages/tribunal/src/ui/difference.ts docblock useDifference": [
+    12
+  ],
+  "packages/tribunal/src/ui/difference.ts overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/distance.ts block Distance": [
+    6
+  ],
+  "packages/tribunal/src/ui/distance.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/ui/docket.tsx block Build": [
+    8
+  ],
+  "packages/tribunal/src/ui/docket.tsx overview": [
+    19
+  ],
+  "packages/tribunal/src/ui/findings.tsx docblock Findings": [
+    30
+  ],
+  "packages/tribunal/src/ui/findings.tsx docblock occurrences": [
+    13
+  ],
+  "packages/tribunal/src/ui/foreseen.ts overview": [
+    23
+  ],
+  "packages/tribunal/src/ui/glance.ts overview": [
+    32
+  ],
+  "packages/tribunal/src/ui/grouping.ts docblock sourceOf": [
+    17
+  ],
+  "packages/tribunal/src/ui/grouping.ts overview": [
+    30
+  ],
+  "packages/tribunal/src/ui/handed.ts overview": [
+    34
+  ],
+  "packages/tribunal/src/ui/history.tsx overview": [
+    18
+  ],
+  "packages/tribunal/src/ui/holding.ts overview": [
+    29
+  ],
+  "packages/tribunal/src/ui/impact.tsx docblock Undeclared": [
+    12
+  ],
+  "packages/tribunal/src/ui/impact.tsx overview": [
+    18
+  ],
+  "packages/tribunal/src/ui/journey-tree.ts overview": [
+    28
+  ],
+  "packages/tribunal/src/ui/journeys.tsx overview": [
+    27
+  ],
+  "packages/tribunal/src/ui/look.tsx overview": [
+    39
+  ],
+  "packages/tribunal/src/ui/order.ts block laneOf": [
+    6
+  ],
+  "packages/tribunal/src/ui/order.ts overview": [
+    49
+  ],
+  "packages/tribunal/src/ui/origins.tsx docblock Row": [
+    11
+  ],
+  "packages/tribunal/src/ui/origins.tsx overview": [
+    22
+  ],
+  "packages/tribunal/src/ui/outcome.tsx overview": [
+    32
+  ],
+  "packages/tribunal/src/ui/parted.ts overview": [
+    28
+  ],
+  "packages/tribunal/src/ui/plate.tsx docblock Raster": [
+    13
+  ],
+  "packages/tribunal/src/ui/reach.tsx overview": [
+    24
+  ],
+  "packages/tribunal/src/ui/regions.tsx docblock RegionOverlay": [
+    14
+  ],
+  "packages/tribunal/src/ui/review.tsx overview": [
+    43
+  ],
+  "packages/tribunal/src/ui/root.tsx overview": [
+    17
+  ],
+  "packages/tribunal/src/ui/route.ts overview": [
+    29
+  ],
+  "packages/tribunal/src/ui/sense.ts docblock movedElsewhere": [
+    14
+  ],
+  "packages/tribunal/src/ui/sense.ts overview": [
+    25
+  ],
+  "packages/tribunal/src/ui/settled.tsx overview": [
+    30
+  ],
+  "packages/tribunal/src/ui/shift.ts overview": [
+    20
+  ],
+  "packages/tribunal/src/ui/styles-docket.ts docblock DOCKET_STYLES": [
+    12
+  ],
+  "packages/tribunal/src/ui/styles-findings.ts docblock FINDING_STYLES": [
+    15
+  ],
+  "packages/tribunal/src/ui/styles-stage.ts docblock STAGE_STYLES": [
+    12
+  ],
+  "packages/tribunal/src/ui/styles.test.ts block describe(REVIEW_STYLES).it(re-decides only colour in the second scheme)": [
+    6
+  ],
+  "packages/tribunal/src/ui/styles.ts overview": [
+    34
+  ],
+  "packages/tribunal/src/ui/subject.tsx docblock Glanced": [
+    14
+  ],
+  "packages/tribunal/src/ui/text.ts docblock Magnitude": [
+    17
+  ],
+  "packages/tribunal/src/ui/text.ts docblock segments": [
+    11
+  ],
+  "packages/tribunal/src/ui/variations.tsx docblock Variations": [
+    22
+  ],
+  "packages/tribunal/src/ui/viewer.tsx overview": [
+    22
+  ],
+  "packages/tribunal/src/version.ts docblock TRIBUNAL_API": [
+    22
+  ],
+  "packages/tribunal/src/version.ts overview": [
+    19
+  ],
+  "packages/tribunal/src/worker-auth.ts docblock readable": [
+    11
+  ],
+  "packages/tribunal/src/worker-entry.ts overview": [
+    22
+  ],
+  "packages/tribunal/src/worker-input.ts docblock MAX_HAVE_DIGESTS": [
+    12
+  ],
+  "packages/tribunal/src/worker-share.ts overview": [
+    31
+  ],
+  "packages/tribunal/src/worker.ts overview": [
+    44
+  ],
+  "packages/tribunal/stories/record.mjs overview": [
+    18
+  ],
+  "packages/tribunal/stories/replay.ts docblock replayed": [
+    15
+  ],
+  "packages/unit-test/README.md lead": [
+    22
+  ],
+  "packages/unit-test/src/archive.ts docblock resetCaptures": [
+    11
+  ],
+  "packages/unit-test/src/archive.ts docblock writeCapture": [
+    14
+  ],
+  "packages/unit-test/src/operator.ts docblock operatorError": [
+    11
+  ],
+  "packages/unit-test/src/shape.ts docblock captureArtifactFrom": [
+    14
+  ],
+  "packages/unit-test/src/styles.ts overview": [
+    16
+  ],
+  "packages/unit-test/src/value.ts docblock snapshotValue": [
+    12
+  ],
+  "packages/vantage/src/index.ts overview": [
+    21
+  ],
+  "packages/vantage/src/observatory.ts overview": [
+    21
+  ],
+  "packages/vantage/src/watch.ts overview": [
+    16
+  ],
+  "packages/vitest-browser/README.md lead": [
+    21
+  ],
+  "packages/vitest-browser/src/node.ts block varianceCommands": [
+    7
+  ],
+  "packages/wire/src/index.ts overview": [
+    31
+  ],
+  "packages/wire/src/listen.ts docblock ListenOptions.answer": [
+    11
+  ],
+  "site/app/components/ComparisonTable.tsx docblock doc": [
+    12
+  ],
+  "site/app/components/TableOfContents.tsx docblock TableOfContents": [
+    13
+  ],
+  "site/app/id-references.test.tsx block": [
+    6
+  ],
+  "site/variance/routes.mjs overview": [
+    16
+  ],
+  "tools/bin-symlink.check.ts overview": [
+    17
+  ],
+  "tools/boundaries.check.ts block describe(every advertised entrypoint exists)": [
+    7
+  ],
+  "tools/boundaries.check.ts block describe(every package says what it is)": [
+    16,
+    8
+  ],
+  "tools/boundaries.check.ts docblock ExpressionStatement": [
+    17,
+    11
+  ],
+  "tools/boundaries.check.ts overview": [
+    22
+  ],
+  "tools/changelog-tidy.mjs docblock LOCKSTEP": [
+    19
+  ],
+  "tools/changelog.check.ts docblock ExpressionStatement": [
+    11
+  ],
+  "tools/clones.mjs block": [
+    10
+  ],
+  "tools/comments.ts docblock SOURCE": [
+    11
+  ],
+  "tools/config-schema.check.ts docblock HAND_READ": [
+    13
+  ],
+  "tools/config-schema.check.ts overview": [
+    29
+  ],
+  "tools/coverage.config.mts docblock ExportDefaultDeclaration": [
+    20
+  ],
+  "tools/docs-claims.check.ts block describe(the documented vocabulary is the real one)": [
+    7
+  ],
+  "tools/docs-claims.check.ts docblock ExpressionStatement": [
+    19,
+    14,
+    14,
+    11
+  ],
+  "tools/docs-cli.check.ts docblock describe(the documented command line is the real one).isSynopsis": [
+    31
+  ],
+  "tools/docs-links.check.ts docblock pathsIn": [
+    12
+  ],
+  "tools/docs-options.check.ts docblock publicOptionKeys": [
+    11
+  ],
+  "tools/docs-proposals.check.ts overview": [
+    23
+  ],
+  "tools/documented.check.ts overview": [
+    20
+  ],
+  "tools/documented.mjs block": [
+    13
+  ],
+  "tools/keep-base.mjs overview": [
+    18
+  ],
+  "tools/native-grammars.check.ts docblock ROOT": [
+    14
+  ],
+  "tools/native-packages.check.ts docblock describe(the platform packages).ExpressionStatement": [
+    11
+  ],
+  "tools/native-packages.check.ts overview": [
+    19
+  ],
+  "tools/native-sources.mjs docblock nativeSources": [
+    18
+  ],
+  "tools/owners.mjs block": [
+    14
+  ],
+  "tools/page-agents.check.ts docblock ExpressionStatement": [
+    13
+  ],
+  "tools/page-agents.mjs overview": [
+    21
+  ],
+  "tools/page-side.mjs docblock sourceStem": [
+    17
+  ],
+  "tools/page-side.mjs overview": [
+    32
+  ],
+  "tools/publish.mjs docblock placeholders": [
+    16
+  ],
+  "tools/publish.mjs overview": [
+    24
+  ],
+  "tools/register-histogram.mjs overview": [
+    18
+  ],
+  "tools/released.check.ts block describe(the release workflow)": [
+    6
+  ],
+  "tools/released.mjs docblock missing": [
+    11
+  ],
+  "tools/released.mjs docblock onRegistry": [
+    11
+  ],
+  "tools/released.mjs overview": [
+    26
+  ],
+  "tools/shape.check.ts docblock ExpressionStatement": [
+    12
+  ],
+  "tools/site-packages.check.ts overview": [
+    20
+  ],
+  "tools/site-reach.mjs overview": [
+    41
+  ],
+  "tools/skips.check.ts block GATED.GATED": [
+    7
+  ],
+  "tools/skips.check.ts block GATES.GATES": [
+    6
+  ],
+  "tools/skips.check.ts docblock announcements": [
+    12
+  ],
+  "tools/skips.check.ts overview": [
+    22
+  ],
+  "tools/surface.check.ts docblock ExpressionStatement": [
+    16
+  ],
+  "tools/surface.check.ts overview": [
+    23
+  ],
+  "tools/surface.mjs block": [
+    18
+  ],
+  "tools/surfaces.check.ts block REACH_THROUGH_DEBT.REACH_THROUGH_DEBT": [
+    6,
+    6
+  ],
+  "tools/surfaces.check.ts docblock REACH_THROUGH_DEBT": [
+    18
+  ],
+  "tools/surfaces.check.ts docblock variancePackagesIn": [
+    11
+  ],
+  "tools/take-base.mjs overview": [
+    16
+  ],
+  "tools/take-carried.mjs overview": [
+    23
+  ],
+  "tools/temporary-per-test.ts overview": [
+    22
+  ],
+  "tools/tribunal-ui.mjs overview": [
+    16
+  ],
+  "tools/unrun.mjs block": [
+    20
+  ],
+  "tools/workspaces.ts block workspaces": [
+    15,
+    13
+  ],
+  "tools/workspaces.ts docblock nestedManifests": [
+    11
+  ],
+  "tools/workspaces.ts docblock specifiersIn": [
+    12
+  ],
+  "tribunal-cloudflare/app/api/[[...path]]/route.ts overview": [
+    21
+  ],
+  "vitest.config.mts block": [
+    25
+  ],
+  "vitest.config.mts block selectionOf.selectionOf": [
+    9
+  ],
+  "vitest.config.mts block shared.shared.test": [
+    6
+  ],
+  "vitest.config.mts docblock PRODUCT": [
+    14
+  ],
+  "vitest.config.mts docblock SLICES": [
+    20
+  ],
+  "vitest.measure.config.ts overview": [
+    22
+  ]
+}
