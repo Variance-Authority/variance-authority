@@ -22,6 +22,7 @@ import {
   coveringTests,
   functionsUnder,
   lineGrain,
+  marksLoadTime,
   ranWhileLoading,
   stateOf,
   stoppedBefore,
@@ -107,7 +108,7 @@ export async function coveringAt(
     return undefined;
   }
 
-  const graph = await loadersFor(before ?? index, target, read.graph);
+  const graph = await loadersOf(before ?? index, file, read.graph, target);
   const found = coveringTests(index, target, graph);
   const kept = near.whole ? found : found.filter(near.keep);
   const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
@@ -122,7 +123,7 @@ export async function coveringAt(
     tests: kept,
     ...(stopped === undefined ? {} : { stopped }),
     ...(unrun.length === 0 ? {} : { unrun }),
-    ...stateFor(reached, stopped),
+    ...stateFor(reached, ranWhileLoading(before ?? index, target, graph), stopped),
     ...grain,
     ...(placement === undefined || 'function' in asked ? {} : { frame: placement.frame }),
     from,
@@ -252,9 +253,16 @@ function runsOf(lines: readonly number[]): readonly HeldLines[] {
   return runs;
 }
 
-/** The state of one place, from the cases that entered it and those that stopped, before `--where`. */
-function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
-  const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
+/**
+ * The state of one place, from the cases that entered it, whether it ran while
+ * its module evaluated, and the cases that stopped, before `--where`.
+ */
+function stateFor(
+  tests: readonly CoveringTest[],
+  loaded: boolean,
+  stopped: readonly ExecutionTest[] | undefined,
+): Pick<Covering, 'state'> {
+  const state = stateOf({ tests, ...(loaded ? { loaded: true as const } : {}), ...(stopped === undefined ? {} : { stopped }) });
   return state === undefined ? {} : { state };
 }
 
@@ -268,21 +276,25 @@ export function countOf(
 }
 
 /**
- * The file graph, read only when a region the question landed on ran while its
- * module evaluated, or when a recorded case stopped and a hole has to be told
- * from a region nobody walked.
+ * The file graph, read only when the record marks load time on the region the
+ * question landed on — or on any block of the module when the question named
+ * no region — on a block or a crossing, or when a recorded case stopped and a
+ * hole has to be told from a region nobody walked.
  *
  * The record credits no case with that: a module evaluates once per realm, for
  * whichever case imported it first. The graph names every case whose file
  * imports the module, and rules out one that mocked it. A question about a
- * region only a case called into never pays for the scan.
+ * region only a case called into never pays for the scan. Every covering
+ * answer, fresh or stale, whole file or one line, decides here.
  */
-async function loadersFor(
+export async function loadersOf(
   index: ExecutionIndex,
-  target: SourceTestTarget,
+  file: string,
   graph: Graph,
+  target?: SourceTestTarget,
 ): Promise<{ readonly relations?: Relations }> {
-  return ranWhileLoading(index, target) || anyStopped(index) ? { relations: await graph() } : {};
+  const module = index.modules.find((candidate) => candidate.file === file);
+  return (module !== undefined && marksLoadTime(module.blocks, target)) || anyStopped(index) ? { relations: await graph() } : {};
 }
 
 /** The file graph of the checkout, which names who imports what and who mocked it. */

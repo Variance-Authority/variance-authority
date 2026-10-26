@@ -35,7 +35,6 @@ import { relative, resolve } from 'node:path';
 import {
   changedLines,
   coveringChange,
-  anyStopped,
   coveringTestsInFile,
   keepsCases,
   recordedCommit,
@@ -64,7 +63,7 @@ import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { coveringAt, countOf, type UnrunPart } from './covering-at.js';
+import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
@@ -360,15 +359,13 @@ async function ask(
   const placement = await placementFor(request, from);
   const frame = placement === undefined ? {} : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
-    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
+    return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
   const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach);
   if (at !== undefined) return at;
 
-  const loaders = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
-    ? { relations: await graph() }
-    : {};
+  const loaders = await loadersOf(before ?? index, file, graph);
   // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.
   const found = coveringTestsInFile(before ?? index, file, loaders);
   const listed = before === undefined ? undefined : new Set(index.tests.map((test) => test.id));

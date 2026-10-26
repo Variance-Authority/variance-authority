@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
   encodeAsSetExecutionIndex,
@@ -17,6 +17,7 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
+import { indexOutput } from './index-command.js';
 
 /**
  * A file edited since the recording, whose recorded text is in neither git nor
@@ -77,6 +78,10 @@ async function ask(argv: readonly string[]) {
   }, {
     index: encodeAsSetExecutionIndex(INDEX),
   });
+  return asked(root, execution, argv);
+}
+
+function asked(root: string, execution: string, argv: readonly string[]) {
   return covering(parseCoveringArgs(readFlags(
     ['--file', 'src/cart.ts', '--execution', execution, '--root', root, ...argv],
     'covering', flagsFor('covering'), synopsisFor('covering'),
@@ -126,5 +131,48 @@ describe('a file whose recorded text is gone', () => {
 
     expect(text).toContain('Kept the 1 of 3 cases that covered src/cart.ts and recorded flags:checkout=ff-on.\n');
     expect(text).toContain('1 named test ran code in src/cart.ts; which of them ran line 6 cannot be said:');
+  });
+});
+
+/**
+ * The stale answer reads the file graph on the same signal as the fresh one:
+ * load time marked on a block or on a crossing. Here only the crossing says
+ * it, and no case stopped.
+ */
+describe('a stale file only a mock evaluated', () => {
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
+  it('names no case for the mock evaluating it, as the fresh answer does', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-covering-stale-mocked-'));
+    const git = (args: readonly string[]): void => {
+      execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+    };
+    await mkdir(join(root, 'src'), { recursive: true });
+    git(['init', '--quiet', '--initial-branch', 'main']);
+    git(['config', 'user.email', 'fixture@example.test']);
+    git(['config', 'user.name', 'Fixture']);
+    await writeFile(join(root, 'src/cart.ts'), 'export const total = 1;\n');
+    await writeFile(
+      join(root, 'mocked.test.ts'),
+      "import { vi } from 'vitest';\nimport { total } from './src/cart';\nvi.mock('./src/cart');\nit('stubs', () => total);\n",
+    );
+    git(['add', '-A']);
+    git(['commit', '--quiet', '-m', 'first']);
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+    // A JSON record keeps the mark on the crossing; the binary one folds it onto the block.
+    const execution = join(await mkdtemp(join(tmpdir(), 'variance-covering-stale-record-')), 'cases.json');
+    await writeFile(execution, JSON.stringify({
+      tests: [{ id: 'mocked.test.ts > stubs', file: 'mocked.test.ts', name: 'stubs', stopped: false }],
+      modules: [{
+        file: 'src/cart.ts',
+        blocks: [{ kind: 'statement', name: 'total', path: 'statement#0', startLine: 1, endLine: 1, source: true, crossings: [{ test: 0, distance: 0, loaded: true }] }],
+      }],
+    }));
+
+    const answers = [await asked(root, execution, []), await asked(root, execution, ['--line', '1'])];
+
+    expect(answers.map((answer) => [answer.frame, answer.tests])).toEqual([['stale', []], ['stale', []]]);
   });
 });
