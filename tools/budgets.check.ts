@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, BUDGET, judge, leadOf, overBudget, recordable, surfacesOf, tracked } from './budgets.mjs';
-import { MODULES } from './modules.js';
+import { BASELINE, BUDGET, judge, leadOf, overBudget, recordable, surfacesOf } from './budgets.mjs';
+import { MODULES, tracked } from './modules.js';
 
 /**
  * Every written surface has a budget, and a breach is collapsed where it happens.

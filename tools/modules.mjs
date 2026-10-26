@@ -15,12 +15,11 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-export const MODULES = execFileSync(
-  'git',
-  ['ls-files', '--', '*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs'],
-  { cwd: ROOT, encoding: 'utf8' },
-)
-  .trim()
-  .split('\n')
-  // Tracked but removed from the working tree: a deletion not yet committed.
-  .filter((file) => existsSync(join(ROOT, file)));
+/** Tracked files under the patterns, as `git ls-files` names them. */
+export const tracked = (...patterns) =>
+  execFileSync('git', ['ls-files', '--', ...patterns], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n')
+    // Tracked but removed from the working tree: a deletion not yet committed.
+    .filter((file) => file !== '' && existsSync(join(ROOT, file)));
+
+export const MODULES = tracked('*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs');

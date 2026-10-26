@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { parseSync } from 'oxc-parser';
-import { MODULES, ROOT } from './modules.mjs';
+import { MODULES, ROOT, tracked } from './modules.mjs';
 
 /**
  * How many lines each written surface may hold, and which surfaces hold more.
@@ -195,11 +194,6 @@ export function leadOf(text) {
 /** The pages a stranger lands on: the root, `docs/` and every package README. */
 const PAGE = /^(?:README\.md|docs\/(?!AGENTS\.md)[^/]+\.md|packages\/[^/]+\/README\.md)$/;
 
-/** Tracked files under the patterns, as `git ls-files` names them. */
-export const tracked = (...patterns) =>
-  execFileSync('git', ['ls-files', '--', ...patterns], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n')
-    .filter((file) => file !== '' && existsSync(join(ROOT, file)));
 
 // TODO: Rust, shell, YAML and Dockerfile comments are held to no budget here; the addon's tree-sitter reader can read Rust.
 
