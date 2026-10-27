@@ -62,7 +62,7 @@ import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
 import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
-import { behindHead, recordCommitOf } from './covering-behind.js';
+import { placeRecord, recordCommitOf } from './covering-behind.js';
 import { diffSince } from './since.js';
 import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
 import { graphOnce, type Graph } from './gap-selection.js';
@@ -170,10 +170,14 @@ export interface Covering {
   /** The commit the record stands at, when it says. A diff under `--since` is measured from it. */
   readonly at?: string;
   /**
-   * With `at`: how many commits `HEAD` is past it, negative when the record is
-   * newer. Absent with `at` when this clone cannot count (`covering-behind.ts`).
+   * With `at`: how many commits `HEAD` holds that the record does not, and the
+   * record holds that `HEAD` does not. Both absent with `at` when this clone
+   * cannot count: it does not hold the commit, or its history is too shallow
+   * (`covering-behind.ts`).
    */
-  readonly distance?: number;
+  readonly behind?: number;
+  /** With `behind`: commits the record holds that `HEAD` does not, made on another branch or after `HEAD`. */
+  readonly ahead?: number;
   /**
    * What a narrowing did, when one was asked for.
    *
@@ -267,7 +271,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
   return {
     ...answer,
-    ...(await behindHead(request.root, answer.at ?? at)),
+    ...(await placeRecord(request.root, answer.at ?? at)),
     ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
     ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),

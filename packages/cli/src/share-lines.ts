@@ -206,6 +206,26 @@ export async function headPast(commit: string, cwd: string = process.cwd()): Pro
   return countPast(cwd, commit, 'HEAD');
 }
 
+/** `headPast`'s count in words, as a reader places a record it read. */
+export function beforeHead(past: number): string {
+  return past === 0 ? 'which is HEAD' : `${String(past)} commit(s) before HEAD`;
+}
+
+/**
+ * Where `commit` stands to `HEAD`: how many commits `HEAD` holds that it does
+ * not (`behind`), and it holds that `HEAD` does not (`ahead`). A commit `HEAD`
+ * contains is `headPast`'s count; one it does not, made on another branch or
+ * after `HEAD`, is counted both ways. Absent when this clone cannot say — a
+ * commit it does not hold, or a history too shallow to walk.
+ */
+export async function besideHead(commit: string, cwd: string = process.cwd()): Promise<{ readonly behind: number; readonly ahead: number } | undefined> {
+  const past = await headPast(commit, cwd);
+  if (past === undefined) return undefined;
+  if (past !== false) return { behind: past, ahead: 0 };
+  const [behind, ahead] = await Promise.all([countPast(cwd, commit, 'HEAD'), countPast(cwd, 'HEAD', commit)]);
+  return behind === undefined || ahead === undefined ? undefined : { behind, ahead };
+}
+
 /** How long a reader reuses a fetched line: one editor session asking ten questions fetches once. */
 export const READ_REUSE_MS = 60_000;
 
@@ -323,15 +343,6 @@ export async function distanceFrom(
   if (base === undefined) return undefined;
   // Git named the base, so the clone holds it: a record at it is no distance.
   if (commit === base) return 0;
-  return distanceBetween(commit, base, cwd);
-}
-
-/**
- * Commits between `commit` and `base`, any revision git reads: positive when
- * `commit` is older, negative when it is newer. Absent when this clone cannot
- * count, or when neither descends from the other.
- */
-export async function distanceBetween(commit: string, base: string, cwd: string = process.cwd()): Promise<number | undefined> {
   const [behind, ahead] = await Promise.all([countPast(cwd, commit, base), countPast(cwd, base, commit)]);
   if (behind === undefined || ahead === undefined) return undefined;
   if (ahead === 0) return behind;

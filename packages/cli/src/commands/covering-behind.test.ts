@@ -41,9 +41,11 @@ const INDEX = {
 
 /**
  * A checkout whose `unit` record was made at its first commit, `behind`
- * commits ago, or at `recordedAt` when given: a commit this clone may not hold.
+ * commits before `HEAD`; on a side branch `aside` commits past that first
+ * commit, when given, so the record and `HEAD` have diverged; or at
+ * `recordedAt`, a commit this clone may not hold.
  */
-async function checkout(behind: number, recordedAt?: string): Promise<{ readonly at: string; readonly commit: string }> {
+async function checkout(behind: number, options: { readonly aside?: number; readonly recordedAt?: string } = {}): Promise<{ readonly at: string; readonly commit: string }> {
   const at = await mkdtemp(join(tmpdir(), 'variance-covering-behind-'));
   made.push(at);
   const git = (...args: string[]) =>
@@ -52,19 +54,28 @@ async function checkout(behind: number, recordedAt?: string): Promise<{ readonly
     await mkdir(dirname(join(at, file)), { recursive: true });
     await writeFile(join(at, file), text);
   };
-  git('init', '--quiet');
+  const commits = async (count: number, folder: string) => {
+    for (let one = 0; one < count; one += 1) {
+      await write(`${folder}/${String(one)}.md`, `${String(one)}\n`);
+      git('add', '.');
+      git('commit', '--quiet', '-m', `${folder} ${String(one)}`);
+    }
+  };
+  git('init', '--quiet', '--initial-branch', 'main');
   await write('package.json', '{"name":"covering-behind-fixture","private":true}\n');
   await write('variance.config.json', JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
   await write('src/pay.ts', 'export const pay = 1;\n');
   await write('src/pay.test.ts', "import { pay } from './pay';\nexport const paid = pay;\n");
   git('add', '.');
   git('commit', '--quiet', '-m', 'pay');
-  const commit = recordedAt ?? git('rev-parse', 'HEAD');
-  for (let one = 0; one < behind; one += 1) {
-    await write(`notes/${String(one)}.md`, `${String(one)}\n`);
-    git('add', '.');
-    git('commit', '--quiet', '-m', `note ${String(one)}`);
+  let commit = options.recordedAt ?? git('rev-parse', 'HEAD');
+  if (options.aside !== undefined) {
+    git('checkout', '--quiet', '-b', 'side');
+    await commits(options.aside, 'side');
+    commit = git('rev-parse', 'HEAD');
+    git('checkout', '--quiet', 'main');
   }
+  await commits(behind, 'notes');
 
   // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
   await updateSourceIndex(at);
@@ -108,29 +119,46 @@ describe('a record behind the checkout', () => {
     const { at, commit } = await checkout(3);
 
     const file = await ask(at, '--file', 'src/pay.ts');
-    expect(file.json).toMatchObject({ at: commit, distance: 3 });
-    expect(file.text).toContain(`The record was made at ${commit.slice(0, 12)}, 3 commit(s) behind HEAD.\n`);
+    expect(file.json).toMatchObject({ at: commit, behind: 3, ahead: 0 });
+    expect(file.text).toContain(`The record was made at ${commit.slice(0, 12)}, 3 commit(s) before HEAD.\n`);
 
     const line = await ask(at, '--file', 'src/pay.ts', '--line', '1');
-    expect(line.json).toMatchObject({ at: commit, distance: 3 });
-    expect(line.text).toContain(`The record was made at ${commit.slice(0, 12)}, 3 commit(s) behind HEAD.\n`);
+    expect(line.json).toMatchObject({ at: commit, behind: 3, ahead: 0 });
+    expect(line.text).toContain(`The record was made at ${commit.slice(0, 12)}, 3 commit(s) before HEAD.\n`);
   });
 
-  it('says a record made at HEAD is at HEAD', async () => {
+  it('says a record made at HEAD is HEAD', async () => {
     const { at, commit } = await checkout(0);
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
-    expect(json).toMatchObject({ at: commit, distance: 0 });
-    expect(text).toContain(`The record was made at ${commit.slice(0, 12)}, at HEAD.\n`);
+    expect(json).toMatchObject({ at: commit, behind: 0, ahead: 0 });
+    expect(text).toContain(`The record was made at ${commit.slice(0, 12)}, which is HEAD.\n`);
+  });
+
+  it('counts both sides of a record made on another branch, which the clone holds', async () => {
+    const { at, commit } = await checkout(3, { aside: 2 });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ at: commit, behind: 3, ahead: 2 });
+    expect(text).toContain(`The record was made at ${commit.slice(0, 12)}, which this checkout does not contain: HEAD holds 3 commit(s) the record does not, and the record 2 that HEAD does not.\n`);
+  });
+
+  it('says how far past HEAD a record made after it is', async () => {
+    const { at, commit } = await checkout(0, { aside: 2 });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ at: commit, behind: 0, ahead: 2 });
+    expect(text).toContain(`The record was made at ${commit.slice(0, 12)}, 2 commit(s) past HEAD, which this checkout does not contain.\n`);
   });
 
   it('names the commit and says the clone cannot count when it does not hold it', async () => {
     const foreign = 'f'.repeat(40);
-    const { at } = await checkout(1, foreign);
+    const { at } = await checkout(1, { recordedAt: foreign });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
     expect(json).toMatchObject({ at: foreign });
-    expect(json).not.toHaveProperty('distance');
-    expect(text).toContain(`The record was made at ${foreign.slice(0, 12)}, at a distance this clone cannot count.\n`);
+    expect(json).not.toHaveProperty('behind');
+    expect(json).not.toHaveProperty('ahead');
+    expect(text).toContain(`The record was made at ${foreign.slice(0, 12)}, which this clone cannot count to HEAD: it does not hold the commit, or its history is too shallow to walk.\n`);
   });
 });

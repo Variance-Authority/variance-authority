@@ -86,7 +86,7 @@ describe('a file answered in the text somebody holds', () => {
     expect(written).toMatchObject({ target: { line: 1 }, tests: [], written: [{ startLine: 1, endLine: 1 }] });
     // The fixture recorded at this checkout's HEAD, so the record is no distance behind it.
     expect(formatCovering(written, 'text')).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n` +
-      `The record was made at ${written.at!.slice(0, 12)}, at HEAD.\n` +
+      `The record was made at ${written.at!.slice(0, 12)}, which is HEAD.\n` +
       `Gap (stale) on line 1 of ${source}: which tests run it now. Known: line 1 was written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
   });
 
@@ -105,7 +105,7 @@ describe('a file answered in the text somebody holds', () => {
     const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2']));
     expect(written).toMatchObject({ tests: [], written: [{ startLine: 1, endLine: 2 }] });
     expect(formatCovering(written, 'text')).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n` +
-      `The record was made at ${written.at!.slice(0, 12)}, at HEAD.\n` +
+      `The record was made at ${written.at!.slice(0, 12)}, which is HEAD.\n` +
       `Gap (stale) on lines 1-2 of ${source}: which tests run it now. Known: lines 1-2 were written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
     expect(formatCovering(written, 'refs')).not.toMatch(/[Rr]un the suite/);
   });
