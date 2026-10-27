@@ -69,16 +69,27 @@ export function declarations(
  * index read it.
  */
 function declaredBlock(root: string, held: DeclaredName, spell: Spelling): string {
-  const text = textAt(root, held);
-  const signature = text === undefined ? undefined : headOf(text, spanOf(held.signatureStart, held.signatureEnd));
-  const doc = text === undefined ? undefined : docOf(text, spanOf(held.docStart, held.docEnd));
   return [
     `${held.name} [${held.kind}]`,
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
-    ...(signature === undefined ? [] : [signature]),
-    ...(doc === undefined ? [] : [doc]),
+    ...textRows(root, held),
     reachSentences(held, spell).block,
   ].join('\n');
+}
+
+/** Where a declaration is, and the spans of its signature and documentation. */
+type Spanned = Pick<DeclaredName, 'at' | 'name' | 'line' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
+
+/**
+ * A declaration's signature and documentation, as the checkout holds them;
+ * neither when the file no longer holds the name where the index read it.
+ */
+export function textRows(root: string, held: Spanned): readonly string[] {
+  const text = textAt(root, held);
+  if (text === undefined) return [];
+  const signature = headOf(text, spanOf(held.signatureStart, held.signatureEnd));
+  const doc = docOf(text, spanOf(held.docStart, held.docEnd));
+  return [...(signature === undefined ? [] : [signature]), ...(doc === undefined ? [] : [doc])];
 }
 
 /**
@@ -157,7 +168,7 @@ function spanOf(start: number | null | undefined, end: number | null | undefined
 }
 
 /** The file's text, when it still holds the name on the line the index read it at. */
-function textAt(root: string, held: DeclaredName): string | undefined {
+function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>): string | undefined {
   let text: string;
   try {
     text = readFileSync(join(root, held.at), 'utf8');
@@ -230,7 +241,9 @@ export function declaredAt(root: string | undefined, name: string, wanted: strin
 /**
  * The declarations whose names hold `query`, as the `search` section lists
  * them: the first `cap`, source first, in `files` when an area named them;
- * nothing when no checkout was named or its index could not be read.
+ * nothing when no checkout was named or its index could not be read. A name
+ * that is the query as written comes first, the same name in another case
+ * second, and every name only holding it after them.
  */
 export function declaredMatches(
   root: string | undefined,
@@ -240,7 +253,19 @@ export function declaredMatches(
 ): (Matches<DeclaredMatch> & { readonly unread: readonly string[] }) | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
-  return { total: read.names.length, shown: read.names.slice(0, cap).map(declaredMatch), unread: read.unread };
+  // Stable, so the index's order holds within each.
+  const written = (one: DeclaredName): number => exactness(one.name, query) ?? 2;
+  const names = [...read.names].sort((left, right) => written(left) - written(right));
+  return { total: names.length, shown: names.slice(0, cap).map(declaredMatch), unread: read.unread };
+}
+
+/**
+ * How exactly a name is the question, as every `search` list ranks it: 0 as
+ * written, 1 the same name in another case, nothing when it only holds it.
+ */
+export function exactness(written: string, question: string): 0 | 1 | undefined {
+  if (written === question) return 0;
+  return written.toLowerCase() === question.toLowerCase() ? 1 : undefined;
 }
 
 /** One declaration, as a `search` section holds it. */

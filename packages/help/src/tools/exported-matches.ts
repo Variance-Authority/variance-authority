@@ -42,7 +42,8 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
  * `openings`, when given, are the rows whose doc says the question in its
  * opening paragraph, and where it was found then orders first, as the
  * published half orders: a name its own words reached, then one a doc opens
- * with, then one a doc says later.
+ * with, then one a doc says later. `exact` holds the names that are the question
+ * whole and where each orders, before all of them.
  */
 export function exported(
   index: SearchIndex,
@@ -51,6 +52,7 @@ export function exported(
   within: ReadonlySet<number> | undefined,
   through?: ReadonlyMap<number, ReadonlySet<number>>,
   openings?: ReadonlySet<number>,
+  exact?: ReadonlyMap<number, number>,
 ): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
   const found: { name: number; rank: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
@@ -70,7 +72,7 @@ export function exported(
     const count = within === undefined ? index.exportedOf(name).length : rowsOf(name).length;
     if (count === 0) continue;
     const read = openings === undefined ? undefined : through?.get(name);
-    const field = read === undefined ? 0 : reached(name).some((row) => openings?.has(row) === true) ? 1 : 2;
+    const field = exact?.get(name) ?? (read === undefined ? 2 : reached(name).some((row) => openings?.has(row) === true) ? 3 : 4);
     found.push({ name, rank: index.rank(name), count, field });
   }
 

@@ -16,9 +16,10 @@ import { searched, searchedFiles } from './search-answer.js';
  * it; and several words, over the words a name is written in, each word
  * matching one that starts with it or shares its stem. A match there is a fact
  * about the text, so it is reported first and whole, ordered first by where it
- * was found — the name, the doc's opening paragraph, the rest of the doc — and
- * then by who imports it: a name holding the word is that thing, and a doc
- * saying it three paragraphs down only mentions it.
+ * was found — the whole name, as written and then in another case, part of the
+ * name, the doc's opening paragraph, the rest of the doc — and then by who
+ * imports it: a name that is the word is what was asked for, a name holding it
+ * is that thing, and a doc saying it three paragraphs down only mentions it.
  *
  * ## Two halves, because most code is not published
  *
