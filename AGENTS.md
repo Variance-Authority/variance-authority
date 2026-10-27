@@ -81,7 +81,8 @@ Look around:
 
 - What was asked, by whom, and what done means, as a sentence somebody could
   check.
-- Whether it is a Backlog task. If it is, Backlog governs it (below).
+- Whether a GitHub issue already holds it, and what its parent is
+  ([tasks](#tasks-are-github-issues), below).
 - For non-local work — crossing a boundary, changing a rule or an invariant,
   adding a party, building a capability: what the architecture chart in
   `.compass/` says owns it.
@@ -251,36 +252,32 @@ every finding is classified. The report starts from the task as it was set —
 where it stands, what is not done — and ends with what you need from the person
 who asked.
 
-<!-- BACKLOG.MD GUIDELINES START -->
-<!-- backlog.md-instructions-version: 1.50.1 -->
-<CRITICAL_INSTRUCTION>
+## Tasks are GitHub issues
 
-## Backlog.md Workflow
+Work is tracked in this repository's GitHub issues, read and written with `gh`.
+Search before you file: a second issue for the same work splits its history.
 
-This project uses Backlog.md for task and project management. Backlog governs
-task processing, not repository orientation.
+```bash
+gh issue list --search "<words>"        # does an issue already hold it?
+gh issue view <n>                       # the task, its parent, its sub-issues
+gh issue create --title "<outcome>" --body-file <file> --label <label>
+```
 
-Invoke Backlog only when the request processes a Backlog task: searching,
-reading, creating or updating one, or executing or finalizing work already
-identified as a Backlog task. Reading `AGENTS.md` or `docs/context/`, inspecting
-the checkout, locating files or tools, answering an ad hoc question, and making
-an ad hoc change are not Backlog task processing and must not invoke it.
+A title says what is true when the work is done, as the repository's titles
+do. The body opens with the problem, then a "Done when" list somebody can
+check. A defect found by reading code carries `candidate` until a test that
+fails on today's code reproduces it; a task that waits on the owner carries
+`needs-decision`.
 
-At the start of Backlog task processing, run
-`./node_modules/.bin/backlog instructions overview` and
-use it to decide whether to search, read, create or update tasks. Run Backlog
-commands independently from orientation and context reads so a CLI failure
-cannot prevent those reads.
+Work that belongs to a larger task is its sub-issue, and a roadmap is an issue
+labelled `epic` whose sub-issues are its items. `gh` attaches one by the
+child's id, not its number:
 
-Before task lifecycle actions, read the matching detailed guide:
-- `./node_modules/.bin/backlog instructions task-creation` before creating or splitting tasks
-- `./node_modules/.bin/backlog instructions task-execution` before planning, changing status or assignee, adding a plan or implementation notes, or implementing task work
-- `./node_modules/.bin/backlog instructions task-finalization` before checking acceptance criteria, writing final summaries, or moving tasks to terminal statuses
+```bash
+gh api repos/{owner}/{repo}/issues/<parent>/sub_issues \
+  -F sub_issue_id="$(gh api repos/{owner}/{repo}/issues/<child> --jq .id)"
+```
 
-Use `./node_modules/.bin/backlog <command> --help` before running unfamiliar
-commands. Help shows options, fields, and examples.
-
-Do not edit Backlog task, draft, document, decision, or milestone markdown files directly. Use the `backlog` CLI so metadata, relationships, and history stay consistent.
-
-</CRITICAL_INSTRUCTION>
-<!-- BACKLOG.MD GUIDELINES END -->
+The pull request that finishes a task says `Closes #<n>` in its body, and one
+that does part of it says `Part of #<n>`. A finding the task neither needs nor
+wrote becomes its own issue when it is not fixed on its own branch.

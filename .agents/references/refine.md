@@ -10,10 +10,11 @@ true when the task is done, and which gate says so — a test, a check, a
 measurement, a CI comment. If you cannot write that sentence, the task is not
 refined yet.
 
-**Backlog.** A request that processes a Backlog task is governed by the Backlog
-section of `AGENTS.md`, starting with
-`./node_modules/.bin/backlog instructions overview`. An ad hoc change is not a
-Backlog task and does not invoke it.
+**The issue.** Search the GitHub issues before filing one:
+`gh issue list --search "<words>"`. An issue that already holds the task gives
+its "Done when", its parent and what it waits on; the pull request that
+finishes it closes it. The rules are under "Tasks are GitHub issues" in
+`AGENTS.md`.
 
 **The chart.** For non-local work — crossing a boundary, changing a rule or an
 invariant, adding a party, asking whether something belongs here, or building
