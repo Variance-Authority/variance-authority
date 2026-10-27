@@ -31,7 +31,6 @@ import {
   type Reach,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
-import { committedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt, CoveringSource } from '../covering-args.js';
 
@@ -57,23 +56,16 @@ export async function placementFor(request: CoveringAt, from: string): Promise<P
 }
 
 /**
- * The commit the record at `from` was made at, when it says: only an index
- * read from beside a snapshot names one, since a journey file handed in by
- * path is no record of a commit.
+ * The snapshot the index at `from` was read from beside, and the commit it was
+ * made at when it says. Nothing for a journey file handed in by path, which is
+ * no record of a commit.
  */
-export async function recordCommitOf(request: CoveringSource, from: string): Promise<string | undefined> {
-  const record = await snapshotFor(request);
-  return record !== undefined && from.startsWith(record) ? recordedCommit(record) : undefined;
-}
-
-/**
- * The record's commit, and when it was committed when this clone holds it.
- * Nothing when the record names no commit.
- */
-export function datedRecord(root: string, at: string | undefined): { readonly at?: string; readonly committedAt?: string } {
-  if (at === undefined) return {};
-  const committed = committedAt(root, at);
-  return committed === undefined ? { at } : { at, committedAt: committed };
+export async function recordOf(
+  request: CoveringSource,
+  from: string,
+): Promise<{ readonly snapshot: string; readonly at: string | undefined } | undefined> {
+  const snapshot = await snapshotFor(request);
+  return snapshot !== undefined && from.startsWith(snapshot) ? { snapshot, at: await recordedCommit(snapshot) } : undefined;
 }
 
 /**

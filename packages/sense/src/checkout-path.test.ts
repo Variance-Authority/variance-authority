@@ -34,11 +34,11 @@ describe('committedAt', () => {
     expect(committedAt(repository, commit)).toBe(when);
   });
 
-  it('has no time for a commit the clone does not hold', () => {
-    expect(committedAt(repository, 'f'.repeat(40))).toBeUndefined();
+  it('says the clone does not hold a commit it has no object for', () => {
+    expect(committedAt(repository, 'f'.repeat(40))).toBe(false);
   });
 
-  it('has no time outside a git repository', () => {
-    expect(committedAt(outside, commit)).toBeUndefined();
+  it('says why git gave no time outside a git repository, apart from a commit the clone lacks', () => {
+    expect(committedAt(outside, commit)).toEqual({ unread: expect.stringMatching(/not a git repository/u) as unknown });
   });
 });

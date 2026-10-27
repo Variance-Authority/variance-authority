@@ -30,10 +30,7 @@
  * on demand, off the file graph, in [`covering-reach.ts`](./covering-reach.ts).
  */
 
-import { realpath } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
 import {
-  changedLines,
   coveringChange,
   coveringTestsInFile,
   keepsCases,
@@ -61,8 +58,9 @@ import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
-import { datedRecord, placeRanges, placementFor, recordCommitOf, regionState, type CoveringRange } from './covering-frame.js';
-import { diffSince } from './since.js';
+import { placeRanges, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
+import { changeSince, stated } from './covering-since.js';
+import { namedTestFiles, ranFor, type CoveringRan } from './covering-ran.js';
 import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
@@ -181,11 +179,10 @@ export interface Covering {
    */
   readonly at?: string;
   /**
-   * With `at`: when it was committed, as a UTC ISO time, absent when this clone
-   * does not hold it. With `frame` it is how fresh the answer is; a count of
-   * commits since is not, since they may all touch other code.
+   * Where and when the test files the answer names last ran, which is how fresh
+   * it is (`covering-ran.ts`). Absent when it names none.
    */
-  readonly committedAt?: string;
+  readonly ran?: CoveringRan;
   /**
    * What a narrowing did, when one was asked for.
    *
@@ -238,11 +235,11 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     return { index: kept.index, files: read.files, before: index };
   };
   let answer: Covering;
-  let at: string | undefined;
+  let record: Awaited<ReturnType<typeof recordOf>>;
   try {
     const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
-    at = await recordCommitOf(request, from);
-    answer = await ask(request, reader, graph, { from, at }, (tests) => {
+    record = await recordOf(request, from);
+    answer = await ask(request, reader, graph, { from, at: record?.at }, (tests) => {
       reached = tests;
     });
   } catch (error) {
@@ -277,9 +274,13 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   const probes = await gapOf(request, answer.from, whole);
   const source = { root: request.root, suite: request.suite, execution: request.execution, record: answer.from, graph };
   const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
+  const at = record?.at;
+  const asked = answer.changed?.map((change) => change.file) ?? (answer.file === undefined ? [] : [answer.file]);
+  const ran = await ranFor(namedTestFiles(answer), { root: request.root, snapshot: record?.snapshot, at, asked });
   return {
     ...answer,
-    ...datedRecord(request.root, answer.at ?? at),
+    ...(at === undefined ? {} : { at }),
+    ...(ran === undefined ? {} : { ran }),
     ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
     ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
@@ -404,63 +405,6 @@ async function ask(
     from,
     ...countOf(near, identities(listing(narrowed)), identities(listing(found))),
   };
-}
-
-/** A changed region as `--where` lists it, stated, with the cases that stopped, over every case that reached it. */
-function stated(listed: CoveringRegion, reached: CoveringRegion): StatedRegion {
-  const { stopped: _, ...region } = listed;
-  const state = regionState(reached);
-  return {
-    ...region,
-    ...(reached.stopped === undefined ? {} : { stopped: reached.stopped }),
-    ...(state === undefined ? {} : { state }),
-  };
-}
-
-/**
- * Every line a diff changed, in the index's coordinates.
- *
- * The diff is measured from the commit the record was written at, when it has
- * one, rather than from the merge base with `ref`, because the index's line ranges are in that
- * commit's coordinates and nothing else's. The two part company as soon as the
- * branch moves under the recording, and a hunk read at the wrong end lands on
- * lines the index numbered for a different region — which is the one failure
- * here nobody can see, since a wrong list of test names reads exactly like a
- * right one.
- *
- * `git` names files from the repository root and the index names them from the
- * run's, so the paths are brought into the index's coordinates before anything
- * is looked up. Unmatched paths are reported rather than dropped: an answer that
- * silently left out half a diff is worse than one that says it cannot speak to
- * it.
- */
-async function changeSince(
-  since: string,
-  root: string,
-  at: string | undefined,
-): Promise<ReadonlyMap<string, readonly LineRange[]>> {
-  const diff = await diffSince(since, [], at);
-  if (diff === undefined) {
-    throw new OperatorError(
-      `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a ` +
-        'git checkout; an empty answer here would read as `your change touches nothing`.',
-    );
-  }
-
-  // The working directory is always a real path and `--root` is spelled however
-  // the caller spelled it; through a symlink (`/var` on macOS) the two never meet.
-  const here = process.cwd();
-  const base = await realpath(root);
-  const changed = new Map<string, readonly LineRange[]>();
-  for (const [file, ranges] of changedLines(diff)) {
-    changed.set(here === base ? file : relative(base, resolve(here, file)), ranges);
-  }
-  if (changed.size === 0) {
-    throw new OperatorError(
-      `nothing has changed since \`${since}\`, so there is no region to ask about.`,
-    );
-  }
-  return changed;
 }
 
 /** {@link readIndex}, and under `--where` the index before it narrowed the cases. */

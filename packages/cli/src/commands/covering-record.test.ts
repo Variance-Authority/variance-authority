@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { digestString } from '@variance-authority/core/format';
@@ -11,9 +11,8 @@ import { main } from '../bin.js';
 
 /**
  * Every `covering` answer about a file says how fresh it is for the question:
- * whether the asked text is the one the suite ran over, and when the record's
- * commit was committed. Commits since the record are not counted, since a
- * commit touching other code says nothing about this file.
+ * whether the asked text is the one the suite ran over, and where and when the
+ * test files it names last ran.
  */
 
 let cache: string;
@@ -33,8 +32,10 @@ afterAll(async () => {
 });
 
 const PAY = 'export function pay(amount: number): number {\n  if (amount < 0) {\n    return 0;\n  }\n  return amount;\n}\n';
-const HOUR = 3_600_000;
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+const iso = (ms: number) => new Date(ms).toISOString();
 
 const INDEX = {
   tests: [{ id: 'p', file: 'src/pay.test.ts', name: 'charges once' }],
@@ -54,14 +55,19 @@ interface Fixture {
   readonly recordedAt?: string | null;
   /** The text whose digest the record holds for `src/pay.ts`, when not the committed one. */
   readonly ranOver?: string;
-  /** Commits after the record's, each touching only `src/other.ts`. */
-  readonly later?: number;
   /** Whether the record holds an instrumented row, so a digest, for `src/pay.ts`. */
   readonly instrumented?: boolean;
+  /**
+   * A second commit, at `committed` ms, that the record names: it writes `pay`
+   * to `src/pay.ts` when given, and `src/other.ts` otherwise.
+   */
+  readonly then?: { readonly committed: number; readonly pay?: string };
+  /** The runs record written beside the snapshot, given the first commit and the record's. */
+  readonly runs?: (first: string, recorded: string | undefined) => unknown;
 }
 
-/** A checkout whose `unit` record ran `src/pay.ts` at its first commit. */
-async function checkout(options: Fixture = {}): Promise<{ readonly at: string; readonly commit: string | undefined }> {
+/** A checkout whose `unit` record ran `src/pay.ts` at its first commit, or at the second when there is one. */
+async function checkout(options: Fixture = {}): Promise<{ readonly at: string; readonly commit: string | undefined; readonly first: string }> {
   const at = await mkdtemp(join(tmpdir(), 'variance-covering-record-'));
   made.push(at);
   const date = (ms: number) => `@${String(Math.floor(ms / 1000))} +0000`;
@@ -82,12 +88,13 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
   await write('src/pay.test.ts', "import { pay } from './pay';\nexport const paid = pay(1);\n");
   git(['add', '.']);
   git(['commit', '--quiet', '-m', 'pay'], options.committed ?? Date.now() - (3 * DAY + HOUR));
-  const commit = options.recordedAt === null ? undefined : options.recordedAt ?? git(['rev-parse', 'HEAD']);
-  for (let one = 0; one < (options.later ?? 0); one += 1) {
-    await write('src/other.ts', `export const other = ${String(one)};\n`);
+  const first = git(['rev-parse', 'HEAD']);
+  if (options.then !== undefined) {
+    await (options.then.pay === undefined ? write('src/other.ts', 'export const other = 1;\n') : write('src/pay.ts', options.then.pay));
     git(['add', '.']);
-    git(['commit', '--quiet', '-m', `other ${String(one)}`]);
+    git(['commit', '--quiet', '-m', 'then'], options.then.committed);
   }
+  const commit = options.recordedAt === null ? undefined : options.recordedAt ?? git(['rev-parse', 'HEAD']);
 
   // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
   await updateSourceIndex(at);
@@ -96,7 +103,7 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
   await mkdir(dirname(file), { recursive: true });
   const pay = {
     file: 'src/pay.ts',
-    sourceDigest: digestString(options.ranOver ?? PAY),
+    sourceDigest: digestString(options.ranOver ?? options.then?.pay ?? PAY),
     instrumented: options.instrumented ?? true,
     // A module has regions exactly when the build instrumented it.
     blocks: options.instrumented === false ? [] : [{
@@ -113,7 +120,9 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
   }, {
     index: encodeExecutionIndex(INDEX as Parameters<typeof encodeExecutionIndex>[0]),
   });
-  return { at, commit };
+  const runs = options.runs?.(first, commit);
+  if (runs !== undefined) await writeFile(commitRunsFile(file), typeof runs === 'string' ? runs : JSON.stringify(runs));
+  return { at, commit, first };
 }
 
 async function ask(root: string, ...argv: string[]): Promise<{ readonly text: string; readonly json: Record<string, unknown> }> {
@@ -130,41 +139,23 @@ async function ask(root: string, ...argv: string[]): Promise<{ readonly text: st
 }
 
 const sha = (commit: string | undefined) => commit!.slice(0, 12);
+/** What a record with no runs beside it says of where its tests ran. */
+const unplaced = (commit: string | undefined) => `no runs record lies beside the snapshot, so every test is read as though it last ran at ${sha(commit)}`;
 
-describe('a covering answer says whether the asked text is the one the suite ran over, and when its record was committed', () => {
-  it('dates the record of a file by its commit, and counts no commits', async () => {
+describe('a covering answer says whether the asked text is the one the suite ran over', () => {
+  it('frames the file, a line and a function, and dates none of them by the record', async () => {
     const { at, commit } = await checkout();
-    const { text, json } = await ask(at, '--file', 'src/pay.ts');
-
-    expect(json).toMatchObject({ at: commit, frame: 'recorded' });
-    expect(json['committedAt']).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.000Z$/u);
-    expect(Date.parse(json['committedAt'] as string)).toBeLessThan(Date.now() - 3 * DAY);
-    expect(json).not.toHaveProperty('behind');
-    expect(json).not.toHaveProperty('ahead');
-    expect(text).toContain(`src/pay.ts is the text the suite ran over at ${sha(commit)}, committed 3 days ago.\n`);
-    expect(text).not.toContain('commit(s)');
-  });
-
-  it('dates the answer about a line and a function the same way, and frames the function', async () => {
-    const { at, commit } = await checkout();
+    const file = await ask(at, '--file', 'src/pay.ts');
     const line = await ask(at, '--file', 'src/pay.ts', '--line', '1');
     const named = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
 
+    expect(file.json).toMatchObject({ at: commit, frame: 'recorded' });
     expect(line.json).toMatchObject({ at: commit, frame: 'recorded' });
-    expect(line.json['committedAt']).toBe(named.json['committedAt']);
     expect(named.json).toMatchObject({ at: commit, frame: 'recorded', unrun: [{ kind: 'branch', startLine: 2, endLine: 4 }] });
-    expect(line.text).toContain(`src/pay.ts is the text the suite ran over at ${sha(commit)}, committed 3 days ago.\n`);
-    expect(named.text).toContain(`src/pay.ts is the text the suite ran over at ${sha(commit)}, committed 3 days ago.\n`);
-  });
-
-  it('says the same of a record commits to other files have passed', async () => {
-    const { at, commit } = await checkout({ later: 5 });
-    const { text, json } = await ask(at, '--file', 'src/pay.ts');
-
-    expect(json).toMatchObject({ at: commit, frame: 'recorded' });
-    expect(json).not.toHaveProperty('behind');
-    expect(json).not.toHaveProperty('ahead');
-    expect(text).toContain(`src/pay.ts is the text the suite ran over at ${sha(commit)}, committed 3 days ago.\n`);
+    for (const { text, json } of [file, line, named]) {
+      expect(json).not.toHaveProperty('committedAt');
+      expect(text).toContain('src/pay.ts is the text the suite ran over.\n');
+    }
   });
 
   it('says once that an edited file\'s lines are placed in the text as it is now', async () => {
@@ -173,16 +164,16 @@ describe('a covering answer says whether the asked text is the one the suite ran
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
     expect(json).toMatchObject({ at: commit, frame: 'mapped' });
-    expect(text).toContain(`src/pay.ts differs from the text the suite ran over at ${sha(commit)}, committed 3 days ago; its lines are placed in the text as it is now.\n`);
+    expect(text).toContain('src/pay.ts differs from the text the suite ran over; its lines are placed in the text as it is now.\n');
     expect(text).not.toContain(', placed in the text as it is now');
   });
 
-  it('dates a record whose text could not be found', async () => {
+  it('names the record a file\'s text could not be found for', async () => {
     const { at, commit } = await checkout({ ranOver: `// never committed\n${PAY}` });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
     expect(json).toMatchObject({ at: commit, frame: 'stale' });
-    expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, committed 3 days ago, and that text could not be found, so no recorded line is a place in it.\n`);
+    expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, and that text could not be found, so no recorded line is a place in it.\n`);
   });
 
   it('frames a function in a file whose recorded text could not be found, lists its cases and says no part of it is placed', async () => {
@@ -192,37 +183,7 @@ describe('a covering answer says whether the asked text is the one the suite ran
     expect(json).toMatchObject({ at: commit, frame: 'stale', target: { function: 'pay' }, tests: [{ id: 'p' }] });
     expect(json).not.toHaveProperty('unrun');
     expect(text).toContain('charges once [p]\n');
-    expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, committed 3 days ago, and that text could not be found, so no recorded line is a place in it. Which parts of \`pay\` no case ran is not said for that reason.\n`);
-  });
-
-  it('names a commit this clone does not hold, and gives it no time', async () => {
-    const foreign = 'f'.repeat(40);
-    const { at } = await checkout({ recordedAt: foreign });
-    const { text, json } = await ask(at, '--file', 'src/pay.ts');
-
-    expect(json).toMatchObject({ at: foreign, frame: 'recorded' });
-    expect(json).not.toHaveProperty('committedAt');
-    expect(text).toContain('src/pay.ts is the text the suite ran over at ffffffffffff, which this clone does not hold.\n');
-  });
-
-  it('says a record that names no commit has no age', async () => {
-    const { at } = await checkout({ recordedAt: null });
-    const { text, json } = await ask(at, '--file', 'src/pay.ts');
-
-    expect(json).toMatchObject({ frame: 'recorded' });
-    expect(json).not.toHaveProperty('at');
-    expect(json).not.toHaveProperty('committedAt');
-    expect(text).toContain('src/pay.ts is the text the suite ran over; the record names no commit, so its age is not known.\n');
-  });
-
-  it('gives the commit time itself when the commit is later than this machine\'s clock', async () => {
-    const committed = Date.now() + 2 * DAY;
-    const { at, commit } = await checkout({ committed });
-    const { text, json } = await ask(at, '--file', 'src/pay.ts');
-    const iso = new Date(Math.floor(committed / 1000) * 1000).toISOString();
-
-    expect(json).toMatchObject({ at: commit, committedAt: iso });
-    expect(text).toContain(`src/pay.ts is the text the suite ran over at ${sha(commit)}, committed ${iso}, later than this machine's clock.\n`);
+    expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, and that text could not be found, so no recorded line is a place in it. Which parts of \`pay\` no case ran is not said for that reason.\n`);
   });
 
   it('says whether the text is the one the suite ran over is not known when the record holds no digest of it', async () => {
@@ -231,7 +192,7 @@ describe('a covering answer says whether the asked text is the one the suite ran
 
     expect(json).toMatchObject({ at: commit });
     expect(json).not.toHaveProperty('frame');
-    expect(text).toContain(`The record holds no digest of src/pay.ts, so whether it is the text the suite ran over at ${sha(commit)}, committed 3 days ago, is not known.\n`);
+    expect(text).toContain('The record holds no digest of src/pay.ts, so whether it is the text the suite ran over is not known.\n');
   });
 
   it('says a journey handed in by path holds no digest and names no commit', async () => {
@@ -242,7 +203,8 @@ describe('a covering answer says whether the asked text is the one the suite ran
 
     expect(json).not.toHaveProperty('frame');
     expect(json).not.toHaveProperty('at');
-    expect(text).toContain('The record holds no digest of src/pay.ts, so whether it is the text the suite ran over is not known; the record names no commit, so its age is not known.\n');
+    expect(text).toContain('The record holds no digest of src/pay.ts, so whether it is the text the suite ran over is not known.\n');
+    expect(text).toContain('Where and when the test file named here last ran is not known: the record names no commit.\n');
   });
 
   it('says the record\'s lines are its own when the file is not on disk', async () => {
@@ -252,19 +214,124 @@ describe('a covering answer says whether the asked text is the one the suite ran
 
     expect(json).toMatchObject({ at: commit, unheld: true });
     expect(json).not.toHaveProperty('frame');
-    expect(text).toContain(`src/pay.ts is not on disk, so no text is held against the one the suite ran over at ${sha(commit)}, committed 3 days ago; its lines are the record's.\n`);
+    expect(text).toContain('src/pay.ts is not on disk, so no text is held against the one the suite ran over; its lines are the record\'s.\n');
+  });
+});
+
+describe('a covering answer says where and when the test files it names last ran', () => {
+  it('dates the answer by where its test file last ran, not by the commit a later partial run stamped the record with', async () => {
+    const now = Date.now();
+    const { at, commit, first } = await checkout({
+      committed: now - (9 * HOUR + 30 * MINUTE),
+      then: { committed: now - (6 * MINUTE + 30_000) },
+      runs: (base, recorded) => ({
+        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1,
+        files: ['src/other.test.ts'], standing: [{ commit: base, files: ['src/pay.test.ts'] }],
+      }),
+    });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ at: commit, frame: 'recorded', ran: { stands: [{ commit: first, tests: ['src/pay.test.ts'] }] } });
+    expect(json['ran']).not.toHaveProperty('assumed');
+    expect(text).toContain(`The test file named here last ran at ${sha(first)}, a commit made 9 hours ago.\n`);
+    expect(text).not.toContain('minute');
   });
 
-  it('dates the record the review reading was read from', async () => {
+  it('says the test file ran over another text of the asked file when it changed after that run', async () => {
+    const now = Date.now();
+    const edited = `// fees are charged by the caller\n${PAY}`;
+    const { at, commit, first } = await checkout({
+      committed: now - (9 * HOUR + 30 * MINUTE),
+      then: { committed: now - (6 * MINUTE + 30_000), pay: edited },
+      runs: (base, recorded) => ({
+        commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1,
+        files: ['src/other.test.ts'], standing: [{ commit: base, files: ['src/pay.test.ts'] }],
+      }),
+    });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ at: commit, frame: 'recorded', ran: { stands: [{ commit: first, otherText: ['src/pay.ts'] }] } });
+    expect(text).toContain(
+      `The test file named here last ran at ${sha(first)}, a commit made 9 hours ago, over another text of src/pay.ts, which changed between that commit and ${sha(commit)}.\n`,
+    );
+  });
+
+  it('gives the time the runs at the record\'s commit landed, for a test file they ran', async () => {
+    const now = Date.now();
+    const { at, commit } = await checkout({
+      runs: (_, recorded) => ({ commit: recorded, first: iso(now - (3 * HOUR + MINUTE)), latest: iso(now - (6 * MINUTE + 30_000)), runs: 2, files: ['src/pay.test.ts'] }),
+    });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+
+    expect(json).toMatchObject({ ran: { stands: [{ commit, landed: { runs: 2 } }] } });
+    expect(text).toContain(`The test file named here last ran at ${sha(commit)}, in one of the 2 runs at it, which landed between 3 hours ago and 6 minutes ago.\n`);
+  });
+
+  it('dates a test file the runs at the record\'s commit did not observe by the commit, and says so', async () => {
+    const now = Date.now();
+    const { at, commit } = await checkout({
+      runs: (_, recorded) => ({ commit: recorded, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1, files: ['src/other.test.ts'] }),
+    });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ ran: { stands: [{ commit }] } });
+    expect(text).toContain(
+      `The test file named here last ran at ${sha(commit)}, a commit made 3 days ago; the runs record beside the snapshot does not say where 1 test(s) last ran, so they are read from ${sha(commit)}, where the snapshot was recorded.\n`,
+    );
+  });
+
+  it('says where the test file was read as running when no runs record lies beside the snapshot', async () => {
     const { at, commit } = await checkout();
-    await writeFile(join(at, 'src/pay.ts'), PAY.replace('return 0;', 'return -0;'));
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ ran: { stands: [{ commit, tests: ['src/pay.test.ts'] }], assumed: unplaced(commit) } });
+    expect(text).toContain(`The test file named here last ran at ${sha(commit)}, a commit made 3 days ago; ${unplaced(commit)}.\n`);
+  });
+
+  it('names a commit this clone does not hold, and gives it no time', async () => {
+    const foreign = 'f'.repeat(40);
+    const { at } = await checkout({ recordedAt: foreign });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ at: foreign, frame: 'recorded', ran: { stands: [{ commit: foreign, held: false }] } });
+    expect(text).toContain(`The test file named here last ran at ffffffffffff, a commit this clone does not hold; ${unplaced(foreign)}.\n`);
+  });
+
+  it('says where and when the test file last ran is not known when the record names no commit', async () => {
+    const { at } = await checkout({ recordedAt: null });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ frame: 'recorded', ran: { tests: ['src/pay.test.ts'], unread: 'the record names no commit' } });
+    expect(json).not.toHaveProperty('at');
+    expect(text).toContain('Where and when the test file named here last ran is not known: the record names no commit.\n');
+  });
+
+  it('says why when the runs record beside the snapshot cannot be read', async () => {
+    const { at } = await checkout({ runs: () => 'not json' });
+    const { text } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(text).toContain(`Where and when the test file named here last ran is not known: the runs record at ${commitRunsFile(testCoverageFile(at, { suite: 'unit' }))} is not JSON`);
+  });
+
+  it('gives the commit time itself when the commit is later than this machine\'s clock', async () => {
+    const committed = Date.now() + 2 * DAY;
+    const { at, commit } = await checkout({ committed });
+    const { text } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(text).toContain(`last ran at ${sha(commit)}, a commit made at ${iso(Math.floor(committed / 1000) * 1000)}, later than this machine's clock;`);
+  });
+
+  it('dates the review reading by where the test files of its regions last ran', async () => {
+    const { at, commit } = await checkout();
+    await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount + 0;'));
     // `--since` reads its diff in the working directory, which is the checkout the record is of.
     const cwd = process.cwd();
     process.chdir(at);
     const { text, json } = await ask(at, '--since', 'HEAD').finally(() => process.chdir(cwd));
 
-    expect(json).toMatchObject({ at: commit });
-    expect(json['committedAt']).toMatch(/Z$/u);
-    expect(text).toContain(`Read from ${String(json['from'])}, recorded at ${commit!}, committed 3 days ago.\n`);
+    expect(json).toMatchObject({ at: commit, ran: { stands: [{ commit }] } });
+    expect(json).not.toHaveProperty('committedAt');
+    expect(text).toContain(`Read from ${String(json['from'])}, recorded at ${commit!}.\n`);
+    expect(text).toContain(`The test file named here last ran at ${sha(commit)}, a commit made 3 days ago; ${unplaced(commit)}.\n`);
   });
 });

@@ -50,11 +50,6 @@ function parse(argv: readonly string[]) {
   return parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
 }
 
-/** A clock three days and an hour past the commit the answer's record was made at. */
-function later(answer: { readonly committedAt?: string }): number {
-  return Date.parse(answer.committedAt!) + 3 * 24 * 3_600_000 + 3_600_000;
-}
-
 /** The fixture's text with two lines written above it, as an editor would hold it unsaved. */
 async function edited(): Promise<string> {
   const held = join(cache, 'held.ts');
@@ -69,6 +64,11 @@ describe('a file answered in the text somebody holds', () => {
     expect(answer.frame).toBe('recorded');
     expect(answer.ranges?.slice(0, 2).map((range) => [range.startLine, range.endLine, range.state]))
       .toEqual([[1, 1, 'walked'], [2, 2, 'walked']]);
+    // The run wrote the runs record beside the snapshot, so the answer is dated by when that run landed.
+    expect(answer.ran).toMatchObject({ stands: [{ commit: answer.at, tests: [`${cases}/test/branch.case.ts`, `${cases}/test/concurrent.case.ts`], landed: { runs: 1 } }] });
+    const { latest } = (answer.ran as { readonly stands: readonly { readonly landed: { readonly latest: string } }[] }).stands[0]!.landed;
+    expect(formatCovering(answer, 'text', Date.parse(latest) + 3_600_000))
+      .toContain(`The 2 test files named here last ran at ${answer.at!.slice(0, 12)}, in a run that landed 1 hour ago.\n`);
   });
 
   it('carries every range to where it stands in an edited text', async () => {
@@ -89,9 +89,8 @@ describe('a file answered in the text somebody holds', () => {
     expect(answer.target).toEqual({ line: 7 });
     const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1']));
     expect(written).toMatchObject({ target: { line: 1 }, tests: [], written: [{ startLine: 1, endLine: 1 }] });
-    // The fixture recorded at this checkout's HEAD, read here three days and an hour after HEAD was committed.
-    expect(formatCovering(written, 'text', later(written))).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n` +
-      `${source} differs from the text the suite ran over at ${written.at!.slice(0, 12)}, committed 3 days ago; its lines are placed in the text as it is now.\n` +
+    expect(formatCovering(written, 'text')).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n` +
+      `${source} differs from the text the suite ran over; its lines are placed in the text as it is now.\n` +
       `Gap (stale) on line 1 of ${source}: which tests run it now. Known: line 1 was written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
   });
 
@@ -109,8 +108,8 @@ describe('a file answered in the text somebody holds', () => {
     expect(formatCovering(answer, 'refs')).toContain('; written since 1-2');
     const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2']));
     expect(written).toMatchObject({ tests: [], written: [{ startLine: 1, endLine: 2 }] });
-    expect(formatCovering(written, 'text', later(written))).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n` +
-      `${source} differs from the text the suite ran over at ${written.at!.slice(0, 12)}, committed 3 days ago; its lines are placed in the text as it is now.\n` +
+    expect(formatCovering(written, 'text')).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n` +
+      `${source} differs from the text the suite ran over; its lines are placed in the text as it is now.\n` +
       `Gap (stale) on lines 1-2 of ${source}: which tests run it now. Known: lines 1-2 were written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
     expect(formatCovering(written, 'refs')).not.toMatch(/[Rr]un the suite/);
   });

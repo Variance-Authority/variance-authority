@@ -64,20 +64,22 @@ export function existedAt(root: string, commit: string, path: string): boolean |
 
 /**
  * When `commit` was committed, as a UTC ISO time, read from the clone at
- * `root`; absent when the clone does not hold the commit. The committer time,
- * not the author time: a commit rebased or cherry-picked today carries today's
- * tree, so it is the time the recorded text was put together.
+ * `root`: `false` when the clone does not hold the commit, and the first line
+ * git gave when it could not read the clone at all. The committer time, not the
+ * author time: a commit rebased or cherry-picked today carries today's tree, so
+ * it is the time the recorded text was put together.
  */
-export function committedAt(root: string, commit: string): string | undefined {
+export function committedAt(root: string, commit: string): string | false | { readonly unread: string } {
   try {
-    const seconds = Number(execFileSync(
+    const seconds = execFileSync(
       'git',
-      ['-c', 'log.showSignature=false', 'show', '-s', '--format=%ct', '--end-of-options', `${commit}^{commit}`],
-      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-    ).trim());
-    return Number.isFinite(seconds) ? new Date(seconds * 1000).toISOString() : undefined;
-  } catch {
-    return undefined;
+      ['-c', 'log.showSignature=false', 'log', '--ignore-missing', '--no-walk', '--format=%ct', '--end-of-options', `${commit}^{commit}`],
+      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    ).trim();
+    return seconds === '' ? false : new Date(Number(seconds) * 1000).toISOString();
+  } catch (error) {
+    const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);
+    return { unread: said.trim().split('\n')[0] || `git could not read ${commit}` };
   }
 }
 
