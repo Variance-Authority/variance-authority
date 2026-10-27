@@ -19,51 +19,51 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * A description is not a name: `tsconfig custom conditions` is three words an
  * agent would say about `customConditionsFor`, and neither the phrase nor every
  * word is in it. So the question is cut into stems by the rule the installed
- * packages were cut by — the sense addon owns it, stopwords included — and a
- * name answers when its own words, or the documentation of a row that
- * publishes or exports it, hold any of the question's distinct stems. One word
- * of three is still the nearest the repository has, and leaving it out would
- * answer that the repository has nothing; how much it holds decides where it
- * sits, below. A dictionary term
- * stands for a stem when it reduces to it, so `files` stands for `file` and
- * `filter` does not. A name its file declares and does not export is in no
- * row, so the source index answers for it by the same rule, its name and its
- * doc comment read in the sense addon. A file is described the same way, by
- * the words of its own name and of the doc it opens with — what it is for,
- * which no one declaration in it says. The words every package says about
- * itself — `package`, `module`, `use`, `tool`, `get` and the like — are asked
- * of code and not of a package, since code is named in them.
+ * packages were cut by — the sense addon owns it, stopwords included — and a name
+ * answers when its own words, or the documentation of a row that publishes or
+ * exports it, hold any of the question's distinct stems. One word of three is
+ * still the nearest the repository has, and leaving it out would answer that the
+ * repository has nothing; how much it holds decides where it sits, below. A
+ * dictionary term stands for a stem when it reduces to it, so `files` stands for
+ * `file` and `filter` does not. A name its file declares and does not export is in
+ * no row, so the source index answers for it by the same rule, its name and its
+ * doc comment read in the sense addon. A file is described the same way, by the
+ * words of its own name and of the doc it opens with — what it is for, which no
+ * one declaration in it says. The words every package says about itself —
+ * `package`, `module`, `use`, `tool`, `get` and the like — are asked of code and
+ * not of a package, since code is named in them.
  *
- * Ordered by how much of the question it holds, each word weighed by how
- * rare it is among everything the description reached — {@link rarity}, of the
- * `N` reached and the `n` holding it, counted in this one question and stored
- * nowhere — times the weight of where it holds it, three in its name and two in
- * a doc, as a field-weighted ranking weighs a title over a body. A doc word
- * also counts by how long the doc is, BM25's length term with a held word's
- * count of one: a doc of the mean length or shorter counts as two, a longer
- * one less, the mean taken over the reached rows that write a doc, the length
- * that of the one row a name is weighed through, {@link throughOf}. A long doc
- * holds most words in passing, and a doc's word stays below a name's however
- * short. That sum is multiplied by a coordination factor, see {@link weightOf}.
- * Integers throughout, so the order is counts, never
+ * Ordered by how much of the question it holds, each word weighed by how rare it
+ * is among everything the description reached — {@link rarity}, of the `N` reached
+ * and the `n` holding it, counted in this one question and stored nowhere — times
+ * the weight of where it holds it, three in its name and two in a doc, as a
+ * field-weighted ranking weighs a title over a body. A doc word also counts by how
+ * long the doc is, BM25's length term with a held word's count of one: a doc of
+ * the mean length or shorter counts as two, a longer one less, the mean taken over
+ * the reached rows that write a doc. A name is weighed through one row,
+ * {@link throughOf}: of those whose doc adds a word to its name's, the one adding
+ * the most different words, then the shorter measured doc, then a published row,
+ * then the first marked. A long doc holds most words in passing, and a doc's word
+ * stays below a name's however short. That sum is multiplied by a coordination
+ * factor, see {@link weightOf}. Integers throughout, so the order is counts, never
  * a score, and a tie is a tie (ADR-0057). `N` is everything reached, the names
  * another section shows included, so the weight of a word does not move with what
  * is left. Then the words its name holds, then how many of the question's adjacent
- * word pairs its doc writes adjacent, then how many rows publish or export it, then
- * the name's own rank. A word every doc says in passing tells nothing about which
- * of them was meant: `find the repository root` is asked of `repositoryRoot`, not
- * of every doc that opens on `find` and mentions a root, when most of what was
- * reached says `find`. A name was chosen for what it does, and a doc that writes
- * the question's phrase about a name that holds none of it is usually saying what
- * the name is used with. The phrase — term proximity, counted as the pairs it
- * shares — settles what the weight and the name leave level.
+ * word pairs its doc writes adjacent, then how many rows publish or export it,
+ * then the name's own rank. A word every doc says in passing tells nothing about
+ * which of them was meant: `find the repository root` is asked of
+ * `repositoryRoot`, not of every doc that opens on `find` and mentions a root,
+ * when most of what was reached says `find`. A name was chosen for what it does,
+ * and a doc that writes the question's phrase about a name that holds none of it
+ * is usually saying what the name is used with. The phrase — term proximity,
+ * counted as the pairs it shares — settles what the weight and the name leave
+ * level.
  *
- * The rows shown hold every word anything reached holds: the best holder of a
- * word no row shown holds takes the place of the last row whose every word
- * another row shown also holds, so `mermaid chart palette` shows the one name
- * holding `mermaid` however many names holding `chart` sort before it. The
- * phrase is counted only for a name that can be shown, since a doc is decoded
- * to count it.
+ * The rows shown hold every word anything reached holds: the best holder of a word
+ * no row shown holds takes the place of the last row whose every word another row
+ * shown also holds, so `mermaid chart palette` shows the one name holding
+ * `mermaid` however many names holding `chart` sort before it. The phrase is
+ * counted only for a name that can be shown, since a doc is decoded to count it.
  */
 
 /** What a reached name is ordered on. */
@@ -87,9 +87,9 @@ const docLengthOf = (bytes: number | null | undefined): Pick<DescribedKey, 'docL
 export interface DescribedName extends DescribedKey {
   readonly name: number;
   /**
-   * The row it is weighed, ordered and shown through: the published or exported
-   * row whose doc held words its name did not, else the row it is shown through
-   * when no doc did.
+   * The row it is weighed, ordered and shown through: of the published and
+   * exported rows whose doc adds a word to its name's, the one {@link throughOf}
+   * picks, else the row it is shown through when no doc adds one.
    */
   readonly through: DescribedRow;
 }
@@ -273,30 +273,38 @@ function rowDoc(index: SearchIndex, row: DescribedRow): string | undefined {
 
 /**
  * The row of `rows` a name is weighed, ordered and shown through, with what the
- * name then holds: the one whose doc adds the most different words to `own`,
- * those its name holds. Of two that leave it the same set of words, the shorter
- * measured doc, which weighs more, then a published row, then the first marked.
- * Of two that leave it as many words but not the same ones, a published row,
- * then the first marked, whatever their lengths: which word is rarer is counted
- * over what this choice decides. Absent when no doc adds a word.
+ * name then holds, first by one order: the most different words its doc adds to
+ * `own`, those its name holds; then the shorter measured doc, an unmeasured one
+ * last; then a published row before an exported one; then the first marked.
+ * Which words are rarer is counted over what this choice decides, so it is
+ * never asked. Absent when no doc adds a word.
  */
 function throughOf(
   index: SearchIndex,
   own: ReadonlySet<number>,
   rows: ReadonlyMap<DescribedRow, ReadonlySet<number>>,
-): { readonly row: DescribedRow; readonly held: Set<number> } | undefined {
-  let best: { row: DescribedRow; held: Set<number>; length: number | undefined } | undefined;
-  const ordered = [...rows].sort(([a], [b]) => Number(a.kind === 'exported') - Number(b.kind === 'exported'));
-  for (const [row, positions] of ordered) {
-    const held = new Set([...own, ...positions]);
-    const length = rowDocLength(index, row);
-    const was = best?.held ?? own;
-    const same = held.size === was.size && [...held].every((position) => was.has(position));
-    const shorter = best?.length !== undefined && length !== undefined && length < best.length;
-    if (held.size > was.size || (same && shorter)) best = { row, held, length };
+): Through | undefined {
+  let best: Through | undefined;
+  for (const [row, positions] of rows) {
+    const one = { row, held: new Set([...own, ...positions]), length: rowDocLength(index, row) ?? Infinity };
+    // Only a row before the best displaces it, so the first marked wins a full tie.
+    if (one.held.size > own.size && (best === undefined || throughOrder(one, best) < 0)) best = one;
   }
   return best;
 }
+
+/** A row a name may be weighed through: what the name then holds, and its doc's bytes, unmeasured as infinite. */
+interface Through {
+  readonly row: DescribedRow;
+  readonly held: Set<number>;
+  readonly length: number;
+}
+
+/** {@link throughOf}'s order: more words held, then the shorter doc, then a published row. */
+const throughOrder = (a: Through, b: Through): number =>
+  b.held.size - a.held.size ||
+  (a.length === b.length ? 0 : a.length < b.length ? -1 : 1) ||
+  Number(a.row.kind === 'exported') - Number(b.row.kind === 'exported');
 
 /** The bytes of one row's doc, without decoding it; absent when it has none. */
 function rowDocLength(index: SearchIndex, row: DescribedRow): number | undefined {

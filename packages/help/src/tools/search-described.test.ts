@@ -341,29 +341,55 @@ describe('which names the described section holds, and in what order', () => {
     expect(line).toContain('[holds: commit, file, text]');
   });
 
-  it('weighs and shows a name through its published row when an exported row holds as many words', async () => {
-    const root = await placedTwice('/** Kept with the text it holds. */\n', '/** Kept at the commit it ran at. */\n');
+  it('weighs and shows a name through its published row when an exported doc as long adds as many other words', async () => {
+    const root = await placedTwice('/** Kept with the text it holds. */\n', '/** Kept at the commit, as read. */\n');
     const index = searchIndexOf(readHelp(root));
+    const [exportedRow] = [...index.exportedOf(placementOf(index))];
     const reached = reachedBy(index, 'commit text')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('published');
+    expect(reached?.docLength).toBe(index.publishedDocLength(reached?.through?.row as number));
+    expect(reached?.docLength).toBe(index.exportedDocLength(exportedRow as number));
     expect(reached?.words).toEqual(['text']);
     const said = answerSearch(index, { query: 'commit text' }, treeOf([], root), root);
     expect(said).toMatch(/a-kit · Placement .*Kept with the text it holds\..*\[holds: text\]/u);
   });
 
-  it('weighs a name through its published row when an exported row holds as many other words, though the published doc is longer', async () => {
+  it('weighs and shows a name through the shorter of two docs adding as many other words, though the longer is published', async () => {
     const root = await placedTwice('/** Where a case was put: the file it is in and the text of that file then, kept while the run is read. */\n', '/** At a commit. */\n');
     const index = searchIndexOf(readHelp(root));
     const reached = reachedBy(index, 'commit text')?.find((one) => one.name === placementOf(index));
-    expect(reached?.through?.kind).toBe('published');
-    expect(reached?.docLength).toBe(index.publishedDocLength(reached?.through?.row as number));
-    const lengths = [...index.exportedOf(placementOf(index))].map((row) => index.exportedDocLength(row) ?? Infinity);
-    expect(reached?.docLength).toBeGreaterThan(Math.min(...lengths));
+    expect(reached?.through?.kind).toBe('exported');
+    expect(reached?.words).toEqual(['commit']);
+    expect(reached?.docLength).toBe(index.exportedDocLength(reached?.through?.row as number));
+    const [publishedRow] = [...index.publishedOf(placementOf(index))];
+    expect(reached?.docLength).toBeLessThan(index.publishedDocLength(publishedRow as number) as number);
+    const line = answerSearch(index, { query: 'commit text' }, treeOf([], root), root).split('\n').find((one) => one.includes('Placement')) ?? '';
+    expect(line).toContain('packages/b-kit/src/inner.ts');
+    expect(line).toContain('[holds: commit]');
   });
 
   /** A doc of about 260 bytes that holds `text` and not `placement`. */
   const LONG = '/** Where a case was put while the run was read: the file it is in, at the commit it ran at, and the text of that file then, kept for as long as the run is read and dropped when the run is, so that a later read of the same run finds the same file at the same commit. */\n';
   const SHORT = '/** The text it holds. */\n';
+
+  it('weighs and shows a name through the same row whichever package publishes which doc', async () => {
+    // Every doc adds two words of three: `LONG` and `c-kit`'s add `commit` and `text`, `SHARD` adds `commit` and `shard`.
+    const SHARD = '/** Kept at the commit of one shard. */\n';
+    const placed = async (first: string, second: string): Promise<unknown> => {
+      const root = await kits({
+        'a-kit': { 'index.ts': `${first}export interface Placement {\n  readonly at: string;\n}\n` },
+        'b-kit': { 'index.ts': `${second}export interface Placement {\n  readonly at: string;\n}\n` },
+        'c-kit': { 'index.ts': 'export const kit = 1;\n', 'inner.ts': '/** The commit text. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
+      });
+      const index = searchIndexOf(readHelp(root));
+      const reached = reachedBy(index, 'commit text shard')?.find((one) => one.name === placementOf(index));
+      const line = answerSearch(index, { query: 'commit text shard' }, treeOf([], root), root).split('\n').find((one) => one.includes('Placement'));
+      return { through: reached?.through.kind, words: reached?.words, line };
+    };
+    const shown = { through: 'exported', words: ['commit', 'text'], line: expect.stringMatching(/packages\/c-kit\/src\/inner\.ts.*The commit text\..*\[holds: commit, text\]/u) };
+    expect(await placed(LONG, SHARD)).toEqual(shown);
+    expect(await placed(SHARD, LONG)).toEqual(shown);
+  });
 
   it('weighs and shows a name through the shorter of two rows whose docs hold the same words, though the longer is published', async () => {
     const root = await placedTwice(LONG, SHORT);
