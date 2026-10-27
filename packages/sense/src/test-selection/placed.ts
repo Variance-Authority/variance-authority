@@ -47,12 +47,14 @@ export interface Placement {
  * --no-index` over the two, which is the same hunk arithmetic every other
  * reading of a change here takes from git.
  *
- * Absent when the snapshot holds no instrumented row for the file, so there is
- * no digest to hold the text against — which is not a frame, and not `stale`.
+ * Every row carries the digest of the text its run read, instrumented or not,
+ * so a module the build loaded without instrumenting is framed by it too.
+ * Absent when the snapshot holds no row for the file, so there is no digest to
+ * hold the text against — which is not a frame, and not `stale`.
  */
 export function placeInText(snapshot: string, root: string, file: string, text: string): Placement | undefined {
   const asked = askCoverageFile(snapshot, (coverage) => {
-    const rows = findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+    const rows = findModules(coverage, file);
     if (rows.length === 0) return undefined;
     const rowsOf = new Map([[file, rows]]);
     const held = frameOf(coverage, [file], rowsOf, () => text);

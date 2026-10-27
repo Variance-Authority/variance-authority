@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
@@ -40,14 +40,17 @@ async function recorded(instrumentation: string, index: object = {
 describe('a source no probe reaches, which the suite declares a precondition of every test file', () => {
   it('is said to be uninstrumented and declared, not listed as a precondition each test file met', async () => {
     const execution = await recorded(INSTRUMENTATION_ID);
+    // The text every declaration's digest was taken of.
+    const text = join(dirname(execution), 'lib.rs');
+    await writeFile(text, 'native/src/lib.rs');
 
-    const answer = await covering(parse(['--file', 'native/src/lib.rs', '--execution', execution]));
+    const answer = await covering(parse(['--file', 'native/src/lib.rs', '--text', text, '--execution', execution]));
 
-    expect([answer.held, answer.preconditionOf, answer.among]).toEqual(['declared', TESTS, 3]);
+    expect([answer.held, answer.preconditionOf, answer.among, answer.frame]).toEqual(['declared', TESTS, 3, 'recorded']);
     expect(formatCovering(answer, 'text')).toBe(
       'native/src/lib.rs is not instrumented: the suite declares it a precondition of every one of the 3 test files ' +
         'these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.\n' +
-        'The record holds no digest of native/src/lib.rs, so whether it is the text the suite ran over is not known.\n' +
+        'native/src/lib.rs is the text the suite ran over.\n' +
         'Where and when the 3 test files named here last ran is not known: the record names no commit.\n',
     );
     expect(formatCovering(answer, 'refs')).toBe('native/src/lib.rs declared precondition of: every test file (3); no recorded line\n');

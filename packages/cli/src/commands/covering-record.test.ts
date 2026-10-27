@@ -55,8 +55,10 @@ interface Fixture {
   readonly recordedAt?: string | null;
   /** The text whose digest the record holds for `src/pay.ts`, when not the committed one. */
   readonly ranOver?: string;
-  /** Whether the record holds an instrumented row, so a digest, for `src/pay.ts`. */
-  readonly instrumented?: boolean;
+  /** How the record holds `src/pay.ts`: an instrumented row unless given, `loaded` for a row the build did not instrument, `false` for none. */
+  readonly row?: 'loaded' | false;
+  /** The text of `src/setup.ts`, committed and loaded by `src/pay.test.ts` without instrumenting it, when given. */
+  readonly setup?: string;
   /**
    * A second commit, at `committed` ms, that the record names: it writes `pay`
    * to `src/pay.ts` when given, and `src/other.ts` otherwise.
@@ -86,6 +88,7 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
   await write('variance.config.json', JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
   await write('src/pay.ts', PAY);
   await write('src/pay.test.ts', "import { pay } from './pay';\nexport const paid = pay(1);\n");
+  if (options.setup !== undefined) await write('src/setup.ts', options.setup);
   git(['add', '.']);
   git(['commit', '--quiet', '-m', 'pay'], options.committed ?? Date.now() - (3 * DAY + HOUR));
   const first = git(['rev-parse', 'HEAD']);
@@ -104,9 +107,9 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
   const pay = {
     file: 'src/pay.ts',
     sourceDigest: digestString(options.ranOver ?? options.then?.pay ?? PAY),
-    instrumented: options.instrumented ?? true,
+    instrumented: options.row === undefined,
     // A module has regions exactly when the build instrumented it.
-    blocks: options.instrumented === false ? [] : [{
+    blocks: options.row !== undefined ? [] : [{
       ordinal: 0, kind: 'module' as const, digest: digestString('module src/pay.ts'), name: 'src/pay.ts', path: 'module',
       startLine: 1, endLine: 6, source: true, testFiles: ['src/pay.test.ts'],
     }],
@@ -115,8 +118,16 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
     version: 3,
     instrumentation: INSTRUMENTATION_ID,
     ...(commit === undefined ? {} : { commit }),
-    tests: [{ file: 'src/pay.test.ts', complete: true, preconditions: [] }],
-    modules: [pay],
+    tests: [{
+      file: 'src/pay.test.ts',
+      complete: true,
+      // A module the run loaded without instrumenting it is a precondition of the test file that loaded it.
+      preconditions: options.setup === undefined ? [] : [{ name: 'src/setup.ts', digest: digestString(options.setup) }],
+    }],
+    modules: [
+      ...(options.row === false ? [] : [pay]),
+      ...(options.setup === undefined ? [] : [{ file: 'src/setup.ts', sourceDigest: digestString(options.setup), instrumented: false, blocks: [] }]),
+    ],
   }, {
     index: encodeExecutionIndex(INDEX as Parameters<typeof encodeExecutionIndex>[0]),
   });
@@ -186,13 +197,39 @@ describe('a covering answer says whether the asked text is the one the suite ran
     expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, and that text could not be found, so no recorded line is a place in it. Which parts of \`pay\` no case ran is not said for that reason.\n`);
   });
 
-  it('says whether the text is the one the suite ran over is not known when the record holds no digest of it', async () => {
-    const { at, commit } = await checkout({ instrumented: false });
+  it('frames the file by the digest of a row the build did not instrument', async () => {
+    const { at, commit } = await checkout({ row: 'loaded' });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts');
+
+    expect(json).toMatchObject({ at: commit, frame: 'recorded' });
+    expect(text).toContain('src/pay.ts is the text the suite ran over.\n');
+  });
+
+  it('says whether the text is the one the suite ran over is not known when the record holds no row of it', async () => {
+    const { at, commit } = await checkout({ row: false });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
     expect(json).toMatchObject({ at: commit });
     expect(json).not.toHaveProperty('frame');
     expect(text).toContain('The record holds no digest of src/pay.ts, so whether it is the text the suite ran over is not known.\n');
+  });
+
+  it('frames a file the run loaded without instrumenting by the text the test files loading it ran over', async () => {
+    const setup = 'export const ready = true;\n';
+    const { at } = await checkout({ setup });
+    const held = await ask(at, '--file', 'src/setup.ts');
+    await writeFile(join(at, 'edited.ts'), `// ready once\n${setup}`);
+    const edited = await ask(at, '--file', 'src/setup.ts', '--text', join(at, 'edited.ts'));
+    await rm(join(at, 'src/setup.ts'));
+    const gone = await ask(at, '--file', 'src/setup.ts');
+
+    expect(held.json).toMatchObject({ preconditionOf: ['src/pay.test.ts'], held: 'loaded', frame: 'recorded' });
+    expect(held.text).toContain('src/setup.ts is the text the suite ran over.\n');
+    expect(edited.json).toMatchObject({ preconditionOf: ['src/pay.test.ts'], frame: 'differs' });
+    expect(edited.text).toContain('src/setup.ts differs from the text the suite ran over.\n');
+    expect(gone.json).toMatchObject({ preconditionOf: ['src/pay.test.ts'], unheld: true });
+    expect(gone.json).not.toHaveProperty('frame');
+    expect(gone.text).toContain('src/setup.ts is not on disk, so no text is held against the one the suite ran over.\n');
   });
 
   it('says a journey handed in by path holds no digest and names no commit', async () => {

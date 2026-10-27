@@ -14,6 +14,7 @@ import { indexOutput } from './index-command.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const undigested = (file: string) => `The record holds no digest of ${file}, so whether it is the text the suite ran over is not known.\n`;
+const unheld = (file: string) => `${file} is not on disk, so no text is held against the one the suite ran over.\n`;
 const INDEX = {
   tests: [
     { id: 'near', file: 'total.test.ts', name: 'discounts' },
@@ -167,9 +168,9 @@ describe('asking which tests entered a line', () => {
 
     const answer = await covering(parse(['--file', 'src/stabilize.ts', '--execution', execution]));
 
-    expect(answer.preconditionOf).toEqual(['total.test.ts']);
+    expect(answer).toMatchObject({ preconditionOf: ['total.test.ts'], unheld: true });
     expect(formatCovering(answer, 'text')).toBe('src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
-      'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n' + undigested('src/stabilize.ts') +
+      'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n' + unheld('src/stabilize.ts') +
       'Where and when the test file named here last ran is not known: the record names no commit.\n');
     expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
   });
@@ -185,7 +186,7 @@ describe('asking which tests entered a line', () => {
     expect(formatCovering(other, 'text')).toBe(
       'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
         'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
-        'it, so no line of it has a recorded case.\n' + undigested('src/stabilize.ts'),
+        'it, so no line of it has a recorded case.\n' + unheld('src/stabilize.ts'),
     );
     expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
   });

@@ -58,7 +58,7 @@ import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
-import { placeRanges, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
+import { heldText, placeRanges, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
 import { changeSince, stated } from './covering-since.js';
 import { namedTestFiles, ranFor, type CoveringRan } from './covering-ran.js';
 import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
@@ -159,11 +159,13 @@ export interface Covering {
    * recorded text was not found — then no range is given, because none of them
    * is a place in anything held, and `tests` names the cases that ran code in
    * the file. On an answer about the whole file, a line, a run of lines or a
-   * function alike. Absent when nothing held a digest to check, or no text was
-   * held to check it against (`unheld`).
+   * function alike. On a `preconditionOf` answer, where no line is recorded,
+   * the frame is the file's: `recorded` when every test file holding it ran
+   * the held text, and `differs` when one ran another. Absent when nothing held
+   * a digest to check, or no text was held to check it against (`unheld`).
    */
-  readonly frame?: 'recorded' | 'mapped' | 'stale';
-  /** The asked file is not on disk and no `--text` was given, so the lines are the record's and nothing is framed. */
+  readonly frame?: 'recorded' | 'mapped' | 'stale' | 'differs';
+  /** The asked file is not on disk and no `--text` was given, so nothing is framed, and any lines given are the record's. */
   readonly unheld?: true;
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from: string;
@@ -353,7 +355,8 @@ async function ask(
   const { index, files, before } = await readIndex(from, new Map([[file, []]]));
   const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) {
-    const held = heldAsPrecondition(from, [file]);
+    const text = await heldText(request as CoveringAt);
+    const held = heldAsPrecondition(from, [file], text === undefined ? undefined : new Map([[file, text]]));
     const loaded = held?.of.get(file);
     // The record holds every test file's preconditions; `--cases`, `--where` and `--read` ask about the cases left in the index.
     const asked = request.cases === undefined && request.where === undefined && request.read === undefined
@@ -361,7 +364,9 @@ async function ask(
       : new Set(index.tests.map((test) => test.file));
     if (loaded !== undefined) {
       const preconditionOf = asked === undefined ? loaded : loaded.filter((test) => asked.has(test));
-      return { file, preconditionOf, held: held?.loaded.has(file) === true ? 'loaded' : 'declared', among: asked?.size ?? held?.tests ?? 0, from };
+      // No line of it is recorded, so the frame is the file's: the text every test file holding it ran, or another.
+      const frame = text === undefined ? { unheld: true as const } : { frame: held?.ranOver.has(file) === true ? 'recorded' as const : 'differs' as const };
+      return { file, preconditionOf, held: held?.loaded.has(file) === true ? 'loaded' : 'declared', among: asked?.size ?? held?.tests ?? 0, ...frame, from };
     }
     // An index with no coverage beside it, as a foreign tool writes, holds no preconditions to read.
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);

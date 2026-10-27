@@ -62,8 +62,11 @@ function frameText(answer: Covering): readonly string[] {
     return [`${staleLines(answer).gone} Which parts of \`${named}\` no case ran is not said for that reason.`];
   }
   if (answer.frame === 'recorded') return [`${file} is the text the suite ran over.`];
+  if (answer.frame === 'differs') return [`${file} differs from the text the suite ran over.`];
   if (answer.frame === 'mapped') return [`${file} differs from the text the suite ran over; its lines are placed in the text as it is now.`];
-  if (answer.unheld === true) return [`${file} is not on disk, so no text is held against the one the suite ran over; its lines are the record's.`];
+  // A precondition has no recorded line to be the record's.
+  const lines = answer.preconditionOf === undefined ? '; its lines are the record\'s' : '';
+  if (answer.unheld === true) return [`${file} is not on disk, so no text is held against the one the suite ran over${lines}.`];
   return [`The record holds no digest of ${file}, so whether it is the text the suite ran over is not known.`];
 }
 
