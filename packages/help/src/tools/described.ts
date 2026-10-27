@@ -41,22 +41,22 @@ import { admittedBy, termsOfStems } from './loose.js';
  * a doc, as a field-weighted ranking weighs a title over a body. A doc word
  * also counts by how long the doc is, BM25's length term with a held word's
  * count of one: a doc of the mean length or shorter counts as two, a longer
- * one less, the mean taken over the reached rows that write a doc, the length
- * that of the one row whose doc holds the words. A long doc holds most words
- * in passing, and a doc's word stays below a name's however short. That sum
- * is multiplied by a coordination factor, see {@link weightOf}. Integers
- * throughout, so the order is counts, never a score, and a tie is a tie
- * (ADR-0057). `N` is everything reached, the names another section shows
- * included, so the weight of a word does not move with what is left. Then the words
- * its name holds, then how many of the question's adjacent word pairs its doc
- * writes adjacent, then how many rows publish or export it, then the name's
- * own rank. A word every doc says in passing tells nothing about which of them
- * was meant: `find the repository root` is asked of `repositoryRoot`, not of
- * every doc that opens on `find` and mentions a root, when most of what was
- * reached says `find`. A name was chosen for what it does, and a doc that
- * writes the question's phrase about a name that holds none of it is usually
- * saying what the name is used with. The phrase — term proximity, counted as
- * the pairs it shares — settles what the weight and the name leave level.
+ * one less, the mean taken over the reached rows that write a doc, the length that
+ * of the one row holding the most, at an equal hold the shorter doc, at an equal
+ * length a published row. A long doc holds most words in passing, and a doc's word
+ * stays below a name's however short. That sum is multiplied by a coordination
+ * factor, see {@link weightOf}. Integers throughout, so the order is counts, never
+ * a score, and a tie is a tie (ADR-0057). `N` is everything reached, the names
+ * another section shows included, so the weight of a word does not move with what
+ * is left. Then the words its name holds, then how many of the question's adjacent
+ * word pairs its doc writes adjacent, then how many rows publish or export it, then
+ * the name's own rank. A word every doc says in passing tells nothing about which
+ * of them was meant: `find the repository root` is asked of `repositoryRoot`, not
+ * of every doc that opens on `find` and mentions a root, when most of what was
+ * reached says `find`. A name was chosen for what it does, and a doc that writes
+ * the question's phrase about a name that holds none of it is usually saying what
+ * the name is used with. The phrase — term proximity, counted as the pairs it
+ * shares — settles what the weight and the name leave level.
  *
  * The rows shown hold every word anything reached holds: the best holder of a
  * word no row shown holds takes the place of the last row whose every word
@@ -179,17 +179,24 @@ export function describedNames(
 
   // The row that adds the most to what the name holds: its words and its doc's
   // length are the name's, never two rows' words added up and a third row's
-  // length. Published rows are weighed first, so at a tie a published row wins
-  // over an exported one, and the first row marked among rows of one kind.
+  // length. At an equal hold the shorter doc, which weighs more; at an equal or
+  // unmeasured length a published row, then the first row marked of its kind.
   const through = new Map<number, DescribedRow>();
   for (const [name, rows] of docs) {
     const own = held.get(name) ?? new Set<number>();
     let best = own;
+    let bestLength: number | undefined;
     const ordered = [...rows].sort(([a], [b]) => Number(a.kind === 'exported') - Number(b.kind === 'exported'));
     for (const [row, positions] of ordered) {
       const union = new Set([...own, ...positions]);
-      if (union.size <= best.size) continue;
+      const length = rowDocLength(index, row);
+      const more = union.size > best.size;
+      const shorter =
+        through.has(name) && union.size === best.size && [...union].every((position) => best.has(position)) &&
+        length !== undefined && bestLength !== undefined && length < bestLength;
+      if (!more && !shorter) continue;
       best = union;
+      bestLength = length;
       through.set(name, row);
     }
     held.set(name, best);
@@ -273,7 +280,11 @@ function docAbout(index: SearchIndex, name: number, through: DescribedRow | unde
 
 /** The bytes of the doc {@link docAbout} shows a name with, read off the index without decoding it. */
 function docLengthAbout(index: SearchIndex, name: number, through: DescribedRow | undefined): number | undefined {
-  const row = through ?? firstRow(index, name);
+  return rowDocLength(index, through ?? firstRow(index, name));
+}
+
+/** The bytes of one row's doc, without decoding it; absent when it has none. */
+function rowDocLength(index: SearchIndex, row: DescribedRow): number | undefined {
   return row.kind === 'published' ? index.publishedDocLength(row.row) : index.exportedDocLength(row.row);
 }
 

@@ -292,22 +292,27 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/b-kit · Placement .*\[holds: commit, file, text\]/u);
   });
 
-  /** A published `Placement` in `a-kit` and one `b-kit/src/inner.ts` exports without publishing. */
-  const placedTwice = async (published: string, exported: string): Promise<string> => {
-    const kit = (name: string, files: Record<string, string>): Record<string, string> => ({
-      [`packages/${name}/package.json`]: JSON.stringify({ name, type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } }),
-      [`packages/${name}/tsconfig.json`]: JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } }),
-      ...Object.fromEntries(Object.entries(files).map(([file, text]) => [`packages/${name}/src/${file}`, text])),
-    });
-    return inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+  /** A workspace of `packages/*` kits, each by its `src/` files. */
+  const kits = (each: Record<string, Record<string, string>>): Promise<string> =>
+    inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'], dependencies: { react: '1.0.0' } }),
-      ...kit('a-kit', { 'index.ts': `${published}export interface Placement {\n  readonly shard: number;\n}\n` }),
-      ...kit('b-kit', {
+      ...Object.fromEntries(Object.entries(each).flatMap(([name, files]) => [
+        [`packages/${name}/package.json`, JSON.stringify({ name, type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } })],
+        [`packages/${name}/tsconfig.json`, JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } })],
+        ...Object.entries(files).map(([file, text]) => [`packages/${name}/src/${file}`, text]),
+      ])),
+    });
+
+  /** A published `Placement` in `a-kit` and one `b-kit/src/inner.ts` exports without publishing, beside `more` kits. */
+  const placedTwice = async (published: string, exported: string, more: Record<string, Record<string, string>> = {}): Promise<string> =>
+    kits({
+      'a-kit': { 'index.ts': `${published}export interface Placement {\n  readonly shard: number;\n}\n` },
+      'b-kit': {
         'index.ts': 'export const kit = 1;\n',
         'inner.ts': `${exported}export interface Placement {\n  readonly at: string;\n}\n`,
-      }),
+      },
+      ...more,
     });
-  };
   const placementOf = (index: ReturnType<typeof searchIndexOf>): number =>
     index.namesContaining('placement').find((name) => index.name(name) === 'Placement') as number;
 
@@ -331,6 +336,36 @@ describe('which names the described section holds, and in what order', () => {
     expect(reached?.words).toEqual(['text']);
     const said = answerSearch(index, { query: 'commit text' }, treeOf([], root), root);
     expect(said).toMatch(/a-kit · Placement .*Kept with the text it holds\..*\[holds: text\]/u);
+  });
+
+  /** A doc of about 260 bytes that holds `text` and not `placement`. */
+  const LONG = '/** Where a case was put while the run was read: the file it is in, at the commit it ran at, and the text of that file then, kept for as long as the run is read and dropped when the run is, so that a later read of the same run finds the same file at the same commit. */\n';
+  const SHORT = '/** The text it holds. */\n';
+
+  it('weighs and shows a name through the shorter of two rows whose docs hold the same words, though the longer is published', async () => {
+    const root = await placedTwice(LONG, SHORT);
+    const index = searchIndexOf(readHelp(root));
+    const reached = describedNames(index, 'placement text', undefined, new Set())?.find((one) => one.name === placementOf(index));
+    expect(reached?.through?.kind).toBe('exported');
+    expect(reached?.docLength).toBe(index.exportedDocLength(reached?.through?.row as number));
+    expect(reached?.docLength).toBe(18);
+    const said = answerSearch(index, { query: 'placement text' }, treeOf([], root), root);
+    const line = said.split('\n').find((one) => one.includes('Placement')) ?? '';
+    expect(line).toContain('packages/b-kit/src/inner.ts');
+    expect(line).toContain('The text it holds.');
+  });
+
+  it('sorts a name by the shorter doc holding its words, so a longer published one holding the same never demotes it', async () => {
+    // Each `c-kit` doc holds `placement`, and only `omega`'s holds `text` too.
+    const fillers = ['alpha', 'beta', 'gamma', 'delta'].map((name) => `/** Kept for a placement. */\nexport const ${name} = 1;\n`).join('');
+    const root = await placedTwice(LONG, SHORT, {
+      'c-kit': { 'index.ts': `export const seed = 1;\n${fillers}/** The text kept with a placement. */\nexport const omega = 1;\n` },
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'placement text' }, treeOf([], root), root);
+    const at = (name: string): number => said.search(new RegExp(`^(?:\\S+ · )?${name} `, 'mu'));
+    expect(at('omega')).toBeGreaterThan(-1);
+    expect(at('Placement')).toBeGreaterThan(-1);
+    expect(at('Placement')).toBeLessThan(at('omega'));
   });
 
   it('puts a name whose doc holds every word before one whose name holds half of them', async () => {
