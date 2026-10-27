@@ -106,6 +106,12 @@ describe('how many test files each region and each file sends to a change', () =
     expect(files.map((one) => [one.file, one.regions])).toEqual([['src/total.ts', 1]]);
   });
 
+  it('gives a kind whose test files called into nothing zero at every percentile', () => {
+    const record = index(FOUR, module('src/total.ts', block('apply', [])));
+
+    expect(coverageFanIn([{ index: record, kind: 'unit' }]).kinds).toEqual([{ kind: 'unit', testFiles: 4, regions: 0, one: 0, median: 0, p90: 0, max: 0 }]);
+  });
+
   it('lists files in code-unit order', () => {
     const record = index(FOUR, module('src/b.ts', block('x', [0])), module('src/B.ts', block('x', [0])), module('src/a.ts', block('x', [0])));
 

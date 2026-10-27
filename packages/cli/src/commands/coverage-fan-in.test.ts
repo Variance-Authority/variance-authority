@@ -117,6 +117,8 @@ describe('the fan-in lists at size', () => {
     expect(lines).toContain('| `src/a.ts` | 4 | 2.0% |  | unit 4 |');
     expect(lines.join('\n')).not.toMatch(/loaded/u);
     expect(lines.at(-1)).toBe('</details>');
+    expect(lines).toContain('**selected whole beyond what its median region needs**');
+    expect(fanInMarkdown(fanIn([file('src/a.ts', 2)]))).not.toContain('**selected whole beyond what its median region needs**');
   });
 
   it('says nothing when it was not asked', () => {
