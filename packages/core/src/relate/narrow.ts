@@ -94,9 +94,9 @@ export function narrowed(
       const use = uses(names[next]!, names[node]!);
       if (kind === IMPORTS) {
         const imported = use?.imports;
-        // TODO: enter the importer carrying the exports whose bodies read the
-        // name, which needs the addon's per-export reach within the importer;
-        // until then an import hop two out is charged whole.
+        // An importer that reads a moved name is entered whole: an import hop
+        // two out is charged whole, and narrowing past it is the coverage
+        // record's job, not the walk's.
         if (imported === undefined) return undefined;
         return imported.some((name) => held.has(name)) ? WHOLE : NOTHING;
       }
