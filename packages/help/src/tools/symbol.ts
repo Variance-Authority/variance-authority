@@ -4,7 +4,7 @@ import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
-import { block } from './format.js';
+import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
@@ -13,6 +13,7 @@ import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { boundOf, exportedRows, originOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
+import { type Site, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -163,17 +164,10 @@ export const symbol: Tool<Help> = {
     // the question has an answer. Naming the tool rather than printing the sites
     // is the budget: most callers want the signature and stop, and the ones who
     // want the import sites want them ranked against a file this tool never asked
-    // for.
-    const written = first[2].sites.length;
-    const shown =
-      written === 0
-        ? []
-        : [`\n\`${spell.tool(uses)}\` names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
-
-    // The imports within a package are the source index's, which the Help value does not record.
-    const declaring = [...new Set(found.map(([, , entry]) => entry.at))];
-    const within = importsOf(invocation?.root, declaring, name);
-    const renamed = renamedSites(name, [...found.flatMap(([, , entry]) => entry.sites), ...('uses' in within ? within.uses : [])]);
+    // for. The count is of the sites `uses` lists, read by the same reader.
+    const listed = usesOf(help, input, invocation?.root, spell);
+    const shown = listedLine(spell.tool(uses), first[0].name, listed.sites, listed.unread);
+    const renamed = renamedSites(name, listed.sites);
 
     const entry = first[2];
     return [
@@ -303,6 +297,24 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
     ].join('\n');
   });
   return blocks.join('\n\n');
+}
+
+/**
+ * The line that sends the asker to `uses`: how many places it lists, those
+ * from other packages and those inside `owner`, each counted. An index that
+ * did not read leaves the ones inside uncounted, and says why.
+ */
+function listedLine(tool: string, owner: string, sites: readonly Site[], unread: string | undefined): readonly string[] {
+  if (sites.length === 0 && unread === undefined) return [];
+  const inside = sites.filter((site) => site.by === owner).length;
+  const outside = sites.length - inside;
+  const parts = [
+    ...(outside === 0 ? [] : [`${outside} from ${outside === 1 ? 'another package' : 'other packages'}`]),
+    ...(inside === 0 ? [] : [`${inside} inside ${owner}`]),
+  ];
+  const left = unread === undefined ? '' : ` The imports inside ${owner} are read from the source index, and ${unread}.`;
+  if (sites.length === 0) return [`\n\`${tool}\` names no place another package imports this from.${left}`];
+  return [`\n\`${tool}\` names the ${plural(sites.length, 'place')} that ${sites.length === 1 ? 'imports' : 'import'} this: ${parts.join(' and ')}, nearest to a file you name first.${left}`];
 }
 
 /**

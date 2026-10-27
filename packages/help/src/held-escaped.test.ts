@@ -93,10 +93,10 @@ describe('a module held whole that the reading cannot follow', () => {
 
   it('says the catalogue entry of a name it may read is unknown, not unused', () => {
     expect(symbol.run(help, { name: 'widen' })).toContain(
-      'not imported by name outside its own package; it may be read in 1 place: 1 passing the module on whole, so whether it is used is unknown',
+      'no other package imports it by name through its published path; it may be read in 1 place: 1 passing the module on whole, so whether it is used is unknown',
     );
     expect(symbol.run(help, { name: 'narrow' })).toContain(
-      "not imported by name outside its own package; it may be read in 2 places: 1 off the module's `default`, 1 passing the module on whole, so whether it is used is unknown",
+      "no other package imports it by name through its published path; it may be read in 2 places: 1 off the module's `default`, 1 passing the module on whole, so whether it is used is unknown",
     );
   });
 

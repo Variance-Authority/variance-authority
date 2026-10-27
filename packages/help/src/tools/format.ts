@@ -28,17 +28,21 @@ export function audience(entry: Entry, cap: number): string {
   return `${entry.usedBy.length} ${entry.usedBy.length === 1 ? 'package' : 'packages'}: ${named}`;
 }
 
-/** How much of the repository reaches for this, in the words an asker ranks on. */
+/**
+ * How many other packages reach for this by its published path, in the words
+ * an asker ranks on. The imports inside its own package are not in the Help
+ * value, and the caller that reads them counts them apart.
+ */
 export function reach(published: Documented, held: Opening, entry: Entry): string {
   // A read off `default`, or the module passed on whole, may read the name and is no use of it.
   const may = undecided(published.name, held, entry);
   if (entry.usedBy.length === 0) {
     return may.length === 0
-      ? 'used by nothing outside its own package'
-      : `not imported by name outside its own package; it ${mayBeRead(may)}, so whether it is used is unknown`;
+      ? 'no other package imports it by its published path'
+      : `no other package imports it by name through its published path; it ${mayBeRead(may)}, so whether it is used is unknown`;
   }
   const also = may.length === 0 ? '' : `; it also ${mayBeRead(may)}`;
-  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'}${also}`;
+  return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'} by published path${also}`;
 }
 
 /** What a list line reads of a published name: the audience counted, never named. */
