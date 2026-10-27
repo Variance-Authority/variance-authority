@@ -10,7 +10,8 @@ be wrong, nothing says so. And nothing tells a suite where the disagreement is
 the defect apart from one where it is expected: a test that drives a second
 service runs code its own process never records, and is read the same way as a
 unit test.
-**Built on:** the precision ladder and its union
+**Built on:** the mocks a test declares, read off its tree
+([`mocks.ts`](../../packages/sense/src/taint/mocks.ts)); the precision ladder and its union
 ([`precision.ts`](../../packages/sense/src/test-selection/precision.ts)), whose
 test keeps a test the graph does not reach
 ([`precision.test.ts`](../../packages/sense/src/test-selection/precision.test.ts));
@@ -62,6 +63,18 @@ of file use into `file` and `symbol` stays: it is the ladder's own definition,
 and it is what keeps a change to a module's top-level side effect, which moves
 no export. What goes is its silence. The check is on files, not on tests, so a
 recorded file outside reach is named whatever the union keeps.
+
+Reach resolves as the runner resolved. A specifier means what the runner made
+it mean: Jest's `moduleNameMapper`, a `__mocks__` directory beside the module
+or under the root, automock, a bundler alias. The walk does not parse any of
+them. The record carries, for each importer, the specifier it asked for and the
+file the runner served, and the walk takes that answer over its own resolver's
+for that specifier. A mock a test declares in its own text — `jest.mock`,
+`vi.mock`, a literal `requireActual` — is already read off the tree and cut or
+added as an edge. So a mapped or mocked file is reached through the specifier
+that asked for it, and a breach is left to a load no specifier in the source
+asked for: a dynamic import by a computed name, a module the runtime loads by
+itself.
 
 `world` and `relations` answer different questions and are declared apart.
 `relations` says whether the graph steps may run at all. `world` says whether
@@ -130,6 +143,10 @@ coverage alone it is a lower bound.
   the configuration.
 - The walk starts at the suite's `before`, and a recorded file outside reach
   is named at every precision step, the union kept.
+- The record carries each importer's specifier and the file the runner served
+  for it, and the walk resolves through it. A fixture with a
+  `moduleNameMapper` entry and one with a `__mocks__` file each pass in a
+  closed world, and fail first without it.
 - The test that keeps a test the record holds and the graph does not, at
   `file`, is amended to expect a safety violation in a closed world and a named
   growth in an open one, and fails first.
