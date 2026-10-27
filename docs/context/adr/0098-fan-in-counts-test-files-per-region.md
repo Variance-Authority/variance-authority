@@ -38,8 +38,9 @@ ordered lists. It names no threshold.**
    selection runs every test file of a changed file. The busiest region of a
    wide file is almost always a hub function that every caller runs, so
    `entered − peak` is about zero everywhere. `entered − median` (nearest rank)
-   is what an edit to a typical region of the file pays for the rest of it: the
-   saving a split would give.
+   is what an edit to a typical region of the file pays for the rest of it: what
+   region-grain selection would save, and the most a split could, since each
+   part of a split file still sends every test file that called into it.
 4. **Percentiles by nearest rank.** `median`, `p90` and `max` are values that
    occur; nothing is interpolated.
 5. **No threshold, no verdict (ADR-0081).** Too few and too many are the

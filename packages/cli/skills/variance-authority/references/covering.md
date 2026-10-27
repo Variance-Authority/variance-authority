@@ -150,8 +150,9 @@ for selection or stability. The thin end is regions one test file ran: one
 deletion from unobserved. The wide end splits two ways, and each has a different
 fix: `most test files called into the file` (the code is a hub; stabilise the
 tests it sends, or narrow its callers), and `selected whole beyond what its
-median region needs` (split the file: its median region needs `median` test
-files and the file sends `entered`). `--format json` lists every file under
+median region needs` (the file sends `entered` where its median region needs `median`; that gap is
+the most a split saves, since each part still sends every test file that called
+into it). Under `--at-distance` the counts read only the band. `--format json` lists every file under
 `fanIn`; no field is a verdict.
 
 ## Read the state of every range

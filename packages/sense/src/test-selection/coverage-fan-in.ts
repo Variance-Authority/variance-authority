@@ -46,7 +46,9 @@ export interface FanInFile {
   /**
    * Test files behind the file's median run region, by nearest rank. A file
    * that is selected whole sends `entered` to an edit its median region would
-   * have sent `median` to: the gap is what splitting the file would save.
+   * have sent `median` to: the gap is what selecting by region would save, and
+   * the most a split could, since each part still sends every test file that
+   * called into it.
    */
   readonly median: number;
   /** Test files the suites that hold the file recorded. */

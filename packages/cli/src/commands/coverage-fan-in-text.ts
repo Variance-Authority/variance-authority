@@ -4,11 +4,11 @@
  * both ends.
  *
  * One row per kind gives the distribution of test files per region. Under it,
- * four short lists name the files at each end: the most regions resting on one
- * test file, the widest selection an edit makes, the test files that loaded a
- * file and ran nothing in it, and the files selected whole for far more test
- * files than an edit to their median region would need. No list carries a threshold; each is ordered, and the JSON holds
- * every file.
+ * three short lists name the files at each end: the most regions resting on one
+ * test file, the most test files called into a file, and the files selected
+ * whole for far more test files than an edit to their median region would
+ * need. No list carries a threshold; each is ordered, and the JSON holds every
+ * file.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';

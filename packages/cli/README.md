@@ -1364,8 +1364,9 @@ test files that called into each region
 Three lists of ten files follow: the most regions only one test file ran; the
 most test files called into the file, as a share of the suites that recorded it
 and of their time, and per kind; and the files whose test files exceed their
-median region's by the most, which is what splitting the file would save a
-selection by file. None has a threshold. `--format json` lists
+median region's by the most: the most a split could save a selection by file,
+since a split file still sends every test file that called into either part.
+None has a threshold. Under `--at-distance` the counts read only the band. `--format json` lists
 every file under `fanIn`. For one file or line, `covering` names the tests.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints

@@ -390,14 +390,17 @@ Each list is one problem, with its own fix:
   file runs every test file of a changed file, so one busy region makes the
   whole file wide. An
   edit to `hash.ts`'s median region needs 38 test files, and the file sends 523.
-  The gap, 485, is what splitting the file would save. Split along the busiest
-  region: move the code most test files call into its own file, and the rest of
-  the file keeps the median's selection.
+  The gap, 485, is the most a split could save: a file split in two still sends
+  every test file that called into either part, so the gap is what selecting by
+  region would save, and a split saves it only where the parts' callers part.
+  `variance covering --file` names the test files behind each region, which is
+  where to look for the cut.
 
 None of the lists has a threshold, and none decides that a file is too thin or
 too wide. Each is ordered, `--format json` lists every file under `fanIn`, and
 `--format markdown` prints the same table and lists for a job summary. A count
-is not a check: before you add a test for a thin region or split a wide file,
+is not a check, and under `--at-distance` it counts only the crossings in the
+band, which an edit still exceeds. Before you add a test for a thin region or split a wide file,
 change the code and rerun the tests the count names, and keep what fails.
 
 ## Do you need a test?
