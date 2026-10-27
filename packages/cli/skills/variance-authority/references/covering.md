@@ -142,6 +142,18 @@ only what no test within one hop ran, by the nearest test across every suite,
 over every region the suites loaded, and with `--packages` names the packages
 whose regions only another package's tests reach.
 
+`variance coverage --fan-in` asks `covering`'s question of every file at once:
+how many test files called into each region, per kind, with the files at each
+end. Test files that only loaded a file are left out, so each count is the least
+an edit runs; `covering --file` names the loaders. Read it before refactoring
+for selection or stability. The thin end is regions one test file ran: one
+deletion from unobserved. The wide end splits two ways, and each has a different
+fix: `most test files called into the file` (the code is a hub; stabilise the
+tests it sends, or narrow its callers), and `selected whole beyond what its
+median region needs` (split the file: its median region needs `median` test
+files and the file sends `entered`). `--format json` lists every file under
+`fanIn`; no field is a verdict.
+
 ## Read the state of every range
 
 Every range, and the answer about one line, has a `state`:

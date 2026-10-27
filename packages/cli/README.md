@@ -150,7 +150,7 @@ variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] 
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--root <path>] [--format text|markdown|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -1347,6 +1347,26 @@ runtime import, a re-export or a helper as well, and `--at-distance` leaves in
 and out counted over every test. A test no walk placed is
 never in, and the regions only such tests ran are counted on the last line.
 `--format json` carries the counts under `earned`, per suite and joined.
+
+`--fan-in` counts how many test files called into each region, for every file
+at once. A test file counts once per region however many of its cases ran it,
+and a case that ran a region only while its module loaded does not count, so an
+edit runs at least these; `covering --file` names the rest:
+
+```text
+test files that called into each region
+               test files  regions ran  one test file         median  p90  max
+  e2e          55          5,871        2,894          49.3%  2       14   39
+  integration  83          6,866        3,174          46.2%  2       11   54
+  unit         1,001       35,729       9,983          27.9%  3       25   453
+```
+
+Three lists of ten files follow: the most regions only one test file ran; the
+most test files called into the file, as a share of the suites that recorded it
+and of their time, and per kind; and the files whose test files exceed their
+median region's by the most, which is what splitting the file would save a
+selection by file. None has a threshold. `--format json` lists
+every file under `fanIn`. For one file or line, `covering` names the tests.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever

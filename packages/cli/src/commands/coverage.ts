@@ -23,6 +23,7 @@ import {
   countCoverage,
   coverageByOwner,
   coverageChange,
+  coverageFanIn,
   declaredSuites,
   earnedCoverage,
   readableTestCoverage,
@@ -34,6 +35,7 @@ import {
   type CoverageCount,
   type DeclaredSuite,
   type EarnedCoverage,
+  type FanIn,
   type OwnedFile,
   type SuiteChange,
   type SuiteKind,
@@ -93,6 +95,12 @@ export interface Coverage {
    * as in `ownership`.
    */
   readonly earned?: EarnedCoverage;
+  /**
+   * With `--fan-in`, how many test files called into each region and each
+   * file, per kind and per file, over the same regions and band as the count
+   * above.
+   */
+  readonly fanIn?: FanIn;
   /**
    * With `--at-distance`, the band every count above was narrowed to: a region
    * counts as run only when the nearest test file that ran it, across every
@@ -220,6 +228,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     suites,
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
     ...(unloadedChange === undefined ? {} : { unloadedChange }),
+    ...(request.fanIn === true ? { fanIn: coverageFanIn(now) } : {}),
     ...(request.atDistance === undefined ? {} : {
       atDistance: {
         from: request.atDistance.from,
