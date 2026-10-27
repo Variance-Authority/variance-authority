@@ -306,7 +306,7 @@ function throughOf(
  * Where the index wrote a row follows its package and file names, which say
  * nothing about the name, so it settles nothing.
  */
-function rowTextOrder(index: SearchIndex, a: DescribedRow, b: DescribedRow): number {
+export function rowTextOrder(index: SearchIndex, a: DescribedRow, b: DescribedRow): number {
   const text = (row: DescribedRow): readonly [string | undefined, string, string] => {
     if (row.kind === 'exported') return [index.exported(row.row).doc, index.exportedAt(row.row), ''];
     const { doc, at, specifier } = index.published(row.row);

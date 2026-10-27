@@ -318,4 +318,43 @@ describe('which row a described name is weighed, ordered and shown through', () 
     expect(reached?.docLength).toBe(index.publishedDocLength(shownRow as number));
     expect(reached?.through).toEqual({ kind: 'published', row: shownRow });
   });
+
+  it('shows a name in an area no doc adds a word to through the row the area uses most, whatever is imported outside it', async () => {
+    // `app` imports `PlacementKit` from `a-kit` and from `b-kit` once each; `far`, outside the area, imports `b-kit`'s too.
+    const shown = async (far: boolean): Promise<unknown> => {
+      const kit = (name: string, doc: string): Record<string, string> => ({ 'index.ts': `/** ${doc} */\nexport interface ${name} {\n  readonly at: string;\n}\n` });
+      const root = await kits({
+        'a-kit': kit('PlacementKit', 'The placement kit.'),
+        'b-kit': kit('PlacementKit', 'A kit for one placement.'),
+        'c-kit': kit('KitPlacement', 'The placement kit.'),
+        'app': { 'index.ts': "import type { PlacementKit } from 'a-kit';\nimport type { PlacementKit as Kit } from 'b-kit';\nimport type { KitPlacement } from 'c-kit';\nexport type Used = PlacementKit | Kit | KitPlacement;\n" },
+        ...(far ? { far: { 'index.ts': "import type { PlacementKit } from 'b-kit';\nexport type Far = PlacementKit;\n" } } : {}),
+      }, { app: ['a-kit', 'b-kit', 'c-kit'], far: ['b-kit'] });
+      const files = ['a-kit', 'b-kit', 'c-kit'].map((name) => `packages/${name}/src/index.ts`);
+      const tree = treeOf([{ file: APP, edges: files.map((to) => ({ to, kind: 'imports' as const })) }, ...files.map((file) => ({ file }))], root);
+      return searchNames(searchIndexOf(readHelp(root)), { query: 'placement kit zebra', from: APP }, tree).described?.shown.map((one) =>
+        [one.name, 'specifier' in one ? one.specifier : one.at, 'summary' in one ? one.summary : undefined]);
+    };
+    const alone = await shown(false);
+    expect(alone).toEqual(await shown(true));
+    expect(alone).toEqual([['KitPlacement', 'c-kit', 'The placement kit.'], ['PlacementKit', 'b-kit', 'A kit for one placement.']]);
+  });
+
+  it('shows a name in an area no doc adds a word to through the same exported row there whatever its files are called', async () => {
+    const shown = async (first: string): Promise<unknown> => {
+      const placed = (doc: string): string => `/** ${doc} */\nexport interface PlacementKit {\n  readonly at: string;\n}\n`;
+      const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+        [`src/${first}.ts`]: placed('The placement kit.'),
+        'src/b.ts': placed('A kit for one placement.'),
+        'src/app.ts': `import type { PlacementKit } from './${first}.js';\nimport type { PlacementKit as Kit } from './b.js';\nexport type Used = PlacementKit | Kit;\n`,
+      });
+      const files = [`src/${first}.ts`, 'src/b.ts'];
+      const tree = treeOf([{ file: 'src/app.ts', edges: files.map((to) => ({ to, kind: 'imports' as const })) }, ...files.map((file) => ({ file }))], root);
+      return searchNames(searchIndexOf(readHelp(root)), { query: 'placement kit zebra', from: 'src/app.ts' }, tree).described?.shown.map((one) =>
+        [one.name, one.at, 'summary' in one ? one.summary : undefined]);
+    };
+    const named = await shown('a');
+    expect(named).toEqual(await shown('c'));
+    expect(named).toEqual([['PlacementKit', 'src/b.ts', 'A kit for one placement.']]);
+  });
 });

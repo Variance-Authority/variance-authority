@@ -6,7 +6,7 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
-import { describedDeclarations, describedNames, describedShown, fileMatch, type DescribedRow, type Reached } from './described.js';
+import { describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type DescribedRow, type Reached } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches, exactness } from './declared.js';
@@ -292,16 +292,22 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number): Mat
 
 /**
  * The row a name is shown through when no doc decided one, for each name: its
- * published row the published section would show first, in the area when one
- * is named, else its exported row the exported section would show. The
- * described section weighs such a name by this row's doc and shows it through
- * this row, so one rule picks it for both.
+ * published row the published section would show first, else its exported row
+ * the exported section would show. In an area, its published row the most files
+ * there import, then the most import sites there, else its exported row there of
+ * the first kind, then {@link rowTextOrder}: an import outside the area says
+ * nothing about it. The described section weighs such a name by this row's doc.
  */
 export function shownRowOf(index: SearchIndex, area: Area | undefined, within: ReadonlySet<number> | undefined): (name: number) => DescribedRow | undefined {
+  const text = (kind: DescribedRow['kind'], a: number, b: number): number => rowTextOrder(index, { kind, row: a }, { kind, row: b });
+  const inArea = (a: Hit, b: Hit): number =>
+    (b.scoped?.files ?? 0) - (a.scoped?.files ?? 0) || (b.scoped?.imports ?? 0) - (a.scoped?.imports ?? 0) || text('published', a.row, b.row);
+  const kindThenText = (a: number, b: number): number => index.exportedKind(a) - index.exportedKind(b) || text('exported', a, b);
   return (name) => {
-    const hit = first(surface(index, index.publishedOf(name), area, within), 1, surfaceOrder)[0];
+    const hit = first(surface(index, index.publishedOf(name), area, within), 1, area === undefined ? surfaceOrder : inArea)[0];
     if (hit !== undefined) return { kind: 'published', row: hit.row };
-    const row = exportedShown(index, exported(index, [name], new Set(), within).rows());
+    const rows = exported(index, [name], new Set(), within).rows();
+    const row = area === undefined ? exportedShown(index, rows) : first(rows, 1, kindThenText)[0];
     return row === undefined ? undefined : { kind: 'exported', row };
   };
 }
