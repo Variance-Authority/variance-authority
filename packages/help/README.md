@@ -563,8 +563,8 @@ mean length or a shorter one does, less for a longer one, and that sum times
 how much of the query the row holds wherever it holds it, the same rarities
 summed alone — then by how many of them its name holds, then by how many of the query's
 adjacent word pairs its doc writes adjacent: counts, never a score. A word most docs say in passing tells you little about which of them
-you meant, so `order paths by code units` puts `codeUnitOrder` first rather
-than every doc that says `paths`. Every word one of them holds is held by a row shown, so the
+you meant, so `stopwords of a package` puts `describedNames`, whose doc says
+`stopwords`, before `packageOf`, whose name says `package`. Every word one of them holds is held by a row shown, so the
 one name holding a rare word is shown however many holding a common one sort
 before it. A name holding fewer than half the words, which the loose
 reading reaches by every word, is told there instead, so on three words or
