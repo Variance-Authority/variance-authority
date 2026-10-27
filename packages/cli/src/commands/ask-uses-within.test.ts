@@ -181,8 +181,8 @@ describe('variance ask over the imports of a name within its own package', () =>
 
   it('answers `uses` and `symbol` alike for a name its package entry passes on and only its own package imports', async () => {
     // Declared in one file, published by `export … from` in the entry, and
-    // imported by a file beside it: both answers take the export from the walk
-    // the entry's re-export starts, so neither calls the name kept to its file.
+    // imported by a file beside it: both answers call the name exported, and
+    // neither calls it kept to its file.
     checkout({
       'apps/app/src/hello.ts': 'export const hello = 1;\n',
       'packages/lib/src/greet.test.ts': "import { greet } from './greet.js';\nexport const greeted = greet('test');\n",
