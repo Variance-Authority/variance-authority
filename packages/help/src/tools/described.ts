@@ -265,25 +265,22 @@ export function describedShown(
   return shown.sort(order);
 }
 
-/** The doc a reached name is shown with: the row it was reached through, else its first published or exported row's. */
+/** The doc a reached name is shown with: the row it was reached through, else its {@link firstRow}'s. */
 function docAbout(index: SearchIndex, name: number, through: DescribedRow | undefined): string | undefined {
   const row = through ?? firstRow(index, name);
-  if (row === undefined) return undefined;
   return row.kind === 'published' ? index.published(row.row).doc : index.exported(row.row).doc;
 }
 
 /** The bytes of the doc {@link docAbout} shows a name with, read off the index without decoding it. */
 function docLengthAbout(index: SearchIndex, name: number, through: DescribedRow | undefined): number | undefined {
   const row = through ?? firstRow(index, name);
-  if (row === undefined) return undefined;
   return row.kind === 'published' ? index.publishedDocLength(row.row) : index.exportedDocLength(row.row);
 }
 
-function firstRow(index: SearchIndex, name: number): DescribedRow | undefined {
+/** A name's first published row, else its first exported row: the index holds a name only through one of them. */
+function firstRow(index: SearchIndex, name: number): DescribedRow {
   const published = index.publishedOf(name)[0];
-  if (published !== undefined) return { kind: 'published', row: published };
-  const exported = index.exportedOf(name)[0];
-  return exported === undefined ? undefined : { kind: 'exported', row: exported };
+  return published === undefined ? { kind: 'exported', row: index.exportedOf(name)[0] as number } : { kind: 'published', row: published };
 }
 
 /**
