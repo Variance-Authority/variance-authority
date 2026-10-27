@@ -168,32 +168,24 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
 const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
- * Instrument a build.
+ * The Vite plugin whose `transform` hook instruments each module of a build.
  *
  * ```js
  * // vite.config.ts
  * import { testSelectionProbes } from '@variance-authority/sense/journal';
- *
- * export default {
- *   plugins: [testSelectionProbes()],
- * };
+ * export default { plugins: [testSelectionProbes()] };
  * ```
  *
- * A Storybook takes it through `@variance-authority/storybook-collector` in
- * its `addons`, which adds it under Vite.
- *
- * `enforce: 'post'`, so no transform of the project's reads a probe: a
- * compiler that reads syntax — a CSS-in-JS extractor, a memoising compiler —
- * would refuse probed code, or compile it into something the project does not
- * ship. The regions are still the file's as it is on disk,
- * the text the join cuts again and a diff is written against; the composed
- * map says where each one's code went, and a region it carries nowhere fires
- * when the module loads. A `vite build` that writes no map has its maps turned
- * on for the transforms, `hidden`, and every `.map` file taken back out of the
- * bundle, so what it writes is what it wrote before. A plugin that rewrote the file and returned no map
- * stops the build, and the dev server, by name. `placement:
- * 'before-transforms'` runs it at `enforce: 'pre'` instead, on the file as
- * read, and none of that applies.
+ * Storybook takes it through `@variance-authority/storybook-collector` in its
+ * `addons`. It runs at `enforce: 'post'`, so no transform of the project's
+ * reads a probe: a compiler that reads syntax would refuse probed code, or
+ * compile it into something the project does not ship. The regions are still
+ * the file's on disk; the composed map says where each one's code went, and a
+ * region it carries nowhere fires when the module loads. A `vite build` that
+ * writes no map gets `hidden` maps for the transforms, and every `.map` taken
+ * back out of the bundle. A plugin that rewrote the file and returned no map
+ * stops the build and the dev server by name. `placement: 'before-transforms'`
+ * runs it at `enforce: 'pre'` on the file as read, and none of that applies.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},

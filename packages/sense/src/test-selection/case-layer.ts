@@ -70,9 +70,9 @@ export interface CaseLayers {
    */
   readonly announced: readonly string[];
   /**
-   * The cases the index held for the files this run announced, as they were
-   * before it: the base an edit to a test is compared against. Absent when
-   * there was no index to take them from.
+   * The cases this run replaced, for the files it announced, each as it stood
+   * before it: whether it stopped, and its duration. The base an edit to a test
+   * is compared against. Absent when there was no index to take them from.
    */
   readonly before?: Buffer;
   /**
