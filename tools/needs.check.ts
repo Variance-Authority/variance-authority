@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { needs, remember, said, twinsOf, unitsIn } from './needs.mjs';
+import { READS, needs, remember, said, twinsOf, unitsIn } from './needs.mjs';
 
 /**
  * Existing code with the needs of a function just written.
@@ -216,6 +217,27 @@ describe('needs', () => {
     );
   });
 
+  it('names a new function in a file whose path is not ASCII', async () => {
+    const { dir, write } = await repository({ 'packages/workspace/src/manifest.ts': manifest });
+    await write('packages/cli/src/café.ts', [
+      "import { readFileSync } from 'node:fs';",
+      'export const loadPackage = (path: string) => {',
+      '  const json = JSON.parse(readFileSync(path, "utf8"));',
+      "  if (typeof json.name !== 'string') throw new Error(`${path}: no name`);",
+      "  return { name: json.name, version: json.version ?? '0.0.0', workspaces: json.workspaces ?? [] };",
+      '};',
+    ]);
+
+    expect(said(needs(dir))).toBe(
+      [
+        'needs: 1 of 1 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
+        '  packages/cli/src/café.ts:2 loadPackage',
+        '    0.68 packages/workspace/src/manifest.ts:2 readManifest',
+        '',
+      ].join('\n'),
+    );
+  });
+
   it('names a file oxc cannot parse, and reads the rest', async () => {
     const { dir, write } = await repository({
       'packages/workspace/src/manifest.ts': manifest,
@@ -256,5 +278,9 @@ describe('needs', () => {
       ['needs: 0 new functions asked about; none needs what an existing one needs', 'needs: oxc could not parse packages/a/src/count.js, so its functions are not read', ''].join('\n'),
     );
     expect(said(needs(dir))).toBe(said(first));
+  });
+
+  it('keys its cache by every text that shapes a bag, the word splitter included', () => {
+    expect(READS.some((path: string) => readFileSync(path, 'utf8').includes('export function tokensOf('))).toBe(true);
   });
 });

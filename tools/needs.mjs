@@ -1,8 +1,7 @@
-#!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { extname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
 import { digestString } from '@variance-authority/core/format';
@@ -10,7 +9,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { tokensOf } from '@variance-authority/mcp';
 import { rarity } from '@variance-authority/mcp/tools';
 import { cacheRootFor, writeCoverageBytes } from '@variance-authority/sense/test-selection';
-import { ROOT, SCRIPT, isFunction, isTest, lines, visit } from './owners.mjs';
+import { SCRIPT, isFunction, isTest, lines, visit } from './owners.mjs';
 
 /**
  * Existing functions that need what a function new on this branch needs.
@@ -22,7 +21,7 @@ import { ROOT, SCRIPT, isFunction, isTest, lines, visit } from './owners.mjs';
  * {@link rarity rare} it is, and compared by cosine with every unit that
  * exists. A neighbour at {@link SHARED} or above is a lead to read, not a
  * verdict.
- * `yarn needs` prints the list; journal entry 0077 holds the measurements.
+ * `yarn test:loop` prints the list; journal entry 0077 holds the measurements.
  */
 
 // FIXME: the bags belong to the scan's harvest, asked through `variance ask`.
@@ -130,7 +129,7 @@ export function twinsOf(added, existing) {
  * again. What exists is every unit in the working tree that is not new: a
  * function gone from the tree is not one to call.
  */
-export function needs(root = ROOT) {
+export function needs(root) {
   const base = mergeBase(root);
   const changed = new Set(
     [...listed(git(root, ['diff', '--name-only', '--no-renames', base])), ...listed(git(root, ['ls-files', '--others', '--exclude-standard']))].filter(
@@ -155,7 +154,7 @@ function mergeBase(root) {
 }
 
 /**
- * What `yarn needs` and `yarn test:loop` print: each new function with twins,
+ * What `yarn test:loop` prints: each new function with twins,
  * and the twins, or one line that none has any; then each file oxc could not
  * parse, whose functions are neither asked about nor named.
  */
@@ -176,21 +175,25 @@ export function said({ added, twins, unread }) {
 /** Writes the units this run read, keyed by blob, when they differ from what the cache held. */
 export async function remember(cache) {
   if (!cache.changed && cache.read.size === cache.blobs.size) return;
-  const bytes = new TextEncoder().encode(JSON.stringify({ reader: READER, blobs: Object.fromEntries(cache.read) }));
+  const bytes = new TextEncoder().encode(JSON.stringify({ reader: cache.reader, blobs: Object.fromEntries(cache.read) }));
   await writeCoverageBytes(cache.file, bytes);
 }
 
-// The bags a run read are cached by blob and the language its path names,
-// under the digest of what reads them: this file, the owners helpers it calls
-// and the parser's version. An edit to any of them drops what the last reader
-// wrote.
-const READER = digestString(
-  [
-    readFileSync(fileURLToPath(import.meta.url), 'utf8'),
-    readFileSync(fileURLToPath(new URL('./owners.mjs', import.meta.url)), 'utf8'),
-    createRequire(import.meta.url)('oxc-parser/package.json').version,
-  ].join('\0'),
-);
+const require = createRequire(import.meta.url);
+
+/**
+ * The texts that shape a bag: this file, the owners helpers it calls and the
+ * module that declares `tokensOf`. The bags a run read are cached by blob and
+ * the language its path names, under the digest of these and the parser's
+ * version, so an edit to any of them drops what the last reader wrote.
+ */
+export const READS = [
+  fileURLToPath(import.meta.url),
+  fileURLToPath(new URL('./owners.mjs', import.meta.url)),
+  join(dirname(require.resolve('@variance-authority/mcp')), 'tools', 'locate-index.js'),
+];
+
+const reader = () => digestString([...READS.map((path) => readFileSync(path, 'utf8')), require('oxc-parser/package.json').version].join('\0'));
 
 // What the cache held, or nothing when it was written by another reader or
 // cannot be read: a cache is a shortcut, never an answer.
@@ -202,8 +205,9 @@ function cached(root) {
   } catch {
     held = undefined;
   }
-  const blobs = held?.reader === READER ? new Map(Object.entries(held.blobs)) : new Map();
-  return { file, blobs, read: new Map(), changed: held?.reader !== READER };
+  const digest = reader();
+  const blobs = held?.reader === digest ? new Map(Object.entries(held.blobs)) : new Map();
+  return { file, reader: digest, blobs, read: new Map(), changed: held?.reader !== digest };
 }
 
 // Every unit in the working tree. A file the index holds unchanged is read
@@ -261,7 +265,7 @@ function parsedOr(unread, path, read) {
 
 /** Git's output in `root`, as text, or as bytes when `encoding` is `'buffer'`. */
 export const git = (root, args, { input, encoding = 'utf8' } = {}) =>
-  execFileSync('git', args, { cwd: root, input, encoding, maxBuffer: 1 << 30, stdio: ['pipe', 'pipe', 'pipe'] });
+  execFileSync('git', ['-c', 'core.quotePath=false', ...args], { cwd: root, input, encoding, maxBuffer: 1 << 30, stdio: ['pipe', 'pipe', 'pipe'] });
 const listed = (out) => out.split('\n').filter((line) => line !== '');
 
 const keyOf = (key) => (key?.type === 'Identifier' || key?.type === 'PrivateIdentifier' ? key.name : typeof key?.value === 'string' ? key.value : undefined);
@@ -361,10 +365,4 @@ function cosine(left, right) {
   let product = 0;
   for (const [token, value] of small.weights) product += value * (large.weights.get(token) ?? 0);
   return product / (left.length * right.length);
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const found = needs();
-  process.stdout.write(said(found));
-  await remember(found.cache);
 }

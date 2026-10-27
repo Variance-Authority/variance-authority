@@ -21,16 +21,15 @@ answers from the last recording, so for a file it has never seen, put the edit
 in the tree and read `yarn variance select --suite <slice>`: it selects from the
 diff, and says nothing about a file that has not changed.
 
-**Does existing code already answer it?** `yarn test:loop` ends by naming,
+**Does existing code already answer it?** Before writing, ask `yarn variance
+ask search` for what the code is to do. After, `yarn test:loop` ends by naming,
 for each function new on the branch, the existing functions that need what it
-needs: the same calls, fields, strings, types and imports, whatever their shape
-or names (`yarn needs` prints the list alone). A name it lists is a lead to
-read, not a verdict: where it answers, call or extend it instead of keeping the
-new one. A re-typed copy shares no run of tokens with the code it copies, so
-this is the one check that sees it while it is still being written. It names
-the owner of about a third of the copies it should, so an empty list clears
-nothing, and it does not see a second path written inside a function that
-already existed.
+needs: the same calls, fields, strings, types, imports and identifier words,
+whatever their order or shape. The two name different copies, so read both. A
+name either lists is a lead to read, not a verdict: where it answers, call or
+extend it instead of keeping the new one. The list names the owner of about a
+third of the copies it should, so an empty list clears nothing, and it does not
+see a second path written inside a function that already existed.
 
 **Does it change how a record is carried or read?** Carrying, the case index,
 and the selection and comparison read off them, keep one contract: an

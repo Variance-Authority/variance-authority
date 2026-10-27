@@ -11,8 +11,8 @@ copy cannot rename is what it needs, the calls it makes, the fields it reads,
 the strings and types it names. `tools/needs.mjs` reads every function as the
 bag of those needs and names the existing functions that need the same. It
 names the owner of 22 of the 44 copied functions, 12 of them copies neither
-earlier detector saw, and it runs at the end of every `yarn test:loop`, while
-the second implementation is still being written.
+earlier detector saw, and `yarn test:loop` prints its list after the tests,
+while the second implementation is still being written.
 
 ## The labels
 
@@ -43,9 +43,9 @@ each callee and its member chain, `str:` and `re:` for literals, `prop:` for
 each field read, `type:` for each type named, `imp:` for each binding imported
 from a package, `word:` for each word of the identifiers inside, and `name:`
 for each word of its own name. The words are `tokensOf`'s, the tokenizer
-`variance ask search` reads names with: camel case and separators split, the
-unsplit compound kept, a trailing `s` dropped from words of four letters or
-more. A relative import adds nothing a path would not.
+`@variance-authority/mcp` locates subjects with: camel case and separators
+split, the unsplit compound kept, a trailing `s` dropped from words of four
+letters or more. A relative import adds nothing a path would not.
 
 Each token weighs (1 + log tf) · rarity(N, df): how often the unit holds it,
 times `rarity`, the integer weight `@variance-authority/mcp` already ranks by,
@@ -61,19 +61,21 @@ is not a constructor. It names at most 3 existing units at a share of 675 or
 more. Existing means every unit in the working tree that is not new: a
 function gone from the tree is not one to call.
 
+A labelled copy is compared with every unit at its change's base, the code its
+author had. The rate at which it speaks is read as a branch would be: the
+functions new at a change, against every other unit at it. That was measured
+on every fourth change of the same line, 365 changes, with the labelled copies
+left out. Its denominator counts every new function, small ones and
+constructors included; the line `yarn test:loop` prints counts only the ones
+it asks about.
+
 The first version weighed by log inverse document frequency at a share of 600,
 chosen on the copies whose id hashes to the even half by SHA-1, with the odd
 half not looked at until the threshold was fixed. The share of 675 was chosen
 for `rarity` to speak as often as that one did on unlabelled changes, 12% of
-new functions; the odd half's recall was printed alongside and is 7 at both.
-Only the threshold was held out: the token classes, the floor of 5 needs, the
-weight and the variants below were compared on every copy, so the odd half's
-recall is an upper bound.
-
-The rate at which it speaks was measured on every fourth change of the same
-line, 365 changes, with the labelled copies left out. Each change is read as a
-branch would be: the functions new at the change, against every other unit at
-it.
+new functions; the odd half's recall is 7 at both. Only the threshold was held
+out: the token classes, the floor of 5 needs, the weight and the variants below
+were compared on every copy, so the odd half's recall is an upper bound.
 
 ## Results
 
@@ -89,23 +91,21 @@ it.
 
 On ordinary changes it names a neighbour for 372 of 3,187 new functions, 12%,
 and prints 556 names. Of the first 40 of them, 18 are `reuse`, 21 `family` and
-1 `unrelated`; the judges were unanimous on 37. The halves differ by 28 points
-on 24 and 20 copies, and the odd half is an upper bound, so the recall to
-expect on new copies is a third or less, not the 63% of the half the threshold
-was first chosen on.
+1 `unrelated`. The halves differ by 28 points on 24 and 20 copies, and the odd
+half is an upper bound, so the recall to expect on new copies is a third or
+less, not the 63% of the half the threshold was first chosen on.
 
 Of the 40 judged pairs, the tool asks about 27; the other 13 are constants and
 one constructor, 8 of them `unrelated`, which is why neither is asked about. Of
 the 27 it names 19: 7 `reuse` and 12 `family`. A `family` name is the place to
 look, not a false alarm: the same question, answered another way.
 
-The 7 `reuse` pairs it does not name were judged against the change's base. In
-5 of them, the change moved the body into the new function and left the old
-one calling it: the old one's needs fell from 61 to 13, 48 to 8, 101 to 32, 64
-to 21 and 20 to 15. That is the refactor to want, and against the tree as the
-change leaves it there is nothing to name. In the other 2, the change edited the
-neighbour too, its needs grew from 25 to 33 and from 49 to 69, and the share
-fell below 675.
+The 7 `reuse` pairs it does not name were judged against the change's base;
+the tool reads the tree the change leaves. Read by hand, 5 of those changes
+moved the body into the new function and left the old one calling it, so the
+old one keeps little of what it needed. That is the refactor to want, and
+there is nothing left to name. The other 2 edited the neighbour as well, and
+its share fell below 675.
 
 ## What it does not see
 
@@ -126,67 +126,68 @@ fell below 675.
 
 ## Tried and dropped
 
-Each was measured with the first version's weight at its share of 600, but the
-same-name lead, measured with `rarity` at 675.
+Each is `node tools/needs-measure.mjs` with the one edit to `tools/needs.mjs`
+it names. Only the copies and the rate are quoted: the sampled names were read
+for this tool's output, not for a variant's.
 
-- Names alone. The words of a function's name ranked the owner below the full
-  bag; a copy renames itself first.
-- A same-name lead: every existing function whose name is the new one's. On
-  its own it names 20 of the 44 copies, 8 of the 20 held out, and speaks for
-  28% of new functions; joined with the bag, 24 of 44 at 33%. Two more copies
-  for nearly three times the noise.
-- The bag without `word:` and `name:`: 9 of the 44 function copies, 2 of the
-  20 held out, speaking for 12% of new functions, and of the judged pairs it
-  named 5 `reuse` and 6 `family`. A copy renames itself, but the words of what
-  it reads stay.
-- An identifier splitter of its own: the same 21 copies, but it spoke for 14%
-  of new functions where `tokensOf` speaks for 12%.
-- The first version's weight itself, log ((N + 1) / (df + 1)) + 1 in place of
-  `rarity`, where it speaks as often: 21 of 44, 7 of the 20 held out, for 375
-  of 3,187 new functions. `rarity` names one copy more, and the project
-  already had it.
-- Deviance, after Engler and others (SOSP 2001): among a copy's nearest
-  neighbours, a function most of them call and the copy does not. Where the
-  bag missed the owner, this never found it.
+- A same-name lead: `twinsOf` names every existing function, in another file,
+  whose name is the new one's. On its own it names 20 of the 44 copies, 8 of
+  the 20 held out, and speaks for 905 of 3,187 new functions, 28%; joined with
+  the bag, 24 of 44, 8 held out, for 1,042, 33%. Two more copies for nearly
+  three times the noise.
+- The bag without `word:` and `name:`: 9 of the 44, 3 of the 20 held out, for
+  364 new functions, 11%. Fewer functions reach 5 needs, so it asks about 17
+  of the judged pairs and names 5 `reuse` and 6 `family`. A copy renames
+  itself, but the words of what it reads stay.
+- An identifier splitter of its own, in place of `tokensOf`: camel case and
+  separators split and lower-cased, nothing kept whole and nothing stemmed.
+  21 of 44, 7 of the 20 held out, for 394 new functions. `tokensOf` names one
+  copy more and speaks for 22 functions fewer.
+- The first version's weight, log ((N + 1) / (df + 1)) + 1 in place of
+  `rarity`, at its share of 600: 21 of 44, 7 of the 20 held out, for 375 new
+  functions. `rarity` names one copy more, and the project already had it.
 
-`variance ask search`, asked with each copy's name and the first lines of its
-doc comment, ranks the owner in its top 3 for 15 of the 44 copies; 9 of them
-are copies the bag names too, so the two together name 28. The search was
-asked of today's index, which holds 40 of the 44 owners and the docs written
-since, an advantage the bag at the copy's base did not have, and 5 of the 6
-copies only the search names share a word of their owner's name. It is a
-second lead worth joining, measured at each copy's base, on its own branch.
+`variance ask search`, asked for each copy with its name and the first
+sentence of its doc comment (`yarn variance ask search --query '<both>'`),
+ranks the owner in its top 3 for 15 of the 44 copies; 9 of them are copies the
+bag names too, so the two together name 28. The search was asked of today's
+index, which holds 40 of the 44 owners and the docs written since, an
+advantage the bag at the copy's base did not have, and 5 of the 6 copies only
+the search names share a word of their owner's name. It is a second lead worth
+joining, measured at each copy's base, on its own branch.
 
 ## On its own branch
 
-The first runs on this branch named its own functions:
+Its first runs on this branch named its own functions, and three were true
+copies, now imports:
 
-- `isFunction` in `needs.mjs`, against the one `owners.mjs` holds. That was a
-  true copy, so `needs.mjs` now imports it, with `SCRIPT`, `isTest` and
-  `lines`.
-- `run` in `needs-measure.mjs`, against the git runners that scripts and
-  fixtures each write for themselves. `needs.mjs` exports its `git` and the
-  measurement imports it. The other scripts' runners are left as they are:
-  joining them is a change of its own.
-- `share` against the CLI's `percent`, which is private to `index-command.ts`
-  and prints another format; `half` against `help`'s `digest`, which is
-  SHA-256 while the held-out split is SHA-1 parity; `keyOf`, a unit's path and
-  name joined, against the tribunal's object key and the core's component key,
-  each private to its file and built from other parts. All three are family:
-  the answers they need differ, and none of the neighbours can be imported.
+- `isFunction` in `needs.mjs`, against the one `owners.mjs` holds; `needs.mjs`
+  now imports it, with `SCRIPT`, `isTest` and `lines`.
+- `run` in `needs-measure.mjs`, against the git runner `needs.mjs` holds; the
+  measurement imports `needs.mjs`'s `git`.
+- `walk` and an inner `visit` in `needs.mjs`, which re-typed `visit` in
+  `owners.mjs`, the depth-first walk over oxc's nodes. The list did not name
+  these, the share was below the threshold; a review did, and `variance ask
+  search`, asked for a depth-first walk over every node of the parse tree,
+  ranks `owners.mjs`'s first. `owners.mjs` now exports `visit`. Reading the
+  units through it showed the old walk took a constant declared in a block or a
+  loop for the module's; a constant is now the module's only where a statement
+  of the module declares it.
+
+What it names on the branch now, 4 of the 37 new functions it asks about, is
+left as it is:
+
+- `git` in `needs.mjs`, against the git runners `site-reach.mjs`,
+  `bundle-carried.mjs` and `take-carried.mjs` each write for themselves.
+  Joining them is a change of its own.
 - `listed`, the non-empty lines of git's output, against `lines` in the CLI's
-  `clone-cut.ts`, which is the same line of code and private to its file. No
-  package exports it, so it stays a copy until one does, with the git runners.
-
-A review found what the list did not: `walk` and an inner `visit` in
-`needs.mjs` re-typed `visit` in `owners.mjs`, the depth-first walk over oxc's
-nodes, at a share below the threshold. `variance ask search`, asked for a
-depth-first walk over every node of the parse tree, ranks `owners.mjs`'s
-first. `owners.mjs` now exports `visit` and `needs.mjs` walks with it. Reading
-the units through it showed the old walk took a constant declared in a block or
-a loop at the top of a module for the module's, 1,253 of them across the
-repository; a constant is now the module's only where a statement of the module
-declares it.
+  `clone-cut.ts`, the same line of code, private to its file. No package
+  exports it, so it stays a copy until one does, with the git runners.
+- `share` against the CLI's `percent`, private to `index-command.ts`, which
+  prints another format; `keyOf`, a unit's path and name joined, against the
+  tribunal's object key, private to its file and built from other parts. Both
+  are family: the answers they need differ, and neither neighbour can be
+  imported.
 
 ## Prior art
 
@@ -200,15 +201,15 @@ of one specification, which is what `clones.mjs` did here.
 
 ## Cost
 
-On an M4 Max with Node 24.21, the load under the core count, the list costs
-`yarn test:loop` 0.50 s with its cache warm and 1.39 s on the first run after
-the reader changes, as the amendment to
-[ADR-0096](../adr/0096-the-edit-loop-answers-for-one-edit.md) records. `yarn
-needs` alone, with Node's start and Yarn's, takes 0.77 s and 1.67 s. The cache
-holds each blob's bags, 8 MB for the repository. `node tools/needs-measure.mjs`
-takes about 50 s and peaks at about 1.5 GB.
+On an M4 Max with Node 24.21, the load under the core count, reading the list
+alone takes 0.56 s with its cache warm and 1.46 s on the first run after the
+reader changes, Node's start included, as the amendment to
+[ADR-0096](../adr/0096-the-edit-loop-answers-for-one-edit.md) records. The
+cache holds each blob's bags, 8 MB for the repository.
+`node tools/needs-measure.mjs` takes about 50 s and peaks at about 1.5 GB.
 
 ```bash
-yarn needs                       # the new functions on this branch and their twins
+# The list alone; remove node_modules/.cache/variance-authority/needs.json first for a cold run
+time node --input-type=module -e 'const { needs, said, remember } = await import("./tools/needs.mjs"); const found = needs(process.cwd()); process.stdout.write(said(found)); await remember(found.cache)'
 node tools/needs-measure.mjs     # the Results, from tools/needs-measure.json
 ```

@@ -63,8 +63,13 @@ export async function advice(root) {
   try {
     const { needs, remember, said } = await import('./needs.mjs');
     const found = needs(root);
-    await remember(found.cache);
-    return said(found);
+    const list = said(found);
+    try {
+      await remember(found.cache);
+    } catch (error) {
+      return `${list}needs: cache not written, ${String(error?.message ?? error).split('\n')[0]}\n`;
+    }
+    return list;
   } catch (error) {
     return `needs: not read, ${String(error?.message ?? error).split('\n')[0]}\n`;
   }

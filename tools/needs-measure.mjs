@@ -110,7 +110,7 @@ for (const [head, base] of changesOnMain.filter((_, index) => index % EVERY === 
   }
   changes += 1;
 }
-out.push(`new functions it names a neighbour for, on ${changes} changes:`, `  ${share(spoke, asked)}`);
+out.push(`new functions it names a neighbour for, on ${changes} of ${changesOnMain.length} changes:`, `  ${share(spoke, asked)}`);
 
 // The names it printed there, in an order nobody chose, the SHA-1 of each pair; the first `SAMPLED` are read by hand.
 const pairKey = ({ head, added, existing }) => `${head}\0${keyOf(added)}\0${keyOf(existing)}`;
