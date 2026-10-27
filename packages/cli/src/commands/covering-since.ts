@@ -24,21 +24,11 @@ export function stated(listed: CoveringRegion, reached: CoveringRegion): StatedR
 }
 
 /**
- * Every line a diff changed, in the index's coordinates.
- *
- * The diff is measured from the commit the record was written at, when it has
- * one, rather than from the merge base with `ref`, because the index's line ranges are in that
- * commit's coordinates and nothing else's. The two part company as soon as the
- * branch moves under the recording, and a hunk read at the wrong end lands on
- * lines the index numbered for a different region — which is the one failure
- * here nobody can see, since a wrong list of test names reads exactly like a
- * right one.
- *
- * `git` names files from the repository root and the index names them from the
- * run's, so the paths are brought into the index's coordinates before anything
- * is looked up. Unmatched paths are reported rather than dropped: an answer that
- * silently left out half a diff is worse than one that says it cannot speak to
- * it.
+ * Every line a diff changed, in the index's coordinates: measured from the
+ * commit the record was written at, when it names one, rather than from the
+ * merge base with `ref`, since the index numbered its lines at that commit. A
+ * hunk read at another end lands on another region, and a wrong list of test
+ * names reads exactly like a right one.
  */
 export async function changeSince(
   since: string,
@@ -53,8 +43,9 @@ export async function changeSince(
     );
   }
 
-  // The working directory is always a real path and `--root` is spelled however
-  // the caller spelled it; through a symlink (`/var` on macOS) the two never meet.
+  // `git` names files from the repository root and the index from the run's. The working directory is always
+  // a real path and `--root` is spelled however the caller spelled it; through a symlink (`/var` on macOS) the
+  // two never meet.
   const here = process.cwd();
   const base = await realpath(root);
   const changed = new Map<string, readonly LineRange[]>();
