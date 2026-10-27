@@ -86,8 +86,12 @@ const docLengthOf = (bytes: number | null | undefined): Pick<DescribedKey, 'docL
 /** One name of the search index the description reached. */
 export interface DescribedName extends DescribedKey {
   readonly name: number;
-  /** The published or exported row whose doc held words its name did not: the row to show, and the one its doc is weighed by. */
-  readonly through?: DescribedRow;
+  /**
+   * The row it is weighed, ordered and shown through: the published or exported
+   * row whose doc held words its name did not, else the row it is shown through
+   * when no doc did.
+   */
+  readonly through: DescribedRow;
 }
 
 /** One published or exported row of the search index. */
@@ -123,13 +127,16 @@ export type Reached = ReachedName | DescribedDeclaration | DescribedFileHit;
  * `already` names are never reached. `within`, file ids when given, admits a
  * name by its own words and a doc only through a row {@link rowWithin} the
  * area: a published row a file of it imports, as the published section shows
- * one, or an exported row whose file is in it.
+ * one, or an exported row whose file is in it. `shown` names the row a name no
+ * doc added a word to is shown through, and its doc is the one that name is
+ * weighed by; a name it names no row for is not reached.
  */
 export function describedNames(
   index: SearchIndex,
   query: string,
   within: ReadonlySet<number> | undefined,
   already: ReadonlySet<number>,
+  shown: (name: number) => DescribedRow | undefined,
 ): readonly ReachedName[] | undefined {
   const asked = describedWordsNative(query);
   if (asked.length === 0) return undefined;
@@ -203,17 +210,18 @@ export function describedNames(
     held.set(name, best);
   }
 
-  return [...held].map(([name, positions]): ReachedName => {
-    const row = through.get(name);
-    return {
+  return [...held].flatMap(([name, positions]): ReachedName[] => {
+    const row = through.get(name) ?? shown(name);
+    if (row === undefined) return [];
+    return [{
       name,
-      ...(row === undefined ? {} : { through: row }),
+      through: row,
       words: asked.filter((_, position) => positions.has(position)).map(([, word]) => word),
       named: asked.filter((_, position) => named.get(name)?.has(position) === true).map(([, word]) => word),
       rows: index.publishedOf(name).length + index.exportedOf(name).length,
       rank: index.rank(name),
-      ...docLengthOf(docLengthAbout(index, name, row)),
-    };
+      ...docLengthOf(rowDocLength(index, row)),
+    }];
   });
 }
 
@@ -254,7 +262,7 @@ export function describedShown(
 
   const names = [...read].filter((one): one is ReachedName => !('near' in one));
   // One word has no pair to write adjacent, so no doc is decoded for it.
-  const near = words.length > 1 ? nearOfNative(query, names.map((one) => docAbout(index, one.name, one.through) ?? '')) : [];
+  const near = words.length > 1 ? nearOfNative(query, names.map((one) => rowDoc(index, one.through) ?? '')) : [];
   const counted = new Map(names.map((one, at) => [one, near[at] ?? 0]));
   const order = describedOrderBy(weight);
   const weighed = [...read].map((one): Described => ('near' in one ? one : { ...one, near: counted.get(one) ?? 0 })).sort(order);
@@ -273,26 +281,14 @@ export function describedShown(
   return shown.sort(order);
 }
 
-/** The doc a reached name is shown with: the row it was reached through, else its {@link firstRow}'s. */
-function docAbout(index: SearchIndex, name: number, through: DescribedRow | undefined): string | undefined {
-  const row = through ?? firstRow(index, name);
+/** One row's doc: for a reached name, the doc of the row it is shown through. */
+function rowDoc(index: SearchIndex, row: DescribedRow): string | undefined {
   return row.kind === 'published' ? index.published(row.row).doc : index.exported(row.row).doc;
-}
-
-/** The bytes of the doc {@link docAbout} shows a name with, read off the index without decoding it. */
-function docLengthAbout(index: SearchIndex, name: number, through: DescribedRow | undefined): number | undefined {
-  return rowDocLength(index, through ?? firstRow(index, name));
 }
 
 /** The bytes of one row's doc, without decoding it; absent when it has none. */
 function rowDocLength(index: SearchIndex, row: DescribedRow): number | undefined {
   return row.kind === 'published' ? index.publishedDocLength(row.row) : index.exportedDocLength(row.row);
-}
-
-/** A name's first published row, else its first exported row: the index holds a name only through one of them. */
-function firstRow(index: SearchIndex, name: number): DescribedRow {
-  const published = index.publishedOf(name)[0];
-  return published === undefined ? { kind: 'exported', row: index.exportedOf(name)[0] as number } : { kind: 'published', row: published };
 }
 
 /**

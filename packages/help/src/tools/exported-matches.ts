@@ -82,14 +82,8 @@ export function exported(
     rows: () => found.flatMap(({ name }) => reached(name)),
     head: (count) =>
       first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.rank - b.rank).flatMap(({ name, count: files }) => {
-        // Source before tests before stories, and the first written within a
-        // kind: the kind column orders the rows, and only the one shown is read.
         // `count` is the number of these rows, so one is always chosen.
-        let chosen: number | undefined;
-        for (const row of reached(name)) {
-          if (chosen === undefined || index.exportedKind(row) < index.exportedKind(chosen)) chosen = row;
-          if (index.exportedKind(chosen) === 0) break;
-        }
+        const chosen = exportedShown(index, reached(name));
         if (chosen === undefined) return [];
         const row = index.exported(chosen);
         // The row's own doc, or none: another row of the same name is another
@@ -107,6 +101,20 @@ export function exported(
         return [match];
       }),
   };
+}
+
+/**
+ * The row of one name's `rows` an exported section shows: source before tests
+ * before stories, and the first written within a kind. The kind column orders
+ * the rows, so only the one shown is read.
+ */
+export function exportedShown(index: SearchIndex, rows: Iterable<number>): number | undefined {
+  let chosen: number | undefined;
+  for (const row of rows) {
+    if (chosen === undefined || index.exportedKind(row) < index.exportedKind(chosen)) chosen = row;
+    if (index.exportedKind(chosen) === 0) break;
+  }
+  return chosen;
 }
 
 /**

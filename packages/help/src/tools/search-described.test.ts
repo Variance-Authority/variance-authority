@@ -7,8 +7,9 @@ import { declaredDescribedOf, describedWordsNative, sourceIndexPath } from '@var
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { queryDependencyLexicon, refreshDependencyLexicon } from '../dependency-lexicon.js';
+import { areaOf, type Area } from './area.js';
 import { describedNames } from './described.js';
-import { searchNames } from './search-answer.js';
+import { searchNames, shownRowOf } from './search-answer.js';
 import { answerSearch, searchIndexOf } from './search.js';
 
 /**
@@ -119,6 +120,12 @@ describe('which names the described section holds, and in what order', () => {
       'src/tint.ts': 'export const tint = 1;\n\n/** Picks the palette for a key. */\nfunction pickFor(key: string): string {\n  return key;\n}\n',
     });
     return answerSearch(searchIndexOf(readHelp(root)), { query }, treeOf([], root), root);
+  };
+
+  /** The names the described section reaches for `query`, in `area` when one is given, with nothing answered before it. */
+  const reachedBy = (index: ReturnType<typeof searchIndexOf>, query: string, area?: Area) => {
+    const within = area === undefined ? undefined : index.fileIds(area.files);
+    return describedNames(index, query, within, new Set(), shownRowOf(index, area, within));
   };
 
   it('is absent when every word is a stopword, since there was nothing to describe', async () => {
@@ -286,7 +293,7 @@ describe('which names the described section holds, and in what order', () => {
     const rows = [...index.publishedOf(placement)];
     const held = rows.find((row) => index.published(row).doc !== undefined);
     expect(rows.map((row) => index.published(row).specifier).sort()).toEqual(['a-kit', 'b-kit']);
-    const reached = describedNames(index, 'text of a file at a commit', undefined, new Set())?.find((one) => one.name === placement);
+    const reached = reachedBy(index, 'text of a file at a commit')?.find((one) => one.name === placement);
     expect(reached?.words).toEqual(['commit', 'file', 'text']);
     expect(reached?.docLength).toBe(index.publishedDocLength(held as number));
     const said = answerSearch(index, { query: 'text of a file at a commit' }, treeOf([], root), root);
@@ -326,7 +333,7 @@ describe('which names the described section holds, and in what order', () => {
     const doc = '/** Where a case was placed: the file it is in, at the commit it ran at, and the text of that file then. */\n';
     const root = await placedTwice('', doc);
     const index = searchIndexOf(readHelp(root));
-    const reached = describedNames(index, 'text of a file at a commit', undefined, new Set())?.find((one) => one.name === placementOf(index));
+    const reached = reachedBy(index, 'text of a file at a commit')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     const said = answerSearch(index, { query: 'text of a file at a commit' }, treeOf([], root), root);
     const line = said.split('\n').find((one) => one.includes('Placement')) ?? '';
@@ -337,7 +344,7 @@ describe('which names the described section holds, and in what order', () => {
   it('weighs and shows a name through its published row when an exported row holds as many words', async () => {
     const root = await placedTwice('/** Kept with the text it holds. */\n', '/** Kept at the commit it ran at. */\n');
     const index = searchIndexOf(readHelp(root));
-    const reached = describedNames(index, 'commit text', undefined, new Set())?.find((one) => one.name === placementOf(index));
+    const reached = reachedBy(index, 'commit text')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('published');
     expect(reached?.words).toEqual(['text']);
     const said = answerSearch(index, { query: 'commit text' }, treeOf([], root), root);
@@ -351,7 +358,7 @@ describe('which names the described section holds, and in what order', () => {
   it('weighs and shows a name through the shorter of two rows whose docs hold the same words, though the longer is published', async () => {
     const root = await placedTwice(LONG, SHORT);
     const index = searchIndexOf(readHelp(root));
-    const reached = describedNames(index, 'placement text', undefined, new Set())?.find((one) => one.name === placementOf(index));
+    const reached = reachedBy(index, 'placement text')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     expect(reached?.docLength).toBe(index.exportedDocLength(reached?.through?.row as number));
     expect(reached?.docLength).toBe(18);
@@ -406,7 +413,7 @@ describe('which names the described section holds, and in what order', () => {
     const files = [APP, 'packages/z-kit/src/index.ts', 'packages/b-kit/src/index.ts'];
     const tree = treeOf([{ file: APP, edges: files.slice(1).map((to) => ({ to, kind: 'imports' as const })) }, ...files.slice(1).map((file) => ({ file }))], root);
     const index = searchIndexOf(readHelp(root));
-    const reached = describedNames(index, 'commit text', index.fileIds(files), new Set())?.find((one) => one.name === placementOf(index));
+    const reached = reachedBy(index, 'commit text', areaOf(APP, undefined, tree))?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     expect(index.exported(reached?.through?.row as number).at).toBe('packages/z-kit/src/index.ts');
     const shown = searchNames(index, { query: 'commit text', from: APP }, tree).described?.shown.find((one) => one.name === 'Placement');
@@ -436,6 +443,25 @@ describe('which names the described section holds, and in what order', () => {
     const shown = described?.shown.find((one) => one.name === 'Placement');
     expect(shown && 'specifier' in shown ? shown.specifier : undefined).toBe('b-kit');
     expect(shown?.words).toEqual(['placement', 'text']);
+  });
+
+  it('weighs a name no doc added a word to by the doc of the row it is shown through, not of its first published row', async () => {
+    // Neither doc holds `text`. `app` imports `b-kit`'s `Placement`, so it is the one shown.
+    const root = await kits({
+      'a-kit': { 'index.ts': '/** Kept for one shard. */\nexport interface Placement {\n  readonly shard: number;\n}\n' },
+      'b-kit': { 'index.ts': '/** Kept for one run of the suite, and read once. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
+      'app': { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" },
+    }, { app: ['b-kit'] });
+    const index = searchIndexOf(readHelp(root));
+    const placement = placementOf(index);
+    const [firstRow, shownRow] = index.publishedOf(placement);
+    expect(index.published(firstRow as number).specifier).toBe('a-kit');
+    expect(index.published(shownRow as number).specifier).toBe('b-kit');
+    const shown = searchNames(index, { query: 'placement text' }).described?.shown.find((one) => one.name === 'Placement');
+    expect(shown && 'specifier' in shown ? shown.specifier : undefined).toBe('b-kit');
+    const reached = reachedBy(index, 'placement text')?.find((one) => one.name === placement);
+    expect(reached?.docLength).toBe(index.publishedDocLength(shownRow as number));
+    expect(reached?.through).toEqual({ kind: 'published', row: shownRow });
   });
 
   it('puts a name whose doc holds every word before one whose name holds half of them', async () => {

@@ -6,11 +6,11 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
-import { describedDeclarations, describedNames, describedShown, fileMatch, type Reached } from './described.js';
+import { describedDeclarations, describedNames, describedShown, fileMatch, type DescribedRow, type Reached } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches, exactness } from './declared.js';
-import { docRows, exported, first } from './exported-matches.js';
+import { docRows, exported, exportedShown, first } from './exported-matches.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -290,6 +290,22 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number): Mat
   };
 }
 
+/**
+ * The row a name is shown through when no doc decided one, for each name: its
+ * published row the published section would show first, in the area when one
+ * is named, else its exported row the exported section would show. The
+ * described section weighs such a name by this row's doc and shows it through
+ * this row, so one rule picks it for both.
+ */
+export function shownRowOf(index: SearchIndex, area: Area | undefined, within: ReadonlySet<number> | undefined): (name: number) => DescribedRow | undefined {
+  return (name) => {
+    const hit = first(surface(index, index.publishedOf(name), area, within), 1, surfaceOrder)[0];
+    if (hit !== undefined) return { kind: 'published', row: hit.row };
+    const row = exportedShown(index, exported(index, [name], new Set(), within).rows());
+    return row === undefined ? undefined : { kind: 'exported', row };
+  };
+}
+
 /** Every published row of the names given. */
 const publishedOf = (index: SearchIndex, names: Iterable<number>): number[] =>
   [...names].flatMap((name) => [...index.publishedOf(name)]);
@@ -386,7 +402,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // The empty answer read as a description: names holding any of its words,
   // stemmed by the rule packages are.
   // A name its file keeps to itself is in no row: the source index answers for it.
-  const reached = describedNames(index, query, within, new Set([...named, ...answered]));
+  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOf(index, area, within));
   const described = reached === undefined ? undefined : [...reached, ...(describedDeclarations(root, query, area?.files) ?? [])];
   // Which reading a name both reach is told by is decided by what each holds,
   // never by how many rows print. A name holding at least half the stems is the
@@ -418,12 +434,11 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...one.match, words: one.words }];
       if ('file' in one) return [{ ...fileMatch(root, one.file), words: one.words }];
-      // The row whose doc held the words is the row shown, else the name's first
-      // published row, else its first exported one.
-      const through = one.through;
-      const rows = through === undefined ? index.publishedOf(one.name) : through.kind === 'published' ? [through.row] : [];
-      const row = published(index, surface(index, rows, area, within), 1).shown[0] ??
-        exported(index, [one.name], new Set(), within, through?.kind === 'exported' ? new Map([[one.name, new Set([through.row])]]) : undefined).head(1)[0];
+      // The row it was weighed through is the row shown.
+      const { through } = one;
+      const row = through.kind === 'published'
+        ? published(index, surface(index, [through.row], area, within), 1).shown[0]
+        : exported(index, [one.name], new Set(), within, new Map([[one.name, new Set([through.row])]])).head(1)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
