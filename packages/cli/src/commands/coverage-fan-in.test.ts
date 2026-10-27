@@ -112,6 +112,8 @@ describe('the fan-in lists at size', () => {
   it('prints the same lists for a pull request behind one disclosure', () => {
     const lines = fanInMarkdown(fanIn([file('src/a.ts', 2, { entered: 4, by: { unit: 4 } })]));
 
+    expect(lines).toContain('| Kind | Test files | Regions ran | One test file |  | Median | p90 | Max |');
+    expect(lines).toContain('|---|--:|--:|--:|--:|--:|--:|--:|');
     expect(lines).toContain('| the record | 100 | 20 | 1 | 5.0% | 1 | 1 | 1 |');
     expect(lines).toContain('**most test files called into the file**');
     expect(lines).toContain('| `src/a.ts` | 4 | 2.0% |  | unit 4 |');

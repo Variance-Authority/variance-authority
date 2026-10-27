@@ -40,8 +40,8 @@ export function fanInMarkdown(fanIn: FanIn | undefined): readonly string[] {
     '',
     '<details><summary>🎯 How many test files called into each region</summary>',
     '',
-    '| Kind | Test files | Regions ran | One test file | Median | p90 | Max |',
-    '|---|--:|--:|--:|--:|--:|--:|',
+    '| Kind | Test files | Regions ran | One test file |  | Median | p90 | Max |',
+    '|---|--:|--:|--:|--:|--:|--:|--:|',
     ...kindRows(fanIn).slice(1).map((row) => `| ${row.map((cell, at) => (at === 0 ? cell.trim() : cell)).join(' | ')} |`),
   ];
   for (const list of lists(fanIn.files)) {
