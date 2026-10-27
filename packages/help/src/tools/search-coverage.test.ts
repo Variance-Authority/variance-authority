@@ -93,11 +93,9 @@ beforeAll(async () => {
 const describedFirst = (query: string): readonly string[] =>
   (searchNames(index, { query }, treeOf([], root), root).described?.shown ?? []).map((one) => ('name' in one ? one.name : one.at));
 
-// FIXME: a long doc holding five words still sorts after a name holding two
-// and a short doc holding the third, since how many words a row holds is not a
-// key of its own; making it one reverses search-length.test.ts and the rare-word
-// case of search-weight.test.ts.
-it.todo('puts a long doc holding five words of six before short names and docs holding two or three — needs how many of the question\'s words a row holds weighed apart from where it holds them');
+it('puts a long doc holding five words of six in the first rows, before short names and docs holding two or three', () => {
+  expect(describedFirst('vite plugin transform hook instruments each module').slice(0, 3)).toContain('probesFor');
+});
 
 it('puts a name holding one word, its doc the rest, before short docs holding the same words', () => {
   expect(describedFirst('text of a file at a commit')[0]).toBe('textAt');

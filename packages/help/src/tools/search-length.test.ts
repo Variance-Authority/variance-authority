@@ -7,11 +7,11 @@ import { searchNames } from './search-answer.js';
 import { searchIndexOf } from './search.js';
 
 /**
- * A long doc holds most words by chance: it mentions a repository and a root
- * on its way to saying what it is about. A word held in a short text says more
- * about that text than the same word held in a long one, so a short
- * declaration whose name holds the question's words sorts before long docs
- * that hold them, and one word more, in passing.
+ * How much of the question a row holds comes before where it holds it: a long
+ * doc that holds every word asked sorts before a short name or doc that holds
+ * fewer, each word weighed by how rare it is. A word most of what was reached
+ * holds adds little, which search-weight.test.ts pins; here no word asked is
+ * that common, so the row holding all of them leads.
  */
 
 const manifest = JSON.stringify({ name: 'kit', type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } }, files: ['dist'] });
@@ -121,10 +121,15 @@ beforeAll(async () => {
 const describedFirst = (query: string): readonly string[] =>
   (searchNames(index, { query }, treeOf([], root), root).described?.shown ?? []).map((one) => ('name' in one ? one.name : one.at));
 
-it('puts a short name holding the question before long docs that hold it and one word more', () => {
-  expect(describedFirst('find the repository root')[0]).toBe('repositoryRoot');
+const before = (rows: readonly string[], first: readonly string[], then: string): boolean =>
+  first.every((one) => rows.indexOf(one) !== -1 && rows.indexOf(one) < rows.indexOf(then));
+
+it('puts long docs holding every word of the question before a short name holding two of three', () => {
+  const rows = describedFirst('find the repository root');
+  expect(before(rows, ['rooted', 'TypescriptFinding'], 'repositoryRoot')).toBe(true);
 });
 
-it('puts a short doc holding most of the question before long docs that hold all of it', () => {
-  expect(describedFirst('cap a long part of an answer and count the rest')[0]).toBe('cappedRows');
+it('puts long docs holding all of the question before a short doc holding most of it', () => {
+  const rows = describedFirst('cap a long part of an answer and count the rest');
+  expect(before(rows, ['player', 'RecordedFrame'], 'cappedRows')).toBe(true);
 });

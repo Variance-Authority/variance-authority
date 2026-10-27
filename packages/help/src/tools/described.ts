@@ -43,7 +43,8 @@ import { admittedBy, termsOfStems } from './loose.js';
  * count of one: a doc of the mean length or shorter counts as two, a longer
  * one less, the mean taken over the reached rows that write a doc, the length
  * that of the one row whose doc holds the words. A long doc holds most words
- * in passing, and a doc's word stays below a name's however short. Integers
+ * in passing, and a doc's word stays below a name's however short. That sum
+ * is multiplied by a coordination factor, see {@link weightOf}. Integers
  * throughout, so the order is counts, never a score, and a tie is a tie
  * (ADR-0057). `N` is everything reached, the names another section shows
  * included, so the weight of a word does not move with what is left. Then the words
@@ -51,10 +52,8 @@ import { admittedBy, termsOfStems } from './loose.js';
  * writes adjacent, then how many rows publish or export it, then the name's
  * own rank. A word every doc says in passing tells nothing about which of them
  * was meant: `find the repository root` is asked of `repositoryRoot`, not of
- * every doc that opens on `find` and mentions a root. Among words that weigh
- * alike the weight is a coordination factor: a doc that says all of what was
- * asked still describes it better than a name that says half, since three is
- * less than twice two. A name was chosen for what it does, and a doc that
+ * every doc that opens on `find` and mentions a root, when most of what was
+ * reached says `find`. A name was chosen for what it does, and a doc that
  * writes the question's phrase about a name that holds none of it is usually
  * saying what the name is used with. The phrase — term proximity, counted as
  * the pairs it shares — settles what the weight and the name leave level.
@@ -356,7 +355,11 @@ const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
  * among `population`, times what the place it holds it in counts — its name
  * its {@link FIELD_WEIGHTS} weight in thousandths, its doc its weight times
  * the doc's {@link lengthCount}, never more than a doc of the mean length —
- * summed by {@link heldWeight}. An integer.
+ * summed by {@link heldWeight}, times the rarities of the words held summed
+ * alone: how much of the question the row holds, wherever it holds it. That is
+ * Lucene's coordination factor weighed by rarity, so a long doc holding five of
+ * six words sorts before short names and docs holding two or three, and a word
+ * most rows hold adds little. An integer.
  */
 function weightOf(population: readonly Weighed[]): Weight {
   const holders = new Map<string, number>();
@@ -377,7 +380,9 @@ function weightOf(population: readonly Weighed[]): Weight {
     // not an empty one, so it counts as one of the mean length.
     const counted = key.docLength === undefined ? 1000 : Math.min(1000, lengthCount(key.docLength, docBytes, docs));
     const doc = FIELD_WEIGHTS.doc * counted;
-    return heldWeight(key.words, (word) => rare.get(word) ?? 0, (word) => (key.named.includes(word) ? name : doc));
+    // How much of the question it holds, wherever: a coordination factor by rarity.
+    const covered = heldWeight(key.words, (word) => rare.get(word) ?? 0, () => 1);
+    return covered * heldWeight(key.words, (word) => rare.get(word) ?? 0, (word) => (key.named.includes(word) ? name : doc));
   };
 }
 
