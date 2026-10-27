@@ -17,6 +17,8 @@ export interface ParsedCoverage {
   readonly packages?: true;
   /** `--at-distance <hops>`: count a region as run only when a test file this many import hops from it ran it; an open end is `Number.MAX_SAFE_INTEGER`. */
   readonly atDistance?: { readonly from: number; readonly to: number };
+  /** `--fan-in`: count, for every region and every file, the test files that called into it. */
+  readonly fanIn?: true;
   readonly root: string;
   readonly format: CoverageFormat;
 }
@@ -41,6 +43,7 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
     ...(from === undefined ? {} : { from }),
     ...(packages ? { packages: true as const } : {}),
     ...(atDistance === undefined ? {} : { atDistance }),
+    ...(flags.present.has('--fan-in') ? { fanIn: true as const } : {}),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format,
   };

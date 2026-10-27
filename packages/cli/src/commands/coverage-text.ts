@@ -10,6 +10,7 @@
  */
 
 import type { MovedRegion, TestFileMotion } from '@variance-authority/sense/test-selection';
+import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
 import { coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed, table } from './coverage-summary.js';
 import { functionsIn, notListed } from './covering-motion.js';
@@ -68,7 +69,7 @@ function text(answer: Coverage): string {
   if (count.load > 0) tail.push(['  ran only at load', grouped(count.load), '']);
   lines.push(...table(tail));
   if (count.unjoined > 0) lines.push(`not joined across suites: ${grouped(count.unjoined)} region${count.unjoined === 1 ? '' : 's'}`);
-  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? []), ...earnedLines(answer.earned));
+  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? []), ...earnedLines(answer.earned), ...fanInLines(answer.fanIn));
 
   if (base !== undefined) {
     for (const suite of answer.suites) {
@@ -142,7 +143,7 @@ function markdown(answer: Coverage): string {
   if (answer.source !== undefined || answer.sourceMissed !== undefined) {
     lines.push('', `<details><summary>${escape(breakdownLabel(answer))}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
   }
-  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? []), ...earnedMarkdown(answer.earned));
+  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? []), ...earnedMarkdown(answer.earned), ...fanInMarkdown(answer.fanIn));
   return `${lines.join('\n')}\n`;
 }
 

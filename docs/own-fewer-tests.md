@@ -324,6 +324,85 @@ never in, and what only such tests ran is counted on the last line. The
 comment `variance review --coverage` posts on a pull request carries the same
 table under **Coverage by suite**.
 
+## Ask how many test files an edit would run
+
+Coverage counts a region once whether one test file ran it or four hundred, and
+the two ends of that count are different problems. A region only one test file
+ran loses its coverage when that file is deleted or rewritten. A file that
+hundreds of test files run sends all of them to every edit when a suite selects
+by file, so [test selection](coverage-test-selection.md) saves nothing on it, and every
+unrelated failure in those tests blocks the change. `--fan-in` reads both ends
+from the same per-case [execution index](execution-record.md):
+
+```bash
+npx variance coverage --fan-in
+```
+
+```text
+test files that called into each region
+               test files  regions ran  one test file         median  p90  max
+  e2e          55          5,871        2,894          49.3%  2       14   39
+  integration  83          6,866        3,174          46.2%  2       11   54
+  unit         1,001       35,729       9,983          27.9%  3       25   453
+most regions only one test file ran
+  file                                one test file  of ran
+  packages/cli/src/commands/story.ts  154            158
+most test files called into the file
+  file                              test files  of the suites  of their time  by
+  packages/core/src/format/hash.ts  523         45.9%          68.6%          e2e 39 · integration 31 · unit 453
+selected whole beyond what its median region needs
+  file                              beyond median  test files  median region  busiest region
+  packages/core/src/format/hash.ts  485            523         38             523
+```
+
+That is Variance Authority's own suite, with each list cut to one row; the
+command prints ten files per list, largest first. The count is test files,
+because a test file is what a selection gives the runner, and a test file counts
+once per region however many of its cases ran it. A region counts only when a
+case called into it. What ran while the module was imported — the top-level
+evaluation the limit [above](#ask-which-tests-cover-a-line) credits to every
+case in the file — counts as loaded, not as run, so an import alone never makes
+a region look covered. An edit also runs the test files that only loaded the
+file, so every count is the least an edit runs;
+`variance covering --file` names the test files that loaded it.
+
+The table counts per region, which is what an edit runs when a suite selects
+at a fine [precision](selecting.md#how-precisely-a-suite-selects): only the
+test files that ran the changed region. A suite that selects by file runs every
+test file that ran any region of the changed file, and that is the count the
+lists give per file. The table gives, per suite kind, how many regions one test
+file ran, and the median, 90th percentile and maximum of test files per region.
+Each list is one problem, with its own fix:
+
+- **Most regions only one test file ran.** The thin end. In unit code, one test
+  file per region is normal, and it is enough when that test file fails on a
+  break there. Change one of the regions and rerun that test file. If it fails,
+  the region is checked, and the one thing left to decide is whether you would
+  notice the test file being deleted. If it passes, nothing checks the region
+  at all: that is the test to write.
+- **Most test files called into the file.** The test files that ran any region
+  of the file, as a share of the suites that recorded it and of their time. An
+  edit to `hash.ts` above runs 46% of those test files and 69% of their time.
+  Every flaky test in that set blocks
+  every edit to the file, so stabilize those tests first. When the file is wide
+  because of one busy region, the last list names the split.
+- **Selected whole beyond what its median region needs.** A suite that selects by
+  file runs every test file of a changed file, so one busy region makes the
+  whole file wide. An
+  edit to `hash.ts`'s median region needs 38 test files, and the file sends 523.
+  The gap, 485, is the most a split could save: a file split in two still sends
+  every test file that called into either part, so the gap is what selecting by
+  region would save, and a split saves it only where the parts' callers part.
+  `variance covering --file` names the test files behind each region, which is
+  where to look for the cut.
+
+None of the lists has a threshold, and none decides that a file is too thin or
+too wide. Each is ordered, `--format json` lists every file under `fanIn`, and
+`--format markdown` prints the same table and lists for a job summary. A count
+is not a check, and under `--at-distance` it counts only the crossings in the
+band, which an edit still exceeds. Before you add a test for a thin region or split a wide file,
+change the code and rerun the tests the count names, and keep what fails.
+
 ## Do you need a test?
 
 Add a test when its result can change what happens next. It might prevent a
@@ -472,8 +551,10 @@ that covered a region. The file-level [execution record](execution-record.md)
 answers the same question by test file, and shows how much source each test
 loads with it. [Ask what one test is made
 of](#ask-what-one-test-is-made-of) names the narrower tests inside one test, and
-the code only it runs. Each reading identifies a conversation rather than a
-verdict.
+the code only it runs. [Ask how many test files an edit would
+run](#ask-how-many-test-files-an-edit-would-run) names the code one test file
+covers and the files whose every edit runs hundreds of test files. Each reading identifies
+a conversation rather than a verdict.
 
 Kent Beck's [Programmer Test
 Principles](https://medium.com/@kentbeck_7670/programmer-test-principles-d01c064d7934)
