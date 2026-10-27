@@ -561,8 +561,7 @@ the words each holds, each counted by how few of the rows the query reached
 hold it, three times over when the name holds it and twice when a doc of the
 mean length or a shorter one does, less for a longer one, and that sum times
 how much of the query the row holds wherever it holds it, the same rarities
-summed alone, so a long doc holding five of six words sorts before names
-holding two — then by how many of them its name holds, then by how many of the query's
+summed alone — then by how many of them its name holds, then by how many of the query's
 adjacent word pairs its doc writes adjacent: counts, never a score. A word most docs say in passing tells you little about which of them
 you meant, so `order paths by code units` puts `codeUnitOrder` first rather
 than every doc that says `paths`. Every word one of them holds is held by a row shown, so the

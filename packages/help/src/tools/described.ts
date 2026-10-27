@@ -43,21 +43,21 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * the reached rows that write a doc. A name is weighed through one row,
  * {@link throughOf}: of those whose doc adds a word to its name's, the one adding
  * the most different words, then the shorter measured doc, then a published row,
- * then the first marked. A long doc holds most words in passing, and a doc's word
- * stays below a name's however short. That sum is multiplied by a coordination
- * factor, see {@link weightOf}. Integers throughout, so the order is counts, never
- * a score, and a tie is a tie (ADR-0057). `N` is everything reached, the names
- * another section shows included, so the weight of a word does not move with what
- * is left. Then the words its name holds, then how many of the question's adjacent
- * word pairs its doc writes adjacent, then how many rows publish or export it, in
- * an area those {@link rowWithin} it, then the name's own rank. A word every doc
- * says in passing tells nothing about which of them was meant:
- * `find the repository root` is asked of `repositoryRoot`, not of every doc that
- * opens on `find` and mentions a root, when most of what was reached says `find`.
- * A name was chosen for what it does, and a doc that writes the question's phrase
- * about a name that holds none of it is usually saying what the name is used with.
- * The phrase — term proximity, counted as the pairs it shares — settles what the
- * weight and the name leave level.
+ * then the first marked, else the row it is shown through. A long doc holds most
+ * words in passing, and a doc's word stays below a name's however short. That sum
+ * is multiplied by a coordination factor, {@link weightOf}. Integers throughout,
+ * so the order is counts, never a score, and a tie is a tie (ADR-0057). `N` is
+ * everything reached, the names another section shows included, so the weight of a
+ * word does not move with what is left. Then the words its name holds, then how
+ * many of the question's adjacent word pairs its doc writes adjacent, then how
+ * many rows publish or export it, in an area those {@link rowWithin} it, then the
+ * name's own rank. A word every doc says in passing tells nothing about which of
+ * them was meant: `find the repository root` is asked of `repositoryRoot`, not of
+ * every doc that opens on `find` and mentions a root, when most of what was
+ * reached says `find`. A name was chosen for what it does, and a doc that writes
+ * the question's phrase about a name that holds none of it is usually saying what
+ * the name is used with. The phrase — term proximity, counted as the pairs it
+ * shares — settles what the weight and the name leave level.
  *
  * The rows shown hold every word anything reached holds: the best holder of a word
  * no row shown holds takes the place of the last row whose every word another row
@@ -387,9 +387,8 @@ const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
  * the doc's {@link lengthCount}, never more than a doc of the mean length —
  * summed by {@link heldWeight}, times the rarities of the words held summed
  * alone: how much of the question the row holds, wherever it holds it. That is
- * Lucene's coordination factor weighed by rarity, so a long doc holding five of
- * six words sorts before short names and docs holding two or three, and a word
- * most rows hold adds little. An integer.
+ * Lucene's coordination factor weighed by rarity, so a word's rarity weighs in
+ * both factors, and a word most rows hold adds little to either. An integer.
  */
 function weightOf(population: readonly Weighed[]): Weight {
   const holders = new Map<string, number>();
