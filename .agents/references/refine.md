@@ -10,11 +10,10 @@ true when the task is done, and which gate says so — a test, a check, a
 measurement, a CI comment. If you cannot write that sentence, the task is not
 refined yet.
 
-**The issue.** Search the GitHub issues before filing one:
-`gh issue list --state all --search "<words>"`. An issue that already holds the
-task gives its checklist, its parent and what blocks it; the pull request that
-finishes it closes it. The rules are under "Tasks are GitHub issues" in
-`AGENTS.md`.
+**The issue.** Search the GitHub issues, closed ones included, before filing
+one, with the commands under "Tasks are GitHub issues" in `AGENTS.md`. An issue
+that already holds the task gives its checklist, its parent and what blocks it;
+the pull request that finishes it closes it.
 
 **The chart.** For non-local work — crossing a boundary, changing a rule or an
 invariant, adding a party, asking whether something belongs here, or building

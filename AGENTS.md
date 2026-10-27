@@ -254,7 +254,8 @@ who asked.
 
 ## Tasks are GitHub issues
 
-Work is tracked in this repository's GitHub issues, read and written with `gh`.
+Work is tracked in this repository's GitHub issues, read and written with `gh`
+2.94 or newer, the first with the parent and blocked-by flags below.
 Search every state before you file: a second issue for the same work splits its
 history, and the closed issues hold what was done and what was declined.
 
@@ -262,16 +263,15 @@ history, and the closed issues hold what was done and what was declined.
 gh issue list --state all --search "<words>"   # does an issue already hold it?
 gh issue view <n>                              # the task, its parent, what blocks it
 gh issue create --title "<outcome>" --body-file <file> --label <label> \
-  --parent <epic> --blocked-by <m>
+  --parent <parent> --blocked-by <m>
 gh issue edit <n> --add-blocked-by <m>         # a wait found later
 gh issue close <n> --reason "not planned"      # work that is dropped
 ```
 
 A title says what is true when the work is done, as the repository's titles
-do. The body opens with the problem, then a checklist somebody can check:
-"Done when", or "Acceptance criteria" in the issues ported from Backlog. A
-defect found by reading code carries `candidate` until a test that fails on
-today's code reproduces it; a task that waits on the owner carries
+do. The body opens with the problem, then a "Done when" checklist somebody can
+check. A defect found by reading code carries `candidate` until a test that
+fails on today's code reproduces it; a task that waits on the owner carries
 `needs-decision`. Work that belongs to a larger task is its sub-issue, and a
 roadmap is an issue labelled `epic` whose sub-issues are its items.
 
