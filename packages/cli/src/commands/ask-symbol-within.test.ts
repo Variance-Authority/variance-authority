@@ -55,6 +55,45 @@ describe('variance ask symbol over the imports of a published name inside its ow
     expect(out).toContain('`variance ask uses` names the 5 places that import this: 5 inside @acme/lib, nearest to a file you name first.');
   });
 
+  it('counts the imports that may read the name apart, as `uses` does, and no import among them', async () => {
+    checkout({
+      ...FIVE_WITHIN,
+      'apps/app/src/passed.ts': "export async function keys(): Promise<number> {\n  const passed = await import('@acme/lib');\n  return count(passed);\n}\n\nfunction count(held: object): number {\n  return Object.keys(held).length;\n}\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const uses = await run(['ask', 'uses', '--name', 'greet']);
+    expect(uses.out).toContain('`greet` [function] is imported in 6 places. 1 more passes the module on whole');
+
+    const symbol = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(symbol.out).toContain(
+      '`variance ask uses` names the 6 places that import this: 1 from another package and 5 inside @acme/lib, nearest to a file you name first. It also lists where it may be read in 1 place: 1 passing the module on whole.',
+    );
+  });
+
+  it('counts inside the package that declares the name when a package that re-exports it is imported most', async () => {
+    checkout({
+      ...FIVE_WITHIN,
+      'packages/adapter/package.json': JSON.stringify({ name: '@acme/adapter', main: 'src/index.ts', dependencies: { '@acme/lib': '*' } }),
+      'packages/adapter/src/index.ts': "export { greet } from '@acme/lib';\n",
+      'apps/web/package.json': JSON.stringify({ name: '@acme/web', private: true, dependencies: { '@acme/adapter': '*' } }),
+      'apps/web/src/welcome.ts': "import { greet } from '@acme/adapter';\nexport const welcome = greet('web');\n",
+      'apps/shop/package.json': JSON.stringify({ name: '@acme/shop', private: true, dependencies: { '@acme/adapter': '*' } }),
+      'apps/shop/src/welcome.ts': "import { greet } from '@acme/adapter';\nexport const welcome = greet('shop');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    // The total is the count `uses` gives, however it reads the adapter's own `export … from`.
+    const uses = await run(['ask', 'uses', '--name', 'greet']);
+    const listed = /is imported in (\d+) places\./u.exec(uses.out)?.[1];
+    expect(listed).toBeDefined();
+    const symbol = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(symbol.out).toContain('used by 2 packages: @acme/shop, @acme/web');
+    expect(symbol.out).toContain(
+      `\`variance ask uses\` names the ${listed} places that import this: ${Number(listed) - 5} from other packages and 5 inside @acme/lib, nearest to a file you name first.`,
+    );
+  });
+
   it('counts the imports from other packages alone when the source index does not read, and says why', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

@@ -100,6 +100,15 @@ describe('a module held whole that the reading cannot follow', () => {
     );
   });
 
+  it('counts no place that may read a name as a place that imports it, and names each apart', () => {
+    expect(symbol.run(help, { name: 'widen' })).toContain(
+      '`docs_uses` names no place that imports this, and lists where it may be read in 1 place: 1 passing the module on whole.',
+    );
+    expect(symbol.run(help, { name: 'narrow' })).toContain(
+      "`docs_uses` names no place that imports this, and lists where it may be read in 2 places: 1 off the module's `default`, 1 passing the module on whole.",
+    );
+  });
+
   it('lists a module passed on whole as a site that may read the name', () => {
     const widen = uses.run(help, { name: 'widen' });
     expect(widen).toContain('is imported by name nowhere. 1 place passes the module on whole, where this reading does not follow it, and may read `widen`.');

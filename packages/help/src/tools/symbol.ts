@@ -1,6 +1,6 @@
 import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
-import type { Help, Named } from '@variance-authority/package/help';
+import { type Help, type Named, mayBeRead } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
@@ -13,7 +13,7 @@ import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { boundOf, exportedRows, originOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
-import { type Site, usesOf } from './uses-of.js';
+import { type Site, sureness, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -160,13 +160,12 @@ export const symbol: Tool<Help> = {
     const doors = found.map(([published, held]) => specifierOf(published, held));
     const also = doors.length > 1 ? [`\nAlso published by: ${doors.slice(1).join(', ')}`] : [];
 
-    // What the name is, and then — once, in one line — that the other half of
-    // the question has an answer. Naming the tool rather than printing the sites
-    // is the budget: most callers want the signature and stop, and the ones who
-    // want the import sites want them ranked against a file this tool never asked
-    // for. The count is of the sites `uses` lists, read by the same reader.
+    // The name, then one line naming the tool that lists its sites: callers
+    // who want them want them ranked against a file this tool never asked for.
+    // Inside is the declaring file's package, which a re-exporting door is not.
     const listed = usesOf(help, input, invocation?.root, spell);
-    const shown = listedLine(spell.tool(uses), first[0].name, listed.sites, listed.unread);
+    const owner = help.exported.find((held) => held.at === first[2].at)?.by ?? first[0].name;
+    const shown = listedLine(spell.tool(uses), owner, listed.sites, listed.unread);
     const renamed = renamedSites(name, listed.sites);
 
     const entry = first[2];
@@ -300,21 +299,29 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
 }
 
 /**
- * The line that sends the asker to `uses`: how many places it lists, those
- * from other packages and those inside `owner`, each counted. An index that
- * did not read leaves the ones inside uncounted, and says why.
+ * The line that sends the asker to `uses`: how many places import the name,
+ * those from other packages and those inside `owner`, each counted, and, apart
+ * and in no count, the places that may read it. The sites are the ones `uses`
+ * lists, counted as it counts them. An index that did not read leaves the
+ * ones inside uncounted, and says why.
  */
 function listedLine(tool: string, owner: string, sites: readonly Site[], unread: string | undefined): readonly string[] {
+  const { certain, off, whole } = sureness(sites);
+  const may = [...off, ...whole];
   if (sites.length === 0 && unread === undefined) return [];
-  const inside = sites.filter((site) => site.by === owner).length;
-  const outside = sites.length - inside;
+  const inside = certain.filter((site) => site.by === owner).length;
+  const outside = certain.length - inside;
   const parts = [
     ...(outside === 0 ? [] : [`${outside} from ${outside === 1 ? 'another package' : 'other packages'}`]),
     ...(inside === 0 ? [] : [`${inside} inside ${owner}`]),
   ];
   const left = unread === undefined ? '' : ` The imports inside ${owner} are read from the source index, and ${unread}.`;
-  if (sites.length === 0) return [`\n\`${tool}\` names no place another package imports this from.${left}`];
-  return [`\n\`${tool}\` names the ${plural(sites.length, 'place')} that ${sites.length === 1 ? 'imports' : 'import'} this: ${parts.join(' and ')}, nearest to a file you name first.${left}`];
+  if (certain.length === 0) {
+    const where = may.length === 0 ? 'names no place another package imports this from' : `names no place that imports this, and lists where it ${mayBeRead(may)}`;
+    return [`\n\`${tool}\` ${where}.${left}`];
+  }
+  const also = may.length === 0 ? '' : ` It also lists where it ${mayBeRead(may)}.`;
+  return [`\n\`${tool}\` names the ${plural(certain.length, 'place')} that ${certain.length === 1 ? 'imports' : 'import'} this: ${parts.join(' and ')}, nearest to a file you name first.${also}${left}`];
 }
 
 /**

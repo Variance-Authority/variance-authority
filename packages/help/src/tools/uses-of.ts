@@ -30,6 +30,20 @@ import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
  */
 export type Site = Use & { readonly how?: string; readonly name?: string };
 
+/**
+ * The sites that import a name, and the ones that may read it and are no use
+ * of it: a read off the module's `default`, which holds the name only when the
+ * module is CommonJS, and the module passed on whole, where the reading does
+ * not follow it. Only `certain` is counted as places that import the name.
+ */
+export function sureness(sites: readonly Site[]): { readonly certain: readonly Site[]; readonly off: readonly Site[]; readonly whole: readonly Site[] } {
+  return {
+    certain: sites.filter((use) => use.through?.whole !== true && use.through?.throughDefault !== true),
+    off: sites.filter((use) => use.through?.throughDefault === true),
+    whole: sites.filter((use) => use.through?.whole === true && use.through.throughDefault !== true),
+  };
+}
+
 type Published = readonly [Documented, Opening, Entry];
 
 /**

@@ -9,7 +9,7 @@ import { sharedSegments } from './shared-segments.js';
 import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing } from './uses-declarations.js';
-import { type Answer, type Namesake, type Site, usesOf } from './uses-of.js';
+import { type Answer, type Namesake, type Site, sureness, usesOf } from './uses-of.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -344,9 +344,10 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const nearest = nearestLine(from, shown.spell);
 
   // A read off `default` and a module passed on whole are no use of the name: each is listed, as a site that may read it, and counted apart.
-  const certain = sites.filter((use) => use.through?.whole !== true && use.through?.throughDefault !== true);
-  const off = sites.filter((use) => use.through?.throughDefault === true).length;
-  const whole = sites.length - certain.length - off;
+  const split = sureness(sites);
+  const certain = split.certain;
+  const off = split.off.length;
+  const whole = split.whole.length;
   // An `import()` type is a dynamic use that loads nothing.
   const dynamic = certain.filter((use) => use.through?.kind === 'dynamic' && use.type !== true).length;
   const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
