@@ -7,20 +7,20 @@ import { parseSync } from 'oxc-parser';
 import { digestString } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { tokensOf } from '@variance-authority/mcp';
-import { rarity } from '@variance-authority/mcp/tools';
+import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 import { cacheRootFor, writeCoverageBytes } from '@variance-authority/sense/test-selection';
-import { SCRIPT, isFunction, isTest, lines, visit } from './owners.mjs';
+import { isFunction, isSource, lines, visit } from './owners.mjs';
 
 /**
  * Existing functions that need what a function new on this branch needs.
  *
  * A re-typed copy shares no run of tokens with what it copies, but it cannot
  * rename what it needs: the calls, fields, strings, patterns, types and imports
- * it names, and the words of its names. Each function is read as that bag,
- * each need weighted by how often the function holds it and how
- * {@link rarity rare} it is, and compared by cosine with every unit that
- * exists. A neighbour at {@link SHARED} or above is a lead to read, not a
- * verdict.
+ * it names, and the words of its names. Each function is read as the set of
+ * those needs, each weighed by how {@link rarity rare} it is, and compared with
+ * every unit that exists by the weight of the needs both hold over the weight
+ * of the needs either holds. A neighbour at {@link SHARED} or above is a lead
+ * to read, not a verdict.
  * `yarn test:loop` prints the list; journal entry 0077 holds the measurements.
  */
 
@@ -28,30 +28,14 @@ import { SCRIPT, isFunction, isTest, lines, visit } from './owners.mjs';
 // This script parses every script a second time, beside the source index, and
 // keeps a cache of its own, to prove the signal before the addon carries it.
 
-/** The share of needs, in thousandths of the cosine, at which an existing function is named. */
-const SHARED = 675;
+/** The share of needs, in thousandths of the weight either holds, at which an existing function is named. */
+const SHARED = 450;
 
 /** The fewest distinct needs a function holds before it is asked about: fewer say too little to compare. */
 const SMALLEST = 5;
 
 /** The most neighbours named for one function. */
 const SHOWN = 3;
-
-/**
- * The files whose functions exist for this question: the scripts in the working
- * tree, tracked or new, that are not tests or their fixtures, declarations, or
- * stories and benchmarks. A test repeats its setup on purpose, and the question
- * is whether shipped code already answers.
- */
-export function inScope(path) {
-  return (
-    SCRIPT.some((extension) => path.endsWith(`.${extension}`)) &&
-    !isTest(path) &&
-    !/\.d\.[cm]?ts$/.test(path) &&
-    !/\.(stories|bench)\.[cm]?[jt]sx?$/.test(path) &&
-    !/(^|\/)(e2e|__mocks__)\//.test(path)
-  );
-}
 
 /**
  * Every named function, method and function-valued property in a file's text,
@@ -86,25 +70,32 @@ export function unitsIn(path, text) {
  * needs or more, and not a constructor, which needs what its class holds rather
  * than what it does.
  */
-export const asks = (unit) => unit.kind === 'function' && unit.name !== 'constructor' && Object.keys(unit.bag).length >= SMALLEST;
+export const asks = (unit) => unit.kind === 'function' && unit.name !== 'constructor' && unit.bag.length >= SMALLEST;
 
 /**
  * For each function in `added` the tool {@link asks} about, the existing units
  * that need what it needs, nearest first.
  *
  * Rarity is counted over `existing`, the code a new function is measured
- * against. The share is an integer, so a tie is a tie on every machine, and it
- * breaks by path, then name, then line.
+ * against. The share is the weighted Jaccard index in thousandths, rounded
+ * down from integers, so a tie is a tie on every machine, and it breaks by
+ * path, then name, then line.
  */
 export function twinsOf(added, existing) {
   const weight = rarityIn(existing);
-  const vectors = existing.map((unit) => vectorOf(unit.bag, weight));
+  const weighed = (bag) => heldWeight(bag, weight, () => 1);
+  const held = existing.map((unit) => ({ needs: new Set(unit.bag), weight: weighed(unit.bag) }));
   const found = [];
   for (const unit of added) {
     if (!asks(unit)) continue;
-    const asked = vectorOf(unit.bag, weight);
+    const own = weighed(unit.bag);
+    const shareWith = ({ needs, weight: theirs }) => {
+      const both = weighed(unit.bag.filter((need) => needs.has(need)));
+      const either = own + theirs - both;
+      return either === 0 ? 0 : Math.floor((1000 * both) / either);
+    };
     const twins = existing
-      .map((other, index) => ({ other, share: Math.round(1000 * cosine(asked, vectors[index])) }))
+      .map((other, index) => ({ other, share: shareWith(held[index]) }))
       .filter(({ other, share }) => share >= SHARED && !(other.path === unit.path && other.name === unit.name))
       .sort(
         (left, right) =>
@@ -133,16 +124,21 @@ export function needs(root) {
   const base = mergeBase(root);
   const changed = new Set(
     [...listed(git(root, ['diff', '--name-only', '--no-renames', base])), ...listed(git(root, ['ls-files', '--others', '--exclude-standard']))].filter(
-      inScope,
+      isSource,
     ),
   );
   const cache = cached(root);
   const unread = new Set();
-  const units = present(root, cache, unread);
+  const files = present(root);
+  const written = unitsOf(root, files.filter(({ path }) => changed.has(path)), cache, unread);
   const before = new Set(atBase(root, base, [...changed], cache, new Set()).map((unit) => `${unit.path}\0${unit.name}`));
-  const isNew = (unit) => changed.has(unit.path) && !before.has(`${unit.path}\0${unit.name}`);
-  const added = units.filter(isNew);
-  return { added, twins: twinsOf(added, units.filter((unit) => !isNew(unit))), unread: [...unread].sort(codeUnitOrder), cache };
+  const isNew = (unit) => !before.has(`${unit.path}\0${unit.name}`);
+  const added = written.filter(isNew);
+  // Nothing to ask about needs nothing else read.
+  if (!added.some(asks)) return { added, twins: [], unread: [...unread].sort(codeUnitOrder), cache };
+  const existing = [...written.filter((unit) => !isNew(unit)), ...unitsOf(root, files.filter(({ path }) => !changed.has(path)), cache, unread)];
+  cache.whole = true;
+  return { added, twins: twinsOf(added, existing), unread: [...unread].sort(codeUnitOrder), cache };
 }
 
 function mergeBase(root) {
@@ -154,28 +150,36 @@ function mergeBase(root) {
 }
 
 /**
- * What `yarn test:loop` prints: each new function with twins,
- * and the twins, or one line that none has any; then each file oxc could not
- * parse, whose functions are neither asked about nor named.
+ * What `yarn test:loop` prints: each new function with twins, and the twins,
+ * or one line that none was named, which clears nothing, since the list misses
+ * copies; then each file oxc could not parse, whose functions are neither asked
+ * about nor named.
  */
 export function said({ added, twins, unread }) {
   const asked = added.filter(asks).length;
   const out =
-    twins.length === 0
-      ? [`needs: ${asked} new functions asked about; none needs what an existing one needs`]
-      : [`needs: ${twins.length} of ${asked} new functions asked about need what existing ones need. Read them; where one answers, call or extend it:`];
+    asked === 0
+      ? ['needs: no new function to ask about']
+      : twins.length === 0
+        ? [`needs: no existing function named for the ${asked} new functions asked about; that clears none of them`]
+        : [`needs: ${twins.length} of ${asked} new functions asked about need what existing ones need. Read them; where one answers, call or extend it:`];
   for (const { unit, twins: near } of twins) {
     out.push(`  ${unit.path}:${unit.line} ${unit.name}`);
-    for (const twin of near) out.push(`    ${(twin.share / 1000).toFixed(2)} ${twin.path}:${twin.line} ${twin.name}`);
+    for (const twin of near) out.push(`    ${(twin.share / 1000).toFixed(3)} ${twin.path}:${twin.line} ${twin.name}`);
   }
   for (const path of unread) out.push(`needs: oxc could not parse ${path}, so its functions are not read`);
   return `${out.join('\n')}\n`;
 }
 
-/** Writes the units this run read, keyed by blob, when they differ from what the cache held. */
+/**
+ * Writes the units this run read, keyed by blob, when they differ from what the
+ * cache held. A run that read every file keeps only what it read; a run that
+ * read only the change keeps what the cache held besides.
+ */
 export async function remember(cache) {
-  if (!cache.changed && cache.read.size === cache.blobs.size) return;
-  const bytes = new TextEncoder().encode(JSON.stringify({ reader: cache.reader, blobs: Object.fromEntries(cache.read) }));
+  const blobs = cache.whole ? cache.read : new Map([...cache.blobs, ...cache.read]);
+  if (!cache.changed && blobs.size === cache.blobs.size) return;
+  const bytes = new TextEncoder().encode(JSON.stringify({ reader: cache.reader, blobs: Object.fromEntries(blobs) }));
   await writeCoverageBytes(cache.file, bytes);
 }
 
@@ -207,24 +211,28 @@ function cached(root) {
   }
   const digest = reader();
   const blobs = held?.reader === digest ? new Map(Object.entries(held.blobs)) : new Map();
-  return { file, reader: digest, blobs, read: new Map(), changed: held?.reader !== digest };
+  return { file, reader: digest, blobs, read: new Map(), changed: held?.reader !== digest, whole: false };
 }
 
-// Every unit in the working tree. A file the index holds unchanged is read
-// through its blob in the cache; a file edited or new is parsed from disk. A
-// file oxc cannot parse is added to `unread`.
-function present(root, cache, unread) {
+// Every source in the working tree, with its blob when the index holds it as
+// it is on disk; a file edited or new has none.
+function present(root) {
   const edited = new Set([...listed(git(root, ['diff', '--name-only'])), ...listed(git(root, ['ls-files', '--others', '--exclude-standard']))]);
-  const units = [];
-  for (const path of edited) {
-    if (inScope(path) && existsSync(join(root, path))) units.push(...parsedOr(unread, path, () => unitsIn(path, readFileSync(join(root, path), 'utf8'))));
-  }
+  const files = [...edited].filter((path) => isSource(path) && existsSync(join(root, path))).map((path) => ({ path }));
   for (const row of listed(git(root, ['ls-files', '-s']))) {
     const [meta, path] = row.split('\t');
-    if (edited.has(path) || !inScope(path) || !existsSync(join(root, path))) continue;
-    units.push(...throughCache(cache, meta.split(' ')[1], path, () => readFileSync(join(root, path), 'utf8'), unread));
+    if (!edited.has(path) && isSource(path) && existsSync(join(root, path))) files.push({ path, blob: meta.split(' ')[1] });
   }
-  return units;
+  return files;
+}
+
+// The units of `files`: one with a blob through the cache, one without parsed
+// from disk. A file oxc cannot parse is added to `unread`.
+function unitsOf(root, files, cache, unread) {
+  const text = (path) => () => readFileSync(join(root, path), 'utf8');
+  return files.flatMap(({ path, blob }) =>
+    blob === undefined ? parsedOr(unread, path, () => unitsIn(path, text(path)())) : throughCache(cache, blob, path, text(path), unread),
+  );
 }
 
 // The units each of `paths` held at `base`, read through the cache by blob.
@@ -296,17 +304,15 @@ function chainOf(node) {
 }
 
 /**
- * What one unit needs, counted: `call:` each function it calls by its last
+ * What one unit needs, each once, in code-unit order: `call:` each function it calls by its last
  * name, and by its module or receiver; `prop:` each field it reads; `str:` and
  * `re:` each short string and pattern it writes; `type:` each type it names;
  * `imp:` each import it uses; `word:` the words of every name it binds or reads;
  * `name:` the words of its own name.
  */
 function bagOf(root, name, imported) {
-  const bag = {};
-  const add = (token) => {
-    bag[token] = (bag[token] ?? 0) + 1;
-  };
+  const bag = new Set();
+  const add = (token) => bag.add(token);
   for (const word of tokensOf(name)) add(`name:${word}`);
   visit(root, (node) => {
     if (node.type === 'CallExpression' || node.type === 'NewExpression') {
@@ -338,31 +344,13 @@ function bagOf(root, name, imported) {
       if (imported.has(node.name)) add(`imp:${imported.get(node.name)}`);
     }
   });
-  return bag;
+  return [...bag].sort(codeUnitOrder);
 }
 
 // The rarity of each need over `units`: a need every unit holds weighs least,
 // a need none holds weighs most.
 function rarityIn(units) {
   const holders = new Map();
-  for (const unit of units) for (const token in unit.bag) holders.set(token, (holders.get(token) ?? 0) + 1);
+  for (const unit of units) for (const token of unit.bag) holders.set(token, (holders.get(token) ?? 0) + 1);
   return (token) => rarity(units.length, holders.get(token) ?? 0);
-}
-
-function vectorOf(bag, weight) {
-  const weights = new Map();
-  let squares = 0;
-  for (const token in bag) {
-    const value = (1 + Math.log(bag[token])) * weight(token);
-    weights.set(token, value);
-    squares += value * value;
-  }
-  return { weights, length: Math.sqrt(squares) || 1 };
-}
-
-function cosine(left, right) {
-  const [small, large] = left.weights.size < right.weights.size ? [left, right] : [right, left];
-  let product = 0;
-  for (const [token, value] of small.weights) product += value * (large.weights.get(token) ?? 0);
-  return product / (left.length * right.length);
 }

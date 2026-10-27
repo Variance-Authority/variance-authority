@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, IDIOMS, counted, sites, sitesIn, sources, tests } from './owners.mjs';
+import { BASELINE, IDIOMS, counted, isSource, sites, sitesIn, sources, tests } from './owners.mjs';
 
 /**
  * Owned answers, computed again outside their owner (ADR-0069).
@@ -179,6 +179,13 @@ describe('the owners reader', () => {
     expect(sources()).toEqual(
       expect.arrayContaining(['packages/editors/src/run.mjs', 'packages/jsx-source/jest-resolver.cjs']),
     );
+  });
+
+  it('takes a package source, the JavaScript a package ships and a tool, and nothing else', () => {
+    const taken = ['packages/cli/src/a.ts', 'packages/cli/src/deep/b.tsx', 'packages/jsx-source/jest-resolver.cjs', 'tools/needs.mjs'];
+    const left = ['packages/a/scripts/x.mjs', 'site/app/x.ts', 'examples/a/src/x.ts', 'tools/needs.check.ts', 'packages/a/src/a.d.ts', 'packages/a/vitest.config.mjs'];
+
+    expect([...taken, ...left].filter(isSource)).toEqual(taken);
   });
 
   it('refuses a file it cannot parse rather than finding nothing in it', () => {

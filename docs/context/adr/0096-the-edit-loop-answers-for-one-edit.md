@@ -76,4 +76,4 @@ being read, no merge base with `origin/main` among them, is one line in its
 place. It is imported after `tsc --build` and the tests, so it reads the
 `dist/` they built, and a red compiler still ends the run before it. On the
 measurement machine, reading it alone takes 0.56 s with its cache warm and
-1.46 s on the first run after the reader changes, Node's start included.
+1.5 s on the first run after the reader changes, Node's start included.

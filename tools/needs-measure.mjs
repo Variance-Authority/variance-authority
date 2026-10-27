@@ -2,8 +2,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { asks, git, inScope, twinsOf, unitsIn } from './needs.mjs';
-import { ROOT } from './owners.mjs';
+import { asks, git, twinsOf, unitsIn } from './needs.mjs';
+import { ROOT, isSource } from './owners.mjs';
 
 /**
  * The results in journal entry 0077: how often `needs.mjs` names the function
@@ -33,7 +33,7 @@ function unitsAt(commit, paths = []) {
       const [meta, path] = row.split('\t');
       return { path, blob: meta.split(' ')[2] };
     })
-    .filter(({ path }) => inScope(path));
+    .filter(({ path }) => isSource(path));
   const missing = rows.filter(({ blob }) => !read.has(blob));
   if (missing.length > 0) {
     const out = git(ROOT, ['cat-file', '--batch'], { input: Buffer.from(missing.map(({ blob }) => `${blob}\n`).join('')), encoding: 'buffer' });

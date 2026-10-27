@@ -211,7 +211,7 @@ describe('needs', () => {
       [
         'needs: 1 of 2 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
         '  packages/cli/src/config.ts:5 loadPackage',
-        '    0.73 packages/workspace/src/manifest.ts:2 readManifest',
+        '    0.624 packages/workspace/src/manifest.ts:2 readManifest',
         '',
       ].join('\n'),
     );
@@ -232,7 +232,7 @@ describe('needs', () => {
       [
         'needs: 1 of 1 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
         '  packages/cli/src/café.ts:2 loadPackage',
-        '    0.68 packages/workspace/src/manifest.ts:2 readManifest',
+        '    0.581 packages/workspace/src/manifest.ts:2 readManifest',
         '',
       ].join('\n'),
     );
@@ -260,7 +260,7 @@ describe('needs', () => {
       [
         'needs: 1 of 1 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
         '  packages/cli/src/config.ts:5 loadPackage',
-        '    0.73 packages/workspace/src/manifest.ts:2 readManifest',
+        '    0.624 packages/workspace/src/manifest.ts:2 readManifest',
         'needs: oxc could not parse tools/half.mjs, so its functions are not read',
         '',
       ].join('\n'),
@@ -270,14 +270,56 @@ describe('needs', () => {
   it('reads one text by the language of each path that holds it, cached or not', async () => {
     // The same blob is TypeScript at one path and a syntax error at the other.
     const typed = ['export function count(rows: readonly { id: string }[]): number {', '  return rows.length;', '}'];
-    const { dir } = await repository({ 'packages/a/src/count.ts': typed, 'packages/a/src/count.js': typed });
+    const { dir, write } = await repository({ 'packages/a/src/count.ts': typed, 'packages/a/src/count.js': typed });
+    await write('packages/a/src/order.ts', ['export function byId(rows: readonly { id: string }[]) {', '  return [...rows].sort((a, b) => a.id.localeCompare(b.id)).map((row) => row.id);', '}']);
 
     const first = needs(dir);
     await remember(first.cache);
     expect(said(first)).toBe(
-      ['needs: 0 new functions asked about; none needs what an existing one needs', 'needs: oxc could not parse packages/a/src/count.js, so its functions are not read', ''].join('\n'),
+      [
+        'needs: no existing function named for the 1 new functions asked about; that clears none of them',
+        'needs: oxc could not parse packages/a/src/count.js, so its functions are not read',
+        '',
+      ].join('\n'),
     );
     expect(said(needs(dir))).toBe(said(first));
+  });
+
+  it('reads nothing past the change when no function on it is new', async () => {
+    const { dir } = await repository({ 'packages/workspace/src/manifest.ts': manifest, 'tools/half.mjs': ['export function half(', ''] });
+
+    expect(said(needs(dir))).toBe('needs: no new function to ask about\n');
+  });
+
+  it('keeps what its cache held when a run reads nothing past the change', async () => {
+    const config = ['export function byWeight(rows: readonly { weight: number }[]) {', '  return rows.length;', '}'];
+    const { dir, write } = await repository({ 'packages/workspace/src/manifest.ts': manifest, 'packages/cli/src/config.ts': config });
+    const held = (file: string) => Object.keys(JSON.parse(readFileSync(file, 'utf8')).blobs).sort();
+    await write('packages/cli/src/order.ts', ['export function byId(rows: readonly { id: string }[]) {', '  return [...rows].sort((a, b) => a.id.localeCompare(b.id)).map((row) => row.id);', '}']);
+    const whole = needs(dir);
+    await remember(whole.cache);
+    await rm(join(dir, 'packages/cli/src/order.ts'));
+
+    const early = needs(dir);
+    await remember(early.cache);
+    expect(held(early.cache.file)).toEqual(held(whole.cache.file));
+    expect(held(early.cache.file)).toHaveLength(2);
+  });
+
+  it('neither asks about nor names a function outside the production sources', async () => {
+    const { dir, write } = await repository({ 'site/app/manifest.ts': manifest });
+    const load = [
+      "import { readFileSync } from 'node:fs';",
+      'export const loadPackage = (path: string) => {',
+      '  const json = JSON.parse(readFileSync(path, "utf8"));',
+      "  if (typeof json.name !== 'string') throw new Error(`${path}: no name`);",
+      "  return { name: json.name, version: json.version ?? '0.0.0', workspaces: json.workspaces ?? [] };",
+      '};',
+    ];
+    await write('packages/cli/src/config.ts', load);
+    await write('packages/cli/scripts/config.mjs', load.map((line) => line.replace('(path: string)', '(path)')));
+
+    expect(said(needs(dir))).toBe('needs: no existing function named for the 1 new functions asked about; that clears none of them\n');
   });
 
   it('keys its cache by every text that shapes a bag, the word splitter included', () => {

@@ -2722,6 +2722,186 @@
    },
    "verdict": "reuse",
    "why": "Both are the same code-unit string comparator, returning -1, 0 or 1 by < and >. The bodies are identical."
+  },
+  {
+   "head": "e17fa975a3f2379a4fdcb8c4ba89a7365d94cd24",
+   "added": {
+    "path": "packages/cli/src/commands/covering-motion.ts",
+    "name": "listedOf",
+    "line": 316
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/reach.ts",
+    "name": "listed",
+    "line": 419
+   },
+   "verdict": "family",
+   "why": "Both print a bounded name list with the rest counted. listedOf takes a caller limit and noun and points to --format json; listed caps at three and joins with 'and'. The text differs."
+  },
+  {
+   "head": "8be004e491fec6cb21cefc40d7c734c4dc7e0e13",
+   "added": {
+    "path": "packages/cli/src/commands/select.ts",
+    "name": "declinedNotes",
+    "line": 298
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/select.ts",
+    "name": "unreadNotes",
+    "line": 283
+   },
+   "verdict": "family",
+   "why": "Both write the same note shape for changed files that keep no test. One gives the reason 'journal records nothing' and the other 'suite declines relations', so the wording and the remedy differ."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/scope.ts",
+    "name": "each",
+    "line": 113
+   },
+   "existing": {
+    "path": "packages/sense/src/taint/calls.ts",
+    "name": "each",
+    "line": 88
+   },
+   "verdict": "family",
+   "why": "Both walk AST child values. The new each hands an array or node to the scope-tracking walker one level at a time; the existing each visits every descendant with a callback and ignores scopes."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/tribunal/src/worker-input.ts",
+    "name": "asObservation",
+    "line": 205
+   },
+   "existing": {
+    "path": "packages/history/src/client.ts",
+    "name": "asObservation",
+    "line": 324
+   },
+   "verdict": "family",
+   "why": "Both validate an Observation. Tribunal throws BadRequest for request input, parses at as an instant and drops an empty file; history raises url-tagged Errors on responses and keeps at as text."
+  },
+  {
+   "head": "c303c64ed5f03fc4db05e0efc45e5e5609680952",
+   "added": {
+    "path": "packages/sense/src/test-selection/format-layer.ts",
+    "name": "foreignProbes",
+    "line": 51
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/record-location.ts",
+    "name": "passedOver",
+    "line": 239
+   },
+   "verdict": "reuse",
+   "why": "Both open the record, read its instrumentation, and return the foreign probe string when it differs from the run's, else nothing. passedOver only wraps it with file and run."
+  },
+  {
+   "head": "8fb4184307a57c47e0962d9dee8bb81c56c44cc2",
+   "added": {
+    "path": "packages/dom/src/selector-parts.ts",
+    "name": "unescapeName",
+    "line": 95
+   },
+   "existing": {
+    "path": "packages/dom/src/generated-box.ts",
+    "name": "unescape",
+    "line": 146
+   },
+   "verdict": "reuse",
+   "why": "Both resolve CSS escapes with identical hex and U+FFFD rules. They differ only on backslash-newline, which cannot occur in the selector id/class names unescapeName is given."
+  },
+  {
+   "head": "cf5e2c2f32b0afe342a71925bcb3138aab24712a",
+   "added": {
+    "path": "packages/sense/src/test-selection/case-said.ts",
+    "name": "items",
+    "line": 85
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/case-said.ts",
+    "name": "saidRow",
+    "line": 83
+   },
+   "verdict": "unrelated",
+   "why": "items is the closure inside saidRow that decodes spelled tuples into preconditions. saidRow resolves a whole Said into a row and calls items, so neither could stand in for the other."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/review.ts",
+    "name": "instant",
+    "line": 807
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "instant",
+    "line": 605
+   },
+   "verdict": "reuse",
+   "why": "Both parse an ISO instant to milliseconds and refuse NaN with the same message. Only the error class differs (ReviewError maps to 422), which one error-constructor parameter would cover."
+  },
+  {
+   "head": "26ae9edd49e09cb93631d2766d8c796b3e663505",
+   "added": {
+    "path": "packages/eyes/src/archive.ts",
+    "name": "strings",
+    "line": 324
+   },
+   "existing": {
+    "path": "packages/eyes/src/archive.ts",
+    "name": "checkedArguments",
+    "line": 201
+   },
+   "verdict": "family",
+   "why": "Both validate an array element by element, but strings requires non-empty strings and checkedArguments accepts any JSON-like argument snapshot. Swapping changes what is refused."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "recordStores",
+    "line": 113
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "moduleNamesFile",
+    "line": 56
+   },
+   "verdict": "unrelated",
+   "why": "moduleNamesFile names one path, the names.bin table in the top layer; recordStores lists a label's store directories across base and top layers. Different things located."
+  },
+  {
+   "head": "36f93ec79845c118896e321fd9bda60adf4cfa9f",
+   "added": {
+    "path": "packages/server/src/backend.ts",
+    "name": "flakinessFrom",
+    "line": 308
+   },
+   "existing": {
+    "path": "packages/server/src/backend.ts",
+    "name": "churnFrom",
+    "line": 274
+   },
+   "verdict": "family",
+   "why": "Same two-slice pattern that drops stranded rows. churnFrom reads observationsOf into accumulateChurn; flakinessFrom reads instabilitiesOf into accumulateFlakiness. Different data and output."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/server/src/sqlite-queries.ts",
+    "name": "windowFilter",
+    "line": 45
+   },
+   "existing": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "windowFilter",
+    "line": 244
+   },
+   "verdict": "family",
+   "why": "Same window-to-SQL rule. The server version emits named $since/$until bindings in a record for node:sqlite; the tribunal version emits positional ? with an array for D1. Different output formats."
   }
  ]
 }
