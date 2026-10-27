@@ -1,5 +1,6 @@
 import { opening } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
+import { rowWithin } from './loose.js';
 import type { ExportedMatch } from './search-answer.js';
 
 // compass: variance-authority.report.agent-surface
@@ -60,7 +61,7 @@ export function exported(
   // two paths, and the one in the area is the one a reader can open.
   const rowsOf = (name: number): readonly number[] => {
     const all = index.exportedOf(name);
-    return within === undefined ? [...all] : [...all].filter((row) => within.has(index.exportedFile(row)));
+    return within === undefined ? [...all] : [...all].filter((row) => rowWithin(index, 'exported', row, within));
   };
   const reached = (name: number): readonly number[] => {
     const read = through?.get(name);
@@ -122,7 +123,7 @@ export function docRows(
   const through = new Map<number, Set<number>>();
   for (const row of rows) {
     const name = index.exportedName(row);
-    if (byName.has(name) || (within !== undefined && !within.has(index.exportedFile(row)))) continue;
+    if (byName.has(name) || (within !== undefined && !rowWithin(index, 'exported', row, within))) continue;
     through.set(name, (through.get(name) ?? new Set()).add(row));
   }
   return through;

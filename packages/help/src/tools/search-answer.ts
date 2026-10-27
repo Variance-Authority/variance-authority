@@ -5,7 +5,7 @@ import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
-import { importedWithin, looseNames, matchingTerms, termsOfStems } from './loose.js';
+import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
 import { describedDeclarations, describedNames, describedShown, fileMatch, type Reached } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
@@ -253,7 +253,7 @@ function surface(
 ): readonly Hit[] {
   const hits: Hit[] = [];
   for (const row of new Set(rows)) {
-    if (area !== undefined && inArea !== undefined && !importedWithin(index, row, inArea)) continue;
+    if (area !== undefined && inArea !== undefined && !rowWithin(index, 'published', row, inArea)) continue;
     const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
     const name = index.publishedName(row);
     hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped });

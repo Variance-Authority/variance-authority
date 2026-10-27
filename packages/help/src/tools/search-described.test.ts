@@ -414,6 +414,30 @@ describe('which names the described section holds, and in what order', () => {
     expect(shown && 'summary' in shown ? shown.summary : undefined).toBe('Kept with the text it holds.');
   });
 
+  it('counts no name in an area by its own words through a published row declared there that nothing there imports', async () => {
+    // `a-kit` publishes `Inner` as `Placement`: declared in `inner.ts`, which exports no `Placement`; the area imports `Inner`.
+    // A re-export is resolved to its real path, so the root is the real one.
+    const root = realpathSync(await kits({
+      'a-kit': { 'inner.ts': `${KEPT}export interface Inner {\n  readonly shard: number;\n}\n`, 'index.ts': "export type { Inner as Placement } from './inner.js';\n" },
+      'app': { 'index.ts': "import type { Inner } from '../../a-kit/src/inner.js';\nexport type Used = Inner;\n" },
+    }));
+    const tree = treeOf([{ file: APP, edges: [{ to: 'packages/a-kit/src/inner.ts', kind: 'imports' }] }, { file: 'packages/a-kit/src/inner.ts' }], root);
+    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text', from: APP }, tree).described;
+    expect(described?.shown.map((one) => one.name)).toEqual(['Inner']);
+    expect(described?.total).toBe(1);
+  });
+
+  it('counts the words a name holds in an area through the published row the area imports, the row it is shown through', async () => {
+    const root = await kits({
+      'b-kit': { 'index.ts': `${KEPT}export interface Placement {\n  readonly at: string;\n}\n` },
+      'app': { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" },
+    }, { app: ['b-kit'] });
+    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text', from: APP }, treeOf([{ file: APP }], root)).described;
+    const shown = described?.shown.find((one) => one.name === 'Placement');
+    expect(shown && 'specifier' in shown ? shown.specifier : undefined).toBe('b-kit');
+    expect(shown?.words).toEqual(['placement', 'text']);
+  });
+
   it('puts a name whose doc holds every word before one whose name holds half of them', async () => {
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',

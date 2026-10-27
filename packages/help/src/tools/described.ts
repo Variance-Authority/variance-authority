@@ -8,7 +8,7 @@ import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
 import { declaredMatch } from './declared.js';
 import type { DeclaredMatch, FileMatch } from './search-answer.js';
-import { admittedBy, importedWithin, termsOfStems } from './loose.js';
+import { admittedBy, rowWithin, termsOfStems } from './loose.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -121,9 +121,9 @@ export type Reached = ReachedName | DescribedDeclaration | DescribedFileHit;
  * a stopword — so it was not asked.
  *
  * `already` names are never reached. `within`, file ids when given, admits a
- * name through a row whose file is in it, and a doc through a published row a
- * file in it imports, as the published section shows one, or an exported row
- * whose file is in it.
+ * name by its own words and a doc only through a row {@link rowWithin} the
+ * area: a published row a file of it imports, as the published section shows
+ * one, or an exported row whose file is in it.
  */
 export function describedNames(
   index: SearchIndex,
@@ -167,12 +167,12 @@ export function describedNames(
       }
       for (const row of index.termPublished(term)) {
         const name = index.publishedName(row);
-        if (already.has(name) || (within !== undefined && !importedWithin(index, row, within))) continue;
+        if (already.has(name) || (within !== undefined && !rowWithin(index, 'published', row, within))) continue;
         markRow(name, 'published', row, position);
       }
       for (const row of index.termExported(term)) {
         const name = index.exportedName(row);
-        if (already.has(name) || (within !== undefined && !within.has(index.exportedFile(row)))) continue;
+        if (already.has(name) || (within !== undefined && !rowWithin(index, 'exported', row, within))) continue;
         markRow(name, 'exported', row, position);
       }
     }
