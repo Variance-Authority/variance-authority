@@ -2615,7 +2615,7 @@ owns its own collector, renderer, storage, or review surface:
   over it, and comes back as `passed`, which `mainlinePassedOver` prints. Pass
   `undefined` for a landing that lays no coverage. `env` stands in for
   `process.env` when the line is read, and `cacheRoot` for the cache. After the
-  shards ran, `landSuite(root, shards, suite)` lands their directories on
+  shards ran, `landSuite(cwd, shards, suite)` lands their records on
   `suite`'s record in the checkout, as `variance journeys <shards> --suite`
   does, and returns what the landing said without the reading, for a CI fan-in
   that folds the record for the jobs after it.
