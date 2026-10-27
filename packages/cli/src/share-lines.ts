@@ -206,26 +206,6 @@ export async function headPast(commit: string, cwd: string = process.cwd()): Pro
   return countPast(cwd, commit, 'HEAD');
 }
 
-/** `headPast`'s count in words, as a reader places a record it read. */
-export function beforeHead(past: number): string {
-  return past === 0 ? 'which is HEAD' : `${String(past)} commit(s) before HEAD`;
-}
-
-/**
- * Where `commit` stands to `HEAD`: how many commits `HEAD` holds that it does
- * not (`behind`), and it holds that `HEAD` does not (`ahead`). A commit `HEAD`
- * contains is `headPast`'s count; one it does not, made on another branch or
- * after `HEAD`, is counted both ways. Absent when this clone cannot say — a
- * commit it does not hold, or a history too shallow to walk.
- */
-export async function besideHead(commit: string, cwd: string = process.cwd()): Promise<{ readonly behind: number; readonly ahead: number } | undefined> {
-  const past = await headPast(commit, cwd);
-  if (past === undefined) return undefined;
-  if (past !== false) return { behind: past, ahead: 0 };
-  const [behind, ahead] = await Promise.all([countPast(cwd, commit, 'HEAD'), countPast(cwd, 'HEAD', commit)]);
-  return behind === undefined || ahead === undefined ? undefined : { behind, ahead };
-}
-
 /** How long a reader reuses a fetched line: one editor session asking ten questions fetches once. */
 export const READ_REUSE_MS = 60_000;
 

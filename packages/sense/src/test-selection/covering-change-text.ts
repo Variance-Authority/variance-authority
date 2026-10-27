@@ -48,6 +48,61 @@ export interface CoveringChangeHeading {
   readonly from?: string;
   /** The commit the record stands at. The diff is measured from it. */
   readonly at?: string;
+  /** When `at` was committed, as a UTC ISO time; absent when the clone does not hold it. */
+  readonly committedAt?: string;
+  /**
+   * The clock the record's age is read against, in ms. The age is said only
+   * when it is given: a caller handed an index by its host has no commit to
+   * date.
+   */
+  readonly now?: number;
+}
+
+/** The commit a record was made at, and when, as far as the clone says. */
+export interface RecordCommit {
+  /** The commit the record names; absent when it names none. */
+  readonly at?: string;
+  /** When `at` was committed, as a UTC ISO time; absent when the clone does not hold it. */
+  readonly committedAt?: string;
+}
+
+/**
+ * The words that say which run an answer was read from: `at`, which reads
+ * ` at <commit>, committed <age> ago` after the sentence's subject, and `end`,
+ * which closes the sentence when the record names no commit and so has no age.
+ *
+ * The age is the committer time against `now`, floored to the unit a reader
+ * acts on: minutes in the first hour, hours in the first two days, days after.
+ * It is no count of commits since: a commit to other code says nothing about
+ * the file asked about, and whether the asked text is the one the suite ran
+ * over is said beside it, by the caller, from the text's digest. A commit later
+ * than `now` is given by its time, since the age would be negative; one the
+ * clone does not hold is named without a time.
+ */
+export function ranOver(record: RecordCommit, now: number): { readonly at: string; readonly end: string } {
+  if (record.at === undefined) return { at: '', end: '; the record names no commit, so its age is not known' };
+  return { at: ` at ${record.at.slice(0, 12)}${committed(record.committedAt, now)}`, end: '' };
+}
+
+/** When a record's commit was committed, as a clause, against `now`. */
+function committed(committedAt: string | undefined, now: number): string {
+  if (committedAt === undefined) return ', which this clone does not hold';
+  const age = now - Date.parse(committedAt);
+  if (age < 0) return `, committed ${committedAt}, later than this machine's clock`;
+  return `, committed ${ago(age)} ago`;
+}
+
+/** An age in ms, floored: a minute is not said until it has passed. */
+function ago(age: number): string {
+  const minutes = Math.floor(age / 60_000);
+  if (minutes < 1) return 'under a minute';
+  if (minutes < 60) return unit(minutes, 'minute');
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? unit(hours, 'hour') : unit(Math.floor(hours / 24), 'day');
+}
+
+function unit(of: number, noun: string): string {
+  return `${String(of)} ${noun}${of === 1 ? '' : 's'}`;
 }
 
 /**
@@ -132,7 +187,9 @@ export function formatCoveringChange(
  */
 function source(heading: CoveringChangeHeading): readonly string[] {
   if (heading.from === undefined) return [];
-  return [`Read from ${heading.from}${heading.at === undefined ? '' : `, recorded at ${heading.at}`}.`];
+  if (heading.at === undefined) return [`Read from ${heading.from}.`];
+  const age = heading.now === undefined ? '' : committed(heading.committedAt, heading.now);
+  return [`Read from ${heading.from}, recorded at ${heading.at}${age}.`];
 }
 
 function count(of: number, noun: string): string {

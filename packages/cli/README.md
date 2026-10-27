@@ -721,6 +721,11 @@ standard input, which is how an editor queries a buffer you have not saved.
 `--line` then names a line in that text. A line the edit wrote is answered
 with no case, and the answer says the edit wrote it.
 
+The answer closes with one sentence on its frame and its age: the commit the
+record was made at, and how long ago that commit was committed. It counts no
+commits since, because a commit to other code says nothing about your file.
+In JSON the commit is `at` and its time is `committedAt`.
+
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number
 needs no flag but `--file`. `--execution <path>` names an index recorded

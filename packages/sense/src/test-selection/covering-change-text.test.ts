@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoveringChange, CoveringTest } from './reverse.js';
-import { formatCoveringChange } from './covering-change-text.js';
+import { formatCoveringChange, ranOver } from './covering-change-text.js';
 
 const witness = (name: string): CoveringTest => ({
   id: `test/cart.test.ts > ${name}`,
@@ -153,5 +153,41 @@ describe('formatCoveringChange', () => {
 
     expect(text).toContain('    test/cart.test.ts > guest — fixture:flag=ff-on (test/cart.test.ts:3)\n\n');
     expect(text).toContain('    test/cart.test.ts > member — fixture:flag=ff-on (test/cart.test.ts:3)\n');
+  });
+});
+
+describe('ranOver', () => {
+  const now = Date.parse('2026-10-28T12:00:00.000Z');
+  const sha = '1fa19f6105e8bb10642d52045c2ab4be66f41902';
+  const ago = (ms: number) => ranOver({ at: sha, committedAt: new Date(now - ms).toISOString() }, now);
+  const minute = 60_000;
+  const hour = 60 * minute;
+
+  it('says the record\'s commit and its age, floored to the unit a reader acts on', () => {
+    expect(ago(59_000)).toEqual({ at: ' at 1fa19f6105e8, committed under a minute ago', end: '' });
+    expect(ago(minute).at).toBe(' at 1fa19f6105e8, committed 1 minute ago');
+    expect(ago(59 * minute).at).toBe(' at 1fa19f6105e8, committed 59 minutes ago');
+    expect(ago(hour).at).toBe(' at 1fa19f6105e8, committed 1 hour ago');
+    expect(ago(47 * hour + 59 * minute).at).toBe(' at 1fa19f6105e8, committed 47 hours ago');
+    expect(ago(48 * hour).at).toBe(' at 1fa19f6105e8, committed 2 days ago');
+  });
+
+  it('gives the commit time itself when it is later than the clock reading it', () => {
+    expect(ago(-2 * 24 * hour).at).toBe(' at 1fa19f6105e8, committed 2026-10-30T12:00:00.000Z, later than this machine\'s clock');
+  });
+
+  it('says the clone does not hold a commit it has no time for, and that a record naming none has no age', () => {
+    expect(ranOver({ at: sha }, now)).toEqual({ at: ' at 1fa19f6105e8, which this clone does not hold', end: '' });
+    expect(ranOver({}, now)).toEqual({ at: '', end: '; the record names no commit, so its age is not known' });
+  });
+
+  it('dates the review reading\'s record the same way, when the caller has a clock', () => {
+    const changed = [file()];
+    const committedAt = new Date(now - 3 * 24 * hour - hour).toISOString();
+
+    expect(formatCoveringChange(changed, { from: '.variance/index', at: sha, committedAt, now }))
+      .toContain(`Read from .variance/index, recorded at ${sha}, committed 3 days ago.`);
+    expect(formatCoveringChange(changed, { from: '.variance/index', at: sha, now }))
+      .toContain(`Read from .variance/index, recorded at ${sha}, which this clone does not hold.`);
   });
 });

@@ -46,7 +46,9 @@ describe('a source no probe reaches, which the suite declares a precondition of 
     expect([answer.held, answer.preconditionOf, answer.among]).toEqual(['declared', TESTS, 3]);
     expect(formatCovering(answer, 'text')).toBe(
       'native/src/lib.rs is not instrumented: the suite declares it a precondition of every one of the 3 test files ' +
-        'these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.\n',
+        'these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.\n' +
+        'The record holds no digest of native/src/lib.rs, so whether it is the text the suite ran over is not known; ' +
+        'the record names no commit, so its age is not known.\n',
     );
     expect(formatCovering(answer, 'refs')).toBe('native/src/lib.rs declared precondition of: every test file (3); no recorded line\n');
   });
@@ -86,6 +88,7 @@ describe('a module every test file imports, asked whole', () => {
       '  a.test.ts',
       '    runs',
       '  and 2 cases in 2 test files ran it only while their file imported the module',
+      'The record holds no digest of src/hub.ts, so whether it is the text the suite ran over is not known; the record names no commit, so its age is not known.',
       '',
     ].join('\n'));
 

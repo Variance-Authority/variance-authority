@@ -61,8 +61,7 @@ import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
-import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
-import { placeRecord, recordCommitOf } from './covering-behind.js';
+import { datedRecord, placeRanges, placementFor, recordCommitOf, regionState, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
 import { graphOnce, type Graph } from './gap-selection.js';
@@ -135,7 +134,12 @@ export interface Covering {
   readonly stopped?: readonly ExecutionTest[];
   /** With `tests`: the one state the line or function is painted as, when it can be told, over the cases before `--where`. */
   readonly state?: RangeState;
-  /** With `--function` and a case that entered it: the outermost parts of it no case ran, as the review reads them, over the cases before `--where`. */
+  /**
+   * With `--function` and a case that entered it: the outermost parts of it no
+   * case ran, as the review reads them, over the cases before `--where`. Read
+   * only under a `recorded` or `mapped` frame, since under `stale` no recorded
+   * line is a place in the held text.
+   */
   readonly unrun?: readonly UnrunPart[];
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
@@ -156,9 +160,13 @@ export interface Covering {
    * carried to where it stands now, and `stale` when it differs and the
    * recorded text was not found — then no range is given, because none of them
    * is a place in anything held, and `tests` names the cases that ran code in
-   * the file. Absent when nothing held a digest to check.
+   * the file. On an answer about the whole file, a line, a run of lines or a
+   * function alike. Absent when nothing held a digest to check, or no text was
+   * held to check it against (`unheld`).
    */
   readonly frame?: 'recorded' | 'mapped' | 'stale';
+  /** The asked file is not on disk and no `--text` was given, so the lines are the record's and nothing is framed. */
+  readonly unheld?: true;
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from: string;
   /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
@@ -167,17 +175,17 @@ export interface Covering {
   readonly where?: CoveringWhere;
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
-  /** The commit the record stands at, when it says. A diff under `--since` is measured from it. */
+  /**
+   * The commit the record stands at, present on every answer whose record
+   * names a commit. A diff under `--since` is measured from it.
+   */
   readonly at?: string;
   /**
-   * With `at`: how many commits `HEAD` holds that the record does not, and the
-   * record holds that `HEAD` does not. Both absent with `at` when this clone
-   * cannot count: it does not hold the commit, or its history is too shallow
-   * (`covering-behind.ts`).
+   * With `at`: when it was committed, as a UTC ISO time, absent when this clone
+   * does not hold it. With `frame` it is how fresh the answer is; a count of
+   * commits since is not, since they may all touch other code.
    */
-  readonly behind?: number;
-  /** With `behind`: commits the record holds that `HEAD` does not, made on another branch or after `HEAD`. */
-  readonly ahead?: number;
+  readonly committedAt?: string;
   /**
    * What a narrowing did, when one was asked for.
    *
@@ -271,7 +279,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
   return {
     ...answer,
-    ...(await placeRecord(request.root, answer.at ?? at)),
+    ...datedRecord(request.root, answer.at ?? at),
     ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
     ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
@@ -367,14 +375,16 @@ async function ask(
   }
 
   const near = await nearbyWitnesses(request as CoveringAt);
-  const placement = await placementFor(request, from);
-  const frame = placement === undefined ? {} : { frame: placement.frame };
+  const framed = await placementFor(request, from);
+  const placement = framed === undefined || 'unheld' in framed ? undefined : framed;
+  const unheld = framed !== undefined && 'unheld' in framed ? { unheld: true as const } : {};
+  const frame = placement === undefined ? unheld : { frame: placement.frame };
   if (placement?.frame === 'stale' && request.function === undefined) {
     return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
   const narrower = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach);
-  if (narrower !== undefined) return narrower;
+  if (narrower !== undefined) return { ...narrower, ...unheld };
 
   const loaders = await loadersOf(before ?? index, file, graph);
   // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.

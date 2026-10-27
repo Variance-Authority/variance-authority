@@ -210,13 +210,20 @@ it, and in a run of lines it is named in `written` and left out. That is not
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the
 same way.
 
-Every answer read from a record names the commit the record was made at and
-places it against `HEAD`: `The record was made at 1fa19f610e2a, 3 commit(s)
-before HEAD.` in text. In JSON, `at` is the commit, `behind` the commits `HEAD`
-holds that the record does not, and `ahead` the commits the record holds that
-`HEAD` does not: a record made on another branch, or after `HEAD`, has both
-counted. A clone that does not hold the record's commit, or whose history is
-too shallow to walk to it, keeps `at` and leaves both counts out.
+Every answer about a file closes with one sentence on how fresh it is for your
+question: whether the text you asked about is the one the suite ran over, and
+the commit the record was made at with how long ago it was committed, as in
+`src/pay.ts differs from the text the suite ran over at 1fa19f610e2a, committed
+3 days ago; its lines are placed in the text as it is now.` A file that is not
+on disk is answered in the record's lines, and for a file the record holds no
+digest of, such as one the run loaded without instrumenting, the sentence says
+that whether it is the text the suite ran over is not known. In JSON, `at` is
+the record's commit and `committedAt` the UTC time it was committed, left out
+when this clone does not hold the commit; `frame` is on `--function` answers
+too, and `unheld: true` marks a file that is not on disk. No count of commits
+since the record is given, since a commit to other code says nothing about your
+file and `frame` already says whether this one changed. Under a `stale` frame
+`--function` names the function's cases and not the parts no case ran.
 
 ## Ask about the whole change at review time
 

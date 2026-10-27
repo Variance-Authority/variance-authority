@@ -72,6 +72,7 @@ describe('the whole-file answer over a one-line region no case entered', () => {
       '  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.',
       'lines 7-8 — alone',
       '  the same named test as lines 4-5',
+      "src/cart.ts is not on disk, so no text is held against the one the suite ran over; its lines are the record's; the record names no commit, so its age is not known.",
       '',
     ].join('\n'));
   });

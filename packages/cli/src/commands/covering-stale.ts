@@ -11,6 +11,7 @@
 
 import {
   coveringTestsInFile,
+  ranOver,
   type CoveringTest,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
@@ -70,14 +71,25 @@ function entered(tests: readonly CoveringTest[]): readonly CoveringTest[] {
 }
 
 /**
- * What a stale answer says before its cases: that no recorded line is a place
- * in the held text, and which reading that takes away. A header with cases
- * to name is closed by them, after a colon.
+ * Whether the answer is the one `staleAnswer` gives: about the file, a line or
+ * a run of lines whose recorded text could not be found. A function is named,
+ * not numbered, so its cases are still the record's and its answer is the
+ * usual one, with the frame said under it.
  */
-export function staleLines(answer: Covering): { readonly gone: string; readonly header?: string } {
-  const gone = `${answer.file} is not the text the suite ran over${
-    answer.at === undefined ? '' : ` at ${answer.at.slice(0, 12)}`
-  }, and that text could not be found, so no recorded line is a place in it.`;
+export function staleFile(answer: Covering): boolean {
+  return answer.frame === 'stale' && (answer.target === undefined || !('function' in answer.target));
+}
+
+/**
+ * What a stale answer says before its cases: that no recorded line is a place
+ * in the held text, which run that text was, and which reading the gap takes
+ * away. A header with cases to name is closed by them, after a colon.
+ *
+ * @param now The clock the record's age is read against, in ms.
+ */
+export function staleLines(answer: Covering, now: number): { readonly gone: string; readonly header?: string } {
+  const ran = ranOver(answer, now);
+  const gone = `${answer.file} is not the text the suite ran over${ran.at}, and that text could not be found, so no recorded line is a place in it${ran.end}.`;
   const tests = answer.tests ?? [];
   // Under `--where`, *kept none* is said already; *no named test ran code here* would read as nothing having run it.
   if (tests.length === 0 && (answer.where?.of ?? 0) > 0) return { gone };

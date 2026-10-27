@@ -13,6 +13,7 @@ import { covering, formatCovering } from './covering.js';
 import { indexOutput } from './index-command.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
+const undigested = (file: string) => `The record holds no digest of ${file}, so whether it is the text the suite ran over is not known; the record names no commit, so its age is not known.\n`;
 const INDEX = {
   tests: [
     { id: 'near', file: 'total.test.ts', name: 'discounts' },
@@ -118,7 +119,7 @@ describe('asking which tests entered a line', () => {
       'a hole: a case that could have reached it stopped first, so the record cannot see it.\n' +
         '  stopped: flow.test.tsx > checks out [far]',
     );
-    expect(formatCovering(answer, 'text')).toBe('No named test covered line 40 of src/total.ts.\n');
+    expect(formatCovering(answer, 'text')).toBe(`No named test covered line 40 of src/total.ts.\n${undigested('src/total.ts')}`);
   });
 
   it('reads a recorded index as columns and a foreign one as JSON', async () => {
@@ -169,7 +170,7 @@ describe('asking which tests entered a line', () => {
     expect(answer.preconditionOf).toEqual(['total.test.ts']);
     expect(formatCovering(answer, 'text')).toBe(
       'src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
-        'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n',
+        'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n' + undigested('src/stabilize.ts'),
     );
     expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
   });
@@ -185,7 +186,7 @@ describe('asking which tests entered a line', () => {
     expect(formatCovering(other, 'text')).toBe(
       'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
         'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
-        'it, so no line of it has a recorded case.\n',
+        'it, so no line of it has a recorded case.\n' + undigested('src/stabilize.ts'),
     );
     expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
   });

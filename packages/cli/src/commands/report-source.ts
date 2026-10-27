@@ -9,7 +9,7 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { settle } from '../settle.js';
 import { readReportEntry, REPORT_ENTRY } from '../share-entries.js';
-import { beforeHead, headPast, lineOfReader } from '../share-lines.js';
+import { headPast, lineOfReader } from '../share-lines.js';
 import { AbsentReport } from './report-read.js';
 import { sharedReportRoot } from './resources.js';
 import { readCliRunReport, type CliRunReport } from './run-report.js';
@@ -201,7 +201,7 @@ async function standing(entry: { readonly commit: string; readonly head?: string
   let past: number | false | undefined;
   for (const commit of tried) {
     const answer = await headPast(commit, cwd);
-    if (typeof answer === 'number') return `${at}, ${beforeHead(answer)}`;
+    if (typeof answer === 'number') return `${at}, ${answer === 0 ? 'which is HEAD' : `${String(answer)} commit(s) before HEAD`}`;
     past = past === false ? false : answer;
   }
   return past === false

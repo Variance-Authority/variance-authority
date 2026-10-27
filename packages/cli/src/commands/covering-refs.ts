@@ -15,17 +15,21 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
-import { staleLines } from './covering-stale.js';
+import { staleFile, staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
 import { heldText, reachOf } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
 
-/** Say the answer with every case numbered once. */
-export function formatCoveringRefs(answer: Covering): string {
+/**
+ * Say the answer with every case numbered once.
+ *
+ * @param now The clock a stale answer's record is dated against, in ms.
+ */
+export function formatCoveringRefs(answer: Covering, now: number = Date.now()): string {
   const table = new Table(everyCase(answer));
-  const body = answer.frame === 'stale' ? staleBody(answer, table) : bodyOf(answer, table);
+  const body = staleFile(answer) ? staleBody(answer, table, now) : bodyOf(answer, table);
   // Numbered before the table is read, which is when it knows every case it holds.
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
@@ -41,8 +45,8 @@ export function formatCoveringRefs(answer: Covering): string {
 }
 
 /** What the record cannot place, then the cases that ran code in the file. */
-function staleBody(answer: Covering, table: Table): readonly string[] {
-  const { gone, header } = staleLines(answer);
+function staleBody(answer: Covering, table: Table, now: number): readonly string[] {
+  const { gone, header } = staleLines(answer, now);
   const tests = answer.tests ?? [];
   if (header === undefined) return [gone];
   return [gone, tests.length === 0 ? header : `${header}: ${table.refs(tests)}`];

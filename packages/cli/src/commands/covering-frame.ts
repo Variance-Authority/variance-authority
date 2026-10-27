@@ -22,6 +22,7 @@ import {
   placeInText,
   reachOf,
   readableTestCoverage,
+  recordedCommit,
   regionRecord,
   stateOf,
   type CoveringRegion,
@@ -30,6 +31,7 @@ import {
   type Reach,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
+import { committedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt, CoveringSource } from '../covering-args.js';
 
@@ -42,15 +44,36 @@ export interface CoveringRange extends SourceTestRange {
 }
 
 /**
- * Frame the file a question names, or say nothing when there is no digest to
- * frame it against.
+ * Frame the file a question names; `unheld` when no text is held to frame, the
+ * file being off disk and no `--text` given; or nothing when there is no digest
+ * to frame it against.
  */
-export async function placementFor(request: CoveringAt, from: string): Promise<Placement | undefined> {
+export async function placementFor(request: CoveringAt, from: string): Promise<Placement | { readonly unheld: true } | undefined> {
+  const text = await heldText(request);
+  if (text === undefined) return { unheld: true };
   const snapshot = await snapshotFor(request);
   if (snapshot === undefined || !from.startsWith(snapshot) || !existsSync(snapshot)) return undefined;
-  const text = await heldText(request);
-  if (text === undefined) return undefined;
   return placeInText(snapshot, request.root, request.file, text);
+}
+
+/**
+ * The commit the record at `from` was made at, when it says: only an index
+ * read from beside a snapshot names one, since a journey file handed in by
+ * path is no record of a commit.
+ */
+export async function recordCommitOf(request: CoveringSource, from: string): Promise<string | undefined> {
+  const record = await snapshotFor(request);
+  return record !== undefined && from.startsWith(record) ? recordedCommit(record) : undefined;
+}
+
+/**
+ * The record's commit, and when it was committed when this clone holds it.
+ * Nothing when the record names no commit.
+ */
+export function datedRecord(root: string, at: string | undefined): { readonly at?: string; readonly committedAt?: string } {
+  if (at === undefined) return {};
+  const committed = committedAt(root, at);
+  return committed === undefined ? { at } : { at, committedAt: committed };
 }
 
 /**

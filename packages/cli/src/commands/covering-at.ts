@@ -116,7 +116,9 @@ export async function coveringAt(
   const stopped = stoppedBefore(before ?? index, target, graph);
   // Parts are read over every case, so whether any case entered the function is asked before `--at-distance` narrows them.
   const entered = (): boolean => (before === undefined ? found : coveringTests(before, target, graph)).length > 0;
-  const unrun = 'function' in asked && entered() ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
+  // Under a stale frame no recorded line is a place in the held text, so no part of the function is one either.
+  const placed = placement?.frame !== 'stale';
+  const unrun = 'function' in asked && placed && entered() ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
   return {
     file,
     target: asked,
@@ -125,7 +127,7 @@ export async function coveringAt(
     ...(unrun.length === 0 ? {} : { unrun }),
     ...stateFor(reached, ranWhileLoading(before ?? index, target, graph), stopped),
     ...grain,
-    ...(placement === undefined || 'function' in asked ? {} : { frame: placement.frame }),
+    ...(placement === undefined ? {} : { frame: placement.frame }),
     from,
     ...countOf(near, kept.length, found.length),
   };

@@ -88,7 +88,7 @@ function asked(root: string, execution: string, argv: readonly string[]) {
   )));
 }
 
-const GONE = 'src/cart.ts is not the text the suite ran over at 0123456789ab, and that text could not be found, so no recorded line is a place in it.';
+const GONE = 'src/cart.ts is not the text the suite ran over at 0123456789ab, which this clone does not hold, and that text could not be found, so no recorded line is a place in it.';
 
 describe('a file whose recorded text is gone', () => {
   it('names the cases that ran code in the file, and says the line is what it cannot place', async () => {
@@ -96,6 +96,7 @@ describe('a file whose recorded text is gone', () => {
     const text = formatCovering(answer, 'text');
 
     expect(answer).toMatchObject({ frame: 'stale', target: { line: 6 }, at: '0123456789abcdef' });
+    expect(answer).not.toHaveProperty('committedAt');
     expect(answer.tests?.map((test) => test.name)).toEqual(['off', 'on', 'plain']);
     expect(text).toContain(`${GONE}\n3 named tests ran code in src/cart.ts; which of them ran line 6 cannot be said:\n  a.test.ts — 3/3\n    off — flags:checkout=ff-off`);
     expect(answer.gap).toEqual({

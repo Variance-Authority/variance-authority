@@ -62,6 +62,25 @@ export function existedAt(root: string, commit: string, path: string): boolean |
   return 'unread' in listed ? listed : listed.length > 0;
 }
 
+/**
+ * When `commit` was committed, as a UTC ISO time, read from the clone at
+ * `root`; absent when the clone does not hold the commit. The committer time,
+ * not the author time: a commit rebased or cherry-picked today carries today's
+ * tree, so it is the time the recorded text was put together.
+ */
+export function committedAt(root: string, commit: string): string | undefined {
+  try {
+    const seconds = Number(execFileSync(
+      'git',
+      ['-c', 'log.showSignature=false', 'show', '-s', '--format=%ct', '--end-of-options', `${commit}^{commit}`],
+      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim());
+    return Number.isFinite(seconds) ? new Date(seconds * 1000).toISOString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The names a git listing gives, or the first line git gave for not answering. */
 function gitNames(root: string, args: readonly string[]): readonly string[] | { readonly unread: string } {
   try {

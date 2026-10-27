@@ -8,6 +8,7 @@
 
 import {
   formatCoveringChange,
+  ranOver,
   unenteredSentence,
   whyUnentered,
   type CoveringTest,
@@ -23,15 +24,43 @@ import { formatCoveringRefs } from './covering-refs.js';
 import { heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 import { evidenceGapText } from './evidence-gap.js';
-import { staleLines } from './covering-stale.js';
-import { placeText } from './covering-behind.js';
+import { staleFile, staleLines } from './covering-stale.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
-/** Say the answer in the shape the caller asked for. */
-export function formatCovering(answer: Covering, format: CoveringFormat): string {
-  if (format === 'refs') return formatCoveringRefs(answer);
+/**
+ * Say the answer in the shape the caller asked for.
+ *
+ * @param now The clock the record's age is read against, in ms.
+ */
+export function formatCovering(answer: Covering, format: CoveringFormat, now: number = Date.now()): string {
+  if (format === 'refs') return formatCoveringRefs(answer, now);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion), ...placeText(answer), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
+  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer, now)), ...hopsText(answer), ...motionText(answer.motion), ...frameText(answer, now), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
+}
+
+/**
+ * How fresh the answer is for the question, said once under it: whether the
+ * asked text is the one the suite ran over, and which run that was and when
+ * it was committed. A stale answer about the file or its lines says it first
+ * instead, since it is the reason no line is given; one about a function says
+ * it here, with what it takes away from the function's parts.
+ */
+function frameText(answer: Covering, now: number): readonly string[] {
+  const file = answer.file;
+  if (answer.changed !== undefined || file === undefined || staleFile(answer)) return [];
+  const ran = ranOver(answer, now);
+  if (answer.frame === 'stale') {
+    const named = answer.target !== undefined && 'function' in answer.target ? answer.target.function : '';
+    return [`${staleLines(answer, now).gone} Which parts of \`${named}\` no case ran is not said for that reason.`];
+  }
+  if (answer.frame === 'recorded') return [`${file} is the text the suite ran over${ran.at}${ran.end}.`];
+  if (answer.frame === 'mapped') {
+    return [`${file} differs from the text the suite ran over${ran.at}; its lines are placed in the text as it is now${ran.end}.`];
+  }
+  if (answer.unheld === true) {
+    return [`${file} is not on disk, so no text is held against the one the suite ran over${ran.at}; its lines are the record's${ran.end}.`];
+  }
+  return [`The record holds no digest of ${file}, so whether it is the text the suite ran over${ran.at}${ran.at === '' ? '' : ','} is not known${ran.end}.`];
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */
@@ -45,10 +74,10 @@ function said(block: string): readonly string[] {
   return block === '' ? [] : [block];
 }
 
-function text(answer: Covering): string {
-  if (answer.changed !== undefined) return sinceText(answer, answer.changed);
+function text(answer: Covering, now: number): string {
+  if (answer.changed !== undefined) return sinceText(answer, answer.changed, now);
   if (answer.preconditionOf !== undefined) return preconditionText(answer.file ?? '', answer.preconditionOf, answer.held, answer.among);
-  if (answer.frame === 'stale') return staleText(answer);
+  if (staleFile(answer)) return staleText(answer, now);
   if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
 
   const tests = answer.tests ?? [];
@@ -156,8 +185,8 @@ export function scopeText(answer: Covering): readonly string[] {
  * history, so there is no line to give: the cases that ran code in the file,
  * and the reading the gap takes away.
  */
-function staleText(answer: Covering): string {
-  const { gone, header } = staleLines(answer);
+function staleText(answer: Covering, now: number): string {
+  const { gone, header } = staleLines(answer, now);
   const tests = answer.tests ?? [];
   return [
     gone,
@@ -188,7 +217,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       named.size
     } named test${named.size === 1 ? '' : 's'}${
       loading.size === 0 ? '' : `, and ${loading.size} more that ran it only while their file imported it`
-    }${framed(answer)}`,
+    }`,
   ];
   // Where each list of cases was first printed, so a later range walked by the same cases points at it.
   const printed = new Map<string, string>();
@@ -247,12 +276,6 @@ function loadedOnly(carried: readonly CoveringTest[], more: boolean): readonly s
   } ran it only while their file imported the module`];
 }
 
-/** Which text the line numbers are in, when that was checked. */
-function framed(answer: Covering): string {
-  if (answer.frame === 'mapped') return ', placed in the text as it is now';
-  return '';
-}
-
 /**
  * What the narrowing removed, said out loud under every answer it shaped.
  *
@@ -286,11 +309,13 @@ export function narrowedText(answer: Covering): readonly string[] {
  * able to state: the ref the diff was taken against, the file the index was
  * read from and the commit it stands at.
  */
-function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
+function sinceText(answer: Covering, changed: readonly StatedChange[], now: number): string {
   return formatCoveringChange(changed, {
     ...(answer.since === undefined ? {} : { since: answer.since }),
     from: answer.from,
     ...(answer.at === undefined ? {} : { at: answer.at }),
+    ...(answer.committedAt === undefined ? {} : { committedAt: answer.committedAt }),
+    now,
   });
 }
 

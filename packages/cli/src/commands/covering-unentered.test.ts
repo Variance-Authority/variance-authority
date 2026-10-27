@@ -57,6 +57,7 @@ describe('a run of lines no recorded region holds', () => {
       'No named test covered lines 2-3 of src/cart.ts.\n'
         + 'Line 2 is outside every recorded region, so no case can be said to have run it.\n'
         + 'Line 3 was written since the recording, so no case has run it.\n'
+        + 'src/cart.ts differs from the text the suite ran over; its lines are placed in the text as it is now; the record names no commit, so its age is not known.\n'
         + 'Gap (stale) on lines 2-3 of src/cart.ts: which tests run it now. Known: line 3 was written since the recording.\n'
         + 'Next, Record, 1 test in 1 test file:\n'
         + "  Run with the suite's own runner: a.test.ts\n",
