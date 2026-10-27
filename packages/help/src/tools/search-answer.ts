@@ -5,7 +5,7 @@ import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
-import { looseNames, matchingTerms, termsOfStems } from './loose.js';
+import { importedWithin, looseNames, matchingTerms, termsOfStems } from './loose.js';
 import { describedDeclarations, describedNames, describedShown, fileMatch, type Reached } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
@@ -253,10 +253,8 @@ function surface(
 ): readonly Hit[] {
   const hits: Hit[] = [];
   for (const row of new Set(rows)) {
+    if (area !== undefined && inArea !== undefined && !importedWithin(index, row, inArea)) continue;
     const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
-    // A published name with no import site in the closure is a name the area
-    // does not use, however well it matches the word.
-    if (scoped !== undefined && scoped.imports === 0) continue;
     const name = index.publishedName(row);
     hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped });
   }

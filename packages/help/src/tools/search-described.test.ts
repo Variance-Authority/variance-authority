@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
@@ -8,6 +8,7 @@ import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { queryDependencyLexicon, refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { describedNames } from './described.js';
+import { searchNames } from './search-answer.js';
 import { answerSearch, searchIndexOf } from './search.js';
 
 /**
@@ -292,12 +293,17 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/b-kit · Placement .*\[holds: commit, file, text\]/u);
   });
 
-  /** A workspace of `packages/*` kits, each by its `src/` files. */
-  const kits = (each: Record<string, Record<string, string>>): Promise<string> =>
+  /** A workspace of `packages/*` kits, each by its `src/` files, and the kits each `uses`. */
+  const kits = (each: Record<string, Record<string, string>>, uses: Record<string, readonly string[]> = {}): Promise<string> =>
     inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'], dependencies: { react: '1.0.0' } }),
       ...Object.fromEntries(Object.entries(each).flatMap(([name, files]) => [
-        [`packages/${name}/package.json`, JSON.stringify({ name, type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } })],
+        [`packages/${name}/package.json`, JSON.stringify({
+          name,
+          type: 'module',
+          exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
+          dependencies: Object.fromEntries((uses[name] ?? []).map((kit) => [kit, 'workspace:*'])),
+        })],
         [`packages/${name}/tsconfig.json`, JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } })],
         ...Object.entries(files).map(([file, text]) => [`packages/${name}/src/${file}`, text]),
       ])),
@@ -366,6 +372,46 @@ describe('which names the described section holds, and in what order', () => {
     expect(at('omega')).toBeGreaterThan(-1);
     expect(at('Placement')).toBeGreaterThan(-1);
     expect(at('Placement')).toBeLessThan(at('omega'));
+  });
+
+  const KEPT = '/** Kept with the text it holds. */\n';
+  const APP = 'packages/app/src/index.ts';
+
+  it('reaches no name in an area through a published row the area does not import, as it shows none', async () => {
+    // `a-kit` publishes `Inner` as `Placement`; the area imports `Inner` from its file and `Placement` from `b-kit`.
+    // A re-export is resolved to its real path, so the root is the real one.
+    const root = realpathSync(await kits({
+      'a-kit': { 'inner.ts': `${KEPT}export interface Inner {\n  readonly shard: number;\n}\n`, 'index.ts': "export type { Inner as Placement } from './inner.js';\n" },
+      'b-kit': { 'index.ts': 'export interface Placement {\n  readonly at: string;\n}\n' },
+      'app': { 'index.ts': "import type { Placement } from 'b-kit';\nimport type { Inner } from '../../a-kit/src/inner.js';\nexport type Used = Placement | Inner;\n" },
+    }, { app: ['b-kit'] }));
+    const tree = treeOf([
+      { file: APP, edges: [{ to: 'packages/a-kit/src/inner.ts', kind: 'imports' }] },
+      { file: 'packages/a-kit/src/inner.ts' },
+      { file: 'packages/a-kit/src/index.ts', edges: [{ to: 'packages/a-kit/src/inner.ts', kind: 'imports' }] },
+      { file: 'packages/b-kit/src/index.ts' },
+    ], root);
+    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'commit text', from: APP }, tree).described;
+    expect(described?.total).toBe(described?.shown.length);
+    expect(described?.shown.map((one) => one.name)).toEqual(['Inner']);
+  });
+
+  it('weighs and shows a name in an area through the exported row the area holds, not a published row it does not import', async () => {
+    // The area imports `kit` from `z-kit` and `Placement` from `b-kit`, so only `b-kit`'s `Placement` is used there.
+    const root = await kits({
+      'z-kit': { 'index.ts': `export const kit = 1;\n${KEPT}export interface Placement {\n  readonly shard: number;\n}\n` },
+      'b-kit': { 'index.ts': 'export interface Placement {\n  readonly at: string;\n}\n' },
+      'app': { 'index.ts': "import { kit } from 'z-kit';\nimport type { Placement } from 'b-kit';\nexport const used: Placement | number = kit;\n" },
+    }, { app: ['z-kit', 'b-kit'] });
+    const files = [APP, 'packages/z-kit/src/index.ts', 'packages/b-kit/src/index.ts'];
+    const tree = treeOf([{ file: APP, edges: files.slice(1).map((to) => ({ to, kind: 'imports' as const })) }, ...files.slice(1).map((file) => ({ file }))], root);
+    const index = searchIndexOf(readHelp(root));
+    const reached = describedNames(index, 'commit text', index.fileIds(files), new Set())?.find((one) => one.name === placementOf(index));
+    expect(reached?.through?.kind).toBe('exported');
+    expect(index.exported(reached?.through?.row as number).at).toBe('packages/z-kit/src/index.ts');
+    const shown = searchNames(index, { query: 'commit text', from: APP }, tree).described?.shown.find((one) => one.name === 'Placement');
+    expect(shown?.at).toBe('packages/z-kit/src/index.ts');
+    expect(shown && 'summary' in shown ? shown.summary : undefined).toBe('Kept with the text it holds.');
   });
 
   it('puts a name whose doc holds every word before one whose name holds half of them', async () => {

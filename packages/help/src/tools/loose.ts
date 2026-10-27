@@ -91,6 +91,15 @@ export function looseNames(
 }
 
 /**
+ * Whether a file of `within`, file ids, imports one published row. A published
+ * name with no import site in an area is a name the area does not use, however
+ * well it matches the question.
+ */
+export function importedWithin(index: SearchIndex, row: number, within: ReadonlySet<number>): boolean {
+  return index.siteFiles(row).some((file) => within.has(file));
+}
+
+/**
  * Whether a name may be reached through its own words: never when `already`
  * holds it, and inside `within` only through a published or exported row whose
  * file is in it. Remembered per name, because every matching term asks again.
