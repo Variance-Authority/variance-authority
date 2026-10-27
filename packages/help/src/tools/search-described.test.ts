@@ -481,6 +481,33 @@ describe('which names the described section holds, and in what order', () => {
     expect(shown?.words).toEqual(['placement', 'text']);
   });
 
+  it('orders names in an area by the rows the area holds, so barrels outside it move nothing there', async () => {
+    // In the area `beta.ts` and `hub.ts` export `cacheBeta`, `alpha.ts` alone `cacheAlpha`; each `out` file outside it passes `cacheAlpha` on.
+    const order = async (barrels: number): Promise<readonly string[]> => {
+      const outside = Object.fromEntries(Array.from({ length: barrels }, (_, at) => [`src/out${at}.ts`, "export { cacheAlpha } from './alpha.js';\n"]));
+      // A re-export is resolved to its real path, so the root is the real one.
+      const root = realpathSync(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+        'src/alpha.ts': 'export const cacheAlpha = 1;\n',
+        'src/beta.ts': 'export const cacheBeta = 2;\n',
+        'src/hub.ts': "export { cacheBeta } from './beta.js';\n",
+        'src/app.ts': "import { cacheAlpha } from './alpha.js';\nimport { cacheBeta } from './hub.js';\nimport './beta.js';\nexport const used = cacheAlpha + cacheBeta;\n",
+        ...outside,
+      }));
+      const imports = (file: string, to: readonly string[]) => ({ file, edges: to.map((one) => ({ to: one, kind: 'imports' as const })) });
+      const tree = treeOf([
+        imports('src/app.ts', ['src/alpha.ts', 'src/hub.ts', 'src/beta.ts']),
+        imports('src/hub.ts', ['src/beta.ts']),
+        { file: 'src/alpha.ts' },
+        { file: 'src/beta.ts' },
+        ...Object.keys(outside).map((file) => imports(file, ['src/alpha.ts'])),
+      ], root);
+      const described = searchNames(searchIndexOf(readHelp(root)), { query: 'cache zebra', from: 'src/app.ts' }, tree).described;
+      return described?.shown.map((one) => one.name) ?? [];
+    };
+    expect(await order(0)).toEqual(['cacheBeta', 'cacheAlpha']);
+    expect(await order(3)).toEqual(['cacheBeta', 'cacheAlpha']);
+  });
+
   it('weighs a name no doc added a word to by the doc of the row it is shown through, not of its first published row', async () => {
     // Neither doc holds `text`. `app` imports `b-kit`'s `Placement`, so it is the one shown.
     const root = await kits({

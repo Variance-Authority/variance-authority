@@ -49,15 +49,15 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * a score, and a tie is a tie (ADR-0057). `N` is everything reached, the names
  * another section shows included, so the weight of a word does not move with what
  * is left. Then the words its name holds, then how many of the question's adjacent
- * word pairs its doc writes adjacent, then how many rows publish or export it,
- * then the name's own rank. A word every doc says in passing tells nothing about
- * which of them was meant: `find the repository root` is asked of
- * `repositoryRoot`, not of every doc that opens on `find` and mentions a root,
- * when most of what was reached says `find`. A name was chosen for what it does,
- * and a doc that writes the question's phrase about a name that holds none of it
- * is usually saying what the name is used with. The phrase — term proximity,
- * counted as the pairs it shares — settles what the weight and the name leave
- * level.
+ * word pairs its doc writes adjacent, then how many rows publish or export it, in
+ * an area those {@link rowWithin} it, then the name's own rank. A word every doc
+ * says in passing tells nothing about which of them was meant:
+ * `find the repository root` is asked of `repositoryRoot`, not of every doc that
+ * opens on `find` and mentions a root, when most of what was reached says `find`.
+ * A name was chosen for what it does, and a doc that writes the question's phrase
+ * about a name that holds none of it is usually saying what the name is used with.
+ * The phrase — term proximity, counted as the pairs it shares — settles what the
+ * weight and the name leave level.
  *
  * The rows shown hold every word anything reached holds: the best holder of a word
  * no row shown holds takes the place of the last row whose every word another row
@@ -74,7 +74,7 @@ export interface DescribedKey {
   readonly named: readonly string[];
   /** How many of the question's adjacent word pairs its doc writes adjacent. */
   readonly near: number;
-  /** Rows that publish or export it. */
+  /** Rows that publish or export it, in an area only those {@link rowWithin} it. */
   readonly rows: number;
   readonly rank: number;
   /** The bytes of the doc it is judged by, absent when it has none: what a word its doc holds is counted against. */
@@ -82,6 +82,10 @@ export interface DescribedKey {
 }
 
 const docLengthOf = (bytes: number | null | undefined): Pick<DescribedKey, 'docLength'> => (bytes == null ? {} : { docLength: bytes });
+
+/** How many of `rows` count for a name: every one, or in an area, `within` file ids, those {@link rowWithin} it. */
+const rowsWithin = (index: SearchIndex, kind: DescribedRow['kind'], rows: Uint32Array, within: ReadonlySet<number> | undefined): number =>
+  within === undefined ? rows.length : rows.reduce((count, row) => count + Number(rowWithin(index, kind, row, within)), 0);
 
 /** One name of the search index the description reached. */
 export interface DescribedName extends DescribedKey {
@@ -127,9 +131,10 @@ export type Reached = ReachedName | DescribedDeclaration | DescribedFileHit;
  * `already` names are never reached. `within`, file ids when given, admits a
  * name by its own words and a doc only through a row {@link rowWithin} the
  * area: a published row a file of it imports, as the published section shows
- * one, or an exported row whose file is in it. `shown` names the row a name no
- * doc added a word to is shown through, and its doc is the one that name is
- * weighed by; a name it names no row for is not reached.
+ * one, or an exported row whose file is in it, and counts only those rows.
+ * `shown` names the row a name no doc added a word to is shown through, and its
+ * doc is the one that name is weighed by; a name it names no row for is not
+ * reached.
  */
 export function describedNames(
   index: SearchIndex,
@@ -203,7 +208,7 @@ export function describedNames(
       through: row,
       words: asked.filter((_, position) => positions.has(position)).map(([, word]) => word),
       named: asked.filter((_, position) => named.get(name)?.has(position) === true).map(([, word]) => word),
-      rows: index.publishedOf(name).length + index.exportedOf(name).length,
+      rows: rowsWithin(index, 'published', index.publishedOf(name), within) + rowsWithin(index, 'exported', index.exportedOf(name), within),
       rank: index.rank(name),
       ...docLengthOf(rowDocLength(index, row)),
     }];
