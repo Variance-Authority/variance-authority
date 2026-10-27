@@ -11,8 +11,8 @@ measurement, a CI comment. If you cannot write that sentence, the task is not
 refined yet.
 
 **The issue.** Search the GitHub issues before filing one:
-`gh issue list --search "<words>"`. An issue that already holds the task gives
-its "Done when", its parent and what it waits on; the pull request that
+`gh issue list --state all --search "<words>"`. An issue that already holds the
+task gives its checklist, its parent and what blocks it; the pull request that
 finishes it closes it. The rules are under "Tasks are GitHub issues" in
 `AGENTS.md`.
 
