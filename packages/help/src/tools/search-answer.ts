@@ -420,9 +420,10 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...one.match, words: one.words }];
       if ('file' in one) return [{ ...fileMatch(root, one.file), words: one.words }];
-      // The row whose doc held the words is the row shown, else the name's first.
+      // The row whose doc held the words is the row shown, else the name's first
+      // published row, else its first exported one.
       const through = one.through;
-      const rows = through?.kind === 'published' ? [through.row] : index.publishedOf(one.name);
+      const rows = through === undefined ? index.publishedOf(one.name) : through.kind === 'published' ? [through.row] : [];
       const row = published(index, surface(index, rows, area, within), 1).shown[0] ??
         exported(index, [one.name], new Set(), within, through?.kind === 'exported' ? new Map([[one.name, new Set([through.row])]]) : undefined).head(1)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];

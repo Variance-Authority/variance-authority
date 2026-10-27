@@ -178,14 +178,16 @@ export function describedNames(
     }
   });
 
-  // The row that adds the most to what the name holds, published rows first at
-  // a tie: its words and its doc's length are the name's, never two rows' words
-  // added up and a third row's length.
+  // The row that adds the most to what the name holds: its words and its doc's
+  // length are the name's, never two rows' words added up and a third row's
+  // length. Published rows are weighed first, so at a tie a published row wins
+  // over an exported one, and the first row marked among rows of one kind.
   const through = new Map<number, DescribedRow>();
   for (const [name, rows] of docs) {
     const own = held.get(name) ?? new Set<number>();
     let best = own;
-    for (const [row, positions] of rows) {
+    const ordered = [...rows].sort(([a], [b]) => Number(a.kind === 'exported') - Number(b.kind === 'exported'));
+    for (const [row, positions] of ordered) {
       const union = new Set([...own, ...positions]);
       if (union.size <= best.size) continue;
       best = union;

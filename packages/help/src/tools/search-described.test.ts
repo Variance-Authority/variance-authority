@@ -292,6 +292,47 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/b-kit · Placement .*\[holds: commit, file, text\]/u);
   });
 
+  /** A published `Placement` in `a-kit` and one `b-kit/src/inner.ts` exports without publishing. */
+  const placedTwice = async (published: string, exported: string): Promise<string> => {
+    const kit = (name: string, files: Record<string, string>): Record<string, string> => ({
+      [`packages/${name}/package.json`]: JSON.stringify({ name, type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } }),
+      [`packages/${name}/tsconfig.json`]: JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } }),
+      ...Object.fromEntries(Object.entries(files).map(([file, text]) => [`packages/${name}/src/${file}`, text])),
+    });
+    return inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'], dependencies: { react: '1.0.0' } }),
+      ...kit('a-kit', { 'index.ts': `${published}export interface Placement {\n  readonly shard: number;\n}\n` }),
+      ...kit('b-kit', {
+        'index.ts': 'export const kit = 1;\n',
+        'inner.ts': `${exported}export interface Placement {\n  readonly at: string;\n}\n`,
+      }),
+    });
+  };
+  const placementOf = (index: ReturnType<typeof searchIndexOf>): number =>
+    index.namesContaining('placement').find((name) => index.name(name) === 'Placement') as number;
+
+  it('shows a name through the exported row whose doc holds the words, not the published row with none', async () => {
+    const doc = '/** Where a case was placed: the file it is in, at the commit it ran at, and the text of that file then. */\n';
+    const root = await placedTwice('', doc);
+    const index = searchIndexOf(readHelp(root));
+    const reached = describedNames(index, 'text of a file at a commit', undefined, new Set())?.find((one) => one.name === placementOf(index));
+    expect(reached?.through?.kind).toBe('exported');
+    const said = answerSearch(index, { query: 'text of a file at a commit' }, treeOf([], root), root);
+    const line = said.split('\n').find((one) => one.includes('Placement')) ?? '';
+    expect(line).toContain('packages/b-kit/src/inner.ts');
+    expect(line).toContain('[holds: commit, file, text]');
+  });
+
+  it('weighs and shows a name through its published row when an exported row holds as many words', async () => {
+    const root = await placedTwice('/** Kept with the text it holds. */\n', '/** Kept at the commit it ran at. */\n');
+    const index = searchIndexOf(readHelp(root));
+    const reached = describedNames(index, 'commit text', undefined, new Set())?.find((one) => one.name === placementOf(index));
+    expect(reached?.through?.kind).toBe('published');
+    expect(reached?.words).toEqual(['text']);
+    const said = answerSearch(index, { query: 'commit text' }, treeOf([], root), root);
+    expect(said).toMatch(/a-kit · Placement .*Kept with the text it holds\..*\[holds: text\]/u);
+  });
+
   it('puts a name whose doc holds every word before one whose name holds half of them', async () => {
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',
