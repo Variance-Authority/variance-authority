@@ -1,49 +1,39 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
 import { digestString } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { tokensOf } from '@variance-authority/mcp';
 import { cacheRootFor, writeCoverageBytes } from '@variance-authority/sense/test-selection';
 import { ROOT, SCRIPT, isFunction, isTest, lines } from './owners.mjs';
 
 /**
  * Existing functions that need what a function new on this branch needs.
  *
- * The second implementation this repository keeps growing is not pasted. It is
- * typed fresh, in its own shape and with its own names, by somebody who did not
- * know the first one was there, so `clones.mjs` sees no shared run of tokens
- * and `owners.mjs` knows only the idioms it lists. What a re-typed copy cannot
- * rename is what it needs: the calls it makes, the fields it reads, the strings,
- * patterns, types and imports it names. Two functions that need the same things
- * answer the same question, whatever their shape.
- *
- * So each function is read as the bag of what it needs, and the vocabulary
- * around it: its name, and the words of the names it binds. A need many
- * functions share, such as `push` or `length`, weighs little; a rare one weighs
- * much (tf-idf). Every function new on the branch is compared with every
- * function and top-level constant that already exists, by the cosine of the two
- * bags. A neighbour at {@link SHARED} or above is named.
- *
- * Advisory, not a ratchet: a neighbour is a function to call or extend, or one
- * from the same family that answers a different question, and only the author
- * knows which. `yarn test:loop` prints the list after every edit, and the pull
- * request says what became of each name. The measurements behind the numbers
- * are in journal entry 0077.
- *
- * `yarn needs` prints the list.
+ * A re-typed copy shares no run of tokens with what it copies, but it cannot
+ * rename what it needs: the calls, fields, strings, patterns, types and imports
+ * it names, and the words of its names. Each function is read as that bag,
+ * weighted by tf-idf, and compared by cosine with every unit that exists. A
+ * neighbour at {@link SHARED} or above is a lead to read, not a verdict.
+ * `yarn needs` prints the list; journal entry 0077 holds the measurements.
  */
 
+// FIXME: the bags belong to the scan's harvest, asked through `variance ask`.
+// This script parses every script a second time, beside the source index, and
+// keeps a cache of its own, to prove the signal before the addon carries it.
+
 /** The share of needs, in thousandths of the cosine, at which an existing function is named. */
-export const SHARED = 600;
+const SHARED = 600;
 
 /** The fewest distinct needs a function holds before it is asked about: fewer say too little to compare. */
-export const SMALLEST = 5;
+const SMALLEST = 5;
 
 /** The most neighbours named for one function. */
-export const SHOWN = 3;
+const SHOWN = 3;
 
 /**
  * The files whose functions exist for this question: the scripts in the working
@@ -67,7 +57,7 @@ export function inScope(path) {
  */
 export function unitsIn(path, text) {
   const parsed = parseSync(path, text);
-  if (parsed.errors.length > 0) throw new Error(`${path}: ${parsed.errors[0].message}`);
+  if (parsed.errors.length > 0) throw new SyntaxError(`${path}: ${parsed.errors[0].message}`);
   const imported = importsOf(parsed.program);
   const lineOf = lines(text);
   const units = [];
@@ -146,31 +136,45 @@ export function twinsOf(added, existing) {
  * function gone from the tree is not one to call.
  */
 export function needs(root = ROOT) {
-  const base = git(root, ['merge-base', 'HEAD', 'origin/main']).trim();
+  const base = mergeBase(root);
   const changed = new Set(
     [...listed(git(root, ['diff', '--name-only', '--no-renames', base])), ...listed(git(root, ['ls-files', '--others', '--exclude-standard']))].filter(
       inScope,
     ),
   );
   const cache = cached(root);
-  const units = present(root, cache);
-  const before = new Set(atBase(root, base, [...changed], cache).map((unit) => `${unit.path}\0${unit.name}`));
+  const unread = new Set();
+  const units = present(root, cache, unread);
+  const before = new Set(atBase(root, base, [...changed], cache, new Set()).map((unit) => `${unit.path}\0${unit.name}`));
   const isNew = (unit) => changed.has(unit.path) && !before.has(`${unit.path}\0${unit.name}`);
   const added = units.filter(isNew);
-  return { added, twins: twinsOf(added, units.filter((unit) => !isNew(unit))), cache };
+  return { added, twins: twinsOf(added, units.filter((unit) => !isNew(unit))), unread: [...unread].sort(codeUnitOrder), cache };
 }
 
-/** What `yarn needs` and `yarn test:loop` print: each new function with twins, and the twins, or one line that none has any. */
-export function said({ added, twins }) {
-  const asked = added.filter((unit) => unit.kind === 'function').length;
-  if (twins.length === 0) return `needs: ${asked} new functions read; none needs what an existing one does\n`;
-  const out = [
-    `needs: ${twins.length} of ${asked} new functions need what existing code needs. Call or extend the one that answers, or say in the pull request why it does not:`,
-  ];
+function mergeBase(root) {
+  try {
+    return git(root, ['merge-base', 'HEAD', 'origin/main']).trim();
+  } catch {
+    throw new Error('no merge base with origin/main to measure the branch from');
+  }
+}
+
+/**
+ * What `yarn needs` and `yarn test:loop` print: each new function with twins,
+ * and the twins, or one line that none has any; then each file oxc could not
+ * parse, whose functions are neither asked about nor named.
+ */
+export function said({ added, twins, unread }) {
+  const asked = added.filter(asks).length;
+  const out =
+    twins.length === 0
+      ? [`needs: ${asked} new functions asked about; none needs what an existing one needs`]
+      : [`needs: ${twins.length} of ${asked} new functions asked about need what existing ones need. Read them; where one answers, call or extend it:`];
   for (const { unit, twins: near } of twins) {
     out.push(`  ${unit.path}:${unit.line} ${unit.name}`);
     for (const twin of near) out.push(`    ${(twin.share / 1000).toFixed(2)} ${twin.path}:${twin.line} ${twin.name}`);
   }
+  for (const path of unread) out.push(`needs: oxc could not parse ${path}, so its functions are not read`);
   return `${out.join('\n')}\n`;
 }
 
@@ -181,57 +185,88 @@ export async function remember(cache) {
   await writeCoverageBytes(cache.file, bytes);
 }
 
-// The bags a run read are cached by blob, under this file's own digest, so an
-// edit to the reader drops what the last reader wrote.
-const READER = digestString(readFileSync(fileURLToPath(import.meta.url), 'utf8'));
+// The bags a run read are cached by blob and the language its path names,
+// under the digest of what reads them: this file, the owners helpers it calls
+// and the parser's version. An edit to any of them drops what the last reader
+// wrote.
+const READER = digestString(
+  [
+    readFileSync(fileURLToPath(import.meta.url), 'utf8'),
+    readFileSync(fileURLToPath(new URL('./owners.mjs', import.meta.url)), 'utf8'),
+    createRequire(import.meta.url)('oxc-parser/package.json').version,
+  ].join('\0'),
+);
 
+// What the cache held, or nothing when it was written by another reader or
+// cannot be read: a cache is a shortcut, never an answer.
 function cached(root) {
   const file = join(cacheRootFor(root), 'needs.json');
-  const held = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : undefined;
+  let held;
+  try {
+    held = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : undefined;
+  } catch {
+    held = undefined;
+  }
   const blobs = held?.reader === READER ? new Map(Object.entries(held.blobs)) : new Map();
   return { file, blobs, read: new Map(), changed: held?.reader !== READER };
 }
 
 // Every unit in the working tree. A file the index holds unchanged is read
-// through its blob in the cache; a file edited or new is parsed from disk.
-function present(root, cache) {
+// through its blob in the cache; a file edited or new is parsed from disk. A
+// file oxc cannot parse is added to `unread`.
+function present(root, cache, unread) {
   const edited = new Set([...listed(git(root, ['diff', '--name-only'])), ...listed(git(root, ['ls-files', '--others', '--exclude-standard']))]);
   const units = [];
   for (const path of edited) {
-    if (inScope(path) && existsSync(join(root, path))) units.push(...unitsIn(path, readFileSync(join(root, path), 'utf8')));
+    if (inScope(path) && existsSync(join(root, path))) units.push(...parsedOr(unread, path, () => unitsIn(path, readFileSync(join(root, path), 'utf8'))));
   }
   for (const row of listed(git(root, ['ls-files', '-s']))) {
     const [meta, path] = row.split('\t');
     if (edited.has(path) || !inScope(path) || !existsSync(join(root, path))) continue;
-    units.push(...throughCache(cache, meta.split(' ')[1], path, () => readFileSync(join(root, path), 'utf8')));
+    units.push(...throughCache(cache, meta.split(' ')[1], path, () => readFileSync(join(root, path), 'utf8'), unread));
   }
   return units;
 }
 
 // The units each of `paths` held at `base`, read through the cache by blob.
-function atBase(root, base, paths, cache) {
+function atBase(root, base, paths, cache, unread) {
   if (paths.length === 0) return [];
   const units = [];
   for (const row of listed(git(root, ['ls-tree', base, '--', ...paths]))) {
     const [meta, path] = row.split('\t');
     const blob = meta.split(' ')[2];
-    units.push(...throughCache(cache, blob, path, () => git(root, ['cat-file', 'blob', blob])));
+    units.push(...throughCache(cache, blob, path, () => git(root, ['cat-file', 'blob', blob]), unread));
   }
   return units;
 }
 
-function throughCache(cache, blob, path, text) {
-  let held = cache.blobs.get(blob);
+function throughCache(cache, blob, path, text, unread) {
+  // oxc reads a text by the language its path's extension names, so one blob
+  // at two extensions is two readings.
+  const key = `${blob}${extname(path)}`;
+  let held = cache.blobs.get(key);
   if (held === undefined) {
-    held = unitsIn(path, text()).map(({ name, kind, line, bag }) => ({ name, kind, line, bag }));
+    held = parsedOr(unread, path, () => unitsIn(path, text()).map(({ name, kind, line, bag }) => ({ name, kind, line, bag })));
+    if (unread.has(path)) return [];
     cache.changed = true;
   }
-  cache.read.set(blob, held);
+  cache.read.set(key, held);
   return held.map((unit) => ({ path, ...unit }));
 }
 
+function parsedOr(unread, path, read) {
+  try {
+    return read();
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    unread.add(path);
+    return [];
+  }
+}
+
 /** Git's output in `root`, as text, or as bytes when `encoding` is `'buffer'`. */
-export const git = (root, args, { input, encoding = 'utf8' } = {}) => execFileSync('git', args, { cwd: root, input, encoding, maxBuffer: 1 << 30 });
+export const git = (root, args, { input, encoding = 'utf8' } = {}) =>
+  execFileSync('git', args, { cwd: root, input, encoding, maxBuffer: 1 << 30, stdio: ['pipe', 'pipe', 'pipe'] });
 const listed = (out) => out.split('\n').filter((line) => line !== '');
 
 const keyOf = (key) => (key?.type === 'Identifier' || key?.type === 'PrivateIdentifier' ? key.name : typeof key?.value === 'string' ? key.value : undefined);
@@ -261,15 +296,6 @@ function chainOf(node) {
   return undefined;
 }
 
-// The words of an identifier: `readManifestFile` is `read manifest file`.
-const wordsOf = (name) =>
-  name
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => word.length > 1);
-
 /**
  * What one unit needs, counted: `call:` each function it calls by its last
  * name, and by its module or receiver; `prop:` each field it reads; `str:` and
@@ -282,7 +308,7 @@ function bagOf(root, name, imported) {
   const add = (token) => {
     bag[token] = (bag[token] ?? 0) + 1;
   };
-  for (const word of wordsOf(name)) add(`name:${word}`);
+  for (const word of tokensOf(name)) add(`name:${word}`);
   const visit = (node) => {
     if (node === null || typeof node !== 'object') return;
     if (Array.isArray(node)) {
@@ -314,7 +340,7 @@ function bagOf(root, name, imported) {
       if (type !== undefined) add(`type:${type.split('.').at(-1)}`);
     }
     if (node.type === 'Identifier' && node.name) {
-      for (const word of wordsOf(node.name)) add(`word:${word}`);
+      for (const word of tokensOf(node.name)) add(`word:${word}`);
       if (imported.has(node.name)) add(`imp:${imported.get(node.name)}`);
     }
     for (const key in node) {

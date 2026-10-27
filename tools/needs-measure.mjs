@@ -5,29 +5,13 @@ import { asks, git, inScope, twinsOf, unitsIn } from './needs.mjs';
 import { ROOT } from './owners.mjs';
 
 /**
- * How often `needs.mjs` names the function a copy repeats, and how often it
- * speaks: the measurement behind its numbers, in journal entry 0077.
+ * Every number in journal entry 0077: how often `needs.mjs` names the function
+ * a copy repeats, and how often it speaks. It reads the hand labels in
+ * `needs-measure.json`: `copies`, each confirmed by reading it and its `owner`,
+ * and `judged`, pairs an earlier probe named, each called `reuse`, `family`
+ * (the same question, answered another way) or `unrelated`.
  *
- * `needs-measure.json` holds what was read by hand from this repository's
- * history, up to the commit it names as `tip`:
- *
- * - `copies`: functions a change wrote while one that already answered existed
- *   at its base (the `owner`), each confirmed by reading both. `earlier` names
- *   the detectors measured before this one that caught it: `resemblance`, by
- *   tokens or syntax, `doors`, by the commands, files and idioms it touches.
- * - `judged`: a sample of what the tool named on ordinary changes, each pair
- *   read and called `reuse` (the existing function answers), `family` (same
- *   question, another answer) or `unrelated`.
- *
- * It prints the share of copies whose owner the tool names, by kind, by the half
- * a function copy's id hashes to (the threshold was chosen on `even`) and by
- * whether an earlier detector caught it; the share of new functions on every
- * fourth change of `main`'s first-parent line that it names anything for, the
- * copies left out; and the verdicts of the judged pairs it still names.
- *
- * ```bash
- * node tools/needs-measure.mjs
- * ```
+ * `node tools/needs-measure.mjs`
  */
 
 const LABELS = JSON.parse(readFileSync(new URL('./needs-measure.json', import.meta.url), 'utf8'));
@@ -98,6 +82,7 @@ const line = (label, rows) => `  ${label.padEnd(28)} ${share(rows.filter((row) =
 const out = ['copies whose owner it names:', line('all', caught)];
 for (const kind of [...new Set(LABELS.copies.map((copy) => copy.kind))].sort()) out.push(line(kind, caught.filter(({ copy }) => copy.kind === kind)));
 for (const side of ['even', 'odd']) out.push(line(`function, ${side} half`, caught.filter(({ copy }) => copy.kind === 'function' && half(copy.id) === side)));
+// `earlier` names the detectors that caught a copy before this one: `resemblance` (`clones.mjs`), `doors` (`owners.mjs`).
 out.push(line('caught by an earlier one', caught.filter(({ copy }) => copy.earlier.length > 0)));
 out.push(line('missed by every earlier one', caught.filter(({ copy }) => copy.earlier.length === 0)));
 

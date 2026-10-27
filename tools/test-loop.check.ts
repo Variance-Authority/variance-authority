@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { selectedLines } from '@variance-authority/sense/test-selection';
 import { afterEach, describe, expect, it } from 'vitest';
 import { inSlice } from './slices.mjs';
-import { discovered, idle } from './test-loop.mjs';
+import { advice, discovered, idle } from './test-loop.mjs';
 
 /**
  * `yarn test:loop` starts the unit runner only when the selection keeps a test
@@ -57,5 +57,24 @@ describe('inSlice', () => {
     expect(inSlice('unit', 'packages/cli/src/a.integration.test.ts')).toBe(false);
     expect(inSlice('integration', 'packages/cli/src/a.integration.test.ts')).toBe(true);
     expect(inSlice('unit', 'tools/test-loop.mjs')).toBe(false);
+  });
+});
+
+describe('advice', () => {
+  const made: string[] = [];
+  afterEach(async () => {
+    for (const dir of made.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+
+  it('names what kept the needs list from being read, in one line, instead of failing the loop', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'test-loop-'));
+    made.push(dir);
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    git('init', '-q', '-b', 'main');
+    await writeFile(join(dir, 'a.ts'), 'export const a = 1;\n');
+    git('add', '.');
+    git('-c', 'user.email=a@b.c', '-c', 'user.name=a', 'commit', '-qm', 'one');
+
+    expect(await advice(dir)).toBe('needs: not read, no merge base with origin/main to measure the branch from\n');
   });
 });

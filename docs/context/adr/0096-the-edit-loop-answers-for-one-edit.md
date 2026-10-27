@@ -62,3 +62,18 @@ When the runner starts, its seam computes the same selection again, which costs
 about 0.3 s. `selectSuite` also decodes the whole source index on every call,
 including a call where only prose changed. Both are costs of the read, not of
 the loop, and are fixed in the read.
+
+## Amended 2026-10-28 — the loop names what a new function needs
+
+After the tests, whatever they said, the loop prints the existing functions
+that need what each function new on the branch needs (`tools/needs.mjs`,
+[journal 0077](../journal/0077-a-copy-keeps-what-it-needs.md)). A second
+implementation is cheapest to drop while it is being written, and the loop is
+the one thing an agent runs then.
+
+The list is advice. It never changes the exit code, and what keeps it from
+being read, no merge base with `origin/main` among them, is one line in its
+place. It is imported after `tsc --build` and the tests, so it reads the
+`dist/` they built, and a red compiler still ends the run before it. On the
+measurement machine it adds 0.57 s to a run with its cache warm, and 1.36 s to
+the first run after the reader changes.

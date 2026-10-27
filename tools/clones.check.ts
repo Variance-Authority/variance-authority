@@ -17,8 +17,8 @@ import { BASELINE, clones, clonesIn, paired } from './clones.mjs';
  *
  * A re-typed copy does not match token for token, and `owners.check.ts` covers
  * the short idioms that are re-typed most often. A flow re-typed with new names
- * is caught by neither: `needs.mjs` names it by what it needs, while it is
- * being written, and the author says which neighbour answers.
+ * is caught by neither: `needs.mjs` names the existing functions that need
+ * what it needs, while it is being written.
  */
 
 interface Clone {

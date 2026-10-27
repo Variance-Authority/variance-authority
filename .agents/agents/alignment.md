@@ -27,7 +27,9 @@ next, so the design can be read apart from what the diff made of it:
    it costs per file, per case and per run. Name prior art if there is one.
 2. **Read.** The diff, then the code it touches and what already does the same.
    `yarn needs` names, for each function the branch adds, the existing
-   functions that need what it needs; read each one it names.
+   functions that need what it needs; read each one it names. It reads only
+   functions new on the branch, so a second path written inside an existing
+   function is still yours to find.
 3. **Gaps.** Compare the diff with your design, one Code rule at a time, and
    quote the rule by its name rather than restating it. The rules this reviewer
    owns are the ones about shape: **One implementation**, **Four roles, and

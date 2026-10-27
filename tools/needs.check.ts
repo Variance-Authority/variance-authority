@@ -141,7 +141,8 @@ describe('needs', () => {
     for (const dir of made.splice(0)) await rm(dir, { recursive: true, force: true });
   });
 
-  it('asks about the functions new since the branch left origin/main, and only those', async () => {
+  // A repository whose `origin/main` holds `files`, committed.
+  const repository = async (files: Record<string, readonly string[]>) => {
     const dir = await mkdtemp(join(tmpdir(), 'needs-'));
     made.push(dir);
     const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
@@ -150,18 +151,27 @@ describe('needs', () => {
       await writeFile(join(dir, path), text.join('\n'));
     };
     git('init', '-q', '-b', 'main');
-    await write('packages/workspace/src/manifest.ts', [
-      "import { readFileSync } from 'node:fs';",
-      'export function readManifest(path: string) {',
-      "  const parsed = JSON.parse(readFileSync(path, 'utf8'));",
-      "  if (typeof parsed.name !== 'string') throw new Error(`${path}: no name`);",
-      "  return { name: parsed.name, version: parsed.version ?? '0.0.0', workspaces: parsed.workspaces ?? [] };",
-      '}',
-    ]);
-    await write('packages/cli/src/config.ts', ['export function byWeight(rows: readonly { weight: number }[]) {', '  return rows.length;', '}']);
+    for (const [path, text] of Object.entries(files)) await write(path, text);
     git('add', '.');
     git('-c', 'user.email=a@b.c', '-c', 'user.name=a', 'commit', '-qm', 'one');
     git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+    return { dir, write };
+  };
+
+  const manifest = [
+    "import { readFileSync } from 'node:fs';",
+    'export function readManifest(path: string) {',
+    "  const parsed = JSON.parse(readFileSync(path, 'utf8'));",
+    "  if (typeof parsed.name !== 'string') throw new Error(`${path}: no name`);",
+    "  return { name: parsed.name, version: parsed.version ?? '0.0.0', workspaces: parsed.workspaces ?? [] };",
+    '}',
+  ];
+
+  it('asks about the functions new since the branch left origin/main, and only those', async () => {
+    const { dir, write } = await repository({
+      'packages/workspace/src/manifest.ts': manifest,
+      'packages/cli/src/config.ts': ['export function byWeight(rows: readonly { weight: number }[]) {', '  return rows.length;', '}'],
+    });
 
     // An edit to a function the file already held asks nothing; a function new in it, or in a new file, asks.
     await write('packages/cli/src/config.ts', [
@@ -179,11 +189,52 @@ describe('needs', () => {
 
     expect(said(needs(dir))).toBe(
       [
-        'needs: 1 of 2 new functions need what existing code needs. Call or extend the one that answers, or say in the pull request why it does not:',
+        'needs: 1 of 2 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
         '  packages/cli/src/config.ts:5 loadPackage',
-        '    0.68 packages/workspace/src/manifest.ts:2 readManifest',
+        '    0.63 packages/workspace/src/manifest.ts:2 readManifest',
         '',
       ].join('\n'),
     );
+  });
+
+  it('names a file oxc cannot parse, and reads the rest', async () => {
+    const { dir, write } = await repository({
+      'packages/workspace/src/manifest.ts': manifest,
+      'packages/cli/src/config.ts': ['export function byWeight(rows: readonly { weight: number }[]) {', '  return rows.length;', '}'],
+    });
+    await write('tools/half.mjs', ['export function half(', '']);
+    await write('packages/cli/src/config.ts', [
+      "import { readFileSync as read } from 'node:fs';",
+      'export function byWeight(rows: readonly { weight: number }[]) {',
+      '  return rows.length;',
+      '}',
+      'export const loadPackage = (file: string) => {',
+      '  const json = JSON.parse(read(file, "utf8"));',
+      "  if (typeof json.name !== 'string') throw new Error(`${file}: no name`);",
+      "  return { name: json.name, version: json.version ?? '0.0.0', workspaces: json.workspaces ?? [] };",
+      '};',
+    ]);
+
+    expect(said(needs(dir))).toBe(
+      [
+        'needs: 1 of 1 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
+        '  packages/cli/src/config.ts:5 loadPackage',
+        '    0.63 packages/workspace/src/manifest.ts:2 readManifest',
+        'needs: oxc could not parse tools/half.mjs, so its functions are not read',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('reads one text by the language of each path that holds it, cached or not', async () => {
+    // The same blob is TypeScript at one path and a syntax error at the other.
+    const typed = ['export function count(rows: readonly { id: string }[]): number {', '  return rows.length;', '}'];
+    const { dir } = await repository({ 'packages/a/src/count.ts': typed, 'packages/a/src/count.js': typed });
+
+    const first = said(needs(dir));
+    expect(first).toBe(
+      ['needs: 0 new functions asked about; none needs what an existing one needs', 'needs: oxc could not parse packages/a/src/count.js, so its functions are not read', ''].join('\n'),
+    );
+    expect(said(needs(dir))).toBe(first);
   });
 });

@@ -24,12 +24,11 @@ diff, and says nothing about a file that has not changed.
 **Does existing code already answer it?** `yarn test:loop` ends by naming,
 for each function new on the branch, the existing functions that need what it
 needs: the same calls, fields, strings, types and imports, whatever their shape
-or names (`yarn needs` prints the list alone). A name it lists is one of two
-things, and only you know which: the function that answers, to call or extend
-instead, or one of the same family that answers a different question. The PR
-says which for every name the branch keeps beside its neighbour. A re-typed copy
-shares no run of tokens with the code it copies, so this is the one check that
-sees it while it is still being written.
+or names (`yarn needs` prints the list alone). A name it lists is a lead to
+read, not a verdict: where it answers, call or extend it instead of keeping the
+new one. A re-typed copy shares no run of tokens with the code it copies, so
+this is the one check that sees it while it is still being written. It does not
+see a second path written inside a function that already existed.
 
 **Does it change how a record is carried or read?** Carrying, the case index,
 and the selection and comparison read off them, keep one contract: an

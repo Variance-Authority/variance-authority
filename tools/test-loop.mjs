@@ -12,14 +12,15 @@
  *
  * Last, whatever the tests said: the existing functions that need what a
  * function new on the branch needs (`tools/needs.mjs`), named while the second
- * implementation is still being written.
+ * implementation is still being written. The list is advice: it is imported
+ * after the compiler and the tests, so it reads the `dist/` they built, and a
+ * failure to read it is one line that never changes the exit code.
  */
 
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { needs, remember, said } from './needs.mjs';
 import { inSlice } from './slices.mjs';
 
 const ENV = {
@@ -57,6 +58,18 @@ export async function idle(value, files) {
   return [...selectedLines(value, files), `test:loop: types clean; no unit test runs at 0-1 (${value.skip.size} skipped)`, ''].join('\n');
 }
 
+/** The needs list for `root`'s branch, or one line saying what kept it from being read. */
+export async function advice(root) {
+  try {
+    const { needs, remember, said } = await import('./needs.mjs');
+    const found = needs(root);
+    await remember(found.cache);
+    return said(found);
+  } catch (error) {
+    return `needs: not read, ${String(error?.message ?? error).split('\n')[0]}\n`;
+  }
+}
+
 /** The index brought up to the working tree, then the unit slice's reading at `0-1` and the files it keeps, or what stopped it. */
 async function read(root) {
   const indexed = await run('variance', ['index'], { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -82,9 +95,7 @@ async function main() {
     return types.code;
   }
   const code = await tested(root);
-  const found = needs(root);
-  process.stderr.write(said(found));
-  await remember(found.cache);
+  process.stderr.write(await advice(root));
   return code;
 }
 

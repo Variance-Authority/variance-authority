@@ -17,14 +17,16 @@ the second implementation is still being written.
 ## The labels
 
 `tools/needs-measure.json` holds what was read by hand, before this tool
-existed, from `main`'s first-parent line up to 94a02988b, 1,458 changes:
+existed, from `main`'s first-parent line up to 94a02988b, 1,457 changes:
 
 - 54 copies: a change that wrote a function, a constant or an inline idiom
   while one that answered existed at its base. Each was confirmed by reading
-  the copy and its owner. 44 are functions, 4 constants, 6 inline idioms.
+  the copy and its owner. 44 are function copies, 48 functions between them
+  because four changes wrote two; 4 are constants and 6 inline idioms.
 - 40 judged pairs: a sample of what an earlier probe named on ordinary changes,
   each read and called `reuse` (the existing function answers), `family` (the
-  same question, answered another way) or `unrelated`.
+  same question, answered another way) or `unrelated`. They were sampled from
+  that probe's output, not from this tool's.
 
 ## Method
 
@@ -33,7 +35,10 @@ top-level constant. Its bag holds one token per need, by class: `call:` for
 each callee and its member chain, `str:` and `re:` for literals, `prop:` for
 each field read, `type:` for each type named, `imp:` for each binding imported
 from a package, `word:` for each word of the identifiers inside, and `name:`
-for each word of its own name. A relative import adds nothing a path would not.
+for each word of its own name. The words are `tokensOf`'s, the tokenizer
+`variance ask search` reads names with: camel case and separators split, the
+unsplit compound kept, a trailing `s` dropped from words of four letters or
+more. A relative import adds nothing a path would not.
 
 Each token weighs (1 + log tf) · (log ((N + 1) / (df + 1)) + 1), with the
 document frequency counted over the existing units, so a need every function
@@ -48,7 +53,10 @@ more. Existing means every unit in the working tree that is not new: a
 function gone from the tree is not one to call.
 
 The share of 600 was chosen on the copies whose id hashes to the even half by
-SHA-1. The odd half was not looked at until the threshold was fixed.
+SHA-1. The odd half was not looked at until the threshold was fixed. Only the
+threshold was held out: the token classes, the floor of 5 needs and the
+variants below were compared on every copy, so the odd half's recall is an
+upper bound.
 
 The rate at which it speaks was measured on every fourth change of the same
 line, 365 changes, with the labelled copies left out. Each change is read as a
@@ -67,17 +75,19 @@ it.
 | Caught by an earlier detector | 10 of 15 |
 | Missed by both earlier detectors | 11 of 39 |
 
-On ordinary changes it names a neighbour for 431 of 3,187 new functions, 14%.
-The halves differ by 23 points on 24 and 20 copies, so the recall to expect on
-new copies is somewhere between a third and a half, not the 58% the threshold
-was chosen on.
+On ordinary changes it names a neighbour for 381 of 3,187 new functions, 12%.
+The halves differ by 23 points on 24 and 20 copies, and the odd half is an
+upper bound, so the recall to expect on new copies is a third or less, not the
+58% the threshold was chosen on.
 
 Of the 40 judged pairs, the tool asks about 27; the other 13 are constants and
 one constructor, 8 of them `unrelated`, which is why neither is asked about. Of
-the 27 it names 20: 7 `reuse`, 12 `family`, 1 `unrelated`. 19 of 20 names are
-therefore a function that answers the question or one that answers it another
-way. A `family` name is not a false alarm: two answers to one question are what
-the Alignment reviewer reads for under one implementation.
+the 27 it names 20: 7 `reuse`, 12 `family`, 1 `unrelated`. Among those pairs,
+19 of the 20 names answer the question or answer it another way. The pairs came
+from an earlier probe's output, so how often a name this tool prints is
+unrelated is not measured. A `family` name is the place to look, not a false
+alarm: whether the two answers should be one is the author's to decide, and the
+Alignment reviewer reads for it under one implementation.
 
 The 7 `reuse` pairs it does not name were judged against the change's base. In
 5 of them, the change moved the body into the new function and left the old
@@ -95,11 +105,24 @@ neighbour too, and the share fell below 600.
   than to rank.
 - An owner whose needs moved on: a copy of what a function did two releases
   ago shares little with what it does now.
+- An owner written in Rust. It reads TypeScript and JavaScript only.
+- A second path written inside a function that already existed: only functions
+  new on the branch are asked about.
+- Two new functions on one branch that copy each other. Each is compared with
+  what existed, never with the other.
+- A new function whose name its file already held, a second method of that
+  name in another class of the file: a unit is new by its path and its name.
 
 ## Tried and dropped
 
 - Names alone. The words of a function's name ranked the owner below the full
   bag; a copy renames itself first.
+- The bag without `word:` and `name:`: 9 of the 44 function copies, 2 of the
+  20 held out, speaking for 12% of new functions, and of the judged pairs it
+  named 5 `reuse` and 6 `family`. A copy renames itself, but the words of what
+  it reads stay.
+- An identifier splitter of its own: the same 21 copies, but it spoke for 14%
+  of new functions where `tokensOf` speaks for 12%.
 - A linear rarity, the integer weight the project uses elsewhere: at the same
   threshold it named fewer copies than the log weight and spoke more often.
 - Deviance, after Engler and others (SOSP 2001): among a copy's nearest
@@ -119,8 +142,10 @@ The first runs on this branch named its own functions:
   import, so the family stays.
 - `share` against the CLI's `percent`, which is private to `index-command.ts`
   and prints another format; `half` against `help`'s `digest`, which is
-  SHA-256 while the held-out split is SHA-1 parity. Both are family, and both
-  stay.
+  SHA-256 while the held-out split is SHA-1 parity; `keyOf`, a unit's path and
+  name joined, against the tribunal's object key and the core's component key,
+  each private to its file and built from other parts. All three are family:
+  the answers they need differ, and none of the neighbours can be imported.
 
 ## Prior art
 
@@ -134,10 +159,13 @@ of one specification, which is what `clones.mjs` did here.
 
 ## Cost
 
-On an M4 Max with Node 24.21, the load under the core count, `yarn needs` on
-this branch took 1.26 s with no cache and 0.52 s with one. The cache holds each
-blob's bags, 7.5 MB for the repository. `node tools/needs-measure.mjs` takes
-about 48 s and peaks at about 1.5 GB.
+On an M4 Max with Node 24.21, the load under the core count, the list costs
+`yarn test:loop` 0.57 s with its cache warm and 1.36 s on the first run after
+the reader changes, as the amendment to
+[ADR-0096](../adr/0096-the-edit-loop-answers-for-one-edit.md) records. `yarn
+needs` alone, with Node's start and Yarn's, takes 0.76 s and 1.72 s. The cache
+holds each blob's bags, 8.3 MB for the repository. `node
+tools/needs-measure.mjs` takes about 50 s and peaks at about 1.5 GB.
 
 ```bash
 yarn needs                       # the new functions on this branch and their twins
