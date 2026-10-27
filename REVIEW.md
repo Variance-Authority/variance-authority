@@ -72,5 +72,5 @@ fallback, a shortcut, an early return, a threshold, a cap, a cache, a filter.
 
 ## Skip
 
-What `yarn verify:rules` and CI hold, `dist/`, `yarn.lock`, `backlog/`, and
+What `yarn verify:rules` and CI hold, `dist/`, `yarn.lock`, and
 wording [`docs/AGENTS.md`](docs/AGENTS.md) does not rule on.
