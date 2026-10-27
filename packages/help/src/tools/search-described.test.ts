@@ -351,6 +351,16 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/a-kit · Placement .*Kept with the text it holds\..*\[holds: text\]/u);
   });
 
+  it('weighs a name through its published row when an exported row holds as many other words, though the published doc is longer', async () => {
+    const root = await placedTwice('/** Where a case was put: the file it is in and the text of that file then, kept while the run is read. */\n', '/** At a commit. */\n');
+    const index = searchIndexOf(readHelp(root));
+    const reached = reachedBy(index, 'commit text')?.find((one) => one.name === placementOf(index));
+    expect(reached?.through?.kind).toBe('published');
+    expect(reached?.docLength).toBe(index.publishedDocLength(reached?.through?.row as number));
+    const lengths = [...index.exportedOf(placementOf(index))].map((row) => index.exportedDocLength(row) ?? Infinity);
+    expect(reached?.docLength).toBeGreaterThan(Math.min(...lengths));
+  });
+
   /** A doc of about 260 bytes that holds `text` and not `placement`. */
   const LONG = '/** Where a case was put while the run was read: the file it is in, at the commit it ran at, and the text of that file then, kept for as long as the run is read and dropped when the run is, so that a later read of the same run finds the same file at the same commit. */\n';
   const SHORT = '/** The text it holds. */\n';

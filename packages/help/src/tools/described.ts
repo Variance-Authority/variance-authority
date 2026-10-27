@@ -41,11 +41,11 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * a doc, as a field-weighted ranking weighs a title over a body. A doc word
  * also counts by how long the doc is, BM25's length term with a held word's
  * count of one: a doc of the mean length or shorter counts as two, a longer
- * one less, the mean taken over the reached rows that write a doc, the length that
- * of the one row holding the most, at an equal hold the shorter doc, at an equal
- * length a published row. A long doc holds most words in passing, and a doc's word
- * stays below a name's however short. That sum is multiplied by a coordination
- * factor, see {@link weightOf}. Integers throughout, so the order is counts, never
+ * one less, the mean taken over the reached rows that write a doc, the length
+ * that of the one row a name is weighed through, {@link throughOf}. A long doc
+ * holds most words in passing, and a doc's word stays below a name's however
+ * short. That sum is multiplied by a coordination factor, see {@link weightOf}.
+ * Integers throughout, so the order is counts, never
  * a score, and a tie is a tie (ADR-0057). `N` is everything reached, the names
  * another section shows included, so the weight of a word does not move with what
  * is left. Then the words its name holds, then how many of the question's adjacent
@@ -185,29 +185,14 @@ export function describedNames(
     }
   });
 
-  // The row that adds the most to what the name holds: its words and its doc's
-  // length are the name's, never two rows' words added up and a third row's
-  // length. At an equal hold the shorter doc, which weighs more; at an equal or
-  // unmeasured length a published row, then the first row marked of its kind.
+  // One row's words and doc length are a name's, never two rows' words added
+  // up and a third row's length.
   const through = new Map<number, DescribedRow>();
   for (const [name, rows] of docs) {
-    const own = held.get(name) ?? new Set<number>();
-    let best = own;
-    let bestLength: number | undefined;
-    const ordered = [...rows].sort(([a], [b]) => Number(a.kind === 'exported') - Number(b.kind === 'exported'));
-    for (const [row, positions] of ordered) {
-      const union = new Set([...own, ...positions]);
-      const length = rowDocLength(index, row);
-      const more = union.size > best.size;
-      const shorter =
-        through.has(name) && union.size === best.size && [...union].every((position) => best.has(position)) &&
-        length !== undefined && bestLength !== undefined && length < bestLength;
-      if (!more && !shorter) continue;
-      best = union;
-      bestLength = length;
-      through.set(name, row);
-    }
-    held.set(name, best);
+    const best = throughOf(index, held.get(name) ?? new Set<number>(), rows);
+    if (best === undefined) continue;
+    held.set(name, best.held);
+    through.set(name, best.row);
   }
 
   return [...held].flatMap(([name, positions]): ReachedName[] => {
@@ -284,6 +269,33 @@ export function describedShown(
 /** One row's doc: for a reached name, the doc of the row it is shown through. */
 function rowDoc(index: SearchIndex, row: DescribedRow): string | undefined {
   return row.kind === 'published' ? index.published(row.row).doc : index.exported(row.row).doc;
+}
+
+/**
+ * The row of `rows` a name is weighed, ordered and shown through, with what the
+ * name then holds: the one whose doc adds the most different words to `own`,
+ * those its name holds. Of two that leave it the same set of words, the shorter
+ * measured doc, which weighs more, then a published row, then the first marked.
+ * Of two that leave it as many words but not the same ones, a published row,
+ * then the first marked, whatever their lengths: which word is rarer is counted
+ * over what this choice decides. Absent when no doc adds a word.
+ */
+function throughOf(
+  index: SearchIndex,
+  own: ReadonlySet<number>,
+  rows: ReadonlyMap<DescribedRow, ReadonlySet<number>>,
+): { readonly row: DescribedRow; readonly held: Set<number> } | undefined {
+  let best: { row: DescribedRow; held: Set<number>; length: number | undefined } | undefined;
+  const ordered = [...rows].sort(([a], [b]) => Number(a.kind === 'exported') - Number(b.kind === 'exported'));
+  for (const [row, positions] of ordered) {
+    const held = new Set([...own, ...positions]);
+    const length = rowDocLength(index, row);
+    const was = best?.held ?? own;
+    const same = held.size === was.size && [...held].every((position) => was.has(position));
+    const shorter = best?.length !== undefined && length !== undefined && length < best.length;
+    if (held.size > was.size || (same && shorter)) best = { row, held, length };
+  }
+  return best;
 }
 
 /** The bytes of one row's doc, without decoding it; absent when it has none. */
