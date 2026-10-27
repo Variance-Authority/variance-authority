@@ -119,12 +119,16 @@ export async function coveringAt(
   // Under a stale frame no recorded line is a place in the held text, so no part of the function is one either.
   const placed = placement?.frame !== 'stale';
   const unrun = 'function' in asked && placed && entered() ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
+  // Only a mapped frame tells an edit apart from none: a recorded one holds no edit, and under a stale one no line is placed.
+  const moved = 'function' in asked && placement?.frame === 'mapped' &&
+    functionsUnder(module.blocks, asked.function).some((block) => placement.place(block)?.moved !== false);
   return {
     file,
     target: asked,
     tests: kept,
     ...(stopped === undefined ? {} : { stopped }),
     ...(unrun.length === 0 ? {} : { unrun }),
+    ...(moved ? { moved: true as const } : {}),
     ...stateFor(reached, ranWhileLoading(before ?? index, target, graph), stopped),
     ...grain,
     ...(placement === undefined ? {} : { frame: placement.frame }),
@@ -145,6 +149,8 @@ export interface UnrunPart {
   readonly endLine: number;
   /** `hole` when a case that could have reached it stopped, `unwalked` when every one finished; absent when the record cannot tell. */
   readonly state?: RangeState;
+  /** An edit since the recording touched the part; its lines are the ones it spans now. */
+  readonly moved?: true;
 }
 
 /**
@@ -175,6 +181,7 @@ function unrunParts(
       startLine: where.lines.startLine,
       endLine: where.lines.endLine,
       ...(reach === 'unknown' ? {} : { state: reach }),
+      ...(where.moved ? { moved: true as const } : {}),
     });
   }
   return parts;

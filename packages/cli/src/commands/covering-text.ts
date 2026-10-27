@@ -59,15 +59,24 @@ function frameText(answer: Covering): readonly string[] {
   if (answer.changed !== undefined || file === undefined || staleFile(answer)) return [];
   if (answer.frame === 'stale') {
     const named = answer.target !== undefined && 'function' in answer.target ? answer.target.function : '';
-    return [`${staleLines(answer).gone} Which parts of \`${named}\` no case ran is not said for that reason.`];
+    return [`${staleLines(answer).gone} Which parts of \`${named}\` no case ran, and whether an edit touched it, are not said for that reason.`];
   }
   if (answer.frame === 'recorded') return [`${file} is the text the suite ran over.`];
   if (answer.frame === 'differs') return [`${file} differs from the text the suite ran over.`];
-  if (answer.frame === 'mapped') return [`${file} differs from the text the suite ran over; its lines are placed in the text as it is now.`];
+  if (answer.frame === 'mapped') return [`${file} differs from the text the suite ran over; its lines are placed in the text as it is now.${editedText(answer)}`];
   // A precondition has no recorded line to be the record's.
   const lines = answer.preconditionOf === undefined ? '; its lines are the record\'s' : '';
   if (answer.unheld === true) return [`${file} is not on disk, so no text is held against the one the suite ran over${lines}.`];
   return [`The record holds no digest of ${file}, so whether it is the text the suite ran over is not known.`];
+}
+
+/** Under a mapped frame, whether the edit touched the asked function: ` An edit since the recording touched \`pay\`: …`. */
+function editedText(answer: Covering): string {
+  if (answer.target === undefined || !('function' in answer.target)) return '';
+  const named = `\`${answer.target.function}\``;
+  return answer.moved === true
+    ? ` An edit since the recording touched ${named}: its cases ran another text of it.`
+    : ` No edit since the recording touched ${named}: its text is the one its cases ran.`;
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */
@@ -125,9 +134,10 @@ function unrunText(parts: readonly UnrunPart[] | undefined): readonly string[] {
   return [`No case ran ${parts.length === 1 ? 'a part' : `${parts.length} parts`} of it: ${named.join(', ')}.`];
 }
 
-/** A part as a sentence names it: a part of the function's own body by its kind, a nested function by its name too. */
+/** A part as a sentence names it: a part of the function's own body by its kind, a nested function by its name too, each `edited` when an edit touched it. */
 function unrunPart(part: UnrunPart): string {
-  return part.name === undefined ? `the ${part.kind}` : `${part.kind} ${part.name}`;
+  const kind = part.moved === true ? `edited ${part.kind}` : part.kind;
+  return part.name === undefined ? `the ${kind}` : `${kind} ${part.name}`;
 }
 
 /** Which asked lines the record holds at file grain, and which it has no place for. */

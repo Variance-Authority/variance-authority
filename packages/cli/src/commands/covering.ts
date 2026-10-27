@@ -139,6 +139,13 @@ export interface Covering {
    * line is a place in the held text.
    */
   readonly unrun?: readonly UnrunPart[];
+  /**
+   * With `--function` under a `mapped` frame: an edit since the recording
+   * touched the function, or removed it, so its cases ran another text of it.
+   * Absent under `mapped` when no edit touched it; under `recorded` nothing was
+   * edited, and under `stale` no recorded line is a place to tell.
+   */
+  readonly moved?: true;
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
   /**

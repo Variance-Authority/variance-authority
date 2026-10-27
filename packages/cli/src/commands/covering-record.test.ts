@@ -179,6 +179,28 @@ describe('a covering answer says whether the asked text is the one the suite ran
     expect(text).not.toContain(', placed in the text as it is now');
   });
 
+  it('says of an asked function in an edited file whether the edit touched it, and marks each part no case ran that it touched', async () => {
+    const { at } = await checkout();
+    await writeFile(join(at, 'src/pay.ts'), `// fees are charged by the caller\n${PAY}`);
+    const untouched = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+
+    expect(untouched.json).toMatchObject({ frame: 'mapped', unrun: [{ kind: 'branch', startLine: 3, endLine: 5 }] });
+    expect(untouched.json).not.toHaveProperty('moved');
+    expect(untouched.json['unrun']).not.toMatchObject([{ moved: true }]);
+    expect(untouched.text).toContain('its lines are placed in the text as it is now. No edit since the recording touched `pay`: its text is the one its cases ran.\n');
+    expect(untouched.text).toContain('No case ran a part of it: the branch at lines 3-5.\n');
+
+    await writeFile(join(at, 'src/pay.ts'), PAY.replace('return 0;', 'return -1;'));
+    const edited = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+    let refs = '';
+    await main(['covering', '--root', at, '--file', 'src/pay.ts', '--function', 'pay', '--format', 'refs'], { out: (said) => (refs += said), err: () => {} });
+
+    expect(edited.json).toMatchObject({ frame: 'mapped', moved: true, unrun: [{ kind: 'branch', startLine: 2, endLine: 4, moved: true }] });
+    expect(edited.text).toContain('its lines are placed in the text as it is now. An edit since the recording touched `pay`: its cases ran another text of it.\n');
+    expect(edited.text).toContain('No case ran a part of it: the edited branch at lines 2-4.\n');
+    expect(refs).toMatch(/src\/pay\.ts function pay( \w+)? edited: .*; no case ran 2-4 branch( \w+)? edited$/mu);
+  });
+
   it('names the record a file\'s text could not be found for', async () => {
     const { at, commit } = await checkout({ ranOver: `// never committed\n${PAY}` });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
@@ -194,7 +216,7 @@ describe('a covering answer says whether the asked text is the one the suite ran
     expect(json).toMatchObject({ at: commit, frame: 'stale', target: { function: 'pay' }, tests: [{ id: 'p' }] });
     expect(json).not.toHaveProperty('unrun');
     expect(text).toContain('charges once [p]\n');
-    expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, and that text could not be found, so no recorded line is a place in it. Which parts of \`pay\` no case ran is not said for that reason.\n`);
+    expect(text).toContain(`src/pay.ts is not the text the suite ran over at ${sha(commit)}, and that text could not be found, so no recorded line is a place in it. Which parts of \`pay\` no case ran, and whether an edit touched it, are not said for that reason.\n`);
   });
 
   it('frames the file by the digest of a row the build did not instrument', async () => {
