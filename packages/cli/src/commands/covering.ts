@@ -61,7 +61,8 @@ import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { staleAnswer } from './covering-stale.js';
-import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
+import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
+import { behindHead, recordCommitOf } from './covering-behind.js';
 import { diffSince } from './since.js';
 import { coveringAt, countOf, loadersOf, type UnrunPart } from './covering-at.js';
 import { graphOnce, type Graph } from './gap-selection.js';
@@ -166,8 +167,13 @@ export interface Covering {
   readonly where?: CoveringWhere;
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
-  /** The commit the record stands at, when it says. The diff is measured from it. */
+  /** The commit the record stands at, when it says. A diff under `--since` is measured from it. */
   readonly at?: string;
+  /**
+   * With `at`: how many commits `HEAD` is past it, negative when the record is
+   * newer. Absent with `at` when this clone cannot count (`covering-behind.ts`).
+   */
+  readonly distance?: number;
   /**
    * What a narrowing did, when one was asked for.
    *
@@ -220,8 +226,11 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     return { index: kept.index, files: read.files, before: index };
   };
   let answer: Covering;
+  let at: string | undefined;
   try {
-    answer = await ask(request, reader, graph, (tests) => {
+    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
+    at = await recordCommitOf(request, from);
+    answer = await ask(request, reader, graph, { from, at }, (tests) => {
       reached = tests;
     });
   } catch (error) {
@@ -258,6 +267,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   const gap = whole === undefined ? undefined : await answerGap({ ...answer, ...(files === undefined ? {} : { files }) }, whole, source);
   return {
     ...answer,
+    ...(await behindHead(request.root, answer.at ?? at)),
     ...(probes === undefined ? {} : { probes }),
     ...(files === undefined ? {} : { files }),
     ...(hops?.unread === undefined ? {} : { hopsGap: hops.unread }),
@@ -289,6 +299,7 @@ async function gapOf(request: ParsedCovering, from: string, index: ExecutionInde
 }
 
 /**
+ * @param record The record the question reads, and the commit it was made at when it says.
  * @param reach Handed the cases the question reached before `--where`
  * narrowed them, read off the same graph, when it narrowed them.
  */
@@ -296,18 +307,15 @@ async function ask(
   request: ParsedCovering,
   readIndex: IndexReader,
   graph: Graph,
+  record: { readonly from: string; readonly at: string | undefined },
   reach?: (tests: readonly ExecutionTest[]) => void,
 ): Promise<Covering> {
-  const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
-  const record = await snapshotFor(request);
+  const { from, at } = record;
 
   if (request.since !== undefined) {
     // The snapshot's commit is the coordinate of what was recorded beside it,
     // and of nothing else: a journey file handed in by path names no commit, and
     // diffing it from the snapshot's would land its hunks on another text.
-    const at = record !== undefined && from.startsWith(record)
-      ? await recordedCommit(record)
-      : undefined;
     const changed = await changeSince(request.since, request.root, at);
     const { index, before } = await readIndex(from, changed);
     // The graph carries the mocks: a case whose file mocked the changed module
@@ -346,7 +354,6 @@ async function ask(
     if (held === undefined && keepsCases(from)) throw unreadPreconditions(file, from);
     // Git says whether the commit the record was made at held the file: a
     // record older than the file is not a run that never loaded it.
-    const at = record !== undefined && from.startsWith(record) ? await recordedCommit(record) : undefined;
     if (at !== undefined) {
       const then = existedAt(request.root, at, file);
       if (then === false) throw addedSince(file, from, at);
@@ -362,8 +369,8 @@ async function ask(
     return staleAnswer(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), from, near, graph, ...(placement.at === undefined ? {} : { at: placement.at }) }, reach);
   }
 
-  const at = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach);
-  if (at !== undefined) return at;
+  const narrower = await coveringAt(request as CoveringAt, { index, ...(before === undefined ? {} : { before }), module, from, ...(placement === undefined ? {} : { placement }), near, graph }, reach);
+  if (narrower !== undefined) return narrower;
 
   const loaders = await loadersOf(before ?? index, file, graph);
   // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.

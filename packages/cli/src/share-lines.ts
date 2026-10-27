@@ -323,6 +323,15 @@ export async function distanceFrom(
   if (base === undefined) return undefined;
   // Git named the base, so the clone holds it: a record at it is no distance.
   if (commit === base) return 0;
+  return distanceBetween(commit, base, cwd);
+}
+
+/**
+ * Commits between `commit` and `base`, any revision git reads: positive when
+ * `commit` is older, negative when it is newer. Absent when this clone cannot
+ * count, or when neither descends from the other.
+ */
+export async function distanceBetween(commit: string, base: string, cwd: string = process.cwd()): Promise<number | undefined> {
   const [behind, ahead] = await Promise.all([countPast(cwd, commit, base), countPast(cwd, base, commit)]);
   if (behind === undefined || ahead === undefined) return undefined;
   if (ahead === 0) return behind;

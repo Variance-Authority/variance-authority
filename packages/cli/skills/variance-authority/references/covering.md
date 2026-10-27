@@ -210,6 +210,12 @@ it, and in a run of lines it is named in `written` and left out. That is not
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the
 same way.
 
+Every answer read from a record names the commit the record was made at and
+how many commits `HEAD` is past it: `The record was made at 1fa19f610e2a, 3
+commit(s) behind HEAD.` in text, `at` and `distance` in JSON. A clone that
+cannot count the two apart, a shallow one or one without the record's commit,
+keeps `at` and leaves `distance` out.
+
 ## Ask about the whole change at review time
 
 ```bash

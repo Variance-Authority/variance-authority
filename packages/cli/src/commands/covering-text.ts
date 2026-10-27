@@ -24,13 +24,14 @@ import { heldText } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 import { evidenceGapText } from './evidence-gap.js';
 import { staleLines } from './covering-stale.js';
+import { behindText } from './covering-behind.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
+  return `${[...probesText(answer), ...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...hopsText(answer), ...motionText(answer.motion), ...behindText(answer), ...(answer.gap === undefined ? [] : [evidenceGapText(answer.gap)])].join('\n')}\n`;
 }
 
 /** Why `--hops` printed no distance, said under the files it would have measured. */

@@ -487,14 +487,14 @@ export function describeMiss(miss: MainlineMiss, holds?: readonly string[]): str
 }
 
 /**
- * How far the record is from this checkout, in words.
- *
- * The one signal an operator has that publishing has stopped: a mainline
- * answering from forty commits back is a mainline nothing has pushed to since.
+ * How far the record is from `base`, in words: the merge base unless the caller
+ * counted to another commit, as `covering` counts its record to `HEAD`. The one
+ * signal an operator has that publishing has stopped: a mainline answering from
+ * forty commits back is a mainline nothing has pushed to since.
  */
-export function describeDistance(distance: number | undefined): string {
+export function describeDistance(distance: number | undefined, base = 'the merge base with this checkout'): string {
   if (distance === undefined) return 'at a distance this clone cannot count';
-  if (distance === 0) return 'at the merge base with this checkout';
-  if (distance > 0) return `${String(distance)} commit(s) behind the merge base with this checkout`;
-  return `${String(-distance)} commit(s) past the merge base with this checkout`;
+  if (distance === 0) return `at ${base}`;
+  if (distance > 0) return `${String(distance)} commit(s) behind ${base}`;
+  return `${String(-distance)} commit(s) past ${base}`;
 }
