@@ -129,7 +129,8 @@ it('appends each kind of change and answers as a refresh from nothing does', asy
   put(root, kit('alpha', '2.0.0', 'export declare function one(): void;\nexport declare function three(): void;\n'));
   const later = new Date(Date.now() + 5000);
   utimesSync(join(root, 'packages/app/node_modules/alpha/package.json'), later, later);
-  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  // The version change recomputes `alpha` alone: `beta`, under the same manifest, is reused.
+  expect(await refreshDependencyLexicon(root)).toMatchObject({ unchanged: false, reused: 1 });
   await agrees('an installed version changed');
 
   put(root, { 'packages/app/package.json': manifest({ alpha: '2.0.0' }) });

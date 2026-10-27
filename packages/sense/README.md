@@ -2310,7 +2310,7 @@ cases. `cases.last` names the commit those cases were recorded at under
 `before`, until a run at the same commit runs a file again. A share, a seed or
 a fetch carries the index and drops those two, because the run they name is
 not the taker's. `caseMotion(base, now, { diff })` compares two indexes region
-by region and names each region whose cases moved: lost, hidden, thinned or
+by region and names each region whose cases changed: lost, hidden, thinned or
 gained. `diff` is the `-U0` diff from the text `base` was recorded over to the
 text `now` was, by file, and it is the only way a region is paired: it carries
 each region at the base to the lines it stands on now. `relations` lets it name the stopped case behind a hidden region, and
