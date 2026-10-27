@@ -37,16 +37,17 @@ export type StatedCoveringChange = Omit<CoveringChange, 'regions'> & { readonly 
  * Where the reading came from, said once at the top when the caller knows.
  *
  * The MCP tool is handed an index by its host and cannot honestly name a path
- * or a ref; the CLI read a file at a commit and can. So every field is optional
- * and an absent one prints nothing, rather than the caller passing a placeholder
- * that reads like an answer.
+ * or a ref; the CLI read a file and can. So every field is optional, and an
+ * absent `since` or `from` prints nothing, rather than the caller passing a
+ * placeholder that reads like an answer. A record read from a path names the
+ * commit it stands at or none, and the heading says which.
  */
 export interface CoveringChangeHeading {
   /** The ref the diff was taken against. */
   readonly since?: string;
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from?: string;
-  /** The commit the record stands at. The diff is measured from it. */
+  /** The commit the record stands at. The diff is measured from it. Absent beside `from` when the record names none. */
   readonly at?: string;
 }
 
@@ -132,7 +133,7 @@ export function formatCoveringChange(
  */
 function source(heading: CoveringChangeHeading): readonly string[] {
   if (heading.from === undefined) return [];
-  return [`Read from ${heading.from}${heading.at === undefined ? '' : `, recorded at ${heading.at}`}.`];
+  return [`Read from ${heading.from}${heading.at === undefined ? '; the record names no commit' : `, recorded at ${heading.at}`}.`];
 }
 
 function count(of: number, noun: string): string {

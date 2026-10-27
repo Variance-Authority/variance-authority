@@ -393,4 +393,15 @@ describe('a covering answer says where and when the test files it names last ran
     expect(text).toContain(`Read from ${String(json['from'])}, recorded at ${commit!}.\n`);
     expect(text).toContain(`The test file named here last ran at ${sha(commit)}, a commit made 3 days ago; ${unplaced(commit)}.\n`);
   });
+
+  it('says in the review reading\'s heading that the record names no commit', async () => {
+    const { at } = await checkout({ recordedAt: null });
+    await writeFile(join(at, 'src/pay.ts'), PAY.replace('return amount;', 'return amount + 0;'));
+    const cwd = process.cwd();
+    process.chdir(at);
+    const { text, json } = await ask(at, '--since', 'HEAD').finally(() => process.chdir(cwd));
+
+    expect(json).not.toHaveProperty('at');
+    expect(text).toContain(`Read from ${String(json['from'])}; the record names no commit.\n`);
+  });
 });
