@@ -63,7 +63,7 @@ interface Fixture {
    * A second commit, at `committed` ms, that the record names: it writes `pay`
    * to `src/pay.ts` when given, and `src/other.ts` otherwise.
    */
-  readonly then?: { readonly committed: number; readonly pay?: string };
+  readonly second?: { readonly committed: number; readonly pay?: string };
   /** The runs record written beside the snapshot, given the first commit and the record's. */
   readonly runs?: (first: string, recorded: string | undefined) => unknown;
 }
@@ -92,10 +92,10 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
   git(['add', '.']);
   git(['commit', '--quiet', '-m', 'pay'], options.committed ?? Date.now() - (3 * DAY + HOUR));
   const first = git(['rev-parse', 'HEAD']);
-  if (options.then !== undefined) {
-    await (options.then.pay === undefined ? write('src/other.ts', 'export const other = 1;\n') : write('src/pay.ts', options.then.pay));
+  if (options.second !== undefined) {
+    await (options.second.pay === undefined ? write('src/other.ts', 'export const other = 1;\n') : write('src/pay.ts', options.second.pay));
     git(['add', '.']);
-    git(['commit', '--quiet', '-m', 'then'], options.then.committed);
+    git(['commit', '--quiet', '-m', 'second'], options.second.committed);
   }
   const commit = options.recordedAt === null ? undefined : options.recordedAt ?? git(['rev-parse', 'HEAD']);
 
@@ -106,7 +106,7 @@ async function checkout(options: Fixture = {}): Promise<{ readonly at: string; r
   await mkdir(dirname(file), { recursive: true });
   const pay = {
     file: 'src/pay.ts',
-    sourceDigest: digestString(options.ranOver ?? options.then?.pay ?? PAY),
+    sourceDigest: digestString(options.ranOver ?? options.second?.pay ?? PAY),
     instrumented: options.row === undefined,
     // A module has regions exactly when the build instrumented it.
     blocks: options.row !== undefined ? [] : [{
@@ -282,7 +282,7 @@ describe('a covering answer says where and when the test files it names last ran
     const now = Date.now();
     const { at, commit, first } = await checkout({
       committed: now - (9 * HOUR + 30 * MINUTE),
-      then: { committed: now - (6 * MINUTE + 30_000) },
+      second: { committed: now - (6 * MINUTE + 30_000) },
       runs: (base, recorded) => ({
         commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1,
         files: ['src/other.test.ts'], standing: [{ commit: base, files: ['src/pay.test.ts'] }],
@@ -301,7 +301,7 @@ describe('a covering answer says where and when the test files it names last ran
     const edited = `// fees are charged by the caller\n${PAY}`;
     const { at, commit, first } = await checkout({
       committed: now - (9 * HOUR + 30 * MINUTE),
-      then: { committed: now - (6 * MINUTE + 30_000), pay: edited },
+      second: { committed: now - (6 * MINUTE + 30_000), pay: edited },
       runs: (base, recorded) => ({
         commit: recorded, over: base, first: iso(now - 6 * MINUTE), latest: iso(now - 6 * MINUTE), runs: 1,
         files: ['src/other.test.ts'], standing: [{ commit: base, files: ['src/pay.test.ts'] }],
