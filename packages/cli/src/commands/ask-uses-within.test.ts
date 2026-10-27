@@ -179,6 +179,31 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(out).toMatch(/^Who imports it is read from the source index, and no source index is published; run `variance index`\.$/m);
   });
 
+  it('answers `uses` and `symbol` alike for a name its package entry passes on and only its own package imports', async () => {
+    // Declared in one file, published by `export … from` in the entry, and
+    // imported by a file beside it: both answers call the name exported, and
+    // neither calls it kept to its file.
+    checkout({
+      'apps/app/src/hello.ts': 'export const hello = 1;\n',
+      'packages/lib/src/greet.test.ts': "import { greet } from './greet.js';\nexport const greeted = greet('test');\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const uses = await run(['ask', 'uses', '--name', 'greet']);
+    expect(uses.err).toBe('');
+    expect(uses.code).toBe(EXIT_CLEAN);
+    expect(uses.out).toContain('`greet` [function] is imported in 1 place.');
+    expect(uses.out).toMatch(/^packages\/lib\/src\/greet\.test\.ts:1 — @acme\/lib$/m);
+    expect(uses.out).not.toContain('not exported');
+
+    const symbol = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(symbol.err).toBe('');
+    expect(symbol.code).toBe(EXIT_CLEAN);
+    expect(symbol.out).toContain("import { greet } from '@acme/lib';");
+    expect(symbol.out).toContain('declared at packages/lib/src/greet.ts:1');
+    expect(symbol.out).not.toContain('not exported');
+  });
+
   it('counts the imports of an unpublished name through a barrel once, under the file that declares it', async () => {
     checkout({
       'packages/lib/src/internal/index.ts': "export { roundTax } from './math.js';\n",

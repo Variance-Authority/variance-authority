@@ -4,7 +4,7 @@ import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, entriesNamed, isPackage, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
-import { block } from './format.js';
+import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
@@ -13,6 +13,7 @@ import { uses } from './uses.js';
 import { type Members, membersOf, membersStop } from './members.js';
 import { boundOf, exportedRows, originOf } from './passed-on.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
+import { type Site, sureness, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -159,25 +160,20 @@ export const symbol: Tool<Help> = {
     const doors = found.map(([published, held]) => specifierOf(published, held));
     const also = doors.length > 1 ? [`\nAlso published by: ${doors.slice(1).join(', ')}`] : [];
 
-    // What the name is, and then — once, in one line — that the other half of
-    // the question has an answer. Naming the tool rather than printing the sites
-    // is the budget: most callers want the signature and stop, and the ones who
-    // want the import sites want them ranked against a file this tool never asked
-    // for.
-    const written = first[2].sites.length;
-    const shown =
-      written === 0
-        ? []
-        : [`\n\`${spell.tool(uses)}\` names the ${written} ${written === 1 ? 'place' : 'places'} another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.`];
-
-    // The imports within a package are the source index's, which the Help value does not record.
-    const declaring = [...new Set(found.map(([, , entry]) => entry.at))];
-    const within = importsOf(invocation?.root, declaring, name);
-    const renamed = renamedSites(name, [...found.flatMap(([, , entry]) => entry.sites), ...('uses' in within ? within.uses : [])]);
+    // The name, then one line naming the tool that lists its sites: callers
+    // who want them want them ranked against a file this tool never asked for.
+    // Inside is the declaring file's package, which a re-exporting door is not.
+    const listed = usesOf(help, input, invocation?.root, spell);
+    const owner = help.exported.find((held) => held.at === first[2].at)?.by ?? first[0].name;
+    // One partition of the sites `uses` lists feeds the header and the closing line.
+    const split = sureness(listed.sites);
+    const may = [...split.off, ...split.whole];
+    const shown = listedLine(spell.tool(uses), owner, split.certain, may.length > 0, listed.unread);
+    const renamed = renamedSites(name, listed.sites);
 
     const entry = first[2];
     return [
-      [block(first[0], first[1], entry), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'),
+      [block(first[0], first[1], entry, { may, imported: split.certain.length > 0 }), ...memberRows(invocation?.root, entry.at, entry.name, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n'),
       ...others,
       ...declared,
       ...aliased,
@@ -303,6 +299,30 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
     ].join('\n');
   });
   return blocks.join('\n\n');
+}
+
+/**
+ * The line that sends the asker to `uses`: how many places import the name,
+ * those from other packages and those inside `owner`, each counted, and that
+ * it lists the places that may read it, which the header counts. The sites are
+ * the ones `uses` lists, counted as it counts them. An index that did not read
+ * leaves the ones inside uncounted, and says why.
+ */
+function listedLine(tool: string, owner: string, certain: readonly Site[], may: boolean, unread: string | undefined): readonly string[] {
+  if (certain.length === 0 && !may && unread === undefined) return [];
+  const inside = certain.filter((site) => site.by === owner).length;
+  const outside = certain.length - inside;
+  const parts = [
+    ...(outside === 0 ? [] : [`${outside} from ${outside === 1 ? 'another package' : 'other packages'}`]),
+    ...(inside === 0 ? [] : [`${inside} inside ${owner}`]),
+  ];
+  const left = unread === undefined ? '' : ` The imports inside ${owner} are read from the source index, and ${unread}.`;
+  if (certain.length === 0) {
+    const where = may ? 'names no place that imports this, and lists the ones that may read it' : 'names no place another package imports this from';
+    return [`\n\`${tool}\` ${where}.${left}`];
+  }
+  const also = may ? ', and the ones that may read it' : '';
+  return [`\n\`${tool}\` names the ${plural(certain.length, 'place')} that ${certain.length === 1 ? 'imports' : 'import'} this: ${parts.join(' and ')}, nearest to a file you name first${also}.${left}`];
 }
 
 /**

@@ -359,7 +359,7 @@ that three pages render identically under three different components is three
 renderings, because no boundary sits on it.
 
 `nodeClosures(root)` hashes every node of a snapshot's tree over everything under
-it, the way [`closureOf`](../packages/sense/src/tree.ts) hashes a file over its
+it, the way [`closureOf`](../packages/core/src/relate/merkle.ts) hashes a file over its
 input closure: bottom-up, so a subtree's digest is a function of its children's
 digests and never of where the subtree sits. Two digests per node:
 
