@@ -711,6 +711,9 @@ stand in:
   No ranges are printed, because ranges at the wrong numbers would be read as
   real. The answer names the cases that ran code in the file, and says that
   which of them ran the line you asked about cannot be said.
+- `differs`: the text changed, in a file test files hold as a precondition,
+  which has no recorded lines to carry. It is `recorded` only when every test
+  file holding it ran the text you hold.
 
 ```bash
 variance covering --file src/checkout/total.ts --text - --format json < buffer.ts
@@ -721,10 +724,30 @@ standard input, which is how an editor queries a buffer you have not saved.
 `--line` then names a line in that text. A line the edit wrote is answered
 with no case, and the answer says the edit wrote it.
 
-The answer closes with one sentence on its frame and its age: the commit the
-record was made at, and how long ago that commit was committed. It counts no
-commits since, because a commit to other code says nothing about your file.
-In JSON the commit is `at` and its time is `committedAt`.
+The answer ends with how far it holds for the file you asked about: its frame,
+then where and when the test files it names last ran.
+
+```text
+src/pay.ts differs from the text the suite ran over; its lines are placed in the text as it is now. An edit since the recording touched `pay`: its cases ran another text of it.
+The test file named here last ran at 1fa19f610e2a, a commit made 9 hours ago, over another text of src/pay.ts, which changed between that commit and 9cf65a4e2631.
+```
+
+A `stale` answer about the file or a line opens with its frame instead, since
+the frame is why it gives no line. With `--function`, a `mapped` frame adds
+whether an edit touched the function, and a part no case ran that an edit
+touched is printed as `edited`. Under a `stale` frame `--function` names the
+function's cases and no parts, since no recorded line is a place in your text.
+A file the record holds no digest of is printed as not known, and one that is
+not on disk is answered in the record's lines.
+
+The second line is read from the runs record beside the snapshot, one test file
+at a time. A run that record holds is dated by when it landed. Any other is
+read as having run at its commit's time, and the line prints it as a commit's.
+Of the files changed between where a test file ran and the record's commit,
+only the ones you asked about are named. In JSON, `at` is the record's commit,
+`ran` lists one stand per commit the named test files last ran at, `moved`
+marks a function or an unrun part an edit touched, and `unheld` a file that is
+not on disk.
 
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number
@@ -781,6 +804,11 @@ The diff is measured from the commit the record was written at rather than from
 the merge base with `<ref>`, since the index's line ranges are in that commit's
 coordinates and nothing else's. Record before you read: an index behind the tree
 answers fluently about regions that have moved.
+
+Under the regions, the answer prints where and when the test files it names
+last ran, as an answer about one file does. When the record names no commit,
+the `Read from` line ends `; the record names no commit.` in place of
+`recorded at`.
 
 #### What a change moved
 

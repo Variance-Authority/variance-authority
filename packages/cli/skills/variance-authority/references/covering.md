@@ -203,6 +203,9 @@ The answer's `frame` names the coordinates its numbers are in:
 - `stale` — the recorded text could not be found, so no ranges are given. The
   answer names the cases that ran code in the file and says that which of them
   ran your line cannot be said.
+- `differs` — the text changed, in a file test files hold as a precondition,
+  which has no recorded lines to carry. It is `recorded` only when every test
+  file holding it ran the text you hold.
 
 A `--line` your edit wrote is answered with no case, because no case has run
 it, and in a run of lines it is named in `written` and left out. That is not
@@ -210,20 +213,39 @@ it, and in a run of lines it is named in `written` and left out. That is not
 `variance select` runs for the file, under the suite's own `relations`, `ignore` and `before`. A `stale` frame and a `moved` range end the
 same way.
 
-Every answer about a file closes with one sentence on how fresh it is for your
-question: whether the text you asked about is the one the suite ran over, and
-the commit the record was made at with how long ago it was committed, as in
-`src/pay.ts differs from the text the suite ran over at 1fa19f610e2a, committed
-3 days ago; its lines are placed in the text as it is now.` A file that is not
-on disk is answered in the record's lines, and for a file the record holds no
-digest of, such as one the run loaded without instrumenting, the sentence says
-that whether it is the text the suite ran over is not known. In JSON, `at` is
-the record's commit and `committedAt` the UTC time it was committed, left out
-when this clone does not hold the commit; `frame` is on `--function` answers
-too, and `unheld: true` marks a file that is not on disk. No count of commits
-since the record is given, since a commit to other code says nothing about your
-file and `frame` already says whether this one changed. Under a `stale` frame
-`--function` names the function's cases and not the parts no case ran.
+## Read how far the answer holds
+
+Every answer about a file, a line or a function ends with its frame, then where
+and when the test files it names last ran:
+
+```text
+src/pay.ts differs from the text the suite ran over; its lines are placed in the text as it is now. No edit since the recording touched `pay`: its text is the one its cases ran.
+The 2 test files named here last ran at 2 commits, from 9cf65a4e2631, a commit made 3 days ago, to 1fa19f610e2a, in a run that landed 40 minutes ago; 1 of them ran over another text of src/pay.ts, which changed between where they ran and 1fa19f610e2a.
+```
+
+- The frame line is the `frame` in words. A `stale` answer about the file or a
+  line opens with it instead, as the reason it gives no line. With
+  `--function` under `mapped` the line adds whether an edit touched the
+  function, and a part no case ran that an edit touched is printed as `edited`.
+  Under `stale` `--function` names the function's cases and no parts, since no
+  recorded line is a place in your text.
+- A file the record holds no digest of is printed as not known, and a file not
+  on disk is answered in the record's lines.
+- The ran line is read per test file from the runs record beside the snapshot.
+  A run that record holds is dated by when it landed. Any other is read as
+  having run at its commit's time, and the line prints it as a commit's. Only
+  the files you asked about are checked for a change between where a test file
+  ran and the record's commit, so a test file that ran over another text of
+  yours is named. `--since` prints the same line under the regions, and its
+  `Read from` line ends `; the record names no commit.` when the record names
+  none.
+
+In JSON, `at` is the record's commit and `ran` the stands: each a `commit`, its
+`tests`, and `landed`, `committedAt`, `held: false` or `unread` for its time,
+with `otherText` naming the asked files that changed since it; or `tests` and
+`unread` when where they ran cannot be read. `moved: true` marks a `--function`
+answer and each `unrun` part an edit touched, and `unheld: true` a file that is
+not on disk.
 
 ## Ask about the whole change at review time
 
