@@ -14,9 +14,9 @@ import { answerSearch, searchIndexOf } from './search.js';
  * exported from more than one file, or published and also exported — is
  * weighed, ordered and shown through one of them, never through several rows'
  * docs added up: the row whose doc adds the most different words to its name's,
- * then the shorter doc, then a published row, then the first marked, and when
- * no doc adds a word, the row it is shown through. In an area it is counted,
- * weighed and ordered only through the rows the area holds.
+ * then the shorter doc, then a published row, then the doc's text and the
+ * row's path, and when no doc adds a word, the row it is shown through. In an
+ * area it is counted, weighed and ordered only through the rows the area holds.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -145,6 +145,42 @@ describe('which row a described name is weighed, ordered and shown through', () 
     const shown = { through: 'exported', words: ['commit', 'text'], line: expect.stringMatching(/packages\/c-kit\/src\/inner\.ts.*The commit text\..*\[holds: commit, text\]/u) };
     expect(await placed(LONG, SHARD)).toEqual(shown);
     expect(await placed(SHARD, LONG)).toEqual(shown);
+  });
+
+  /** Each described row for `query` as its name, the row it is shown through, its doc and the words it holds. */
+  const describedBy = (root: string, query: string): unknown =>
+    searchNames(searchIndexOf(readHelp(root)), { query }).described?.shown.map((one) =>
+      [one.name, 'specifier' in one ? one.specifier : one.at, 'summary' in one ? one.summary : undefined, one.words]);
+  // Both docs are 31 bytes and add two words of three; `shard` is common, so the row decides where `Placement` sorts.
+  const TEXT = '/** Kept at a commit with its text. */\n';
+  const SHARDS = ['alpha', 'beta', 'gamma'].map((name) => `/** One shard. */\nexport const ${name} = 1;\n`).join('');
+
+  it('weighs and shows a name published twice through the same row whatever its packages are called, at a tie on all else', async () => {
+    const placed = async (first: string): Promise<unknown> => describedBy(await kits({
+      [first]: { 'index.ts': `${TEXT}export interface Placement {\n  readonly at: string;\n}\n` },
+      'b-kit': { 'index.ts': '/** Kept at a commit for one shard. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
+      'c-kit': { 'index.ts': `${SHARDS}${TEXT}export interface Other {\n  readonly at: string;\n}\n` },
+    }), 'commit text shard');
+    const named = await placed('a-kit');
+    expect(named).toEqual(await placed('z-kit'));
+    expect((named as unknown[]).slice(0, 2)).toEqual([
+      ['Other', 'c-kit', 'Kept at a commit with its text.', ['commit', 'text']],
+      ['Placement', 'b-kit', 'Kept at a commit for one shard.', ['commit', 'shard']],
+    ]);
+  });
+
+  it('weighs and shows a name exported twice through the same row whatever its files are called, at a tie on all else', async () => {
+    const placed = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      [first]: `${TEXT}export interface Placement {\n  readonly at: string;\n}\n`,
+      'src/b.ts': '/** Kept at a commit for one shard. */\nexport interface Placement {\n  readonly at: string;\n}\n',
+      'src/other.ts': `${SHARDS}${TEXT}export interface Other {\n  readonly at: string;\n}\n`,
+    }), 'commit text shard');
+    const named = await placed('src/a.ts');
+    expect(named).toEqual(await placed('src/c.ts'));
+    expect((named as unknown[]).slice(0, 2)).toEqual([
+      ['Other', 'src/other.ts', 'Kept at a commit with its text.', ['commit', 'text']],
+      ['Placement', 'src/b.ts', 'Kept at a commit for one shard.', ['commit', 'shard']],
+    ]);
   });
 
   it('weighs and shows a name through the shorter of two rows whose docs hold the same words, though the longer is published', async () => {

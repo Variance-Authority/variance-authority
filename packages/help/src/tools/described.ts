@@ -43,9 +43,9 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * the reached rows that write a doc. A name is weighed through one row,
  * {@link throughOf}: of those whose doc adds a word to its name's, the one adding
  * the most different words, then the shorter measured doc, then a published row,
- * then the first marked, else the row it is shown through. A long doc holds most
- * words in passing, and a doc's word stays below a name's however short. That sum
- * is multiplied by a coordination factor, {@link weightOf}. Integers throughout,
+ * then the doc's text and path, else the row it is shown through. A long doc
+ * holds most words in passing, and a doc's word stays below a name's however
+ * short. That sum is multiplied by a coordination factor, {@link weightOf}. Integers throughout,
  * so the order is counts, never a score, and a tie is a tie (ADR-0057). `N` is
  * everything reached, the names another section shows included, so the weight of a
  * word does not move with what is left. Then the words its name holds, then how
@@ -278,11 +278,12 @@ function rowDoc(index: SearchIndex, row: DescribedRow): string | undefined {
 
 /**
  * The row of `rows` a name is weighed, ordered and shown through, with what the
- * name then holds, first by one order: the most different words its doc adds to
- * `own`, those its name holds; then the shorter measured doc, an unmeasured one
- * last; then a published row before an exported one; then the first marked.
- * Which words are rarer is counted over what this choice decides, so it is
- * never asked. Absent when no doc adds a word.
+ * name then holds: the most different words its doc adds to `own`, those its
+ * name holds; then the shorter measured doc, an unmeasured one last; then a
+ * published row; then {@link rowTextOrder}. Not by the weight the section
+ * orders by: a word's rarity and the mean doc length are counted over the rows
+ * every other name is weighed through, so no row's weight is known before every
+ * name's row is. Absent when no doc adds a word.
  */
 function throughOf(
   index: SearchIndex,
@@ -292,10 +293,29 @@ function throughOf(
   let best: Through | undefined;
   for (const [row, positions] of rows) {
     const one = { row, held: new Set([...own, ...positions]), length: rowDocLength(index, row) ?? Infinity };
-    // Only a row before the best displaces it, so the first marked wins a full tie.
-    if (one.held.size > own.size && (best === undefined || throughOrder(one, best) < 0)) best = one;
+    if (one.held.size <= own.size) continue;
+    // A doc is decoded only at a tie on everything its column says.
+    if (best === undefined || (throughOrder(one, best) || rowTextOrder(index, one.row, best.row)) < 0) best = one;
   }
   return best;
+}
+
+/**
+ * Two rows of one kind level on every count: the doc's text, an absent one
+ * last, then the file, then a published row's specifier, in code-unit order.
+ * Where the index wrote a row follows its package and file names, which say
+ * nothing about the name, so it settles nothing.
+ */
+function rowTextOrder(index: SearchIndex, a: DescribedRow, b: DescribedRow): number {
+  const text = (row: DescribedRow): readonly [string | undefined, string, string] => {
+    if (row.kind === 'exported') return [index.exported(row.row).doc, index.exportedAt(row.row), ''];
+    const { doc, at, specifier } = index.published(row.row);
+    return [doc, at, specifier];
+  };
+  const [docA, atA, specifierA] = text(a);
+  const [docB, atB, specifierB] = text(b);
+  const doc = docA === docB ? 0 : docA === undefined ? 1 : docB === undefined ? -1 : codeUnitOrder(docA, docB);
+  return doc || codeUnitOrder(atA, atB) || codeUnitOrder(specifierA, specifierB);
 }
 
 /** A row a name may be weighed through: what the name then holds, and its doc's bytes, unmeasured as infinite. */
