@@ -39,14 +39,14 @@ pub fn text_of<'source>(node: Node, source: &'source str) -> &'source str {
 
 /// One top-level declaration, `children[at]`, as the TypeScript reader
 /// records one: its name and kind, its line, its head and the doc above it.
-pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static str, source: &str, attributes: &[&str]) -> SourceSymbol {
+pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static str, source: &str, between: fn(Node) -> bool) -> SourceSymbol {
     let node = children[at];
     SourceSymbol {
         name,
         kind,
         line: line_of(node),
         signature: Some(head(node, source)),
-        doc: doc_above(children, at, source, attributes),
+        doc: doc_above(children, at, source, between),
         reach: None,
     }
 }
@@ -93,18 +93,18 @@ pub fn head(node: Node, source: &str) -> TextSpan {
     span_of(source, node.start_byte(), node.start_byte() + kept.len())
 }
 
-/// The doc comment written above `children[at]`, past the siblings of the
-/// kinds in `attributes`: the `///` lines directly before it, or the one
-/// `/** … */` block. A comment is told by what it is written as, since each
-/// grammar names its comments differently. A block is spanned inside its `/*`
+/// The doc comment written above `children[at]`, past the siblings the
+/// language lets stand `between` a doc and its item: the `///` lines directly
+/// before it, or the one `/** … */` block. A comment is told by what it is
+/// written as, since each grammar names its comments differently. A block is spanned inside its `/*`
 /// and `*/`, as the TypeScript reader spans a JSDoc block; lines are spanned
 /// whole, from the first `///` to the end of the last.
-pub fn doc_above(children: &[Node], at: usize, source: &str, attributes: &[&str]) -> Option<TextSpan> {
+pub fn doc_above(children: &[Node], at: usize, source: &str, between: fn(Node) -> bool) -> Option<TextSpan> {
     let mut lines: Option<(usize, usize)> = None;
     for sibling in children[..at].iter().rev() {
         let text = text_of(*sibling, source);
         let comment = sibling.kind().contains("comment");
-        if lines.is_none() && attributes.contains(&sibling.kind()) {
+        if lines.is_none() && between(*sibling) {
             continue;
         }
         if comment && text.starts_with("///") && !text.starts_with("////") {

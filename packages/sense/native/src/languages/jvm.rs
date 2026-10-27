@@ -119,7 +119,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
         .filter_map(|at| {
             let node = children[at];
             let name = declared(node, source)?;
-            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, &[]);
+            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, |_| false);
             if file_private(node, source, &FILE_PRIVATE) {
                 symbol.reach = Some("file");
             }

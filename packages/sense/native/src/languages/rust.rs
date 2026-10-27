@@ -75,7 +75,7 @@ fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &m
         if prefix.is_empty() || !(open && shared) {
             // A `macro_rules!` has no module path: it is named as written.
             let named = if node.kind() == "macro_definition" { path[path.len() - 1].clone() } else { path.join("::") };
-            let mut symbol = declaration(&children, at, named, kind, source, &["attribute_item"]);
+            let mut symbol = declaration(&children, at, named, kind, source, between_doc_and_item);
             // A `macro_rules!` is in scope by where it is written, and
             // `#[macro_export]` or `#[macro_use]` carry it further: never by
             // the module rule an item's visibility follows. A `pub` item
@@ -89,6 +89,17 @@ fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &m
         if let Some(body) = (node.kind() == "mod_item").then(|| node.child_by_field_name("body")).flatten() {
             declared_in(body, source, &path, open && shared, held);
         }
+    }
+}
+
+/// What rustdoc attaches a doc across: an attribute, and a plain comment, which
+/// the lexer drops before rustdoc sees a token. The grammar marks a doc comment
+/// `outer` or `inner`, so a comment with neither is plain.
+fn between_doc_and_item(node: Node) -> bool {
+    match node.kind() {
+        "attribute_item" => true,
+        "line_comment" | "block_comment" => node.child_by_field_name("outer").is_none() && node.child_by_field_name("inner").is_none(),
+        _ => false,
     }
 }
 

@@ -251,6 +251,18 @@ describe('what a Rust file declares', () => {
     ]);
   });
 
+  it('attaches the doc above an item across the plain comments between them, as rustdoc does', () => {
+    const contents = '/// Start again.\n// TODO: say how.\n/* once */\n#[inline]\nfn relaunch() {}\n\n//! Not an item\'s doc.\nfn bare() {}\n';
+    const read = readRust('src/lib.rs', contents);
+
+    // A plain comment is not a token, so rustdoc never sees it between a doc
+    // and its item. An inner doc documents the module around it, not `bare`.
+    expect(spelled(contents, read).map(({ name, doc }) => ({ name, doc }))).toEqual([
+      { name: 'relaunch', doc: '/// Start again.' },
+      { name: 'bare', doc: undefined },
+    ]);
+  });
+
   it('declares what nested inline modules hold on the path through them, and says who can name it only when it is not `pub`', () => {
     const contents = 'pub mod a {\n    pub struct Open;\n    mod b {\n        /// Shown.\n        pub fn deep() {}\n        fn deeper() {}\n    }\n}\nmod tests {\n    use super::*;\n    fn fixture() {}\n    macro_rules! check {\n        () => {};\n    }\n}\n';
     const read = readRust('src/foo.rs', contents);
