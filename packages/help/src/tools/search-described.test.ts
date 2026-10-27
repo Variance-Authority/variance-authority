@@ -7,6 +7,7 @@ import { declaredDescribedOf, describedWordsNative, sourceIndexPath } from '@var
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { queryDependencyLexicon, refreshDependencyLexicon } from '../dependency-lexicon.js';
+import { describedNames } from './described.js';
 import { answerSearch, searchIndexOf } from './search.js';
 
 /**
@@ -265,6 +266,30 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/journalOf .*\[holds: management, state\]/);
     expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
     expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('journalOf'));
+  });
+
+  it('weighs a name published twice with the length of the doc that holds the words, not of the row published first', async () => {
+    const kit = (name: string, source: string): Record<string, string> => ({
+      [`packages/${name}/package.json`]: JSON.stringify({ name, type: 'module', exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } }),
+      [`packages/${name}/tsconfig.json`]: JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } }),
+      [`packages/${name}/src/index.ts`]: source,
+    });
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'], dependencies: { react: '1.0.0' } }),
+      // `a-kit`'s `Placement` has no doc; `b-kit`'s holds the words.
+      ...kit('a-kit', 'export interface Placement {\n  readonly shard: number;\n}\n'),
+      ...kit('b-kit', '/** Where a case was placed: the file it is in, at the commit it ran at, and the text of that file then. */\nexport interface Placement {\n  readonly at: string;\n}\n'),
+    });
+    const index = searchIndexOf(readHelp(root));
+    const placement = index.namesContaining('placement').find((name) => index.name(name) === 'Placement') as number;
+    const rows = [...index.publishedOf(placement)];
+    const held = rows.find((row) => index.published(row).doc !== undefined);
+    expect(rows.map((row) => index.published(row).specifier).sort()).toEqual(['a-kit', 'b-kit']);
+    const reached = describedNames(index, 'text of a file at a commit', undefined, new Set())?.find((one) => one.name === placement);
+    expect(reached?.words).toEqual(['commit', 'file', 'text']);
+    expect(reached?.docLength).toBe(index.publishedDocLength(held as number));
+    const said = answerSearch(index, { query: 'text of a file at a commit' }, treeOf([], root), root);
+    expect(said).toMatch(/b-kit · Placement .*\[holds: commit, file, text\]/u);
   });
 
   it('puts a name whose doc holds every word before one whose name holds half of them', async () => {

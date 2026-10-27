@@ -40,10 +40,10 @@ import { admittedBy, termsOfStems } from './loose.js';
  * nowhere — times the weight of where it holds it, three in its name and two in
  * a doc, as a field-weighted ranking weighs a title over a body. A doc word
  * also counts by how long the doc is, BM25's length term with a held word's
- * count of one: a doc of the mean length counts as two, a shorter one more and
- * a longer one less, the mean taken over the reached rows that write a doc,
- * and never more than a name word counts. A long doc holds most words in
- * passing, and a short one holding them is about them. Integers
+ * count of one: a doc of the mean length or shorter counts as two, a longer
+ * one less, the mean taken over the reached rows that write a doc, the length
+ * that of the one row whose doc holds the words. A long doc holds most words
+ * in passing, and a doc's word stays below a name's however short. Integers
  * throughout, so the order is counts, never a score, and a tie is a tie
  * (ADR-0057). `N` is everything reached, the names another section shows
  * included, so the weight of a word does not move with what is left. Then the words
@@ -87,8 +87,14 @@ const docLengthOf = (bytes: number | null | undefined): Pick<DescribedKey, 'docL
 /** One name of the search index the description reached. */
 export interface DescribedName extends DescribedKey {
   readonly name: number;
-  /** The exported row whose doc held words its name did not: the row to show. */
-  readonly through?: number;
+  /** The published or exported row whose doc held words its name did not: the row to show, and the one its doc is weighed by. */
+  readonly through?: DescribedRow;
+}
+
+/** One published or exported row of the search index. */
+export interface DescribedRow {
+  readonly kind: 'published' | 'exported';
+  readonly row: number;
 }
 
 /** One declaration no export binds that the description reached: in no row, and ranked after every name that is. */
@@ -132,16 +138,25 @@ export function describedNames(
 
   const admits = admittedBy(index, within, already);
 
-  // Per name, the positions of the asked stems it holds anywhere, and in its name.
+  // Per name, the positions of the asked stems its own words hold.
   const held = new Map<number, Set<number>>();
   const named = new Map<number, Set<number>>();
-  // Per name, per exported row, the stems that row's doc holds: one file's doc
-  // counts for a name, never two files' docs added up.
-  const docs = new Map<number, Map<number, Set<number>>>();
-  const mark = (into: Map<number, Set<number>>, name: number, position: number): void => {
-    const positions = into.get(name) ?? new Set<number>();
+  // Per name, per published or exported row, the stems that row's doc holds:
+  // one row's doc counts for a name, never two rows' docs added up.
+  const docs = new Map<number, Map<DescribedRow, Set<number>>>();
+  const rowOf = new Map<string, DescribedRow>();
+  const mark = <K>(into: Map<K, Set<number>>, key: K, position: number): void => {
+    const positions = into.get(key) ?? new Set<number>();
     positions.add(position);
-    into.set(name, positions);
+    into.set(key, positions);
+  };
+  const markRow = (name: number, kind: DescribedRow['kind'], row: number, position: number): void => {
+    const key = `${kind}:${row}`;
+    const one = rowOf.get(key) ?? { kind, row };
+    rowOf.set(key, one);
+    const rows = docs.get(name) ?? new Map<DescribedRow, Set<number>>();
+    docs.set(name, rows);
+    mark(rows, one, position);
   };
   asked.forEach((_, position) => {
     for (const term of stemmed[position] ?? []) {
@@ -153,19 +168,20 @@ export function describedNames(
       for (const row of index.termPublished(term)) {
         const name = index.publishedName(row);
         if (already.has(name) || (within !== undefined && !within.has(index.publishedFile(row)))) continue;
-        mark(held, name, position);
+        markRow(name, 'published', row, position);
       }
       for (const row of index.termExported(term)) {
         const name = index.exportedName(row);
         if (already.has(name) || (within !== undefined && !within.has(index.exportedFile(row)))) continue;
-        const rows = docs.get(name) ?? new Map<number, Set<number>>();
-        docs.set(name, rows);
-        mark(rows, row, position);
+        markRow(name, 'exported', row, position);
       }
     }
   });
 
-  const through = new Map<number, number>();
+  // The row that adds the most to what the name holds, published rows first at
+  // a tie: its words and its doc's length are the name's, never two rows' words
+  // added up and a third row's length.
+  const through = new Map<number, DescribedRow>();
   for (const [name, rows] of docs) {
     const own = held.get(name) ?? new Set<number>();
     let best = own;
@@ -249,21 +265,24 @@ export function describedShown(
 }
 
 /** The doc a reached name is shown with: the row it was reached through, else its first published or exported row's. */
-function docAbout(index: SearchIndex, name: number, through: number | undefined): string | undefined {
-  if (through !== undefined) return index.exported(through).doc;
-  const published = index.publishedOf(name)[0];
-  if (published !== undefined) return index.published(published).doc;
-  const exported = index.exportedOf(name)[0];
-  return exported === undefined ? undefined : index.exported(exported).doc;
+function docAbout(index: SearchIndex, name: number, through: DescribedRow | undefined): string | undefined {
+  const row = through ?? firstRow(index, name);
+  if (row === undefined) return undefined;
+  return row.kind === 'published' ? index.published(row.row).doc : index.exported(row.row).doc;
 }
 
 /** The bytes of the doc {@link docAbout} shows a name with, read off the index without decoding it. */
-function docLengthAbout(index: SearchIndex, name: number, through: number | undefined): number | undefined {
-  if (through !== undefined) return index.exportedDocLength(through);
+function docLengthAbout(index: SearchIndex, name: number, through: DescribedRow | undefined): number | undefined {
+  const row = through ?? firstRow(index, name);
+  if (row === undefined) return undefined;
+  return row.kind === 'published' ? index.publishedDocLength(row.row) : index.exportedDocLength(row.row);
+}
+
+function firstRow(index: SearchIndex, name: number): DescribedRow | undefined {
   const published = index.publishedOf(name)[0];
-  if (published !== undefined) return index.publishedDocLength(published);
+  if (published !== undefined) return { kind: 'published', row: published };
   const exported = index.exportedOf(name)[0];
-  return exported === undefined ? undefined : index.exportedDocLength(exported);
+  return exported === undefined ? undefined : { kind: 'exported', row: exported };
 }
 
 /**
@@ -334,8 +353,8 @@ const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
  * The weight of what a row holds of the question: each word's {@link rarity}
  * among `population`, times what the place it holds it in counts — its name
  * its {@link FIELD_WEIGHTS} weight in thousandths, its doc its weight times
- * the doc's {@link lengthCount}, never more than a name — summed by
- * {@link heldWeight}. An integer.
+ * the doc's {@link lengthCount}, never more than a doc of the mean length —
+ * summed by {@link heldWeight}. An integer.
  */
 function weightOf(population: readonly Weighed[]): Weight {
   const holders = new Map<string, number>();
@@ -351,8 +370,11 @@ function weightOf(population: readonly Weighed[]): Weight {
   const rare = new Map([...holders].map(([word, n]) => [word, rarity(population.length, n)]));
   const name = FIELD_WEIGHTS.name * 1000;
   return (key) => {
-    // A doc shorter than most counts more than one of the mean length, up to a name.
-    const doc = Math.min(name, FIELD_WEIGHTS.doc * lengthCount(key.docLength ?? 0, docBytes, docs));
+    // A doc longer than most counts less than one of the mean length, and a
+    // shorter one as much: a doc's word, never a name's. An unmeasured doc is
+    // not an empty one, so it counts as one of the mean length.
+    const counted = key.docLength === undefined ? 1000 : Math.min(1000, lengthCount(key.docLength, docBytes, docs));
+    const doc = FIELD_WEIGHTS.doc * counted;
     return heldWeight(key.words, (word) => rare.get(word) ?? 0, (word) => (key.named.includes(word) ? name : doc));
   };
 }
