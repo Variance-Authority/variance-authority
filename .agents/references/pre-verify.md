@@ -67,9 +67,11 @@ selection keeps a test, so an edit that keeps no test costs about a second and
 a half. When it keeps none it prints the seam's reading: `none (the record was
 taken over this text)` means the tests that entered the edit already ran it,
 and a test further than one import is left for `verify:near`. A type error
-stops it before any test. Integration and chromium tests never run in it. It is
-not lint and not a wave: `verify:near` still runs every slice once the change
-is whole.
+stops it before any test. Integration and chromium tests never run in it. It
+ends with the needs list: for each function new on the branch, the existing
+functions that need what it needs. The list adds about half a second with its
+cache warm and never changes the exit code. It is not lint and not a wave:
+`verify:near` still runs every slice once the change is whole.
 
 ## The waves
 

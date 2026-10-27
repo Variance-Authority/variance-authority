@@ -8,8 +8,9 @@ import { parseSync } from 'oxc-parser';
 import { digestString } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { tokensOf } from '@variance-authority/mcp';
+import { rarity } from '@variance-authority/mcp/tools';
 import { cacheRootFor, writeCoverageBytes } from '@variance-authority/sense/test-selection';
-import { ROOT, SCRIPT, isFunction, isTest, lines } from './owners.mjs';
+import { ROOT, SCRIPT, isFunction, isTest, lines, visit } from './owners.mjs';
 
 /**
  * Existing functions that need what a function new on this branch needs.
@@ -17,8 +18,10 @@ import { ROOT, SCRIPT, isFunction, isTest, lines } from './owners.mjs';
  * A re-typed copy shares no run of tokens with what it copies, but it cannot
  * rename what it needs: the calls, fields, strings, patterns, types and imports
  * it names, and the words of its names. Each function is read as that bag,
- * weighted by tf-idf, and compared by cosine with every unit that exists. A
- * neighbour at {@link SHARED} or above is a lead to read, not a verdict.
+ * each need weighted by how often the function holds it and how
+ * {@link rarity rare} it is, and compared by cosine with every unit that
+ * exists. A neighbour at {@link SHARED} or above is a lead to read, not a
+ * verdict.
  * `yarn needs` prints the list; journal entry 0077 holds the measurements.
  */
 
@@ -27,7 +30,7 @@ import { ROOT, SCRIPT, isFunction, isTest, lines } from './owners.mjs';
 // keeps a cache of its own, to prove the signal before the addon carries it.
 
 /** The share of needs, in thousandths of the cosine, at which an existing function is named. */
-const SHARED = 600;
+const SHARED = 675;
 
 /** The fewest distinct needs a function holds before it is asked about: fewer say too little to compare. */
 const SMALLEST = 5;
@@ -64,26 +67,18 @@ export function unitsIn(path, text) {
   const unit = (name, node, kind) => {
     if (typeof name === 'string' && name !== '') units.push({ path, name, kind, line: lineOf(node.start), bag: bagOf(node, name, imported) });
   };
-  const walk = (node, depth) => {
-    if (node === null || typeof node !== 'object') return;
-    if (Array.isArray(node)) {
-      for (const child of node) walk(child, depth);
-      return;
-    }
+  // A constant is the module's when a statement of the module declares it, not a block or a loop inside one.
+  const declared = new Set(parsed.program.body.flatMap((statement) => (statement.declaration ?? statement).declarations ?? []));
+  visit(parsed.program, (node) => {
     if (node.type === 'FunctionDeclaration') unit(node.id?.name, node, 'function');
     if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier') {
       if (node.init && isFunction(node.init)) unit(node.id.name, node, 'function');
-      else if (depth === 0 && node.init) unit(node.id.name, node, 'constant');
+      else if (declared.has(node) && node.init) unit(node.id.name, node, 'constant');
     }
     if (['MethodDefinition', 'Property', 'PropertyDefinition'].includes(node.type) && node.value && isFunction(node.value)) {
       unit(keyOf(node.key), node, 'function');
     }
-    const inner = depth + (isFunction(node) || node.type === 'ClassBody' ? 1 : 0);
-    for (const key in node) {
-      if (key !== 'type' && key !== 'start' && key !== 'end') walk(node[key], inner);
-    }
-  };
-  walk(parsed.program, 0);
+  });
   return units;
 }
 
@@ -309,12 +304,7 @@ function bagOf(root, name, imported) {
     bag[token] = (bag[token] ?? 0) + 1;
   };
   for (const word of tokensOf(name)) add(`name:${word}`);
-  const visit = (node) => {
-    if (node === null || typeof node !== 'object') return;
-    if (Array.isArray(node)) {
-      for (const child of node) visit(child);
-      return;
-    }
+  visit(root, (node) => {
     if (node.type === 'CallExpression' || node.type === 'NewExpression') {
       const chain = chainOf(node.callee);
       if (chain !== undefined) {
@@ -343,20 +333,16 @@ function bagOf(root, name, imported) {
       for (const word of tokensOf(node.name)) add(`word:${word}`);
       if (imported.has(node.name)) add(`imp:${imported.get(node.name)}`);
     }
-    for (const key in node) {
-      if (key !== 'type' && key !== 'start' && key !== 'end') visit(node[key]);
-    }
-  };
-  visit(root);
+  });
   return bag;
 }
 
-// Inverse document frequency over `units`: a need every unit holds weighs one,
+// The rarity of each need over `units`: a need every unit holds weighs least,
 // a need none holds weighs most.
 function rarityIn(units) {
   const holders = new Map();
   for (const unit of units) for (const token in unit.bag) holders.set(token, (holders.get(token) ?? 0) + 1);
-  return (token) => Math.log((units.length + 1) / ((holders.get(token) ?? 0) + 1)) + 1;
+  return (token) => rarity(units.length, holders.get(token) ?? 0);
 }
 
 function vectorOf(bag, weight) {

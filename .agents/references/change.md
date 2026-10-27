@@ -27,8 +27,10 @@ needs: the same calls, fields, strings, types and imports, whatever their shape
 or names (`yarn needs` prints the list alone). A name it lists is a lead to
 read, not a verdict: where it answers, call or extend it instead of keeping the
 new one. A re-typed copy shares no run of tokens with the code it copies, so
-this is the one check that sees it while it is still being written. It does not
-see a second path written inside a function that already existed.
+this is the one check that sees it while it is still being written. It names
+the owner of about a third of the copies it should, so an empty list clears
+nothing, and it does not see a second path written inside a function that
+already existed.
 
 **Does it change how a record is carried or read?** Carrying, the case index,
 and the selection and comparison read off them, keep one contract: an
@@ -148,9 +150,9 @@ the site, CLI output and error messages. Read it before writing any of them.
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and
   names each owner, and `tools/clones.check.ts` holds pasted blocks per pair of
-  files. Neither sees a flow re-typed with new names; `yarn needs` names the
-  existing functions a new one shares its needs with, and the Alignment
-  reviewer reads its list.
+  files. Neither sees a long flow re-typed with new names; the needs list
+  `yarn test:loop` ends with is the lead while it is written, and the
+  Alignment reviewer looks for that.
 - **One implementation.** A second way to compute an answer that already has
   one is a defect, however it is spelled: a new flag beside an old one, a fast
   path beside the general path, a fallback beside the reader that refused. The

@@ -2046,5 +2046,682 @@
    },
    "verdict": "family"
   }
+ ],
+ "sampled": [
+  {
+   "head": "8cf41518d89c957b014044710e3d88b4da25a40e",
+   "added": {
+    "path": "packages/sense/scripts/witnesses.mjs",
+    "name": "median",
+    "line": 90
+   },
+   "existing": {
+    "path": "packages/presentation/src/math.ts",
+    "name": "median",
+    "line": 11
+   },
+   "verdict": "family",
+   "why": "Both take a median of numbers, but the new one returns the upper-middle element and 0 when empty; the existing averages the two middles and returns undefined."
+  },
+  {
+   "head": "756535dc755a15fd4c66a2151277b7cfc3841364",
+   "added": {
+    "path": "packages/sense/src/record.ts",
+    "name": "byCodeUnit",
+    "line": 165
+   },
+   "existing": {
+    "path": "packages/core/src/attribute/composition.ts",
+    "name": "byCodeUnit",
+    "line": 446
+   },
+   "verdict": "reuse",
+   "why": "Identical code-unit string comparator returning -1/0/1; the new one could call the existing one through an export with no change in behaviour."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/transform.ts",
+    "name": "within",
+    "line": 322
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/recorded-text.ts",
+    "name": "positionOf",
+    "line": 92
+   },
+   "verdict": "family",
+   "why": "Both binary-search a sorted sequence, but one finds the node whose span holds an offset and the other finds the index of an exact string, or -1."
+  },
+  {
+   "head": "76a988aab9515744403e511bb77b8c76d5c1462e",
+   "added": {
+    "path": "tools/owners.mjs",
+    "name": "calleeName",
+    "line": 182
+   },
+   "existing": {
+    "path": "packages/sense/src/taint/mocks.ts",
+    "name": "methodOf",
+    "line": 137
+   },
+   "verdict": "family",
+   "why": "Both name a call's callee; calleeName accepts any identifier or member property, while methodOf needs a CallExpression whose object is in a callers set."
+  },
+  {
+   "head": "8a7d727c55738536cf863bacd67349de4f3a19af",
+   "added": {
+    "path": "packages/core/src/format/shape.ts",
+    "name": "finiteNumber",
+    "line": 302
+   },
+   "existing": {
+    "path": "packages/unit-test/src/shape.ts",
+    "name": "finiteNumber",
+    "line": 178
+   },
+   "verdict": "reuse",
+   "why": "Identical predicate: typeof number and Number.isFinite. The existing one answers exactly what the new one computes."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/cli/src/commands/run-report.ts",
+    "name": "isStringArray",
+    "line": 191
+   },
+   "existing": {
+    "path": "packages/remote/src/store.ts",
+    "name": "stringsFrom",
+    "line": 296
+   },
+   "verdict": "reuse",
+   "why": "Both test for an array of strings. isStringArray(v) equals stringsFrom(v) !== null, and cli already depends on remote."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/transform.ts",
+    "name": "line",
+    "line": 477
+   },
+   "existing": {
+    "path": "packages/mcp/src/tools/locate-index.ts",
+    "name": "lowerBound",
+    "line": 173
+   },
+   "verdict": "family",
+   "why": "Both binary-search a sorted array, but line returns the 1-based index of the last start at or before a number; lowerBound returns the first string not below a key."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "text",
+    "line": 426
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "text",
+    "line": 621
+   },
+   "verdict": "reuse",
+   "why": "Same rule: read a row column, throw with the same message unless it is a string. Only the row type annotation differs; describe is identical."
+  },
+  {
+   "head": "f44730dc6dd579fbabdc64b03ed47389adfd2405",
+   "added": {
+    "path": "packages/sense/src/test-selection/mainline-layer.ts",
+    "name": "place",
+    "line": 230
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/report-source.ts",
+    "name": "settle",
+    "line": 300
+   },
+   "verdict": "family",
+   "why": "Both write atomically through a temp file and a rename, but place deletes on undefined and throws, while settle returns an error string and never deletes."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/scope.ts",
+    "name": "isNode",
+    "line": 346
+   },
+   "existing": {
+    "path": "packages/sense/src/taint/calls.ts",
+    "name": "isNode",
+    "line": 98
+   },
+   "verdict": "reuse",
+   "why": "Identical type guard: a non-null object with a string type field. The new one could import the existing one unchanged."
+  },
+  {
+   "head": "8e52d9f5cc1d60e6da75be58445f849c071d3910",
+   "added": {
+    "path": "packages/sense/src/taint/reach.ts",
+    "name": "byCodeUnit",
+    "line": 55
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/reach-subjects.ts",
+    "name": "byCodeUnit",
+    "line": 127
+   },
+   "verdict": "reuse",
+   "why": "Identical code-unit comparator; it could be shared through an export with the same behaviour."
+  },
+  {
+   "head": "c81ecfa713ea13901288d09bab9e192f38b90824",
+   "added": {
+    "path": "packages/cli/src/config-sensitivity.ts",
+    "name": "parseSensitivities",
+    "line": 34
+   },
+   "existing": {
+    "path": "packages/cli/src/config-sections.ts",
+    "name": "parseIgnores",
+    "line": 395
+   },
+   "verdict": "family",
+   "why": "Both parse an array of config rules with the same helpers, but they check different schemas: sensitivity levels with a subjects/tags requirement versus ignore fields validated by core."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/tribunal/src/worker-http.ts",
+    "name": "flag",
+    "line": 125
+   },
+   "existing": {
+    "path": "packages/history/src/client.ts",
+    "name": "flag",
+    "line": 270
+   },
+   "verdict": "family",
+   "why": "Both read a required boolean field, but tribunal throws BadRequest (an HTTP 400) with its own message; the history client throws a plain Error naming the service url."
+  },
+  {
+   "head": "ff718d3f3c67ae43c8662a179a57eb268ea305f9",
+   "added": {
+    "path": "packages/distill/src/index.ts",
+    "name": "locateEyesTest",
+    "line": 103
+   },
+   "existing": {
+    "path": "packages/mcp/src/tools/attention.ts",
+    "name": "locateEyesTest",
+    "line": 44
+   },
+   "verdict": "family",
+   "why": "Same id/exact/partial matching, but distill returns undefined and throws on ambiguity, while mcp returns explanatory strings for no match and for ambiguity."
+  },
+  {
+   "head": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "added": {
+    "path": "packages/help/src/tools/loose.ts",
+    "name": "lowerBound",
+    "line": 155
+   },
+   "existing": {
+    "path": "packages/sense/src/world.ts",
+    "name": "lowerBound",
+    "line": 144
+   },
+   "verdict": "family",
+   "why": "Both are lower-bound bisections, but the new one searches a SearchIndex's term bytes from an offset with Buffer.compare; the existing searches a string array with <."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "openModuleNames",
+    "line": 66
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "recordStore",
+    "line": 93
+   },
+   "verdict": "family",
+   "why": "Both resolve a path in the checkout's top cache layer, but openModuleNames seeds names.bin from the base layer first; recordStore returns a label's store directory."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "instant",
+    "line": 409
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "instant",
+    "line": 605
+   },
+   "verdict": "reuse",
+   "why": "Identical: Date.parse an instant and throw the same error when it is NaN. The existing one answers exactly what the new one computes."
+  },
+  {
+   "head": "12095354c94c03624df1cdcdd99c6902e590570e",
+   "added": {
+    "path": "examples/selection-reuse/src/demo.js",
+    "name": "git",
+    "line": 10
+   },
+   "existing": {
+    "path": "packages/sense/scripts/overhead.mjs",
+    "name": "git",
+    "line": 242
+   },
+   "verdict": "family",
+   "why": "Both run git in a directory, but overhead.mjs injects a commit identity and ignores stdio; the demo passes no identity and pipes, so commits behave differently."
+  },
+  {
+   "head": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "added": {
+    "path": "packages/cli/src/commands/ask-source.ts",
+    "name": "tree",
+    "line": 52
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/serve.ts",
+    "name": "tree",
+    "line": 150
+   },
+   "verdict": "family",
+   "why": "Both are tree-sink callbacks keeping the drawn tree, but each writes its own enclosing closure variable, so one cannot stand in for the other."
+  },
+  {
+   "head": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "added": {
+    "path": "packages/cli/src/commands/ask-source.ts",
+    "name": "tree",
+    "line": 64
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/serve.ts",
+    "name": "tree",
+    "line": 150
+   },
+   "verdict": "family",
+   "why": "Same tree-capturing callback shape as serve's, but it assigns readSource's local rather than serve's nextTree, so swapping them would change which state holds the tree."
+  },
+  {
+   "head": "eb5717dfa6d10cbfc26bada043aa8d69d811800a",
+   "added": {
+    "path": "packages/dom/src/media.ts",
+    "name": "splitTopLevel",
+    "line": 212
+   },
+   "existing": {
+    "path": "packages/core/src/normalize/shorthand.ts",
+    "name": "topLevelParts",
+    "line": 402
+   },
+   "verdict": "family",
+   "why": "Both split a string outside parentheses; splitTopLevel takes any multi-char separator and keeps empty parts, topLevelParts splits on whitespace, trims and drops empties."
+  },
+  {
+   "head": "26ae9edd49e09cb93631d2766d8c796b3e663505",
+   "added": {
+    "path": "packages/react/src/quiet.ts",
+    "name": "now",
+    "line": 66
+   },
+   "existing": {
+    "path": "packages/react/src/arrival.ts",
+    "name": "now",
+    "line": 240
+   },
+   "verdict": "reuse",
+   "why": "Both return performance.now() when it exists, else Date.now(); the bodies are the same, in the same package."
+  },
+  {
+   "head": "f701c75aeb354b91f0ecd53fa5d5b5d080109d1b",
+   "added": {
+    "path": "packages/tribunal/src/ui/client.ts",
+    "name": "read",
+    "line": 325
+   },
+   "existing": {
+    "path": "packages/remote/src/store.ts",
+    "name": "safeText",
+    "line": 470
+   },
+   "verdict": "reuse",
+   "why": "Both return response.text() or '<body could not be read>' on failure; the bodies are the same."
+  },
+  {
+   "head": "2810065e4a23f4478c871b5c821c21a86fe2eab7",
+   "added": {
+    "path": "packages/raster/src/store.ts",
+    "name": "messageOf",
+    "line": 545
+   },
+   "existing": {
+    "path": ".github/actions/variance/render-comment.mjs",
+    "name": "messageOf",
+    "line": 149
+   },
+   "verdict": "reuse",
+   "why": "Both return error.message for an Error, else String(error); the same answer."
+  },
+  {
+   "head": "6b4372aecbd7f5aa306fd295c7d51b365fe86d85",
+   "added": {
+    "path": "packages/sense/src/test-selection/region-edit.ts",
+    "name": "hashingTo",
+    "line": 79
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/edit-readings.ts",
+    "name": "hashingTo",
+    "line": 149
+   },
+   "verdict": "reuse",
+   "why": "The bodies are the same: the text when its digestString matches the digest, else undefined. Same directory, same digest import."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/worker.ts",
+    "name": "optional",
+    "line": 589
+   },
+   "existing": {
+    "path": "packages/server/src/http.ts",
+    "name": "requiredParam",
+    "line": 319
+   },
+   "verdict": "family",
+   "why": "Both read a URL query parameter; requiredParam throws BadRequest when it is absent, optional returns undefined. That rule differs (optionalParam was the true twin)."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "openModuleNames",
+    "line": 66
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "moduleNamesFile",
+    "line": 56
+   },
+   "verdict": "family",
+   "why": "Both name the names.bin path in the top cache layer; openModuleNames also seeds the table from the base checkout, which moduleNamesFile never does."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "optionalText",
+    "line": 434
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "text",
+    "line": 621
+   },
+   "verdict": "family",
+   "why": "Both read a text column from a row; text throws on null, optionalText maps null/undefined to undefined. Different rule for absence."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "cases/incumbent-case/src/replacement-arm.ts",
+    "name": "buildSourceIndex",
+    "line": 75
+   },
+   "existing": {
+    "path": "cases/storybook-case/collector/index.mjs",
+    "name": "buildSourceIndex",
+    "line": 87
+   },
+   "verdict": "family",
+   "why": "Both index a src/ directory by component; the new reads .ts/.tsx under a given root excluding .spec., the old reads .js/.jsx under a fixed ROOT excluding .stories."
+  },
+  {
+   "head": "2e683d3a8c3e047b1156641ce5d14dad12bbea10",
+   "added": {
+    "path": "packages/cli/src/commands/comment.ts",
+    "name": "describeIdentity",
+    "line": 659
+   },
+   "existing": {
+    "path": "packages/raster/src/observe.ts",
+    "name": "describe",
+    "line": 225
+   },
+   "verdict": "reuse",
+   "why": "describeIdentity(report) returns exactly describe(report.identity): the same 'renderer (engine, platform, Nx)' string."
+  },
+  {
+   "head": "f44730dc6dd579fbabdc64b03ed47389adfd2405",
+   "added": {
+    "path": "packages/sense/src/test-selection/mainline-layer.ts",
+    "name": "place",
+    "line": 230
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/record-location.ts",
+    "name": "writeCoverageBytes",
+    "line": 348
+   },
+   "verdict": "reuse",
+   "why": "place writes to a temp file and renames it into place, the same body as writeCoverageBytes (exported). It only adds an rm branch for undefined bytes, a thin wrapper."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/worker.ts",
+    "name": "asBand",
+    "line": 694
+   },
+   "existing": {
+    "path": "packages/server/src/http.ts",
+    "name": "asBand",
+    "line": 501
+   },
+   "verdict": "reuse",
+   "why": "The asBand bodies are the same: they check a value against BANDS and throw BadRequest naming the allowed bands. Only the local BadRequest class differs."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/index.ts",
+    "name": "missing",
+    "line": 257
+   },
+   "existing": {
+    "path": "packages/tribunal/src/node/bucket.ts",
+    "name": "absentAsNull",
+    "line": 152
+   },
+   "verdict": "family",
+   "why": "Both classify a missing-file error; missing is an ENOENT predicate, absentAsNull also accepts ENOTDIR and rethrows anything else, returning null."
+  },
+  {
+   "head": "8636b9d68862cd13f42cd4543739ca73944a2540",
+   "added": {
+    "path": "packages/core/src/relate/beyond.ts",
+    "name": "directoryOf",
+    "line": 118
+   },
+   "existing": {
+    "path": "packages/tribunal/src/ui/distance.ts",
+    "name": "basename",
+    "line": 152
+   },
+   "verdict": "unrelated",
+   "why": "directoryOf returns the directory part of a path ('.' if there is none); basename returns the last segment. They are opposite halves of a path, so they answer different questions."
+  },
+  {
+   "head": "ff718d3f3c67ae43c8662a179a57eb268ea305f9",
+   "added": {
+    "path": "packages/distill/src/index.ts",
+    "name": "targetsOf",
+    "line": 182
+   },
+   "existing": {
+    "path": "packages/mcp/src/tools/attention.ts",
+    "name": "targetsOf",
+    "line": 66
+   },
+   "verdict": "reuse",
+   "why": "The targetsOf bodies are the same: an Attention entry's target snapshots for rtl-query, document-event and playwright-locator. The existing one is exported."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/transform.ts",
+    "name": "line",
+    "line": 477
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/source-lines.ts",
+    "name": "lineOfStart",
+    "line": 462
+   },
+   "verdict": "reuse",
+   "why": "Both bisect line starts for an offset; line returns 1-based, lineOfStart 0-based, so line is lineOfStart(...) + 1."
+  },
+  {
+   "head": "8636b9d68862cd13f42cd4543739ca73944a2540",
+   "added": {
+    "path": "packages/core/src/relate/beyond.ts",
+    "name": "importersOf",
+    "line": 107
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/reading.ts",
+    "name": "directImporters",
+    "line": 451
+   },
+   "verdict": "family",
+   "why": "Both list runtime importers one edge against the arrows; importersOf drops depends-on edges and keeps only file nodes, directImporters keeps every runtime kind and drops self-edges."
+  },
+  {
+   "head": "eb5717dfa6d10cbfc26bada043aa8d69d811800a",
+   "added": {
+    "path": "packages/dom/src/aria.ts",
+    "name": "normalize",
+    "line": 241
+   },
+   "existing": {
+    "path": "packages/core/src/normalize/index.ts",
+    "name": "normalizeText",
+    "line": 426
+   },
+   "verdict": "family",
+   "why": "Both collapse runs of whitespace; normalize also trims, while normalizeText deliberately does not, because boundary spaces are rendered."
+  },
+  {
+   "head": "e122cd3ea2863f904be1c9b62c26098c6b704df9",
+   "added": {
+    "path": "cases/storybook-case/collector/index.mjs",
+    "name": "buildSourceIndex",
+    "line": 87
+   },
+   "existing": {
+    "path": "examples/todomvc/src/source-index.ts",
+    "name": "buildSourceIndex",
+    "line": 29
+   },
+   "verdict": "family",
+   "why": "Both build a component source index; todomvc walks src recursively for .ts/.tsx under a fixed cwd root, the collector reads a flat src for .js/.jsx excluding stories."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "windowFilter",
+    "line": 237
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "windowFilter",
+    "line": 433
+   },
+   "verdict": "family",
+   "why": "Both build the since/until window SQL from parsed instants; the D1 one emits positional ? with an array, the sqlite one named $params with a record."
+  },
+  {
+   "head": "e17fa975a3f2379a4fdcb8c4ba89a7365d94cd24",
+   "added": {
+    "path": "packages/cli/src/commands/covering-motion.ts",
+    "name": "listedOf",
+    "line": 316
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/journeys.ts",
+    "name": "listed",
+    "line": 290
+   },
+   "verdict": "family",
+   "why": "Both join names and count the rest, but listed caps at a fixed 6 with 'and N more'; listedOf takes a limit, a noun and points at --format json. Different text."
+  },
+  {
+   "head": "113077e25de9f48e5e4a9aa7fc0e36ca0654cd32",
+   "added": {
+    "path": "packages/help/src/search-read.ts",
+    "name": "reasonOf",
+    "line": 54
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/accept.ts",
+    "name": "messageOf",
+    "line": 410
+   },
+   "verdict": "reuse",
+   "why": "Both return error.message for an Error and String(error) for anything else. The bodies are identical; only the name differs."
+  },
+  {
+   "head": "ec0a8bd70fafa984c3b9f861dcd18c2828871a87",
+   "added": {
+    "path": "packages/store/src/path-template.ts",
+    "name": "escaped",
+    "line": 316
+   },
+   "existing": {
+    "path": "editors/vscode/extension.js",
+    "name": "escape",
+    "line": 256
+   },
+   "verdict": "family",
+   "why": "Both escape text for a target syntax: escaped for a RegExp, escape for Markdown. The character sets differ (escape leaves ?, ^ and $ alone), so swapping them breaks the regex."
+  },
+  {
+   "head": "42b6e26063799412d720d654a2dad4cb2aca9419",
+   "added": {
+    "path": "packages/remote/src/serve-store.ts",
+    "name": "close",
+    "line": 76
+   },
+   "existing": {
+    "path": "packages/server/src/http.ts",
+    "name": "close",
+    "line": 139
+   },
+   "verdict": "family",
+   "why": "Both close the HTTP server they started. The existing closeServer calls closeAllConnections first and the new one does not, so keep-alive sockets behave differently."
+  },
+  {
+   "head": "cfd0d26f7401eb055ac2e42c3ccaa54ca50b58a1",
+   "added": {
+    "path": "packages/cli/src/commands/reach.ts",
+    "name": "byCodeUnit",
+    "line": 262
+   },
+   "existing": {
+    "path": "packages/core/src/attribute/composition.ts",
+    "name": "byCodeUnit",
+    "line": 372
+   },
+   "verdict": "reuse",
+   "why": "Both are the same code-unit string comparator, returning -1, 0 or 1 by < and >. The bodies are identical."
+  }
  ]
 }

@@ -26,10 +26,6 @@ next, so the design can be read apart from what the diff made of it:
    which existing module should carry it, what the smallest change is, and what
    it costs per file, per case and per run. Name prior art if there is one.
 2. **Read.** The diff, then the code it touches and what already does the same.
-   `yarn needs` names, for each function the branch adds, the existing
-   functions that need what it needs; read each one it names. It reads only
-   functions new on the branch, so a second path written inside an existing
-   function is still yours to find.
 3. **Gaps.** Compare the diff with your design, one Code rule at a time, and
    quote the rule by its name rather than restating it. The rules this reviewer
    owns are the ones about shape: **One implementation**, **Four roles, and
@@ -40,9 +36,7 @@ next, so the design can be read apart from what the diff made of it:
    container its `// compass:` header names, and does the change add a flag
    between two behaviours, an option no task asked for or an abstraction with
    one caller. Whether the change should happen at all is the `occam`
-   reviewer's question, not yours. A function `yarn needs` named whose
-   neighbour answers the same question is a gap under **One implementation**,
-   whatever the names say. What `tools/owners.check.ts` and `yarn restrictions`
+   reviewer's question, not yours. What `tools/owners.check.ts` and `yarn restrictions`
    already fail is not a finding; say only when the diff gets past them.
    A change that adds a check — a ratchet, a fence, a reviewer — is judged the
    same way, and three more questions: what it misses that the rule names, what

@@ -257,7 +257,7 @@ function nameOf(fn, scope) {
  * Depth-first over every node, carrying the nearest named function so a site
  * can say where it is. `into` decides whether to descend below a node.
  */
-function visit(root, enter, { into = () => true } = {}) {
+export function visit(root, enter, { into = () => true } = {}) {
   const walk = (node, scope) => {
     if (node === null || typeof node !== 'object') return;
     if (Array.isArray(node)) {

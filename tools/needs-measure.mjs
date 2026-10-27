@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { asks, git, inScope, twinsOf, unitsIn } from './needs.mjs';
 import { ROOT } from './owners.mjs';
 
 /**
- * Every number in journal entry 0077: how often `needs.mjs` names the function
- * a copy repeats, and how often it speaks. It reads the hand labels in
- * `needs-measure.json`: `copies`, each confirmed by reading it and its `owner`,
- * and `judged`, pairs an earlier probe named, each called `reuse`, `family`
- * (the same question, answered another way) or `unrelated`.
+ * The results in journal entry 0077: how often `needs.mjs` names the function
+ * a copy repeats, how often it speaks, and what the names it prints are. It
+ * reads the hand labels in `needs-measure.json`: `copies`, each confirmed by
+ * reading it and its `owner`; `judged`, pairs an earlier probe named; and
+ * `sampled`, names this tool printed. A pair is `reuse`, `family` (the same
+ * question, answered another way) or `unrelated`.
  *
  * `node tools/needs-measure.mjs`
  */
 
 const LABELS = JSON.parse(readFileSync(new URL('./needs-measure.json', import.meta.url), 'utf8'));
 const EVERY = 4;
+const SAMPLED = 40;
 
 // Units by blob, without their path: a blob is parsed once however many
 // commits and paths hold it. A blob oxc cannot parse holds nothing, and is counted.
@@ -95,14 +98,35 @@ const changesOnMain = git(ROOT, ['log', '--first-parent', '--reverse', '--format
 let asked = 0;
 let spoke = 0;
 let changes = 0;
+const printed = [];
+const at3 = ({ path, name, line }) => ({ path, name, line });
 for (const [head, base] of changesOnMain.filter((_, index) => index % EVERY === 0)) {
   const { added, twins } = at(base, head);
   const unlabelled = (unit) => !labelled.has(`${head}\0${keyOf(unit)}`);
   asked += added.filter((unit) => unit.kind === 'function' && unlabelled(unit)).length;
-  spoke += twins.filter(({ unit }) => unlabelled(unit)).length;
+  for (const { unit, twins: names } of twins.filter(({ unit }) => unlabelled(unit))) {
+    spoke += 1;
+    for (const twin of names) printed.push({ head, added: at3(unit), existing: at3(twin) });
+  }
   changes += 1;
 }
 out.push(`new functions it names a neighbour for, on ${changes} changes:`, `  ${share(spoke, asked)}`);
+
+// The names it printed there, in an order nobody chose, the SHA-1 of each pair; the first `SAMPLED` are read by hand.
+const pairKey = ({ head, added, existing }) => `${head}\0${keyOf(added)}\0${keyOf(existing)}`;
+const sample = printed
+  .map((pair) => ({ pair, order: createHash('sha1').update(pairKey(pair)).digest('hex') }))
+  .sort((left, right) => codeUnitOrder(left.order, right.order))
+  .slice(0, SAMPLED)
+  .map(({ pair }) => pair);
+const verdictOf = new Map(LABELS.sampled.map((pair) => [pairKey(pair), pair.verdict]));
+out.push(`names it printed: ${printed.length}; of ${sample.length} sampled, by verdict:`);
+for (const verdict of ['reuse', 'family', 'unrelated']) {
+  out.push(`  ${verdict.padEnd(28)} ${share(sample.filter((pair) => verdictOf.get(pairKey(pair)) === verdict).length, sample.length)}`);
+}
+for (const pair of sample.filter((pair) => !verdictOf.has(pairKey(pair)))) {
+  out.push(`  not read: ${pair.head} ${pair.added.path}:${pair.added.line} ${pair.added.name} -> ${pair.existing.path}:${pair.existing.line} ${pair.existing.name}`);
+}
 
 // A judged pair is asked about only when its new unit is a function the tool asks about, and named when the
 // tool names its neighbour against the tree at the change: a neighbour the change emptied into the new

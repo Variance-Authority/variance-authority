@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { needs, said, twinsOf, unitsIn } from './needs.mjs';
+import { needs, remember, said, twinsOf, unitsIn } from './needs.mjs';
 
 /**
  * Existing code with the needs of a function just written.
@@ -80,16 +80,31 @@ describe('the needs reader', () => {
     ]);
   });
 
+  it('reads a constant where the module declares it, not in a block or a loop at its top', () => {
+    const text = [
+      'export const LIMIT = 10;',
+      'for (const row of [1, 2]) {',
+      '  const doubled = row * 2;',
+      '  console.log(doubled);',
+      '}',
+      'if (LIMIT > 5) {',
+      "  const label = 'many';",
+      '  console.log(label);',
+      '}',
+    ].join('\n');
+    expect(named(unitsIn('tools/top.mjs', text))).toEqual(['constant LIMIT 1']);
+  });
+
   it('names the existing function a rewritten one shares its needs with', () => {
     expect(
       twins(
         'packages/cli/src/config.ts',
         [
-          "import { readFileSync as read } from 'node:fs';",
-          'export const loadPackage = (file: string) => {',
-          '  const json = JSON.parse(read(file, "utf8"));',
+          "import { readFileSync } from 'node:fs';",
+          'export const loadPackage = (path: string) => {',
+          '  const json = JSON.parse(readFileSync(path, "utf8"));',
           "  if (typeof json.name !== 'string') {",
-          '    throw new Error(`${file}: no name`);',
+          '    throw new Error(`${path}: no name`);',
           '  }',
           '  const workspaces = json.workspaces ?? [];',
           "  return { name: json.name, version: json.version ?? '0.0.0', workspaces };",
@@ -117,11 +132,15 @@ describe('the needs reader', () => {
       twins(
         'packages/cli/src/small.ts',
         [
+          "import { readFileSync as read } from 'node:fs';",
           "export const VERSION_DEFAULT = '0.0.0';",
           'export const half = (value: number) => value / 2;',
-          'export class Timer {',
-          '  constructor(private readonly start: number) {',
-          '    this.start = start;',
+          'export class Package {',
+          '  manifest: { name: string; version: string; workspaces: string[] };',
+          '  constructor(file: string) {',
+          '    const json = JSON.parse(read(file, "utf8"));',
+          "    if (typeof json.name !== 'string') throw new Error(`${file}: no name`);",
+          "    this.manifest = { name: json.name, version: json.version ?? '0.0.0', workspaces: json.workspaces ?? [] };",
           '  }',
           '}',
         ].join('\n'),
@@ -175,13 +194,13 @@ describe('needs', () => {
 
     // An edit to a function the file already held asks nothing; a function new in it, or in a new file, asks.
     await write('packages/cli/src/config.ts', [
-      "import { readFileSync as read } from 'node:fs';",
+      "import { readFileSync } from 'node:fs';",
       'export function byWeight(rows: readonly { weight: number }[]) {',
       '  return rows.length + 1;',
       '}',
-      'export const loadPackage = (file: string) => {',
-      '  const json = JSON.parse(read(file, "utf8"));',
-      "  if (typeof json.name !== 'string') throw new Error(`${file}: no name`);",
+      'export const loadPackage = (path: string) => {',
+      '  const json = JSON.parse(readFileSync(path, "utf8"));',
+      "  if (typeof json.name !== 'string') throw new Error(`${path}: no name`);",
       "  return { name: json.name, version: json.version ?? '0.0.0', workspaces: json.workspaces ?? [] };",
       '};',
     ]);
@@ -191,7 +210,7 @@ describe('needs', () => {
       [
         'needs: 1 of 2 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
         '  packages/cli/src/config.ts:5 loadPackage',
-        '    0.63 packages/workspace/src/manifest.ts:2 readManifest',
+        '    0.73 packages/workspace/src/manifest.ts:2 readManifest',
         '',
       ].join('\n'),
     );
@@ -204,13 +223,13 @@ describe('needs', () => {
     });
     await write('tools/half.mjs', ['export function half(', '']);
     await write('packages/cli/src/config.ts', [
-      "import { readFileSync as read } from 'node:fs';",
+      "import { readFileSync } from 'node:fs';",
       'export function byWeight(rows: readonly { weight: number }[]) {',
       '  return rows.length;',
       '}',
-      'export const loadPackage = (file: string) => {',
-      '  const json = JSON.parse(read(file, "utf8"));',
-      "  if (typeof json.name !== 'string') throw new Error(`${file}: no name`);",
+      'export const loadPackage = (path: string) => {',
+      '  const json = JSON.parse(readFileSync(path, "utf8"));',
+      "  if (typeof json.name !== 'string') throw new Error(`${path}: no name`);",
       "  return { name: json.name, version: json.version ?? '0.0.0', workspaces: json.workspaces ?? [] };",
       '};',
     ]);
@@ -219,7 +238,7 @@ describe('needs', () => {
       [
         'needs: 1 of 1 new functions asked about need what existing ones need. Read them; where one answers, call or extend it:',
         '  packages/cli/src/config.ts:5 loadPackage',
-        '    0.63 packages/workspace/src/manifest.ts:2 readManifest',
+        '    0.73 packages/workspace/src/manifest.ts:2 readManifest',
         'needs: oxc could not parse tools/half.mjs, so its functions are not read',
         '',
       ].join('\n'),
@@ -231,10 +250,11 @@ describe('needs', () => {
     const typed = ['export function count(rows: readonly { id: string }[]): number {', '  return rows.length;', '}'];
     const { dir } = await repository({ 'packages/a/src/count.ts': typed, 'packages/a/src/count.js': typed });
 
-    const first = said(needs(dir));
-    expect(first).toBe(
+    const first = needs(dir);
+    await remember(first.cache);
+    expect(said(first)).toBe(
       ['needs: 0 new functions asked about; none needs what an existing one needs', 'needs: oxc could not parse packages/a/src/count.js, so its functions are not read', ''].join('\n'),
     );
-    expect(said(needs(dir))).toBe(first);
+    expect(said(needs(dir))).toBe(said(first));
   });
 });
