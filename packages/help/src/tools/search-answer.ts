@@ -6,11 +6,11 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
-import { describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type DescribedRow, type Reached } from './described.js';
+import { describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type Reached, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { declaredMatches, exactness } from './declared.js';
-import { docRows, exported, exportedShown, first } from './exported-matches.js';
+import { docRows, exported, first } from './exported-matches.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -291,25 +291,24 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number): Mat
 }
 
 /**
- * The row a name is shown through when no doc decided one, for each name: its
- * published row the published section would show first, else its exported row
- * the exported section would show. In an area, its published row the most files
- * there import, then the most import sites there, else its exported row there of
- * the first kind, then {@link rowTextOrder}: an import outside the area says
- * nothing about it. The described section weighs such a name by this row's doc.
+ * The described section's {@link RowOrder}: published rows first, by the most
+ * files of the area importing them, then import sites there, and with no area
+ * by the most packages importing them, then import sites; exported rows by
+ * kind, source before tests before stories; then {@link rowTextOrder}.
  */
-export function shownRowOf(index: SearchIndex, area: Area | undefined, within: ReadonlySet<number> | undefined): (name: number) => DescribedRow | undefined {
-  const text = (kind: DescribedRow['kind'], a: number, b: number): number => rowTextOrder(index, { kind, row: a }, { kind, row: b });
-  const inArea = (a: Hit, b: Hit): number =>
-    (b.scoped?.files ?? 0) - (a.scoped?.files ?? 0) || (b.scoped?.imports ?? 0) - (a.scoped?.imports ?? 0) || text('published', a.row, b.row);
-  const kindThenText = (a: number, b: number): number => index.exportedKind(a) - index.exportedKind(b) || text('exported', a, b);
-  return (name) => {
-    const hit = first(surface(index, index.publishedOf(name), area, within), 1, area === undefined ? surfaceOrder : inArea)[0];
-    if (hit !== undefined) return { kind: 'published', row: hit.row };
-    const rows = exported(index, [name], new Set(), within).rows();
-    const row = area === undefined ? exportedShown(index, rows) : first(rows, 1, kindThenText)[0];
-    return row === undefined ? undefined : { kind: 'exported', row };
+export function shownRowOrder(index: SearchIndex, area: Area | undefined, within: ReadonlySet<number> | undefined): RowOrder {
+  const scoped = new Map<number, InArea>();
+  const counts = (row: number): readonly [number, number] => {
+    if (area === undefined || within === undefined) return [index.usedBy(row), index.uses(row)];
+    const seen = scoped.get(row) ?? usedWithin(index, row, area, within);
+    scoped.set(row, seen);
+    return [seen.files, seen.imports];
   };
+  const most = ([a1, a2]: readonly [number, number], [b1, b2]: readonly [number, number]): number => b1 - a1 || b2 - a2;
+  return (a, b) =>
+    (a.kind === b.kind ? 0 : a.kind === 'published' ? -1 : 1) ||
+    (a.kind === 'published' ? most(counts(a.row), counts(b.row)) : index.exportedKind(a.row) - index.exportedKind(b.row)) ||
+    rowTextOrder(index, a, b);
 }
 
 /** Every published row of the names given. */
@@ -408,7 +407,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   // The empty answer read as a description: names holding any of its words,
   // stemmed by the rule packages are.
   // A name its file keeps to itself is in no row: the source index answers for it.
-  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOf(index, area, within));
+  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within));
   const described = reached === undefined ? undefined : [...reached, ...(describedDeclarations(root, query, area?.files) ?? [])];
   // Which reading a name both reach is told by is decided by what each holds,
   // never by how many rows print. A name holding at least half the stems is the

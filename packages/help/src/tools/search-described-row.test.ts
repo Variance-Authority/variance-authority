@@ -6,7 +6,7 @@ import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { areaOf, type Area } from './area.js';
 import { describedNames } from './described.js';
-import { searchNames, shownRowOf } from './search-answer.js';
+import { searchNames, shownRowOrder } from './search-answer.js';
 import { answerSearch, searchIndexOf } from './search.js';
 
 /**
@@ -14,8 +14,11 @@ import { answerSearch, searchIndexOf } from './search.js';
  * exported from more than one file, or published and also exported — is
  * weighed, ordered and shown through one of them, never through several rows'
  * docs added up: the row whose doc adds the most different words to its name's,
- * then the shorter doc, then a published row, then the doc's text and the
- * row's path, and when no doc adds a word, the row it is shown through. In an
+ * then the shorter doc, then the order its rows are shown in, and when no doc
+ * adds a word, the first row in that order: a published row before an exported
+ * one, a published row by the packages importing it, or in an area by the
+ * files there importing it, then by its import sites; an exported row source
+ * first, then tests, then stories; then the doc's text and the row's path. In an
  * area it is counted, weighed and ordered only through the rows the area holds.
  */
 
@@ -29,7 +32,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
   /** The names the described section reaches for `query`, in `area` when one is given, with nothing answered before it. */
   const reachedBy = (index: ReturnType<typeof searchIndexOf>, query: string, area?: Area) => {
     const within = area === undefined ? undefined : index.fileIds(area.files);
-    return describedNames(index, query, within, new Set(), shownRowOf(index, area, within));
+    return describedNames(index, query, within, new Set(), shownRowOrder(index, area, within));
   };
 
   it('weighs a name published twice with the length of the doc that holds the words, not of the row published first', async () => {
@@ -356,5 +359,75 @@ describe('which row a described name is weighed, ordered and shown through', () 
     const named = await shown('a');
     expect(named).toEqual(await shown('c'));
     expect(named).toEqual([['PlacementKit', 'src/b.ts', 'A kit for one placement.']]);
+  });
+
+  /** `name` declared under `doc` by a `src/index.ts`, as `kits` takes it. */
+  const declaring = (name: string, doc: string): Record<string, string> => ({ 'index.ts': `/** ${doc} */\nexport interface ${name} {\n  readonly at: string;\n}\n` });
+
+  it('shows a name no doc adds a word to, asked without an area, through the same published row whatever its packages are called', async () => {
+    const shown = async (first: string): Promise<unknown> => describedBy(await kits({
+      [first]: declaring('PlacementKit', 'The placement kit.'),
+      'b-kit': declaring('PlacementKit', 'A kit for one placement.'),
+      'c-kit': declaring('KitPlacement', 'The placement kit.'),
+    }), 'placement kit zebra');
+    const named = await shown('a-kit');
+    expect(named).toEqual(await shown('z-kit'));
+    expect(named).toEqual([
+      ['KitPlacement', 'c-kit', 'The placement kit.', ['kit', 'placement']],
+      ['PlacementKit', 'b-kit', 'A kit for one placement.', ['kit', 'placement']],
+    ]);
+  });
+
+  it('shows a name no doc adds a word to, asked without an area, through the same exported row whatever its files are called', async () => {
+    const shown = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      [`src/${first}.ts`]: declaring('PlacementKit', 'The placement kit.')['index.ts'] as string,
+      'src/b.ts': declaring('PlacementKit', 'A kit for one placement.')['index.ts'] as string,
+    }), 'placement kit zebra');
+    const named = await shown('a');
+    expect(named).toEqual(await shown('z'));
+    expect(named).toEqual([['PlacementKit', 'src/b.ts', 'A kit for one placement.', ['kit', 'placement']]]);
+  });
+
+  const KEPT_PLACEMENT = { 'index.ts': `${KEPT}export interface Placement {\n  readonly at: string;\n}\n` };
+
+  it('weighs and shows a name in an area through the row the area imports most when two docs add the same words', async () => {
+    // `app/src/index.ts` imports `Placement` from both kits, and `more.ts`, which it imports, from `b-kit` again.
+    const shown = async (first: string): Promise<unknown> => {
+      const root = await kits({
+        [first]: KEPT_PLACEMENT,
+        'b-kit': KEPT_PLACEMENT,
+        'app': {
+          'index.ts': `import type { Placement } from '${first}';\nimport type { Placement as Kept } from 'b-kit';\nimport type { More } from './more.js';\nexport type Used = Placement | Kept | More;\n`,
+          'more.ts': "import type { Placement } from 'b-kit';\nexport type More = Placement;\n",
+        },
+      }, { app: [first, 'b-kit'] });
+      const [one, two, more] = [`packages/${first}/src/index.ts`, 'packages/b-kit/src/index.ts', 'packages/app/src/more.ts'];
+      const edges = (...to: string[]) => to.map((file) => ({ to: file, kind: 'imports' as const }));
+      const tree = treeOf([{ file: APP, edges: edges(one, two, more) }, { file: more, edges: edges(two) }, { file: one }, { file: two }], root);
+      const match = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text', from: APP }, tree).described?.shown.find(({ name }) => name === 'Placement');
+      return match && 'specifier' in match ? [match.specifier, match.inArea?.files, match.inArea?.imports] : match;
+    };
+    expect(await shown('a-kit')).toEqual(['b-kit', 2, 2]);
+    expect(await shown('z-kit')).toEqual(['b-kit', 2, 2]);
+  });
+
+  it('weighs and shows a name through the row more packages import when two docs add the same words', async () => {
+    const shown = async (first: string): Promise<unknown> => {
+      const used = { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" };
+      const root = await kits({ [first]: KEPT_PLACEMENT, 'b-kit': KEPT_PLACEMENT, 'app': used }, { app: ['b-kit'] });
+      const match = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text' }).described?.shown.find(({ name }) => name === 'Placement');
+      return match && 'specifier' in match ? [match.specifier, match.packages] : match;
+    };
+    expect(await shown('a-kit')).toEqual(['b-kit', 1]);
+    expect(await shown('z-kit')).toEqual(['b-kit', 1]);
+  });
+
+  it('weighs and shows a name through its source row before a test row when two docs add the same words', async () => {
+    const shown = async (test: string): Promise<unknown> => {
+      const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], { [test]: KEPT_PLACEMENT['index.ts'], 'src/b.ts': KEPT_PLACEMENT['index.ts'] });
+      return searchNames(searchIndexOf(readHelp(root)), { query: 'placement text' }).described?.shown.find(({ name }) => name === 'Placement')?.at;
+    };
+    expect(await shown('src/a.test.ts')).toBe('src/b.ts');
+    expect(await shown('src/c.test.ts')).toBe('src/b.ts');
   });
 });

@@ -108,7 +108,7 @@ export function exported(
  * before stories, and the first written within a kind. The kind column orders
  * the rows, so only the one shown is read.
  */
-export function exportedShown(index: SearchIndex, rows: Iterable<number>): number | undefined {
+function exportedShown(index: SearchIndex, rows: Iterable<number>): number | undefined {
   let chosen: number | undefined;
   for (const row of rows) {
     if (chosen === undefined || index.exportedKind(row) < index.exportedKind(chosen)) chosen = row;
