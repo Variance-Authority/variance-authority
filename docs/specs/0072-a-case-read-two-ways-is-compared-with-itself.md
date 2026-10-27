@@ -110,8 +110,8 @@ in their own fixture, and the record says what that did.
 
 ## Out of scope
 
-**Naming what wrote the state.** The verdict proves a dependency and shows where
-it appears. Finding the case or the hook that wrote it is an agentic flow over
+**Naming what wrote the state.** The verdict names a candidate dependency and
+shows where it appears. Finding the case or the hook that wrote it is an agentic flow over
 that evidence, as it is for visual order dependence (0012).
 
 **Seeing through the cache.** Nothing here patches a memoizer or clears one.

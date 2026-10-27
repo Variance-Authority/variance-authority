@@ -92,7 +92,7 @@ machine that needs no Cloudflare account at all.
 
 Copy from here when you want the console's pages rather than the bare API: `app/`
 is the part the package does not ship, and the `link:` in `package.json` becomes
-`"@variance-authority/tribunal": "^0.2.0"` in yours.
+`"@variance-authority/tribunal": "^0.21.0"` in yours.
 
 ### The resources, in order
 

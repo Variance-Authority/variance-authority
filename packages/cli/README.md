@@ -805,12 +805,12 @@ read as the others losing and gaining theirs; the answer counts those as
 renumbered. A region the diff carried onto lines where only a region of
 another path stands, with no edit in its function before it to explain the new
 path, is not compared: the answer lists it as not compared, with where it
-landed. Each region whose cases moved is one of four:
+landed. Each region whose cases changed is one of four:
 
 - **lost**: cases walked it at the base, none do now, and every case that could
-  have reached it finished. This is a regression.
+  have reached it finished. The region is no longer run.
 - **hidden**: the same, except a case that could have reached it stopped. The
-  case is named, and the region is not called a regression.
+  case is named, and whether the region is still run is not known.
 - **thinned**: several cases walked it at the base, one does now.
 - **gained**: no case walked it at the base, one or more do now.
 
@@ -2607,14 +2607,18 @@ owns its own collector, renderer, storage, or review surface:
   read. `mainlineRead` and `mainlineMissed` print the same `record of
   "<suite>":` line `select` does. The mainline's record is read with the runs
   record the publishing run carried beside it, at `mainline.runs`. In a fresh CI
-  checkout, `layMainline(root, mainline, instrumentation)` copies the record and
-  its per-case index into the checkout's own layer, with that runs record as a
-  seed that lists no run, so the run the job makes lands on them, as a cache
+  checkout, `layMainline(root, mainline, instrumentation)` copies the record,
+  which carries its cases, into the checkout's own layer, with that runs record
+  as a seed that lists no run, so the run the job makes lands on them, as a cache
   restore would. `instrumentation` is the probes that run records under: a
   record written under other probes is not copied, because no run could be laid
   over it, and comes back as `passed`, which `mainlinePassedOver` prints. Pass
   `undefined` for a landing that lays no coverage. `env` stands in for
-  `process.env` when the line is read, and `cacheRoot` for the cache.
+  `process.env` when the line is read, and `cacheRoot` for the cache. After the
+  shards ran, `landSuite(root, shards, suite)` lands their directories on
+  `suite`'s record in the checkout, as `variance journeys <shards> --suite`
+  does, and returns what the landing said without the reading, for a CI fan-in
+  that folds the record for the jobs after it.
 - `recordedExecutionFile(root, suite)` names the record `distill`, `covering`
   and `review` read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,

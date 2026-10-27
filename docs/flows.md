@@ -160,7 +160,7 @@ An endpoint the run cannot call, a refused token, or an invalid response stops
 the run. None of them is reported as a missing baseline, so a network failure
 can never lead the next `accept` to overwrite the only approved copy. Run
 `serveRasterStore` from
-[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+[`@variance-authority/remote/store`](https://variance-authority.dev/reference/packages/remote)
 behind infrastructure you operate, or point the endpoint at the compatible
 baseline API of
 [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal).
@@ -285,7 +285,7 @@ A remote renderer is selected independently of baseline storage:
 ```
 
 `serveRenderer` from
-[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+[`@variance-authority/remote/renderer`](https://variance-authority.dev/reference/packages/remote)
 exposes no token setting, so keep it on a trusted network or put authentication
 in a proxy you operate. The remote machine must also be able to resolve the
 resources the captured document embeds or references. A resource the renderer
