@@ -100,12 +100,12 @@ describe('a module held whole that the reading cannot follow', () => {
     );
   });
 
-  it('counts no place that may read a name as a place that imports it, and names each apart', () => {
+  it('counts no place that may read a name as a place that imports it, and leaves their count to the header', () => {
     expect(symbol.run(help, { name: 'widen' })).toContain(
-      '`docs_uses` names no place that imports this, and lists where it may be read in 1 place: 1 passing the module on whole.',
+      '`docs_uses` names no place that imports this, and lists the ones that may read it.',
     );
     expect(symbol.run(help, { name: 'narrow' })).toContain(
-      "`docs_uses` names no place that imports this, and lists where it may be read in 2 places: 1 off the module's `default`, 1 passing the module on whole.",
+      '`docs_uses` names no place that imports this, and lists the ones that may read it.',
     );
   });
 

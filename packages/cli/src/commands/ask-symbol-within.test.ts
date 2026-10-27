@@ -67,8 +67,27 @@ describe('variance ask symbol over the imports of a published name inside its ow
 
     const symbol = await run(['ask', 'symbol', '--name', 'greet']);
     expect(symbol.out).toContain(
-      '`variance ask uses` names the 6 places that import this: 1 from another package and 5 inside @acme/lib, nearest to a file you name first. It also lists where it may be read in 1 place: 1 passing the module on whole.',
+      '`variance ask uses` names the 6 places that import this: 1 from another package and 5 inside @acme/lib, nearest to a file you name first, and the ones that may read it.',
     );
+    expect(symbol.out).toContain('used by 1 package: @acme/app — 1 import by published path; it also may be read in 1 place: 1 passing the module on whole');
+  });
+
+  it('names the places inside its own package that may read the name once, in the header, with the count `uses` lists', async () => {
+    checkout({
+      ...FIVE_WITHIN,
+      'packages/lib/src/passed.ts': "export async function keys(): Promise<number> {\n  const passed = await import('./greet.js');\n  return count(passed);\n}\n\nfunction count(held: object): number {\n  return Object.keys(held).length;\n}\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const uses = await run(['ask', 'uses', '--name', 'greet']);
+    expect(uses.out).toContain('`greet` [function] is imported in 6 places. 1 more passes the module on whole');
+
+    const symbol = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(symbol.out).toContain('used by 1 package: @acme/app — 1 import by published path; it also may be read in 1 place: 1 passing the module on whole');
+    expect(symbol.out).toContain(
+      '`variance ask uses` names the 6 places that import this: 1 from another package and 5 inside @acme/lib, nearest to a file you name first, and the ones that may read it.',
+    );
+    expect(symbol.out.match(/may be read in/gu)).toHaveLength(1);
   });
 
   it('counts inside the package that declares the name when a package that re-exports it is imported most', async () => {
