@@ -1522,7 +1522,7 @@
     17
   ],
   "packages/help/src/tools/exported-matches.ts docblock": [
-    15
+    16
   ],
   "packages/help/src/tools/find.ts docblock": [
     12
@@ -1552,7 +1552,7 @@
     6
   ],
   "packages/help/src/tools/search.ts overview": [
-    75
+    76
   ],
   "packages/help/src/tools/silent.ts docblock": [
     11
@@ -2798,6 +2798,9 @@
   "packages/sense/src/test-selection/commit.ts overview": [
     25
   ],
+  "packages/sense/src/test-selection/coverage-distance.ts overview": [
+    16
+  ],
   "packages/sense/src/test-selection/coverage-file.ts docblock": [
     13
   ],
@@ -2828,7 +2831,6 @@
     27
   ],
   "packages/sense/src/test-selection/distance.ts block": [
-    6,
     6
   ],
   "packages/sense/src/test-selection/distance.ts docblock": [
