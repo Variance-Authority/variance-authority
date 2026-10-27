@@ -111,9 +111,11 @@ worktree and `origin/main`, never from local `main`.
    and the path of the body file. It designs the change from the task and the
    compass before it reads the diff, then reports each gap against the code
    rules: a second implementation, a wait or a reload, a neighbour's question,
-   a runner favoured, complexity in the wrong role. It reads the body last,
-   and a reason clears a finding only with evidence. Occam asks whether the
-   change should happen; Alignment asks whether its shape is ours.
+   a runner favoured, complexity in the wrong role. It runs `yarn needs`, which
+   names the existing functions that need what the branch's new ones need. It
+   reads the body last, and a reason clears a finding only with evidence.
+   Occam asks whether the change should happen; Alignment asks whether its
+   shape is ours.
 
 When the change writes or rewrites a top-layer page, a fifth runs first:
 

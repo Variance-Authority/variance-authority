@@ -118,7 +118,7 @@ export function tests() {
 // Where the runner configurations collect from: `PLACES` in `vitest.config.mts`,
 // and the checks and measurements under `tools/` and `packages/`.
 const COLLECTED = ['packages/', 'cases/', 'examples/', 'site/app/', 'tools/'];
-const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
+export const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
 const IN_TESTS = new Set(['timer', 'fresh-page']);
 
 // A name a runner collects, and the directories that hold what a test reads.
@@ -126,7 +126,7 @@ const IN_TESTS = new Set(['timer', 'fresh-page']);
 // in a file no runner collects yet is still a wait.
 const COLLECTED_NAME = /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/;
 const FIXTURE = /(^|\/)(__fixtures__|fixtures)\//;
-const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
+export const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
 
 /** Every site of every idiom in one file's text, outside the files that own it. */
 export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
@@ -245,7 +245,8 @@ function calleeName(callee) {
   return undefined;
 }
 
-const isFunction = (node) =>
+/** Whether a node is a function: declared, expressed or an arrow. */
+export const isFunction = (node) =>
   node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression';
 
 function nameOf(fn, scope) {
@@ -281,8 +282,8 @@ function visit(root, enter, { into = () => true } = {}) {
   walk(root, { name: undefined, binding: undefined });
 }
 
-// oxc reports UTF-16 offsets into the text it was given.
-function lines(text) {
+/** The line of each offset in `text`: oxc reports UTF-16 offsets into the text it was given. */
+export function lines(text) {
   const starts = [0];
   for (let index = 0; index < text.length; index += 1) {
     if (text.charCodeAt(index) === 10) starts.push(index + 1);

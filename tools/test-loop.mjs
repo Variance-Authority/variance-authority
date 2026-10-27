@@ -9,12 +9,17 @@
  * the compiler, the index and one reading. Both functions are loaded from `dist/`
  * after `tsc --build` has written it, so an edit to the selection is read by
  * the selection it makes. Integration and browser tests are the waves'.
+ *
+ * Last, whatever the tests said: the existing functions that need what a
+ * function new on the branch needs (`tools/needs.mjs`), named while the second
+ * implementation is still being written.
  */
 
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { needs, remember, said } from './needs.mjs';
 import { inSlice } from './slices.mjs';
 
 const ENV = {
@@ -76,6 +81,14 @@ async function main() {
     process.stdout.write(types.out);
     return types.code;
   }
+  const code = await tested(root);
+  const found = needs(root);
+  process.stderr.write(said(found));
+  await remember(found.cache);
+  return code;
+}
+
+async function tested(root) {
   const { failed, value, files, runs } = await read(root);
   if (failed !== undefined) {
     process.stderr.write(failed);

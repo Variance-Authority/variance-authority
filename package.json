@@ -37,6 +37,7 @@
     "owners": "node tools/owners.mjs",
     "restrictions": "variance index && variance restrictions",
     "clones": "node tools/clones.mjs",
+    "needs": "node tools/needs.mjs",
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
     "verify:far": "variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_GRAIN=file VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test",

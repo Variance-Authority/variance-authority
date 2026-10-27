@@ -152,7 +152,9 @@ Look around:
 
 After each edit, run `yarn test:loop` and read its verdict before the next
 edit: the compiler, then the unit tests within one import of what changed. A
-red is fixed before any other edit.
+red is fixed before any other edit. It ends with the existing functions that
+need what a function new on the branch needs: call or extend the one that
+answers, or say in the PR why it does not.
 
 What the task needs, and a defect in its own diff, are fixed on its branch
 before it merges; a finding it neither needs nor wrote goes on its own branch,
