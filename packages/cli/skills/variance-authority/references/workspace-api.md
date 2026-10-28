@@ -266,7 +266,11 @@ line says how many are on each side:
 ```
 
 A site ends with the lines its file uses what the import binds on, read from
-the source index: `apps/app/src/hello.ts:1 — @acme/app; used on line 2`.
+the source index:
+
+```
+apps/app/src/hello.ts:1 — @acme/app; used on line 2
+```
 
 The imports within the name's own package come from the source index: every
 import that resolved to the file declaring it, or to a file that passes it on
