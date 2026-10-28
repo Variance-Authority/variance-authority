@@ -300,6 +300,27 @@ describe('variance ask about a name declared and not exported', () => {
     expect(out).toContain('`walk` [module] is declared, not exported, at packages/kit/src/lib.rs:1, so only its module and the modules inside it can name it.');
   });
 
+  it('ends a `uses` answer about a Rust name with the uses no path names, and says it once', async () => {
+    checkout({
+      'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
+      'packages/kit/src/lib.rs': 'mod pick;\nmod chosen;\nmod glob;\n',
+      'packages/kit/src/pick.rs': 'pub(crate) struct Reached;\n',
+      'packages/kit/src/chosen.rs': 'use crate::pick::Reached;\n\nfn chosen(reached: Reached) {}\n',
+      'packages/kit/src/glob.rs': 'use crate::pick::*;\n\nfn globbed(reached: Reached) {}\n',
+      'packages/web/src/reached.ts': 'export interface Reached {\n  readonly at: string;\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const unread = "In Rust, a name a glob `use` brings in, a method called on a value and a macro are not read by path; rust-analyzer's find-references has those.";
+    const { code, out } = await run(['ask', 'uses', '--name', 'Reached']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^packages\/kit\/src\/chosen\.rs:1\b/mu);
+    expect(out).not.toContain('glob.rs');
+    expect(out.split(unread)).toHaveLength(2);
+    // Asked for the TypeScript declaration alone, the answer reads no Rust.
+    expect((await run(['ask', 'uses', '--name', 'Reached', '--file', 'packages/web/src/reached.ts'])).out).not.toContain(unread);
+  });
+
   it('answers `symbol` and `uses` for a Swift `fileprivate` and a Kotlin `private` as declared and kept to their files', async () => {
     checkout({
       'packages/kit/Sources/Kit/Restart.swift': 'public func restart() -> Int { relaunch() }\n\nfileprivate func relaunch() -> Int { 0 }\n',
