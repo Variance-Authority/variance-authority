@@ -385,6 +385,7 @@ export async function runWith(
       readonly install?: InstallDiff;
       readonly diff?: string;
     };
+    ignore?: readonly string[];
     scanSource?: (dirs: readonly string[]) => Promise<SourceIndex>;
     scanRelations?: (dirs: readonly string[]) => Promise<Relations>;
     readJourney?: (
@@ -407,6 +408,7 @@ export async function runWith(
     ...(options.intent !== undefined ? { intent: options.intent } : {}),
     ...(options.flakes === true ? { flakes: true } : {}),
     ...(options.since !== undefined ? { since: options.since } : {}),
+    ...(options.ignore !== undefined ? { ignore: options.ignore } : {}),
     ...(options.shard !== undefined ? { shard: options.shard } : {}),
     ...(options.costs !== undefined ? { costs: options.costs } : {}),
     ...(options.identity !== undefined ? { identity: options.identity } : {}),

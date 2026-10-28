@@ -111,6 +111,25 @@ describe('variance_source_tests', () => {
     expect(text).toContain('line 10\n  no named test reached this range');
   });
 
+  describe('a region on a range no case entered, when the range names cases', () => {
+    const branch = { kind: 'branch', name: 'priceOf', path: 'if#1/then', startLine: 6, endLine: 6, source: true, crossings: [] };
+    const hidden = (stopped: readonly boolean[]): ExecutionIndex => ({
+      tests: INDEX.tests.map((test, at) => ({ ...test, stopped: stopped[at]! })),
+      modules: [{ ...INDEX.modules[0]!, blocks: [INDEX.modules[0]!.blocks[0]!, branch] }],
+    });
+    const cases = 'line 6\n  applies the staff discount — test/cart.test.ts [staff]\n  uses the guest price — test/cart.test.ts [guest]\n';
+
+    it('is unwalked when every case that could have reached it finished', () => {
+      expect(sourceTests.run(hidden([false, false]), { file: 'src/cart/total.ts' })).toContain(
+        `${cases}  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.\n`,
+      );
+    });
+
+    it('says neither when a case stopped, since without the file graph nobody can tell whether it could have reached it', () => {
+      expect(sourceTests.run(hidden([true, false]), { file: 'src/cart/total.ts' })).toContain(`${cases}  no case entered the branch on line 6.\n`);
+    });
+  });
+
   it('names indexed files when the requested path is unknown', () => {
     expect(sourceTests.run(INDEX, { file: 'src/missing.ts' })).toContain(
       'Indexed files:\n  src/cart/total.ts',

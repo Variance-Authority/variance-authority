@@ -16,6 +16,7 @@ import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-art
 // The story format is a CommonJS sandbox module whose own requires resolve only
 // once built, so it is read from `dist/` as the jest seam itself loads it.
 const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
+const { readRoute } = (await import('../../dist/story/read.js')) as typeof import('../story/read.js');
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -313,6 +314,16 @@ describe('the Jest integration', () => {
       stories.decodeStory(await readFile(resolve(taped, path))).name));
     // The `it.skip` in alpha runs nothing, so it tapes nothing.
     expect(names.sort()).toEqual(['ran after the project\'s own setup file', 'takes the alpha path']);
+    // Each region the case went through is named by its coordinate in the record beside the story.
+    const alpha = (await written(taped)).map((path) => resolve(taped, path))
+      .find((path) => readRoute(repository, path).name === 'takes the alpha path');
+    const route = readRoute(repository, alpha!);
+    expect(route.unresolved).toEqual([]);
+    expect(route.route.map((step) => ('token' in step ? step.token : undefined))
+      .find((token) => token !== undefined && 'place' in token && token.place.name === 'decide')).toMatchObject({
+      place: { file: at('src/decide.ts'), at: `${at('src/decide.ts')}#decide/entry` },
+      arms: [{ path: 'if#0/then', at: `${at('src/decide.ts')}#decide/if#0/then` }],
+    });
     // Each run records the duration its runner reported, which two runs never
     // share; every file and every case has one, and the rest of the two
     // recordings is the same.

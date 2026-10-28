@@ -182,6 +182,13 @@ export interface RunOptions {
   readonly identity?: RunIdentity;
 
   /**
+   * The selected suite's `ignore` globs. A changed file they match narrows as
+   * `variance select` reads it: it moves no subject and no `before`, but
+   * through a module that declares it with a `/// <depends>`.
+   */
+  readonly ignore?: readonly string[];
+
+  /**
    * `--since <ref>`: observe only what this diff could have changed.
    *
    * The subjects it rules out are recorded as `excluded` with the sentence that

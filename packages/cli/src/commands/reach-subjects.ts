@@ -44,6 +44,9 @@ export interface ReachInput {
    */
   readonly movedExports?: MovedExports;
 
+  /** The suite's `ignore` globs, read as the run's selector reads them. */
+  readonly ignore?: readonly string[];
+
   /**
    * Component names each planned subject's stored baseline recorded.
    *
@@ -76,6 +79,7 @@ export function reachOf(input: ReachInput): ReachReport {
     input.install ?? NO_INSTALL_DIFF,
     input.before,
     input.movedExports ?? new Map(),
+    input.ignore,
   );
 
   if (refused(walk)) {

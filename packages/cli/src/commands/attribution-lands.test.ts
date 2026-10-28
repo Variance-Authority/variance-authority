@@ -36,10 +36,10 @@ afterEach(async () => {
 
 const TOTAL = 'test/total.test.ts';
 const OTHER = 'test/other.test.ts';
-const MOCKED = { name: 'network', value: 'mocked', site: `${TOTAL}:2`, level: 1 };
-const FLAGGED = { name: 'flag', value: 'ff-on', site: `${OTHER}:1`, level: 0xffff };
+const MOCKED = { name: 'network:api', value: 'mocked', site: `${TOTAL}:2`, level: 1 };
+const FLAGGED = { name: 'flags:checkout', value: 'ff-on', site: `${OTHER}:1`, level: 0xffff };
 /** What a case said, as the frame spells it. */
-const said = (...items: readonly (typeof MOCKED)[]) => JSON.stringify(items.map(({ name, value, site, level }) => [name, value, site, level]));
+const said = (...items: readonly (typeof MOCKED)[]) => JSON.stringify({ said: items.map(({ name, value, site, level }) => [name, JSON.stringify(value), site, level]) });
 const DISCOUNTS: ExecutionTest = { id: `${TOTAL} > discounts`, file: TOTAL, name: 'discounts', said: said(MOCKED) };
 const STANDS: ExecutionTest = { id: `${OTHER} > stands alone`, file: OTHER, name: 'stands alone', said: said(FLAGGED) };
 const journal = (by: string) => ({ complete: true, attention: [], by });

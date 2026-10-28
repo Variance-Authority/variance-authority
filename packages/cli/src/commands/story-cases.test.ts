@@ -144,7 +144,7 @@ describe('labels compared', () => {
   });
 });
 
-const PLACE: Place = { file: 'src/pay.ts', name: 'charge', kind: 'function', startLine: 3, endLine: 9 };
+const PLACE: Place = { file: 'src/pay.ts', name: 'charge', kind: 'function', at: 'src/pay.ts#charge/entry', startLine: 3, endLine: 9 };
 
 describe('three sides printed', () => {
   it('says what separates them under the sides that hold it, and an order by who holds each way', () => {

@@ -306,6 +306,20 @@ per-test coverage as an interchange artifact at method granularity — the close
 published thing to our record's rows, and the evidence that a per-test format is
 a thing somebody already needed.
 
+**Combinatorial coverage measurement** (Kuhn et al., NIST IR 7878, 2012, and
+NIST's CCM tool) measures the share of t-way combinations of configuration
+values a test set arranged. It is the field's reading of *was anonymous ×
+timeout ever tested*, taken over the inputs alone: it cannot say whether the
+combination reached the code it was arranged for. **QuickCheck's `classify`,
+`label` and `cover`** (and Hypothesis's `event`) report which labelled
+scenarios the passing cases held, and `cover` fails a run whose scenario is
+under-represented: the closest existing form of *why did the others pass*,
+over generated inputs and without the code they reached. **Trace queries**
+(TraceQL, Honeycomb) filter spans by attribute with conjunction and negation,
+over production traces rather than a suite's cases. A witness in
+[spec 0103](../specs/0103-a-behaviour-names-the-cases-that-witnessed-it.md)
+joins the arranged state, the case's name and the region on one case.
+
 **Per-test coverage exists as a feature and not as a metric.** JetBrains IDEs
 track it and answer *show tests covering line*; **Parasoft Jtest** records
 covered code per test case; **Wallaby.js** puts per-line covered / not-covered /

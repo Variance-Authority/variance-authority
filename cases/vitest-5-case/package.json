@@ -1,0 +1,10 @@
+{
+  "name": "@variance-authority/case-vitest-5",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@variance-authority/sense": "workspace:^",
+    "vitest": "^5.0.1"
+  }
+}

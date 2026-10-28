@@ -1,5 +1,23 @@
 # @variance-authority/ioc
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+### Patch Changes
+
+- 417c97d: `package.json` declares `sideEffects: true`: the reset registry is state every test shares, so a bundler keeps it and `@variance-authority/isolator` leaves it as it is.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.17.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

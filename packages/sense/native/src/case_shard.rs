@@ -78,7 +78,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
             project: projects.as_ref().map(|column| column[at]).filter(|word| *word != case_id::UNNAMED).map(|word| string(&strings, word).map(str::to_owned)).transpose()?,
             runner: runners.as_ref().map(|column| string(&strings, column[at]).map(str::to_owned)).transpose()?,
             settled: settled[at],
-            said: None,
+            heard: None,
         }))
         .collect::<Result<_, String>>()?;
     let no_duration = LAYOUT.coverage.no_duration;
@@ -98,10 +98,14 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     };
     let set_bytes = decoded.bytes("sets.blob")?;
     let set_offsets = decoded.words("sets.off")?;
-    if decoded.has(case_said::SECTION) {
+    let section = |name: &str| if decoded.has(name) { decoded.bytes(name).map(Some) } else { Ok(None) };
+    let [said, read, misused] = case_said::SECTIONS.map(section);
+    let [said, read, misused] = [said?, read?, misused?];
+    if said.is_some() || read.is_some() || misused.is_some() {
         let members = |set| decode_set(set_slice(&set_bytes, &set_offsets, set)?, count);
-        for (test, said) in tests.iter_mut().zip(case_said::read(&decoded.bytes(case_said::SECTION)?, count, members)?) {
-            test.said = said;
+        let sections = [said.as_deref(), read.as_deref(), misused.as_deref()];
+        for (test, heard) in tests.iter_mut().zip(case_said::read(sections, count, members)?) {
+            test.heard = heard;
         }
     }
     let module_files = decoded.words("modules.file")?;

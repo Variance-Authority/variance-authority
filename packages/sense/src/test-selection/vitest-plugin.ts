@@ -38,7 +38,18 @@ interface VitePlugin extends ConfigPlugin {
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
   /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
-  readonly configureVitest: (context: { readonly vitest: BannerContext }) => void;
+  readonly configureVitest: (context: VitestContext) => void;
+}
+
+/**
+ * What Vitest hands `configureVitest`. A key generator is how a plugin keeps a
+ * module out of the file-system module cache: `defineCacheKeyGenerator` from
+ * Vitest 5, `experimental_defineCacheKeyGenerator` on 4.1, neither before.
+ */
+interface VitestContext {
+  readonly vitest: BannerContext;
+  readonly defineCacheKeyGenerator?: (generate: (context: { readonly id: string }) => string | undefined | false) => void;
+  readonly experimental_defineCacheKeyGenerator?: VitestContext['defineCacheKeyGenerator'];
 }
 
 /** The plugin that places the probes, last; Vite hands its transform the map it composed. */
@@ -63,6 +74,7 @@ export function selectionPlugin(
   runnerId: string,
   globalSetup: ReadonlySet<string>,
   run: SelectionRun,
+  taken: { readonly include: (file: string) => boolean; readonly unprobed: ((file: string) => boolean) | undefined },
   { capture, after }: {
     readonly capture: (file: string, code: string, original: (at: string) => string) => Captured | undefined;
     readonly after: (
@@ -87,6 +99,12 @@ export function selectionPlugin(
   const before = placement === 'before-transforms';
   /** The modules of this seam's own, and a `globalSetup` file, which no probe may sit in. */
   const own = (file: string): boolean => file === setupId || file === runnerId || globalSetup.has(file);
+  /**
+   * A file the transforms may read and probe; the module cache is kept from the
+   * same ones. Read from this configuration's own predicates: the run's are
+   * shared by every project in it.
+   */
+  const takes = (file: string): boolean => mayTake(file, (at) => taken.include(at) || taken.unprobed?.(at) === true);
   /** A test file the run cuts: the file itself only, since a query asks for a module built from it. */
   const cutting = (id: string, file: string): boolean => cut !== undefined && id === file && run.cases && cut(file);
   /** The modules probed first because their files name their own maps, until the probes plugin passes them by. */
@@ -151,8 +169,20 @@ export function selectionPlugin(
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
     // Vitest 3.1 and on, before any reporter starts: a command-line
     // `--reporter` leaves plugins in place, so the banner still names the seed.
-    configureVitest({ vitest }) {
-      seedInBanner(vitest);
+    configureVitest(context) {
+      seedInBanner(context.vitest);
+      // A module served from Vitest's file-system cache skips every transform,
+      // so a module the seam takes would run with probes whose identity this
+      // process never learned, and the fold would refuse the run. Vitest 5
+      // turns that cache on by default. Every module the transforms below may
+      // take is kept out of it, through the same `takes` they read it with; the
+      // rest stay cached.
+      const define = context.defineCacheKeyGenerator ?? context.experimental_defineCacheKeyGenerator;
+      define?.(({ id }) => {
+        const file = cleanId(id);
+        if (own(file)) return undefined;
+        return takes(file) || cutting(id, file) ? false : undefined;
+      });
     },
     // A file changed on disk, so its reading describes text the disk no longer
     // holds, and a rerun transforms it again only if a test still loads it.
@@ -206,7 +236,7 @@ export function selectionPlugin(
       const late = !inPage && !before;
       if (id !== file && late) return null;
       // Under `node_modules`, `include` is asked first: no map there is read.
-      const read = id === file && late && mayTake(file, (at) => run.include(at) || run.unprobed?.(at) === true);
+      const read = id === file && late && takes(file);
       const disk = read ? fileOrNone(file, (at) => readFileSync(at, 'utf8')) : undefined;
       // A fault skips its region in the file as read: every step after this one
       // takes the skipped text as the file, the probes and the record included.

@@ -25,7 +25,7 @@ import {
   coveringTestsInFile,
   distanceToSource,
   hunksOf,
-  rowOf,
+  caseHeard,
   type CoveringRegion,
   type ExecutionIndex,
   type LineRange,
@@ -34,7 +34,7 @@ import {
 import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder as order } from '@variance-authority/core/segment';
-import { regionState } from './covering-frame.js';
+import { unrunOf } from './covering-frame.js';
 import { caseOrder } from './review-json.js';
 import type { Reach, ReviewRegion } from './review.js';
 
@@ -135,16 +135,11 @@ export function regionsOf(
 ): ReviewRegion[] {
   return regions.map((region) => {
     const called = region.tests.filter((test) => test.loaded !== true);
-    const state = regionState(region);
     const reach: Reach = called.some((test) => bearings?.near.has(test.file) === true)
       ? 'near'
       : called.some((test) => bearings === undefined || bearings.unmeasured.has(test.file))
         ? 'unplaced'
-        : called.length > 0
-          ? 'far'
-          : state === 'loaded' || state === 'hole' || state === 'unwalked'
-            ? state
-            : 'unknown';
+        : unrunOf(region) ?? 'far';
     const entered = new Set(called.map((test) => test.id));
     const changedLines = new Set<string>();
     for (const range of ranges) {
@@ -165,7 +160,7 @@ export function regionsOf(
       changedLineCases: changedLines.size,
       tests: [...new Set(called.map((test) => test.file))].sort(order),
       called: called
-        .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.said === undefined ? {} : { preconditions: rowOf(test)! }) }))
+        .map((test) => ({ id: test.id, file: test.file, name: test.name, ...caseHeard(test) }))
         .sort(caseOrder),
     };
   });

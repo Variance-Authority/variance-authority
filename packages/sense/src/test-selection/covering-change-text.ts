@@ -1,5 +1,4 @@
-import { heldText } from './case-axes.js';
-import { rowOf } from './case-said.js';
+import { heldText } from './case-said.js';
 import type { RangeState } from './range-state.js';
 import type { CoveringChange, CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -52,16 +51,6 @@ export interface CoveringChangeHeading {
 }
 
 /**
- * What a caller knows about a case beyond its name: a tail for its line, and
- * the lines under it. Without one a case's line carries what it said; the CLI
- * adds its twin, which needs the checkout's `names.axes` the MCP tool never reads.
- */
-export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: string) => {
-  readonly tail: string;
-  readonly under: readonly string[];
-};
-
-/**
  * The counts first, then the regions that produced them.
  *
  * The header is the part a reviewer acts on, so it leads. Two numbers matter
@@ -78,12 +67,8 @@ export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: stri
 export function formatCoveringChange(
   changed: readonly StatedCoveringChange[],
   heading: CoveringChangeHeading = {},
-  note: CoveringCaseNote = (test) => ({ tail: heldText(rowOf(test)), under: [] }),
 ): string {
-  const witness = (test: CoveringTest | ExecutionTest): readonly string[] => {
-    const { tail, under } = note(test, '      ');
-    return [`    ${describe(test)}${tail}`, ...under];
-  };
+  const witness = (test: CoveringTest | ExecutionTest): readonly string[] => [`    ${describe(test)}${heldText(test)}`];
   const regions = changed.flatMap((file) => file.regions);
   const blind = regions.filter((region) => region.tests.length === 0 && !covered(region.state));
   const holes = blind.filter((region) => (region.stopped?.length ?? 0) > 0);

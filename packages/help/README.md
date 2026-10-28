@@ -93,6 +93,10 @@ one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
 
+An answer that points you at another question names it the way the binary you
+asked takes it — `--limit`, `variance-authority-help symbol` — where the same
+answer over MCP says `limit` and `docs_symbol`.
+
 The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
 is installed — `npx variance ask search --query viewport` — and the same
@@ -134,14 +138,20 @@ Run `npx variance-authority-help symbol Viewport`:
 ```
 Viewport [interface]
 import { Viewport } from '@variance-authority/core/format';
-declared at packages/core/src/format/environment.ts:73
-used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, and 13 more — 60 imports
+declared at packages/core/src/format/environment.ts:93
+used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, @variance-authority/observe, @variance-authority/playwright-test, @variance-authority/playwright, @variance-authority/presentation, @variance-authority/raster, @variance-authority/remote, @variance-authority/route-collector, @variance-authority/session, and 5 more — 67 imports by published path
 
 interface Viewport
 
 Nothing is written above this declaration.
 
-docs_uses names the 60 places another package imports this by its published path, and the imports the source index resolves to its file, nearest to a file you name first.
+Members:
+packages/core/src/format/environment.ts:94 — readonly width: number;
+packages/core/src/format/environment.ts:95 — readonly height: number;
+packages/core/src/format/environment.ts:96 — readonly deviceScaleFactor: number;
+packages/core/src/format/environment.ts:98 — readonly colorScheme: 'light' | 'dark';
+
+`variance-authority-help uses` names the 68 places that import this: 67 from other packages and 1 inside @variance-authority/core, nearest to a file you name first.
 ```
 
 ## The questions
@@ -156,7 +166,7 @@ stays available without taking space from the first answer.
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Twelve rows of each list, unless `limit` says more |
-| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding half its words by stem and the names only a looser reading finds |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding any of its words by stem and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
@@ -237,17 +247,17 @@ two words that are both written about a name but not written beside each
 other — `read span` appears in no text anywhere, and the declaration you wanted
 has both.
 
-Those get a third section, and only those. Ask for `numbers order` in this
+Those get a third section, and only those. Ask for `meesure` in this
 repository's own fixture and the substring finds nothing, which is printed
-first:
+first, as a miss of the text you typed rather than of the code:
 
 ```
-Nothing in this repository is named or documented with `numbers order`.
+No name in this repository, nor the doc of one, writes `meesure` as typed. The nearest follow.
 
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
-alpha · Span [type] 0 packages, 0 imports — Two numbers, in order.
+alpha · measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,
@@ -548,14 +558,22 @@ It does not rank on prose. `search` matches the query case-insensitively as a
 substring of a name or its doc, and a name also matches when it is written in
 every word of the query, each word by its start or its stem, so `instrumenting`
 reaches `instrumentModule`. A match is a fact about the text rather than an
-opinion about the query. When it matches nothing, the names holding at least
-half of the query's words, stemmed as installed packages are, in any order
+opinion about the query. When it matches nothing, the names holding any of
+the query's words, stemmed as installed packages are, in any order
 across the name and its doc, follow under their own heading, each with the
 words it holds. A name its file declares and does not export is among them, and
 so is a file, by its own name and the doc it opens with. They are ordered by
-how many of the words each holds, then by how many of them its name holds, then
-by how many of the query's adjacent word pairs its doc writes adjacent: counts,
-never a score.
+the words each holds, each counted by how few of the rows the query reached
+hold it, three times over when the name holds it and twice when a doc of the
+mean length does — more for a shorter doc, less for a longer one, never more
+than a name — then by how many of them its name holds, then by how many of the query's
+adjacent word pairs its doc writes adjacent: counts, never a score. A word most docs say in passing tells you little about which of them
+you meant, so `order paths by code units` puts `codeUnitOrder` first rather
+than every doc that says `paths`. Every word one of them holds is held by a row shown, so the
+one name holding a rare word is shown however many holding a common one sort
+before it. A name holding fewer than half the words, which the loose
+reading reaches by every word, is told there instead, so on three words or
+more, names holding one common word never sort it out of sight.
 The words every package says about itself — `package`, `module`, `use`,
 `tool`, `get` and the like — are stopwords for an installed package and words
 for your own code, which is named in them.

@@ -259,7 +259,14 @@ VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
   reading under that label.
 - **When to record again.** A story is the code as it was when the test ran.
   After you edit that code, run the test again before you read its story.
-- **As data.** `--format json` gives any story or comparison as JSON.
+- **As data.** `--format json` gives any story or comparison as JSON. Each
+  declaration and each branch carries `at`, its place in the code:
+  `src/cart.ts#Cart/removeItem/entry`, `src/cart.ts#Cart/removeItem/if#0/then`,
+  `src/format.ts#module` for a file's top level. A second declaration of one
+  name in a file is `handle~2`, and every branch inside it says so. `at` names
+  the same code in two readings of one test, so match on it, not on line
+  numbers. A file whose code the story cannot place has `at` set to the file
+  alone.
 
 ## A long story opens as a summary
 

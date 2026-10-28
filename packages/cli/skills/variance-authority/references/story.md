@@ -117,6 +117,13 @@ recorded tests, the answer lists them with their visit counts and readings and
 prints no route; add the `--name` of the one you want. `--root
 <path>` reads the stories of the checkout at that path.
 
+In the JSON, every declaration and every branch carries `at`, its
+coordinate: the file, `#`, then the declaration's name and its region's path —
+`src/cart.ts#Cart/removeItem/if#0/then`, or `src/format.ts#module` for a top
+level — with `~2` on the second declaration of one name, `handle~2/if#0/then`.
+Match places across readings by `at`; line numbers move with every edit. A
+file the story cannot place has its path alone as `at`.
+
 The answer fits a page. It is drawn at the finest level that fits in 5,000
 characters — every step, then steps with other workspace packages passed
 through, then declarations, files, packages — and the header names the level

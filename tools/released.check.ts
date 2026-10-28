@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { lockstep, publishable, waiting } from './released.mjs';
+import { lockstep, missing, onRegistry, publishable, unborn, waiting } from './released.mjs';
 
 /**
  * A release is checked against the registry, and stays checked.
@@ -83,6 +83,69 @@ describe('what a release publishes', () => {
     }
   });
 
+  // One 503 in a wait that spans npm's scan would end a release the next poll
+  // would have counted.
+  it('asks again a registry that did not answer, and refuses one that never does', async () => {
+    const entries = [{ name: 'a' }, { name: 'b' }];
+    const asked: string[] = [];
+    const flaky = async (name: string) => {
+      asked.push(name);
+      if (name === 'a' && asked.filter((one) => one === 'a').length === 1) throw new Error('a answered 503');
+      return true;
+    };
+    expect(await missing(entries, '1.2.3', 60, { ask: flaky, everyMs: 0 })).toEqual([]);
+    expect(asked).toEqual(['a', 'b', 'a']);
+    const down = async () => {
+      throw new Error('answered 503');
+    };
+    await expect(missing(entries, '1.2.3', 0, { ask: down, everyMs: 0 })).rejects.toThrow(/answered 503/);
+  });
+
+  // npm adds a trusted publisher to a package that exists, so a name it has
+  // never held cannot be created by the workflow: 0.20.0 reached the first ten
+  // names and stopped at `jest-transformer` with ENEEDAUTH. Asked before the
+  // first publish, the release refuses whole instead of in part.
+  it('names every package the registry has never held', async () => {
+    const entries = [{ name: 'held' }, { name: 'new' }, { name: 'also-new' }];
+    const ask = async (name: string) => name === 'held';
+    expect(await unborn(entries, { ask })).toEqual([{ name: 'new' }, { name: 'also-new' }]);
+    const down = async () => {
+      throw new Error('answered 503');
+    };
+    await expect(unborn(entries, { ask: down })).rejects.toThrow(/answered 503/);
+  });
+
+  describe('asking the registry', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    const answering = (status: number) => {
+      const asked: string[] = [];
+      vi.stubGlobal('fetch', async (at: string) => {
+        asked.push(at);
+        return new Response(null, { status });
+      });
+      return asked;
+    };
+
+    it('asks for one version, or for the name at all', async () => {
+      const asked = answering(200);
+      expect(await onRegistry('@variance-authority/core', '1.2.3')).toBe(true);
+      expect(await onRegistry('@variance-authority/core')).toBe(true);
+      expect(asked).toEqual([
+        'https://registry.npmjs.org/@variance-authority%2fcore/1.2.3',
+        'https://registry.npmjs.org/@variance-authority%2fcore',
+      ]);
+    });
+
+    it('reads a 404 as not held, and refuses any other answer', async () => {
+      answering(404);
+      expect(await onRegistry('brand-new')).toBe(false);
+      answering(503);
+      await expect(onRegistry('brand-new')).rejects.toThrow(/answered 503/);
+    });
+  });
+
   it('refuses a version the packages disagree on', () => {
     expect(() =>
       lockstep([
@@ -98,25 +161,31 @@ describe('the release workflow', () => {
     expect(WORKFLOW).toContain('tools/released.mjs --lockstep');
   });
 
-  // The retry is the repair: `changeset publish` skips versions the registry
-  // already has, so the command that truncated a release is the command that
-  // finishes it. Without a second attempt this check turns a partial release
-  // into a red job somebody has to fix by hand, which is better than green and
-  // worse than done.
-  //
-  // The first attempt's exit code must not end the step: 0.17.1 lost two names
-  // to a transparency-log 409, `bash -e` stopped there, and the retry written
-  // for exactly that never ran. And the retry comes in rounds, because a name
-  // that fails holds every package that depends on it, so the round that
-  // finishes it is the first one that can attempt them.
-  it('asks the registry what published, and finishes what did not', () => {
+  // npm answers a publish when it has accepted the version, not when it shows
+  // it: 0.19.0 accepted `core` and showed it minutes later, after a scan. A
+  // second publish of a version npm holds is refused with 409 "previously
+  // staged" forever, so a retry cannot finish anything; it only stopped the
+  // round behind it. One publish, then the registry, given the scan's time,
+  // is the verdict, and nothing may excuse it.
+  it('publishes once, and asks the registry what published', () => {
     const publish = job('publish');
-    const attempts = publish.match(/^ *yarn release:publish.*$/gm) ?? [];
-    expect(attempts.length).toBe(2);
-    expect(attempts.every((line) => /yarn release:publish \|\|/.test(line)), attempts.join('\n')).toBe(true);
-    expect(publish).toMatch(/for round in [^\n]*; do\n[^]*?tools\/released\.mjs --registry[^\n]*&& break[^]*?yarn release:publish[^]*?done/);
-    // The verdict after the rounds stands alone: nothing may excuse it.
-    expect(publish).toMatch(/done\n *node tools\/released\.mjs --registry --wait \d+$/m);
+    const attempts = publish.match(/^ *node tools\/publish\.mjs.*$/gm) ?? [];
+    expect(attempts).toEqual([expect.stringMatching(/^ *node tools\/publish\.mjs "\$PACKED"$/)]);
+    expect(publish).not.toMatch(/\bwhile\b|\bfor round\b|--count/);
+    const verdict = /^ *node tools\/publish\.mjs "\$PACKED"\n(?: *#.*\n| *\n)* *node tools\/released\.mjs --registry --wait (\d+)$/m.exec(publish);
+    expect(verdict, 'the registry check follows the publish').not.toBeNull();
+    expect(Number(verdict?.[1])).toBeGreaterThanOrEqual(1200);
+  });
+
+  // Yarn packs, because `yarn pack` rewrites `workspace:^` and runs each
+  // `prepack`; npm publishes, because Yarn's signing client gives the
+  // transparency log five seconds and reads its own retry's conflict as a
+  // failure (ADR-0060).
+  it('packs with changesets and publishes with npm, never with Yarn', () => {
+    const publish = job('publish');
+    expect(publish).toMatch(/yarn changeset pack --out-dir "\$PACKED"/);
+    expect(publish.indexOf('changeset pack')).toBeLessThan(publish.indexOf('node tools/publish.mjs'));
+    expect(WORKFLOW).not.toMatch(/^\s*(yarn )?changeset publish\b|yarn npm publish|release:publish/m);
   });
 
   // `check` ran every file on this commit when it reached `main`, so a press
@@ -130,7 +199,7 @@ describe('the release workflow', () => {
     expect(green).toMatch(/gh run watch [^\n]*--exit-status/);
     // `released.mjs` imports changesets' reader, so it runs after an install,
     // and before the wait, so a version still owed refuses in seconds.
-    const steps = ['yarn install --immutable', 'tools/released.mjs --lockstep', 'gh run watch'];
+    const steps = ['yarn install --immutable', 'tools/released.mjs --lockstep', 'tools/released.mjs --named', 'gh run watch'];
     const at = steps.map((step) => green.indexOf(step));
     expect(at.every((index) => index > -1), `green runs ${steps.join(', then ')}`).toBe(true);
     expect([...at].sort((one, other) => one - other)).toEqual(at);
@@ -140,8 +209,8 @@ describe('the release workflow', () => {
   });
 
   // npm no longer issues a token that publishes without a second factor, so a
-  // token in this job cannot publish: it answers YN0033, or 404 once it expires.
-  // The run's OIDC token is the credential, and Yarn trades it only when no
+  // token in this job cannot publish: it is refused, or 404s once it expires.
+  // The run's OIDC token is the credential, and npm trades it only when no
   // other is set (ADR-0060).
   it('publishes through the trusted publisher, with no npm token to set', () => {
     expect(job('publish')).toMatch(/id-token: write/);

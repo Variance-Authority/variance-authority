@@ -4,7 +4,7 @@ import { digestString } from '../digest.js';
 import type { TestCoverageView } from './format-view.js';
 import { commitFrame } from './frame.js';
 import { findString } from './lookup.js';
-import { applied, type Hunk } from './patch.js';
+import { applied, hunksFor, type Hunk } from './patch.js';
 import type { FileReading } from './reading.js';
 
 /**
@@ -32,8 +32,10 @@ export function arrivedDigests(
   const arrived = new Map<string, string>();
   if (sourceAt === undefined || coverage.commit === undefined) return arrived;
   for (const file of rowless) {
-    if (!declarable(coverage, knownAs(file))) continue;
-    const patched = applied(commitFrame(coverage, knownAs(file), file, sourceAt).text, hunks.get(file) ?? []);
+    // Lines with no hunks arrive at no text a test could have run.
+    const own = hunksFor(hunks, file);
+    if (own === undefined || !declarable(coverage, knownAs(file))) continue;
+    const patched = applied(commitFrame(coverage, knownAs(file), file, sourceAt).text, own);
     if (patched === undefined) continue;
     const digest = digestString(patched.after);
     for (const name of knownAs(file)) arrived.set(name, digest);

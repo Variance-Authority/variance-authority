@@ -37,7 +37,7 @@ const EDITS = [
   ['load', 'what the module loads'],
 ] as const;
 
-/** Each answer in a few words, for a line that names a place: the handover's breadcrumbs. */
+/** Each answer in a few words, for a line that names a place: the handover's pointers. */
 export const REACH_WORD: Readonly<Record<Reach, string>> = {
   near: 'near',
   far: 'far',
@@ -230,15 +230,15 @@ function lostMarkdown(review: Review, code: (value: string) => string): readonly
   const moved = review.motion?.moved;
   const unwritten = review.motion?.unwritten?.length ?? 0;
   const at = runsAt(review, code);
+  const there = review.runs?.commit === undefined ? 'in them' : 'there';
+  const files = unwritten === 1 ? `the one test file run ${there}` : `the ${unwritten} test files run ${there}`;
+  const notWritten = unwritten === 0 ? [] : [`No case index was written ${at} for ${files}, so no case is compared against the base.`];
+  if (review.motion?.undiffed !== undefined) return ['', `No case is compared against the base: ${review.motion.undiffed}`, ...notWritten];
+  // A record whose last run does not read says nothing of which files a run wrote, so no file is named unwritten beside it.
   if (review.motion?.lastRunUnread !== undefined) {
     return ['', `Which test files a run ${at} wrote to the case index could not be read, so no case is compared against the base.`];
   }
-  if (moved === undefined) {
-    if (unwritten === 0) return [];
-    const there = review.runs?.commit === undefined ? 'in them' : 'there';
-    const files = unwritten === 1 ? `the one test file run ${there}` : `the ${unwritten} test files run ${there}`;
-    return ['', `No case index was written ${at} for ${files}, so no case is compared against the base.`];
-  }
+  if (moved === undefined) return notWritten.length === 0 ? [] : ['', ...notWritten];
   const lost = moved.regions.filter((region) => region.motion === 'lost' || region.motion === 'hidden');
   const thinned = moved.counts.thinned;
   const fewer = thinned === 0 ? '' : `▽ ${thinned} changed region${thinned === 1 ? ' is' : 's are'} run by fewer cases than at the base.`;

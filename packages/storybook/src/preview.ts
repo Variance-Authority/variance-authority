@@ -37,8 +37,8 @@ import { takeStoryTiming } from './story-timing-read.js';
  * So this navigates once, and thereafter switches stories over Storybook's own
  * channel — the same `setCurrentStory` the manager sidebar sends. Stories then
  * share a document, which is a corner deliberately cut and paid for elsewhere:
- * the session's probe detects what one story left behind for the next
- * (ADR-0009), rather than preventing it.
+ * a run collects a changed story again, then `alone` in a clean world, which
+ * detects what one story left behind for the next rather than preventing it.
  *
  * What stays in this file is that navigation policy and the outcome it hands
  * back. The parts that answer to different constraints have their own modules

@@ -1,0 +1,279 @@
+{
+  "documentDigest": "v1:161ef927b270fee6306dae6df768a322",
+  "identity": {
+    "renderer": "playwright-chromium",
+    "engine": "chromium@151.0.7922.34",
+    "platform": "linux/x64",
+    "deviceScaleFactor": 1,
+    "fonts": [
+      "ui-sans-serif/400/normal/sha256-case-system-stack"
+    ],
+    "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
+    "rasterization": "v1:66ea57e507094ae95afd1ad467e8cc84"
+  },
+  "width": 292,
+  "height": 157,
+  "missingFonts": [
+    "ui-sans-serif"
+  ],
+  "components": [
+    {
+      "component": "(unattributed)",
+      "instances": 1,
+      "structure": "v1:ca088530d135b5702186139590b08e71",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:0b8cc77cbb3eadd3a1051a000da71d42",
+      "geometry": "v1:5966df47b48aa65bf70a457bb76623c3",
+      "boxes": [
+        {
+          "x": 366,
+          "y": 305.5,
+          "width": 292,
+          "height": 157
+        }
+      ],
+      "values": {
+        "box-sizing": [
+          "border-box"
+        ],
+        "margin-bottom": [
+          "305.5px"
+        ],
+        "margin-left": [
+          "366px"
+        ],
+        "margin-right": [
+          "366px"
+        ],
+        "margin-top": [
+          "305.5px"
+        ],
+        "padding-bottom": [
+          "16px"
+        ],
+        "padding-left": [
+          "16px"
+        ],
+        "padding-right": [
+          "16px"
+        ],
+        "padding-top": [
+          "16px"
+        ]
+      }
+    },
+    {
+      "component": "ErrorBoundary",
+      "instances": 1,
+      "structure": "v1:39a7998628dccb1003f8d042935f2b77",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 321.5,
+          "width": 260,
+          "height": 125
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Invoice",
+      "instances": 1,
+      "structure": "v1:3ce68c041aa3cd0faba0ed1630a05bc8",
+      "semantics": "v1:9fd8054956570e8ce370079b4b1ffe89",
+      "text": "v1:0a837db26471da307b2bd681f5f35ff1",
+      "style": "v1:890097c1b288a0f282d2c10b630300e2",
+      "geometry": "v1:1b3ef6a7829527f46ec5ae46a1ff39af",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 321.5,
+          "width": 260,
+          "height": 125
+        }
+      ],
+      "values": {
+        "--case-space": [
+          "12px"
+        ],
+        "--case-text": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "color": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "margin-bottom": [
+          "12px"
+        ],
+        "margin-left": [
+          "0"
+        ],
+        "margin-right": [
+          "0"
+        ],
+        "margin-top": [
+          "0"
+        ]
+      }
+    },
+    {
+      "component": "Rows",
+      "instances": 1,
+      "structure": "v1:d24770d0e24c1024bafbbb2d5ebff3bc",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:0c5b92873d210e025ebf95847b60869c",
+      "geometry": "v1:ff4213573d46bb39bd85076ca30c149d",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 359.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Stack",
+      "instances": 1,
+      "structure": "v1:5df7e2c89558e0791cacb2230201b52f",
+      "semantics": "v1:ec51f53f1faeadd124b46fa3726ee064",
+      "text": "v1:ed3a22e053cc04c0c52be4a16f95fe3e",
+      "style": "v1:da9b2f1d8d38c3901e6c0533bbb67a70",
+      "geometry": "v1:f8445848df12eeeba25bf615fae98710",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 359.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {
+        "--case-text": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "color": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "column-gap": [
+          "12px"
+        ],
+        "display": [
+          "flex"
+        ],
+        "flex-direction": [
+          "column"
+        ],
+        "row-gap": [
+          "12px"
+        ]
+      }
+    },
+    {
+      "component": "SuspendedWaterfall",
+      "instances": 1,
+      "structure": "v1:957ee1f1e0a03958447012b56cadadba",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 321.5,
+          "width": 260,
+          "height": 125
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Tokens",
+      "instances": 1,
+      "structure": "v1:706d3c879fe9025bbf5952199bd7a505",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:0c5b92873d210e025ebf95847b60869c",
+      "geometry": "v1:104d9e378a38b8524b448bcd2055ed4a",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 321.5,
+          "width": 260,
+          "height": 125
+        }
+      ],
+      "values": {
+        "font-family": [
+          "ui-sans-serif, system-ui, sans-serif"
+        ]
+      }
+    },
+    {
+      "component": "WithCallback",
+      "instances": 1,
+      "structure": "v1:64c6434098cd784de8f8ad3d970611df",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 321.5,
+          "width": 260,
+          "height": 125
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "hookified",
+      "instances": 1,
+      "structure": "v1:6c01e572e11bd0d02ba6e9f04c84cbff",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 321.5,
+          "width": 260,
+          "height": 125
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "unboundStoryFn",
+      "instances": 1,
+      "structure": "v1:32b90a7bdbad2e00dd3044e4d00ea8dd",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 321.5,
+          "width": 260,
+          "height": 125
+        }
+      ],
+      "values": {}
+    }
+  ],
+  "snapshot": "v1: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",
+  "findingMarks": [],
+  "placedFor": {
+    "subject": "story:case-surface--suspense-waterfall"
+  }
+}

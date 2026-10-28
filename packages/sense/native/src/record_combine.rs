@@ -238,6 +238,8 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     let shard = |at: &usize| &held[*at].1;
     let mut renamed: HashMap<String, HashMap<String, String>> = HashMap::new();
     let mut ids: HashSet<String> = HashSet::new();
+    let mut rows = HashMap::new();
+    let mut combined_rows = Vec::new();
     if let Some(cased) = observed.iter().map(shard).find(|shard| shard.index.is_some()) {
         if let Some(uncased) = observed.iter().map(shard).find(|shard| shard.index.is_none()) {
             return Err(format!(
@@ -262,12 +264,14 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
         }
         let indexes: Vec<case_shard::Shard> = held.iter_mut().filter_map(|(_, shard)| shard.index.take()).collect();
         let names: Vec<String> = indexes.iter().map(|index| index.name.clone()).collect();
+        rows = indexes.iter().map(|index| (index.name.clone(), index.tests.iter().map(|test| test.id.clone()).collect())).collect();
         let index = fold_index(indexes, inventories, true)?;
         columns.push(Column::Plain(LAYOUT.coverage.part("index"), index.bytes));
         cases = Some(index.tests);
         renumbered = index.renumbered;
         renamed = names.into_iter().zip(index.renamed).collect();
-        ids = index.ids.into_iter().collect();
+        ids = index.ids.iter().cloned().collect();
+        combined_rows = index.ids;
     }
     if let Some(bytes) = before_layer {
         columns.push(Column::Plain(LAYOUT.coverage.part("before"), bytes));
@@ -282,7 +286,7 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     };
     let last = parts(|parts| parts.last.as_deref());
     if !last.is_empty() {
-        columns.push(Column::Plain(LAYOUT.coverage.part("last"), record_parts::fold_last(&last)?));
+        columns.push(Column::Plain(LAYOUT.coverage.part("last"), record_parts::fold_last(&last, &rows, &combined_rows)?));
     }
     let eyes = parts(|parts| parts.eyes.as_deref());
     if !eyes.is_empty() {

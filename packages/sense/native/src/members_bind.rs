@@ -7,9 +7,10 @@ use super::{Held, Via, Walker, WHOLE};
 
 impl Walker<'_, '_> {
     /// What binding a pattern to `held` takes: a holder, or the names it
-    /// destructures, and a rest holds what the names left. `default`
-    /// destructured further holds the module's default; a key the walk cannot
-    /// spell, or an array pattern, reads the module whole.
+    /// destructures, each holding the value it takes as `held.name` would,
+    /// and a rest holds what the names left. `default` destructured further
+    /// holds the module's default; a key the walk cannot spell, or an array
+    /// pattern, reads the module whole.
     pub(super) fn bind(&mut self, pattern: &BindingPattern, held: Held) {
         match pattern {
             BindingPattern::BindingIdentifier(it) => self.hold(it.symbol_id.get(), held),
@@ -20,8 +21,12 @@ impl Walker<'_, '_> {
                         continue;
                     };
                     self.add(held, &name, property.span.start);
-                    if name == "default" {
-                        self.bind(&property.value, held.default());
+                    if let Some(taken) = self.destructured(held, &name) {
+                        let top = |it: &BindingIdentifier| it.symbol_id.get().is_some_and(|id| self.scoping.symbol_scope_id(id) == self.scoping.root_scope_id());
+                        if let Some(binding) = property.value.get_binding_identifier().filter(|it| top(it)) {
+                            self.taken.insert((binding.name.to_string(), self.lines.at(binding.span.start)));
+                        }
+                        self.bind(&property.value, taken);
                     }
                 }
                 if let Some(rest) = &it.rest {
@@ -70,15 +75,21 @@ impl Walker<'_, '_> {
             AssignmentTarget::ObjectAssignmentTarget(it) => {
                 for property in &it.properties {
                     match property {
-                        AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(it) => self.add(held, &it.binding.name, it.span.start),
+                        AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(it) => {
+                            self.add(held, &it.binding.name, it.span.start);
+                            if let Some(taken) = self.destructured(held, &it.binding.name) {
+                                let symbol = self.symbol_of(&it.binding);
+                                self.hold(symbol, taken);
+                            }
+                        }
                         AssignmentTargetProperty::AssignmentTargetPropertyProperty(it) => {
                             let Some(name) = it.name.static_name() else {
                                 self.add(held, WHOLE, it.span.start);
                                 continue;
                             };
                             self.add(held, &name, it.span.start);
-                            if let Some(target) = target_of(&it.binding).filter(|_| name == "default") {
-                                self.assign(target, held.default());
+                            if let (Some(target), Some(taken)) = (target_of(&it.binding), self.destructured(held, &name)) {
+                                self.assign(target, taken);
                             }
                         }
                     }
@@ -114,6 +125,13 @@ impl Walker<'_, '_> {
                 _ => {}
             }
         }
+    }
+}
+
+impl Walker<'_, '_> {
+    /// What the name a pattern destructures off `held` holds.
+    fn destructured(&mut self, held: Held, name: &str) -> Option<Held> {
+        if name == "default" { Some(held.default()) } else { self.member_of(held, name) }
     }
 }
 

@@ -138,13 +138,19 @@ describe('variance_run_signals', () => {
 
   it('refuses an argument a model made up', () => {
     expect(() => runSignals.run(RUNNING, { state: 'flaky' })).toThrow(/`state` must be one of/);
-    expect(() => runSignals.run(RUNNING, { limit: 0 })).toThrow(/positive integer/);
+    expect(() => runSignals.run(RUNNING, { limit: 0 })).toThrow('`limit` takes a whole number of rows, at least 1; it was given `0`.');
   });
 
   it('counts what it elided rather than answering as if there were no more', () => {
     const text = runSignals.run(RUNNING, { limit: 1 });
     expect(text).toContain('checkout settles');
-    expect(text).toContain('1 earlier match(es) not listed');
+    expect(text).toContain('1 earlier match(es) not listed; a higher `limit` lists them.');
+  });
+
+  it('names `limit` as a shell takes it when a shell asked', () => {
+    const text = runSignals.run(RUNNING, { limit: '1' }, { shell: 'variance ask' });
+    expect(text).toContain('1 earlier match(es) not listed; a higher `--limit` lists them.');
+    expect(() => runSignals.run(RUNNING, { limit: '0' }, { shell: 'variance ask' })).toThrow(/^`--limit` takes a whole number/);
   });
 });
 

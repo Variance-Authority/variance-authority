@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
-import { decodeExecutionIndex } from './execution-format.js';
+import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { editsBetween } from './region-edit.js';
@@ -203,7 +203,7 @@ export function layCases(
   const journals = layEyes(previous.eyes, eyes, cases, announced);
   return {
     index: merged,
-    last: spelledLast(named),
+    last: spelledLast(named, merged),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
@@ -243,7 +243,20 @@ function textsOfBefore(
 export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
   if (sections.last === undefined) return undefined;
   try {
-    return JSON.parse(Buffer.from(sections.last).toString('utf8')) as LastCaseRun;
+    const run = JSON.parse(Buffer.from(sections.last).toString('utf8')) as Omit<LastCaseRun, 'cases'> & {
+      readonly cases: readonly string[] | { readonly references: readonly (number | string)[] };
+    };
+    if (run === null || !Array.isArray(run.files)) return undefined;
+    if (Array.isArray(run.cases)) return run.cases.every((id) => typeof id === 'string') ? { ...run, cases: run.cases } : undefined;
+    const references = (run.cases as { readonly references?: unknown } | undefined)?.references;
+    if (!Array.isArray(references)) return undefined;
+    const tests = references.some((id) => typeof id === 'number') ? decodeExecutionTests(sections.index!) : [];
+    const cases = references.map((id: unknown) => {
+      if (typeof id === 'string') return id;
+      if (typeof id !== 'number' || !Number.isInteger(id) || id < 0 || tests[id] === undefined) throw new Error('unresolved last-run case row');
+      return tests[id]!.id;
+    });
+    return { ...run, cases };
   } catch {
     return undefined;
   }
@@ -362,12 +375,16 @@ function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): Cas
   const last = lastCaseRunOf(sections)!;
   const index = openSetExecutionIndex(sections.index!)!;
   const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
-  return { ...sections, last: spelledLast({ ...last, cases }) };
+  return { ...sections, last: spelledLast({ ...last, cases }, sections.index!) };
 }
 
-/** The last-run section's bytes. */
-function spelledLast(named: LastCaseRun): Buffer {
-  return Buffer.from(`${JSON.stringify(named, null, 2)}\n`);
+/** The last-run section: references into its index, with an exact identity for a case the index no longer holds. */
+function spelledLast(named: LastCaseRun, index: Uint8Array): Buffer {
+  const rows = new Map(decodeExecutionTests(index).map((test, at) => [test.id, at]));
+  // References name this index's case rows, never files inferred from them.
+  // An identity the index retired remains exact rather than disappearing.
+  const references = named.cases.map((id) => rows.get(id) ?? id);
+  return Buffer.from(`${JSON.stringify({ ...named, cases: { references } }, null, 2)}\n`);
 }
 
 /** The run a shard's own last-run section names, every file of it finished; `undefined` when it names none. */

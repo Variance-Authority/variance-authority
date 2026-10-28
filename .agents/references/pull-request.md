@@ -85,19 +85,24 @@ block over the one between its markers.
 Before anything is pushed, four subagents review the change, and a fifth when
 the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your
-worktree and `origin/main`, never from local `main`:
+worktree and `origin/main`, never from local `main`.
 
 1. **Description** — the body alone. Does it say what the problem was and
    how it was solved, in a few lines a stranger can follow, and does each block
    row say what changes there? Anything else in it is noise, and blocking.
-2. **Direction** — the body and the repository. Should this change happen at
-   all? Is it proportionate to the problem the body states, does something that
-   already exists carry it, and what is missing from it? These are
-   [refine](refine.md)'s questions, asked by a reader who did not write the
-   change.
-3. **Fidelity** — the body, the diff and `origin/main`. Is every block row
-   true of the diff, and does every hunk fall in a block a row names? A hunk no
-   row covers is a finding. Does each row's *pinned by* test or command observe the change,
+2. **Occam** — the `occam` agent, given the task sentence, the worktree and
+   the path of the body file. Should this change happen at all, or this much
+   of it? The other reviewers look for a way to make the change better; Occam
+   looks for the reason not to make it, never suggests an addition, and reads
+   the body last. Its answers, and what clears one, are in its instructions.
+3. **Fidelity** — the task sentence, the body, the diff and `origin/main`.
+   Does the diff deliver everything the task sentence asks? A part of the task
+   no hunk delivers is a finding, even when the body leaves it out too. Is
+   every block row true of the diff, and does every hunk fall in a block a row
+   names? A hunk no row covers is a finding. Does the diff keep every
+   contract in the root [`REVIEW.md`](../../REVIEW.md), the `REVIEW.md` of
+   each package it touches, and [`site/REVIEW.md`](../../site/REVIEW.md),
+   read from `origin/main`? Does each row's *pinned by* test or command observe the change,
    and fail on `origin/main` when the row changes behaviour? In a `test` or
    `refactor` PR it passes on both sides instead. For a top-layer page, does each fact the brief puts off the
    spine sit in the file it names, and does that file say it? Does each fact
@@ -107,7 +112,7 @@ worktree and `origin/main`, never from local `main`:
    compass before it reads the diff, then reports each gap against the code
    rules: a second implementation, a wait or a reload, a neighbour's question,
    a runner favoured, complexity in the wrong role. It reads the body last,
-   and a reason clears a finding only with evidence. Direction asks whether the
+   and a reason clears a finding only with evidence. Occam asks whether the
    change should happen; Alignment asks whether its shape is ours.
 
 When the change writes or rewrites a top-layer page, a fifth runs first:

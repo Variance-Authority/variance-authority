@@ -15,7 +15,7 @@
 # `yarn add` in the world resolves, and "who merged that" is not a recovery plan.
 #
 # The publish job holds no npm token. npm no longer issues one that publishes
-# without a second factor, so a token here answers YN0033 at best. It is trusted
+# without a second factor, so a token here is refused at best. It is trusted
 # publishing: the job exchanges GitHub's OIDC token for a registry credential
 # that lives seconds, which the registry grants only to this repository, this
 # workflow file and the `npm` environment, because that is what the trusted
@@ -25,21 +25,22 @@
 # account must carry two-factor authentication before the registry will accept
 # any of it.
 #
-# A trusted publisher is configured on a package that already exists, so the
-# first version of a *new* name — each
-# `@variance-authority/sense-<platform>` package, the next time a package is
-# added — is published by a person from a machine, once, and the publisher is
-# configured afterwards. This workflow cannot bootstrap a name it has never
-# published; it will fail the exchange and say so.
+# A trusted publisher is configured on a package that already exists, so this
+# workflow cannot create a name: not the `@variance-authority/sense-<platform>`
+# packages once, not the next package added. `green` refuses while npm has
+# never held one, before anything publishes, and `node tools/publish.mjs
+# --placeholders`, run once by a person logged in to npm, creates it as a bare
+# manifest at a version no release carries and configures its publisher.
 #
 # The version itself is derived — `.changeset/config.json` holds all packages in
 # one `fixed` group, because they are one product with `workspace:^` between
-# them. `changeset publish` reads the package manager from the workspace and
-# runs `yarn npm publish`, which matters: npm would ship that protocol verbatim
-# and break every install. It publishes in dependency order, skips versions the
-# registry already has — so a second press is a no-op, not a disaster — and takes
-# the dist-tag from the version each manifest carries rather than from anything
-# typed here.
+# them. `changeset pack` packs with Yarn, which matters: the tarball carries the
+# version `workspace:^` names, where npm packing would ship that protocol
+# verbatim and break every install. npm publishes those tarballs, in the
+# dependency order changesets planned, skipping versions the registry already
+# has — so a second press is a no-op, not a disaster — at the dist-tag changesets
+# took from the version each manifest carries rather than from anything typed
+# here.
 
 name: release
 
@@ -135,6 +136,14 @@ jobs:
       # answers in seconds.
       - name: One version, and nothing waiting for one
         run: node tools/released.mjs --lockstep
+
+      # npm adds a trusted publisher only to a package that exists, so this
+      # workflow cannot publish a name for the first time, and finding out
+      # mid-publish leaves the release in part. A new name is created once as
+      # a placeholder by `node tools/publish.mjs --placeholders`, which gives
+      # it its trusted publisher; the refusal says so.
+      - name: npm has held every name before
+        run: node tools/released.mjs --named
 
       - name: main's CI passed on this commit
         env:
@@ -303,7 +312,7 @@ jobs:
     environment: npm
     permissions:
       contents: write
-      # What authenticates the publish and what signs it: `yarn npm publish`
+      # What authenticates the publish and what signs it: `npm publish`
       # trades this run's OIDC token for a registry credential that lives
       # seconds and cannot leave the runner, and npm mints provenance from it.
       id-token: write
@@ -365,39 +374,37 @@ jobs:
 
       - name: Publish, and tag what was published
         env:
-          # No credential is set, and that is what makes Yarn trade the run's
-          # OIDC token: it attempts the exchange only when nothing else
-          # authenticates. Setting a token here turns trusted publishing off.
-          YARN_NPM_PUBLISH_PROVENANCE: 'true'
+          PACKED: ${{ runner.temp }}/packed
+        # No credential is set, and that is what makes npm trade the run's OIDC
+        # token: it attempts the exchange only when nothing else authenticates.
+        # Setting a token here turns trusted publishing off.
         run: |
-          # Asking the registry rather than believing the exit code, either
-          # way. 0.5.6 reached five of the thirty-eight names and stopped, and
-          # the step that did it was green. 0.17.1 lost two names to a
-          # transparency-log 409 and the step stopped on the exit code, so the
-          # retry below never ran. Yarn's sigstore client gives rekor five
-          # seconds, retries the same signed envelope when rekor is slower, and
-          # reads rekor's "an equivalent entry already exists" for the entry it
-          # just made as a failure. A new attempt signs a new envelope.
-          yarn release:publish || echo "::warning::the publish failed on some names; the registry decides what is missing"
+          # Yarn packs and npm publishes. `changeset pack` plans the release in
+          # dependency order and packs each name with `yarn pack`, which
+          # rewrites `workspace:^` and runs every `prepack`. `tools/publish.mjs`
+          # sends each tarball with `npm publish --provenance`: Yarn's signing
+          # client gives the transparency log five seconds and reads its own
+          # retry's "an equivalent entry already exists" as a failure, which
+          # cost 0.17.1 two names and 0.18.0 one to three on every attempt.
+          yarn changeset pack --out-dir "$PACKED"
 
-          # `changeset publish` skips versions the registry already has, so
-          # the repair for a truncated release is the same command again — it
-          # completes the missing names and no others. In rounds, because a
-          # name that fails holds every package that depends on it: the round
-          # that finishes `package` is the first that attempts what imports it.
-          #
-          # No round's exit code is the verdict either. npm processes a
-          # publish asynchronously, and a version it has accepted but not yet
-          # shown refuses a second publish with 409 "previously staged". 0.6.0
-          # published all thirty-eight, showed twenty-five after two minutes,
-          # and showed `core` about six minutes after it was sent. So a round
-          # may fail, and the registry, given ten minutes, decides.
-          for round in 1 2 3; do
-            node tools/released.mjs --registry --wait 120 && break
-            echo "::warning::the publish was partial — round $round for the names still missing"
-            yarn release:publish || echo "::warning::round $round was refused on some names; a 409 'previously staged' is a version npm accepted and has not shown yet"
-          done
-          node tools/released.mjs --registry --wait 600
+          # Once. npm answers a publish when it has accepted the version, and
+          # shows it only after scanning it, so a version it holds and has not
+          # shown is refused a second publish with 409 "previously staged" for
+          # good: 0.19.0's retry sent `core` again, was refused, and held the
+          # group behind it. `tools/publish.mjs` reads that refusal as the
+          # version being npm's, and a name that failed any other way fails
+          # this step here. Pressing the button again is the repair: it sends
+          # what the registry does not show, and a version npm holds and has
+          # not shown is refused again and read as held.
+          node tools/publish.mjs "$PACKED"
+
+          # A failed publish ends the step above; a green one is not believed
+          # either, because 0.5.6 reached five of thirty-eight names from a
+          # green step. The registry has the last word. It is given the scan's
+          # time — 0.6.0 showed `core` six minutes after it was sent, and other
+          # projects have seen npm hold one for seventeen.
+          node tools/released.mjs --registry --wait 1200
 
           # `changeset tag` is the tagging `changeset publish` claims to have
           # done, asked for on its own. It names versions the registry has

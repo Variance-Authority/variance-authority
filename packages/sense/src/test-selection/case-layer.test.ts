@@ -137,7 +137,7 @@ describe('layerCaseIndex', () => {
     const decoded = (untouched: number): number => {
       const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
       // Each case says it in its own body, so no two share a spelling.
-      const said = (id: string): Said => JSON.stringify([['flag', id, `kept.test.ts:${kept.indexOf(id) + 2}`, 65535]]);
+      const said = (id: string): Said => JSON.stringify({ said: [['fixture:flag', JSON.stringify(id), `kept.test.ts:${kept.indexOf(id) + 2}`, 65535]] });
       const held = index([...kept, 'a.test.ts > one'], {
         'src/shared.ts': [['entry', ['a.test.ts > one', ...kept]]],
       }, said);

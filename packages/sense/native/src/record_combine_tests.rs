@@ -232,7 +232,7 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
         project: None,
         runner: Some(runner.to_owned()),
         settled: FINISHED,
-        said: None,
+        heard: None,
     }];
     let regions_of = Module {
         id: "src/a.ts".to_owned(),
@@ -270,9 +270,9 @@ fn folds_the_cases_beside_the_coverage_through_the_one_case_fold() {
     let record = record_coverage::read(&folded.bytes).unwrap();
     let last: serde_json::Value = serde_json::from_slice(record.parts.last.as_deref().unwrap()).unwrap();
     assert_eq!(last["files"], serde_json::json!(["a.test.ts", "b.test.ts"]));
-    assert_eq!(last["cases"], serde_json::json!(["a.test.ts > adds", "b.test.ts > adds"]));
+    assert_eq!(last["cases"], serde_json::json!({"references": [0, 1]}));
     let index = case_shard::read_shard(record.parts.index.as_deref().unwrap(), &mut HashMap::new()).unwrap();
-    assert_eq!(index.tests.len(), 2);
+    assert_eq!(index.tests.iter().map(|test| test.id.as_str()).collect::<Vec<_>>(), vec!["a.test.ts > adds", "b.test.ts > adds"]);
 }
 
 #[test]

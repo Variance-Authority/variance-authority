@@ -149,8 +149,8 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --file <path> --checked -- <command> | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --file <path> --checked -- <command> | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -162,10 +162,10 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record> | inspect <record.bin> [--format text|json]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
-variance doctor  [--config <path>]
+variance doctor  [--config <path>] [--baselines]
 variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
@@ -188,7 +188,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | prints what this machine can observe, before a run, not after one |
+| `doctor` | prints what this machine can observe, before a run, not after one; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
@@ -421,6 +421,20 @@ module's own region, such as a module-level statement or the first line of a
 top-level function, is answered at file grain, with the cases that loaded the
 file, and the answer says so.
 
+Over a whole file, a region no case entered on a line the function around it
+also charges, such as a one-line branch or the line that opens a longer one,
+gets a range of its own and a line saying no case entered it, and whether that
+is unwalked or a hole; `--format json` lists it under the range's `unentered`.
+A narrowed answer and a file edited since the run say the same, at the line the
+region stands on now.
+
+A function some cases entered can still hold a part none ran: a branch no case
+took, or a callback no case called. `--function` names each one under its
+cases, `No case ran a part of it: the branch at line 112`, and `unrun` under
+`--format json`. They are read over every case, before `--where` or
+`--at-distance` narrows the list, with the review's own reading over the whole
+function, in each suite the answer reads, as the handover reads them.
+
 A module the run loaded without instrumenting it, such as one named in
 `unprobed` or one whose text the run could not parse, has no recorded line. It is a
 precondition of every test file that loaded it, and `variance select` selects
@@ -651,20 +665,27 @@ that recorded it. `--where` keeps the covering cases that ran under a
 precondition, in every form of the question:
 
 ```bash
-variance covering --file src/checkout/total.ts --function total --where prices=discounted
+variance covering --file src/checkout/total.ts --function total --where mocks:prices=discounted
 ```
 
 ```text
-Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded mocks:prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > applies the discount — read flags:discount=true said true, mocks:prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — read flags:discount=false said false, mocks:prices=discounted (test/prices.ts:12)
 ```
 
 The count is out of the cases that covered what you asked about, before
-`--where` narrowed them. `--where prices` keeps every value of `prices`, and
-every repeated `--where` must hold. Two values recorded at one level print as a
+`--where` narrowed them. `--where mocks:prices` keeps every value of
+`mocks:prices`, `--where mocks` every key of the dimension, and every repeated
+`--where` must hold. Where the code under test leaves a breadcrumb with
+[`varianceBreadcrumb`](https://variance-authority.dev/reference/packages/event),
+each case prints what the code read beside what the case said under the same
+name, `read flags:discount=true said true`, and `--read` keeps the cases by
+what the code read, in the same forms. The two filters never stand in for each
+other: `--where flags:discount=true --read flags:discount=false` keeps the
+cases whose claim never reached the code. Two values recorded at one level print as a
 contradiction, and match a `--where` naming either. A record made before cases
 recorded preconditions keeps none and counts every case as unmeasured, rather
 than answering that no test covered it, and a case from a runner that does not
@@ -675,33 +696,6 @@ function, range or changed region, and the cases that stopped before it, are
 read over the same cases before `--where`: a line three cases ran stays `walked`
 when `--where` keeps one of them, and a hole stays a hole when it leaves out the
 case that stopped.
-
-When `names.axes` in `variance.config.json` declares a name, its first value is
-the base. `covering` reads a case that recorded nothing for that name at the
-base, so with `discount` declared as `["off", "on"]`, `--where discount=off`
-keeps it. That reading comes from your configuration, not from the run. A value
-the axis does not list is printed by name with its site, and kept.
-
-Beside each case recorded away from the base, with or without `--where`, is its
-twin: the case in the same test file that covered the same code with the axis
-nearer its base and every other precondition the same; on a two-value axis,
-that is the base. A case recorded with
-`discount=on` prints the case in its file that ran the same code with
-`discount=off` and the same `prices`:
-
-```text
-    applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-      twin at discount=off: charges the regular price
-```
-
-With several axes declared, the twin differs on one axis only: the last declared
-axis on which the case is away from the base. On it, the twin is at the nearest
-lower value a case in the file covered the code at: on `["off", "half", "on"]`,
-a case at `on` is twinned with `half` when one exists, and with `off` otherwise.
-Twins are looked for among the cases that covered what you asked, before
-`--where` narrowed them. Several twins print as their count and the first three
-names. When no case in the file matches, the line under the case is `no twin
-recorded at discount=off`.
 
 #### Asking about the text you hold
 
@@ -838,12 +832,12 @@ read as the others losing and gaining theirs; the answer counts those as
 renumbered. A region the diff carried onto lines where only a region of
 another path stands, with no edit in its function before it to explain the new
 path, is not compared: the answer lists it as not compared, with where it
-landed. Each region whose cases moved is one of four:
+landed. Each region whose cases changed is one of four:
 
 - **lost**: cases walked it at the base, none do now, and every case that could
-  have reached it finished. This is a regression.
+  have reached it finished. The region is no longer run.
 - **hidden**: the same, except a case that could have reached it stopped. The
-  case is named, and the region is not called a regression.
+  case is named, and whether the region is still run is not known.
 - **thinned**: several cases walked it at the base, one does now.
 - **gained**: no case walked it at the base, one or more do now.
 
@@ -875,7 +869,7 @@ names the moved regions' cases by the numbers of its case table.
 variance review --since origin/main --format handover
 ```
 
-prints breadcrumbs to the coverage of the changed area as one folded
+points to the coverage of the changed area as one folded
 `<details>` block for the pull request body. A review bot reads the body when
 the pull request opens, before any check has finished. A changed function gets
 a line when there is something to look at: 🔴 when part of it ran under no
@@ -1017,7 +1011,11 @@ after that commit is left out and named, as in
 this commit wrote to the case index are compared, as are the cases each test
 file added and removed. A run that writes no case index, such as one whose only
 file a browser gate skips, replaced no case: the review names its files and
-compares nothing for them.
+compares nothing for them. A second run at this commit that ran a test file
+again retired cases that name no commit to diff from, so the review compares no
+case and says why, in every format, under `motion.undiffed` in `review.json`;
+the rest of the review is answered as usual. Commit, and the first run after it
+compares again.
 `--against <record>` compares with a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
@@ -1029,9 +1027,9 @@ an integration case ran is counted as run, by that case; each region is read
 from the suite that came nearest. Where no suite ran the file's current text,
 the suite named with `--suite` answers alone, as it does without `--coverage`.
 The comment leads with the changed-code finding, which test files ran, and the
-execution changes per suite. Percentages and source inventories
-are folded under **Coverage by suite**. Each suite keeps its own denominator
-and baseline; a missing record or baseline is named rather than counted as zero.
+execution changes per suite. Percentages, each suite's coverage in and out,
+and source inventories are folded under **Coverage by suite**. Each suite keeps
+its own denominator and baseline; a missing record or baseline is named rather than counted as zero.
 The coverage readings travel in `review.json`, so `--from-run` prints the same
 evidence without reading the laptop’s recordings.
 
@@ -1097,11 +1095,16 @@ review is cut at a line break before that length, and its last line gives the
 number of characters not shown.
 
 When the cases that entered a function recorded more than one value of a
-precondition, its row names every value — `ran under discount=off,
-discount=on` — so you see which states ran the change without asking
-`covering --where`. `review.json` keeps each case with the preconditions it
-recorded, the way `covering` prints them: `applies the discount — discount=on
-(test/flags.ts:6)`. For a record made before cases recorded preconditions, the
+precondition, its row names every value — `ran under flags:discount=false,
+flags:discount` — so you see which states ran the change without asking
+`covering --where`. When they read a breadcrumb, the row splits them by what
+they read — `flags:express read false by 1, true by 1, not by 6`, where `not`
+counts the cases that entered the function and never read the key — so new
+code behind a flag that only the flag-on case reached shows
+`flags:express read true by 1`. `review.json` keeps each case with the
+preconditions it recorded and the reads its code made, as `preconditions` and
+`reads`, and any misused breadcrumb as `misused`, the way `covering` prints
+them. For a record made before cases recorded preconditions, the
 state they ran under is printed as unmeasured, and cases from a runner that
 does not record preconditions are counted apart from the cases that recorded
 nothing.
@@ -1288,6 +1291,110 @@ table:
 *Own* counts the package's own files. *With imports* counts everything its
 files reach, including the other workspaces they import. Each is followed by
 how much of what ran is before reach.
+
+A package at 100% can be run entirely by the tests of the packages that import
+it. Split a component into three files and move two of them to a shared
+package, and the coverage stays where it was while the shared package has no
+test of its own. So `--packages` also counts each package by whose tests ran
+it:
+
+```text
+which package's tests ran each package
+                 ran    own tests  only others'         by
+  packages/cli   8,020  100.0%     0             0.0%
+  packages/help  2,069  88.9%      229           11.1%  packages/cli 229
+run only by other packages' tests
+  packages/help/src/  229  packages/cli 229
+    tools/            210  packages/cli 210
+      uses-of.ts      32   packages/cli 32
+      uses.ts         28   packages/cli 28
+```
+
+A region is the package's own when one of the package's tests ran it, whoever
+else did too. A region that only other packages' tests ran is counted apart,
+under each package that ran it. The tree walks the five packages with the most
+such regions down to their files, largest first, so the first file named is the
+first place to ask whether the package needs a test of its own. A region a test
+entered only while its module loaded counts for no package, and test files are
+left out. A package here is a row of the table, and a file belongs to the
+deepest one that holds it, so a suite kept at the repository root belongs to
+`.` and everything it runs elsewhere is another package's. `--format json`
+lists every file under `ownership`.
+
+Owning a region is not the same as testing it closely. A package's own
+integration test can reach a helper four imports down, and an import chain can
+run inside one package as easily as across two. `--at-distance <hops>` counts
+each region by the nearest test that ran it, in any suite, in the band
+`covering --at-distance` takes:
+
+```bash
+variance coverage --at-distance 0-1
+variance coverage --at-distance 2-
+```
+
+```text
+coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,204 regions run from no measured distance, in no band
+  any suite                   24,163      59.9%
+coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,204 regions run from no measured distance, in no band
+  any suite                   10,100      25.0%
+```
+
+A test's own file is `0` hops from it and a module it imports directly is `1`,
+walked over the modules the test entered. A region counts under `2-` only when
+no test ran it from closer, so the bands split what ran: here 24,163, 10,100
+and the 2,204 no walk placed add up to the 36,467 regions run with no band.
+Within a band, only the crossings of the tests in it are kept, so `--packages`
+under `--at-distance 0-1` names the regions only another package's near tests
+ran. The band also composes with `--from`. A test file the graph does not hold
+is left out of every band and counted in the heading, and so are the regions
+only an unplaced walk ran. The hops are measured on the import graph of the
+tree as it is now, so no suite is compared with its base under a band, and each
+says so.
+
+`--packages` also counts each suite in and out over the same regions. A region
+is in when a test of its own package ran it from at most one import hop, and out
+when any other test ran it: another package's, or the package's own from
+further away. Out and never in is accidental coverage, and in is earned:
+
+```text
+in: its own package's tests within one import hop ran it · out: any other test did · accidental: out, never in
+               regions  in             out            accidental
+  chromium     29,797   466     1.6%   5,642   18.9%  5,408       18.1%
+  integration  29,788   1,365   4.6%   6,109   20.5%  5,496       18.5%
+  unit         39,849   23,596  59.2%  27,157  68.1%  11,971      30.0%
+  any suite    40,368   24,145  59.8%  28,455  70.5%  12,347      30.6%
+  2,204 accidental regions ran only under tests at no measured distance
+```
+
+In and out are separate coverages, so each can reach 100%: a passing end-to-end
+suite runs everything out, and the unit next to each file runs it in. They
+assume the farther a test is from the code, the less it is about that code;
+whether it checks what it ran is for mutation testing to say. A hop is any
+runtime import, a re-export or a helper as well, and `--at-distance` leaves in
+and out counted over every test. A test no walk placed is
+never in, and the regions only such tests ran are counted on the last line.
+`--format json` carries the counts under `earned`, per suite and joined.
+
+`--fan-in` counts how many test files called into each region, for every file
+at once. A test file counts once per region however many of its cases ran it,
+and a case that ran a region only while its module loaded does not count, so an
+edit runs at least these; `covering --file` names the rest:
+
+```text
+test files that called into each region
+               test files  regions ran  one test file         median  p90  max
+  e2e          55          5,871        2,894          49.3%  2       14   39
+  integration  83          6,866        3,174          46.2%  2       11   54
+  unit         1,001       35,729       9,983          27.9%  3       25   453
+```
+
+Three lists of ten files follow: the most regions only one test file ran; the
+most test files called into the file, as a share of the suites that recorded it
+and of their time, and per kind; and the files whose test files exceed their
+median region's by the most: the most a split could save a selection by file,
+since a split file still sends every test file that called into either part.
+None has a threshold. Under `--at-distance` the counts read only the band. `--format json` lists
+every file under `fanIn`. For one file or line, `covering` names the tests.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever
@@ -2527,14 +2634,18 @@ owns its own collector, renderer, storage, or review surface:
   read. `mainlineRead` and `mainlineMissed` print the same `record of
   "<suite>":` line `select` does. The mainline's record is read with the runs
   record the publishing run carried beside it, at `mainline.runs`. In a fresh CI
-  checkout, `layMainline(root, mainline, instrumentation)` copies the record and
-  its per-case index into the checkout's own layer, with that runs record as a
-  seed that lists no run, so the run the job makes lands on them, as a cache
+  checkout, `layMainline(root, mainline, instrumentation)` copies the record,
+  which carries its cases, into the checkout's own layer, with that runs record
+  as a seed that lists no run, so the run the job makes lands on them, as a cache
   restore would. `instrumentation` is the probes that run records under: a
   record written under other probes is not copied, because no run could be laid
   over it, and comes back as `passed`, which `mainlinePassedOver` prints. Pass
   `undefined` for a landing that lays no coverage. `env` stands in for
-  `process.env` when the line is read, and `cacheRoot` for the cache.
+  `process.env` when the line is read, and `cacheRoot` for the cache. After the
+  shards ran, `landSuite(cwd, shards, suite)` lands their records on
+  `suite`'s record in the checkout, as `variance journeys <shards> --suite`
+  does, and returns what the landing said without the reading, for a CI fan-in
+  that folds the record for the jobs after it.
 - `recordedExecutionFile(root, suite)` names the record `distill`, `covering`
   and `review` read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,

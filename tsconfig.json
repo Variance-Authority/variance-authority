@@ -111,6 +111,9 @@
       "path": "./packages/ioc"
     },
     {
+      "path": "./packages/isolator"
+    },
+    {
       "path": "./examples/kitchen-sink"
     },
     {

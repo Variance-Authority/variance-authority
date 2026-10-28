@@ -12,7 +12,7 @@ fn case(file: &str, name: &str, runner: &str, settled: u8) -> Test {
         project: None,
         runner: Some(runner.to_owned()),
         settled,
-        said: None,
+        heard: None,
     }
 }
 

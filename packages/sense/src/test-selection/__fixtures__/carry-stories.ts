@@ -9,8 +9,9 @@
  */
 
 import { expect } from 'vitest';
+import { caseSectionsAt } from '../case-record.js';
 import { keepRecord, type Compare } from './carry-comparison.js';
-import { commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
+import { caseOf, commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
 
 export const A = 'test/a.test.ts';
 export const B = 'test/b.test.ts';
@@ -209,5 +210,70 @@ export async function importEditedThenRunElsewhere(compare: Compare): Promise<vo
     // The import reached the top level both entered, so both are owed a run.
     check(walk, 'owed after the import', await owed(walk), [A, B]);
     check(walk, 'the comparison', await compare(walk, base), { lost: 0, unmeasured: 1, left: {} });
+  });
+}
+
+/** A later partial run names its own cases after a carried edit changes the index's row numbering. */
+export async function lastRunAfterCarry(ask: Ask, scope: (walk: Walk) => Promise<readonly string[]>): Promise<void> {
+  // Defer the reader so the fault-injection harness installs its edit-reading mock before the landing loads.
+  const { lastCaseRunOf } = await import('../case-landing.js');
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [B, A]);
+    const first = caseSectionsAt(walk.coverageFile);
+    check(walk, 'compact last-run membership', Array.isArray(JSON.parse(Buffer.from(first.last!).toString()).cases), false);
+    const before = walk.head;
+    await commit(walk, effects({ note: true }), 'a comment before a partial run');
+    await runElsewhere(walk);
+    await runTests(walk, [A]);
+    check(walk, 'the before commit survives the carry', lastCaseRunOf(caseSectionsAt(walk.coverageFile))?.before, before);
+    check(walk, 'the first effect still selects only its observer', await ask(walk, touching(walk.text, 'first')), [A]);
+    check(walk, 'the carried effect keeps its observer', await ask(walk, touching(walk.text, 'second')), [B]);
+    check(walk, 'only the last run owns the scope', await scope(walk), [caseOf(A)]);
+  });
+}
+
+/**
+ * A run of one test over an uncommitted edit inside a region both tests
+ * entered, and the same change asked before and after the texts landings kept
+ * are forgotten.
+ *
+ * A ran over the edited text. B last ran the earlier text of `outer`, carried
+ * onto the edit, so the landing owes it a run. While the edited text is kept,
+ * the rows A's run cut are read from it, and the change from HEAD to it is
+ * one A already ran: nothing is selected, and B is owed. Once it is
+ * forgotten, nothing proves which text the rows were cut from, so the change
+ * charges every test that loaded the module, and B is still owed.
+ */
+export async function ranOverThenKeptForgotten(ask: Ask, forget: (walk: Walk) => Promise<void>): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [A, B]);
+    const edited = touching(walk.text, 'outer');
+    await runTests(walk, [A], { over: edited });
+
+    check(walk, 'owed, its text kept', await owed(walk), [B]);
+    check(walk, 'the edit, its text kept', await ask(walk, edited), []);
+    await forget(walk);
+    check(walk, 'owed, no text kept', await owed(walk), [B]);
+    check(walk, 'the edit, no text kept', await ask(walk, edited), [A, B]);
+  });
+}
+
+/**
+ * A run of both tests over an uncommitted edit inside a region both entered,
+ * and the texts landings kept forgotten.
+ *
+ * Both ran the edit, so neither is owed a run. The rows carry the edited
+ * text's digest, but with no text kept the digest alone does not say the
+ * landing that cut them demoted what it carried, so it cannot stand in for the
+ * text: the change to the edit charges every test that loaded the module.
+ */
+export async function bothRanOverAnUnkeptEdit(ask: Ask, forget: (walk: Walk) => Promise<void>): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    const edited = touching(walk.text, 'outer');
+    await runTests(walk, [A, B], { over: edited });
+    await forget(walk);
+
+    check(walk, 'owed', await owed(walk), []);
+    check(walk, 'the edit, no text kept', await ask(walk, edited), [A, B]);
   });
 }

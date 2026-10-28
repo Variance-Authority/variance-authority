@@ -399,6 +399,15 @@ config `@storybook/addon-vitest` loads your presets for, inside Vitest, gets
 nothing from the addon either: that run is a Vitest run, and the Vitest seam
 records it where you configured one.
 
+Each loader that rewrites a file must return a source map composed with its
+input map. Enabling `devtool` gives the probes a map only where that chain is
+intact. A refusal saying there is no map back to the file means that chain is
+missing; one saying the map carries text different from the file on disk means
+the map describes another transform's input. The refusal lists the loader chain
+when the bundler provides it. Check map composition in those upstream loaders
+while keeping the probes after the compilers. Removing a file through `include`
+also removes it from recorded coverage.
+
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
 `include` decides which modules are your source, every file outside

@@ -335,6 +335,41 @@ describe('scopeRows', () => {
     ]);
   });
 
+  it('reports each file\'s recorded phases, preserving zero and omitting unrecorded phases', () => {
+    const times = {
+      [A]: { phases: { environment: 0, setup: 1, collect: 60, cases: 4 } },
+      [B]: { phases: { collect: 0 } },
+      [C]: { duration: 7 },
+    };
+    const rows = [...scopeRows({ records: [record(MODULES, { times })] })];
+
+    expect(rows.map((row) => Object.hasOwn(row, 'time'))).toEqual([true, true, false]);
+    expect(rows.map((row) => row.time)).toEqual([
+      { environment: 0, setup: 1, collect: 60, cases: 4 },
+      { collect: 0 },
+      undefined,
+    ]);
+  });
+
+  it('reports phases even when the unused-module reading is withheld', () => {
+    const rows = [...scopeRows({ records: [record(MODULES, { times: TIMES, incomplete: [A] })] })];
+
+    expect(rows[0]).toMatchObject({ withheld: expect.stringContaining('incomplete'), time: TIMES[A].phases });
+    expect(rows[0]).not.toHaveProperty('unentered');
+  });
+
+  it('joins phases by record and the exact file path, within the requested directory', () => {
+    const rows = [...scopeRows({ within: 'packages/app', records: [
+      record(MODULES, { suite: 'unit', times: { [A]: { phases: { collect: 2, cases: 0 } } } }),
+      record(MODULES, { suite: 'e2e', times: { [A]: { phases: { collect: 9, cases: 1 } } } }),
+    ] })];
+
+    expect(rows.map((row) => [row.suite, row.file, row.time])).toEqual([
+      ['unit', A, { collect: 2, cases: 0 }], ['unit', B, undefined],
+      ['e2e', A, { collect: 9, cases: 1 }], ['e2e', B, undefined],
+    ]);
+  });
+
   it('says why a row is withheld instead of counting what no case entered', () => {
     const rows = [...scopeRows({ within: 'packages/app', records: [record(MODULES, { incomplete: [B] })] })];
 

@@ -3,8 +3,8 @@ import type { Comparison, Place, StoryEntry } from '@variance-authority/sense/st
 import { parseArgs } from '../bin.js';
 import { compareStory, formatComparison } from './story-compare.js';
 
-const REMOVE: Place = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 };
-const PRICE: Place = { file: 'src/cart.ts', name: 'price', kind: 'function', startLine: 32, endLine: 36 };
+const REMOVE: Place = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 };
+const PRICE: Place = { file: 'src/cart.ts', name: 'price', kind: 'function', at: 'src/cart.ts#price/entry', startLine: 32, endLine: 36 };
 
 const COMPARISON: Comparison = {
   file: 'src/cart.test.ts',
@@ -50,7 +50,7 @@ describe('readings of one case compared', () => {
   });
 
   it('names both arms of an `if` by the line the `if` is named by, not by the line the `else` an absent one is given starts on', () => {
-    const checkout: Place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 };
+    const checkout: Place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', at: 'src/checkout.ts#checkout/entry', startLine: 10, endLine: 16 };
     const arms: Comparison = {
       ...COMPARISON,
       only: [

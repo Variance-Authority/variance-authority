@@ -1,5 +1,23 @@
 # @variance-authority/report
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+### Minor Changes
+
+- 0fd6a4b: `unstableOf` lists the subjects whose two readings disagreed outside what they assert on, with what moved and the history record for each, and `isUnstable` asks it of one observation. `NO_RECORD` is the sentence a surface prints when no history store answered. The pull-request comment, the report page and the MCP summary read the same list.
+
 ## 0.17.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

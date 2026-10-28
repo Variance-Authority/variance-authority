@@ -65,8 +65,8 @@ and that a tarball built on that path carries provenance — a signed statement 
 which commit and which workflow produced it — that a consumer can verify without
 trusting us.
 
-**The dist-tag is derived from the version, never typed.** `changeset publish`
-takes it from what each manifest carries at the moment the button is pressed. No
+**The dist-tag is derived from the version, never typed.** `changeset pack`
+plans it: `latest`, or the pre-release tag while changesets is in pre mode. No
 release-time input decides what `npm install @variance-authority/cli` resolves,
 because a release-time input is a thing to get wrong once, at the only point in
 the process that cannot be undone. Every install line in this repository is plain
@@ -99,14 +99,21 @@ broke breaks there, before an adopter meets it, in the register an adopter would
 meet it in. An example left on the previous minor is not a release that failed —
 it is a release whose acceptance test has not been taken yet.
 
-**A second press is a no-op, not a disaster.** `changeset publish` skips versions
-the registry already holds and publishes in dependency order, so an interrupted
-release is resumed by pressing the button again. The publish job refuses to start
-while an unversioned changeset sits on `main`, because that is the state in which
-the version it would publish understates what shipped. Nor does it publish a
-commit that `check` has not passed as a push to `main`: the press waits for that
-run and reads its conclusion rather than running the suite again, so pressing
-once more costs a build and a publish, not another pass over every test.
+**A second press is a no-op, not a disaster.** The publish skips versions the
+registry already holds and publishes in dependency order, so an interrupted
+release is resumed by pressing the button again. Nothing is sent twice inside a
+press: npm answers a publish once it has accepted the version and shows it only
+after scanning it, and for as long as it holds a version it has not shown it
+refuses another publish of it with 409 "previously staged". That refusal is the
+version being npm's, not a failure: the publisher reads it as held, so a second
+press that sends such a version again costs nothing, and a retry inside the
+press has nothing to finish. The press publishes once and gives the registry
+twenty minutes to show what it accepted. The publish job refuses to start while
+an unversioned changeset sits on `main`, because that is the state in which the
+version it would publish understates what shipped. Nor does it publish a commit
+that `check` has not passed as a push to `main`: the press waits for that run
+and reads its conclusion rather than running the suite again, so pressing once
+more costs a build and a publish, not another pass over every test.
 
 **A publish that skipped the build would ship empty tarballs.** `dist` is
 gitignored and no package declares `prepack`, so a build before the publish is
@@ -115,8 +122,14 @@ git-URL dependency on this repository resolves to no built output at all, which
 is a property to state rather than a defect to fix: this software is obtained
 from a registry.
 
-**`yarn npm publish` is not `npm publish`.** Plain `npm publish` ships
-`workspace:^` verbatim and breaks every install. `changeset publish` reads the
-package manager from the workspace and uses Yarn, so the rewrite happens wherever
-it is run from; what breaks an install is reaching past it for npm's own
-command.
+**Yarn packs, npm publishes.** Packing is where `workspace:^` becomes the
+version it names: `changeset pack` runs `yarn pack` for each name, and npm
+packing a workspace would ship the protocol verbatim and break every install.
+Publishing is `npm publish` of those tarballs, in the order changesets planned,
+because of what signs the provenance: Yarn's sigstore client gives the
+transparency log five seconds, resends the same signed envelope when the log is
+slower, and reads the log's "an equivalent entry already exists" as a failure,
+which cost 0.17.1 two names and 0.18.0 one to three on every attempt. npm hands
+the same client its five-minute `fetch-timeout`. `changeset publish` cannot be
+the publisher here: it takes the tool from the workspace, and its Yarn tool
+refuses a tarball.

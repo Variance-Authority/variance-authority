@@ -24,6 +24,7 @@
  */
 
 import { blocksChargedAt, type RegionLines } from './blocks-around.js';
+import type { ExecutionBlock } from './reverse.js';
 
 /** One piece of source a question names: a line, lines, or a scope, of one file. */
 export type SourceTestTarget =
@@ -64,4 +65,14 @@ export function blocksOfTarget<Block extends NamedRegion>(blocks: readonly Block
   const found = new Set<Block>();
   for (const line of lines) for (const block of blocksChargedAt(blocks, line)) found.add(block);
   return blocks.filter((block) => found.has(block));
+}
+
+/**
+ * Whether the record marks load time on a target's blocks, or on any block of
+ * the module without a target, on the block or on one of its crossings. Who
+ * loaded them, and who only mocked them, is then the file graph's to say.
+ */
+export function marksLoadTime(blocks: readonly ExecutionBlock[], target?: SourceTestTarget): boolean {
+  return (target === undefined ? blocks : blocksOfTarget(blocks, target))
+    .some((block) => block.loaded === true || block.crossings.some((crossing) => crossing.loaded === true));
 }

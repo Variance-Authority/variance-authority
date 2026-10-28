@@ -20,7 +20,7 @@ import { useOf } from '../refresh-native.js';
 import { importsByPath } from './by-path.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
-export const UNCOUNTED = 'a read through an `export * as` namespace and, outside Rust, a call through a qualified path are not counted';
+export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted';
 
 /** Every export of `name` from ordinary source, in `within` when one is named. */
 export function exportsNamed(help: Help, name: string, within: string | undefined): readonly Named[] {
@@ -55,13 +55,29 @@ export function exportedAt(exported: readonly Named[]): string {
 export type IndexedUse = Taken & { readonly specifier: string };
 
 /**
+ * A namespace one file passes a name on inside: `export * as shout` passes
+ * `greet` as `shout.greet`, `name` `shout` and `members` `['greet']`.
+ */
+export interface PassedInside {
+  readonly at: string;
+  readonly name: string;
+  readonly members: readonly string[];
+}
+
+/**
  * What the source index says about the imports of one name out of a set of
  * files: each use with the name it takes, every file that passes the name on
- * with `export … from`, and each line of one of the files that uses the name
- * it declares there; or why it could not be read.
+ * with `export … from`, every namespace one passes it on inside, and each line
+ * of one of the files that uses the name it declares there; or why it could
+ * not be read.
  */
 export type Within =
-  | { readonly uses: readonly IndexedUse[]; readonly through: readonly string[]; readonly inFile: readonly Use[] }
+  | {
+    readonly uses: readonly IndexedUse[];
+    readonly through: readonly string[];
+    readonly namespaces: readonly PassedInside[];
+    readonly inFile: readonly Use[];
+  }
   | { readonly unread: string };
 
 /**
@@ -79,7 +95,8 @@ export function importsOf(root: string | undefined, files: readonly string[], na
   }
   if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
-  return { uses: read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) })), through: read.through, inFile };
+  const uses = read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) }));
+  return { uses, through: read.through, namespaces: read.namespaces, inFile };
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

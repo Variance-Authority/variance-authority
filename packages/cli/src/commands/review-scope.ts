@@ -9,7 +9,8 @@
  * titles are the JSON's: a comment has a length limit and a review does not.
  */
 
-import { valued } from '@variance-authority/sense/test-selection';
+import { heardSplit, valued } from '@variance-authority/sense/test-selection';
+import { outermostOf } from './covering-frame.js';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
@@ -25,22 +26,9 @@ export function uncovered(region: Pick<ReviewRegion, 'reach'>): boolean {
   return UNCOVERED.has(region.reach);
 }
 
-/**
- * The regions a reader counts: each one whose answer differs from the region
- * around it. A function no case covered is one finding, not one per branch
- * inside it. The JSON keeps every region.
- */
+/** The regions a reader counts, `outermostOf` the file's. The JSON keeps every region. */
 export function outermost(file: ReviewFile): readonly ReviewRegion[] {
-  const regions = [...(file.regions ?? [])]
-    .sort((left, right) => left.startLine - right.startLine || right.endLine - left.endLine);
-  const kept: ReviewRegion[] = [];
-  const open: ReviewRegion[] = [];
-  for (const region of regions) {
-    while (open.length > 0 && open.at(-1)!.endLine < region.startLine) open.pop();
-    if (open.at(-1)?.reach !== region.reach) kept.push(region);
-    open.push(region);
-  }
-  return kept;
+  return outermostOf(file.regions ?? []);
 }
 
 /** What every sentence calls a module's own code, the region any import runs. */
@@ -112,7 +100,7 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   for (const [file, region] of rows.slice(0, ROWS)) {
     const named = region.tests.slice(0, TEST_FILES).map((test) => `\`${test}\``).join(', ');
     const more = region.tests.length > TEST_FILES ? ` and ${region.tests.length - TEST_FILES} more` : '';
-    lines.push(`| ${mark(region)} | \`${region.name}\` | ${editLabel(file, region)} | ${place(review, file, region)} | ${region.cases}${spanned(region.called)} | ${
+    lines.push(`| ${mark(region)} | \`${region.name}\` | ${editLabel(file, region)} | ${place(review, file, region)} | ${region.cases}${spanned(region.called)}${readsMarkdown(region.called)} | ${
       region.changedLineCases
     } | ${named}${more} |`);
   }
@@ -148,6 +136,12 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
   } ran under is unmeasured.`, ''];
 }
 
+/** How the cases that entered a region split by what the code read, after its count. */
+function readsMarkdown(called: readonly ReviewCase[]): string {
+  const split = heardSplit(called);
+  return split === '' ? '' : `; ${escape(split).replaceAll('|', '\\|')}`;
+}
+
 /**
  * Every value of a name the cases said, where they said more than one: the
  * conditions the function ran under, which a reader would otherwise ask
@@ -157,8 +151,8 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
 function spanned(called: readonly ReviewCase[]): string {
   const byName = new Map<string, Map<string, NonNullable<ReviewCase['preconditions']>[number]>>();
   for (const held of called.flatMap((one) => one.preconditions ?? [])) {
-    // `true` and `'true'` print apart (`flag`, `flag=true`), so they are two values; the text leads so the order is the printed one.
-    byName.set(held.name, (byName.get(held.name) ?? new Map()).set(`${String(held.value)}\0${typeof held.value}`, held));
+    // A value is keyed by how it prints: `true` and `'true'` print apart (`flag`, `flag=true`), and a record as its JSON.
+    byName.set(held.name, (byName.get(held.name) ?? new Map()).set(valued(held), held));
   }
   const said = [...byName]
     .filter(([, values]) => values.size > 1)

@@ -47,7 +47,7 @@ afterEach(async () => {
 
 describe('a line lock its holder lets go of', () => {
   it('is taken by the writer that found it held, when the holder lets go before the writer reads its age', async () => {
-    variancePrecondition({ lock: 'released-before-look' });
+    variancePrecondition('fixture', { lock: 'released-before-look' });
     await mkdir(lock, { recursive: true });
     vi.mocked(stat).mockImplementation((async (path: string, ...rest: unknown[]) => {
       if (path !== lock) return (disk.stat as (...args: unknown[]) => unknown)(path, ...rest);
@@ -62,7 +62,7 @@ describe('a line lock its holder lets go of', () => {
 
 describe('a line lock a writer does not get', () => {
   it('calls the write a conflict when the holder keeps the lock past the wait, and leaves the lock to its holder', async () => {
-    variancePrecondition({ lock: 'held', clock: 'faked' });
+    variancePrecondition('fixture', { lock: 'held', clock: 'faked' });
     vi.useFakeTimers({ toFake: ['Date'] });
     await mkdir(lock, { recursive: true });
     vi.mocked(stat).mockImplementation((async (path: string, ...rest: unknown[]) => {
@@ -81,7 +81,7 @@ describe('a line lock a writer does not get', () => {
   });
 
   it('answers a lock the file system will not make as refused, without waiting on it', async () => {
-    variancePrecondition({ lock: 'unmakeable' });
+    variancePrecondition('fixture', { lock: 'unmakeable' });
     vi.mocked(mkdir).mockImplementation((async (path: string, ...rest: unknown[]) => {
       if (path !== lock) return (disk.mkdir as (...args: unknown[]) => unknown)(path, ...rest);
       throw Object.assign(new Error(`EACCES: permission denied, mkdir '${lock}'`), { code: 'EACCES' });

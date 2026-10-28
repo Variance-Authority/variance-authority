@@ -7,7 +7,7 @@ import { parseArgs } from '../bin.js';
 import { formatStory, story } from './story.js';
 
 const place = (file: string, name: string, startLine: number, endLine: number, kind: Place['kind'] = 'function') =>
-  ({ token: { place: { file, name, kind, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
+  ({ token: { place: { file, name, kind, at: `${file}#${name === '' ? 'module' : `${name}/entry`}`, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
 
 const ROUTE: Route = {
   file: 'src/cart.test.ts',
@@ -99,7 +99,7 @@ describe('a story read as a route', () => {
     const again: Route = {
       ...ROUTE,
       route: [...ROUTE.route, removeItem],
-      untaken: [{ place: { file: 'src/cart.ts', name: 'Cart/removeItem', kind: 'function', startLine: 12, endLine: 30 }, arms: never }],
+      untaken: [{ place: { file: 'src/cart.ts', name: 'Cart/removeItem', kind: 'function', at: 'src/cart.ts#Cart/removeItem/entry', startLine: 12, endLine: 30 }, arms: never }],
     };
     const text = formatStory({ route: again }, 'text').split('\n');
     // The code after the loop is not drawn: going on past a construct is what it does.
@@ -127,7 +127,7 @@ describe('a story read as a route', () => {
       before: [],
       route: [checkout([], 1), place('src/save.ts', 'save', 1, 3), checkout([{ path: 'if#0/then', startLine: 13, endLine: 15, times: 1 }], 0)],
       files: ['src/checkout.ts', 'src/save.ts'],
-      untaken: [{ place: { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 }, arms: [{ path: 'if#0/else', startLine: 15, endLine: 15 }] }],
+      untaken: [{ place: { file: 'src/checkout.ts', name: 'checkout', kind: 'function', at: 'src/checkout.ts#checkout/entry', startLine: 10, endLine: 16 }, arms: [{ path: 'if#0/else', startLine: 15, endLine: 15 }] }],
       interleaved: 0,
     };
     const text = formatStory({ route }, 'text').split('\n');
@@ -137,6 +137,30 @@ describe('a story read as a route', () => {
       '  2  save  save.ts:1-3',
       '  3  checkout  checkout.ts:10-16',
       '       if 13  then ×1  else ✗',
+      '',
+    ]);
+  });
+
+  it('draws two declarations of one name in a file each with the arms it never went into', () => {
+    const handle = (at: string, startLine: number, endLine: number) =>
+      ({ token: { place: { file: 'src/route.ts', name: 'handle', kind: 'function' as const, at, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
+    const route: Route = {
+      ...ROUTE,
+      before: [],
+      route: [handle('src/route.ts#handle/entry', 1, 5), handle('src/route.ts#handle~2/entry', 7, 11)],
+      files: ['src/route.ts'],
+      untaken: [
+        { place: handle('src/route.ts#handle/entry', 1, 5).token.place, arms: [{ path: 'if#0/then', startLine: 2, endLine: 3 }] },
+        { place: handle('src/route.ts#handle~2/entry', 7, 11).token.place, arms: [{ path: 'if#0/then', startLine: 9, endLine: 10 }] },
+      ],
+      interleaved: 0,
+    };
+    const text = formatStory({ route }, 'text').split('\n');
+    expect(text.slice(text.indexOf('  1  handle  route.ts:1-5'))).toEqual([
+      '  1  handle  route.ts:1-5',
+      '       if 2  then ✗',
+      '  2  handle  route.ts:7-11',
+      '       if 9  then ✗',
       '',
     ]);
   });

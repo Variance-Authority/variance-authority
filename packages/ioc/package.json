@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/ioc",
-  "version": "0.17.1",
+  "version": "0.21.0",
   "description": "Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.",
   "keywords": [
     "variance-authority",
@@ -24,6 +24,7 @@
     "node": ">=22"
   },
   "type": "module",
+  "sideEffects": true,
   "exports": {
     "./reset": {
       "types": "./dist/reset/index.d.ts",

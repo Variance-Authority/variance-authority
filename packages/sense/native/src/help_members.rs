@@ -216,8 +216,7 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
     for (origin, (at, on)) in origins.iter().enumerate() {
         written.entry(at.clone()).or_default().entry(on.clone()).or_default().insert(origin);
     }
-    let (taken, _) = importers_from(root, layers, written.clone());
-    for one in taken {
+    for one in importers_from(root, layers, written.clone()).taken {
         // A name read off a namespace is `ns.Props`, which no member-use row writes.
         if one.taken.through.is_some() || one.local.is_empty() { continue; }
         written.entry(one.taken.at).or_default().entry(one.local).or_default().insert(one.origin);

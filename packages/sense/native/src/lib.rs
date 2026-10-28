@@ -21,6 +21,7 @@ use variance_sense_instrument::digest;
 
 mod acquire;
 mod append_index;
+mod assigned_object;
 mod batch;
 mod case_fold;
 mod case_id;
@@ -114,6 +115,7 @@ mod module_moved;
 mod module_readers;
 mod module_shape;
 mod module_verdict;
+mod nested;
 mod off_thread;
 mod order;
 mod orient_map;

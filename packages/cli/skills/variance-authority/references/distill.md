@@ -48,7 +48,14 @@ every load-bound file in `loadBound` as `{ file, loading, cases }`.
 `--format jsonl` writes the scope reading one line a test file instead: its
 suite, its `cases`, what it `loaded` (modules that declare a function, other
 than itself, and their lines), and the part of that no case of it entered as
-`unentered`. A file whose cases cannot say what it did without has `withheld`
+`unentered`. Its optional `time` object gives the recorded `prepare`, `environment`,
+`setup`, `collect` and `cases` phases in milliseconds. A phase the runner did
+not time is absent; a measured zero stays `0`. With no recorded phases, `time`
+is absent. Timings remain available when `unentered` is withheld. These are
+elapsed times in each worker; summing files counts concurrent workers
+separately and does not measure CI wall time. Read them beside `unentered` to
+choose a file to investigate: unused lines do not measure time saved by a
+change. A file whose cases cannot say what it did without has `withheld`
 with the reason instead of `unentered`. A suite that kept no record is named on
 stderr. `--test` and `--file` refuse it. Percentiles across a suite are a `jq`
 away; this one gives the share of what each file loaded that no case entered,

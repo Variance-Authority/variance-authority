@@ -23,7 +23,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedDurations, type DurationScope } from '@variance-authority/sense';
-import { limitOf } from '@variance-authority/mcp/tools';
+import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
@@ -97,7 +97,7 @@ export const slowestTests: Tool<unknown> = {
   },
 
   run: (_subject, input, invocation) => {
-    const limit = limitOf(input, SLOWEST);
+    const limit = limitOf(input, SLOWEST, spellingOf(invocation));
     const scope = scopeOf(input);
     const root = invocation?.root;
     if (root === undefined) {

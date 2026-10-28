@@ -71,14 +71,14 @@ async function namedWhenSaid(when: 'comparing' | 'reading the accessibility tree
 
     await page.setContent('<p id="receipt">Paid</p>');
     await page.evaluate(await bundlePageAgent());
-    variancePrecondition({ network: 'mocked' });
+    variancePrecondition('fixture', { network: 'mocked' });
 
     // The engine is asked where components are declared after the document is
     // captured, so a call there lands between the capture and the verdict, as a
     // case's concurrent code can.
     const declared: DeclarationReader = {
       read: async () => {
-        if (when === 'comparing') variancePrecondition({ seeded: true });
+        if (when === 'comparing') variancePrecondition('fixture', { seeded: true });
         return {};
       },
       stats: { asked: 0, located: 0 },
@@ -94,7 +94,7 @@ async function namedWhenSaid(when: 'comparing' | 'reading the accessibility tree
         if (property === 'ariaSnapshot' && when === 'reading the accessibility tree' && !said) {
           return async (...args: Parameters<Locator['ariaSnapshot']>) => {
             said = true;
-            const [tree] = await Promise.all([target.ariaSnapshot(...args), Promise.resolve().then(() => variancePrecondition({ seeded: true }))]);
+            const [tree] = await Promise.all([target.ariaSnapshot(...args), Promise.resolve().then(() => variancePrecondition('fixture', { seeded: true }))]);
             return tree;
           };
         }
@@ -126,16 +126,16 @@ async function namedWhenSaid(when: 'comparing' | 'reading the accessibility tree
 chromium_('a snapshot taken inside a case', () => {
   it('names the preconditions said before its document was captured, not those said while it was compared', async () => {
     expect(await namedWhenSaid('comparing')).toEqual({
-      snapshot: [['network', 'mocked']],
+      snapshot: [['fixture:network', 'mocked']],
       // Said all the same: the case holds it for its row.
-      row: ['network', 'seeded'],
+      row: ['fixture:network', 'fixture:seeded'],
     });
   }, 60_000);
 
   it('does not name a precondition said while the accessibility tree was still being read', async () => {
     expect(await namedWhenSaid('reading the accessibility tree')).toEqual({
-      snapshot: [['network', 'mocked']],
-      row: ['network', 'seeded'],
+      snapshot: [['fixture:network', 'mocked']],
+      row: ['fixture:network', 'fixture:seeded'],
     });
   }, 60_000);
 });

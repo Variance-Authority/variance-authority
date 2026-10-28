@@ -1,6 +1,7 @@
 # ADR-0096 — The edit loop is the compiler and the unit slice at distance 0-1
 
 **Status:** accepted
+**Superseded in part by:** [ADR-0099](0099-the-edit-loop-is-the-published-recipe.md)
 **Date:** 2026-10-20
 **Relates to:** [ADR-0043](0043-an-extension-does-not-own-its-host.md),
 [spec 0098](../../specs/0098-the-runner-is-handed-its-selection.md),
@@ -18,7 +19,7 @@ which takes tens of seconds to answer.
 
 ## Decision
 
-**`yarn test:loop` is `tools/test-loop.mjs`: `tsc --build`, then `variance
+**`yarn test:loop` is a script under `tools/`: `tsc --build`, then `variance
 index` and one reading of the unit slice at `0-1`, and a runner only when that
 reading keeps a test.**
 
@@ -34,7 +35,9 @@ reading keeps a test.**
    skip. A file that failed last time is never held whole, so it is never
    skipped, and the loop stays red until it passes. A file the record never saw
    is kept the same way, and a declined reading skips nothing. Otherwise the
-   script prints one line and exits 0 without starting a runner. On the
+   script prints what the seam would — the selection's headline and its
+   readings — and a verdict naming the distance, and exits 0 without starting
+   a runner: a test that already ran this text is kept out, not missing. On the
    measurement machine, a run with no change takes 1.4 s; an edit that selects
    one test takes 3.6 s; a type error fails in 0.4 s with no test run.
 3. **No marker of its own.** Each run folds into the record, so the next run

@@ -182,8 +182,6 @@ fn a_destructured_import_call_takes_each_name_it_destructures() {
             // module in a result: either holds it whole where the walk cannot follow.
             ("./after-spread", "*"),
             ("./settled", "*"),
-            // The cast's `typeof import('./cast')` is a type that holds the module whole.
-            ("./cast", "*"),
         ]
             .map(|(value, name)| (value.to_owned(), name.to_owned()))
     );
@@ -242,8 +240,6 @@ fn a_name_read_off_the_default_of_an_import_call_is_read_through_default() {
             off("./held", "e", true),
             off("./cast", "default", false),
             off("./cast", "f", true),
-            // The cast's `typeof import('./cast')` is a type that holds the module whole.
-            off("./cast", "*", false),
         ]
     );
 }
@@ -294,7 +290,7 @@ fn a_module_held_whole_that_escapes_is_a_read_of_star() {
 fn a_member_is_read_through_an_import_equals_require() {
     // TypeScript's `import x = require('m')` holds the module whole, as a
     // namespace import does, from its own line on, as the `const` it compiles
-    // to does; a type-only one holds nothing. Its request follows the stated
+    // to does; a type-only one holds it for its types. Its request follows the stated
     // ones and every `import()`, so `./later`'s read names the index past it.
     let source = concat!(
         "whole.early;\n",
@@ -302,13 +298,13 @@ fn a_member_is_read_through_an_import_equals_require() {
         "import type typed = require('./typed');\n",
         "whole.a;\n",
         "whole['b'];\n",
-        "typed.x;\n",
+        "type X = typeof typed.x;\n",
         "const later = await import('./later');\n",
         "later.c;\n",
     );
     assert_eq!(
         members(source),
-        [("./later", "c"), ("./whole", "a"), ("./whole", "b")].map(|(value, name)| (value.to_owned(), name.to_owned()))
+        [("./later", "c"), ("./whole", "a"), ("./whole", "b"), ("./typed", "x")].map(|(value, name)| (value.to_owned(), name.to_owned()))
     );
 }
 
@@ -445,4 +441,31 @@ fn a_file_whose_only_holders_are_import_equals_resolves_them() {
     // or exported; exported, the module goes on whole to every importer.
     let source = concat!("import bare = require('./bare');\n", "export import kept = require('./kept');\n", "bare.a;\n", "kept.b;\n");
     assert_eq!(members(source), [("./bare", "a"), ("./kept", "*"), ("./kept", "b")].map(|(value, name)| (value.to_owned(), name.to_owned())));
+}
+
+#[test]
+fn a_namespace_imported_and_exported_by_its_local_name_is_passed_on_as_export_star_as() {
+    // `import * as g; export { g }` is `export * as g from`: the record keeps
+    // it a local export, since the name binds a namespace object, and the
+    // reader passes it on as the module record passes a named import it exports.
+    let source = concat!(
+        "import * as g from './greet';\n",
+        "import { other } from './greet';\n",
+        "export { g, g as h, other };\n",
+    );
+    let read = read(source);
+    let mut exports: Vec<_> = read
+        .exports
+        .iter()
+        .map(|it| (it.exported.clone().unwrap_or_default(), it.from.clone().unwrap_or_default(), it.imported.clone().unwrap_or_default()))
+        .collect();
+    exports.sort();
+    assert_eq!(
+        exports,
+        [("g", "./greet", "*"), ("h", "./greet", "*"), ("other", "./greet", "other")].map(|(a, b, c)| (a.to_owned(), b.to_owned(), c.to_owned()))
+    );
+    let republished: Vec<_> = read.requests.iter().filter(|it| it.republishes).map(|it| it.value.clone()).collect();
+    assert_eq!(republished, ["./greet"]);
+    // Passed on by name, the namespace does not go on whole from its import.
+    assert_eq!(members(source), Vec::<(String, String)>::new());
 }

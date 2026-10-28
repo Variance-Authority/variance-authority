@@ -151,7 +151,7 @@ describe('one name in full', () => {
 
   it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
     expect(() => call('docs_symbol', { name: 'nope' })).toThrow(FoundNothing);
-    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `search`/);
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `docs_search`/);
   });
 
   it('answers the files of an unknown name as found nothing, as its answer is', () => {
@@ -223,7 +223,7 @@ describe('where the repository already writes a name', () => {
 
   it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
     expect(() => call('docs_uses', { name: 'nope' })).toThrow(FoundNothing);
-    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `search`/);
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `docs_search`/);
   });
 });
 

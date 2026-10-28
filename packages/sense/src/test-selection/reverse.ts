@@ -1,9 +1,13 @@
+// compass: variance-authority.reach.crossings
 import { RUNTIME_EDGES, affectedBy, type Relations } from '@variance-authority/core/relate';
 import { blocksChargedAt } from './blocks-around.js';
 import { blocksOfTarget, type SourceTestTarget } from './source-target.js';
-import { shadowedFor, type ShadowedFor } from './shadowed.js';
+import { ownedBlocks } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
+import { sameUnentered, unenteredOn, type Unentered } from './unentered.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Said } from './case-said.js';
+import type { ReachRecord } from './range-state.js';
 
 /** One recorded case: who it is, where it is declared, and whether its journey ended. */
 export interface ExecutionTest {
@@ -110,6 +114,8 @@ export interface CoveringOptions {
    * {@link ranWhileLoading} says the list is short.
    */
   readonly relations?: Relations;
+  /** The cases {@link coveringTestsInFile} names, whose ranges fold over what is left; absent keeps every case. */
+  readonly keep?: (test: CoveringTest) => boolean;
 }
 
 /**
@@ -131,6 +137,8 @@ export interface SourceTestRange {
   readonly loaded?: true;
   /** Cases that could have reached the range and stopped first; see {@link stoppedBefore}. */
   readonly stopped?: readonly ExecutionTest[];
+  /** On a range that names cases: its regions no case entered, which no line of their own shows; see `unentered.ts`. */
+  readonly unentered?: readonly Unentered[];
 }
 
 /** Find named tests that reached a source line, lines or scope, nearest first. */
@@ -141,7 +149,7 @@ export function coveringTests(
 ): readonly CoveringTest[] {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return [];
-  const blocks = blocksAt(module, target);
+  const blocks = blocksOfTarget(ownedBlocks(index, module, options.relations), target);
   return withLoaders(testsForBlocks(index, blocks), blocks, loadersOf(index, module.file, options.relations));
 }
 
@@ -151,11 +159,12 @@ export function coveringTests(
  * The cases that loaded it are named only through the file graph, so a reader
  * that asked {@link coveringTests} without one holds a list that may be short,
  * and this is how it finds out. An empty list and a region that only ran
- * during load are opposite answers to *did anything go here*.
+ * during load are opposite answers to *did anything go here*. With a graph, a
+ * run the graph lays to a mock alone does not count: see `loadOwned`.
  */
-export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget): boolean {
+export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget, options: CoveringOptions = {}): boolean {
   const module = index.modules.find((candidate) => candidate.file === target.file);
-  return module !== undefined && blocksAt(module, target).some((block) => block.loaded === true);
+  return module !== undefined && blocksOfTarget(ownedBlocks(index, module, options.relations), target).some((block) => block.loaded === true);
 }
 
 /**
@@ -174,11 +183,7 @@ export function stoppedBefore(
 ): readonly ExecutionTest[] | undefined {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return undefined;
-  return outside(index, stoppedIn(index, module, options.relations), blocksAt(module, target));
-}
-
-function blocksAt(module: ExecutionModule, target: SourceTestTarget): readonly ExecutionBlock[] {
-  return blocksOfTarget(module.blocks, target);
+  return outside(index, stoppedIn(index, module, options.relations), blocksOfTarget(ownedBlocks(index, module, options.relations), target));
 }
 
 /** Find named tests for every indexed source line, grouped into equal adjacent ranges. */
@@ -191,9 +196,10 @@ export function coveringTestsInFile(
   if (module === undefined) return [];
   const loaders = loadersOf(index, file, options.relations);
   const stopped = stoppedIn(index, module, options.relations);
+  const blocksOwned = ownedBlocks(index, module, options.relations);
 
   const boundaries = new Set<number>();
-  for (const block of module.blocks) {
+  for (const block of blocksOwned) {
     // A first or last line can charge the region around it, so each is a range of its own.
     const last = Math.max(block.startLine, block.endLine);
     if (block.startLine >= 1) for (const line of [block.startLine, block.startLine + 1, last, last + 1]) boundaries.add(line);
@@ -204,18 +210,21 @@ export function coveringTestsInFile(
   for (let at = 0; at < lines.length - 1; at += 1) {
     const startLine = lines[at]!;
     const endLine = lines[at + 1]! - 1;
-    const blocks = blocksChargedAt(module.blocks, startLine);
+    const blocks = blocksChargedAt(blocksOwned, startLine);
     if (blocks.length === 0) continue;
-    const tests = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
+    const named = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
+    const tests = options.keep === undefined ? named : named.filter(options.keep);
     const loaded = blocks.some((block) => block.loaded === true);
     const short = outside(index, stopped, blocks);
+    const unentered = unenteredOn(blocks, tests.length, (block) => blockRecord(index, stopped, block));
     const previous = ranges.at(-1);
     if (
       previous !== undefined &&
       previous.endLine + 1 === startLine &&
       (previous.loaded === true) === loaded &&
       sameTests(previous.tests, tests) &&
-      sameCases(previous.stopped, short)
+      sameCases(previous.stopped, short) &&
+      sameUnentered(previous.unentered, unentered)
     ) {
       ranges[ranges.length - 1] = { ...previous, endLine };
     } else {
@@ -225,6 +234,7 @@ export function coveringTestsInFile(
         tests,
         ...(loaded ? { loaded: true as const } : {}),
         ...(short === undefined ? {} : { stopped: short }),
+        ...(unentered === undefined ? {} : { unentered }),
       });
     }
   }
@@ -235,25 +245,29 @@ function testsForBlocks(
   index: ExecutionIndex,
   blocks: readonly ExecutionBlock[],
 ): readonly CoveringTest[] {
-  const distance = new Map<number, number>();
+  // A case that called in anywhere on the blocks is a caller, at the distance it
+  // called from; only a passenger is placed by its load-time crossings.
+  const called = new Map<number, number>();
+  const loaded = new Map<number, number>();
   for (const block of blocks) {
     for (const crossing of block.crossings) {
       if (!Number.isInteger(crossing.distance) || crossing.distance < 0) throw invalidDistance();
       if (index.tests[crossing.test] === undefined) throw invalidTest(crossing.test);
+      const distance = crossing.loaded === true ? loaded : called;
       const before = distance.get(crossing.test);
-      if (before === undefined || crossing.distance < before) {
-        distance.set(crossing.test, crossing.distance);
-      }
+      if (before === undefined || crossing.distance < before) distance.set(crossing.test, crossing.distance);
     }
   }
-
-  return sortTests([...distance].map(([test, observed]) => ({ ...index.tests[test]!, distance: observed })));
+  const passengers = [...loaded].filter(([test]) => !called.has(test));
+  return sortTests([
+    ...[...called].map(([test, observed]) => ({ ...index.tests[test]!, distance: observed })),
+    ...passengers.map(([test, observed]) => ({ ...index.tests[test]!, distance: observed, loaded: true as const })),
+  ]);
 }
 
 function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]): boolean {
-  return left.length === right.length && left.every((test, at) =>
-    test.id === right[at]!.id && test.distance === right[at]!.distance && test.loaded === right[at]!.loaded,
-  );
+  return left.length === right.length
+    && left.every((test, at) => test.id === right[at]!.id && test.distance === right[at]!.distance && test.loaded === right[at]!.loaded);
 }
 
 /**
@@ -331,10 +345,6 @@ function invalidTest(test: number): Error {
   return new Error(`invalid execution index: test ${test} does not exist`);
 }
 
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
 /**
  * One changed region, and what the recorded run has on it.
  *
@@ -355,6 +365,8 @@ export interface CoveringRegion {
   readonly endLine: number;
   /** Cases that called into the region, nearest first. */
   readonly tests: readonly CoveringTest[];
+  /** The region ran while its module evaluated; see {@link ExecutionBlock.loaded}. */
+  readonly loaded?: true;
   /**
    * Cases that were inside it only while its module was evaluating.
    *
@@ -427,7 +439,6 @@ export function coveringChange(
   changed: ReadonlyMap<string, readonly { readonly start: number; readonly end: number }[]>,
   options: CoveringChangeOptions = {},
 ): readonly CoveringChange[] {
-  const shadowed = shadowedFor(options.relations);
   const modules = new Map(index.modules.map((module) => [module.file, module]));
   const declared = new Map<string, ExecutionTest[]>();
   for (const test of index.tests) {
@@ -445,21 +456,17 @@ export function coveringChange(
       continue;
     }
 
-    const owned = ownedIn(index, module, shadowed);
     const stopped = stoppedIn(index, module, options.relations);
     let loaders: readonly CoveringTest[] | undefined;
-    const regions = module.blocks
+    const regions = ownedBlocks(index, module, options.relations)
       .filter((block) =>
         block.source && ranges.some((range) => block.startLine <= range.end && range.start <= block.endLine),
       )
       .map((block): CoveringRegion => {
-        const tests = testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded !== true) }]);
-        const carried = testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded === true) }]);
-        const short = outside(index, stopped, [block]);
-        const region = {
-          kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine, tests,
-          ...(short === undefined ? {} : { stopped: short }),
-        };
+        const record = blockRecord(index, stopped, block);
+        const tests = record.tests.filter((test) => test.loaded !== true);
+        const carried = record.tests.filter((test) => test.loaded === true);
+        const region = { kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine, ...record, tests };
         if (block.loaded !== true) return { ...region, passengers: carried };
         loaders ??= loadersOf(index, file, options.relations);
         if (loaders === undefined) return region;
@@ -472,24 +479,12 @@ export function coveringChange(
   return answers;
 }
 
-/**
- * Whether a crossing in this module belongs to its case.
- *
- * Every crossing a case made is its own: its mocks were installed before it
- * ran. Only a crossing made while the module evaluated can be a mock's work —
- * a runner evaluating the real module to shape it — and a case whose file
- * mocked the module, or reaches it only through a mock, does not hold those.
- * See `shadowed.ts`.
- */
-export function ownedIn(
-  index: ExecutionIndex,
-  module: ExecutionModule,
-  shadowed: ShadowedFor | undefined,
-): (crossing: ExecutionCrossing) => boolean {
-  if (shadowed === undefined) return () => true;
-  return (crossing) => {
-    if (crossing.loaded !== true) return true;
-    const file = index.tests[crossing.test]?.file;
-    return file === undefined || !shadowed(file).has(module.file);
+/** What the record holds on one block, the record its reach is read from by `reachOf`. */
+function blockRecord(index: ExecutionIndex, stopped: ReadonlySet<number> | undefined, block: ExecutionBlock): ReachRecord {
+  const short = outside(index, stopped, [block]);
+  return {
+    tests: testsForBlocks(index, [block]),
+    ...(block.loaded === true ? { loaded: true as const } : {}),
+    ...(short === undefined ? {} : { stopped: short }),
   };
 }

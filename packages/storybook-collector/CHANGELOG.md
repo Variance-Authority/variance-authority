@@ -1,5 +1,23 @@
 # @variance-authority/storybook-collector
 
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+### Patch Changes
+
+- f0284c4: Include the configured loader chain in Rspack and Webpack source-map refusals, and explain how upstream transforms preserve their input maps.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.17.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

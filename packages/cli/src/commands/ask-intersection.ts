@@ -1,9 +1,10 @@
 import { wordsOf } from '@variance-authority/help';
+import { verbOf } from '@variance-authority/mcp/tools';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { flagged } from './ask-flagged.js';
-import { QUESTIONS, inputFor, questionFor, questionOf, refuseWords } from './asking.js';
+import { QUESTIONS, inputFor, questionFor, refuseWords } from './asking.js';
 
 /**
  * The questions `variance ask intersection` crosses, read off the words after
@@ -23,7 +24,7 @@ const OUTSIDE = ['--changed-file', '--taint-file', '--just-answer', '--format', 
 
 /** The questions whose answer is a set of files, as they are typed. */
 const crossable = (): string =>
-  QUESTIONS.filter((question) => question.source?.files !== undefined).map((question) => questionOf(question.tool)).join(', ');
+  QUESTIONS.filter((question) => question.source?.files !== undefined).map((question) => verbOf(question.tool)).join(', ');
 
 /** One question, parsed as `variance ask` would parse it alone. */
 function parsedQuestion(text: string, at: number): { readonly question: string; readonly input: Readonly<Record<string, unknown>> } {

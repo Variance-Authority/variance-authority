@@ -13,8 +13,7 @@ and the `new → accept → unchanged → changed` cycle completed with each cha
 region resolved to the component and line that wrote it.
 
 The Storybook and its design system are authored here, so this case says nothing
-about a third-party component library, a hosted review service, Storybook's own
-chrome, or hydration.
+about a third-party component library, Storybook's own chrome, or hydration.
 
 ## Two words this file uses
 
@@ -78,6 +77,7 @@ yarn workspace @variance-authority/case-storybook storybook
 | `src/ds.jsx` | the design system they render — `Button`, `Stack`, `Card`, `Spinner`, `Clock`, `AsyncPanel`, `Panel`, `SheetLeak`, and the Suspense trees |
 | `collector/index.mjs` | the case's collector: which story defers readiness and by what marker, which story is about its own loading state, and where the components live |
 | `variance.config.json` | project, viewport, fonts, baselines, and `excludeTags: ["no-variance", "ticking"]` |
+| `variance.lfs.config.json` | the same subjects, with baselines committed under `baselines/` through git-LFS; run by the `lfs` job of `.github/workflows/variance.yml` |
 | `.storybook/` | the build every suite but one reads |
 | `.storybook-a11y/` | a second build with `@storybook/addon-a11y` installed |
 | `src/storybook.chromium.test.js` | the adapter against the real index and preview |

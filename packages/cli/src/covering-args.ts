@@ -25,6 +25,13 @@ export interface CoveringSource {
    */
   readonly where?: readonly WhereCondition[];
   /**
+   * `--read <name>[=<value>]`, repeated: keep the cases whose code read every
+   * one, in the grammar of `--where`. The two filters stay separate: what a
+   * case said never answers `--read`, and what its code read never answers
+   * `--where`.
+   */
+  readonly read?: readonly WhereCondition[];
+  /**
    * `--suite <name>`: the one declared suite whose record is read. Absent, a
    * repository that declares suites is read suite by suite.
    */
@@ -33,7 +40,7 @@ export interface CoveringSource {
   readonly held?: string;
 }
 
-/** One `--where`: a name a case said, and the value it must have said, when one was given. */
+/** One `--where` or `--read`: a name a case said or its code read, and the value it must have had, when one was given. */
 export interface WhereCondition {
   readonly name: string;
   readonly value?: string;
@@ -269,24 +276,29 @@ function executionAnd(flags: Flags): CoveringSource {
   if (cases === '') throw new OperatorError('`--cases` takes `last` or a test file.');
   const suite = flags.values.get('--suite');
   oneRecord(suite, execution, '--execution');
-  const where = (flags.repeated.get('--where') ?? []).map(whereOf);
+  const where = (flags.repeated.get('--where') ?? []).map((raw) => whereOf(raw, '--where'));
+  const read = (flags.repeated.get('--read') ?? []).map((raw) => whereOf(raw, '--read'));
   return {
     command: 'covering',
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     ...(suite === undefined ? {} : { suite }),
     ...(cases === undefined ? {} : { cases }),
     ...(where.length === 0 ? {} : { where }),
+    ...(read.length === 0 ? {} : { read }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format: format as CoveringFormat,
   };
 }
 
-/** `network=mocked` is a name and a value; `network` is a name said with any value. */
-function whereOf(raw: string): WhereCondition {
+/**
+ * `network:api=mocked` is a name and a value, `network:api` a name said with any
+ * value, and `network` any key said under the dimension.
+ */
+function whereOf(raw: string, flag: '--read' | '--where'): WhereCondition {
   const equals = raw.indexOf('=');
   const name = equals === -1 ? raw : raw.slice(0, equals);
   if (name === '') {
-    throw new OperatorError(`\`--where\` takes a precondition's name, and a value after \`=\` when one matters, not \`${raw}\`.`);
+    throw new OperatorError(`\`${flag}\` takes a dimension or a ${flag === '--read' ? 'read' : 'precondition'}'s \`dimension:key\`, and a value after \`=\` when one matters, not \`${raw}\`.`);
   }
   return equals === -1 ? { name } : { name, value: raw.slice(equals + 1) };
 }

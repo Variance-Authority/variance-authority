@@ -37,9 +37,9 @@ function refusesForeignSignals(seen: RequestInit[]): typeof globalThis.fetch {
 }
 
 describe('fetchWithin', () => {
-  beforeEach(() => variancePrecondition({ network: 'stubbed', remote: 'hangs' }));
+  beforeEach(() => variancePrecondition('fixture', { network: 'stubbed', remote: 'hangs' }));
   it('passes a response through untouched', async () => {
-    variancePrecondition({ remote: 'accepts' });
+    variancePrecondition('fixture', { remote: 'accepts' });
     const ok = new Response('{}', { status: 200 });
     const get = (() => Promise.resolve(ok)) as unknown as typeof globalThis.fetch;
 

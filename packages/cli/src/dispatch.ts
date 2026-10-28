@@ -42,18 +42,19 @@ import { changelog, changelogStoreFor, formatChangelog } from './commands/change
 import { formatRemoteChangelog, readRemoteChangelog } from './commands/changelog-remote.js';
 import { runJourneys } from './commands/journeys-command.js';
 import { refiningRecord } from './commands/suite-record.js';
+import { suiteIgnore } from './commands/select-before.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { commentMarker, renderComment } from './commands/comment.js';
-import { doctor, machineProbes } from './commands/doctor.js';
+import { baselineFinding, doctor, machineProbes } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
 import { runCollect, runCollectMerge } from './commands/collect-command.js';
 import { runSuiteShare } from './commands/suite-share.js';
 import type { Configless } from './commands/configless.js';
-import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
+import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
@@ -127,9 +128,12 @@ export async function dispatch(
         process.env,
       );
 
+      const ignore = await suiteIgnore(process.cwd(), parsed.suite);
+
       try {
         const report = await run({
           config: effective,
+          ...(ignore !== undefined ? { ignore } : {}),
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
           ...(parsed.shard !== undefined ? { shard: parsed.shard } : {}),
           ...(await costsToPlace(effective)),
@@ -391,6 +395,13 @@ export async function dispatch(
       return EXIT_CLEAN;
 
     case 'doctor': {
+      // The store alone: no browser launched, no font measured, so the action
+      // can ask it before every run for the price of reading the store's heads.
+      if (parsed.baselines === true) {
+        const finding = await baselineFinding(config, machineProbes(config));
+        streams.out(`${formatBaselines(finding)}\n`);
+        return exitForBaselines(finding);
+      }
       const diagnosis = await doctor(config, machineProbes(config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
       return exitForDiagnosis(diagnosis);

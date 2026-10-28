@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { linkSync, rmSync } from 'node:fs';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
   combineRecords,
   finalizeJestJourneys,
+  recordStorageAt,
   stitchJourneyArtifacts,
   type CombinedRecord,
   type JourneyArtifactResult,
@@ -14,14 +16,28 @@ import { messageOf } from './resources.js';
 
 type JourneyArtifactCommand = Extract<
   Parsed,
-  { command: 'journeys'; operation: 'finalize' | 'stitch' | 'combine' }
+  { command: 'journeys'; operation: 'finalize' | 'stitch' | 'combine' | 'inspect' }
 >;
 
-/** Finalize journals, stitch journey artifacts, or combine shard records. */
+/** Finalize journals, stitch journey artifacts, combine shard records, or inspect their storage. */
 export async function runJourneyArtifactCommand(
   parsed: JourneyArtifactCommand,
   streams: { out(text: string): void },
 ): Promise<ExitCode> {
+  if (parsed.operation === 'inspect') {
+    try {
+      const storage = recordStorageAt(parsed.record);
+      const sections = [...storage.sections].sort((left, right) => right.bytes - left.bytes || codeUnitOrder(left.name, right.name));
+      const result = { record: parsed.record, ...storage, sections };
+      streams.out(parsed.format === 'json' ? `${JSON.stringify(result, null, 2)}\n` :
+        `${parsed.record}: ${storage.bytes} bytes, format ${storage.format}\n` +
+        `${storage.overheadBytes} bytes outside sections (header and padding)\n` +
+        sections.map((section) => `${section.name}: ${section.bytes} bytes, ${section.rows} storage elements of width ${section.width}${section.packed ? ', packed' : ''}\n`).join(''));
+      return EXIT_CLEAN;
+    } catch (error) {
+      throw new OperatorError(messageOf(error), { cause: error });
+    }
+  }
   if (parsed.operation === 'combine') {
     // A combine writes a record of its own shards and nothing else. Over a
     // record that is there it would discard that record, and over a shard the

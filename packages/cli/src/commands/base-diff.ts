@@ -20,6 +20,17 @@ import { diffSince, gitIn, topLevel } from './since.js';
 const OBJECT_NAME = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 
 /**
+ * The sentence {@link diffFromBase} refuses a base with that names no commit,
+ * for a caller that knows so before it asks and leaves the base uncompared.
+ */
+export function unnamedCommit(base: { readonly name: string; readonly unnamed?: string }): string {
+  return (
+    `${base.name} names no commit it was recorded at, so it is not compared: its regions are paired with the current ones ` +
+    `only through the diff from that commit.${base.unnamed === undefined ? '' : ` ${base.unnamed}`}`
+  );
+}
+
+/**
  * The diff by file from `at`, the commit the base `base` names was recorded at,
  * to the tree at `root`, with that commit. `base` opens each refusal, as a
  * sentence's subject; `unnamed`, when given, says why a base of that kind can
@@ -33,12 +44,7 @@ export async function diffFromBase(
   const refuse = (why: string): never => {
     throw new OperatorError(`${base.name} ${why}`, { kind: 'undiffed' });
   };
-  if (at === undefined) {
-    return refuse(
-      'names no commit it was recorded at, so it is not compared: its regions are paired with the current ones ' +
-        `only through the diff from that commit.${base.unnamed === undefined ? '' : ` ${base.unnamed}`}`,
-    );
-  }
+  if (at === undefined) throw new OperatorError(unnamedCommit(base), { kind: 'undiffed' });
   if (!OBJECT_NAME.test(at)) return refuse(`was recorded at \`${at}\`, which is not a commit's object name, so it is not compared.`);
   const repository = await topLevel(root);
   if (repository === undefined) return refuse(`was recorded at ${at}, and \`${root}\` is not in a git checkout to diff from it.`);

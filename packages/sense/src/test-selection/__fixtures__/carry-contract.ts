@@ -206,12 +206,19 @@ export interface RunOptions {
    * hands what entered it to the region around it.
    */
   readonly lacks?: readonly string[];
+  /**
+   * A text the run is recorded over without committing it, as a run over a
+   * dirty tree is: the landing finds it on disk, and the walk's tree is set
+   * back to HEAD's text after.
+   */
+  readonly over?: string;
 }
 
 /** A run of `tests` over the subject at HEAD, landed into the walk's record. */
 export async function runTests(walk: Walk, tests: readonly string[], options: RunOptions = {}): Promise<void> {
   const { head } = walk;
-  const all = regionsOf(walk.text);
+  const text = options.over ?? walk.text;
+  const all = regionsOf(text);
   const lacked = new Set(all.flatMap((region, at) => {
     const label = labelOf(all, at);
     return label !== undefined && options.lacks?.includes(label) === true ? [region.block.ordinal] : [];
@@ -227,7 +234,7 @@ export async function runTests(walk: Walk, tests: readonly string[], options: Ru
   const entering = (region: Region): string[] => tests.filter((test) =>
     enters(walk, test, region)
       || all.some((inner) => lacked.has(inner.block.ordinal) && keptOwner(inner) === region.block.ordinal && enters(walk, test, inner)));
-  const instrumented = instrument(walk.text, SUBJECT, SUBJECT)!;
+  const instrumented = instrument(text, SUBJECT, SUBJECT)!;
   const coverage: TestCoverage = {
     version: 3,
     instrumentation: INSTRUMENTATION_ID,
@@ -267,11 +274,17 @@ export async function runTests(walk: Walk, tests: readonly string[], options: Ru
     }],
     sets: sets.pool(),
   });
+  if (options.over !== undefined) walk.texts.push(options.over);
   walk.actions.push({ action: 'run', tests, ...(options.lacks === undefined ? {} : { lacks: options.lacks }), text: walk.texts.length - 1 });
-  await landRun(walk.coverageFile, coverage, walk.root, walk.cacheRoot, {
-    fresh,
-    run: { tests: tests.map((file) => ({ file, complete: true })), commit: head },
-  });
+  await writeFile(resolve(walk.root, SUBJECT), text, 'utf8');
+  try {
+    await landRun(walk.coverageFile, coverage, walk.root, walk.cacheRoot, {
+      fresh,
+      run: { tests: tests.map((file) => ({ file, complete: true })), commit: head },
+    });
+  } finally {
+    await writeFile(resolve(walk.root, SUBJECT), walk.text, 'utf8');
+  }
 }
 
 /** A run of a test that enters only {@link ELSEWHERE}: the subject's record is carried to HEAD, not recorded. */
@@ -384,7 +397,7 @@ export async function owed(walk: Walk): Promise<readonly string[]> {
 }
 
 /** The patch from the subject at HEAD to `next`, as `git diff` writes it, leaving HEAD's text in place. */
-async function patchTo(walk: Walk, next: string): Promise<string> {
+export async function patchTo(walk: Walk, next: string): Promise<string> {
   await writeFile(resolve(walk.root, SUBJECT), next, 'utf8');
   try {
     return await git(walk.root, 'diff', '--no-color', '--', SUBJECT);
@@ -445,4 +458,19 @@ function testsOf(output: unknown): readonly string[] {
 export function touching(text: string, label: string): string {
   const call = `hit('${label}');`;
   return text.replace(call, `${call} again();`);
+}
+
+/** The exact cases the record names as its last run. */
+export async function lastCases(walk: Walk): Promise<readonly string[]> {
+  // Defer the reader so the fault-injection harness installs its edit-reading mock before the landing loads.
+  const { lastCaseRunOf } = await import('../case-landing.js');
+  return lastCaseRunOf(caseSectionsAt(walk.coverageFile))!.cases;
+}
+
+/** The same scope read by a fresh CLI process, including its before comparison. */
+export async function lastCasesByCli(walk: Walk): Promise<readonly string[]> {
+  const { stdout } = await run(process.execPath, [BIN, 'covering', '--file', SUBJECT, '--execution', walk.coverageFile, '--cases', 'last', '--format', 'json'], {
+    cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024,
+  });
+  return (JSON.parse(stdout) as { readonly scope: { readonly tests: readonly string[] } }).scope.tests;
 }

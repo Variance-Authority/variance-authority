@@ -106,7 +106,7 @@ describe('landJourneys and the cases in the record', () => {
 describe('landJourneys and the run its shards were', () => {
   /** A case of `file` that said `user` was `value` in its body. */
   function said(file: string, name: string, value: string): ExecutionTest {
-    return { id: `${file} > ${name}`, file, name, stopped: false, said: JSON.stringify([['user', value, `${file}:2`, 65535]]) };
+    return { id: `${file} > ${name}`, file, name, stopped: false, said: JSON.stringify({ said: [['auth:user', JSON.stringify(value), `${file}:2`, 65535]] }) };
   }
 
   /** A shard at `commit` that finished `test`'s file, entered `src/total.ts`, and kept `test` as its one case. */
@@ -138,8 +138,8 @@ describe('landJourneys and the run its shards were', () => {
     expect(last.cases).toEqual([alone.id, discounts.id]);
     const named = (await readExecutionIndex(record)).tests.filter((test) => last.cases.includes(test.id));
     expect(named.map((test) => [test.id, rowOf(test)])).toEqual([
-      [alone.id, [{ name: 'user', value: 'guest', site: 'test/other.test.ts:2', level: 65535 }]],
-      [discounts.id, [{ name: 'user', value: 'member', site: 'test/total.test.ts:2', level: 65535 }]],
+      [alone.id, [{ name: 'auth:user', value: 'guest', site: 'test/other.test.ts:2', level: 65535 }]],
+      [discounts.id, [{ name: 'auth:user', value: 'member', site: 'test/total.test.ts:2', level: 65535 }]],
     ]);
   });
 

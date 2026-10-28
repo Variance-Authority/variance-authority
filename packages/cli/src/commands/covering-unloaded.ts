@@ -33,15 +33,30 @@ export function unloadedFile(file: string, from: string, count: number): Operato
  * Refuse `file`, which the record at `from` does not hold because the commit
  * it was made at, `commit`, did not hold the file. That is a record older than
  * the file, not a run that never loaded it, so it is `older`, not `unloaded`.
- * No remedy is named: a run of the suite is often impossible where the
- * question is asked, and a reader who can run it knows so already.
+ * The sentence names no run: `covering` ends the refusal with its Record gap,
+ * which names the run and counts what it costs (`evidence-gap.ts`), so a
+ * reader for whom the run is out of reach sees that before starting it.
  */
-export function addedSince(file: string, from: string, commit: string): OperatorError {
-  return new OperatorError(
+export function addedSince(file: string, from: string, commit: string): RecordOlder {
+  return new RecordOlder(
     `\`${file}\` did not exist at ${commit.slice(0, 12)}, the commit the record at \`${from}\` was made at, ` +
       'so that record has no answer for it.',
-    { kind: 'older' },
+    commit,
+    from,
   );
+}
+
+/** The `older` refusal, with the commit its record was made at: the base the diff of files added since is taken from. */
+export class RecordOlder extends OperatorError {
+  readonly commit: string;
+  /** The record that predates the file, which the gap asks selection about. */
+  readonly from: string;
+
+  constructor(message: string, commit: string, from: string) {
+    super(message, { kind: 'older' });
+    this.commit = commit;
+    this.from = from;
+  }
 }
 
 /**

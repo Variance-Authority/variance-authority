@@ -70,4 +70,20 @@ describe('search over the documentation of unpublished exports', () => {
     expect(balance.out).toContain('settle');
     expect(balance.out).toContain('Balance the ledger, once a day.');
   });
+
+  it('finds a renamed name by a word its doc still writes, and never by a word only prose writes', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'docs', private: true, workspaces: ['packages/*'] }),
+      'packages/lens/package.json': JSON.stringify({ name: '@docs/lens', version: '1.0.0', type: 'module', exports: { '.': './src/index.ts' } }),
+      'packages/lens/src/index.ts': 'export const lens = 1;\n',
+      'packages/lens/src/hold.ts': '/** Close the turnstile until the run settles. */\nexport function hold(): void {}\n',
+      'docs/specs/0001-hold.md': '# The gate\n\nThe gate was renamed `hold`.\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'search', '--query', 'turnstile'])).out).toContain('hold');
+    const gate = await run(['ask', 'search', '--query', 'gate']);
+    expect(gate.code).toBe(EXIT_CLEAN);
+    expect(gate.out).not.toContain('hold.ts');
+  });
 });

@@ -31,12 +31,12 @@ export interface Flags {
  * Flags a command takes more than once, each time adding one more of a kind.
  *
  * Every other flag is refused when repeated. These are the exceptions because
- * their repetitions do not contradict: each `--where` of `covering` is a
- * condition, and all of them hold; each `--name` of `story` is a case, and
+ * their repetitions do not contradict: each `--where` and `--read` of
+ * `covering` is a condition, and all of them hold; each `--name` of `story` is a case, and
  * all of them are compared.
  */
 export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
-  covering: new Set(['--where']),
+  covering: new Set(['--read', '--where']),
   story: new Set(['--name']),
 };
 
@@ -53,6 +53,7 @@ export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
  */
 export const BOOLEAN = new Set([
   '--all',
+  '--baselines',
   '--marker',
   '--flakes',
   '--publish',
@@ -69,6 +70,7 @@ export const BOOLEAN = new Set([
   '--embed-images',
   '--packages',
   '--coverage',
+  '--fan-in',
 ]);
 
 /**

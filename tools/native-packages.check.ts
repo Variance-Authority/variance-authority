@@ -195,7 +195,7 @@ describe('the package that loads them', () => {
 
 describe('the crate a Rust pipeline links', () => {
   // `native/instrument` is a Cargo path dependency read out of `node_modules`,
-  // so what `yarn npm publish` packs is the crate a consumer compiles: every
+  // so what `yarn pack` packs is the crate a consumer compiles: every
   // tracked file of it, and nothing else of `native/`. The addon's own crate,
   // its lockfile and its vendored resolver stay in this repository.
   it('is packed whole, and alone', () => {
