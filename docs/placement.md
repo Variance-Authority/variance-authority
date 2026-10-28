@@ -252,7 +252,7 @@ because `new` re-records what is on screen and a network blip read as a miss
 destroys the thing the check was against while reporting success.
 
 The serving half is `serveRasterStore` from
-[`@variance-authority/remote`](../packages/remote/README.md), which binds
+[`@variance-authority/remote/store`](../packages/remote/README.md), which binds
 loopback; a deployment CI can call is either that behind a proxy you run, or
 the [`tribunal`](../packages/tribunal/README.md) Worker, which serves the same
 paths on D1 and R2.
