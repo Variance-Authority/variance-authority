@@ -188,7 +188,13 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Co
   const evidence = held.size === 0
     ? undefined
     : await evidenceOf(units.flatMap((unit) => unit.runs), held, {
-      root: question.root, snapshot, repository: read.repository, at, region: region !== undefined, placement: question.placement, ranOther: question.ranOther,
+      root: question.root,
+      snapshot,
+      repository: read.repository,
+      last: at === undefined ? read.runs?.latest : undefined,
+      region: region !== undefined,
+      placement: question.placement,
+      ranOther: question.ranOther,
     });
   const stands = standsOf(units, (unit) => (evidence === undefined ? {} : verdictOf(unit, held, evidence, region, precondition)));
   // Oldest first, by when their runs first landed; a stand the record holds no time for comes first.

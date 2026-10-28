@@ -2,7 +2,8 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
-import { ASSUMED, PAY, indexOf, recordFixture } from './covering-record.fixture.js';
+import { digestString } from '@variance-authority/core/format';
+import { MINUTE, PAY, indexOf, iso, oneRun, recordFixture, type Fixture } from './covering-record.fixture.js';
 
 /**
  * Every `covering` answer about a file says where the record's line numbers
@@ -12,44 +13,46 @@ import { ASSUMED, PAY, indexOf, recordFixture } from './covering-record.fixture.
  */
 
 const { checkout, ask } = recordFixture();
+/** The runs record of one run at the record's commit that finished `src/pay.test.ts` six minutes ago, over `texts` off the commit. */
+const ranHere = (texts: Record<string, string> = {}): Fixture['runs'] =>
+  (_, recorded) => ({ commit: recorded, ...oneRun(iso(Date.now() - 6 * MINUTE), ['src/pay.test.ts'], texts) });
 
 describe('a covering answer says where the record\'s line numbers stand in the asked text', () => {
   it('says nothing of the numbering when the lines are numbered in the asked text, and says the test file ran over it', async () => {
-    const { at, commit } = await checkout();
+    const { at, commit } = await checkout({ runs: ranHere() });
     const file = await ask(at, '--file', 'src/pay.ts');
     const line = await ask(at, '--file', 'src/pay.ts', '--line', '1');
     const named = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
 
-    expect(file.json).toMatchObject({ at: commit, frame: 'recorded', ran: { stands: [{ commit, assumed: true, tests: ['src/pay.test.ts'], text: 'held' }] } });
+    expect(file.json).toMatchObject({ at: commit, frame: 'recorded', ran: { stands: [{ commit, tests: ['src/pay.test.ts'], text: 'held' }] } });
     expect(line.json).toMatchObject({ at: commit, frame: 'recorded' });
     expect(named.json).toMatchObject({ at: commit, frame: 'recorded', unrun: [{ kind: 'branch', startLine: 2, endLine: 4 }] });
     for (const { text } of [file, line, named]) {
       expect(text).not.toContain('numbered in');
-      expect(text).toContain('src/pay.ts is the text the test file named here ran over, at a time the record does not hold.\n');
-      expect(text).toContain(ASSUMED);
+      expect(text).toContain('src/pay.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
     }
   });
 
   it('says once that an edited file\'s lines are placed in the text as it is now, and that its test file ran over another text', async () => {
-    const { at, commit } = await checkout();
+    const { at, commit } = await checkout({ runs: ranHere() });
     await writeFile(join(at, 'src/pay.ts'), `// fees are charged by the caller\n${PAY}`);
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
     expect(json).toMatchObject({ at: commit, frame: 'mapped', ran: { stands: [{ text: 'other', other: ['src/pay.ts'] }] } });
     expect(text).toContain('The recorded lines of src/pay.ts are placed in its text as it is now.\n');
-    expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, at a time the record does not hold.\n');
+    expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago.\n');
     expect(text).not.toContain(', placed in the text as it is now');
   });
 
   it('says of an asked function in an edited file whether it is the same in the text its test file ran over, and marks each part no case ran that the edit touched', async () => {
-    const { at } = await checkout();
+    const { at } = await checkout({ runs: ranHere() });
     await writeFile(join(at, 'src/pay.ts'), `// fees are charged by the caller\n${PAY}`);
     const untouched = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
 
     expect(untouched.json).toMatchObject({ frame: 'mapped', unrun: [{ kind: 'branch', startLine: 3, endLine: 5 }], ran: { stands: [{ text: 'other', region: 'same' }] } });
     expect(untouched.json).not.toHaveProperty('moved');
     expect(untouched.json['unrun']).not.toMatchObject([{ moved: true }]);
-    expect(untouched.text).toContain('src/pay.test.ts ran over another text of src/pay.ts, at a time the record does not hold; `pay` is the same in both.\n');
+    expect(untouched.text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago; `pay` is the same in both.\n');
     expect(untouched.text).toContain('No case ran a part of it: the branch at lines 3-5.\n');
 
     await writeFile(join(at, 'src/pay.ts'), PAY.replace('return 0;', 'return -1;'));
@@ -58,22 +61,24 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     await main(['covering', '--root', at, '--file', 'src/pay.ts', '--function', 'pay', '--format', 'refs'], { out: (said) => (refs += said), err: () => {} });
 
     expect(edited.json).toMatchObject({ frame: 'mapped', moved: true, unrun: [{ kind: 'branch', startLine: 2, endLine: 4, moved: true }], ran: { stands: [{ region: 'changed' }] } });
-    expect(edited.text).toContain('src/pay.test.ts ran over another text of src/pay.ts, at a time the record does not hold; `pay` differs between the two.\n');
+    expect(edited.text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago; `pay` differs between the two.\n');
     expect(edited.text).toContain('No case ran a part of it: the edited branch at lines 2-4.\n');
     expect(refs).toMatch(/src\/pay\.ts function pay( \w+)? edited: .*; no case ran 2-4 branch( \w+)? edited$/mu);
   });
 
   it('says no recorded line is a place in a file whose numbering text could not be found', async () => {
-    const { at, commit } = await checkout({ ranOver: `// never committed\n${PAY}` });
+    const ranOver = `// never committed\n${PAY}`;
+    const { at, commit } = await checkout({ ranOver, runs: ranHere({ 'src/pay.ts': digestString(ranOver) }) });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
     expect(json).toMatchObject({ at: commit, frame: 'stale' });
     expect(text).toContain('src/pay.ts is not the text the record\'s lines are numbered in, and that text could not be found, so no recorded line is a place in it.\n');
-    expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, at a time the record does not hold.\n');
+    expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago.\n');
   });
 
   it('lists the cases of a function in such a file, and says no part of it is placed nor compared', async () => {
-    const { at, commit } = await checkout({ ranOver: `// never committed\n${PAY}` });
+    const ranOver = `// never committed\n${PAY}`;
+    const { at, commit } = await checkout({ ranOver, runs: ranHere({ 'src/pay.ts': digestString(ranOver) }) });
     const { text, json } = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
 
     expect(json).toMatchObject({ at: commit, frame: 'stale', target: { function: 'pay' }, tests: [{ id: 'p' }] });
@@ -81,19 +86,24 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(text).toContain('charges once [p]\n');
     expect(text).toContain('src/pay.ts is not the text the record\'s lines are numbered in, and that text could not be found, so no recorded line is a place in it. Which parts of `pay` no case ran are not said for that reason.\n');
     expect(text).toContain(
-      'src/pay.test.ts ran over another text of src/pay.ts, at a time the record does not hold; whether `pay` differs is not known: the record\'s lines of src/pay.ts are not placed in its text as it is now.\n',
+      'src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago; whether `pay` differs is not known: the record\'s lines of src/pay.ts are not placed in its text as it is now.\n',
     );
   });
 
   it('frames no file by a row the build did not instrument, as no other reader of a record does, and compares no text by it', async () => {
-    const { at, commit } = await checkout({ row: 'loaded' });
+    // A run outside a checkout stood at no commit, so the snapshot it wrote is all that says which text it ran over.
+    const landed = iso(Date.now() - 6 * MINUTE);
+    const { at } = await checkout({
+      row: 'loaded',
+      recordedAt: null,
+      runs: () => ({ first: landed, latest: landed, runs: 1, files: ['src/pay.test.ts'], landings: [{ files: ['src/pay.test.ts'], first: landed, latest: landed, runs: 1 }] }),
+    });
     const { text, json } = await ask(at, '--file', 'src/pay.ts');
 
-    expect(json).toMatchObject({ at: commit });
     expect(json).not.toHaveProperty('frame');
     expect(text).toContain('The record does not say which text of src/pay.ts its lines are numbered in, so they are given as recorded.\n');
     expect(text).toContain(
-      'Whether src/pay.test.ts ran over src/pay.ts as it is now, at a time the record does not hold, is not known: the record holds no digest of the text of src/pay.ts it ran over.\n',
+      'Whether src/pay.test.ts ran over src/pay.ts as it is now, in a run that landed 6 minutes ago, is not known: the record holds no digest of the text of src/pay.ts it ran over.\n',
     );
   });
 
@@ -108,7 +118,7 @@ describe('a covering answer says where the record\'s line numbers stand in the a
 
   it('frames no file the run loaded without instrumenting, and says of each test file holding it whether it ran the asked text', async () => {
     const setup = 'export const ready = true;\n';
-    const { at } = await checkout({ setup });
+    const { at } = await checkout({ setup, runs: ranHere() });
     const held = await ask(at, '--file', 'src/setup.ts');
     await writeFile(join(at, 'edited.ts'), `// ready once\n${setup}`);
     const edited = await ask(at, '--file', 'src/setup.ts', '--text', join(at, 'edited.ts'));
@@ -117,14 +127,14 @@ describe('a covering answer says where the record\'s line numbers stand in the a
 
     expect(held.json).toMatchObject({ preconditionOf: ['src/pay.test.ts'], held: 'loaded', ran: { stands: [{ tests: ['src/pay.test.ts'], text: 'held' }] } });
     expect(held.json).not.toHaveProperty('frame');
-    expect(held.text).toContain('src/setup.ts is the text the test file named here ran over, at a time the record does not hold.\n');
+    expect(held.text).toContain('src/setup.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
     expect(edited.json).toMatchObject({ preconditionOf: ['src/pay.test.ts'], ran: { stands: [{ text: 'other', other: ['src/setup.ts'] }] } });
     expect(edited.json).not.toHaveProperty('frame');
-    expect(edited.text).toContain('src/pay.test.ts ran over another text of src/setup.ts, at a time the record does not hold.\n');
+    expect(edited.text).toContain('src/pay.test.ts ran over another text of src/setup.ts, in a run that landed 6 minutes ago.\n');
     expect(gone.json).toMatchObject({ preconditionOf: ['src/pay.test.ts'], unheld: true });
     expect(gone.json).not.toHaveProperty('frame');
     expect(gone.text).toContain('src/setup.ts is not on disk, so no text of it is held.\n');
-    expect(gone.text).toContain('The test file named here last ran at a time the record does not hold.\n');
+    expect(gone.text).toContain('The test file named here last ran in a run that landed 6 minutes ago.\n');
   });
 
   it('gives a journey handed in by path its lines as recorded, and says it names no commit', async () => {
