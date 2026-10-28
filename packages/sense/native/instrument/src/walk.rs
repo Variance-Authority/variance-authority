@@ -66,7 +66,7 @@
 //! mapping to the JavaScript side's UTF-16 offsets is monotone and every
 //! comparison made here in bytes answers the same there.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Write;
 
 use oxc_ast::ast::*;
@@ -82,6 +82,7 @@ mod decisions;
 mod hoisted;
 #[path = "walk_names.rs"]
 mod names;
+use names::Scope;
 #[path = "walk_params.rs"]
 mod params;
 
@@ -130,18 +131,6 @@ enum Body<'b, 'a> {
     None,
     Block(&'b FunctionBody<'a>),
     Expression(&'b Expression<'a>),
-}
-
-struct Scope {
-    name: String,
-    counts: HashMap<String, u32>,
-    anon: u32,
-}
-
-impl Scope {
-    fn new(name: String) -> Self {
-        Self { name, counts: HashMap::new(), anon: 0 }
-    }
 }
 
 pub struct Walker {
