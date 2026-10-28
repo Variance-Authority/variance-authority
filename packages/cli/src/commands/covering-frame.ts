@@ -68,6 +68,16 @@ export async function recordOf(
 }
 
 /**
+ * A record handed in by path that no declared snapshot is, as where its tests
+ * last ran is read: the commit it names, with the runs record beside it.
+ * Nothing when it names none, as a journey file names none.
+ */
+export async function recordNamed(from: string): Promise<{ readonly snapshot: string; readonly at: string } | undefined> {
+  const at = await recordedCommit(from);
+  return at === undefined ? undefined : { snapshot: from, at };
+}
+
+/**
  * The snapshot beside the record the question reads.
  *
  * Undefined for an index handed in by path in a repository that declares

@@ -1,6 +1,7 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { digestString } from '@variance-authority/core/format';
 import { MINUTE, PAY, indexOf, iso, oneRun, recordFixture, type Fixture } from './covering-record.fixture.js';
@@ -147,6 +148,14 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(json).not.toHaveProperty('at');
     expect(text).toContain('The record does not say which text of src/pay.ts its lines are numbered in, so they are given as recorded.\n');
     expect(text).toContain('Where and when the test file named here last ran is not known: the record names no commit.\n');
+  });
+
+  it('dates a record handed in by path by the commit it names and the runs record beside it', async () => {
+    const { at, commit } = await checkout({ runs: ranHere() });
+    const { text, json } = await ask(at, '--file', 'src/pay.ts', '--execution', testCoverageFile(at, { suite: 'unit' }));
+
+    expect(json['ran']).toMatchObject({ stands: [{ commit, tests: ['src/pay.test.ts'], text: 'held' }] });
+    expect(text).toContain('src/pay.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
   });
 
   it('says the record\'s lines are its own when the file is not on disk', async () => {
